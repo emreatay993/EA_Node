@@ -302,7 +302,7 @@ class _ExecutionClientStub:
         self.stop_calls.append(run_id)
 
 
-class _WorkspaceLibraryControllerStub:
+class _WorkspaceNavigationControllerStub:
     def __init__(self) -> None:
         self.focus_calls: list[tuple[str, str]] = []
 
@@ -433,7 +433,7 @@ class _RunHostStub:
         self.console_panel = _ConsoleStub()
         self.execution_client = _ExecutionClientStub(self.registry)
         self.script_editor = _ScriptEditorStub()
-        self.workspace_library_controller = _WorkspaceLibraryControllerStub()
+        self.workspace_navigation_controller = _WorkspaceNavigationControllerStub()
         self.action_run = _ActionStub()
         self.action_stop = _ActionStub()
         self.action_pause = _ActionStub()

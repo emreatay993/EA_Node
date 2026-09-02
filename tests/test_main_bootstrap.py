@@ -341,7 +341,20 @@ class AppBootstrapTests(unittest.TestCase):
         )
         # Controllers and presenters receive the ShellWindow directly; the
         # forwarding host-adapter layer is retired.
-        self.assertIs(services.library_workspace.workspace_library_controller._host, window)
+        self.assertIs(services.library_workspace.workspace_selection_context._host, window)
+        self.assertIs(services.library_workspace.workspace_edit_controller._host, window)
+        self.assertIs(
+            services.library_workspace.workspace_drop_connect_controller._host,
+            window,
+        )
+        self.assertIs(
+            services.library_workspace.workspace_edit_controller.mutation_ui_effects,
+            services.library_workspace.mutation_ui_effects,
+        )
+        self.assertIs(
+            services.library_workspace.workspace_drop_connect_controller.mutation_ui_effects,
+            services.library_workspace.mutation_ui_effects,
+        )
         self.assertIs(services.controllers.project_session_controller._host, window)
         self.assertIs(services.controllers.run_projection_controller._host, window)
         self.assertIs(services.controllers.run_controller._host, window)

@@ -10,7 +10,7 @@ Use this for `category_path`, nested library categories, subnodes, group transfo
 - `ea_node_editor/graph/hierarchy.py`
 - `ea_node_editor/graph/transform_fragment_ops.py`
 - `ea_node_editor/graph/transform_grouping_ops.py`
-- `ea_node_editor/ui/shell/controllers/workspace_graph_edit_controller.py`
+- `ea_node_editor/ui/shell/controllers/workspace_edit_controller.py`
 - `ea_node_editor/ui_qml/shell_library_bridge.py`
 
 ## Focused Verification

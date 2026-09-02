@@ -594,10 +594,16 @@ class ShellWindow(
             self._ensure_embedded_viewer_overlay_manager()
 
     def _wire_signals(self) -> None:
-        self.scene.node_selected.connect(self._on_scene_node_selected)
+        self.scene.node_selected.connect(
+            self.workspace_edit_controller.on_scene_node_selected
+        )
         self.scene.scope_changed.connect(self._on_scene_scope_changed)
-        self.script_editor.script_apply_requested.connect(self._on_node_property_changed)
-        self.workspace_tabs.current_index_changed.connect(self._on_workspace_tab_changed)
+        self.script_editor.script_apply_requested.connect(
+            self.workspace_edit_controller.on_node_property_changed
+        )
+        self.workspace_tabs.current_index_changed.connect(
+            self.workspace_navigation_controller.on_workspace_tab_changed
+        )
         self.project_meta_changed.connect(self._on_project_meta_changed)
 
     def _reset_viewer_session_bridge(self, *, reason: str) -> None:

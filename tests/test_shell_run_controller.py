@@ -1689,8 +1689,8 @@ class ShellRunControllerTests(MainWindowShellTestBase):
 
         workspace_a_id = self.window.workspace_manager.active_workspace_id()
         workspace_b_id = self.window.workspace_manager.create_workspace("Second Workspace")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(workspace_a_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(workspace_a_id)
         self.app.processEvents()
 
         bridge = self.window.quick_widget.rootContext().contextProperty("shellWorkspaceBridge")
@@ -1738,7 +1738,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             self.assertEqual(self.window.run_state.active_run_id, "run_owner")
             self.assertEqual(dispatch_prepared.call_count, 1)
 
-            self.window._switch_workspace(workspace_b_id)
+            self.window.workspace_navigation_controller.switch_workspace(workspace_b_id)
             self.app.processEvents()
 
             wait_for_condition_or_raise(
@@ -1760,7 +1760,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             self.assertEqual(self.window.console_panel.warning_count, warnings_before + 1)
             self.assertIn("A workflow run is already active.", self.window.console_panel.warnings_text)
 
-            self.window._switch_workspace(workspace_a_id)
+            self.window.workspace_navigation_controller.switch_workspace(workspace_a_id)
             self.app.processEvents()
 
             wait_for_condition_or_raise(

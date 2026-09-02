@@ -514,7 +514,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
                 )
             ),
             workspace_manager=SimpleNamespace(active_workspace_id=lambda: "ws-active"),
-            workspace_library_controller=controller,
+            workspace_navigation_controller=controller,
         )
         scene = _GraphCanvasSceneBridgeStub()
         scene._return_values["open_node_link"] = False
@@ -553,7 +553,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
                 )
             ),
             workspace_manager=SimpleNamespace(active_workspace_id=lambda: "ws-active"),
-            workspace_library_controller=controller,
+            workspace_navigation_controller=controller,
         )
         scene = _GraphCanvasSceneBridgeStub()
         scene._workspace_id = "ws-active"

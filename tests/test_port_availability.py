@@ -35,7 +35,9 @@ from ea_node_editor.ui.port_availability import (
     port_availability_for_node,
 )
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
-from ea_node_editor.ui.shell.controllers.workspace_edit_ops import WorkspaceEditOps
+from ea_node_editor.ui.shell.controllers.workspace_edit_controller import (
+    WorkspaceEditController,
+)
 
 
 class _GraphScene:
@@ -357,7 +359,7 @@ def test_rewire_edges_rejects_unavailable_staged_batch_and_copy_atomically(tmp_p
     assert scene.rewire_calls == [([edge_a.edge_id], "target", "", "", False, False)]
 
 
-def test_workspace_edit_ops_forwards_batch_rewire_results_and_selects_effects() -> None:
+def test_workspace_edit_controller_forwards_batch_rewire_results_and_selects_effects() -> None:
     calls: list[tuple[list[object], str, str, str, bool, bool]] = []
     effects: list[str] = []
     results = [
@@ -389,9 +391,9 @@ def test_workspace_edit_ops_forwards_batch_rewire_results_and_selects_effects() 
         )
         return results.pop(0)
 
-    ops = WorkspaceEditOps(
+    ops = WorkspaceEditController(
         SimpleNamespace(graph_interactions=SimpleNamespace(rewire_edges=rewire_edges)),
-        SimpleNamespace(),
+        selection_context=SimpleNamespace(),
         effects=SimpleNamespace(
             after_connected_ports_request=lambda: effects.append("connected"),
             after_edge_removed=lambda: effects.append("removed"),

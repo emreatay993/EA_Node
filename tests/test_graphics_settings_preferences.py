@@ -162,7 +162,7 @@ class _RuntimeTooltipHost:
         self.run_state = SimpleNamespace()
         self.run_controller = SimpleNamespace()
         self.project_session_controller = SimpleNamespace()
-        self.workspace_library_controller = SimpleNamespace()
+        self.workspace_navigation_controller = SimpleNamespace()
         self._SNAP_GRID_SIZE = 20.0
         self.tooltip_manager = TooltipManager(
             tooltip_categories=self.workspace_ui_state.graphics_tooltip_categories,

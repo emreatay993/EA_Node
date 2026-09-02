@@ -10,8 +10,8 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
-from ea_node_editor.ui.shell.controllers.workspace_drop_connect_ops import (
-    WorkspaceDropConnectOps,
+from ea_node_editor.ui.shell.controllers.workspace_drop_connect_controller import (
+    WorkspaceDropConnectController,
 )
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
@@ -240,8 +240,13 @@ class MediaPanelCreationPreferenceTests(unittest.TestCase):
             ),
             scene=SimpleNamespace(active_scope_path=()),
         )
-        controller = SimpleNamespace(active_workspace=lambda: workspace)
-        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+        ops = WorkspaceDropConnectController(
+            host,  # type: ignore[arg-type]
+            active_workspace=lambda: workspace,
+            resolve_custom_workflow_definition=lambda _workflow_id: None,
+            prompt_connection_candidate=lambda **_kwargs: None,
+            effects=SimpleNamespace(),  # type: ignore[arg-type]
+        )
         create_calls: list[dict[str, bool] | None] = []
         ops.insert_library_node = (  # type: ignore[method-assign]
             lambda type_id, x, y, *, exposed_port_overrides=None: (

@@ -2,22 +2,21 @@ from __future__ import annotations
 
 from ea_node_editor.ui.shell.runtime_history import HistoryEntry
 
-from tests.workspace_library_controller_unit.support import *  # noqa: F401,F403
+from tests.workspace_controller_support import *  # noqa: F401,F403
 
 
-class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestBase):
+class WorkspaceEditControllerCoreTests(WorkspaceDirectControllerTestBase):
     def test_request_connect_ports_delegates_and_wraps_result(self) -> None:
         host = _WorkspaceHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.edit
 
         refreshed = {"value": False}
 
         def _mark_refreshed() -> None:
             refreshed["value"] = True
 
-        controller.workspace_navigation_controller.refresh_workspace_tabs = (
-            _mark_refreshed  # type: ignore[method-assign]
-        )
+        owners.navigation.refresh_workspace_tabs = _mark_refreshed  # type: ignore[method-assign]
 
         result = controller.request_connect_ports("node_a", "out", "node_b", "in")
 
@@ -41,17 +40,16 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
         )
         host.runtime_history.undo_return = entry
         host.runtime_history.redo_return = entry
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.edit
         refreshed = {"value": False}
 
         def _mark_refreshed() -> None:
             refreshed["value"] = True
 
-        controller.workspace_navigation_controller.refresh_workspace_tabs = (
-            _mark_refreshed  # type: ignore[method-assign]
-        )
+        owners.navigation.refresh_workspace_tabs = _mark_refreshed  # type: ignore[method-assign]
 
-        effects = controller.workspace_graph_edit_controller.mutation_ui_effects
+        effects = controller.mutation_ui_effects
         with patch.object(
             effects,
             "after_history_replayed",
@@ -88,15 +86,14 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
     def test_redo_returns_false_when_runtime_history_has_no_entry(self) -> None:
         host = _UndoRedoHostStub()
         host.runtime_history.redo_return = None
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.edit
         refreshed = {"value": False}
 
         def _mark_refreshed() -> None:
             refreshed["value"] = True
 
-        controller.workspace_navigation_controller.refresh_workspace_tabs = (
-            _mark_refreshed  # type: ignore[method-assign]
-        )
+        owners.navigation.refresh_workspace_tabs = _mark_refreshed  # type: ignore[method-assign]
 
         redone = controller.redo()
 
@@ -108,18 +105,17 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
 
     def test_cut_selected_nodes_routes_through_delete_selected_path(self) -> None:
         host = _ClipboardHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.edit
         delete_calls: list[list[object]] = []
 
-        controller.workspace_graph_edit_controller.copy_selected_nodes_to_clipboard = (
-            lambda: True
-        )  # type: ignore[method-assign]
+        controller.copy_selected_nodes_to_clipboard = lambda: True  # type: ignore[method-assign]
 
         def _delete_selected(edge_ids: list[object]) -> ControllerResult[bool]:
             delete_calls.append(list(edge_ids))
             return ControllerResult(True, payload=True)
 
-        controller.workspace_graph_edit_controller.request_delete_selected_graph_items = _delete_selected  # type: ignore[method-assign]
+        controller.request_delete_selected_graph_items = _delete_selected  # type: ignore[method-assign]
 
         cut = controller.cut_selected_nodes_to_clipboard()
 
@@ -130,19 +126,16 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
         self,
     ) -> None:
         host = _ClipboardHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.edit
         refreshed = {"value": False}
 
         def _mark_refreshed() -> None:
             refreshed["value"] = True
 
-        controller.workspace_navigation_controller.refresh_workspace_tabs = (
-            _mark_refreshed  # type: ignore[method-assign]
-        )
+        owners.navigation.refresh_workspace_tabs = _mark_refreshed  # type: ignore[method-assign]
         payload = self._valid_fragment_payload()
-        controller.workspace_graph_edit_controller._read_graph_fragment_from_clipboard = (
-            lambda: payload
-        )  # type: ignore[method-assign]
+        controller.read_graph_fragment_from_clipboard = lambda: payload  # type: ignore[method-assign]
 
         pasted = controller.paste_nodes_from_clipboard()
 
@@ -156,12 +149,11 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
     ) -> None:
         host = _ClipboardHostStub()
         host.scene.active_scope_path = ["scope_parent"]
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
-        controller.workspace_navigation_controller.refresh_workspace_tabs = lambda: None  # type: ignore[method-assign]
+        owners = compose_workspace_controllers(host)
+        controller = owners.edit
+        owners.navigation.refresh_workspace_tabs = lambda: None  # type: ignore[method-assign]
         payload = self._valid_fragment_payload()
-        controller.workspace_graph_edit_controller._read_graph_fragment_from_clipboard = (
-            lambda: payload
-        )  # type: ignore[method-assign]
+        controller.read_graph_fragment_from_clipboard = lambda: payload  # type: ignore[method-assign]
 
         pasted = controller.paste_nodes_from_clipboard()
 
@@ -179,12 +171,11 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
 
     def test_paste_nodes_from_clipboard_offsets_consecutive_pastes(self) -> None:
         host = _ClipboardHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.edit
         payload = self._valid_fragment_payload()
-        controller.workspace_graph_edit_controller._read_graph_fragment_from_clipboard = (
-            lambda: payload
-        )  # type: ignore[method-assign]
-        controller.workspace_navigation_controller.refresh_workspace_tabs = lambda: None  # type: ignore[method-assign]
+        controller.read_graph_fragment_from_clipboard = lambda: payload  # type: ignore[method-assign]
+        owners.navigation.refresh_workspace_tabs = lambda: None  # type: ignore[method-assign]
 
         first = controller.paste_nodes_from_clipboard()
         second = controller.paste_nodes_from_clipboard()
@@ -196,18 +187,15 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
 
     def test_paste_nodes_from_clipboard_is_noop_when_clipboard_is_missing(self) -> None:
         host = _ClipboardHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.edit
         refreshed = {"value": False}
 
         def _mark_refreshed() -> None:
             refreshed["value"] = True
 
-        controller.workspace_navigation_controller.refresh_workspace_tabs = (
-            _mark_refreshed  # type: ignore[method-assign]
-        )
-        controller.workspace_graph_edit_controller._read_graph_fragment_from_clipboard = (
-            lambda: None
-        )  # type: ignore[method-assign]
+        owners.navigation.refresh_workspace_tabs = _mark_refreshed  # type: ignore[method-assign]
+        controller.read_graph_fragment_from_clipboard = lambda: None  # type: ignore[method-assign]
 
         pasted = controller.paste_nodes_from_clipboard()
 
@@ -216,9 +204,12 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
         self.assertEqual(host.selected_node_changed.calls, 0)
         self.assertFalse(refreshed["value"])
 
+
+class WorkspaceNavigationControllerCoreTests(WorkspaceDirectControllerTestBase):
     def test_jump_to_graph_node_opens_scope_before_focus(self) -> None:
         host = _ScopeFocusHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.navigation
         workspace_id = host.workspace_manager.active_workspace_id()
         node_id = host.model.add_node(
             workspace_id,
@@ -228,10 +219,8 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
             y=10.0,
         ).node_id
 
-        controller.workspace_navigation_controller.reveal_parent_chain = (
-            lambda _workspace_id, _node_id: []
-        )  # type: ignore[method-assign]
-        controller.workspace_navigation_controller.center_on_selection = lambda: True  # type: ignore[method-assign]
+        owners.navigation.reveal_parent_chain = lambda _workspace_id, _node_id: []  # type: ignore[method-assign]
+        owners.navigation.center_on_selection = lambda: True  # type: ignore[method-assign]
 
         jumped = controller.jump_to_graph_node(workspace_id, node_id)
 
@@ -241,14 +230,15 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
 
     def test_focus_failed_node_opens_scope_for_each_focus_candidate(self) -> None:
         host = _ScopeFocusHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.navigation
         workspace_id = host.workspace_manager.active_workspace_id()
 
-        controller.workspace_navigation_controller.reveal_parent_chain = (
-            lambda _workspace_id, _node_id: ["ancestor_a"]
-        )  # type: ignore[method-assign]
+        owners.navigation.reveal_parent_chain = lambda _workspace_id, _node_id: [
+            "ancestor_a"
+        ]  # type: ignore[method-assign]
         focused: list[str] = []
-        controller.workspace_navigation_controller.center_on_node = lambda node_id: (
+        owners.navigation.center_on_node = lambda node_id: (
             focused.append(node_id) or True
         )  # type: ignore[method-assign]
         host.scene.focus_results = {
@@ -262,19 +252,20 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
         self.assertEqual(host.scene.focus_calls, ["node_target"])
         self.assertEqual(focused, ["node_target"])
 
+
+class WorkspaceEditControllerNodeChangeTests(WorkspaceDirectControllerTestBase):
     def test_on_node_property_changed_refreshes_shell_payload_for_direct_child_pin(
         self,
     ) -> None:
         host = _PinPropertyHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.edit
         refreshed = {"value": False}
 
         def _mark_refreshed() -> None:
             refreshed["value"] = True
 
-        controller.workspace_navigation_controller.refresh_workspace_tabs = (
-            _mark_refreshed  # type: ignore[method-assign]
-        )
+        owners.navigation.refresh_workspace_tabs = _mark_refreshed  # type: ignore[method-assign]
         workspace_id = host.workspace_manager.active_workspace_id()
         shell_node = host.model.add_node(
             workspace_id,
@@ -305,8 +296,9 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
         self,
     ) -> None:
         host = _PinPropertyHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
-        controller.workspace_navigation_controller.refresh_workspace_tabs = lambda: None  # type: ignore[method-assign]
+        owners = compose_workspace_controllers(host)
+        controller = owners.edit
+        owners.navigation.refresh_workspace_tabs = lambda: None  # type: ignore[method-assign]
         workspace_id = host.workspace_manager.active_workspace_id()
         logger_node = host.model.add_node(
             workspace_id,

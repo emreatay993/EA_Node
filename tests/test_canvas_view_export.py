@@ -107,7 +107,8 @@ class _FakeHost:
         self.app_preferences_controller = SimpleNamespace()
         self.scene = SimpleNamespace()
         self.view = None
-        self.workspace_library_controller = SimpleNamespace()
+        self.workspace_edit_controller = SimpleNamespace()
+        self.workspace_drop_connect_controller = SimpleNamespace()
         self.hints: list[tuple[str, int]] = []
 
     def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:

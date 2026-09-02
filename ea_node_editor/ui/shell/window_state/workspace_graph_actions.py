@@ -120,7 +120,7 @@ class ShellWindowWorkspaceGraphActionsMixin:
 
     @pyqtSlot()
     def request_rename_workspace(self: "ShellWindow") -> None:
-        self._rename_active_workspace()
+        self.workspace_navigation_controller.rename_active_workspace()
 
     @pyqtSlot(str, result=bool)
     def request_rename_workspace_by_id(self: "ShellWindow", workspace_id: str) -> bool:
@@ -128,11 +128,11 @@ class ShellWindowWorkspaceGraphActionsMixin:
 
     @pyqtSlot()
     def request_duplicate_workspace(self: "ShellWindow") -> None:
-        self._duplicate_active_workspace()
+        self.workspace_navigation_controller.duplicate_active_workspace()
 
     @pyqtSlot()
     def request_close_workspace(self: "ShellWindow") -> None:
-        self._close_active_workspace()
+        self.workspace_navigation_controller.close_active_workspace()
 
     @pyqtSlot(str, result=bool)
     def request_close_workspace_by_id(self: "ShellWindow", workspace_id: str) -> bool:
@@ -162,11 +162,11 @@ class ShellWindowWorkspaceGraphActionsMixin:
 
     @pyqtSlot(result=bool)
     def request_undo(self: "ShellWindow") -> bool:
-        return bool(self._undo())
+        return bool(self.workspace_edit_controller.undo())
 
     @pyqtSlot(result=bool)
     def request_redo(self: "ShellWindow") -> bool:
-        return bool(self._redo())
+        return bool(self.workspace_edit_controller.redo())
 
     @pyqtSlot(str, str, str, str, bool, result=bool)
     def request_connect_ports(
@@ -210,15 +210,15 @@ class ShellWindowWorkspaceGraphActionsMixin:
 
     @pyqtSlot(str, result=bool)
     def request_remove_edge(self: "ShellWindow", edge_id: str) -> bool:
-        return bool(self.workspace_library_controller.request_remove_edge(edge_id).payload)
+        return bool(self.workspace_edit_controller.request_remove_edge(edge_id).payload)
 
     @pyqtSlot(str, result=bool)
     def request_ungroup_node(self: "ShellWindow", node_id: str) -> bool:
-        return bool(self.workspace_library_controller.request_ungroup_node(node_id).payload)
+        return bool(self.workspace_edit_controller.request_ungroup_node(node_id).payload)
 
     @pyqtSlot(str, result=bool)
     def request_remove_node(self: "ShellWindow", node_id: str) -> bool:
-        return bool(self.workspace_library_controller.request_remove_node(node_id).payload)
+        return bool(self.workspace_edit_controller.request_remove_node(node_id).payload)
 
     @pyqtSlot(str, result=str)
     def request_add_selected_subnode_pin(self: "ShellWindow", direction: str) -> str:
@@ -226,15 +226,15 @@ class ShellWindowWorkspaceGraphActionsMixin:
 
     @pyqtSlot(str, result=bool)
     def request_rename_node(self: "ShellWindow", node_id: str) -> bool:
-        return bool(self.workspace_library_controller.request_rename_node(node_id).payload)
+        return bool(self.workspace_edit_controller.request_rename_node(node_id).payload)
 
     @pyqtSlot(str, result=bool)
     def request_rename_selected_port(self: "ShellWindow", key: str) -> bool:
-        return bool(self.workspace_library_controller.request_rename_selected_port(key).payload)
+        return bool(self.workspace_edit_controller.request_rename_selected_port(key).payload)
 
     @pyqtSlot(str, result=bool)
     def request_remove_selected_port(self: "ShellWindow", key: str) -> bool:
-        return bool(self.workspace_library_controller.request_remove_selected_port(key).payload)
+        return bool(self.workspace_edit_controller.request_remove_selected_port(key).payload)
 
     @pyqtSlot(str, "QVariant")
     def set_selected_node_property(self: "ShellWindow", key: str, value: Any) -> None:
@@ -325,149 +325,6 @@ class ShellWindowWorkspaceGraphActionsMixin:
     @pyqtSlot(bool)
     def set_selected_node_collapsed(self: "ShellWindow", collapsed: bool) -> None:
         self.shell_inspector_presenter.set_selected_node_collapsed(collapsed)
-
-    def _switch_workspace_by_offset(self: "ShellWindow", offset):
-        return self.workspace_library_controller.switch_workspace_by_offset(offset)
-
-    def _refresh_workspace_tabs(self: "ShellWindow"):
-        return self.workspace_library_controller.refresh_workspace_tabs()
-
-    def _switch_workspace(self: "ShellWindow", workspace_id):
-        return self.workspace_library_controller.switch_workspace(workspace_id)
-
-    def _save_active_view_state(self: "ShellWindow"):
-        return self.workspace_library_controller.save_active_view_state()
-
-    def _restore_active_view_state(self: "ShellWindow"):
-        return self.workspace_library_controller.restore_active_view_state()
-
-    def _visible_scene_rect(self: "ShellWindow"):
-        return self.workspace_library_controller.visible_scene_rect()
-
-    def _current_workspace_scene_bounds(self: "ShellWindow"):
-        return self.workspace_library_controller.current_workspace_scene_bounds()
-
-    def _selection_bounds(self: "ShellWindow"):
-        return self.workspace_library_controller.selection_bounds()
-
-    def _frame_all(self: "ShellWindow"):
-        return self.workspace_library_controller.frame_all()
-
-    def _frame_selection(self: "ShellWindow"):
-        return self.workspace_library_controller.frame_selection()
-
-    def _frame_node(self: "ShellWindow", node_id):
-        return self.workspace_library_controller.frame_node(node_id)
-
-    def _center_on_node(self: "ShellWindow", node_id):
-        return self.workspace_library_controller.center_on_node(node_id)
-
-    def _center_on_selection(self: "ShellWindow"):
-        return self.workspace_library_controller.center_on_selection()
-
-    def _search_graph_nodes(self: "ShellWindow", query, limit=10, enabled_scopes=None):
-        return self.workspace_library_controller.search_graph_nodes(
-            query,
-            limit,
-            enabled_scopes=enabled_scopes,
-        )
-
-    def _jump_to_graph_node(self: "ShellWindow", workspace_id, node_id):
-        return self.workspace_library_controller.jump_to_graph_node(workspace_id, node_id)
-
-    def _create_view(self: "ShellWindow"):
-        return self.workspace_library_controller.create_view()
-
-    def _switch_view(self: "ShellWindow", view_id):
-        return self.workspace_library_controller.switch_view(view_id)
-
-    def _rename_view(self: "ShellWindow", view_id):
-        return self.workspace_library_controller.rename_view(view_id)
-
-    def _create_workspace(self: "ShellWindow"):
-        return self.workspace_library_controller.create_workspace()
-
-    def _rename_active_workspace(self: "ShellWindow"):
-        return self.workspace_library_controller.rename_active_workspace()
-
-    def _duplicate_active_workspace(self: "ShellWindow"):
-        return self.workspace_library_controller.duplicate_active_workspace()
-
-    def _close_active_workspace(self: "ShellWindow"):
-        return self.workspace_library_controller.close_active_workspace()
-
-    def _on_workspace_tab_changed(self: "ShellWindow", index):
-        return self.workspace_library_controller.on_workspace_tab_changed(index)
-
-    def _on_workspace_tab_close(self: "ShellWindow", index):
-        return self.workspace_library_controller.on_workspace_tab_close(index)
-
-    def _add_node_from_library(self: "ShellWindow", type_id):
-        return self.workspace_library_controller.add_node_from_library(type_id)
-
-    def _insert_library_node(self: "ShellWindow", type_id, x, y):
-        return self.workspace_library_controller.insert_library_node(type_id, x, y)
-
-    def _active_workspace(self: "ShellWindow"):
-        return self.workspace_library_controller.active_workspace()
-
-    def _prompt_connection_candidate(self: "ShellWindow", *, title, label, candidates):
-        return self.workspace_library_controller.prompt_connection_candidate(
-            title=title,
-            label=label,
-            candidates=candidates,
-        )
-
-    def _auto_connect_dropped_node_to_port(
-        self: "ShellWindow",
-        new_node_id,
-        target_node_id,
-        target_port_key,
-    ):
-        return self.workspace_library_controller.auto_connect_dropped_node_to_port(
-            new_node_id,
-            target_node_id,
-            target_port_key,
-        )
-
-    def _auto_connect_dropped_node_to_edge(self: "ShellWindow", new_node_id, target_edge_id):
-        return self.workspace_library_controller.auto_connect_dropped_node_to_edge(new_node_id, target_edge_id)
-
-    def _on_scene_node_selected(self: "ShellWindow", node_id):
-        return self.workspace_library_controller.on_scene_node_selected(node_id)
-
-    def _on_node_property_changed(self: "ShellWindow", node_id, key, value):
-        return self.workspace_library_controller.on_node_property_changed(node_id, key, value)
-
-    def _on_port_exposed_changed(self: "ShellWindow", node_id, key, exposed):
-        return self.workspace_library_controller.on_port_exposed_changed(node_id, key, exposed)
-
-    def _on_node_collapse_changed(self: "ShellWindow", node_id, collapsed):
-        return self.workspace_library_controller.on_node_collapse_changed(node_id, collapsed)
-
-    def _undo(self: "ShellWindow"):
-        return self.workspace_library_controller.undo()
-
-    def _redo(self: "ShellWindow"):
-        return self.workspace_library_controller.redo()
-
-    def _selected_node_context(self: "ShellWindow"):
-        return self.workspace_library_controller.selected_node_context()
-
-    def _reveal_parent_chain(self: "ShellWindow", workspace_id, node_id):
-        return self.workspace_library_controller.reveal_parent_chain(workspace_id, node_id)
-
-    def _import_custom_workflow(self: "ShellWindow"):
-        return self.workspace_library_controller.import_custom_workflow()
-
-    def _export_custom_workflow(self: "ShellWindow"):
-        return self.workspace_library_controller.export_custom_workflow()
-
-    def _import_node_package(self: "ShellWindow"):
-        return self.workspace_library_controller.import_node_package()
-
-    def _export_node_package(self: "ShellWindow"):
-        return self.workspace_library_controller.export_node_package()
 
 
 __all__ = [

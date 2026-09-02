@@ -1317,7 +1317,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         long_name = "Demo 1 - Static Displacement Viewer"
         self.window.workspace_manager.create_workspace(short_name)
         self.window.workspace_manager.create_workspace(long_name)
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
         self.app.processEvents()
 
         def _has_expected_tab_buttons() -> bool:
@@ -1351,7 +1351,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         )
         workspace_id = self.window.workspace_manager.create_workspace(long_name)
         self.window.workspace_tabs.activate_workspace(workspace_id)
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
         self.app.processEvents()
 
         def _has_long_tab_label() -> bool:
@@ -1427,7 +1427,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             self.window.workspace_manager.create_workspace(
                 f"Overflow Workspace {index} - Static Displacement Viewer"
             )
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
         self.app.processEvents()
 
         wait_for_condition_or_raise(
@@ -1791,8 +1791,8 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
     def test_request_rename_workspace_by_id_updates_target_workspace_label(self) -> None:
         original_workspace_id = self.window.workspace_manager.active_workspace_id()
         renamed_workspace_id = self.window.workspace_manager.create_workspace("Second")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(original_workspace_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(original_workspace_id)
         self.app.processEvents()
 
         with patch.object(
@@ -1846,7 +1846,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
 
     def test_command_actions_and_workspace_shortcuts_are_wired(self) -> None:
         self.window.workspace_manager.create_workspace("Second")
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
         self.window.workspace_tabs.setCurrentIndex(0)
         self.app.processEvents()
 
@@ -2069,8 +2069,8 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
     def test_graph_search_ranking_prefers_title_matches_and_limits_to_ten_results(self) -> None:
         workspace_a_id = self.window.workspace_manager.active_workspace_id()
         self.window.workspace_manager.rename_workspace(workspace_a_id, "Alpha Space")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(workspace_a_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(workspace_a_id)
 
         prefix_id = self.window.scene.add_node_from_type("core.constant", x=20.0, y=20.0)
         self.window.scene.set_node_title(prefix_id, "core. prefix title")
@@ -2082,8 +2082,8 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.window.scene.set_node_title(type_zulu_id, "Zulu")
 
         workspace_b_id = self.window.workspace_manager.create_workspace("Beta Space")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(workspace_b_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(workspace_b_id)
         for index in range(12):
             node_id = self.window.scene.add_node_from_type("core.constant", x=20.0 * index, y=120.0)
             self.window.scene.set_node_title(node_id, f"Node {index:02d}")
@@ -2231,8 +2231,8 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
     def test_graph_search_jump_switches_workspace_reveals_parent_chain_and_centers_selection(self) -> None:
         source_workspace_id = self.window.workspace_manager.active_workspace_id()
         target_workspace_id = self.window.workspace_manager.create_workspace("Target Space")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(target_workspace_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(target_workspace_id)
 
         parent_id = self.window.scene.add_node_from_type("core.constant", x=140.0, y=80.0)
         child_id = self.window.scene.add_node_from_type("core.logger", x=640.0, y=360.0)
@@ -2242,7 +2242,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.window.scene.set_node_title(child_id, "Needle Jump Node")
         self.app.processEvents()
 
-        self.window._switch_workspace(source_workspace_id)
+        self.window.workspace_navigation_controller.switch_workspace(source_workspace_id)
         self.window.view.set_zoom(0.65)
         self.window.view.centerOn(-420.0, -260.0)
 
@@ -2274,8 +2274,8 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
     def test_graph_search_jump_opens_subnode_scope_for_nested_match(self) -> None:
         source_workspace_id = self.window.workspace_manager.active_workspace_id()
         target_workspace_id = self.window.workspace_manager.create_workspace("Scoped Search Target")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(target_workspace_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(target_workspace_id)
 
         shell_id = self.window.scene.add_node_from_type("core.subnode", x=260.0, y=150.0)
         nested_node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=100.0)
@@ -2285,7 +2285,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.window.scene.set_node_title(nested_node_id, "Nested Needle Result")
         self.app.processEvents()
 
-        self.window._switch_workspace(source_workspace_id)
+        self.window.workspace_navigation_controller.switch_workspace(source_workspace_id)
         self.window.action_graph_search.trigger()
         self.window.set_graph_search_query("nested needle")
         self.app.processEvents()
@@ -2311,7 +2311,9 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.app.processEvents()
 
         self.assertEqual(self.window.scene.active_scope_path, [])
-        self.window.workspace_library_controller.focus_failed_node(workspace_id, nested_node_id)
+        self.window.workspace_navigation_controller.focus_failed_node(
+            workspace_id, nested_node_id
+        )
         self.app.processEvents()
 
         self.assertEqual(self.window.scene.active_scope_path, [shell_id])

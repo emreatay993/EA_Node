@@ -47,7 +47,9 @@ from ea_node_editor.nodes.node_specs import property_visible_in_inspector
 from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import ArrayDataRef, TabularDataRef
-from ea_node_editor.ui.shell.controllers.workspace_edit_ops import WorkspaceEditOps
+from ea_node_editor.ui.shell.controllers.workspace_edit_controller import (
+    WorkspaceEditController,
+)
 
 
 def _context(
@@ -252,16 +254,24 @@ def test_selected_property_edit_uses_tabular_adapter_for_array_slice_fields() ->
         def active_workspace(self):
             return SimpleNamespace(nodes={node.node_id: node}, edges={})
 
-        def on_node_property_changed(self, node_id, key, value):  # noqa: ANN001
-            changed.append((node_id, key, value))
-
     host = SimpleNamespace(
         project_path="",
         model=SimpleNamespace(project=SimpleNamespace(metadata={})),
         app_preferences_controller=SimpleNamespace(document=default_app_preferences_document),
+        scene=SimpleNamespace(
+            set_node_property=lambda node_id, key, value: changed.append(
+                (node_id, key, value)
+            )
+        ),
     )
 
-    WorkspaceEditOps(host, _Controller()).set_selected_node_property("array_slice_2d_column_start", "C")
+    WorkspaceEditController(
+        host,  # type: ignore[arg-type]
+        selection_context=_Controller(),  # type: ignore[arg-type]
+        effects=SimpleNamespace(
+            after_selected_node_property_changed=lambda *_args, **_kwargs: None
+        ),  # type: ignore[arg-type]
+    ).set_selected_node_property("array_slice_2d_column_start", "C")
 
     assert changed == [
         (

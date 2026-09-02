@@ -354,7 +354,7 @@ class GraphCanvasPresenter(QObject):
         target_edge_id: str,
         append_requested: bool = False,
     ) -> bool:
-        result = self._host.workspace_library_controller.request_drop_node_from_library(
+        result = self._host.workspace_drop_connect_controller.request_drop_node_from_library(
             type_id,
             scene_x,
             scene_y,
@@ -374,7 +374,7 @@ class GraphCanvasPresenter(QObject):
         properties: dict[str, Any],
     ) -> bool:
         return bool(
-            self._host.workspace_library_controller.insert_library_node_with_properties(
+            self._host.workspace_drop_connect_controller.insert_library_node_with_properties(
                 type_id,
                 dict(properties or {}),
                 float(scene_x),
@@ -647,7 +647,7 @@ class GraphCanvasPresenter(QObject):
         port_b: str,
         append_requested: bool = False,
     ) -> bool:
-        result = self._host.workspace_library_controller.request_connect_ports(
+        result = self._host.workspace_edit_controller.request_connect_ports(
             node_a_id,
             port_a,
             node_b_id,
@@ -667,7 +667,7 @@ class GraphCanvasPresenter(QObject):
         copy_requested: bool = False,
         append_requested: bool = False,
     ) -> bool:
-        result = self._host.workspace_library_controller.request_rewire_edges(
+        result = self._host.workspace_edit_controller.request_rewire_edges(
             edge_ids,
             endpoint,
             node_id,

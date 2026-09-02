@@ -40,18 +40,8 @@ class _SearchScopeHostProtocol(Protocol):
     scene: Any
     view: Any
     workspace_manager: Any
+    workspace_navigation_controller: Any
     _GRAPH_SEARCH_LIMIT: int
-
-    def _search_graph_nodes(
-        self,
-        query: str,
-        limit: int,
-        enabled_scopes: list[str] | None = None,
-    ) -> list[dict[str, Any]]: ...
-
-    def _jump_to_graph_node(self, workspace_id: str, node_id: str) -> bool: ...
-
-    def _frame_all(self) -> bool: ...
 
     def request_close_graph_search(self) -> None: ...
 
@@ -110,7 +100,7 @@ class WindowSearchScopeController:
         if not normalized_query:
             self.set_graph_search_state(query="", results=[], highlight_index=-1)
             return
-        ranked = self._host._search_graph_nodes(
+        ranked = self._host.workspace_navigation_controller.search_graph_nodes(
             normalized_query,
             limit=self._host._GRAPH_SEARCH_LIMIT,
             enabled_scopes=graph_search.enabled_scopes,
@@ -154,7 +144,9 @@ class WindowSearchScopeController:
         if index < 0 or index >= len(graph_search.results):
             index = 0
         result = graph_search.results[index]
-        jumped = self._host._jump_to_graph_node(result["workspace_id"], result["node_id"])
+        jumped = self._host.workspace_navigation_controller.jump_to_graph_node(
+            result["workspace_id"], result["node_id"]
+        )
         if jumped:
             self._host.request_close_graph_search()
         return bool(jumped)
@@ -243,7 +235,7 @@ class WindowSearchScopeController:
         if not changed:
             return False
         if not self.restore_scope_camera():
-            self._host._frame_all()
+            self._host.workspace_navigation_controller.frame_all()
         self._host.workspace_state_changed.emit()
         return True
 

@@ -24,7 +24,7 @@ class _RunEventHostProtocol(Protocol):
     run_state: ShellRunState
     registry: Any
     console_panel: Any
-    workspace_library_controller: Any
+    workspace_navigation_controller: Any
     viewer_session_bridge: Any
     _RUN_SCOPED_EVENT_TYPES: set[str]
 
@@ -116,7 +116,7 @@ class RunEventController:
                 ),
             )
             if status == "failed":
-                self._host.workspace_library_controller.focus_failed_node(
+                self._host.workspace_navigation_controller.focus_failed_node(
                     workspace_id,
                     node_id,
                 )
@@ -219,7 +219,7 @@ class RunEventController:
         )
         self._host.console_panel.append_log("error", event.get("traceback", ""))
         self._update_notification_counters()
-        self._host.workspace_library_controller.focus_failed_node(
+        self._host.workspace_navigation_controller.focus_failed_node(
             event.get("workspace_id", ""),
             event.get("node_id", ""),
         )

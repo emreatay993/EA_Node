@@ -1,6 +1,6 @@
 # COREX Runtime, Registry, and Presentation Ownership Refactor
 
-Status: `CHECKPOINT — T13 ACCEPTED; NEXT T14`
+Status: `CHECKPOINT — T14 ACCEPTED; NEXT T15`
 
 ## Summary
 

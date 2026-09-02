@@ -36,7 +36,7 @@ $env:QT_QUICK_CONTROLS_STYLE = "Basic"
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_node_host.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction SilentlyContinue
 .\venv\Scripts\python.exe -m pytest tests/main_window_shell/shell_basics_and_search.py tests/test_library_projection.py tests/test_quick_insert_projection.py tests/test_shell_library_projection_cache.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_main_window_shell.py tests/test_workspace_library_controller_unit.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_main_window_shell.py tests/test_workspace_navigation_controller.py --ignore=venv -q
 ```
 
 ## Breadcrumbs

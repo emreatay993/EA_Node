@@ -566,7 +566,7 @@ class _ShellWorkspacePresenterHostStub(QObject):
             graphics_minimap_expanded=False,
             snap_to_grid_enabled=False,
         )
-        self.workspace_library_controller = SimpleNamespace(
+        self.workspace_navigation_controller = SimpleNamespace(
             switch_view=lambda target_id: None,
             move_view=lambda from_index, to_index: True,
             rename_view=lambda view_id: True,

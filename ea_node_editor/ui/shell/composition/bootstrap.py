@@ -102,8 +102,10 @@ def _run_shell_startup_sequence(host: "ShellWindow") -> None:
     host.quick_widget = qml_host.widget if qml_host.host_kind == QML_HOST_QQUICKWIDGET else qml_host
     host._restore_session()
     host._ensure_project_metadata_defaults()
-    host._refresh_workspace_tabs()
-    host._switch_workspace(host.workspace_manager.active_workspace_id())
+    host.workspace_navigation_controller.refresh_workspace_tabs()
+    host.workspace_navigation_controller.switch_workspace(
+        host.workspace_manager.active_workspace_id()
+    )
     host._restore_script_editor_state()
 
 

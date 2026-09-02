@@ -213,7 +213,7 @@ class _ScriptEditorStub:
         self.panel_width = 0.0
 
 
-class _WorkspaceLibraryControllerStub:
+class _WorkspaceNavigationControllerStub:
     def __init__(self) -> None:
         self.save_active_view_state_calls = 0
         self.refresh_workspace_tabs_calls = 0
@@ -354,8 +354,7 @@ class _ProjectHostStub:
             self.project_path,
             self.model.project.metadata.get("solution_store"),
         )
-        self.workspace_library_controller = _WorkspaceLibraryControllerStub()
-        self.workspace_navigation_controller = self.workspace_library_controller
+        self.workspace_navigation_controller = _WorkspaceNavigationControllerStub()
         self.script_editor = _ScriptEditorStub()
         self.action_toggle_script_editor = object()
         self.scene = _SceneStub()
@@ -1272,7 +1271,7 @@ class ProjectSaveAsFlowTests(unittest.TestCase):
             self.assertFalse(next(iter(host.model.project.workspaces.values())).dirty)
             self.assertEqual(host.project_meta_changed.emit_count, 1)
             self.assertEqual(
-                host.workspace_library_controller.refresh_workspace_tabs_calls, 1
+                host.workspace_navigation_controller.refresh_workspace_tabs_calls, 1
             )
             self.assertEqual(host.session_store.discard_calls, 1)
             self.assertEqual(len(host.session_store.persist_calls), 1)

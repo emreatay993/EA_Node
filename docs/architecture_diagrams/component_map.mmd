@@ -49,7 +49,12 @@ flowchart LR
     SW --> RPROJ[RunProjectionController]
     SW --> REVENT[RunEventController]
     SW --> PSC[ProjectSessionController]
-    SW --> WLC[WorkspaceLibraryController]
+    SW --> WSEL[WorkspaceSelectionContext]
+    SW --> WNAV[WorkspaceNavigationController]
+    SW --> WEDIT[WorkspaceEditController]
+    SW --> WDROP[WorkspaceDropConnectController]
+    SW --> WFLOW[WorkflowLibraryController]
+    SW --> WPKG[WorkspacePackageIOController]
     SW --> SEARCH[window_search_scope_state]
     SW --> INSPECTOR_HELPERS[library, inspector, and quick-insert projection owners]
     SW --> TBRIDGE
@@ -66,19 +71,20 @@ flowchart LR
     GS --> XFORM[graph.transforms]
     GS --> HIST[(RuntimeGraphHistory)]
 
-    WLC --> NAV[WorkspaceViewNavOps]
-    WLC --> EDIT[WorkspaceEditOps]
-    WLC --> DROP[WorkspaceDropConnectOps]
-    WLC --> IO[WorkspaceIOOps]
-    WLC --> GI[GraphInteractions]
+    WNAV --> NAV[WorkspaceViewNavOps]
+    WEDIT --> EFFECTS[MutationUiEffects]
+    WDROP --> EFFECTS
+    WEDIT --> GI[GraphInteractions]
+    WPKG --> IO[WorkspaceIOOps]
     INSPECTOR_HELPERS --> EFFECTIVE[graph.effective_ports]
 
-    EDIT --> GS
+    WEDIT --> GS
+    WDROP --> GS
     GI --> GS
     NAV --> WM[WorkspaceManager]
     WM --> GR
 
-    WLC --> CWF[custom_workflows codec]
+    WFLOW --> CWF[custom_workflows codec]
     CWF --> GCWF[(custom_workflows_global.json)]
 
     APC --> APPPREF[(app_preferences.json)]

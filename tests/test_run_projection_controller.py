@@ -724,7 +724,7 @@ class RunProjectionControllerTests(unittest.TestCase):
         )
         self.assertEqual(host.run_state.completed_node_ids, set())
         self.assertEqual(
-            host.workspace_library_controller.focus_calls,
+            host.workspace_navigation_controller.focus_calls,
             [(workspace_id, node.node_id)],
         )
 
@@ -748,7 +748,7 @@ class RunProjectionControllerTests(unittest.TestCase):
         self.assertEqual(host.run_state.empty_node_ids, {node.node_id})
         self.assertNotIn(node.node_id, host.run_state.root_errors_by_node_id)
         self.assertEqual(
-            host.workspace_library_controller.focus_calls,
+            host.workspace_navigation_controller.focus_calls,
             [(workspace_id, node.node_id)],
         )
 
@@ -768,7 +768,7 @@ class RunProjectionControllerTests(unittest.TestCase):
         )
         self.assertEqual(host.run_state.empty_node_ids, set())
         self.assertEqual(
-            host.workspace_library_controller.focus_calls,
+            host.workspace_navigation_controller.focus_calls,
             [(workspace_id, node.node_id)],
         )
 

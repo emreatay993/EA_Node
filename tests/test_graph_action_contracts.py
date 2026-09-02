@@ -6,6 +6,7 @@ import unittest
 from dataclasses import fields
 from tempfile import TemporaryDirectory
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from ea_node_editor.ui.shell.controllers.graph_action_controller import GraphActionController
@@ -179,6 +180,7 @@ FOLDER_EXPLORER_ACTION_PAYLOAD_KEYS = {
 class _GraphActionSource:
     def __init__(self) -> None:
         self.calls: list[tuple[str, tuple[object, ...]]] = []
+        self.backdrop_nodes_model: list[dict[str, object]] = []
         self.nodes_model = [
             {
                 "node_id": "locked-node",
@@ -206,14 +208,21 @@ class _GraphActionSource:
     def straighten_selection_connections(self) -> bool:
         return self._record("straighten_selection_connections")
 
-    def request_delete_selected_graph_items(self, edge_ids: list[object]) -> bool:
-        return self._record("request_delete_selected_graph_items", edge_ids)
+    def request_delete_selected_graph_items(self, edge_ids: list[object]):  # noqa: ANN201
+        return SimpleNamespace(
+            payload=self._record("request_delete_selected_graph_items", edge_ids)
+        )
 
     def request_open_subnode_scope(self, node_id: str) -> bool:
         return self._record("request_open_subnode_scope", node_id)
 
     def request_publish_custom_workflow_from_node(self, node_id: str) -> bool:
         return self._record("request_publish_custom_workflow_from_node", node_id)
+
+    def publish_custom_workflow_from_node(self, node_id: str):  # noqa: ANN201
+        return SimpleNamespace(
+            payload=self._record("publish_custom_workflow_from_node", node_id)
+        )
 
     def open_comment_peek(self, node_id: str) -> bool:
         return self._record("open_comment_peek", node_id)
@@ -278,14 +287,14 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
         workspace = _GraphActionSource()
         canvas_presenter = _GraphActionSource()
         host_presenter = _GraphActionSource()
-        library_presenter = _GraphActionSource()
+        workflow = _GraphActionSource()
         scene = _GraphActionSource()
         addon_manager = _GraphActionSource()
         controller = GraphActionController(
-            workspace_library_controller=workspace,
+            workspace_edit_controller=workspace,
+            workflow_library_controller=workflow,
             graph_canvas_presenter=canvas_presenter,
             graph_canvas_host_presenter=host_presenter,
-            shell_library_presenter=library_presenter,
             scene_bridge=scene,
             addon_manager_bridge=addon_manager,
         )
@@ -328,6 +337,7 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
                 ("set_selection_same_type_width", (("node-1", "node-2"),)),
                 ("set_selection_same_type_height", (("node-3", "node-4"),)),
                 ("straighten_selection_connections", ()),
+                ("request_delete_selected_graph_items", (["edge-1"],)),
             ],
         )
         self.assertEqual(
@@ -337,14 +347,13 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
         self.assertEqual(
             host_presenter.calls,
             [
-                ("request_delete_selected_graph_items", (["edge-1"],)),
                 ("request_remove_edge", ("edge-1",)),
                 ("request_propagate_passive_node_style", ("node-3",)),
             ],
         )
         self.assertEqual(
-            library_presenter.calls,
-            [("request_publish_custom_workflow_from_node", ("node-2",))],
+            workflow.calls,
+            [("publish_custom_workflow_from_node", ("node-2",))],
         )
         self.assertEqual(
             scene.calls,
@@ -380,6 +389,7 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
         import ea_node_editor.ui.shell.controllers.graph_action_controller as controller_module
 
         class _PathPointerScene:
+            backdrop_nodes_model = []
             nodes_model = [
                 {
                     "node_id": "pp-1",
@@ -420,6 +430,7 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
         import ea_node_editor.ui.shell.controllers.graph_action_controller as controller_module
 
         class _EmptyPathPointerScene:
+            backdrop_nodes_model = []
             nodes_model = [
                 {"node_id": "pp-1", "type_id": "io.path_pointer", "properties": {"path": ""}}
             ]

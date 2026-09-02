@@ -34,11 +34,10 @@ def create_graph_action_dependencies(
     context_bridges: "ShellContextBridgeDependencies",
 ) -> ShellGraphActionDependencies:
     graph_action_controller = GraphActionController(
-        workspace_library_controller=library_workspace.workspace_library_controller,
-        workspace_graph_edit_controller=library_workspace.workspace_library_controller.workspace_graph_edit_controller,
+        workspace_edit_controller=library_workspace.workspace_edit_controller,
+        workflow_library_controller=library_workspace.workflow_library_controller,
         graph_canvas_presenter=presenters.graph_canvas_presenter,
         graph_canvas_host_presenter=presenters.graph_canvas_host_presenter,
-        shell_library_presenter=presenters.shell_library_presenter,
         scene_bridge=primitives.scene,
         help_bridge=context_bridges.help_bridge,
         addon_manager_bridge=context_bridges.addon_manager_bridge,

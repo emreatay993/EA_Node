@@ -2206,7 +2206,7 @@ container nodes or internalization commands.
   - `ea_node_editor/ui/shell/controllers/run_controller.py`
   - `ea_node_editor/ui/shell/state.py`
   - `ea_node_editor/ui/shell/controllers/mutation_ui_effects.py`
-  - `ea_node_editor/ui/shell/controllers/workspace_edit_ops.py`
+  - `ea_node_editor/ui/shell/controllers/workspace_edit_controller.py`
   - `ea_node_editor/ui/shell/window_state/run_and_style_state.py`
   - `ea_node_editor/ui/graph_interactions.py`
   - `ea_node_editor/ui_qml/graph_scene/context.py`
@@ -2317,7 +2317,7 @@ container nodes or internalization commands.
   - exact node-level availability clearing uses invalidation results and prepared
     recompute IDs; late/rejected settlements cannot republish availability;
   - remove mutation-time workspace-wide availability clears from
-    `graph_interactions.py` and `workspace_edit_ops.py`; keep workspace clears only
+    `graph_interactions.py` and `workspace_edit_controller.py`; keep workspace clears only
     for true project/workspace replacement;
   - old mutable shell freshness fields/flags and duplicate closure logic removed;
   - keep `fresh_run_node_lookup` only as a derived current-only compatibility fact

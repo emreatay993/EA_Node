@@ -103,7 +103,7 @@ class RunEventControllerTests(unittest.TestCase):
         )
         self.assertEqual(host._notifications, (0, 2))
         self.assertEqual(
-            host.workspace_library_controller.focus_calls,
+            host.workspace_navigation_controller.focus_calls,
             [(host.model.active_workspace.workspace_id, "node_1")],
         )
         self.assertEqual(host.run_state.active_run_id, "")

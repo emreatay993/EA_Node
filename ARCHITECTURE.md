@@ -422,7 +422,12 @@ flowchart LR
     SW --> RPROJ[RunProjectionController]
     SW --> REVENT[RunEventController]
     SW --> PSC[ProjectSessionController]
-    SW --> WLC[WorkspaceLibraryController]
+    SW --> WSEL[WorkspaceSelectionContext]
+    SW --> WNAV[WorkspaceNavigationController]
+    SW --> WEDIT[WorkspaceEditController]
+    SW --> WDROP[WorkspaceDropConnectController]
+    SW --> WFLOW[WorkflowLibraryController]
+    SW --> WPKG[WorkspacePackageIOController]
     SW --> SEARCH[window_search_scope_state]
     SW --> INSPECTOR_HELPERS[library, inspector, and quick-insert projection owners]
     SW --> TBRIDGE
@@ -439,19 +444,20 @@ flowchart LR
     GS --> XFORM[graph.transforms]
     GS --> HIST[(RuntimeGraphHistory)]
 
-    WLC --> NAV[WorkspaceViewNavOps]
-    WLC --> EDIT[WorkspaceEditOps]
-    WLC --> DROP[WorkspaceDropConnectOps]
-    WLC --> IO[WorkspaceIOOps]
-    WLC --> GI[GraphInteractions]
+    WNAV --> NAV[WorkspaceViewNavOps]
+    WEDIT --> EFFECTS[MutationUiEffects]
+    WDROP --> EFFECTS
+    WEDIT --> GI[GraphInteractions]
+    WPKG --> IO[WorkspaceIOOps]
     INSPECTOR_HELPERS --> EFFECTIVE[graph.effective_ports]
 
-    EDIT --> GS
+    WEDIT --> GS
+    WDROP --> GS
     GI --> GS
     NAV --> WM[WorkspaceManager]
     WM --> GR
 
-    WLC --> CWF[custom_workflows codec]
+    WFLOW --> CWF[custom_workflows codec]
     CWF --> GCWF[(custom_workflows_global.json)]
 
     APC --> APPPREF[(app_preferences.json)]
@@ -661,7 +667,7 @@ sequenceDiagram
 - `NodeRegistry` via `build_default_registry()` (trusted internals plus statically discovered immutable function bundles),
 - serializer/session store (`JsonProjectSerializer`, `SessionAutosaveStore`),
 - `GraphModel` + `WorkspaceManager` + `RuntimeGraphHistory`,
-- controller layer (`AppPreferencesController`, `WorkspaceLibraryController`, `ProjectSessionController`, `RunController`, `RunProjectionController`, `RunEventController`),
+- controller layer (`AppPreferencesController`, direct workspace selection/navigation/edit/drop/workflow/package owners, `ProjectSessionController`, `RunController`, `RunProjectionController`, `RunEventController`),
 - QML bridges/models (`ThemeBridge`, `GraphThemeBridge`, `GraphSceneBridge`, `ViewportBridge`, `ShellLibraryBridge`, `ShellWorkspaceBridge`, `ShellInspectorBridge`, `AddOnManagerBridge`, `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, `GraphActionBridge`, and content/viewer/script/status/help surfaces),
 - execution runtime (`CorexRuntime` over `ExecutionBackendClient`) and its one queued shell event subscription.
 6. Graphics preferences are loaded into `ShellWindow`, updating runtime grid/minimap/snap, shell-theme, and graph-theme state before the shell is shown.
@@ -686,7 +692,7 @@ sequenceDiagram
 - If a drag is released over a valid compatible port, normal `request_connect_ports()` flow runs.
 - If the drag is released on empty space, `GraphCanvas.qml` opens `ConnectionQuickInsertOverlay.qml` through `graphCanvasCommandBridge` and `shellLibraryBridge`.
 - `ShellLibraryPresenter` and its presenter-state helpers build source-port context using effective port resolution, then ask `quick_insert_projection.py` for compatible node-library results.
-- Quick insert acceptance reuses `request_drop_node_from_library(..., target_mode="port", ...)`, so insertion and auto-connect still flow through `WorkspaceDropConnectOps`.
+- Quick insert acceptance reuses `request_drop_node_from_library(..., target_mode="port", ...)`, so insertion and auto-connect flow through `WorkspaceDropConnectController`.
 
 ### 1b) Inline node controls
 - `PropertySpec.inline_editor` declares whether a property can render inside the standard graph-node surface.
@@ -852,7 +858,7 @@ sequenceDiagram
 - Change execution semantics or event behavior: `ea_node_editor/execution/runtime_snapshot.py`, `ea_node_editor/execution/runtime_snapshot_assembly.py`, `ea_node_editor/execution/worker_runtime.py`, `ea_node_editor/execution/run_messages.py`, `ea_node_editor/execution/viewer_messages.py`, and `ea_node_editor/execution/protocol_codec.py`.
 - Change run orchestration/UI reaction: `ea_node_editor/ui/shell/controllers/run_controller.py`.
 - Change project/session/autosave orchestration: `ea_node_editor/ui/shell/controllers/project_session_controller.py` and `ea_node_editor/persistence/session_store.py`.
-- Change workspace/view/library/search behavior: `ea_node_editor/ui/shell/controllers/workspace_library_controller.py` and helper ops.
+- Change workspace/view/library/search behavior through the direct owners in `ea_node_editor/ui/shell/controllers/{workspace_selection_context.py,workspace_navigation_controller.py,workspace_edit_controller.py,workspace_drop_connect_controller.py,workflow_library_controller.py,workspace_package_io_controller.py}`.
 - Change shell-to-QML boundary ownership: `ea_node_editor/ui_qml/{shell_context_bootstrap.py,shell_library_bridge.py,shell_workspace_bridge.py,shell_inspector_bridge.py,shell_addon_manager_bridge.py,graph_canvas_state/,graph_canvas_command/,viewport_bridge.py,content_fullscreen_bridge.py,viewer_session_bridge.py,viewer_host_service.py}`, `ea_node_editor/ui_qml/components/GraphCanvas.qml`, plus the corresponding `ui_qml/components/shell/*` consumers.
 - Change graph-scene internal boundary ownership: `ea_node_editor/ui_qml/{graph_scene_bridge.py,graph_scene_scope_selection.py,graph_scene_mutation_history.py,graph_scene_payload/}`.
 - Change shell QML composition layout: `ea_node_editor/ui_qml/MainShell.qml` and `ea_node_editor/ui_qml/components/shell/*`.

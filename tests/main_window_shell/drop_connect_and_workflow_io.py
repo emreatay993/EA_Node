@@ -30,7 +30,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
     def test_file_menu_new_project_resets_to_blank_project(self) -> None:
         self.window.scene.add_node_from_type("core.constant", x=40.0, y=40.0)
         self.window.workspace_manager.create_workspace("Second")
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
         self.window.project_path = str(Path(self._temp_dir.name) / "existing_project.cxproj")
         self.app.processEvents()
 
@@ -701,7 +701,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
 
         with tempfile.TemporaryDirectory() as temp_dir:
             export_target = Path(temp_dir) / "exported_custom_workflow"
-            self.window.workspace_library_controller._prompt_custom_workflow_export_definition = (  # type: ignore[method-assign]
+            self.window.workspace_package_io_controller.prompt_custom_workflow_export_definition = (  # type: ignore[method-assign]
                 lambda definitions: definitions[0]
             )
             with (
@@ -712,7 +712,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
                 patch("PyQt6.QtWidgets.QMessageBox.information"),
                 patch("PyQt6.QtWidgets.QMessageBox.warning"),
             ):
-                self.window._export_custom_workflow()
+                self.window.workspace_package_io_controller.export_custom_workflow()
             self.app.processEvents()
 
             export_path = export_target.with_suffix(".cxwf")
@@ -739,7 +739,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
                 patch("PyQt6.QtWidgets.QMessageBox.information"),
                 patch("PyQt6.QtWidgets.QMessageBox.warning"),
             ):
-                self.window._import_custom_workflow()
+                self.window.workspace_package_io_controller.import_custom_workflow()
             self.app.processEvents()
 
         imported_definitions = self.window.model.project.metadata.get("custom_workflows", [])
@@ -797,8 +797,10 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
 
         self.window.node_library_changed.connect(_mark_library_changed)
         self.window.project_session_controller._install_project(restored_project, project_path="restored.cxproj")
-        self.window.workspace_library_controller.refresh_workspace_tabs()
-        self.window.workspace_library_controller.switch_workspace(self.window.workspace_manager.active_workspace_id())
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(
+            self.window.workspace_manager.active_workspace_id()
+        )
         self.app.processEvents()
 
         self.assertGreaterEqual(library_changed["count"], 1)
@@ -846,8 +848,10 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
             self.window.serializer.to_document(self.window.model.project)
         )
         self.window.project_session_controller._install_project(restored_project, project_path="collapsed-reset.cxproj")
-        self.window.workspace_library_controller.refresh_workspace_tabs()
-        self.window.workspace_library_controller.switch_workspace(self.window.workspace_manager.active_workspace_id())
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(
+            self.window.workspace_manager.active_workspace_id()
+        )
         self.app.processEvents()
 
         collapsed_categories = _collapsed_map()

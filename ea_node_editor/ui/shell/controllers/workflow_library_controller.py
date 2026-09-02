@@ -1,7 +1,10 @@
+# Purpose: Own project/global custom-workflow library state and publication.
+# Map: feature_routes/workflow_library_drop_connect
+# Tests: tests/test_workflow_library_controller.py
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.addons.catalog import create_live_workflow_definitions
 from ea_node_editor.custom_workflows import (
@@ -13,8 +16,6 @@ from ea_node_editor.custom_workflows import (
     upsert_custom_workflow_definition,
 )
 from ea_node_editor.graph.hierarchy import scope_parent_id
-from ea_node_editor.graph.workspace_state import WorkspaceData
-from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.transforms import build_subnode_custom_workflow_snapshot_data
 from ea_node_editor.nodes.category_paths import (
     category_display,
@@ -24,13 +25,15 @@ from ea_node_editor.nodes.category_paths import (
 from ea_node_editor.nodes.builtins.subnode import SUBNODE_TYPE_ID
 from ea_node_editor.ui.shell.controllers.dialog_support import resolve_dialog_parent
 from ea_node_editor.ui.shell.controllers.result import ControllerResult
+from ea_node_editor.ui.shell.controllers.workspace_selection_context import (
+    WorkspaceSelectionContext,
+)
 from ea_node_editor.ui.shell.runtime_clipboard import (
     build_graph_fragment_payload,
     normalize_graph_fragment_payload,
 )
 
 if TYPE_CHECKING:
-    from ea_node_editor.nodes.node_specs import NodeTypeSpec
     from ea_node_editor.ui.shell.window import ShellWindow
 
 _CUSTOM_WORKFLOW_DESCRIPTION = "Project-local custom workflow snapshot."
@@ -44,20 +47,14 @@ def _published_workflow_id(shell_node_id: object) -> str:
     return f"wf_shell_{normalized_shell_node_id}" if normalized_shell_node_id else ""
 
 
-class _WorkflowLibraryControllerProtocol(Protocol):
-    def selected_node_context(self) -> tuple[NodeInstance, NodeTypeSpec] | None: ...
-
-    def active_workspace(self) -> WorkspaceData | None: ...
-
-
 class WorkflowLibraryController:
     def __init__(
         self,
         host: ShellWindow,
-        controller: _WorkflowLibraryControllerProtocol,
+        selection_context: WorkspaceSelectionContext,
     ) -> None:
         self._host = host
-        self._controller = controller
+        self._selection_context = selection_context
         self._shown_global_migration_report: tuple[str, ...] = ()
 
     def project_metadata(self) -> dict[str, Any]:
@@ -414,7 +411,7 @@ class WorkflowLibraryController:
         return ControllerResult(True, payload=True)
 
     def publish_custom_workflow_from_selected_subnode(self) -> ControllerResult[bool]:
-        selected = self._controller.selected_node_context()
+        selected = self._selection_context.selected_node_context()
         if selected is None:
             return ControllerResult(False, "Select a subnode shell to publish.", payload=False)
         node, _spec = selected
@@ -435,7 +432,7 @@ class WorkflowLibraryController:
         return self.publish_custom_workflow_from_shell(normalized_node_id)
 
     def publish_custom_workflow_from_shell(self, shell_node_id: str) -> ControllerResult[bool]:
-        workspace = self._controller.active_workspace()
+        workspace = self._selection_context.active_workspace()
         if workspace is None:
             return ControllerResult(False, "Workspace not found.", payload=False)
         shell_node = workspace.nodes.get(str(shell_node_id).strip())

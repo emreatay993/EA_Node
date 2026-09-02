@@ -5,18 +5,15 @@ from types import SimpleNamespace
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.ui.shell.controllers import WorkspaceLibraryController
+from ea_node_editor.ui.shell.controllers.mutation_ui_effects import MutationUiEffects
 from ea_node_editor.ui.shell.controllers.project_session_controller import (
     _WorkspaceSessionAdapter,
 )
 from ea_node_editor.ui.shell.controllers.workflow_library_controller import (
     WorkflowLibraryController,
 )
-from ea_node_editor.ui.shell.controllers.workspace_drop_connect_ops import (
-    WorkspaceDropConnectOps,
-)
-from ea_node_editor.ui.shell.controllers.workspace_graph_edit_controller import (
-    WorkspaceGraphEditController,
+from ea_node_editor.ui.shell.controllers.workspace_drop_connect_controller import (
+    WorkspaceDropConnectController,
 )
 from ea_node_editor.ui.shell.controllers.workspace_navigation_controller import (
     WorkspaceNavigationController,
@@ -24,11 +21,13 @@ from ea_node_editor.ui.shell.controllers.workspace_navigation_controller import 
 from ea_node_editor.ui.shell.controllers.workspace_package_io_controller import (
     WorkspacePackageIOController,
 )
+from ea_node_editor.ui.shell.controllers.workspace_selection_context import (
+    WorkspaceSelectionContext,
+)
 from ea_node_editor.ui.shell.controllers.workspace_view_nav_ops import (
     WorkspaceViewNavOps,
 )
-from tests.workspace_library_controller_unit.core_ops import *  # noqa: F401,F403
-from tests.workspace_library_controller_unit.custom_workflow_io import *  # noqa: F401,F403
+from tests.workspace_controller_support import compose_workspace_controllers
 
 
 class _SignalCounter:
@@ -281,6 +280,22 @@ class _SelectingDropConnectControllerStub(_DropConnectControllerStub):
         return candidates[0] if candidates else None
 
 
+def _drop_connect_owner(
+    host: object,
+    callbacks: _DropConnectControllerStub,
+) -> WorkspaceDropConnectController:
+    effects = MutationUiEffects(host=host, refresh_workspace_tabs=lambda: None)
+    return WorkspaceDropConnectController(
+        host,  # type: ignore[arg-type]
+        active_workspace=callbacks.active_workspace,
+        resolve_custom_workflow_definition=(
+            callbacks.resolve_custom_workflow_definition
+        ),
+        prompt_connection_candidate=callbacks.prompt_connection_candidate,
+        effects=effects,
+    )
+
+
 class _DropConnectSceneStub:
     def __init__(self, model: GraphModel, workspace_id: str, registry) -> None:  # noqa: ANN001
         self._model = model
@@ -413,144 +428,112 @@ class ProjectSessionWorkspaceSurfaceTests(unittest.TestCase):
         )
 
 
-class WorkspaceLibraryControllerCapabilityCompositionTests(unittest.TestCase):
+class WorkspaceDirectControllerCompositionTests(unittest.TestCase):
     def test_controller_initializes_focused_controller_owners_with_direct_surfaces(
         self,
     ) -> None:
-        controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(SimpleNamespace())
 
-        self.assertIsInstance(
-            controller.workflow_library_controller, WorkflowLibraryController
-        )
-        self.assertIsInstance(
-            controller.workspace_navigation_controller, WorkspaceNavigationController
-        )
-        self.assertIsInstance(
-            controller.workspace_graph_edit_controller, WorkspaceGraphEditController
-        )
-        self.assertIsInstance(
-            controller.workspace_package_io_controller, WorkspacePackageIOController
-        )
-        self.assertIs(
-            controller.workspace_navigation_controller._ops._controller,
-            controller.workspace_navigation_controller,
-        )
-        self.assertIs(
-            controller.workspace_graph_edit_controller._drop_connect_ops._controller,
-            controller.workspace_graph_edit_controller,
-        )
-        self.assertIs(
-            controller.workspace_graph_edit_controller._edit_ops._controller,
-            controller.workspace_graph_edit_controller,
-        )
-        self.assertIs(
-            controller.workspace_package_io_controller._ops._controller,
-            controller.workspace_package_io_controller,
-        )
+        self.assertIsInstance(owners.workflow, WorkflowLibraryController)
+        self.assertIsInstance(owners.navigation, WorkspaceNavigationController)
+        self.assertIsInstance(owners.drop, WorkspaceDropConnectController)
+        self.assertIsInstance(owners.package, WorkspacePackageIOController)
+        self.assertIs(owners.edit.mutation_ui_effects, owners.effects)
+        self.assertIs(owners.drop.mutation_ui_effects, owners.effects)
+        self.assertIs(owners.navigation._ops._controller, owners.navigation)
+        self.assertIs(owners.package._ops._controller, owners.package)
+
+    def test_selection_context_is_shared_by_direct_edit_and_workflow_owners(
+        self,
+    ) -> None:
+        owners = compose_workspace_controllers(SimpleNamespace())
+
+        self.assertIsInstance(owners.selection, WorkspaceSelectionContext)
+        self.assertIs(owners.edit._selection_context, owners.selection)
+        self.assertIs(owners.workflow._selection_context, owners.selection)
 
     def test_internal_capabilities_delegate_only_to_focused_subcontrollers(
         self,
     ) -> None:
-        controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
-        refresh_calls: list[str] = []
-        controller.workspace_graph_edit_controller.selected_node_context = lambda: (
-            "selected"
-        )  # type: ignore[method-assign]
-        controller.workspace_graph_edit_controller.refresh_workspace_tabs = lambda: (
-            refresh_calls.append("tabs")
-        )  # type: ignore[method-assign]
-        controller.workspace_graph_edit_controller.resolve_custom_workflow_definition = (
-            lambda workflow_id: {  # type: ignore[method-assign]
-                "workflow_id": workflow_id
-            }
-        )
-        controller.workspace_package_io_controller.prompt_custom_workflow_export_definition = (  # type: ignore[method-assign]
-            lambda definitions: definitions[0] if definitions else None
-        )
+        owners = compose_workspace_controllers(SimpleNamespace())
 
-        self.assertEqual(
-            controller.workspace_graph_edit_controller.selected_node_context(),
-            "selected",
-        )
-        controller.workspace_graph_edit_controller.refresh_workspace_tabs()
-        self.assertEqual(refresh_calls, ["tabs"])
-        self.assertEqual(
-            controller.workspace_graph_edit_controller.resolve_custom_workflow_definition(
-                "wf-1"
-            ),
-            {"workflow_id": "wf-1"},
-        )
-        self.assertEqual(
-            controller.workspace_package_io_controller.prompt_custom_workflow_export_definition(
-                [{"workflow_id": "wf-2"}]
-            ),
-            {"workflow_id": "wf-2"},
-        )
+        self.assertFalse(hasattr(owners, "workspace_library_controller"))
+        self.assertFalse(hasattr(owners, "workspace_graph_edit_controller"))
+        self.assertIsNot(owners.edit, owners.drop)
+        self.assertIs(owners.edit.mutation_ui_effects, owners.drop.mutation_ui_effects)
 
 
-class WorkspaceLibraryControllerFocusedSurfaceTests(unittest.TestCase):
+class WorkspaceDropConnectControllerCallbackTests(unittest.TestCase):
     def test_graph_edit_controller_uses_workflow_library_callback_surface(self) -> None:
-        controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
-        controller.workflow_library_controller.resolve_custom_workflow_definition = (
-            lambda workflow_id: {  # type: ignore[method-assign]
-                "workflow_id": workflow_id
-            }
-        )
+        host = SimpleNamespace()
+        callbacks = _DropConnectControllerStub(GraphModel().active_workspace)
+        callbacks.resolve_custom_workflow_definition = lambda workflow_id: {
+            "workflow_id": workflow_id
+        }
+        controller = _drop_connect_owner(host, callbacks)
 
         self.assertEqual(
-            controller.workspace_graph_edit_controller.resolve_custom_workflow_definition(
-                "wf-1"
-            ),
+            controller._resolve_custom_workflow_definition("wf-1"),
             {"workflow_id": "wf-1"},
         )
 
+
+class WorkspaceEditControllerEffectsTests(unittest.TestCase):
     def test_graph_edit_controller_uses_navigation_refresh_callback_surface(
         self,
     ) -> None:
-        controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(SimpleNamespace())
         refresh_calls: list[str] = []
-        controller.workspace_navigation_controller.refresh_workspace_tabs = lambda: (
-            refresh_calls.append("refresh")
-        )  # type: ignore[method-assign]
+        owners.navigation.refresh_workspace_tabs = lambda: refresh_calls.append(
+            "refresh"
+        )
 
-        controller.workspace_graph_edit_controller.refresh_workspace_tabs()
+        owners.effects.refresh_workspace_tabs()
 
         self.assertEqual(refresh_calls, ["refresh"])
 
+
+class WorkspacePackageIOControllerCallbackTests(unittest.TestCase):
     def test_package_io_controller_uses_workflow_library_definition_surfaces(
         self,
     ) -> None:
-        controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
         recorded_definitions: list[list[dict[str, object]]] = []
         definitions = [{"workflow_id": "wf-1"}]
-        controller.workflow_library_controller.custom_workflow_definitions = lambda: (
-            list(definitions)
-        )  # type: ignore[method-assign]
-        controller.workflow_library_controller.set_custom_workflow_definitions = (
-            lambda items: recorded_definitions.append(list(items))
-        )  # type: ignore[method-assign]
-
-        self.assertEqual(
-            controller.workspace_package_io_controller.custom_workflow_definitions(),
-            definitions,
+        controller = WorkspacePackageIOController(
+            SimpleNamespace(),  # type: ignore[arg-type]
+            lambda: list(definitions),
+            lambda items: recorded_definitions.append(list(items)),
         )
+
+        self.assertEqual(controller.custom_workflow_definitions(), definitions)
 
         updated = [{"workflow_id": "wf-2"}]
-        controller.workspace_package_io_controller.set_custom_workflow_definitions(
-            updated
-        )
+        controller.set_custom_workflow_definitions(updated)
 
         self.assertEqual(recorded_definitions, [updated])
 
+    def test_prompt_custom_workflow_export_definition_returns_only_definition(
+        self,
+    ) -> None:
+        controller = WorkspacePackageIOController(
+            SimpleNamespace(),  # type: ignore[arg-type]
+            lambda: [],
+            lambda _items: None,
+        )
+        definition = {"workflow_id": "wf-1"}
 
-class WorkspaceLibraryControllerCloseViewTests(unittest.TestCase):
+        self.assertIs(
+            controller.prompt_custom_workflow_export_definition([definition]),
+            definition,
+        )
+
+
+class WorkspaceNavigationControllerCloseViewTests(unittest.TestCase):
     def test_close_view_uses_search_scope_controller_for_camera_state(self) -> None:
         host = _CloseViewHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        controller = WorkspaceNavigationController(host)  # type: ignore[arg-type]
         restore_calls: list[str] = []
-        controller.workspace_navigation_controller.restore_active_view_state = lambda: (
-            restore_calls.append("restore")
-        )  # type: ignore[method-assign]
+        controller.restore_active_view_state = lambda: restore_calls.append("restore")  # type: ignore[method-assign]
 
         closed = controller.close_view("view-2")
 
@@ -570,7 +553,7 @@ class WorkspaceLibraryControllerCloseViewTests(unittest.TestCase):
         self.assertEqual(host.workspace_state_changed.calls, 1)
 
 
-class WorkspaceLibraryControllerDelegationTests(unittest.TestCase):
+class WorkspaceDropConnectControllerInsertionTests(unittest.TestCase):
     def test_library_insert_records_successful_explicit_choice(self) -> None:
         recorded_usage: list[str] = []
         host = SimpleNamespace(
@@ -580,7 +563,7 @@ class WorkspaceLibraryControllerDelegationTests(unittest.TestCase):
             ),
         )
         controller = _DropConnectControllerStub(GraphModel().active_workspace)
-        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+        ops = _drop_connect_owner(host, controller)
 
         node_id = ops.insert_library_node("core.python_script", 12.0, 34.0)
 
@@ -603,7 +586,7 @@ class WorkspaceLibraryControllerDelegationTests(unittest.TestCase):
         )
         host.scene.create_result = ""
         controller = _DropConnectControllerStub(GraphModel().active_workspace)
-        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+        ops = _drop_connect_owner(host, controller)
 
         self.assertEqual(ops.insert_library_node("core.logger", 12.0, 34.0), "")
         self.assertEqual(recorded_usage, [])
@@ -611,7 +594,7 @@ class WorkspaceLibraryControllerDelegationTests(unittest.TestCase):
     def test_library_insert_with_properties_is_unselected(self) -> None:
         host = _LibraryInsertionHostStub()
         controller = _DropConnectControllerStub(GraphModel().active_workspace)
-        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+        ops = _drop_connect_owner(host, controller)
 
         node_id = ops.insert_library_node_with_properties(
             "core.logger",
@@ -625,18 +608,18 @@ class WorkspaceLibraryControllerDelegationTests(unittest.TestCase):
         self.assertFalse(create_call["select_node"])
         self.assertEqual(create_call["property_overrides"], {"level": "warning"})
 
+
+class WorkspaceNavigationControllerCreationTests(unittest.TestCase):
     def test_create_workspace_uses_controller_refresh_and_switch_hooks(self) -> None:
         from unittest.mock import patch
 
         host = _CreateWorkspaceHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        controller = WorkspaceNavigationController(host)  # type: ignore[arg-type]
         refresh_calls: list[str] = []
         switch_calls: list[str] = []
-        controller.workspace_navigation_controller.refresh_workspace_tabs = lambda: (
-            refresh_calls.append("refresh")
-        )  # type: ignore[method-assign]
-        controller.workspace_navigation_controller.switch_workspace = (
-            lambda workspace_id: switch_calls.append(workspace_id)
+        controller.refresh_workspace_tabs = lambda: refresh_calls.append("refresh")  # type: ignore[method-assign]
+        controller.switch_workspace = lambda workspace_id: switch_calls.append(
+            workspace_id
         )  # type: ignore[method-assign]
 
         with patch(
@@ -650,9 +633,12 @@ class WorkspaceLibraryControllerDelegationTests(unittest.TestCase):
         self.assertEqual(refresh_calls, ["refresh"])
         self.assertEqual(switch_calls, ["ws-created"])
 
+
+class WorkspaceDropConnectControllerViewportTests(unittest.TestCase):
     def test_add_node_from_library_does_not_refresh_workspace_tabs(self) -> None:
         host = _LibraryInsertHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        callbacks = _DropConnectControllerStub(GraphModel().active_workspace)
+        controller = _drop_connect_owner(host, callbacks)
         insert_calls: list[tuple[str, float, float]] = []
         refresh_calls: list[str] = []
 
@@ -660,15 +646,13 @@ class WorkspaceLibraryControllerDelegationTests(unittest.TestCase):
             insert_calls.append((type_id, x_value, y_value))
             return "node-1"
 
-        controller.workspace_graph_edit_controller.insert_library_node = _insert  # type: ignore[method-assign]
-        controller.workspace_navigation_controller.refresh_workspace_tabs = lambda: (
-            refresh_calls.append("refresh")
-        )  # type: ignore[method-assign]
+        controller.insert_library_node = _insert  # type: ignore[method-assign]
 
         controller.add_node_from_library("core.logger")
 
         self.assertEqual(insert_calls, [("core.logger", 125.0, 220.0)])
         self.assertEqual(refresh_calls, [])
+
 
 class WorkspaceViewNavOpsMutationServiceTests(unittest.TestCase):
     def test_create_view_uses_model_view_mutation_without_workspace_manager_view_helpers(
@@ -734,7 +718,7 @@ class WorkspaceViewNavOpsMutationServiceTests(unittest.TestCase):
         self.assertEqual(host.workspace_state_changed.calls, 1)
 
 
-class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
+class WorkspaceDropConnectControllerValidationTests(unittest.TestCase):
     def test_auto_connect_dropped_node_to_port_replaces_occupied_data_input(
         self,
     ) -> None:
@@ -761,7 +745,7 @@ class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
         scene = _DropConnectSceneStub(model, workspace.workspace_id, registry)
         host = SimpleNamespace(registry=registry, scene=scene)
         controller = _SelectingDropConnectControllerStub(workspace)
-        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+        ops = _drop_connect_owner(host, controller)
 
         connected = ops.auto_connect_dropped_node_to_port(
             new_node.node_id, target.node_id, "true_value"
@@ -793,7 +777,7 @@ class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
         scene = _DropConnectSceneStub(model, workspace_id, registry)
         host = SimpleNamespace(registry=registry, scene=scene)
         controller = _SelectingDropConnectControllerStub(workspace)
-        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+        ops = _drop_connect_owner(host, controller)
 
         connected = ops.auto_connect_dropped_node_to_port(
             new_node.node_id, target.node_id, "right"
@@ -840,7 +824,7 @@ class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
         scene = _DropConnectSceneStub(model, workspace_id, registry)
         host = SimpleNamespace(registry=registry, scene=scene)
         controller = _SelectingDropConnectControllerStub(workspace)
-        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+        ops = _drop_connect_owner(host, controller)
 
         connected = ops.auto_connect_dropped_node_to_port(
             new_node.node_id, target.node_id, "right"
@@ -889,7 +873,7 @@ class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
         scene = _DropConnectSceneStub(model, workspace_id, registry)
         host = SimpleNamespace(registry=registry, scene=scene)
         controller = _SelectingDropConnectControllerStub(workspace)
-        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+        ops = _drop_connect_owner(host, controller)
 
         connected = ops.auto_connect_dropped_node_to_edge(
             new_node.node_id, original_edge.edge_id
@@ -948,7 +932,7 @@ class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
         scene = _DropConnectSceneStub(model, workspace_id, registry)
         host = SimpleNamespace(registry=registry, scene=scene)
         controller = _SelectingDropConnectControllerStub(workspace)
-        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+        ops = _drop_connect_owner(host, controller)
 
         connected = ops.auto_connect_dropped_node_to_edge(
             new_node.node_id, original_edge.edge_id

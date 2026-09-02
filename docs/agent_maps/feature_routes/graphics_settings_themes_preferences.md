@@ -49,7 +49,7 @@ Use this for graph themes, graphics settings, app preferences, theme editor dial
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/qml_preference_rendering_suite.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_theme_editor_dialog.py tests/test_graphics_settings_dialog.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py tests/test_graphics_settings_preferences.py tests/test_graphics_settings_dialog.py tests/test_media_panel_creation_preferences.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_app_preferences_import_defaults.py tests/test_workspace_library_controller_unit.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_app_preferences_import_defaults.py tests/test_workspace_navigation_controller.py tests/test_workspace_drop_connect_controller.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_split_bridges.py tests/test_graph_scene_bridge_bind_regression.py tests/main_window_shell/shell_basics_and_search.py -k "graphics_settings_properties_are_exposed_to_qml or qml_invokable_slots_exist_for_shell_buttons or split_canvas_bridges" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/qml_preference_bindings.py --ignore=venv -q
 ```

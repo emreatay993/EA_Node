@@ -255,8 +255,8 @@ class TestNumberSliderQueryParser:
 
 class TestNumberSliderInsertChain:
     def test_drop_ops_insert_with_properties_routes_to_canonical_creator(self, registry) -> None:
-        from ea_node_editor.ui.shell.controllers.workspace_drop_connect_ops import (
-            WorkspaceDropConnectOps,
+        from ea_node_editor.ui.shell.controllers.workspace_drop_connect_controller import (
+            WorkspaceDropConnectController,
         )
 
         calls = {}
@@ -272,7 +272,13 @@ class TestNumberSliderInsertChain:
             scene = _Scene()
             app_preferences_controller = None
 
-        ops = WorkspaceDropConnectOps(_Host(), controller=None)
+        ops = WorkspaceDropConnectController(
+            _Host(),
+            active_workspace=lambda: None,
+            resolve_custom_workflow_definition=lambda _workflow_id: None,
+            prompt_connection_candidate=lambda **_kwargs: None,
+            effects=object(),  # type: ignore[arg-type]
+        )
         node_id = ops.insert_library_node_with_properties(
             NUMBER_SLIDER_TYPE_ID,
             {"minimum": 0.0, "value": 5.0, "maximum": 10.0},
@@ -286,12 +292,18 @@ class TestNumberSliderInsertChain:
         assert calls["property_overrides"] == {"minimum": 0.0, "value": 5.0, "maximum": 10.0}
 
     def test_drop_ops_rejects_custom_workflow_type_ids(self) -> None:
-        from ea_node_editor.ui.shell.controllers.workspace_drop_connect_ops import (
-            WorkspaceDropConnectOps,
+        from ea_node_editor.ui.shell.controllers.workspace_drop_connect_controller import (
+            WorkspaceDropConnectController,
         )
 
         class _Host:
             scene = None
 
-        ops = WorkspaceDropConnectOps(_Host(), controller=None)
+        ops = WorkspaceDropConnectController(
+            _Host(),
+            active_workspace=lambda: None,
+            resolve_custom_workflow_definition=lambda _workflow_id: None,
+            prompt_connection_candidate=lambda **_kwargs: None,
+            effects=object(),  # type: ignore[arg-type]
+        )
         assert ops.insert_library_node_with_properties("", {}, 0.0, 0.0) == ""

@@ -510,18 +510,18 @@ class ShellWorkspacePresenter(QObject):
         if not target_id or target_id not in workspace.views or workspace.active_view_id == target_id:
             return
         self._host.search_scope_controller.remember_scope_camera()
-        self._host.workspace_library_controller.switch_view(target_id)
+        self._host.workspace_navigation_controller.switch_view(target_id)
         self._host.scene.sync_scope_with_active_view()
         self._host.search_scope_controller.restore_scope_camera()
 
     def request_move_view_tab(self, from_index: int, to_index: int) -> bool:
-        return bool(self._host.workspace_library_controller.move_view(from_index, to_index))
+        return bool(self._host.workspace_navigation_controller.move_view(from_index, to_index))
 
     def request_rename_view(self, view_id: str) -> bool:
-        return bool(self._host.workspace_library_controller.rename_view(view_id))
+        return bool(self._host.workspace_navigation_controller.rename_view(view_id))
 
     def request_close_view(self, view_id: str) -> bool:
-        return bool(self._host.workspace_library_controller.close_view(view_id))
+        return bool(self._host.workspace_navigation_controller.close_view(view_id))
 
     def request_export_view(self, view_id: str) -> bool:
         return bool(self._host.graph_canvas_presenter.export_canvas_views([view_id]))
@@ -529,18 +529,18 @@ class ShellWorkspacePresenter(QObject):
     def request_export_all_views(self) -> bool:
         return bool(self._host.graph_canvas_presenter.export_canvas_views())
 
-    def request_create_view(self) -> None: self._host.workspace_library_controller.create_view()
+    def request_create_view(self) -> None: self._host.workspace_navigation_controller.create_view()
 
     def request_move_workspace_tab(self, from_index: int, to_index: int) -> bool:
-        return bool(self._host.workspace_library_controller.move_workspace(from_index, to_index))
+        return bool(self._host.workspace_navigation_controller.move_workspace(from_index, to_index))
 
     def request_rename_workspace_by_id(self, workspace_id: str) -> bool:
-        return bool(self._host.workspace_library_controller.rename_workspace_by_id(workspace_id))
+        return bool(self._host.workspace_navigation_controller.rename_workspace_by_id(workspace_id))
 
     def request_close_workspace_by_id(self, workspace_id: str) -> bool:
-        return bool(self._host.workspace_library_controller.close_workspace_by_id(workspace_id))
+        return bool(self._host.workspace_navigation_controller.close_workspace_by_id(workspace_id))
 
-    def request_create_workspace(self) -> None: self._host.workspace_library_controller.create_workspace()
+    def request_create_workspace(self) -> None: self._host.workspace_navigation_controller.create_workspace()
 
     def apply_graphics_preferences(self, graphics: Any) -> dict[str, Any]:
         canvas = graphics.get("canvas", {}) if isinstance(graphics, dict) else {}

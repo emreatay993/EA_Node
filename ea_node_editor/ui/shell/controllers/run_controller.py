@@ -47,7 +47,7 @@ class _RunControllerHostProtocol(Protocol):
     console_panel: Any
     execution_client: Any
     script_editor: Any
-    workspace_library_controller: _RunFailureFocusProtocol
+    workspace_navigation_controller: _RunFailureFocusProtocol
     action_run: Any
     action_stop: Any
     action_pause: Any

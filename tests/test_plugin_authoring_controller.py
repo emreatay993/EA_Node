@@ -88,6 +88,27 @@ class _ActionWindow(QMainWindow, ShellWindowRunAndStyleStateMixin):
         self.recent_project_paths: list[str] = []
         self.plugin_authoring_controller = _ActionController()
         self.run_controller = _RunActionController()
+        self.workspace_edit_controller = SimpleNamespace(
+            undo=lambda: False,
+            redo=lambda: False,
+        )
+        self.workspace_navigation_controller = SimpleNamespace(
+            create_workspace=lambda: None,
+            frame_all=lambda: False,
+            frame_selection=lambda: False,
+            center_on_selection=lambda: False,
+            create_view=lambda: None,
+            duplicate_active_workspace=lambda: None,
+            rename_active_workspace=lambda: None,
+            close_active_workspace=lambda: None,
+            switch_workspace_by_offset=lambda _offset: None,
+        )
+        self.workspace_package_io_controller = SimpleNamespace(
+            import_node_package=lambda: None,
+            export_node_package=lambda: None,
+            import_custom_workflow=lambda: None,
+            export_custom_workflow=lambda: None,
+        )
 
     def __getattr__(self, _name: str):  # noqa: ANN204
         return lambda *_args, **_kwargs: None

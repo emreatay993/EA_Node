@@ -11,13 +11,16 @@ from ea_node_editor.runtime_contracts import (
     JSON_DATA_TYPE_ID,
     STRING_DATA_TYPE_ID,
 )
-from tests.workspace_library_controller_unit.support import *  # noqa: F401,F403
+from tests.workspace_controller_support import *  # noqa: F401,F403
 
 
-class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryControllerUnitTestBase):
-    def test_publish_custom_workflow_from_selected_subnode_persists_snapshot(self) -> None:
+class WorkflowLibraryControllerPublishTests(WorkspaceDirectControllerTestBase):
+    def test_publish_custom_workflow_from_selected_subnode_persists_snapshot(
+        self,
+    ) -> None:
         host = _PublishHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.workflow
         workspace_id = host.workspace_manager.active_workspace_id()
 
         shell = host.model.add_node(
@@ -69,16 +72,21 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
             [STRING_DATA_TYPE_ID],
         )
         self.assertEqual(definition["ports"][0]["data_access"], "tree")
-        self.assertEqual(definition["fragment"]["kind"], "ea-node-editor/graph-fragment")
+        self.assertEqual(
+            definition["fragment"]["kind"], "ea-node-editor/graph-fragment"
+        )
         self.assertEqual(host.project_meta_changed.calls, 1)
         self.assertEqual(host.node_library_changed.calls, 1)
         library_items = controller.custom_workflow_library_items()
         self.assertEqual(len(library_items), 1)
-        self.assertEqual(library_items[0]["type_id"], f"custom_workflow:wf_shell_{shell.node_id}")
+        self.assertEqual(
+            library_items[0]["type_id"], f"custom_workflow:wf_shell_{shell.node_id}"
+        )
 
     def test_publish_custom_workflow_from_current_scope_updates_revision(self) -> None:
         host = _PublishHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.workflow
         workspace_id = host.workspace_manager.active_workspace_id()
 
         shell = host.model.add_node(
@@ -118,9 +126,12 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         self.assertEqual(definition["revision"], 2)
         self.assertEqual(definition["ports"][0]["label"], "Payload B")
 
+
+class WorkspacePackageIOControllerTests(WorkspaceDirectControllerTestBase):
     def test_export_custom_workflow_writes_eawf_payload(self) -> None:
         host = _PublishHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.package
         definitions = [
             {
                 "workflow_id": "wf_export",
@@ -142,7 +153,7 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
             }
         ]
         host.model.project.metadata["custom_workflows"] = definitions
-        controller.workspace_package_io_controller.prompt_custom_workflow_export_definition = lambda items: items[0]  # type: ignore[method-assign]
+        controller.prompt_custom_workflow_export_definition = lambda items: items[0]  # type: ignore[method-assign]
 
         with tempfile.TemporaryDirectory() as temp_dir:
             target_path = Path(temp_dir) / "workflow_export"
@@ -168,7 +179,7 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         self.assertEqual(warning_mock.call_count, 0)
 
     def test_custom_workflow_export_label_hides_internal_workflow_id(self) -> None:
-        label = WorkspaceLibraryController._custom_workflow_export_label(
+        label = WorkspacePackageIOController.custom_workflow_export_label(
             {
                 "workflow_id": "wf_export",
                 "name": "Workflow Export",
@@ -178,9 +189,12 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         self.assertEqual(label, "Workflow Export (rev 3)")
         self.assertNotIn("wf_export", label)
 
-    def test_import_custom_workflow_replaces_existing_definition_and_emits_signals(self) -> None:
+    def test_import_custom_workflow_replaces_existing_definition_and_emits_signals(
+        self,
+    ) -> None:
         host = _PublishHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.package
         host.model.project.metadata["custom_workflows"] = [
             {
                 "workflow_id": "wf_sync",
@@ -221,7 +235,9 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         }
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            import_path = export_custom_workflow_file(imported_definition, Path(temp_dir) / "import_target")
+            import_path = export_custom_workflow_file(
+                imported_definition, Path(temp_dir) / "import_target"
+            )
             with (
                 patch(
                     "PyQt6.QtWidgets.QFileDialog.getOpenFileName",
@@ -234,7 +250,9 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
 
         definitions = host.model.project.metadata.get("custom_workflows", [])
         self.assertEqual(len(definitions), 1)
-        self.assertEqual(definitions[0]["workflow_id"], imported_definition["workflow_id"])
+        self.assertEqual(
+            definitions[0]["workflow_id"], imported_definition["workflow_id"]
+        )
         self.assertEqual(definitions[0]["name"], imported_definition["name"])
         self.assertEqual(definitions[0]["revision"], imported_definition["revision"])
         self.assertEqual(definitions[0]["ports"], imported_definition["ports"])
@@ -244,9 +262,12 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         self.assertEqual(info_mock.call_count, 1)
         self.assertEqual(warning_mock.call_count, 0)
 
-    def test_import_legacy_custom_workflow_shows_sorted_report_without_rewriting_source(self) -> None:
+    def test_import_legacy_custom_workflow_shows_sorted_report_without_rewriting_source(
+        self,
+    ) -> None:
         host = _PublishHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.package
         legacy_fragment = self._valid_fragment_payload()
         legacy_fragment["version"] = 1
         legacy_document = {
@@ -283,9 +304,12 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         self.assertEqual(host.project_meta_changed.calls, 1)
         self.assertEqual(warning_mock.call_count, 0)
 
+
+class WorkflowLibraryControllerPersistenceTests(WorkspaceDirectControllerTestBase):
     def test_delete_custom_workflow_removes_definition_and_emits_signals(self) -> None:
         host = _PublishHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.workflow
         host.model.project.metadata["custom_workflows"] = [
             {
                 "workflow_id": "wf_keep",
@@ -315,9 +339,12 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         self.assertEqual(host.project_meta_changed.calls, 1)
         self.assertEqual(host.node_library_changed.calls, 1)
 
-    def test_delete_custom_workflow_returns_false_when_definition_does_not_exist(self) -> None:
+    def test_delete_custom_workflow_returns_false_when_definition_does_not_exist(
+        self,
+    ) -> None:
         host = _PublishHostStub()
-        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        owners = compose_workspace_controllers(host)
+        controller = owners.workflow
         host.model.project.metadata["custom_workflows"] = []
 
         deleted = controller.delete_custom_workflow("wf_missing", "local")
@@ -327,7 +354,9 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         self.assertEqual(host.project_meta_changed.calls, 0)
         self.assertEqual(host.node_library_changed.calls, 0)
 
-    def test_set_custom_workflow_scope_local_to_global_persists_across_controllers(self) -> None:
+    def test_set_custom_workflow_scope_local_to_global_persists_across_controllers(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             global_store_path = Path(temp_dir) / "custom_workflows_global.json"
             with patch(
@@ -335,7 +364,8 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
                 return_value=global_store_path,
             ):
                 host = _PublishHostStub()
-                controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+                owners = compose_workspace_controllers(host)
+                controller = owners.workflow
                 host.model.project.metadata["custom_workflows"] = [
                     {
                         "workflow_id": "wf_shared",
@@ -350,13 +380,15 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
                 moved = controller.set_custom_workflow_scope("wf_shared", "global")
                 self.assertTrue(moved.ok)
                 self.assertTrue(moved.payload)
-                self.assertEqual(host.model.project.metadata.get("custom_workflows", []), [])
+                self.assertEqual(
+                    host.model.project.metadata.get("custom_workflows", []), []
+                )
                 self.assertEqual(host.project_meta_changed.calls, 1)
                 self.assertEqual(host.node_library_changed.calls, 1)
                 self.assertEqual(len(load_global_custom_workflow_definitions()), 1)
 
                 other_host = _PublishHostStub()
-                other_controller = WorkspaceLibraryController(other_host)  # type: ignore[arg-type]
+                other_controller = compose_workspace_controllers(other_host).workflow
                 shared_items = [
                     item
                     for item in other_controller.custom_workflow_library_items()
@@ -365,7 +397,9 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
                 self.assertEqual(len(shared_items), 1)
                 self.assertEqual(shared_items[0].get("workflow_scope"), "global")
 
-    def test_legacy_global_store_shows_one_report_without_rewriting_source(self) -> None:
+    def test_legacy_global_store_shows_one_report_without_rewriting_source(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             global_store_path = Path(temp_dir) / "custom_workflows_global.json"
             fragment = self._valid_fragment_payload()
@@ -394,11 +428,14 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
                 patch("PyQt6.QtWidgets.QMessageBox.information") as info_mock,
             ):
                 host = _PublishHostStub()
-                controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
-                first = controller.workflow_library_controller.global_custom_workflow_definitions()
-                second = controller.workflow_library_controller.global_custom_workflow_definitions()
+                owners = compose_workspace_controllers(host)
+                controller = owners.workflow
+                first = controller.global_custom_workflow_definitions()
+                second = controller.global_custom_workflow_definitions()
 
-            self.assertEqual([item["workflow_id"] for item in first], ["wf_legacy_global"])
+            self.assertEqual(
+                [item["workflow_id"] for item in first], ["wf_legacy_global"]
+            )
             self.assertEqual(second, first)
             self.assertEqual(info_mock.call_count, 1)
             self.assertIn(
@@ -407,7 +444,9 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
             )
             self.assertEqual(global_store_path.read_text(encoding="utf-8"), source_text)
 
-    def test_set_custom_workflow_scope_global_to_local_moves_back_to_project_metadata(self) -> None:
+    def test_set_custom_workflow_scope_global_to_local_moves_back_to_project_metadata(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             global_store_path = Path(temp_dir) / "custom_workflows_global.json"
             global_definition = {
@@ -425,7 +464,8 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
             ):
                 save_global_custom_workflow_definitions([global_definition])
                 host = _PublishHostStub()
-                controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+                owners = compose_workspace_controllers(host)
+                controller = owners.workflow
 
                 moved = controller.set_custom_workflow_scope("wf_global", "local")
                 self.assertTrue(moved.ok)
@@ -462,7 +502,9 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
 
                 self.assertEqual(load_global_custom_workflow_definitions(), [])
 
-    def test_delete_custom_workflow_with_global_scope_removes_from_global_store_only(self) -> None:
+    def test_delete_custom_workflow_with_global_scope_removes_from_global_store_only(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             global_store_path = Path(temp_dir) / "custom_workflows_global.json"
             with patch(
@@ -482,9 +524,12 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
                     ]
                 )
                 host = _PublishHostStub()
-                controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+                owners = compose_workspace_controllers(host)
+                controller = owners.workflow
 
-                deleted = controller.delete_custom_workflow("wf_global_delete", "global")
+                deleted = controller.delete_custom_workflow(
+                    "wf_global_delete", "global"
+                )
 
                 self.assertTrue(deleted.ok)
                 self.assertTrue(deleted.payload)

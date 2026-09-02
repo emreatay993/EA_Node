@@ -13,7 +13,9 @@ from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.ui.shell.clipboard_paste_nodes import classify_clipboard_paste_items
-from ea_node_editor.ui.shell.controllers.workspace_edit_ops import WorkspaceEditOps
+from ea_node_editor.ui.shell.controllers.workspace_edit_controller import (
+    WorkspaceEditController,
+)
 from ea_node_editor.ui.shell.runtime_clipboard import (
     GRAPH_FRAGMENT_MIME_TYPE,
     serialize_graph_fragment_payload,
@@ -248,10 +250,10 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         before_edges = len(workspace.edges)
 
         workspace_b_id = self.window.workspace_manager.create_workspace("Secondary")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(workspace_b_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(workspace_b_id)
         self.window.scene.add_node_from_type("core.logger", x=80.0, y=80.0)
-        self.window._switch_workspace(workspace_id)
+        self.window.workspace_navigation_controller.switch_workspace(workspace_id)
         self.app.processEvents()
 
         self.window.scene.select_node(source_id, False)
@@ -528,8 +530,8 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.assertTrue(self.window.request_copy_selected_nodes())
 
         target_workspace_id = self.window.workspace_manager.create_workspace("Clipboard Target")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(target_workspace_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(target_workspace_id)
         self.window.view.centerOn(-430.0, 280.0)
         target_workspace = self.window.model.project.workspaces[target_workspace_id]
         before_target_nodes = len(target_workspace.nodes)
@@ -877,7 +879,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         before_node_ids = set(workspace.nodes)
 
         with patch.object(
-            WorkspaceEditOps,
+            WorkspaceEditController,
             "_choose_clipboard_table_paste_item",
             side_effect=lambda items: items.tabular,
         ) as chooser:
@@ -907,7 +909,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         before_node_ids = set(workspace.nodes)
 
         with patch.object(
-            WorkspaceEditOps,
+            WorkspaceEditController,
             "_choose_clipboard_table_paste_item",
             side_effect=lambda items: items.markdown,
         ) as chooser:
@@ -932,7 +934,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         before_node_ids = set(workspace.nodes)
 
         with patch.object(
-            WorkspaceEditOps,
+            WorkspaceEditController,
             "_choose_clipboard_table_paste_item",
             return_value=None,
         ) as chooser:
@@ -1216,8 +1218,8 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
     def test_persistent_node_elapsed_invalidation_clears_execution_affecting_history_commit_undo_redo(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         foreign_workspace_id = self.window.workspace_manager.create_workspace("Elapsed Cache Control")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(workspace_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(workspace_id)
         self.window.run_controller.set_auto_run_enabled(False)
         runner_id = self.window.scene.add_node_from_type("core.constant", x=20.0, y=20.0)
         logger_id = self.window.scene.add_node_from_type("core.logger", x=260.0, y=40.0)
@@ -1294,8 +1296,8 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
     def test_persistent_node_elapsed_invalidation_preserves_comment_only_history_commit_undo_redo(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         foreign_workspace_id = self.window.workspace_manager.create_workspace("Elapsed Cache Control")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(workspace_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(workspace_id)
         self.window.run_controller.set_auto_run_enabled(False)
         runner_id = self.window.scene.add_node_from_type("core.constant", x=40.0, y=20.0)
         comment_id = self.window.scene.add_node_from_type(
@@ -1355,8 +1357,8 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.app.processEvents()
 
         workspace_b_id = self.window.workspace_manager.create_workspace("Secondary")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(workspace_b_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(workspace_b_id)
         self.app.processEvents()
 
         self.assertEqual(self.window.runtime_history.undo_depth(workspace_b_id), 0)
@@ -1387,7 +1389,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.app.processEvents()
         self.assertEqual(self._workspace_state(), before_failed_redo)
 
-        self.window._switch_workspace(workspace_a_id)
+        self.window.workspace_navigation_controller.switch_workspace(workspace_a_id)
         self.app.processEvents()
         self.window.action_undo.trigger()
         self.app.processEvents()
@@ -1401,14 +1403,14 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.assertGreater(self.window.runtime_history.undo_depth(workspace_a_id), 0)
 
         workspace_b_id = self.window.workspace_manager.create_workspace("New Workspace")
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
         self.assertEqual(self.window.runtime_history.undo_depth(workspace_b_id), 0)
         self.assertEqual(self.window.runtime_history.redo_depth(workspace_b_id), 0)
 
-        self.window._switch_workspace(workspace_a_id)
+        self.window.workspace_navigation_controller.switch_workspace(workspace_a_id)
         self.app.processEvents()
         duplicated_id = self.window.workspace_manager.duplicate_workspace(workspace_a_id)
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
         self.assertEqual(self.window.runtime_history.undo_depth(duplicated_id), 0)
         self.assertEqual(self.window.runtime_history.redo_depth(duplicated_id), 0)
 

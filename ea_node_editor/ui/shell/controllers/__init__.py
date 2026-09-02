@@ -8,7 +8,24 @@ from ea_node_editor.ui.shell.controllers.run_event_controller import RunEventCon
 from ea_node_editor.ui.shell.controllers.run_projection_controller import (
     RunProjectionController,
 )
-from ea_node_editor.ui.shell.controllers.workspace_library_controller import WorkspaceLibraryController
+from ea_node_editor.ui.shell.controllers.workflow_library_controller import (
+    WorkflowLibraryController,
+)
+from ea_node_editor.ui.shell.controllers.workspace_drop_connect_controller import (
+    WorkspaceDropConnectController,
+)
+from ea_node_editor.ui.shell.controllers.workspace_edit_controller import (
+    WorkspaceEditController,
+)
+from ea_node_editor.ui.shell.controllers.workspace_navigation_controller import (
+    WorkspaceNavigationController,
+)
+from ea_node_editor.ui.shell.controllers.workspace_package_io_controller import (
+    WorkspacePackageIOController,
+)
+from ea_node_editor.ui.shell.controllers.workspace_selection_context import (
+    WorkspaceSelectionContext,
+)
 
 __all__ = [
     "AddonManagerController",
@@ -19,5 +36,10 @@ __all__ = [
     "RunController",
     "RunEventController",
     "RunProjectionController",
-    "WorkspaceLibraryController",
+    "WorkflowLibraryController",
+    "WorkspaceDropConnectController",
+    "WorkspaceEditController",
+    "WorkspaceNavigationController",
+    "WorkspacePackageIOController",
+    "WorkspaceSelectionContext",
 ]

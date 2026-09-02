@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+from functools import partial
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from ea_node_editor.custom_workflows import (
@@ -14,9 +16,26 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.graph_interactions import GraphActionResult
 from ea_node_editor.ui.shell.controllers.result import ControllerResult
-from ea_node_editor.ui.shell.controllers.workspace_library_controller import (
-    WorkspaceLibraryController,
+from ea_node_editor.ui.shell.controllers.mutation_ui_effects import MutationUiEffects
+from ea_node_editor.ui.shell.controllers.workflow_library_controller import (
+    WorkflowLibraryController,
 )
+from ea_node_editor.ui.shell.controllers.workspace_drop_connect_controller import (
+    WorkspaceDropConnectController,
+)
+from ea_node_editor.ui.shell.controllers.workspace_edit_controller import (
+    WorkspaceEditController,
+)
+from ea_node_editor.ui.shell.controllers.workspace_navigation_controller import (
+    WorkspaceNavigationController,
+)
+from ea_node_editor.ui.shell.controllers.workspace_package_io_controller import (
+    WorkspacePackageIOController,
+)
+from ea_node_editor.ui.shell.controllers.workspace_selection_context import (
+    WorkspaceSelectionContext,
+)
+from ea_node_editor.ui.shell.library_flow import pick_connection_candidate
 
 
 class _GraphInteractionsStub:
@@ -248,7 +267,7 @@ class _PublishHostStub:
         self.project_meta_changed = _SignalStub()
 
 
-class WorkspaceLibraryControllerUnitTestBase(unittest.TestCase):
+class WorkspaceDirectControllerTestBase(unittest.TestCase):
     @staticmethod
     def _valid_fragment_payload() -> dict[str, object]:
         return {
@@ -271,14 +290,60 @@ class WorkspaceLibraryControllerUnitTestBase(unittest.TestCase):
         }
 
 
+def compose_workspace_controllers(host):  # noqa: ANN001, ANN201
+    selection = WorkspaceSelectionContext(host)
+    workflow = WorkflowLibraryController(host, selection)
+    navigation = WorkspaceNavigationController(host)
+    effects = MutationUiEffects(
+        host=host,
+        refresh_workspace_tabs=lambda: navigation.refresh_workspace_tabs(),
+    )
+    edit = WorkspaceEditController(
+        host,
+        selection_context=selection,
+        effects=effects,
+    )
+    drop = WorkspaceDropConnectController(
+        host,
+        active_workspace=selection.active_workspace,
+        resolve_custom_workflow_definition=workflow.resolve_custom_workflow_definition,
+        prompt_connection_candidate=partial(
+            pick_connection_candidate,
+            parent=host,
+        ),
+        effects=effects,
+    )
+    package = WorkspacePackageIOController(
+        host,
+        workflow.custom_workflow_definitions,
+        workflow.set_custom_workflow_definitions,
+    )
+    return SimpleNamespace(
+        selection=selection,
+        workflow=workflow,
+        navigation=navigation,
+        effects=effects,
+        edit=edit,
+        drop=drop,
+        package=package,
+    )
+
+
 __all__ = [
     "ControllerResult",
     "GraphActionResult",
     "GraphModel",
     "Path",
-    "WorkspaceLibraryController",
-    "WorkspaceLibraryControllerUnitTestBase",
+    "MutationUiEffects",
+    "WorkflowLibraryController",
+    "WorkspaceDirectControllerTestBase",
+    "WorkspaceDropConnectController",
+    "WorkspaceEditController",
+    "WorkspaceNavigationController",
+    "WorkspacePackageIOController",
+    "WorkspaceSelectionContext",
     "build_default_registry",
+    "compose_workspace_controllers",
     "export_custom_workflow_file",
     "import_custom_workflow_file",
     "patch",

@@ -97,7 +97,7 @@ class ShellInspectorPresenter(QObject):
         self.inspector_state_changed.emit()
 
     def _selected_node_context(self):
-        return self._host.workspace_library_controller.selected_node_context()
+        return self._host.workspace_selection_context.selected_node_context()
 
     def _selected_node_header_data(self) -> dict[str, Any]:
         selected = self._selected_node_context()
@@ -444,7 +444,7 @@ class ShellInspectorPresenter(QObject):
         selected = self._selected_node_context()
         if selected is None or not self._property_edit_allowed(selected[0], key):
             return
-        self._host.workspace_library_controller.set_selected_node_property(key, value)
+        self._host.workspace_edit_controller.set_selected_node_property(key, value)
 
     def upsert_selected_node_link(
         self,
@@ -531,11 +531,11 @@ class ShellInspectorPresenter(QObject):
         if link.kind == "node":
             workspace_id = str(getattr(link, "target_workspace_id", "") or self._host.workspace_manager.active_workspace_id())
             node_id = str(getattr(link, "target_node_id", "") or link.target)
-            return bool(self._host.workspace_library_controller.jump_to_graph_node(workspace_id, node_id))
+            return bool(self._host.workspace_navigation_controller.jump_to_graph_node(workspace_id, node_id))
         if link.kind == "workspace":
             if link.target not in self._host.model.project.workspaces:
                 return False
-            self._host.workspace_library_controller.switch_workspace(link.target)
+            self._host.workspace_navigation_controller.switch_workspace(link.target)
             return True
         return False
 
@@ -765,23 +765,23 @@ class ShellInspectorPresenter(QObject):
         return self._host.shell_host_presenter.pick_property_color_dialog(property_spec.label, current_value)
 
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
-        self._host.workspace_library_controller.set_selected_port_exposed(key, exposed)
+        self._host.workspace_edit_controller.set_selected_port_exposed(key, exposed)
 
     def set_selected_port_label(self, key: str, label: str) -> bool:
-        return bool(self._host.workspace_library_controller.set_selected_port_label(key, label))
+        return bool(self._host.workspace_edit_controller.set_selected_port_label(key, label))
 
     def set_selected_node_collapsed(self, collapsed: bool) -> None:
-        self._host.workspace_library_controller.set_selected_node_collapsed(collapsed)
+        self._host.workspace_edit_controller.set_selected_node_collapsed(collapsed)
 
     def request_ungroup_selected_nodes(self) -> bool:
-        return bool(self._host.workspace_library_controller.ungroup_selected_nodes())
+        return bool(self._host.workspace_edit_controller.ungroup_selected_nodes())
 
     def request_add_selected_subnode_pin(self, direction: str) -> str:
-        result = self._host.workspace_library_controller.request_add_selected_subnode_pin(direction)
+        result = self._host.workspace_edit_controller.request_add_selected_subnode_pin(direction)
         return str(result.payload or "")
 
     def request_remove_selected_port(self, key: str) -> bool:
-        return bool(self._host.workspace_library_controller.request_remove_selected_port(key).payload)
+        return bool(self._host.workspace_edit_controller.request_remove_selected_port(key).payload)
 
 
 __all__ = ["ShellInspectorPresenter"]

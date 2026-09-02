@@ -16,10 +16,11 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 - `ea_node_editor/ui/shell/controllers/graph_action_controller.py`
 - `ea_node_editor/ui/shell/presenters/graph_canvas_host_presenter.py`
 - `ea_node_editor/ui/shell/controllers/mutation_ui_effects.py`
+- `ea_node_editor/ui/shell/controllers/workspace_edit_controller.py`
 - `ea_node_editor/ui/shell/controllers/run_controller.py`
 - `ea_node_editor/ui/shell/inspector_projection.py`
 - `ea_node_editor/ui/shell/quick_insert_projection.py`
-- `ea_node_editor/ui/shell/controllers/workspace_drop_connect_ops.py`
+- `ea_node_editor/ui/shell/controllers/workspace_drop_connect_controller.py`
 - `ea_node_editor/ui/shell/window_actions.py`
 
 ## Related Help Reference
@@ -49,8 +50,9 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 - `run_selected`, `preview_selected_run`, `confirm_selected_run_preview`, `clear_selected_run_preview`, and `open_selected_run_settings` are graph action contracts surfaced from node, selection context, selection-envelope, and preview-overlay routes. Run Upstream Chain and stale cache-reuse confirmation are removed.
 - `run_selected` is the primary floating toolbar action for active selected nodes/groups; `GraphCanvasActionRouter.nodeDelegateActionDescriptors` routes its toolbar menu actions, and context menus expose preview and settings alternatives only for runnable nodes/groups.
 - Dispatch flows through `GraphActionController` to `RunController`; payloads may carry one node ID, multiple selected node IDs, or fall back to current scene selection.
+- Workspace actions dispatch through explicit typed calls to `WorkspaceEditController`; custom-workflow publication calls `WorkflowLibraryController` directly. `GraphActionController` has no string method table, `getattr` route, umbrella workspace controller, alternate delete owner, or publication fallback.
 - `open_selected_run_settings` opens the shell-owned selected-run settings dialog instead of only logging the current preference.
-- Public PyQt/QML shell graph-action request slots that remain on `ShellWindow` are direct methods in `window.py`; do not add them back to `window_state/workspace_graph_actions.py` or any dynamic facade binding map.
+- Public PyQt/QML shell graph-action request slots live in `window_state/workspace_graph_actions.py` on `ShellWindowWorkspaceGraphActionsMixin`; keep them there and do not add a dynamic facade binding map.
 
 ## Dataflow Authoring Actions
 - Edge Enable is a QML-local checked action shared by the edge context menu, selected-edge floating toolbar, and Ctrl+E. It routes `toggle_edge_enabled` through the scene command bridge to graph mutation/history without registering a global `GraphActionId`.
@@ -87,4 +89,4 @@ Update when action IDs, selected-run action routing, modifier/Principal/dynamic-
 
 ## 2026-05-31 Mutation UI Effects Update
 
-- Shell graph-edit actions centralize stable post-mutation UI effects in `MutationUiEffects`. Use action-specific methods there for selected-node refreshes, tab refreshes, history replay scene refresh/invalidation, and layout overlap hints instead of adding new repeated clusters to `workspace_edit_ops.py`.
+- Composition creates one `MutationUiEffects` and injects that same instance into `WorkspaceEditController` and `WorkspaceDropConnectController`. Use action-specific methods there for selected-node refreshes, tab refreshes, history replay scene refresh/invalidation, and layout overlap hints instead of adding repeated aftermath clusters.

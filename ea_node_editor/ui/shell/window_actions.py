@@ -113,7 +113,9 @@ def create_window_actions(window: ShellWindow) -> None:
 
     window.action_new_workspace = QAction("New Workspace", window)
     window.action_new_workspace.setShortcut(QKeySequence("Ctrl+Shift+N"))
-    window.action_new_workspace.triggered.connect(window._create_workspace)
+    window.action_new_workspace.triggered.connect(
+        window.workspace_navigation_controller.create_workspace
+    )
 
     window.action_save_project = QAction("Save Project", window)
     window.action_save_project.setShortcut(QKeySequence.StandardKey.Save)
@@ -246,11 +248,11 @@ def create_window_actions(window: ShellWindow) -> None:
 
     window.action_undo = QAction("Undo", window)
     window.action_undo.setShortcut(QKeySequence("Ctrl+Z"))
-    window.action_undo.triggered.connect(window._undo)
+    window.action_undo.triggered.connect(window.workspace_edit_controller.undo)
 
     window.action_redo = QAction("Redo", window)
     window.action_redo.setShortcuts([QKeySequence("Ctrl+Shift+Z"), QKeySequence("Ctrl+Y")])
-    window.action_redo.triggered.connect(window._redo)
+    window.action_redo.triggered.connect(window.workspace_edit_controller.redo)
 
     window.action_copy_selection = _create_graph_action(window, GraphActionId.COPY_SELECTION)
 
@@ -260,15 +262,21 @@ def create_window_actions(window: ShellWindow) -> None:
 
     window.action_frame_all = QAction("Frame All", window)
     window.action_frame_all.setShortcut(QKeySequence("A"))
-    window.action_frame_all.triggered.connect(window._frame_all)
+    window.action_frame_all.triggered.connect(
+        window.workspace_navigation_controller.frame_all
+    )
 
     window.action_frame_selection = QAction("Frame Selection", window)
     window.action_frame_selection.setShortcut(QKeySequence("F"))
-    window.action_frame_selection.triggered.connect(window._frame_selection)
+    window.action_frame_selection.triggered.connect(
+        window.workspace_navigation_controller.frame_selection
+    )
 
     window.action_center_selection = QAction("Center Selection", window)
     window.action_center_selection.setShortcut(QKeySequence("Shift+F"))
-    window.action_center_selection.triggered.connect(window._center_on_selection)
+    window.action_center_selection.triggered.connect(
+        window.workspace_navigation_controller.center_on_selection
+    )
 
     window.action_scope_parent = _create_graph_action(window, GraphActionId.NAVIGATE_SCOPE_PARENT)
 
@@ -286,39 +294,59 @@ def create_window_actions(window: ShellWindow) -> None:
 
     window.action_new_view = QAction("New View", window)
     window.action_new_view.setShortcut(QKeySequence("Ctrl+Shift+V"))
-    window.action_new_view.triggered.connect(window._create_view)
+    window.action_new_view.triggered.connect(
+        window.workspace_navigation_controller.create_view
+    )
 
     window.action_duplicate_workspace = QAction("Duplicate Workspace", window)
     window.action_duplicate_workspace.setShortcut(QKeySequence("Ctrl+Shift+D"))
-    window.action_duplicate_workspace.triggered.connect(window._duplicate_active_workspace)
+    window.action_duplicate_workspace.triggered.connect(
+        window.workspace_navigation_controller.duplicate_active_workspace
+    )
 
     window.action_rename_workspace = QAction("Rename Workspace", window)
     window.action_rename_workspace.setShortcut(QKeySequence("F2"))
-    window.action_rename_workspace.triggered.connect(window._rename_active_workspace)
+    window.action_rename_workspace.triggered.connect(
+        window.workspace_navigation_controller.rename_active_workspace
+    )
 
     window.action_close_workspace = QAction("Close Workspace", window)
     window.action_close_workspace.setShortcut(QKeySequence.StandardKey.Close)
-    window.action_close_workspace.triggered.connect(window._close_active_workspace)
+    window.action_close_workspace.triggered.connect(
+        window.workspace_navigation_controller.close_active_workspace
+    )
 
     window.action_next_workspace = QAction("Next Workspace", window)
     window.action_next_workspace.setShortcuts([QKeySequence("Ctrl+Tab"), QKeySequence("Ctrl+PgDown")])
-    window.action_next_workspace.triggered.connect(lambda: window._switch_workspace_by_offset(1))
+    window.action_next_workspace.triggered.connect(
+        lambda: window.workspace_navigation_controller.switch_workspace_by_offset(1)
+    )
 
     window.action_prev_workspace = QAction("Previous Workspace", window)
     window.action_prev_workspace.setShortcuts([QKeySequence("Ctrl+Shift+Tab"), QKeySequence("Ctrl+PgUp")])
-    window.action_prev_workspace.triggered.connect(lambda: window._switch_workspace_by_offset(-1))
+    window.action_prev_workspace.triggered.connect(
+        lambda: window.workspace_navigation_controller.switch_workspace_by_offset(-1)
+    )
 
     window.action_import_node_package = QAction("Import Node Package...", window)
-    window.action_import_node_package.triggered.connect(window._import_node_package)
+    window.action_import_node_package.triggered.connect(
+        window.workspace_package_io_controller.import_node_package
+    )
 
     window.action_export_node_package = QAction("Export Node Package...", window)
-    window.action_export_node_package.triggered.connect(window._export_node_package)
+    window.action_export_node_package.triggered.connect(
+        window.workspace_package_io_controller.export_node_package
+    )
 
     window.action_import_custom_workflow = QAction("Import Custom Workflow...", window)
-    window.action_import_custom_workflow.triggered.connect(window._import_custom_workflow)
+    window.action_import_custom_workflow.triggered.connect(
+        window.workspace_package_io_controller.import_custom_workflow
+    )
 
     window.action_export_custom_workflow = QAction("Export Custom Workflow...", window)
-    window.action_export_custom_workflow.triggered.connect(window._export_custom_workflow)
+    window.action_export_custom_workflow.triggered.connect(
+        window.workspace_package_io_controller.export_custom_workflow
+    )
 
     window.action_export_canvas_views = QAction("Export Canvas Views...", window)
     window.action_export_canvas_views.triggered.connect(window._export_canvas_views)

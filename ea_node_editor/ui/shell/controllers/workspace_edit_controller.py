@@ -1,6 +1,11 @@
+# Purpose: Own workspace edits, clipboard/history, selection aftermath, and mutation UI effects.
+# Map: feature_routes/clipboard_undo_redo_mutation_history
+# Tests: tests/test_workspace_edit_controller.py
+# Landmarks: WorkspaceEditController
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol
+import copy
+from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QMimeData
 
@@ -29,6 +34,12 @@ from ea_node_editor.nodes.builtins.subnode import (
 from ea_node_editor.ui.shell.controllers.dialog_support import resolve_dialog_parent
 from ea_node_editor.ui.shell.controllers.mutation_ui_effects import MutationUiEffects
 from ea_node_editor.ui.shell.controllers.result import ControllerResult
+from ea_node_editor.ui.shell.controllers.workspace_drop_connect_controller import (
+    retarget_fragment_roots,
+)
+from ea_node_editor.ui.shell.controllers.workspace_selection_context import (
+    WorkspaceSelectionContext,
+)
 from ea_node_editor.ui.shell.clipboard_paste_nodes import (
     ClipboardPasteItem,
     ClipboardTablePasteItems,
@@ -57,62 +68,41 @@ _PIN_REFRESH_PROPERTIES = {
 }
 
 
-class _WorkspaceEditControllerProtocol(Protocol):
-    def selected_node_context(self) -> tuple[NodeInstance, NodeTypeSpec] | None: ...
-
-    def active_workspace(self): ...
-
-    def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None: ...
-
-    def on_port_exposed_changed(
-        self, node_id: str, key: str, exposed: bool
-    ) -> None: ...
-
-    def on_node_collapse_changed(self, node_id: str, collapsed: bool) -> None: ...
-
-    def _write_graph_fragment_to_clipboard(
-        self, fragment_payload: dict[str, Any]
-    ) -> bool: ...
-
-    def _read_graph_fragment_from_clipboard(self) -> dict[str, Any] | None: ...
-
-    def copy_selected_nodes_to_clipboard(self) -> bool: ...
-
-    def request_delete_selected_graph_items(
-        self, edge_ids: list[Any]
-    ) -> ControllerResult[bool]: ...
-
-    def clipboard_fragment_signature(self) -> str: ...
-
-    def set_clipboard_fragment_signature(self, signature: str) -> None: ...
-
-    def clipboard_paste_count(self) -> int: ...
-
-    def set_clipboard_paste_count(self, count: int) -> None: ...
-
-    def retarget_fragment_roots(
-        self,
-        fragment_payload: dict[str, Any],
-        *,
-        target_parent_id: str | None,
-    ) -> dict[str, Any]: ...
-
-
-class WorkspaceEditOps:
+class WorkspaceEditController:
     def __init__(
         self,
         host: ShellWindow,
-        controller: _WorkspaceEditControllerProtocol,
-        effects: MutationUiEffects | None = None,
+        *,
+        selection_context: WorkspaceSelectionContext,
+        effects: MutationUiEffects,
     ) -> None:
         self._host = host
-        self._controller = controller
-        self._effects = effects or MutationUiEffects(
-            host=host,
-            refresh_workspace_tabs=lambda: getattr(
-                controller, "refresh_workspace_tabs", lambda: None
-            )(),
-        )
+        self._selection_context = selection_context
+        self.mutation_ui_effects = effects
+        self._effects = effects
+        self._last_clipboard_fragment_signature = ""
+        self._clipboard_paste_count = 0
+
+    def clipboard_fragment_signature(self) -> str:
+        return self._last_clipboard_fragment_signature
+
+    def set_clipboard_fragment_signature(self, signature: str) -> None:
+        self._last_clipboard_fragment_signature = str(signature or "")
+
+    def clipboard_paste_count(self) -> int:
+        return int(self._clipboard_paste_count)
+
+    def set_clipboard_paste_count(self, count: int) -> None:
+        self._clipboard_paste_count = max(0, int(count))
+
+    def on_scene_node_selected(self, node_id: str) -> None:
+        workspace = self._selection_context.active_workspace()
+        node = workspace.nodes.get(node_id) if workspace is not None else None
+        if self._host.script_editor.current_node_id != str(node_id or "").strip():
+            self._host.script_editor.set_node(node)
+        if self._host.script_editor.visible:
+            self._host.script_editor.focus_editor()
+        self._effects.notify_selected_node_changed()
 
     @property
     def _graph_interactions(self):
@@ -122,11 +112,11 @@ class WorkspaceEditOps:
         return self._host._graph_interactions
 
     def set_selected_node_property(self, key: str, value: Any) -> None:
-        selected = self._controller.selected_node_context()
+        selected = self._selection_context.selected_node_context()
         if selected is None:
             return
         node, spec = selected
-        workspace = self._controller.active_workspace()
+        workspace = self._selection_context.active_workspace()
         rewrite = rewrite_property_edit_with_adapters(
             self._property_edit_adapters(),
             PropertyEditAdapterContext(
@@ -142,9 +132,7 @@ class WorkspaceEditOps:
             value=value,
         )
         if rewrite is not None:
-            self._controller.on_node_property_changed(
-                node.node_id, rewrite.key, rewrite.value
-            )
+            self.on_node_property_changed(node.node_id, rewrite.key, rewrite.value)
             return
         property_spec = next(
             (prop for prop in spec.properties if prop.key == key), None
@@ -154,9 +142,7 @@ class WorkspaceEditOps:
         coerced = coerce_editor_input_value(
             property_spec.type, value, property_spec.default
         )
-        self._controller.on_node_property_changed(
-            node.node_id, property_spec.key, coerced
-        )
+        self.on_node_property_changed(node.node_id, property_spec.key, coerced)
 
     def _preferences_document(self) -> dict[str, Any] | None:
         controller = getattr(self._host, "app_preferences_controller", None)
@@ -176,11 +162,11 @@ class WorkspaceEditOps:
         return dict(metadata) if isinstance(metadata, dict) else None
 
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
-        selected = self._controller.selected_node_context()
+        selected = self._selection_context.selected_node_context()
         if selected is None:
             return
         node, spec = selected
-        workspace = self._controller.active_workspace()
+        workspace = self._selection_context.active_workspace()
         if workspace is None:
             return
         normalized_key = str(key or "").strip()
@@ -197,21 +183,19 @@ class WorkspaceEditOps:
         normalized_exposed = bool(exposed)
         if port.required and not normalized_exposed:
             return
-        self._controller.on_port_exposed_changed(
-            node.node_id, normalized_key, normalized_exposed
-        )
+        self.on_port_exposed_changed(node.node_id, normalized_key, normalized_exposed)
 
     def set_selected_node_collapsed(self, collapsed: bool) -> None:
-        selected = self._controller.selected_node_context()
+        selected = self._selection_context.selected_node_context()
         if selected is None:
             return
         node, spec = selected
         if not spec.collapsible:
             return
-        self._controller.on_node_collapse_changed(node.node_id, bool(collapsed))
+        self.on_node_collapse_changed(node.node_id, bool(collapsed))
 
     def request_add_selected_subnode_pin(self, direction: str) -> ControllerResult[str]:
-        selected = self._controller.selected_node_context()
+        selected = self._selection_context.selected_node_context()
         if selected is None:
             return ControllerResult(False, "No node selected.", payload="")
         node, _spec = selected
@@ -241,14 +225,14 @@ class WorkspaceEditOps:
         return ControllerResult(True, payload=created_node_id)
 
     def _selected_shell_pin_node(self, key: str) -> NodeInstance | None:
-        selected = self._controller.selected_node_context()
+        selected = self._selection_context.selected_node_context()
         if selected is None:
             return None
         node, _spec = selected
         if node.type_id != SUBNODE_TYPE_ID:
             return None
 
-        workspace = self._controller.active_workspace()
+        workspace = self._selection_context.active_workspace()
         if workspace is None:
             return None
 
@@ -284,7 +268,7 @@ class WorkspaceEditOps:
             )
             return True
 
-        context = self._controller.selected_node_context()
+        context = self._selection_context.selected_node_context()
         if context is None:
             return False
         node, spec = context
@@ -300,7 +284,7 @@ class WorkspaceEditOps:
         if normalized_label == current_label:
             return False
         store_label = "" if normalized_label == default_label else normalized_label
-        workspace = self._controller.active_workspace()
+        workspace = self._selection_context.active_workspace()
         if workspace is None:
             return False
         self._host.scene.set_port_label(
@@ -357,7 +341,50 @@ class WorkspaceEditOps:
         return ControllerResult(True, payload=True)
 
     def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
-        workspace = self._controller.active_workspace()
+        workspace = self._selection_context.active_workspace()
+        node = workspace.nodes.get(node_id) if workspace is not None else None
+        before_properties = copy.deepcopy(node.properties) if node is not None else {}
+        try:
+            self._apply_node_property_changed(node_id, key, value)
+        except (TypeError, ValueError) as exc:
+            if str(key) == "script":
+                self._host.console_panel.append_log(
+                    "error",
+                    f"Python Script Apply failed: {exc}",
+                )
+                return
+            raise
+        if str(key) != "script":
+            return
+        node = workspace.nodes.get(node_id) if workspace is not None else None
+        if node is not None and str(node.properties.get("script", "")) == str(value):
+            resolved_spec = self._host.registry.resolve_spec(
+                node.type_id,
+                node.properties,
+            )
+            reset_labels = [
+                prop.label or prop.key
+                for prop in resolved_spec.properties
+                if prop.key not in {"script", "timeout_sec"}
+                and prop.key in before_properties
+                and before_properties[prop.key] != node.properties.get(prop.key)
+                and node.properties.get(prop.key) == prop.default
+            ]
+            if reset_labels:
+                self._host.console_panel.append_log(
+                    "warning",
+                    "Python Script Apply reset invalid settings: "
+                    + ", ".join(reset_labels),
+                )
+        if (
+            node is not None
+            and self._host.script_editor.current_node_id == str(node_id or "").strip()
+            and str(node.properties.get("script", "")) == str(value)
+        ):
+            self._host.script_editor.set_node(node)
+
+    def _apply_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
+        workspace = self._selection_context.active_workspace()
         self._host.scene.set_node_property(node_id, key, value)
         should_refresh_shell_payload = (
             workspace is not None
@@ -390,7 +417,7 @@ class WorkspaceEditOps:
         return parent_node.type_id == SUBNODE_TYPE_ID
 
     def on_port_exposed_changed(self, node_id: str, key: str, exposed: bool) -> None:
-        workspace = self._controller.active_workspace()
+        workspace = self._selection_context.active_workspace()
         self._host.scene.set_exposed_port(node_id, key, exposed)
         self._effects.after_selected_port_exposure_changed()
 
@@ -626,19 +653,19 @@ class WorkspaceEditOps:
         fragment_payload = self._host.scene.serialize_selected_subgraph_fragment()
         if fragment_payload is None:
             return False
-        copied = self._controller._write_graph_fragment_to_clipboard(fragment_payload)
+        copied = self.write_graph_fragment_to_clipboard(fragment_payload)
         if not copied:
             return False
-        self._controller.set_clipboard_fragment_signature(
+        self.set_clipboard_fragment_signature(
             serialize_graph_fragment_payload(fragment_payload) or ""
         )
-        self._controller.set_clipboard_paste_count(0)
+        self.set_clipboard_paste_count(0)
         return True
 
     def cut_selected_nodes_to_clipboard(self) -> bool:
-        if not self._controller.copy_selected_nodes_to_clipboard():
+        if not self.copy_selected_nodes_to_clipboard():
             return False
-        return bool(self._controller.request_delete_selected_graph_items([]).payload)
+        return bool(self.request_delete_selected_graph_items([]).payload)
 
     def paste_nodes_from_clipboard(self) -> bool:
         clipboard = self.clipboard()
@@ -648,7 +675,7 @@ class WorkspaceEditOps:
         has_graph_fragment_mime = bool(
             mime_data is not None and mime_data.hasFormat(GRAPH_FRAGMENT_MIME_TYPE)
         )
-        fragment_payload = self._controller._read_graph_fragment_from_clipboard()
+        fragment_payload = self.read_graph_fragment_from_clipboard()
         if fragment_payload is not None:
             return self._paste_graph_fragment_payload(fragment_payload)
         if has_graph_fragment_mime:
@@ -659,20 +686,20 @@ class WorkspaceEditOps:
         fragment_signature = serialize_graph_fragment_payload(fragment_payload)
         if fragment_signature is None:
             return False
-        if fragment_signature != self._controller.clipboard_fragment_signature():
-            self._controller.set_clipboard_fragment_signature(fragment_signature)
-            self._controller.set_clipboard_paste_count(0)
+        if fragment_signature != self.clipboard_fragment_signature():
+            self.set_clipboard_fragment_signature(fragment_signature)
+            self.set_clipboard_paste_count(0)
         frag_center = self._host.scene.fragment_bounds_center(fragment_payload)
         if frag_center is None:
             return False
         parent_node_id = scope_parent_id(
             getattr(self._host.scene, "active_scope_path", ())
         )
-        scoped_fragment_payload = self._controller.retarget_fragment_roots(
+        scoped_fragment_payload = retarget_fragment_roots(
             fragment_payload,
             target_parent_id=parent_node_id,
         )
-        paste_index = self._controller.clipboard_paste_count() + 1
+        paste_index = self.clipboard_paste_count() + 1
         cascade_x = float(paste_index) * _PASTE_CASCADE_OFFSET_X
         cascade_y = float(paste_index) * _PASTE_CASCADE_OFFSET_Y
         pasted = bool(
@@ -684,9 +711,7 @@ class WorkspaceEditOps:
         )
         if not pasted:
             return False
-        self._controller.set_clipboard_paste_count(
-            self._controller.clipboard_paste_count() + 1
-        )
+        self.set_clipboard_paste_count(self.clipboard_paste_count() + 1)
         self._effects.after_fragment_pasted()
         return True
 
@@ -704,12 +729,12 @@ class WorkspaceEditOps:
         item_signature = (
             f"clipboard-paste-items:{clipboard_paste_items_signature(items)}"
         )
-        if item_signature != self._controller.clipboard_fragment_signature():
-            self._controller.set_clipboard_fragment_signature(item_signature)
-            self._controller.set_clipboard_paste_count(0)
+        if item_signature != self.clipboard_fragment_signature():
+            self.set_clipboard_fragment_signature(item_signature)
+            self.set_clipboard_paste_count(0)
 
         center_x, center_y = self._viewport_scene_center()
-        paste_index = self._controller.clipboard_paste_count()
+        paste_index = self.clipboard_paste_count()
         base_cascade_x = float(paste_index) * _PASTE_CASCADE_OFFSET_X
         base_cascade_y = float(paste_index) * _PASTE_CASCADE_OFFSET_Y
         parent_node_id = scope_parent_id(
@@ -733,9 +758,7 @@ class WorkspaceEditOps:
             return False
 
         self._select_created_clipboard_nodes(created_node_ids)
-        self._controller.set_clipboard_paste_count(
-            self._controller.clipboard_paste_count() + 1
-        )
+        self.set_clipboard_paste_count(self.clipboard_paste_count() + 1)
         self._effects.after_fragment_pasted()
         return True
 
@@ -937,6 +960,14 @@ class WorkspaceEditOps:
             self._effects.after_edge_removed()
         return ControllerResult(result.ok, result.message, payload=result.ok)
 
+    def request_ungroup_node(self, node_id: str) -> ControllerResult[bool]:
+        normalized_node_id = str(node_id or "").strip()
+        if not normalized_node_id:
+            return ControllerResult(False, payload=False)
+        self._host.scene.select_node(normalized_node_id)
+        ungrouped = bool(self.ungroup_selected_nodes())
+        return ControllerResult(ungrouped, payload=ungrouped)
+
     def request_remove_node(self, node_id: str) -> ControllerResult[bool]:
         result = self._graph_interactions.remove_node(node_id)
         if result.ok:
@@ -977,3 +1008,6 @@ class WorkspaceEditOps:
         return ControllerResult(
             False, "No selected graph items to remove.", payload=False
         )
+
+
+__all__ = ["WorkspaceEditController"]

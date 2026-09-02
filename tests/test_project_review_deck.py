@@ -649,7 +649,9 @@ def test_project_review_deck_presenter_opens_exported_powerpoint_on_success(
         project_path=tmp_path / "demo.cxproj",
         registry=None,
         workspace_manager=SimpleNamespace(active_workspace_id=lambda: "ws"),
-        workspace_library_controller=SimpleNamespace(),
+        workspace_navigation_controller=SimpleNamespace(
+            switch_workspace=lambda _workspace_id: None
+        ),
         graph_canvas_presenter=SimpleNamespace(),
         console_panel=SimpleNamespace(append_log=lambda level, message: logs.append((level, message))),
         show_graph_hint=lambda message, timeout: hints.append((message, timeout)),
@@ -770,7 +772,9 @@ def test_project_review_deck_presenter_forwards_crop_opt_out_for_canvas_slide(
         project_path=tmp_path / "demo.cxproj",
         registry=None,
         workspace_manager=SimpleNamespace(active_workspace_id=lambda: "ws"),
-        workspace_library_controller=SimpleNamespace(),
+        workspace_navigation_controller=SimpleNamespace(
+            switch_workspace=lambda _workspace_id: None
+        ),
         graph_canvas_presenter=_CanvasPresenter(),
         console_panel=SimpleNamespace(append_log=lambda level, message: logs.append((level, message))),
         show_graph_hint=lambda _message, _timeout: None,
@@ -817,7 +821,9 @@ def test_project_review_deck_presenter_passes_crop_option_to_canvas_capture(tmp_
     host = SimpleNamespace(
         model=SimpleNamespace(project=SimpleNamespace(workspaces={"ws": workspace})),
         workspace_manager=_WorkspaceManager(),
-        workspace_library_controller=SimpleNamespace(),
+        workspace_navigation_controller=SimpleNamespace(
+            switch_workspace=lambda _workspace_id: None
+        ),
         graph_canvas_presenter=canvas_presenter,
     )
     presenter = ProjectReviewDeckPresenter(host)

@@ -21,7 +21,8 @@ class _ShellLibraryPresenterHostProtocol(Protocol):
     graph_hint_changed: _SignalLike
     registry: Any
     workspace_ui_state: Any
-    workspace_library_controller: Any
+    workflow_library_controller: Any
+    workspace_drop_connect_controller: Any
     library_filter_state: Any
     search_scope_controller: Any
     search_scope_state: Any
@@ -47,7 +48,7 @@ class _ShellWorkspacePresenterHostProtocol(Protocol):
     project_session_controller: Any
     search_scope_controller: Any
     search_scope_state: Any
-    workspace_library_controller: Any
+    workspace_navigation_controller: Any
     shell_host_presenter: Any
     shell_inspector_presenter: Any
     graph_canvas_presenter: Any
@@ -58,7 +59,9 @@ class _ShellWorkspacePresenterHostProtocol(Protocol):
 class _ShellInspectorPresenterHostProtocol(Protocol):
     selected_node_changed: _SignalLike
     workspace_state_changed: _SignalLike
-    workspace_library_controller: Any
+    workspace_selection_context: Any
+    workspace_edit_controller: Any
+    workspace_navigation_controller: Any
     model: Any
     workspace_manager: Any
     registry: Any
@@ -89,7 +92,8 @@ class _GraphCanvasPresenterHostProtocol(Protocol):
     app_preferences_controller: Any
     scene: Any
     view: Any
-    workspace_library_controller: Any
+    workspace_edit_controller: Any
+    workspace_drop_connect_controller: Any
     model: Any
     workspace_manager: Any
     quick_widget: Any
@@ -116,7 +120,7 @@ class _GraphCanvasHostPresenterHostProtocol(Protocol):
     scene: Any
     project_session_controller: Any
     quick_widget: Any
-    workspace_library_controller: Any
+    workspace_edit_controller: Any
 
 
 class _ProjectReviewDeckPresenterHostProtocol(Protocol):
@@ -124,7 +128,7 @@ class _ProjectReviewDeckPresenterHostProtocol(Protocol):
     registry: Any
     project_path: str
     workspace_manager: Any
-    workspace_library_controller: Any
+    workspace_navigation_controller: Any
     graph_canvas_presenter: Any
     shell_host_presenter: Any
     console_panel: Any

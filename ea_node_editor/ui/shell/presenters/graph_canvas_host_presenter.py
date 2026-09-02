@@ -55,10 +55,6 @@ class GraphCanvasHostPresenter(QObject):
         self._tabular_preview_worker_pool.shutdown()
         self._tabular_preview_errors.clear()
 
-    def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
-        result = self._host.workspace_library_controller.request_delete_selected_graph_items(edge_ids)
-        return bool(result.payload)
-
     def request_navigate_scope_parent(self) -> bool:
         return bool(self._host.search_scope_controller.navigate_scope(self._host.scene.navigate_scope_parent))
 
@@ -455,7 +451,7 @@ class GraphCanvasHostPresenter(QObject):
         return True
 
     def request_remove_edge(self, edge_id: str) -> bool:
-        result = self._host.workspace_library_controller.request_remove_edge(edge_id)
+        result = self._host.workspace_edit_controller.request_remove_edge(edge_id)
         return bool(result.payload)
 
     def request_edit_passive_node_style(self, node_id: str) -> bool:
@@ -500,7 +496,7 @@ class GraphCanvasHostPresenter(QObject):
         return bool(propagate(node_id))
 
     def request_rename_node(self, node_id: str) -> bool:
-        result = self._host.workspace_library_controller.request_rename_node(node_id)
+        result = self._host.workspace_edit_controller.request_rename_node(node_id)
         return bool(result.payload)
 
     def request_ungroup_node(self, node_id: str) -> bool:
@@ -508,10 +504,10 @@ class GraphCanvasHostPresenter(QObject):
         if not normalized_node_id:
             return False
         self._host.scene.select_node(normalized_node_id)
-        return bool(self._host.workspace_library_controller.ungroup_selected_nodes())
+        return bool(self._host.workspace_edit_controller.ungroup_selected_nodes())
 
     def request_remove_node(self, node_id: str) -> bool:
-        result = self._host.workspace_library_controller.request_remove_node(node_id)
+        result = self._host.workspace_edit_controller.request_remove_node(node_id)
         return bool(result.payload)
 
 

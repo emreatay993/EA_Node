@@ -382,28 +382,22 @@ scene_bridge.command_bridge directly."""
         workspaces = getattr(project, "workspaces", None)
         if isinstance(workspaces, Mapping) and normalized_workspace_id not in workspaces:
             return False
-        controller = getattr(self._shell_window, "workspace_library_controller", None)
-        switch_workspace = getattr(controller, "switch_workspace", None)
-        if callable(switch_workspace):
-            switch_workspace(normalized_workspace_id)
-            return True
-        workspace_tabs = getattr(self._shell_window, "workspace_tabs", None)
-        activate_workspace = getattr(workspace_tabs, "activate_workspace", None)
-        if callable(activate_workspace):
-            activate_workspace(normalized_workspace_id)
-            return True
-        return False
+        self._shell_window.workspace_navigation_controller.switch_workspace(
+            normalized_workspace_id
+        )
+        return True
 
     def _open_node_link(self, workspace_id: str, node_id: str) -> bool:
         normalized_workspace_id = str(workspace_id or "").strip()
         normalized_node_id = str(node_id or "").strip()
         if not normalized_workspace_id or not normalized_node_id:
             return False
-        controller = getattr(self._shell_window, "workspace_library_controller", None)
-        jump_to_graph_node = getattr(controller, "jump_to_graph_node", None)
-        if callable(jump_to_graph_node):
-            return bool(jump_to_graph_node(normalized_workspace_id, normalized_node_id))
-        return False
+        return bool(
+            self._shell_window.workspace_navigation_controller.jump_to_graph_node(
+                normalized_workspace_id,
+                normalized_node_id,
+            )
+        )
 
     @pyqtSlot(str, str, result=bool)
     def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool:

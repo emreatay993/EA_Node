@@ -131,7 +131,7 @@ class ShellLibraryPresenter(QObject):
     def _custom_workflow_library_items(self) -> list[dict[str, Any]]:
         if self._custom_workflow_items_cache is None:
             self._custom_workflow_items_cache = (
-                self._host.workspace_library_controller.custom_workflow_library_items()
+                self._host.workflow_library_controller.custom_workflow_library_items()
             )
         return list(self._custom_workflow_items_cache)
 
@@ -538,7 +538,7 @@ class ShellLibraryPresenter(QObject):
         scene_x = float(context.get("scene_x", 0.0))
         scene_y = float(context.get("scene_y", 0.0))
         if connection_quick_insert_is_canvas_mode(context):
-            created = self._host.workspace_library_controller.request_drop_node_from_library(
+            created = self._host.workspace_drop_connect_controller.request_drop_node_from_library(
                 str(selected_item.get("type_id", "")),
                 scene_x,
                 scene_y,
@@ -550,7 +550,7 @@ class ShellLibraryPresenter(QObject):
         else:
             offset = self._host._CONNECTION_QUICK_INSERT_OFFSET
             scene_x += -offset if str(context.get("direction", "")).strip().lower() == "in" else offset
-            created = self._host.workspace_library_controller.request_drop_node_from_library(
+            created = self._host.workspace_drop_connect_controller.request_drop_node_from_library(
                 str(selected_item.get("type_id", "")),
                 scene_x,
                 scene_y,
@@ -565,32 +565,32 @@ class ShellLibraryPresenter(QObject):
 
     def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None: self._host.search_scope_controller.show_graph_hint(message, timeout_ms)
     def clear_graph_hint(self) -> None: self._host.search_scope_controller.clear_graph_hint()
-    def request_add_node_from_library(self, type_id: str) -> None: self._host.workspace_library_controller.add_node_from_library(type_id)
+    def request_add_node_from_library(self, type_id: str) -> None: self._host.workspace_drop_connect_controller.add_node_from_library(type_id)
     def request_add_node_from_library_with_properties(self, type_id: str, properties: dict[str, Any]) -> bool:
-        return bool(self._host.workspace_library_controller.add_node_from_library_with_properties(type_id, properties))
+        return bool(self._host.workspace_drop_connect_controller.add_node_from_library_with_properties(type_id, properties))
 
     def request_publish_custom_workflow_from_selected(self) -> bool:
-        result = self._host.workspace_library_controller.publish_custom_workflow_from_selected_subnode()
+        result = self._host.workflow_library_controller.publish_custom_workflow_from_selected_subnode()
         return bool(result.payload)
 
     def request_publish_custom_workflow_from_scope(self) -> bool:
-        result = self._host.workspace_library_controller.publish_custom_workflow_from_current_scope()
+        result = self._host.workflow_library_controller.publish_custom_workflow_from_current_scope()
         return bool(result.payload)
 
     def request_publish_custom_workflow_from_node(self, node_id: str) -> bool:
-        result = self._host.workspace_library_controller.publish_custom_workflow_from_node(node_id)
+        result = self._host.workflow_library_controller.publish_custom_workflow_from_node(node_id)
         return bool(result.payload)
 
     def request_delete_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str) -> bool:
-        result = self._host.workspace_library_controller.delete_custom_workflow(workflow_id, workflow_scope)
+        result = self._host.workflow_library_controller.delete_custom_workflow(workflow_id, workflow_scope)
         return bool(result.payload)
 
     def request_rename_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str) -> bool:
-        result = self._host.workspace_library_controller.rename_custom_workflow(workflow_id, workflow_scope)
+        result = self._host.workflow_library_controller.rename_custom_workflow(workflow_id, workflow_scope)
         return bool(result.payload)
 
     def request_set_custom_workflow_scope(self, workflow_id: str, workflow_scope: str) -> bool:
-        result = self._host.workspace_library_controller.set_custom_workflow_scope(workflow_id, workflow_scope)
+        result = self._host.workflow_library_controller.set_custom_workflow_scope(workflow_id, workflow_scope)
         return bool(result.payload)
 
 

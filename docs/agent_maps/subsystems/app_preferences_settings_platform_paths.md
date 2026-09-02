@@ -42,7 +42,7 @@ Use this for app-wide settings, graphics preferences, solution-mode defaults, se
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_graphics_settings_dialog.py tests/test_graph_theme_editor_dialog.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py tests/test_graphics_settings_preferences.py tests/test_media_panel_creation_preferences.py tests/test_selected_run_settings_dialog.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_app_preferences_import_defaults.py tests/test_workspace_library_controller_unit.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_app_preferences_import_defaults.py tests/test_workspace_navigation_controller.py tests/test_workspace_drop_connect_controller.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py tests/test_app_preferences_import_defaults.py tests/test_workflow_settings_dialog.py tests/test_project_session_controller_unit.py -k "python_runtime or python_executable or workflow_settings" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py tests/test_run_controller_unit.py -k "solution_default_mode or solution_mode" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_platform_open.py --ignore=venv -q

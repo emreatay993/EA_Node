@@ -695,8 +695,8 @@ FAST_SERIAL_PYTEST_TARGETS = (
     "tests/test_jupyter_server_manager.py::JupyterServerManagerIntegrationTests",
     "tests/test_project_file_issues.py",
     (
-        "tests/test_workspace_library_controller_unit.py::"
-        "WorkspaceLibraryControllerCoreOpsTests::"
+        "tests/test_workspace_edit_controller.py::"
+        "WorkspaceEditControllerCoreTests::"
         "test_paste_nodes_from_clipboard_is_noop_when_clipboard_is_missing"
     ),
 )

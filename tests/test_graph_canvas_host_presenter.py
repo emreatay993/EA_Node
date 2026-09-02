@@ -107,7 +107,7 @@ def _style_fixture(
         project_session_controller=session,
         project_meta_changed=project_meta_changed,
         search_scope_controller=SimpleNamespace(),
-        workspace_library_controller=SimpleNamespace(),
+        workspace_edit_controller=SimpleNamespace(),
         quick_widget=quick_widget,
     )
     return (
@@ -133,7 +133,7 @@ def test_graph_canvas_host_presenter_reuses_tabular_preview_provider(monkeypatch
         search_scope_controller=SimpleNamespace(),
         scene=SimpleNamespace(),
         shell_host_presenter=SimpleNamespace(),
-        workspace_library_controller=SimpleNamespace(),
+        workspace_edit_controller=SimpleNamespace(),
     )
     presenter = GraphCanvasHostPresenter(host)
 
@@ -162,7 +162,7 @@ def test_graph_canvas_host_presenter_opens_local_file_sources(monkeypatch, tmp_p
         search_scope_controller=SimpleNamespace(),
         scene=SimpleNamespace(),
         shell_host_presenter=SimpleNamespace(),
-        workspace_library_controller=SimpleNamespace(),
+        workspace_edit_controller=SimpleNamespace(),
     )
     presenter = GraphCanvasHostPresenter(host)
     mail_path = tmp_path / "message.eml"

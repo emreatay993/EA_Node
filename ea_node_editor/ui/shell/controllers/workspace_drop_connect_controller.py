@@ -1,7 +1,11 @@
+# Purpose: Own library insertion, workflow drops, auto-connect, and connection picking.
+# Map: feature_routes/workflow_library_drop_connect
+# Tests: tests/test_workspace_drop_connect_controller.py
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Any, Protocol
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.custom_workflows import parse_custom_workflow_type_id
 from ea_node_editor.graph.effective_ports import (
@@ -30,21 +34,9 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
 
-class _WorkspaceDropConnectControllerProtocol(Protocol):
-    def resolve_custom_workflow_definition(self, workflow_id: str) -> dict[str, Any] | None: ...
-
-    def active_workspace(self) -> WorkspaceData | None: ...
-
-    def prompt_connection_candidate(
-        self,
-        *,
-        title: str,
-        label: str,
-        candidates: list[dict[str, Any]],
-    ) -> dict[str, Any] | None: ...
-
-
-def _ordered_cardinal_sides_toward(*, node: NodeInstance, peer_node: NodeInstance) -> tuple[str, ...]:
+def _ordered_cardinal_sides_toward(
+    *, node: NodeInstance, peer_node: NodeInstance
+) -> tuple[str, ...]:
     dx = float(peer_node.x) - float(node.x)
     dy = float(peer_node.y) - float(node.y)
 
@@ -112,18 +104,67 @@ def _preferred_neutral_flow_port(
     return neutral_ports[0]
 
 
-class WorkspaceDropConnectOps:
+def retarget_fragment_roots(
+    fragment_payload: dict[str, Any],
+    *,
+    target_parent_id: str | None,
+) -> dict[str, Any]:
+    rewritten = copy.deepcopy(fragment_payload)
+    nodes_payload = rewritten.get("nodes")
+    if not isinstance(nodes_payload, list):
+        return rewritten
+    fragment_node_ids = {
+        str(node_payload.get("ref_id", "")).strip()
+        for node_payload in nodes_payload
+        if isinstance(node_payload, dict)
+    }
+    for node_payload in nodes_payload:
+        if not isinstance(node_payload, dict):
+            continue
+        normalized_parent = str(node_payload.get("parent_node_id", "")).strip()
+        if normalized_parent and normalized_parent in fragment_node_ids:
+            continue
+        if target_parent_id and target_parent_id in fragment_node_ids:
+            node_payload["parent_node_id"] = encode_fragment_external_parent_id(
+                target_parent_id
+            )
+        else:
+            node_payload["parent_node_id"] = target_parent_id
+    return rewritten
+
+
+class WorkspaceDropConnectController:
     def __init__(
         self,
         host: ShellWindow,
-        controller: _WorkspaceDropConnectControllerProtocol,
-        effects: MutationUiEffects | None = None,
+        *,
+        active_workspace: Callable[[], WorkspaceData | None],
+        resolve_custom_workflow_definition: Callable[[str], dict[str, Any] | None],
+        prompt_connection_candidate: Callable[..., dict[str, Any] | None],
+        effects: MutationUiEffects,
     ) -> None:
         self._host = host
-        self._controller = controller
-        self._effects = effects or MutationUiEffects(
-            host=host,
-            refresh_workspace_tabs=lambda: getattr(controller, "refresh_workspace_tabs", lambda: None)(),
+        self._active_workspace = active_workspace
+        self._resolve_custom_workflow_definition = resolve_custom_workflow_definition
+        self._prompt_connection_candidate = prompt_connection_candidate
+        self.mutation_ui_effects = effects
+        self._effects = effects
+
+    def add_node_from_library(self, type_id: str) -> None:
+        center = self._host.view.mapToScene(self._host.view.viewport().rect().center())
+        self.insert_library_node(type_id, center.x(), center.y())
+
+    def add_node_from_library_with_properties(
+        self, type_id: str, properties: dict[str, Any]
+    ) -> bool:
+        center = self._host.view.mapToScene(self._host.view.viewport().rect().center())
+        return bool(
+            self.insert_library_node_with_properties(
+                type_id,
+                properties,
+                center.x(),
+                center.y(),
+            )
         )
 
     def insert_library_node(
@@ -139,7 +180,9 @@ class WorkspaceDropConnectOps:
             return ""
         custom_workflow_id = parse_custom_workflow_type_id(normalized_type)
         if custom_workflow_id:
-            return self._insert_custom_workflow_snapshot(custom_workflow_id, float(x), float(y))
+            return self.insert_custom_workflow_snapshot(
+                custom_workflow_id, float(x), float(y)
+            )
         try:
             create_kwargs: dict[str, Any] = {
                 "type_id": normalized_type,
@@ -194,45 +237,57 @@ class WorkspaceDropConnectOps:
         except (OSError, RuntimeError, TypeError, ValueError):
             return
 
-    def _insert_custom_workflow_snapshot(self, workflow_id: str, x: float, y: float) -> str:
-        primary_node_id, _endpoints = self._insert_custom_workflow_snapshot_with_endpoints(
-            workflow_id,
-            x,
-            y,
+    def insert_custom_workflow_snapshot(
+        self, workflow_id: str, x: float, y: float
+    ) -> str:
+        primary_node_id, _endpoints = (
+            self.insert_custom_workflow_snapshot_with_endpoints(
+                workflow_id,
+                x,
+                y,
+            )
         )
         return primary_node_id
 
-    def _insert_custom_workflow_snapshot_with_endpoints(
+    def insert_custom_workflow_snapshot_with_endpoints(
         self,
         workflow_id: str,
         x: float,
         y: float,
     ) -> tuple[str, list[dict[str, str]]]:
-        workspace = self._controller.active_workspace()
+        workspace = self._active_workspace()
         if workspace is None:
             return "", []
-        definition = self._controller.resolve_custom_workflow_definition(workflow_id)
+        definition = self._resolve_custom_workflow_definition(workflow_id)
         if definition is None:
             return "", []
-        fragment_payload = self._normalize_custom_workflow_fragment_payload(definition.get("fragment"))
+        fragment_payload = self._normalize_custom_workflow_fragment_payload(
+            definition.get("fragment")
+        )
         if fragment_payload is None:
             return "", []
 
         target_parent_id = scope_parent_id(self._host.scene.active_scope_path)
-        scoped_fragment_payload = self._retarget_fragment_roots(
+        scoped_fragment_payload = retarget_fragment_roots(
             fragment_payload,
             target_parent_id=target_parent_id,
         )
 
         before_node_ids = set(workspace.nodes)
-        if not self._host.scene.paste_subgraph_fragment(scoped_fragment_payload, float(x), float(y)):
+        if not self._host.scene.paste_subgraph_fragment(
+            scoped_fragment_payload, float(x), float(y)
+        ):
             return "", []
-        inserted_node_ids = [node_id for node_id in workspace.nodes if node_id not in before_node_ids]
+        inserted_node_ids = [
+            node_id for node_id in workspace.nodes if node_id not in before_node_ids
+        ]
         if not inserted_node_ids:
             return "", []
 
         inserted_node_id_set = set(inserted_node_ids)
-        shell_node_id = self._find_inserted_root_subnode_shell_id(workspace.nodes, inserted_node_id_set)
+        shell_node_id = self._find_inserted_root_subnode_shell_id(
+            workspace.nodes, inserted_node_id_set
+        )
         if shell_node_id:
             primary_node_id = shell_node_id
         else:
@@ -271,7 +326,9 @@ class WorkspaceDropConnectOps:
         return primary_node_id, endpoints
 
     @staticmethod
-    def _normalize_custom_workflow_fragment_payload(fragment_payload: Any) -> dict[str, Any] | None:
+    def _normalize_custom_workflow_fragment_payload(
+        fragment_payload: Any,
+    ) -> dict[str, Any] | None:
         if not isinstance(fragment_payload, dict):
             return None
         normalized_fragment = normalize_graph_fragment_payload(fragment_payload)
@@ -289,33 +346,6 @@ class WorkspaceDropConnectOps:
         )
 
     @staticmethod
-    def _retarget_fragment_roots(
-        fragment_payload: dict[str, Any],
-        *,
-        target_parent_id: str | None,
-    ) -> dict[str, Any]:
-        rewritten = copy.deepcopy(fragment_payload)
-        nodes_payload = rewritten.get("nodes")
-        if not isinstance(nodes_payload, list):
-            return rewritten
-        fragment_node_ids = {
-            str(node_payload.get("ref_id", "")).strip()
-            for node_payload in nodes_payload
-            if isinstance(node_payload, dict)
-        }
-        for node_payload in nodes_payload:
-            if not isinstance(node_payload, dict):
-                continue
-            normalized_parent = str(node_payload.get("parent_node_id", "")).strip()
-            if normalized_parent and normalized_parent in fragment_node_ids:
-                continue
-            if target_parent_id and target_parent_id in fragment_node_ids:
-                node_payload["parent_node_id"] = encode_fragment_external_parent_id(target_parent_id)
-            else:
-                node_payload["parent_node_id"] = target_parent_id
-        return rewritten
-
-    @staticmethod
     def _find_inserted_root_subnode_shell_id(
         workspace_nodes: dict[str, NodeInstance],
         inserted_node_ids: set[str],
@@ -325,13 +355,19 @@ class WorkspaceDropConnectOps:
             node = workspace_nodes.get(node_id)
             if node is None or node.type_id != SUBNODE_TYPE_ID:
                 continue
-            parent_id = str(node.parent_node_id).strip() if node.parent_node_id is not None else ""
+            parent_id = (
+                str(node.parent_node_id).strip()
+                if node.parent_node_id is not None
+                else ""
+            )
             if parent_id and parent_id in inserted_node_ids:
                 continue
             shell_candidates.append(node)
         if not shell_candidates:
             return ""
-        shell_candidates.sort(key=lambda node: (float(node.y), float(node.x), node.node_id))
+        shell_candidates.sort(
+            key=lambda node: (float(node.y), float(node.x), node.node_id)
+        )
         return shell_candidates[0].node_id
 
     def auto_connect_dropped_node_to_port(
@@ -341,7 +377,7 @@ class WorkspaceDropConnectOps:
         target_port_key: str,
         append_requested: bool = False,
     ) -> bool:
-        workspace = self._controller.active_workspace()
+        workspace = self._active_workspace()
         if workspace is None:
             return False
 
@@ -449,7 +485,7 @@ class WorkspaceDropConnectOps:
         else:
             return False
 
-        selected = self._controller.prompt_connection_candidate(
+        selected = self._prompt_connection_candidate(
             title="Auto-Connect Port",
             label="Choose connection:",
             candidates=candidates,
@@ -469,8 +505,10 @@ class WorkspaceDropConnectOps:
         except (KeyError, ValueError):
             return False
 
-    def auto_connect_dropped_node_to_edge(self, new_node_id: str, target_edge_id: str) -> bool:
-        workspace = self._controller.active_workspace()
+    def auto_connect_dropped_node_to_edge(
+        self, new_node_id: str, target_edge_id: str
+    ) -> bool:
+        workspace = self._active_workspace()
         if workspace is None:
             return False
         edge = workspace.edges.get(target_edge_id)
@@ -574,7 +612,7 @@ class WorkspaceDropConnectOps:
                         }
                     )
 
-        selected = self._controller.prompt_connection_candidate(
+        selected = self._prompt_connection_candidate(
             title="Auto-Insert On Edge",
             label="Choose inserted wiring:",
             candidates=candidates,
@@ -630,7 +668,7 @@ class WorkspaceDropConnectOps:
         target_port_key: str,
         append_requested: bool = False,
     ) -> bool:
-        workspace = self._controller.active_workspace()
+        workspace = self._active_workspace()
         if workspace is None:
             return False
         target_node = workspace.nodes.get(str(target_node_id).strip())
@@ -679,8 +717,14 @@ class WorkspaceDropConnectOps:
                     data_types=self._host.registry.data_types,
                 ):
                     continue
-                source_node_id, source_port_key = endpoint_node.node_id, endpoint_port.key
-                connected_target_node_id, connected_target_port_key = target_node.node_id, target_port.key
+                source_node_id, source_port_key = (
+                    endpoint_node.node_id,
+                    endpoint_port.key,
+                )
+                connected_target_node_id, connected_target_port_key = (
+                    target_node.node_id,
+                    target_port.key,
+                )
             elif target_port.direction == "out":
                 if endpoint_port.direction != "in" or not ports_compatible(
                     target_port,
@@ -697,7 +741,10 @@ class WorkspaceDropConnectOps:
                 ):
                     continue
                 source_node_id, source_port_key = target_node.node_id, target_port.key
-                connected_target_node_id, connected_target_port_key = endpoint_node.node_id, endpoint_port.key
+                connected_target_node_id, connected_target_port_key = (
+                    endpoint_node.node_id,
+                    endpoint_port.key,
+                )
             else:
                 continue
             try:
@@ -718,7 +765,7 @@ class WorkspaceDropConnectOps:
         endpoints: list[dict[str, str]],
         target_edge_id: str,
     ) -> bool:
-        workspace = self._controller.active_workspace()
+        workspace = self._active_workspace()
         if workspace is None:
             return False
         edge = workspace.edges.get(str(target_edge_id).strip())
@@ -793,10 +840,14 @@ class WorkspaceDropConnectOps:
         self._host.scene.remove_edge(edge.edge_id)
         try:
             created_edge_ids.append(
-                self._host.scene.add_edge(original[0], original[1], input_endpoint[0], input_endpoint[1])
+                self._host.scene.add_edge(
+                    original[0], original[1], input_endpoint[0], input_endpoint[1]
+                )
             )
             created_edge_ids.append(
-                self._host.scene.add_edge(output_endpoint[0], output_endpoint[1], original[2], original[3])
+                self._host.scene.add_edge(
+                    output_endpoint[0], output_endpoint[1], original[2], original[3]
+                )
             )
             return True
         except (KeyError, ValueError):
@@ -819,7 +870,7 @@ class WorkspaceDropConnectOps:
         target_edge_id: str,
         append_requested: bool = False,
     ) -> ControllerResult[bool]:
-        workspace = self._controller.active_workspace()
+        workspace = self._active_workspace()
         if workspace is None:
             return ControllerResult(False, "Workspace not found.", payload=False)
 
@@ -832,10 +883,12 @@ class WorkspaceDropConnectOps:
             custom_workflow_id = parse_custom_workflow_type_id(type_id)
             workflow_endpoints: list[dict[str, str]] = []
             if custom_workflow_id:
-                created_node_id, workflow_endpoints = self._insert_custom_workflow_snapshot_with_endpoints(
-                    custom_workflow_id,
-                    scene_x,
-                    scene_y,
+                created_node_id, workflow_endpoints = (
+                    self.insert_custom_workflow_snapshot_with_endpoints(
+                        custom_workflow_id,
+                        scene_x,
+                        scene_y,
+                    )
                 )
             else:
                 created_node_id = self.insert_library_node(
@@ -850,7 +903,9 @@ class WorkspaceDropConnectOps:
                     ),
                 )
             if not created_node_id:
-                return ControllerResult(False, "Node could not be created.", payload=False)
+                return ControllerResult(
+                    False, "Node could not be created.", payload=False
+                )
 
             if mode == "port":
                 if workflow_endpoints:
@@ -880,3 +935,6 @@ class WorkspaceDropConnectOps:
                     )
 
         return ControllerResult(True, payload=True)
+
+
+__all__ = ["WorkspaceDropConnectController", "retarget_fragment_roots"]

@@ -450,7 +450,9 @@ class _InspectorHost(QObject):
 
     def __init__(self, node, spec):  # noqa: ANN001
         super().__init__()
-        self.workspace_library_controller = _InspectorController(node, spec)
+        controller = _InspectorController(node, spec)
+        self.workspace_selection_context = controller
+        self.workspace_edit_controller = controller
         self._SUBNODE_PIN_TYPE_IDS = set()
 
 
@@ -462,11 +464,11 @@ def test_inspector_commit_guard_rechecks_source_exposure() -> None:
     presenter = ShellInspectorPresenter(host)
     try:
         presenter.set_selected_node_property("source", "C:/blocked.png")
-        assert host.workspace_library_controller.commits == []
+        assert host.workspace_edit_controller.commits == []
 
         node.exposed_ports["source"] = False
         presenter.set_selected_node_property("source", "C:/accepted.png")
-        assert host.workspace_library_controller.commits == [
+        assert host.workspace_edit_controller.commits == [
             ("source", "C:/accepted.png")
         ]
     finally:

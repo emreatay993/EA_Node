@@ -1206,12 +1206,12 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.window.scene.set_node_title(local_target_id, "Local Constant")
 
         target_workspace_id = self.window.workspace_manager.create_workspace("Reports")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(target_workspace_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(target_workspace_id)
         cross_target_id = self.window.scene.add_node_from_type("core.logger", x=140.0, y=90.0)
         self.window.scene.set_node_title(cross_target_id, "PDF2")
 
-        self.window._switch_workspace(source_workspace_id)
+        self.window.workspace_navigation_controller.switch_workspace(source_workspace_id)
         self.window.scene.focus_node(source_node_id)
         self.app.processEvents()
 
@@ -1260,12 +1260,12 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         source_workspace_id = self.window.workspace_manager.active_workspace_id()
         source_node_id = self.window.scene.add_node_from_type("core.logger", x=80.0, y=60.0)
         target_workspace_id = self.window.workspace_manager.create_workspace("Reports")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(target_workspace_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(target_workspace_id)
         target_node_id = self.window.scene.add_node_from_type("core.logger", x=160.0, y=100.0)
         self.window.scene.set_node_title(target_node_id, "PDF2")
 
-        self.window._switch_workspace(source_workspace_id)
+        self.window.workspace_navigation_controller.switch_workspace(source_workspace_id)
         self.window.scene.focus_node(source_node_id)
         self.app.processEvents()
 
@@ -1305,11 +1305,11 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         source_node_id = self.window.scene.add_node_from_type("core.logger", x=80.0, y=60.0)
         self.window.scene.set_node_title(source_node_id, "Source Logger")
         target_workspace_id = self.window.workspace_manager.create_workspace("Reports")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(target_workspace_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(target_workspace_id)
         target_node_id = self.window.scene.add_node_from_type("core.logger", x=160.0, y=100.0)
         self.window.scene.set_node_title(target_node_id, "PDF2")
-        self.window._switch_workspace(source_workspace_id)
+        self.window.workspace_navigation_controller.switch_workspace(source_workspace_id)
         self.window.scene.focus_node(source_node_id)
         self.app.processEvents()
 
@@ -1337,7 +1337,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertEqual(str(root_object.property("linkTargetPickOwner")), "canvas")
         self.assertTrue(bool(link_editor.property("pickModeActive")))
 
-        self.window._switch_workspace(target_workspace_id)
+        self.window.workspace_navigation_controller.switch_workspace(target_workspace_id)
         self.app.processEvents()
         QMetaObject.invokeMethod(
             graph_canvas,
@@ -1400,7 +1400,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         link_editor.setProperty("editingTitle", "Unsaved draft")
         link_editor.setProperty("editingSubtitle", "Survives cancel")
         QMetaObject.invokeMethod(link_editor, "requestPickTarget")
-        self.window._switch_workspace(target_workspace_id)
+        self.window.workspace_navigation_controller.switch_workspace(target_workspace_id)
         self.app.processEvents()
         QMetaObject.invokeMethod(graph_canvas, "forceActiveFocus")
         self.app.processEvents()
@@ -1951,22 +1951,22 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.window.view.centerOn(110.0, 210.0)
         self.app.processEvents()
 
-        self.window._save_active_view_state()
+        self.window.workspace_navigation_controller.save_active_view_state()
         first_v2_id = self.window.workspace_manager.create_view(first_workspace_id, name="V2")
-        self.window._restore_active_view_state()
+        self.window.workspace_navigation_controller.restore_active_view_state()
         self.window.view.set_zoom(0.7)
         self.window.view.centerOn(-55.0, 75.0)
         first_node_id = self.window.scene.add_node_from_type("core.constant", x=20.0, y=30.0)
         self.app.processEvents()
 
         second_workspace_id = self.window.workspace_manager.create_workspace("Second")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(second_workspace_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(second_workspace_id)
         self.window.view.set_zoom(2.0)
         self.window.view.centerOn(400.0, -125.0)
         self.app.processEvents()
 
-        self.window._switch_workspace(first_workspace_id)
+        self.window.workspace_navigation_controller.switch_workspace(first_workspace_id)
         self.app.processEvents()
         self.assertEqual(
             self.window.model.project.workspaces[first_workspace_id].active_view_id,
@@ -1977,7 +1977,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertAlmostEqual(self.window.view.center_y, 75.0, delta=5.0)
         self.assertIn(first_node_id, self.window.model.project.workspaces[first_workspace_id].nodes)
 
-        self.window._switch_view(first_v1_id)
+        self.window.workspace_navigation_controller.switch_view(first_v1_id)
         self.app.processEvents()
         self.assertAlmostEqual(self.window.view.zoom, 1.4, places=2)
         self.assertAlmostEqual(self.window.view.center_x, 110.0, delta=5.0)
@@ -2159,8 +2159,8 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
     def test_closing_dirty_workspace_honors_unsaved_warning(self) -> None:
         first_workspace_id = self.window.workspace_manager.active_workspace_id()
         self.window.workspace_manager.create_workspace("Second")
-        self.window._refresh_workspace_tabs()
-        self.window._switch_workspace(first_workspace_id)
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(first_workspace_id)
         self.window.scene.add_node_from_type("core.constant", x=0.0, y=0.0)
         self.app.processEvents()
 
@@ -2172,18 +2172,18 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertGreaterEqual(first_index, 0)
 
         with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.No):
-            self.window._on_workspace_tab_close(first_index)
+            self.window.workspace_navigation_controller.on_workspace_tab_close(first_index)
         self.assertIn(first_workspace_id, self.window.model.project.workspaces)
 
         with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
-            self.window._on_workspace_tab_close(first_index)
+            self.window.workspace_navigation_controller.on_workspace_tab_close(first_index)
         self.assertNotIn(first_workspace_id, self.window.model.project.workspaces)
 
     def test_request_move_workspace_tab_reorders_workspace_tabs(self) -> None:
         first_workspace_id = self.window.workspace_manager.active_workspace_id()
         second_workspace_id = self.window.workspace_manager.create_workspace("Second")
         third_workspace_id = self.window.workspace_manager.create_workspace("Third")
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
         self.app.processEvents()
 
         moved = self.window.request_move_workspace_tab(2, 0)
@@ -2199,7 +2199,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
     def test_qml_workspace_tabs_allow_leftward_drag_from_non_leftmost_slots(self) -> None:
         self.window.workspace_manager.create_workspace("Second")
         self.window.workspace_manager.create_workspace("Third")
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
 
         strip = self._inspector_object("workspaceControlsStrip")
 
@@ -2240,7 +2240,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
             self.window.workspace_manager.create_workspace(
                 f"Overflow Workspace {index} - Static Displacement Viewer"
             )
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
         self.app.processEvents()
 
         strip = self._inspector_object("workspaceControlsStrip")
@@ -2307,7 +2307,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
             self.window.workspace_manager.create_workspace(
                 f"Wheel Workspace {index} - Static Stress Norm Export"
             )
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
         self.app.processEvents()
 
         strip = self._inspector_object("workspaceControlsStrip")
@@ -2384,7 +2384,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
                     f"Reveal Workspace {index} - Static Displacement Viewer"
                 )
             )
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
         self.app.processEvents()
 
         strip = self._inspector_object("workspaceControlsStrip")

@@ -113,7 +113,7 @@ class ShellWindowRunAndStyleStateMixin:
         return bool(self.graph_canvas_presenter.request_toggle_snap_to_grid())
 
     def _focus_failed_node(self: "ShellWindow", workspace_id, node_id):
-        return self.workspace_library_controller.focus_failed_node(workspace_id, node_id)
+        return self.workspace_navigation_controller.focus_failed_node(workspace_id, node_id)
 
     @staticmethod
     def _first_status_node_id(node_ids: Iterable[Any]) -> str:
@@ -131,7 +131,7 @@ class ShellWindowRunAndStyleStateMixin:
             failed_workspace_id = str(getattr(run_state, "failed_workspace_id", "") or "").strip()
             failed_node_id = str(getattr(run_state, "failed_node_id", "") or "").strip()
             if failed_workspace_id and failed_node_id:
-                self.workspace_library_controller.focus_failed_node(failed_workspace_id, failed_node_id)
+                self.workspace_navigation_controller.focus_failed_node(failed_workspace_id, failed_node_id)
                 return True
             if normalized_target != "auto":
                 return False
@@ -163,7 +163,7 @@ class ShellWindowRunAndStyleStateMixin:
             node_id = self._first_status_node_id(node_ids)
             if not node_id:
                 continue
-            if self.workspace_library_controller.jump_to_graph_node(execution_workspace_id, node_id):
+            if self.workspace_navigation_controller.jump_to_graph_node(execution_workspace_id, node_id):
                 return True
         return False
 

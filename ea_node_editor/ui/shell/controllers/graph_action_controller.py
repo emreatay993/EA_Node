@@ -1,6 +1,10 @@
+# Purpose: Dispatch normalized graph action IDs through explicit concrete owners.
+# Map: feature_routes/graph_actions_and_context_menus
+# Tests: tests/test_graph_action_contracts.py
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from ea_node_editor.platform_open import (
     open_path_with_app_chooser,
@@ -12,65 +16,45 @@ from ea_node_editor.ui.shell.graph_action_contracts import (
     normalize_graph_action_payload,
 )
 
+if TYPE_CHECKING:
+    from ea_node_editor.help.help_bridge import HelpBridge
+    from ea_node_editor.ui.shell.composition.bridges import AddonManagerBridge
+    from ea_node_editor.ui.shell.controllers.run_controller import RunController
+    from ea_node_editor.ui.shell.controllers.workflow_library_controller import (
+        WorkflowLibraryController,
+    )
+    from ea_node_editor.ui.shell.controllers.workspace_edit_controller import (
+        WorkspaceEditController,
+    )
+    from ea_node_editor.ui.shell.presenters.graph_canvas_host_presenter import (
+        GraphCanvasHostPresenter,
+    )
+    from ea_node_editor.ui.shell.presenters.graph_canvas_presenter import (
+        GraphCanvasPresenter,
+    )
+    from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+
+
 _UNSET = object()
-
-_WORKSPACE_ACTION_METHODS: dict[GraphActionId, tuple[str, bool]] = {
-    GraphActionId.CONNECT_SELECTED: ("connect_selected_nodes", True),
-    GraphActionId.COPY_SELECTION: ("copy_selected_nodes_to_clipboard", False),
-    GraphActionId.CUT_SELECTION: ("cut_selected_nodes_to_clipboard", False),
-    GraphActionId.PASTE_SELECTION: ("paste_nodes_from_clipboard", False),
-    GraphActionId.DUPLICATE_SELECTION: ("duplicate_selected_nodes", False),
-    GraphActionId.GROUP_SELECTION: ("group_selected_nodes", False),
-    GraphActionId.UNGROUP_SELECTION: ("ungroup_selected_nodes", False),
-    GraphActionId.ALIGN_SELECTION_LEFT: ("align_selection_left", False),
-    GraphActionId.ALIGN_SELECTION_RIGHT: ("align_selection_right", False),
-    GraphActionId.ALIGN_SELECTION_TOP: ("align_selection_top", False),
-    GraphActionId.ALIGN_SELECTION_BOTTOM: ("align_selection_bottom", False),
-    GraphActionId.DISTRIBUTE_SELECTION_HORIZONTALLY: ("distribute_selection_horizontally", False),
-    GraphActionId.DISTRIBUTE_SELECTION_VERTICALLY: ("distribute_selection_vertically", False),
-    GraphActionId.STRAIGHTEN_SELECTION_CONNECTIONS: ("straighten_selection_connections", False),
-}
-
-_NODE_HOST_ACTION_METHODS: dict[GraphActionId, str] = {
-    GraphActionId.EDIT_PASSIVE_NODE_STYLE: "request_edit_passive_node_style",
-    GraphActionId.RESET_PASSIVE_NODE_STYLE: "request_reset_passive_node_style",
-    GraphActionId.COPY_PASSIVE_NODE_STYLE: "request_copy_passive_node_style",
-    GraphActionId.PASTE_PASSIVE_NODE_STYLE: "request_paste_passive_node_style",
-    GraphActionId.PROPAGATE_PASSIVE_NODE_STYLE: "request_propagate_passive_node_style",
-    GraphActionId.RENAME_NODE: "request_rename_node",
-    GraphActionId.UNGROUP_NODE: "request_ungroup_node",
-    GraphActionId.REMOVE_NODE: "request_remove_node",
-}
-
-_EDGE_HOST_ACTION_METHODS: dict[GraphActionId, str] = {
-    GraphActionId.EDIT_FLOW_EDGE_STYLE: "request_edit_flow_edge_style",
-    GraphActionId.EDIT_FLOW_EDGE_LABEL: "request_edit_flow_edge_label",
-    GraphActionId.RESET_FLOW_EDGE_STYLE: "request_reset_flow_edge_style",
-    GraphActionId.COPY_FLOW_EDGE_STYLE: "request_copy_flow_edge_style",
-    GraphActionId.PASTE_FLOW_EDGE_STYLE: "request_paste_flow_edge_style",
-    GraphActionId.REMOVE_EDGE: "request_remove_edge",
-}
 
 
 class GraphActionController:
     def __init__(
         self,
         *,
-        workspace_library_controller: object | None = None,
-        workspace_graph_edit_controller: object | None = None,
-        graph_canvas_presenter: object | None = None,
-        graph_canvas_host_presenter: object | None = None,
-        shell_library_presenter: object | None = None,
-        scene_bridge: object | None = None,
-        help_bridge: object | None = None,
-        addon_manager_bridge: object | None = None,
-        run_controller: object | None = None,
+        workspace_edit_controller: WorkspaceEditController | None = None,
+        workflow_library_controller: WorkflowLibraryController | None = None,
+        graph_canvas_presenter: GraphCanvasPresenter | None = None,
+        graph_canvas_host_presenter: GraphCanvasHostPresenter | None = None,
+        scene_bridge: GraphSceneBridge | None = None,
+        help_bridge: HelpBridge | None = None,
+        addon_manager_bridge: AddonManagerBridge | None = None,
+        run_controller: RunController | None = None,
     ) -> None:
-        self._workspace_library_controller = workspace_library_controller
-        self._workspace_graph_edit_controller = workspace_graph_edit_controller
+        self._workspace_edit_controller = workspace_edit_controller
+        self._workflow_library_controller = workflow_library_controller
         self._graph_canvas_presenter = graph_canvas_presenter
         self._graph_canvas_host_presenter = graph_canvas_host_presenter
-        self._shell_library_presenter = shell_library_presenter
         self._scene_bridge = scene_bridge
         self._help_bridge = help_bridge
         self._addon_manager_bridge = addon_manager_bridge
@@ -90,220 +74,262 @@ class GraphActionController:
         except ValueError:
             return False
         if canonical_action_id is GraphActionId.SHOW_NODE_HELP and payload is None:
-            return self._trigger_show_help_for_selected_node()
-        normalized_payload = normalize_graph_action_payload(canonical_action_id, payload)
+            if self._help_bridge is None:
+                return False
+            return _result_bool(self._help_bridge.show_help_for_selected_node())
+        normalized_payload = normalize_graph_action_payload(
+            canonical_action_id, payload
+        )
         if normalized_payload is None:
             return False
         return self._trigger_normalized(canonical_action_id, normalized_payload)
 
-    def _trigger_normalized(self, action_id: GraphActionId, payload: Mapping[str, object]) -> bool:
-        if action_id in _WORKSPACE_ACTION_METHODS:
-            method_name, none_is_success = _WORKSPACE_ACTION_METHODS[action_id]
-            return self._invoke_bool(
-                self._workspace_library_controller_source(),
-                method_name,
-                none_is_success=none_is_success,
-            )
-        if action_id is GraphActionId.SET_SELECTION_SAME_TYPE_WIDTH:
-            return self._trigger_same_type_size_action(payload, "set_selection_same_type_width")
-        if action_id is GraphActionId.SET_SELECTION_SAME_TYPE_HEIGHT:
-            return self._trigger_same_type_size_action(payload, "set_selection_same_type_height")
-        if action_id is GraphActionId.DELETE_SELECTION:
-            return self._trigger_delete_selection(payload)
+    def _trigger_normalized(
+        self,
+        action_id: GraphActionId,
+        payload: Mapping[str, object],
+    ) -> bool:
+        edit = self._workspace_edit_controller
+        if action_id is GraphActionId.CONNECT_SELECTED:
+            if edit is None:
+                return False
+            edit.connect_selected_nodes()
+            return True
+        if action_id is GraphActionId.COPY_SELECTION:
+            return edit is not None and edit.copy_selected_nodes_to_clipboard()
+        if action_id is GraphActionId.CUT_SELECTION:
+            return edit is not None and edit.cut_selected_nodes_to_clipboard()
+        if action_id is GraphActionId.PASTE_SELECTION:
+            return edit is not None and edit.paste_nodes_from_clipboard()
+        if action_id is GraphActionId.DUPLICATE_SELECTION:
+            return edit is not None and edit.duplicate_selected_nodes()
         if action_id is GraphActionId.WRAP_SELECTION_IN_GROUP_BACKDROP:
-            return self._invoke_bool(
-                self._workspace_graph_edit_controller_source(),
-                "wrap_selected_nodes_in_group_backdrop",
+            return edit is not None and edit.wrap_selected_nodes_in_group_backdrop()
+        if action_id is GraphActionId.GROUP_SELECTION:
+            return edit is not None and edit.group_selected_nodes()
+        if action_id is GraphActionId.UNGROUP_SELECTION:
+            return edit is not None and edit.ungroup_selected_nodes()
+        if action_id is GraphActionId.ALIGN_SELECTION_LEFT:
+            return edit is not None and edit.align_selection_left()
+        if action_id is GraphActionId.ALIGN_SELECTION_RIGHT:
+            return edit is not None and edit.align_selection_right()
+        if action_id is GraphActionId.ALIGN_SELECTION_TOP:
+            return edit is not None and edit.align_selection_top()
+        if action_id is GraphActionId.ALIGN_SELECTION_BOTTOM:
+            return edit is not None and edit.align_selection_bottom()
+        if action_id is GraphActionId.DISTRIBUTE_SELECTION_HORIZONTALLY:
+            return edit is not None and edit.distribute_selection_horizontally()
+        if action_id is GraphActionId.DISTRIBUTE_SELECTION_VERTICALLY:
+            return edit is not None and edit.distribute_selection_vertically()
+        if action_id is GraphActionId.STRAIGHTEN_SELECTION_CONNECTIONS:
+            return edit is not None and edit.straighten_selection_connections()
+        if action_id is GraphActionId.SET_SELECTION_SAME_TYPE_WIDTH:
+            node_ids = _selection_node_ids(payload)
+            return (
+                edit is not None
+                and node_ids is not None
+                and edit.set_selection_same_type_width(node_ids)
             )
+        if action_id is GraphActionId.SET_SELECTION_SAME_TYPE_HEIGHT:
+            node_ids = _selection_node_ids(payload)
+            return (
+                edit is not None
+                and node_ids is not None
+                and edit.set_selection_same_type_height(node_ids)
+            )
+        if action_id is GraphActionId.DELETE_SELECTION:
+            edge_ids = _optional_list(payload, "edge_ids")
+            if edit is None or edge_ids is None:
+                return False
+            return bool(edit.request_delete_selected_graph_items(edge_ids).payload)
+
+        run = self._run_controller
         if action_id is GraphActionId.RUN_SELECTED:
-            return self._invoke_bool(
-                self._run_controller_source(),
-                "run_selected_nodes",
-                _selected_run_node_ids(payload),
+            if run is None:
+                return False
+            return _result_bool(
+                run.run_selected_nodes(_selected_run_node_ids(payload)),
                 none_is_success=True,
             )
         if action_id is GraphActionId.PREVIEW_SELECTED_RUN:
-            return self._invoke_bool(
-                self._run_controller_source(),
-                "preview_selected_run",
-                _selected_run_node_ids(payload),
+            if run is None:
+                return False
+            return _result_bool(
+                run.preview_selected_run(_selected_run_node_ids(payload)),
                 none_is_success=True,
             )
         if action_id is GraphActionId.CONFIRM_SELECTED_RUN_PREVIEW:
-            return self._invoke_bool(
-                self._run_controller_source(),
-                "confirm_selected_run_preview",
+            if run is None:
+                return False
+            return _result_bool(
+                run.confirm_selected_run_preview(),
                 none_is_success=True,
             )
         if action_id is GraphActionId.CLEAR_SELECTED_RUN_PREVIEW:
-            return self._invoke_bool(
-                self._run_controller_source(),
-                "clear_selected_run_preview",
+            if run is None:
+                return False
+            return _result_bool(
+                run.clear_selected_run_preview(),
                 none_is_success=True,
             )
         if action_id is GraphActionId.OPEN_SELECTED_RUN_SETTINGS:
-            return self._invoke_bool(
-                self._run_controller_source(),
-                "open_selected_run_settings",
+            if run is None:
+                return False
+            return _result_bool(
+                run.open_selected_run_settings(),
                 none_is_success=True,
             )
+
+        host_presenter = self._graph_canvas_host_presenter
         if action_id is GraphActionId.NAVIGATE_SCOPE_PARENT:
-            return self._trigger_navigate_scope("request_navigate_scope_parent")
+            return (
+                host_presenter is not None
+                and host_presenter.request_navigate_scope_parent()
+            )
         if action_id is GraphActionId.NAVIGATE_SCOPE_ROOT:
-            return self._trigger_navigate_scope("request_navigate_scope_root")
-        if action_id is GraphActionId.OPEN_ADDON_MANAGER_FOR_NODE:
-            return self._trigger_open_addon_manager_for_node(payload)
+            return (
+                host_presenter is not None
+                and host_presenter.request_navigate_scope_root()
+            )
+
+        canvas_presenter = self._graph_canvas_presenter
         if action_id is GraphActionId.OPEN_SUBNODE_SCOPE:
-            return self._trigger_node_action_on_canvas_presenter(payload, "request_open_subnode_scope")
+            return (
+                canvas_presenter is not None
+                and canvas_presenter.request_open_subnode_scope(
+                    _required_str(payload, "node_id")
+                )
+            )
+
         if action_id is GraphActionId.PUBLISH_CUSTOM_WORKFLOW_FROM_NODE:
-            return self._trigger_publish_custom_workflow_from_node(payload)
+            workflow = self._workflow_library_controller
+            if workflow is None:
+                return False
+            return bool(
+                workflow.publish_custom_workflow_from_node(
+                    _required_str(payload, "node_id")
+                ).payload
+            )
+
+        scene = self._scene_bridge
         if action_id is GraphActionId.OPEN_COMMENT_PEEK:
-            return self._invoke_bool(self._scene_bridge_source(), "open_comment_peek", _required_str(payload, "node_id"))
+            return scene is not None and scene.open_comment_peek(
+                _required_str(payload, "node_id")
+            )
         if action_id is GraphActionId.CLOSE_COMMENT_PEEK:
-            return self._invoke_bool(self._scene_bridge_source(), "close_comment_peek")
-        if action_id is GraphActionId.RENAME_NODE and bool(payload.get("inline_title_edit")):
+            return scene is not None and scene.close_comment_peek()
+        if action_id is GraphActionId.RENAME_NODE and bool(
+            payload.get("inline_title_edit")
+        ):
             return True
-        if action_id in _NODE_HOST_ACTION_METHODS:
-            return self._trigger_node_action_on_host_presenter(payload, _NODE_HOST_ACTION_METHODS[action_id])
+
+        if host_presenter is not None and action_id in {
+            GraphActionId.EDIT_PASSIVE_NODE_STYLE,
+            GraphActionId.RESET_PASSIVE_NODE_STYLE,
+            GraphActionId.COPY_PASSIVE_NODE_STYLE,
+            GraphActionId.PASTE_PASSIVE_NODE_STYLE,
+            GraphActionId.PROPAGATE_PASSIVE_NODE_STYLE,
+            GraphActionId.RENAME_NODE,
+            GraphActionId.UNGROUP_NODE,
+            GraphActionId.REMOVE_NODE,
+        }:
+            node_id = _required_str(payload, "node_id")
+            if action_id is GraphActionId.EDIT_PASSIVE_NODE_STYLE:
+                return host_presenter.request_edit_passive_node_style(node_id)
+            if action_id is GraphActionId.RESET_PASSIVE_NODE_STYLE:
+                return host_presenter.request_reset_passive_node_style(node_id)
+            if action_id is GraphActionId.COPY_PASSIVE_NODE_STYLE:
+                return host_presenter.request_copy_passive_node_style(node_id)
+            if action_id is GraphActionId.PASTE_PASSIVE_NODE_STYLE:
+                return host_presenter.request_paste_passive_node_style(node_id)
+            if action_id is GraphActionId.PROPAGATE_PASSIVE_NODE_STYLE:
+                return host_presenter.request_propagate_passive_node_style(node_id)
+            if action_id is GraphActionId.RENAME_NODE:
+                return host_presenter.request_rename_node(node_id)
+            if action_id is GraphActionId.UNGROUP_NODE:
+                return host_presenter.request_ungroup_node(node_id)
+            if action_id is GraphActionId.REMOVE_NODE:
+                return host_presenter.request_remove_node(node_id)
+
         if action_id is GraphActionId.DUPLICATE_NODE:
-            return self._trigger_duplicate_node(payload)
+            if scene is None:
+                return False
+            scene.select_node(_required_str(payload, "node_id"), False)
+            return scene.duplicate_selected_subgraph()
         if action_id is GraphActionId.OPEN_NODE_PATH:
             return self._trigger_open_node_path(payload, chooser=False)
         if action_id is GraphActionId.OPEN_NODE_PATH_WITH:
             return self._trigger_open_node_path(payload, chooser=True)
         if action_id is GraphActionId.SHOW_NODE_HELP:
-            return self._invoke_bool(self._help_bridge_source(), "show_help_for_node", _required_str(payload, "node_id"))
-        if action_id in _EDGE_HOST_ACTION_METHODS:
-            return self._trigger_edge_action_on_host_presenter(payload, _EDGE_HOST_ACTION_METHODS[action_id])
+            return (
+                self._help_bridge is not None
+                and self._help_bridge.show_help_for_node(
+                    _required_str(payload, "node_id")
+                )
+            )
+
+        if host_presenter is not None and action_id in {
+            GraphActionId.EDIT_FLOW_EDGE_STYLE,
+            GraphActionId.EDIT_FLOW_EDGE_LABEL,
+            GraphActionId.RESET_FLOW_EDGE_STYLE,
+            GraphActionId.COPY_FLOW_EDGE_STYLE,
+            GraphActionId.PASTE_FLOW_EDGE_STYLE,
+            GraphActionId.REMOVE_EDGE,
+        }:
+            edge_id = _required_str(payload, "edge_id")
+            if action_id is GraphActionId.EDIT_FLOW_EDGE_STYLE:
+                return host_presenter.request_edit_flow_edge_style(edge_id)
+            if action_id is GraphActionId.EDIT_FLOW_EDGE_LABEL:
+                return host_presenter.request_edit_flow_edge_label(edge_id)
+            if action_id is GraphActionId.RESET_FLOW_EDGE_STYLE:
+                return host_presenter.request_reset_flow_edge_style(edge_id)
+            if action_id is GraphActionId.COPY_FLOW_EDGE_STYLE:
+                return host_presenter.request_copy_flow_edge_style(edge_id)
+            if action_id is GraphActionId.PASTE_FLOW_EDGE_STYLE:
+                return host_presenter.request_paste_flow_edge_style(edge_id)
+            if action_id is GraphActionId.REMOVE_EDGE:
+                return host_presenter.request_remove_edge(edge_id)
+
+        if action_id is GraphActionId.OPEN_ADDON_MANAGER_FOR_NODE:
+            focus_addon_id = self._addon_focus_id(payload)
+            if not focus_addon_id or self._addon_manager_bridge is None:
+                return False
+            self._addon_manager_bridge.requestOpen(focus_addon_id)
+            return True
         return False
 
-    def _trigger_delete_selection(self, payload: Mapping[str, object]) -> bool:
-        edge_ids = _optional_list(payload, "edge_ids")
-        if edge_ids is None:
-            return False
-        return self._invoke_bool(
-            self._graph_canvas_host_presenter_source(),
-            "request_delete_selected_graph_items",
-            edge_ids,
-        ) or self._invoke_bool(
-            self._workspace_library_controller_source(),
-            "request_delete_selected_graph_items",
-            edge_ids,
-        )
-
-    def _trigger_same_type_size_action(self, payload: Mapping[str, object], method_name: str) -> bool:
-        node_ids = _selection_node_ids(payload)
-        if node_ids is None:
-            return False
-        return self._invoke_bool(
-            self._workspace_library_controller_source(),
-            method_name,
-            node_ids,
-        )
-
-    def _trigger_navigate_scope(self, host_method_name: str) -> bool:
-        return self._invoke_bool(self._graph_canvas_host_presenter_source(), host_method_name)
-
-    def _trigger_show_help_for_selected_node(self) -> bool:
-        help_bridge = self._help_bridge_source()
-        return self._invoke_bool(help_bridge, "show_help_for_selected_node")
-
-    def _trigger_node_action_on_canvas_presenter(
+    def _trigger_open_node_path(
         self,
         payload: Mapping[str, object],
-        method_name: str,
+        *,
+        chooser: bool,
     ) -> bool:
-        node_id = _required_str(payload, "node_id")
-        return self._invoke_bool(
-            self._graph_canvas_presenter_source(),
-            method_name,
-            node_id,
-        )
-
-    def _trigger_publish_custom_workflow_from_node(self, payload: Mapping[str, object]) -> bool:
-        node_id = _required_str(payload, "node_id")
-        return (
-            self._invoke_bool(
-                self._shell_library_presenter_source(),
-                "request_publish_custom_workflow_from_node",
-                node_id,
-            )
-            or self._invoke_bool(
-                self._workspace_library_controller_source(),
-                "publish_custom_workflow_from_node",
-                node_id,
-            )
-        )
-
-    def _trigger_node_action_on_host_presenter(
-        self,
-        payload: Mapping[str, object],
-        method_name: str,
-    ) -> bool:
-        node_id = _required_str(payload, "node_id")
-        return self._invoke_bool(
-            self._graph_canvas_host_presenter_source(),
-            method_name,
-            node_id,
-        )
-
-    def _trigger_edge_action_on_host_presenter(
-        self,
-        payload: Mapping[str, object],
-        method_name: str,
-    ) -> bool:
-        edge_id = _required_str(payload, "edge_id")
-        return self._invoke_bool(
-            self._graph_canvas_host_presenter_source(),
-            method_name,
-            edge_id,
-        )
-
-    def _trigger_duplicate_node(self, payload: Mapping[str, object]) -> bool:
-        node_id = _required_str(payload, "node_id")
-        scene = self._scene_bridge_source()
-        command_source = getattr(scene, "command_bridge", scene) if scene is not None else None
-        if not self._invoke_bool(command_source, "select_node", node_id, False, none_is_success=True):
-            return False
-        return self._invoke_bool(scene, "duplicate_selected_subgraph")
-
-    def _trigger_open_node_path(self, payload: Mapping[str, object], *, chooser: bool) -> bool:
-        node_id = _required_str(payload, "node_id")
-        node_payload = self._scene_node_payload(node_id)
-        properties = node_payload.get("properties")
         path = ""
+        properties = self._scene_node_payload(_required_str(payload, "node_id")).get(
+            "properties"
+        )
         if isinstance(properties, Mapping):
             path = str(properties.get("path") or "").strip()
         if not path:
             self._show_open_path_hint("No path is set on this node to open.")
             return False
-        opener = open_path_with_app_chooser if chooser else open_path_with_default_handler
+        opener = (
+            open_path_with_app_chooser if chooser else open_path_with_default_handler
+        )
         if not opener(path):
             self._show_open_path_hint(f'Could not open "{path}".')
             return False
         return True
 
     def _show_open_path_hint(self, message: str) -> None:
-        presenter = self._graph_canvas_presenter_source()
-        show_hint = getattr(presenter, "show_graph_hint", None)
-        if callable(show_hint):
-            show_hint(message, 3200)
-
-    def _trigger_open_addon_manager_for_node(self, payload: Mapping[str, object]) -> bool:
-        focus_addon_id = self._addon_focus_id(payload)
-        if not focus_addon_id:
-            return False
-        addon_manager_bridge = self._addon_manager_bridge_source()
-        if self._invoke_bool(addon_manager_bridge, "requestOpen", focus_addon_id, none_is_success=True):
-            return True
-        return False
+        if self._graph_canvas_presenter is not None:
+            self._graph_canvas_presenter.show_graph_hint(message, 3200)
 
     def _addon_focus_id(self, payload: Mapping[str, object]) -> str:
         explicit = _first_non_empty_str(payload, "focus_addon_id", "addon_id")
         if explicit:
             return explicit
-        node_id = _required_str(payload, "node_id")
-        node_payload = self._scene_node_payload(node_id)
+        node_payload = self._scene_node_payload(_required_str(payload, "node_id"))
         locked_state = node_payload.get("locked_state")
         if isinstance(locked_state, Mapping):
             focus_addon_id = _first_non_empty_str(locked_state, "focus_addon_id")
@@ -312,60 +338,19 @@ class GraphActionController:
         return _first_non_empty_str(node_payload, "addon_id")
 
     def _scene_node_payload(self, node_id: str) -> Mapping[str, object]:
-        scene = self._scene_bridge_source()
+        scene = self._scene_bridge
         normalized_node_id = str(node_id or "").strip()
         if scene is None or not normalized_node_id:
             return {}
-        for attr_name in ("nodes_model", "backdrop_nodes_model"):
-            payloads = getattr(scene, attr_name, None)
-            if not isinstance(payloads, list):
-                continue
+        for payloads in (scene.nodes_model, scene.backdrop_nodes_model):
             for payload in payloads:
-                if not isinstance(payload, Mapping):
-                    continue
-                if str(payload.get("node_id", "")).strip() == normalized_node_id:
+                if (
+                    isinstance(payload, Mapping)
+                    and str(payload.get("node_id", "")).strip() == normalized_node_id
+                ):
                     return payload
         return {}
 
-    def _workspace_library_controller_source(self) -> object | None:
-        return self._workspace_library_controller
-
-    def _workspace_graph_edit_controller_source(self) -> object | None:
-        return self._workspace_graph_edit_controller
-
-    def _graph_canvas_presenter_source(self) -> object | None:
-        return self._graph_canvas_presenter
-
-    def _graph_canvas_host_presenter_source(self) -> object | None:
-        return self._graph_canvas_host_presenter
-
-    def _shell_library_presenter_source(self) -> object | None:
-        return self._shell_library_presenter
-
-    def _scene_bridge_source(self) -> object | None:
-        return self._scene_bridge
-
-    def _help_bridge_source(self) -> object | None:
-        return self._help_bridge
-
-    def _addon_manager_bridge_source(self) -> object | None:
-        return self._addon_manager_bridge
-
-    def _run_controller_source(self) -> object | None:
-        return self._run_controller
-
-    @staticmethod
-    def _invoke_bool(
-        source: object | None,
-        method_name: str,
-        *args: object,
-        none_is_success: bool = False,
-    ) -> bool:
-        callback = getattr(source, method_name, None) if source is not None else None
-        if not callable(callback):
-            return False
-        result = callback(*args)
-        return _result_bool(result, none_is_success=none_is_success)
 
 def _result_bool(result: object, *, none_is_success: bool = False) -> bool:
     if result is None:
@@ -377,22 +362,21 @@ def _result_bool(result: object, *, none_is_success: bool = False) -> bool:
 
 
 def _required_str(payload: Mapping[str, object], key: str) -> str:
-    value = payload[key]
-    return str(value).strip()
+    return str(payload[key]).strip()
 
 
 def _first_non_empty_str(payload: Mapping[str, object], *keys: str) -> str:
     for key in keys:
         value = payload.get(key)
-        if not isinstance(value, str):
-            continue
-        normalized = value.strip()
-        if normalized:
-            return normalized
+        if isinstance(value, str) and value.strip():
+            return value.strip()
     return ""
 
 
-def _optional_list(payload: Mapping[str, object], key: str) -> list[object] | None:
+def _optional_list(
+    payload: Mapping[str, object],
+    key: str,
+) -> list[object] | None:
     value = payload.get(key, [])
     if value is None:
         return []
@@ -403,10 +387,14 @@ def _optional_list(payload: Mapping[str, object], key: str) -> list[object] | No
     return None
 
 
-def _selected_run_node_ids(payload: Mapping[str, object]) -> tuple[str, ...] | None:
+def _selected_run_node_ids(
+    payload: Mapping[str, object],
+) -> tuple[str, ...] | None:
     node_ids = _optional_list(payload, "node_ids")
     if node_ids is not None:
-        normalized = tuple(str(value or "").strip() for value in node_ids if str(value or "").strip())
+        normalized = tuple(
+            str(value or "").strip() for value in node_ids if str(value or "").strip()
+        )
         if normalized:
             return normalized
     node_id = payload.get("node_id")
@@ -415,11 +403,15 @@ def _selected_run_node_ids(payload: Mapping[str, object]) -> tuple[str, ...] | N
     return None
 
 
-def _selection_node_ids(payload: Mapping[str, object]) -> tuple[str, ...] | None:
+def _selection_node_ids(
+    payload: Mapping[str, object],
+) -> tuple[str, ...] | None:
     node_ids = _optional_list(payload, "node_ids")
     if node_ids is None:
         return None
-    normalized = tuple(str(value or "").strip() for value in node_ids if str(value or "").strip())
+    normalized = tuple(
+        str(value or "").strip() for value in node_ids if str(value or "").strip()
+    )
     return normalized or None
 
 

@@ -65,21 +65,6 @@ class _SceneStub:
         self.property_changes.append((node_id, key, value))
 
 
-class _WorkspaceLibraryControllerStub:
-    def __init__(self) -> None:
-        self.save_active_view_state_calls = 0
-        self.refresh_workspace_tabs_calls = 0
-        self.switch_workspace_calls: list[str] = []
-
-    def save_active_view_state(self) -> None:
-        self.save_active_view_state_calls += 1
-
-    def refresh_workspace_tabs(self) -> None:
-        self.refresh_workspace_tabs_calls += 1
-
-    def switch_workspace(self, workspace_id: str) -> None:
-        self.switch_workspace_calls.append(str(workspace_id))
-
 
 class _WorkspaceNavigationControllerStub:
     def __init__(self) -> None:
@@ -218,7 +203,6 @@ class _ProjectHostStub:
         self.project_path = ""
         self.session_store = _SessionStoreStub(base_path or Path.cwd())
         self.serializer = _SerializerStub()
-        self.workspace_library_controller = _WorkspaceLibraryControllerStub()
         self.workspace_navigation_controller = _WorkspaceNavigationControllerStub()
         self.runtime_history = _RuntimeHistoryStub()
         self.run_controller = _RunControllerStub(self)
@@ -626,11 +610,7 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
     ) -> None:
         host = _ProjectHostStub()
         host.workspace_navigation_controller = _WorkspaceNavigationControllerStub()
-        host.workspace_library_controller.save_active_view_state = mock.Mock(  # type: ignore[method-assign]
-            side_effect=AssertionError(
-                "workspace_library_controller.save_active_view_state should not be used"
-            )
-        )
+        self.assertFalse(hasattr(host, "workspace_library_controller"))
         controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
         controller.persist_session()
@@ -638,30 +618,13 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         self.assertEqual(
             host.workspace_navigation_controller.save_active_view_state_calls, 1
         )
-        self.assertEqual(
-            host.workspace_library_controller.save_active_view_state.call_count, 0
-        )
 
     def test_new_project_prefers_workspace_navigation_surface_over_umbrella_controller(
         self,
     ) -> None:
         host = _ProjectHostStub()
         host.workspace_navigation_controller = _WorkspaceNavigationControllerStub()
-        host.workspace_library_controller.save_active_view_state = mock.Mock(  # type: ignore[method-assign]
-            side_effect=AssertionError(
-                "workspace_library_controller.save_active_view_state should not be used"
-            )
-        )
-        host.workspace_library_controller.refresh_workspace_tabs = mock.Mock(  # type: ignore[method-assign]
-            side_effect=AssertionError(
-                "workspace_library_controller.refresh_workspace_tabs should not be used"
-            )
-        )
-        host.workspace_library_controller.switch_workspace = mock.Mock(  # type: ignore[method-assign]
-            side_effect=AssertionError(
-                "workspace_library_controller.switch_workspace should not be used"
-            )
-        )
+        self.assertFalse(hasattr(host, "workspace_library_controller"))
         controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
         controller.new_project()
@@ -674,15 +637,6 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         )
         self.assertEqual(
             len(host.workspace_navigation_controller.switch_workspace_calls), 1
-        )
-        self.assertEqual(
-            host.workspace_library_controller.save_active_view_state.call_count, 0
-        )
-        self.assertEqual(
-            host.workspace_library_controller.refresh_workspace_tabs.call_count, 0
-        )
-        self.assertEqual(
-            host.workspace_library_controller.switch_workspace.call_count, 0
         )
 
     def test_project_file_repair_prefers_workspace_navigation_surface_over_umbrella_controller(
@@ -701,11 +655,7 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
             60.0,
             properties={"source": "missing.png"},
         )
-        host.workspace_library_controller.switch_workspace = mock.Mock(  # type: ignore[method-assign]
-            side_effect=AssertionError(
-                "workspace_library_controller.switch_workspace should not be used"
-            )
-        )
+        self.assertFalse(hasattr(host, "workspace_library_controller"))
         host.browse_result = "repaired.png"
         controller = ProjectSessionController(host)  # type: ignore[arg-type]
         issue = ProjectFilesBrokenEntry(
@@ -728,9 +678,6 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         self.assertEqual(
             host.workspace_navigation_controller.switch_workspace_calls,
             [alternate_workspace_id, current_workspace_id],
-        )
-        self.assertEqual(
-            host.workspace_library_controller.switch_workspace.call_count, 0
         )
         self.assertEqual(
             host.browse_calls,

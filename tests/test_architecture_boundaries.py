@@ -819,12 +819,12 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                 self.assertNotIn(forbidden, host_presenter_source)
 
         workspace_edit_tree = parse_module(
-            "ea_node_editor/ui/shell/controllers/workspace_edit_ops.py"
+            "ea_node_editor/ui/shell/controllers/workspace_edit_controller.py"
         )
         clipboard_stage = ast.unparse(
             method_node(
                 workspace_edit_tree,
-                "WorkspaceEditOps",
+                "WorkspaceEditController",
                 "_stage_clipboard_artifact",
             )
         )
@@ -1920,6 +1920,77 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("self._host.workspace_manager.close_view", navigation_calls)
         self.assertNotIn("self._host.workspace_manager.rename_view", navigation_calls)
         self.assertNotIn("self._host.workspace_manager.move_view", navigation_calls)
+
+    def test_workspace_graph_actions_have_direct_concrete_owners(self) -> None:
+        controller_dir = REPO_ROOT / "ea_node_editor/ui/shell/controllers"
+        self.assertFalse((controller_dir / "workspace_library_controller.py").exists())
+        self.assertFalse(
+            (controller_dir / "workspace_graph_edit_controller.py").exists()
+        )
+        self.assertFalse((controller_dir / "workspace_edit_ops.py").exists())
+        self.assertFalse((controller_dir / "workspace_drop_connect_ops.py").exists())
+
+        selection_tree = parse_module(
+            "ea_node_editor/ui/shell/controllers/workspace_selection_context.py"
+        )
+        edit_tree = parse_module(
+            "ea_node_editor/ui/shell/controllers/workspace_edit_controller.py"
+        )
+        drop_tree = parse_module(
+            "ea_node_editor/ui/shell/controllers/workspace_drop_connect_controller.py"
+        )
+        self.assertEqual(
+            class_node(selection_tree, "WorkspaceSelectionContext").name,
+            "WorkspaceSelectionContext",
+        )
+        self.assertEqual(
+            class_node(edit_tree, "WorkspaceEditController").name,
+            "WorkspaceEditController",
+        )
+        self.assertEqual(
+            class_node(drop_tree, "WorkspaceDropConnectController").name,
+            "WorkspaceDropConnectController",
+        )
+        for tree in (edit_tree, drop_tree):
+            self.assertFalse(
+                any(
+                    isinstance(node, ast.ClassDef) and node.name.endswith("Protocol")
+                    for node in tree.body
+                )
+            )
+
+        composition_source = (
+            REPO_ROOT / "ea_node_editor/ui/shell/composition/library_workspace.py"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(composition_source.count("MutationUiEffects("), 1)
+        self.assertIn("workspace_edit_controller=edit_controller", composition_source)
+        self.assertIn(
+            "workspace_drop_connect_controller=drop_connect_controller",
+            composition_source,
+        )
+        self.assertNotIn("workspace_library_controller", composition_source)
+        self.assertNotIn("workspace_graph_edit_controller", composition_source)
+
+        action_source = (
+            REPO_ROOT / "ea_node_editor/ui/shell/controllers/graph_action_controller.py"
+        ).read_text(encoding="utf-8")
+        for retired_dispatch in (
+            "_invoke_bool",
+            "_WORKSPACE_ACTION_METHODS",
+            "_NODE_HOST_ACTION_METHODS",
+            "_EDGE_HOST_ACTION_METHODS",
+            "workspace_library_controller",
+            "workspace_graph_edit_controller",
+            "shell_library_presenter",
+        ):
+            self.assertNotIn(retired_dispatch, action_source)
+
+        production_source = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (REPO_ROOT / "ea_node_editor").rglob("*.py")
+        )
+        self.assertNotIn("workspace_library_controller", production_source)
+        self.assertNotIn("workspace_graph_edit_controller", production_source)
 
     def test_fragment_payload_helpers_share_model_mapping_parsers(self) -> None:
         fragment_payload_tree = parse_module("ea_node_editor/graph/fragment_payloads.py")

@@ -1,3 +1,6 @@
+# Purpose: Own workspace/view navigation, framing, search, and failure focus.
+# Map: feature_routes/workspace_tabs_library_context_menus
+# Tests: tests/test_workspace_navigation_controller.py
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

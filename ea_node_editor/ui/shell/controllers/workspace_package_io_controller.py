@@ -1,3 +1,6 @@
+# Purpose: Own custom-workflow and node-package import/export commands.
+# Map: feature_routes/workflow_library_drop_connect
+# Tests: tests/test_workspace_package_io_controller.py
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable
@@ -14,11 +17,9 @@ class WorkspacePackageIOController:
         host: ShellWindow,
         custom_workflow_definitions: Callable[[], list[dict[str, Any]]],
         set_custom_workflow_definitions: Callable[[list[dict[str, Any]]], None],
-        prompt_custom_workflow_export_definition: Callable[[list[dict[str, Any]]], dict[str, Any] | None],
     ) -> None:
         self._custom_workflow_definitions = custom_workflow_definitions
         self._set_custom_workflow_definitions = set_custom_workflow_definitions
-        self._prompt_custom_workflow_export_definition = prompt_custom_workflow_export_definition
         self._ops = WorkspaceIOOps(host, self)
 
     def custom_workflow_definitions(self) -> list[dict[str, Any]]:
@@ -31,7 +32,7 @@ class WorkspacePackageIOController:
         self,
         definitions: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
-        return self._prompt_custom_workflow_export_definition(definitions)
+        return self._ops.prompt_custom_workflow_export_definition(definitions)
 
     @staticmethod
     def custom_workflow_export_label(definition: dict[str, Any]) -> str:

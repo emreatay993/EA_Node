@@ -150,10 +150,13 @@ ea_node_editor/
         app_preferences_controller.py
         run_controller.py
         project_session_controller.py
-        workspace_library_controller.py
+        workspace_selection_context.py
+        workspace_navigation_controller.py
+        workspace_edit_controller.py
+        workflow_library_controller.py
+        workspace_package_io_controller.py
         workspace_view_nav_ops.py
-        workspace_edit_ops.py
-        workspace_drop_connect_ops.py
+        workspace_drop_connect_controller.py
         workspace_io_ops.py
         result.py
     theme/

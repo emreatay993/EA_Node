@@ -260,9 +260,7 @@ class ProjectReviewDeckPresenter(QObject):
                 ensure_default_view()
 
     def _switch_workspace(self, workspace_id: str) -> None:
-        switch = getattr(self._host.workspace_library_controller, "switch_workspace", None)
-        if callable(switch):
-            switch(workspace_id)
+        self._host.workspace_navigation_controller.switch_workspace(workspace_id)
         app = QApplication.instance()
         if app is not None:
             app.processEvents()

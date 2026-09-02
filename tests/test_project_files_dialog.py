@@ -33,7 +33,7 @@ class _ProjectFilesHostStub:
         self.workspace_manager = object()
         self.runtime_history = object()
         self.serializer = object()
-        self.workspace_library_controller = object()
+        self.workspace_navigation_controller = object()
         self.script_editor = object()
         self.action_toggle_script_editor = object()
         self.scene = object()

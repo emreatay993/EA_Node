@@ -13,20 +13,20 @@ Use this for graph mutation history, undo/redo, clipboard fragments, runtime cli
 - `ea_node_editor/ui/shell/runtime_clipboard.py`
 - `ea_node_editor/ui/shell/clipboard_paste_nodes.py`
 - `ea_node_editor/ui/shell/runtime_history.py`
-- `ea_node_editor/ui/shell/controllers/workspace_edit_ops.py`
+- `ea_node_editor/ui/shell/controllers/workspace_edit_controller.py`
 - `ea_node_editor/ui_qml/graph_scene_mutation/selection_and_scope_ops.py`
 
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_group_backdrop_clipboard.py tests/graph_track_b/scene_model_graph_scene_suite.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/main_window_shell/edit_clipboard_history.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/workspace_library_controller_unit/core_ops.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_workspace_edit_controller.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_tree_ui.py tests/test_dataflow_graph_persistence.py --ignore=venv -q
 ```
 
 ## Mutation Routing Notes
 - Fragment insertion is called directly through `ea_node_editor.graph.transform_fragment_ops.insert_graph_fragment`.
-- `WorkspaceEditOps.paste_nodes_from_clipboard()` gives `GRAPH_FRAGMENT_MIME_TYPE` priority. Only when that MIME is absent does it classify OS clipboard files, URLs, raw media bytes, HTML, or text through `clipboard_paste_nodes.py`. Image/PDF/video creates one populated `media.panel` with `source` authored and Source input hidden; Excel-style table and annotation routing is unchanged.
+- `WorkspaceEditController.paste_nodes_from_clipboard()` gives `GRAPH_FRAGMENT_MIME_TYPE` priority. Only when that MIME is absent does it classify OS clipboard files, URLs, raw media bytes, HTML, or text through `clipboard_paste_nodes.py`. Image/PDF/video creates one populated `media.panel` with `source` authored and Source input hidden; Excel-style table and annotation routing is unchanged.
 - Local clipboard file URLs with `.eml`, `.msg`, or `.oft` suffixes create `passive.media.mail_panel` nodes by setting `source_path`; OS file drops use the same type only through the explicit file-drop command path so folder-explorer path-pointer drags keep their old behavior.
 - Graph-fragment paste retargets fragment root nodes to `scope_parent_id(scene.active_scope_path)` before scene insertion, so copy/paste into and out of `core.subnode` scopes follows the visible canvas. Internal parent links inside the copied fragment stay unchanged.
 - Fragment validation rejects internal self-parent and parent-cycle payloads. Direct fragment insertion still sanitizes remapped parent links before writing, dropping malformed parents to root while preserving valid internal and external parent links.

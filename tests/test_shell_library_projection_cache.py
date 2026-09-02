@@ -35,7 +35,7 @@ class _LibraryHostStub(QObject):
     def __init__(self) -> None:
         super().__init__()
         self.registry = build_builtin_registry()
-        self.workspace_library_controller = _WorkflowLibraryControllerStub()
+        self.workflow_library_controller = _WorkflowLibraryControllerStub()
         self.library_filter_state = ShellLibraryFilterState()
         self.workspace_ui_state = SimpleNamespace(passive_node_library_display_mode="text")
 
@@ -139,7 +139,7 @@ class ShellLibraryProjectionCacheTests(unittest.TestCase):
             self.assertEqual(project_display_items.call_count, 1)
             self.assertEqual(build_category_options.call_count, 1)
             self.assertEqual(build_data_type_options.call_count, 1)
-            self.assertEqual(host.workspace_library_controller.calls, 1)
+            self.assertEqual(host.workflow_library_controller.calls, 1)
 
             presenter.set_library_query("logger")
             self.assertTrue(presenter.filtered_node_library_items)
@@ -156,7 +156,7 @@ class ShellLibraryProjectionCacheTests(unittest.TestCase):
             self.assertEqual(project_display_items.call_count, 2)
             self.assertEqual(build_category_options.call_count, 1)
             self.assertEqual(build_data_type_options.call_count, 1)
-            self.assertEqual(host.workspace_library_controller.calls, 1)
+            self.assertEqual(host.workflow_library_controller.calls, 1)
 
     def test_invalidates_workflow_and_registry_projections_on_existing_change_signal(self) -> None:
         host = _LibraryHostStub()
@@ -168,7 +168,7 @@ class ShellLibraryProjectionCacheTests(unittest.TestCase):
             wraps=library_module.build_registry_library_items,
         ) as build_registry_items:
             initial_count = len(presenter.filtered_node_library_items)
-            host.workspace_library_controller.items = [
+            host.workflow_library_controller.items = [
                 {
                     "type_id": "custom_workflow:workflow-1",
                     "display_name": "Workflow 1",
@@ -183,7 +183,7 @@ class ShellLibraryProjectionCacheTests(unittest.TestCase):
 
             refreshed_items = presenter.filtered_node_library_items
             self.assertEqual(len(refreshed_items), initial_count + 1)
-            self.assertEqual(host.workspace_library_controller.calls, 2)
+            self.assertEqual(host.workflow_library_controller.calls, 2)
             self.assertEqual(build_registry_items.call_count, 1)
 
             host.registry = build_builtin_registry()

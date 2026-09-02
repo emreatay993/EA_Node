@@ -90,7 +90,7 @@ Use this for Ansys DPF add-on nodes, operator docs, DPF-typed plot nodes, DPF vi
 .\venv\Scripts\python.exe -m pytest tests/test_dpf_property_edit_adapter.py tests/test_dpf_metadata_options_service.py tests/test_inspector_smart_groups_variant.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_dpf_ui_summary.py tests/test_dpf_workflow_surface.py tests/test_run_controller_unit.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_dpf_workflow_help.py tests/test_help_bridge.py tests/test_tooltip_copy_registry.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_dpf_workflow_recipes.py tests/test_workspace_library_controller_unit.py tests/test_main_window_shell.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_dpf_workflow_recipes.py tests/test_workflow_library_controller.py tests/test_workspace_drop_connect_controller.py tests/test_main_window_shell.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_ansys_dpf_example_projects.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_mcf_dpf_section_resultants_gui.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_project_review_deck_showcase_example.py --ignore=venv -q

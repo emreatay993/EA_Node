@@ -609,13 +609,13 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         second_workspace_id = self.window.workspace_manager.create_workspace("Second")
         third_workspace_id = self.window.workspace_manager.create_workspace("Third")
         self.window.workspace_manager.move_workspace(2, 1)
-        self.window._refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
 
-        self.window._switch_workspace(third_workspace_id)
+        self.window.workspace_navigation_controller.switch_workspace(third_workspace_id)
         third_v2_id = self.window.workspace_manager.create_view(
             third_workspace_id, name="V2"
         )
-        self.window._switch_view(third_v2_id)
+        self.window.workspace_navigation_controller.switch_view(third_v2_id)
         self.window.view.set_zoom(1.65)
         self.window.view.centerOn(222.0, -111.0)
         self.window._persist_session()
@@ -1214,6 +1214,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
 
         for workspace in self.window.model.project.workspaces.values():
             workspace.dirty = False
+        self.assertFalse(hasattr(self.window, "workspace_library_controller"))
         with (
             patch.object(
                 self.window.workspace_navigation_controller,
@@ -1229,27 +1230,6 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
                 self.window.workspace_navigation_controller,
                 "switch_workspace",
                 side_effect=_record_switch_workspace,
-            ),
-            patch.object(
-                self.window.workspace_library_controller,
-                "save_active_view_state",
-                side_effect=AssertionError(
-                    "workspace_library_controller.save_active_view_state should not be used"
-                ),
-            ),
-            patch.object(
-                self.window.workspace_library_controller,
-                "refresh_workspace_tabs",
-                side_effect=AssertionError(
-                    "workspace_library_controller.refresh_workspace_tabs should not be used"
-                ),
-            ),
-            patch.object(
-                self.window.workspace_library_controller,
-                "switch_workspace",
-                side_effect=AssertionError(
-                    "workspace_library_controller.switch_workspace should not be used"
-                ),
             ),
         ):
             self.window.project_session_controller.new_project()
