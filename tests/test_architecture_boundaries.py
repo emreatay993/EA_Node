@@ -2524,7 +2524,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             self.assertNotIn(name, row_text)
         self.assertEqual(layer_text.count("id: outputLockGlyphLoader"), 1)
         self.assertEqual(layer_text.count("id: portContextMenu"), 1)
-        self.assertIn('objectName: "graphNodePortContextMenu"', layer_text)
+        self.assertIn("GraphNodePortContextMenu {", layer_text)
 
         shared_name_families = (
             "PortRow",
@@ -2540,6 +2540,97 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(suffix=suffix):
                 self.assertIn(f'"graphNodeInput{suffix}"', row_text)
                 self.assertIn(f'"graphNodeOutput{suffix}"', row_text)
+
+    def test_graph_node_port_context_menu_is_the_direct_menu_owner_without_growth(self) -> None:
+        graph_dir = REPO_ROOT / "ea_node_editor/ui_qml/components/graph"
+        layer_text = (graph_dir / "GraphNodePortsLayer.qml").read_text(encoding="utf-8")
+        row_text = (graph_dir / "GraphNodePortRow.qml").read_text(encoding="utf-8")
+        menu_text = (graph_dir / "GraphNodePortContextMenu.qml").read_text(
+            encoding="utf-8"
+        )
+
+        def declaration_count(text: str, type_name: str) -> int:
+            return sum(line.strip() == f"{type_name} {{" for line in text.splitlines())
+
+        self.assertEqual(layer_text.count("GraphNodePortContextMenu {"), 1)
+        self.assertEqual(declaration_count(layer_text, "Menu"), 0)
+        self.assertEqual(declaration_count(menu_text, "Menu"), 1)
+        self.assertEqual(
+            {
+                type_name: sum(
+                    declaration_count(text, type_name)
+                    for text in (layer_text, row_text, menu_text)
+                )
+                for type_name in (
+                    "Item",
+                    "Connections",
+                    "Binding",
+                    "Loader",
+                    "Timer",
+                    "Canvas",
+                    "Repeater",
+                    "Menu",
+                )
+            },
+            {
+                "Item": 3,
+                "Connections": 2,
+                "Binding": 0,
+                "Loader": 1,
+                "Timer": 0,
+                "Canvas": 2,
+                "Repeater": 4,
+                "Menu": 1,
+            },
+        )
+        self.assertIn("required property Item portsLayer", menu_text)
+        self.assertNotIn("signal ", menu_text)
+        for forbidden in (
+            "callback",
+            "actionRegistry",
+            "actionModel",
+            "dispatchAction",
+            "Connections {",
+            "Binding {",
+            "Loader {",
+            "Timer {",
+        ):
+            self.assertNotIn(forbidden, menu_text)
+
+        object_names = (
+            "graphNodePortContextMenu",
+            "graphNodePortAccessMetadata",
+            "graphNodePortModifierGraft",
+            "graphNodePortModifierFlatten",
+            "graphNodePortModifierSimplify",
+            "graphNodePortModifierReverse",
+            "graphNodePortModifierClean",
+            "graphNodePortPrincipal",
+            "graphNodeDynamicPortInsertBefore",
+            "graphNodeDynamicPortInsertAfter",
+            "graphNodeDynamicPortRename",
+            "graphNodeDynamicPortRemove",
+        )
+        for object_name in object_names:
+            with self.subTest(object_name=object_name):
+                self.assertIn(f'objectName: "{object_name}"', menu_text)
+                self.assertNotIn(f'objectName: "{object_name}"', layer_text)
+        for owner_call in (
+            '_togglePortModifier("graft")',
+            '_togglePortModifier("flatten")',
+            '_togglePortModifier("simplify")',
+            '_togglePortModifier("reverse")',
+            '_togglePortModifier("clean")',
+            "_togglePrincipal()",
+            "_insertDynamicPort(dynamicGroup.id, ordinal)",
+            "_insertDynamicPort(dynamicGroup.id, ordinal + 1)",
+            "beginPortLabelEdit(",
+            "_removeDynamicPort(",
+        ):
+            self.assertIn(f"menu.portsLayer.{owner_call}", menu_text)
+        self.assertIn("portContextMenu.x = Math.max", layer_text)
+        self.assertIn("portContextMenu.y = Math.max", layer_text)
+        self.assertIn("portContextMenu.open();", layer_text)
 
     def test_closeout_docs_publish_architecture_residual_matrix_from_packet_owned_surfaces(self) -> None:
         spec_index_text = (REPO_ROOT / manifest.SPEC_INDEX_DOC).read_text(encoding="utf-8")

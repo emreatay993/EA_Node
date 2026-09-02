@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 173,
+    "qml_files": 174,
     "repeater_constructs": 98,
     "loader_constructs": 24,
     "signal_handlers": 884,
     "connections": 47,
     "property_bindings": 7624,
-    "local_component_refs": 276
+    "local_component_refs": 277
   },
   "entries": [
     {
@@ -20499,6 +20499,214 @@
       ]
     },
     {
+      "path": "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml",
+      "component_name": "GraphNodePortContextMenu",
+      "aliases": [
+        "GraphNodePortContextMenu",
+        "GraphNodePortContextMenu.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml",
+        "ea_node_editor\\ui_qml\\components\\graph\\GraphNodePortContextMenu.qml"
+      ],
+      "root_component": "Menu",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15"
+      ],
+      "ids": [
+        {
+          "name": "menu"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "graphNodePortContextMenu"
+        },
+        {
+          "name": "graphNodePortAccessMetadata"
+        },
+        {
+          "name": "graphNodePortModifierGraft"
+        },
+        {
+          "name": "graphNodePortModifierFlatten"
+        },
+        {
+          "name": "graphNodePortModifierSimplify"
+        },
+        {
+          "name": "graphNodePortModifierReverse"
+        },
+        {
+          "name": "graphNodePortModifierClean"
+        },
+        {
+          "name": "graphNodePortPrincipal"
+        },
+        {
+          "name": "graphNodeDynamicPortInsertBefore"
+        },
+        {
+          "name": "graphNodeDynamicPortInsertAfter"
+        },
+        {
+          "name": "graphNodeDynamicPortRename"
+        },
+        {
+          "name": "graphNodeDynamicPortRemove"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "Item",
+          "name": "portsLayer"
+        },
+        {
+          "kind": "var",
+          "name": "dynamicGroup"
+        }
+      ],
+      "signals": [],
+      "functions": [],
+      "instantiated_components": [
+        {
+          "name": "MenuItem"
+        },
+        {
+          "name": "MenuSeparator"
+        }
+      ],
+      "dynamic_refs": [],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onTriggered"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "modal"
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "menu.portsLayer._isDataPort",
+            "menu.portsLayer.contextPortData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "menu.portsLayer._dataAccessLabel"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled"
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "checkable"
+        },
+        {
+          "kind": "binding",
+          "name": "checked",
+          "targets": [
+            "menu.portsLayer._modifierChecked"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "visible",
+            "menu.portsLayer.host",
+            "menu.portsLayer.host.graphReadOnly"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "Boolean"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "checked",
+          "targets": [
+            "Boolean"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "menu.portsLayer.host",
+            "menu.portsLayer.host.graphReadOnly"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "menu.portsLayer._dynamicPortGroupForPort"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "dynamicGroup",
+            "Boolean",
+            "dynamicGroup.can_insert"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "visible",
+            "menu.portsLayer._dynamicPortAuthoringAllowed"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "dynamicGroup"
+          ]
+        }
+      ],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "GraphNodePortContextMenuPropertyPortsLayer",
+          "kind": "property",
+          "name": "portsLayer",
+          "detail": "Item"
+        },
+        {
+          "anchor": "GraphNodePortContextMenuPropertyDynamicGroup",
+          "kind": "property",
+          "name": "dynamicGroup",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortContextMenuHandlerOnTriggered",
+          "kind": "handler",
+          "name": "onTriggered"
+        }
+      ]
+    },
+    {
       "path": "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml",
       "component_name": "GraphNodePortRow",
       "aliases": [
@@ -22437,42 +22645,6 @@
         },
         {
           "name": "graphNodeDynamicPortAddCircle"
-        },
-        {
-          "name": "graphNodePortContextMenu"
-        },
-        {
-          "name": "graphNodePortAccessMetadata"
-        },
-        {
-          "name": "graphNodePortModifierGraft"
-        },
-        {
-          "name": "graphNodePortModifierFlatten"
-        },
-        {
-          "name": "graphNodePortModifierSimplify"
-        },
-        {
-          "name": "graphNodePortModifierReverse"
-        },
-        {
-          "name": "graphNodePortModifierClean"
-        },
-        {
-          "name": "graphNodePortPrincipal"
-        },
-        {
-          "name": "graphNodeDynamicPortInsertBefore"
-        },
-        {
-          "name": "graphNodeDynamicPortInsertAfter"
-        },
-        {
-          "name": "graphNodeDynamicPortRename"
-        },
-        {
-          "name": "graphNodeDynamicPortRemove"
         }
       ],
       "properties": [
@@ -22695,10 +22867,6 @@
         {
           "kind": "color",
           "name": "actionFillColor"
-        },
-        {
-          "kind": "var",
-          "name": "dynamicGroup"
         }
       ],
       "signals": [
@@ -22920,13 +23088,7 @@
           "name": "Text"
         },
         {
-          "name": "Menu"
-        },
-        {
-          "name": "MenuItem"
-        },
-        {
-          "name": "MenuSeparator"
+          "name": "GraphNodePortContextMenu"
         }
       ],
       "dynamic_refs": [
@@ -23035,10 +23197,6 @@
         {
           "kind": "handler",
           "name": "onClicked"
-        },
-        {
-          "kind": "handler",
-          "name": "onTriggered"
         }
       ],
       "connections": [
@@ -23592,117 +23750,6 @@
           "targets": [
             "dynamicPortAddButton.actionActive"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "modal"
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root._isDataPort",
-            "root.contextPortData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "root._dataAccessLabel",
-            "root.contextPortData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled"
-        },
-        {
-          "kind": "binding",
-          "name": "checkable"
-        },
-        {
-          "kind": "binding",
-          "name": "checked",
-          "targets": [
-            "root._modifierChecked"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "visible",
-            "root.host",
-            "root.host.graphReadOnly"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "Boolean",
-            "root.contextPortData",
-            "root.contextPortData.principal_eligible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "checked",
-          "targets": [
-            "Boolean",
-            "root.contextPortData",
-            "root.contextPortData.principal"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "root.host",
-            "root.host.graphReadOnly"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root._dynamicPortGroupForPort",
-            "root.contextPortData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "dynamicGroup",
-            "Boolean",
-            "dynamicGroup.can_insert"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "visible",
-            "root._dynamicPortAuthoringAllowed"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "dynamicGroup"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "dynamicGroup",
-            "root._dynamicPortCanRemove",
-            "root.contextPortData"
-          ]
         }
       ],
       "local_component_refs": [
@@ -23715,6 +23762,11 @@
           "kind": "localComponent",
           "name": "Common.ManagedToolTip",
           "detail": "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "GraphNodePortContextMenu",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml"
         },
         {
           "kind": "localComponent",
@@ -24057,12 +24109,6 @@
           "kind": "property",
           "name": "actionFillColor",
           "detail": "color"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyDynamicGroup",
-          "kind": "property",
-          "name": "dynamicGroup",
-          "detail": "var"
         },
         {
           "anchor": "GraphNodePortsLayerSignalDynamicPortGroupsApplied",
@@ -24430,11 +24476,6 @@
           "name": "onClicked"
         },
         {
-          "anchor": "GraphNodePortsLayerHandlerOnTriggered",
-          "kind": "handler",
-          "name": "onTriggered"
-        },
-        {
           "anchor": "GraphNodePortsLayerTargetRootHost",
           "kind": "target",
           "name": "root.host"
@@ -24455,6 +24496,12 @@
           "kind": "localComponent",
           "name": "Common.ManagedToolTip",
           "detail": "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml"
+        },
+        {
+          "anchor": "GraphNodePortsLayerLocalComponentGraphNodePortContextMenu",
+          "kind": "localComponent",
+          "name": "GraphNodePortContextMenu",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml"
         },
         {
           "anchor": "GraphNodePortsLayerLocalComponentGraphNodePortRow",

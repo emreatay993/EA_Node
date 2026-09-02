@@ -3542,6 +3542,10 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
         self._run_qml_probe(
             "dataflow-port-and-edge-authoring-controls",
             """
+            import hashlib
+            import json
+            import re
+
             from PyQt6.QtCore import QMetaObject, QObject, pyqtProperty, pyqtSlot
 
             from ea_node_editor.graph.model import GraphModel
@@ -4185,6 +4189,98 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             assert model.active_workspace.edges[edge_id].enabled is True, "context action did not keep the clicked edge enabled"
             assert model.active_workspace.edges[gate_edge_id].enabled is True, "context action did not re-enable the mixed selected edge"
 
+
+            input_mouse = port_dot(authoring_id, "graphNodeInputPortMouseArea", "a")
+            authoring_layer._openPortContext(
+                updated_a_payload,
+                input_mouse,
+                float(input_mouse.width()) * 0.5,
+                float(input_mouse.height()) * 0.5,
+            )
+            settle_events(3)
+            port_menu = authoring_layer.findChild(QObject, "graphNodePortContextMenu")
+            assert port_menu is not None and bool(port_menu.property("visible")) is True
+            menu_objects = [port_menu, *port_menu.findChildren(QObject)]
+            named_menu_objects = [
+                item for item in menu_objects if str(item.objectName() or "")
+            ]
+            topology_records = []
+            action_records = []
+            geometry_records = []
+            for item in named_menu_objects:
+                class_name = re.sub(
+                    r"_QMLTYPE_\\d+",
+                    "_QMLTYPE",
+                    str(item.metaObject().className()),
+                )
+                class_name = re.sub(r"_QML_\\d+", "_QML", class_name)
+                class_name = class_name.split("_QML", 1)[0]
+                parent = item.parent()
+                parent_name = str(parent.objectName() or "") if parent is not None else ""
+                object_name = str(item.objectName())
+                if object_name == "graphNodePortContextMenu":
+                    class_name = "QQuickMenu"
+                topology_records.append((class_name, object_name, parent_name))
+                if object_name.startswith(("graphNodePort", "graphNodeDynamicPort")):
+                    action_records.append((
+                        object_name,
+                        str(item.property("text") or ""),
+                        bool(item.property("visible")),
+                        bool(item.property("enabled")),
+                        bool(item.property("checkable")),
+                        bool(item.property("checked")),
+                    ))
+                    geometry_records.append((
+                        object_name,
+                        round(float(item.property("x") or 0.0), 3),
+                        round(float(item.property("y") or 0.0), 3),
+                        round(float(item.property("width") or 0.0), 3),
+                        round(float(item.property("height") or 0.0), 3),
+                    ))
+            topology_records.sort()
+
+            def stable_hash(value):
+                return hashlib.sha256(
+                    json.dumps(value, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+                ).hexdigest().upper()
+
+            menu_snapshot = {
+                "topology_hash": stable_hash(topology_records),
+                "action_hash": stable_hash(action_records),
+                "geometry_hash": stable_hash(geometry_records),
+                "named_count": len(named_menu_objects),
+                "action_count": len(action_records),
+                "x": round(float(port_menu.property("x") or 0.0), 3),
+                "y": round(float(port_menu.property("y") or 0.0), 3),
+                "visible": bool(port_menu.property("visible")),
+            }
+            assert menu_snapshot == {
+                "topology_hash": "CF84DD3AA02B7535C6A8B81EC6D662386A95B03F55F970E40B8ED3036C272C7C",
+                "action_hash": "158EAA1F2F9D7D837687BE32BB326DFA6519D59E78F406D67B0E056EBF8CD118",
+                "geometry_hash": "848A334D320F99A80E7AF1D03B14E033467BFAC49960AA81A55938945A46220F",
+                "named_count": 24,
+                "action_count": 12,
+                "x": -40.0,
+                "y": -189.0,
+                "visible": True,
+            }, menu_snapshot
+            assert [record[0] for record in action_records] == [
+                "graphNodePortContextMenu",
+                "graphNodePortAccessMetadata",
+                "graphNodePortModifierGraft",
+                "graphNodePortModifierFlatten",
+                "graphNodePortModifierSimplify",
+                "graphNodePortModifierReverse",
+                "graphNodePortModifierClean",
+                "graphNodePortPrincipal",
+                "graphNodeDynamicPortInsertBefore",
+                "graphNodeDynamicPortInsertAfter",
+                "graphNodeDynamicPortRename",
+                "graphNodeDynamicPortRemove",
+            ]
+            port_menu.close()
+            settle_events(2)
+            assert bool(port_menu.property("visible")) is False
             dispose_host_window(canvas, window)
             engine.deleteLater()
             app.processEvents()

@@ -1,6 +1,6 @@
 # COREX Runtime, Registry, and Presentation Ownership Refactor QA Matrix
 
-Status: `CHECKPOINT — T21 ACCEPTED; NEXT T22`
+Status: `CHECKPOINT — T22 ACCEPTED; NEXT T23`
 
 This is the single compaction-safe task, test-migration, performance, and review
 ledger for
@@ -97,7 +97,7 @@ diff, and any running writer. Only one writer may edit at a time.
 | T19 Edge paint policy | B | `ACCEPTED` | `qml_audit` | Edge paint JS/math, Canvas/retained consumers, direct policy/renderer tests, maps/indexes/traceability | Direct policy QuickTest 8 passed; real edge owner 22 passed/19 subtests; edge spatial/surface 8 passed; surface/frame/export/Track-H cohort 27 passed; edge-owned preference probes 8 passed plus the separately rerun coalescing case passed; full QuickTest 78 passed; architecture/dead-code/docs hygiene 189 passed/449 subtests; ledger 12, maps/indexes/traceability/links/generator checks/full dry-run/Ruff/compile/diff/protected/privacy/process checks pass | `STRUCTURAL PASS; TIMING INCONCLUSIVE — SEQUENTIAL NON-COUNTERBALANCED; NO MATERIAL PAUSE OR TIMING-ONLY ROLLBACK` | Architecture/ownership `CLEAR`; correctness/no-lost-tests `CLEAR`; performance causality `CLEAR` | This commit |
 | T20 Surface overlays | B | `ACCEPTED` | `qml_audit` | Root layers, direct overlay component/QuickTest, retained real routes, tests/maps/indexes/traceability | Direct overlay QuickTest 7 passed; P03/Web/Number Slider/Select/Panel cohort 84 passed/62 subtests; Canvas export/snapshot/passive cohort 40 passed/4 subtests; full QuickTest 85 passed; architecture/dead-code/ledger/navigation/traceability/Markdown hygiene 202 passed/450 subtests; reviewer architecture cohort 33 passed/246 subtests plus direct QML pass; reviewer ledger/QML/route/source cohort 28 passed/240 subtests; direct maps/indexes/traceability/links/generator checks, Ruff, compile, format, full dry-run, diff/protected/privacy/process checks pass | `STRUCTURAL PASS; TIMING INCONCLUSIVE — CHANGED-TEST DIAGNOSTIC ONLY; NO PRODUCT REPEAT OR TIMING-ONLY ROLLBACK` | Architecture/ownership `CLEAR`; correctness/no-lost-tests `CLEAR`; performance causality `CLEAR` | This commit |
 | T21 Port row | B | `ACCEPTED` | `qml_audit` | Shared direct row root plus minimal input-only slash/static-padlock/default and output-only inactive-tooltip/existing-padlock-Loader children retained inline; direct host tests/owner guards, real port routes, maps/indexes/traceability | Direct GraphNodeHost QuickTest 34 passed; authoritative Qt Quick 89 passed; graph input/controls/inline/passive host 167 passed/32 subtests; data/default/flow/type/output/tooltip 94 passed/61 subtests; mutation/history/persistence 106 passed/13 subtests; architecture/dead-code/ledger/navigation/traceability/Markdown hygiene 203 passed/459 subtests; reviewer architecture 47 passed/181 subtests plus dead-code/ledger 22 passed/29 subtests and canonical QuickTest; correctness migrations 7 passed/8 subtests plus direct/full QuickTest and history checks; maps/traceability/links and QML/source/241-entry route indexes, QML format, Ruff, compile, full dry-run, diff/protected/privacy/process checks pass | `STRUCTURAL PASS; TIMING INCONCLUSIVE — BOUNDED SOFTWARE DIAGNOSTIC; NO MATERIAL PAUSE OR TIMING-ONLY ROLLBACK` | Architecture/ownership `CLEAR`; correctness/no-lost-tests `CLEAR`; performance causality `CLEAR` | This commit |
-| T22 Port context menu | B | `NOT STARTED` | Pending | Ports layer/new menu component/tests/maps | Pending | Pending | Pending | Pending |
+| T22 Port context menu | B | `ACCEPTED` | `qml_audit` | Ports layer/new direct Menu owner, direct menu tests/owner guards, retained mutation/history/persistence, maps/indexes/traceability, mandatory post-T22 convergence baseline | Direct Menu QuickTest 5 passed; authoritative Qt Quick 94 passed; graph controls/data-tree/persistence 58 passed; architecture/dead-code/ledger/navigation/traceability/Markdown hygiene 204 passed/472 subtests; reviewer architecture 29 passed/215 subtests plus direct/full QuickTest and 331-ID convergence collection; correctness verifies four rows/seven refs, direct/full QuickTest and 58 retained tests; maps/traceability/links and 174-file QML/1,222-file source/242-entry route indexes, qmlformat, Ruff, compile, full dry-run, twelve-owner/65-action/80-selector/331-ID/15-owner convergence serializers, diff/protected/privacy/process checks pass | `STRUCTURAL PASS; TIMING INCONCLUSIVE — STRUCTURAL MENU MOVE; NO PRODUCT TIMING COMPARATOR OR TIMING-ONLY ROLLBACK` | Architecture/ownership `CLEAR`; correctness/no-lost-tests `CLEAR`; performance causality `CLEAR` | This commit |
 | T23 Action presentation | B | `NOT STARTED` | Pending | Pure action shaping and direct consumers | Pending | Pending | Pending | Pending |
 | T24 Toolbar popovers | B | `NOT STARTED` | Pending | Toolbar/new popover host/tests/maps | Pending | Pending | Pending | Pending |
 | T25 Residual test ownership | B | `NOT STARTED` | Pending | Proven test/QML/shell routing changes only | Pending | Pending | Pending | Pending |
@@ -188,6 +188,48 @@ No agent-map edit is needed in T00 because no production or test ownership moves
 | Test candidates | New direct handoff owner; moved viewer/plot timeout/cancel tests; retained host integration, overlay, detached/fullscreen, viewer surface, bootstrap, architecture/dead-code, and convergence collect/static probes |
 | Searches run | Bounded exact-method AST/body hashes, direct state-field/caller searches, and one map-selected test-name search; generated/build/vendor/venv/worktree trees excluded |
 | Fallback reason | Maps described the live-exit boundary but not which method bodies were byte-structurally identical or which four duplicate test IDs should move; exact AST/source/test inspection was required to keep host-specific capture/completion out of the shared owner |
+
+### T22 Navigation Record
+
+| Field | T22 record |
+| --- | --- |
+| Route index entries checked | Exact source/QML entries for `GraphNodePortsLayer.qml` and the new Menu candidate; graph canvas; port availability/default values; graph actions/context menus; QML graph-surface tests; mutation/history; persistence |
+| Maps consulted | Agent atlas/coverage; graph canvas; port availability/default values; graph actions/context menus; QML/graph-surface testing; graph scene payload; clipboard/undo/redo/history; performance harness |
+| Source candidates | Inline `portContextMenu` block and existing `_openPortContext`, modifier, Principal, dynamic insert/remove/rename, label-edit, graph mutation/history, and serializer owners; no Python production owner changed |
+| QML candidates | New direct-root `GraphNodePortContextMenu.qml`; real `GraphNodePortsLayer` owner; direct `tst_graph_node_port_context_menu.qml`; retained `tst_graph_node_host.qml`; no action framework, registry, callback bag, policy facade, or replacement menu abstraction |
+| Test candidates | Direct Menu order/check/open-close/call/visibility/read-only cases; graph input controls; data-tree mutation/history; dataflow persistence; architecture/dead-code; ledger/docs/map hygiene; mandatory post-T22 convergence serializers |
+| Searches run | Exact inline Menu/method/object searches, one map-bounded modifier/Principal/dynamic test search, exact traceability/map citations, generated-index membership, and bounded action/owner/test serializers; generated/build/vendor/venv/worktree trees excluded |
+| Fallback reason | Maps named the behavior but not the twelve-item inline tree, Basic-style runtime descendants, or exact Python assertions that mixed menu state with real mutations. Direct source and real-canvas inspection were required to move only the root Menu while leaving every mutation/history owner in the layer/Python graph boundary |
+
+### T22 Current Write Inventory
+
+The active unstaged T22 inventory contains 21 task paths: 2 added and 19
+modified, with no deletion. The two protected untracked paths and mixed INDEX
+content retain their prior ownership rules.
+
+```text
+docs/PLAN_COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR.md
+docs/agent_maps/COVERAGE.md
+docs/agent_maps/feature_routes/graph_actions_and_context_menus.md
+docs/agent_maps/feature_routes/port_availability_and_default_values.md
+docs/agent_maps/subsystems/graph_canvas.md
+docs/agent_maps/testing/qml_and_graph_surface_tests.md
+docs/agent_route_index.json
+docs/agent_route_index.md
+docs/qml_navigation_index.json
+docs/qml_navigation_index.md
+docs/source_test_file_index.md
+docs/specs/INDEX.md
+docs/specs/perf/COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR_QA_MATRIX.md
+docs/specs/requirements/TRACEABILITY_MATRIX.md
+ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml
+ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml
+tests/qml_quick/tst_graph_node_port_context_menu.qml
+tests/test_architecture_boundaries.py
+tests/test_corex_ownership_refactor_ledger.py
+tests/test_graph_surface_input_controls.py
+tests/test_qml_navigation_index.py
+```
 
 ### T21 Navigation Record
 
@@ -754,9 +796,9 @@ tests/test_architecture_boundaries.py
 
 ### Affected QML QuickTest selectors
 
-These 77 selectors are currently owned by the `gui.qml_quick` phase under
+These 80 selectors are currently owned by the `gui.qml_quick` phase under
 `qmltestrunner`; SHA-256 over this ordered list is
-`E17B0C24E7ABBF732BD5DC4A054610D65640DF2C3AAE7BD5B5EA60F48EE43BEB`.
+`1C440B36F6D61F65162357C4382C3A460676D04CFCDF7B24DCBE513805227C1C`.
 The two `SecretEditor` selectors are outside this refactor and are not listed.
 
 ```text
@@ -771,6 +813,9 @@ GraphCanvasSurfaceEditorOverlays::test_open_focus_position_and_surface_identity_
 GraphCanvasSurfaceEditorOverlays::test_accept_callbacks_commit_and_close_each_surface
 GraphCanvasSurfaceEditorOverlays::test_outside_click_cancels_and_clears_each_host
 GraphCanvasSurfaceEditorOverlays::test_active_toolbar_reopens_web_and_timestamp_and_unknown_action_is_rejected
+GraphNodePortContextMenu::test_root_order_checks_and_open_close_stay_exact
+GraphNodePortContextMenu::test_modifier_principal_and_dynamic_items_call_the_layer_owner
+GraphNodePortContextMenu::test_data_visibility_and_read_only_guards_stay_exact
 GraphNodeHost::test_graph_node_host_loads_standard_surface_for_standard_nodes
 GraphNodeHost::test_graph_node_host_uses_surface_spec_for_standard_surface_selection
 GraphNodeHost::test_graph_node_host_uses_curve_rendering_for_node_text
@@ -910,7 +955,7 @@ project_session__test_recent_project_paths_are_owned_by_explicit_session_state
 | --- | --- | --- |
 | Program A Python cohort | Existing pytest fast/gui/serial routing; collected serially for T00 | Registry, add-on, execution, persistence, and run-controller suites listed above |
 | Program B Python cohort | Existing pytest fast/gui/serial routing; collected serially for T00 | Direct graph, canvas, media, viewer, plot, edge, port, and presentation suites listed above |
-| 77 affected QML selectors | `gui.qml_quick`; native `qmltestrunner` process | `tests/qml_quick/tst_edge_paint_policy.qml`, `tst_graph_canvas_surface_editor_overlays.qml`, `tst_graph_node_host.qml`, and `tst_graph_surface_controls.qml` |
+| 80 affected QML selectors | `gui.qml_quick`; native `qmltestrunner` process | `tests/qml_quick/tst_edge_paint_policy.qml`, `tst_graph_canvas_surface_editor_overlays.qml`, `tst_graph_node_port_context_menu.qml`, `tst_graph_node_host.qml`, and `tst_graph_surface_controls.qml` |
 | 31 main-window target groups | `full.shell_isolation`; one child per target group | `tests/shell_isolation_main_window_targets.py` |
 | 20 controller/session targets | `full.shell_isolation`; one child per target | `tests/shell_isolation_controller_targets.py` |
 
@@ -1310,6 +1355,10 @@ when a test is retained.
 | B | T21 | python | tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::test_standard_host_keeps_port_labels_tied_to_port_handles | Input/output row, port-point, label, editor, and remove geometry | ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml | gui.pytest | retained | GraphNodeHost::test_port_row_topology_and_directional_children_stay_stable; GraphNodeHost::test_port_row_dynamic_remove_and_label_edit_keep_directional_geometry | Python retains real-host label/gap integration; normalized direct topology/geometry hashes own exact row descendants, port points, label/editor geometry, and both remove-center intervals | This commit | PASS — direct GraphNodeHost QuickTest 34; retained graph-surface cohort 167 passed/32 subtests | This commit |
 | B | T21 | python | tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::test_standard_host_notches_follow_canvas_background_and_inset_shadow | Exact 9 x 18 input/output notch geometry, mirror, cache, and row placement | ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml | gui.pytest | retained | GraphNodeHost::test_port_row_topology_and_directional_children_stay_stable | Python retains canvas-background and host-shadow integration; direct QuickTest owns exact notch dimensions, mirror/cache flags, parent topology, and geometry hash | This commit | PASS — direct GraphNodeHost QuickTest 34; retained graph-surface cohort 167 passed/32 subtests | This commit |
 | B | T21 | python | tests/test_passive_graph_surface_host.py::PortTypePresentationQmlTests::test_ports_use_projected_input_state_and_keep_edge_reason_out_of_port_text | Directional flow/type state, inaccessible-output lock, tooltip, and accessible text consumption | ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml | gui.pytest | retained | GraphNodeHost::test_port_row_consumes_flow_type_tooltip_and_accessibility_facts | Python retains bounded projection/catalog and edge-reason separation; direct QuickTest owns row consumption of interaction direction, invalid color, label/type accessibility, help text, inactive lock/cursor, and inactive reason | This commit | PASS — direct GraphNodeHost QuickTest 34; data/default/flow/type/tooltip cohort 94 passed/61 subtests | This commit |
+| B | T22 | python | tests/test_graph_surface_input_controls.py::GraphSurfaceDataflowAuthoringTests::test_dataflow_port_and_edge_authoring_controls_route_real_mutations | Menu root/order/open-close/placement, modifier/Principal checked state, dynamic actions, flow visibility, and read-only guards | ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml | gui.pytest | retained | GraphNodePortContextMenu::test_root_order_checks_and_open_close_stay_exact; GraphNodePortContextMenu::test_modifier_principal_and_dynamic_items_call_the_layer_owner; GraphNodePortContextMenu::test_data_visibility_and_read_only_guards_stay_exact | Python retains actual scene commands, mutation/history, label projection, dynamic results, and canvas interaction; direct QuickTests own the Menu object/order/state/guard and explicit layer-call behavior | This commit | PASS — direct Menu QuickTest 5; real mutation/history/persistence cohort 58 passed | This commit |
+| B | T22 | python | tests/test_dataflow_graph_persistence.py::test_data_wires_replace_append_disable_and_round_trip_in_input_order | Modifier order plus exclusive Principal persistence | ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml | gui.pytest | retained | GraphNodePortContextMenu::test_modifier_principal_and_dynamic_items_call_the_layer_owner | Python retains graph/persistence round trip and edge ordering; direct QuickTest owns modifier toggle ordering and the exact Principal owner call | This commit | PASS — direct Menu QuickTest 5; real mutation/history/persistence cohort 58 passed | This commit |
+| B | T22 | python | tests/test_data_tree_ui.py::test_dynamic_port_label_rename_records_one_history_entry_and_noop_is_empty | Dynamic Rename visibility and label-edit routing | ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml | gui.pytest | retained | GraphNodePortContextMenu::test_modifier_principal_and_dynamic_items_call_the_layer_owner | Python retains one-entry history/no-op/undo/redo behavior; direct QuickTest owns Rename visibility and direct begin-label-edit direction/key routing | This commit | PASS — direct Menu QuickTest 5; real mutation/history/persistence cohort 58 passed | This commit |
+| B | T22 | python | tests/test_dataflow_graph_persistence.py::test_dynamic_port_insert_remove_is_ordered_and_cleans_all_incident_state | Dynamic Insert Before/After and Remove enablement/routing | ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml | gui.pytest | retained | GraphNodePortContextMenu::test_modifier_principal_and_dynamic_items_call_the_layer_owner; GraphNodePortContextMenu::test_data_visibility_and_read_only_guards_stay_exact | Python retains ordered graph mutation, incident sparse-state cleanup, and persistence; direct QuickTests own ordinals, remove key routing, visibility, and read-only disablement | This commit | PASS — direct Menu QuickTest 5; real mutation/history/persistence cohort 58 passed | This commit |
 
 T19 maps exactly five QuickTest selectors in the three finalized rows above:
 two renderer/state selectors, one neutral-base selector, and two flow/passive
@@ -1326,6 +1375,12 @@ T21 keeps all six Python integration IDs. Their finalized `retained` rows map se
 new direct tests, while projection, command/mutation/history, canvas-background,
 and real-host integration remain in Python. All six rows record passing results
 and `This commit`; no T21 Python ID is deleted.
+
+T22 keeps all four Python integration IDs. Their finalized `retained` rows map seven exact
+`GraphNodePortContextMenu` selector references across the three direct tests;
+the Menu owns row order/check/visibility/read-only routing while Python retains
+real graph mutation, history, persistence, and canvas interaction. No T22 test
+ID is deleted; every row records passing results and `This commit`.
 
 ## Program A Performance Baseline Contract
 
@@ -1444,6 +1499,7 @@ for release-style rendering conclusions.
 | T19 candidate | Accepted T18 `2e357a5d` versus working T19; same bounded synthetic 120-node/180-edge and 24-node/36-edge mutation commands; offscreen/software; exact per-command-family order `B1 → C1 → B2 → C2`; each arm is one process and one report; sequential/non-counterbalanced; no 1,200-node child | Bounded B1/B2 p95 load/pan/full-drag/frame `133.019/101.088/71.931/102.535` and `135.353/64.226/50.776/65.205 ms`; CPU `97.553/98.072%`; RSS `460,955,648/468,807,680 B`. Mutation B1/B2 `37.138/24.449/10.579/56.048` and `30.401/15.340/10.544/30.925 ms`; CPU `100.735/98.662%`; RSS `499,400,704/501,956,608 B`. | Bounded C1/C2 `141.319/217.221/69.883/155.520` and `123.866/57.741/15.354/73.989 ms`; CPU `100.278/100.008%`; RSS `465,178,624/462,172,160 B`. Mutation C1/C2 `32.565/34.500/34.447/60.273` and `32.983/16.529/9.925/38.391 ms`; CPU `97.728/98.192%`; RSS `499,544,064/501,637,120 B`. | Timing deltas in load/pan/drag/frame order: bounded B1→C1 `+6.24/+114.88/-2.85/+51.68%`, B2→C2 `-8.49/-10.10/-69.76/+13.47%`; mutation B1→C1 `-12.31/+41.11/+225.63/+7.54%`, B2→C2 `+8.49/+7.75/-5.87/+24.14%`. CPU/RSS deltas: bounded `+2.725 pp/+4,222,976 B`, then `+1.936 pp/-6,635,520 B`; mutation `-3.007 pp/+143,360 B`, then `-0.470 pp/-319,488 B`. Exact hot-work facts only: visible/candidate/retained-skip maxima are `23/23/23` on both bounded B2/C2 and `4/4/4` on both mutation B2/C2; renderer `canvas`, fallback false, create-edge structural-incremental `2/2`, drag in-place `3/3`; dirty/model/scene/setup sequences match `[1,1,2,1]`/`[0,1,0,1]`/`[1,1,2,1]`/`[0,0,0,0]`. Snapshot-refresh pan/zoom maxima are bounded `41/42 → 39/40` and mutation `30/31 → 31/32`. Bounded pan/zoom paint p95 is `1.0/0.0 → 0.85/0.85 ms`; mutation paint is `0/0 → 0/0 ms`. A contemporaneous process-list snapshot showing unrelated long-lived Python processes is retained writer observation only, not causal proof. | `STRUCTURAL PASS; TIMING INCONCLUSIVE — NON-COUNTERBALANCED SINGLE-PROCESS ARMS, NO REPEAT, CAUSAL CLAIM, OR TIMING-ONLY ROLLBACK` |
 | T20 candidate | Accepted T19 `3e400b74` versus working T20; exact five real overlay routes plus direct component QuickTest; offscreen/software; no stress or broad GUI run | Real-route baseline: 5 passed/6 subtests, outer `7,025.615 ms`; locked RootLayers 1,823 lines SHA `0E52E26E...E937C`, 28 objects/100 functions/1 signal, 10 Items/0 QtObjects/2 Timers/0 Loaders; overlay object hash `B8BE8BB4...7745`, state declaration hash `E7D77435...F3E97`, logic/items/position/Connections hashes recorded in T20 evidence | Candidate real routes: 5 passed/10 subtests, outer `7,757.120 ms`; direct owner QuickTest 7 passed in `114 ms`; RootLayers/new owner combined 28 objects/96 functions/1 signal and exact `10/0/2/0` Item/QtObject/Timer/Loader counts; object hash unchanged; callbacks/action IDs/alias-name hashes recorded below | Runtime test bodies differ because retained static assertions now inspect aliases and the direct owner, so outer `+10.42%` is diagnostic and not a performance comparison. Exact structural acceptance: one root-replacing component plus four contained Items, ten live aliases, one RootLayers delegation, unchanged five object names/callbacks/action IDs, no extra event pass/loader/timer, and Canvas export remains outside overlay content. | `STRUCTURAL PASS; TIMING INCONCLUSIVE — CHANGED-TEST DIAGNOSTIC ONLY; NO PRODUCT REPEAT OR TIMING-ONLY ROLLBACK` |
 | T21 candidate | Accepted T20 `ec3e53cc` versus working T21; one sequential process per side; 24 nodes/36 edges, seed 21, one load, one warmup plus four interaction samples, `graph_mutations/drag_node_commit`, offscreen/software QQuickWidget; no real stress child | Baseline p95 load/pan-zoom/drag-control/steady-offset/full-gesture/frame `32.449/81.601/59.543/1.593/53.786/69.928 ms`; CPU `97.557%`; RSS `475,901,952 B`. Real-host normalized input/output topology hashes `d0078e01/55b1e6c7/ee335365/2fccbe03` and geometry hashes `055131d5/b0b81f42/d0188864/a6b75d7b`; row QQuickItem counts `135/21/25/22`, Loaders `0/1/0/1`, Canvases `1/0/1/1` | Candidate p95 `31.725/67.414/54.867/3.085/48.860/73.017 ms`; CPU `100.085%`; RSS `478,892,032 B`. All four topology/geometry hashes and Item/Loader/Canvas counts are exact; combined static layer+row counts remain 3 Items/2 Connections/0 Bindings/1 Loader/0 Timers/2 Canvases/4 Repeaters. Pan/zoom delegate create/destroy/visible and 24-node live-drag samples are exact; feature-parity JSON is exact | Timing deltas are `-2.23/-17.39/-7.85/+93.66/-9.16/+4.42%`; the large percentage is a `+1.492 ms` narrow steady-offset change amid opposing movements. CPU is `+2.528 pp`, RSS `+2,990,080 B`. Sequential four-sample software runs are diagnostic only; both packet verifications pass while the harness's generic performance-acceptance field remains non-applicable/FAIL for this bounded evidence. No repeat, pause, causal claim, or timing-only rollback is warranted | `STRUCTURAL PASS; TIMING INCONCLUSIVE — SEQUENTIAL SINGLE-PROCESS DIAGNOSTIC; NO PRODUCT REPEAT OR TIMING-ONLY ROLLBACK` |
+| T22 candidate | Accepted T21 `8b23d6ad` versus working T22; exact inline Menu source/runtime tree plus direct Menu QuickTest and real mutation/history/persistence; offscreen Basic style; no stress/broad GUI or product timing run | One inline Menu, source SHA `C3B8B924...4773`, 12 ordered object names SHA `BE90EC4E...95E7`, runtime action/check hash `158EAA1F...CD118`, geometry hash `848A334D...220F`, 24 named objects/12 actions, real-canvas placement `-40/-189`, open/close green, combined port static counts `3/2/0/1/0/2/4` plus one Menu | One direct-root `GraphNodePortContextMenu.qml`, 159 lines SHA `CA4ACF05...7574`, the same 12 names/order/action/geometry/count/placement/open-close facts, and conceptual-root topology `CF84DD3A...72C7C`; direct QuickTest 5 and real mutation/history/persistence 58 pass. The accepted T21 layer prefix and entire row file remain exact | This task only relocates existing Menu declarations and adds direct tests; no new Item/Loader/Connection/Binding/Timer, menu descendant, policy pass, registry scan, action-model rebuild, or product hot-loop exists. Direct QuickTest wall time is candidate-only test evidence, not a product comparator. No repeat, pause, causal claim, or timing-only rollback is warranted | `STRUCTURAL PASS; TIMING INCONCLUSIVE — STRUCTURAL MENU MOVE; NO PRODUCT TIMING COMPARATOR OR TIMING-ONLY ROLLBACK` |
 | T19–T25 | Post-T18/P22 convergence baselines | Pending | Pending | Pending | Pending |
 
 ## T13 Retained T05–T10 Timing Dispersion Audit
@@ -1797,6 +1853,74 @@ are the documented static serializer, the 14-module `pytest --collect-only -q
 synthetic/offscreen harness runs. Any real-fixture attempt remains separately
 resource-gated by the T14 25.8 GB/94 MB evidence.
 
+### Mandatory post-T22 QML convergence baseline
+
+This is the authoritative T23–T24 starting point after T14–T22. The same
+anchored public-record serializer documented above is used. Static declaration
+counts are ordered `Item/QtObject/Timer/Loader/Menu/Connections/Binding/Canvas/Repeater`;
+they are source-topology facts, not claims about Qt-internal style objects.
+
+| Current QML owner | Lines | File SHA-256 | Objects / functions / signals | Static declaration counts | Object SHA-256 | Tagged surface SHA-256 |
+| --- | ---: | --- | --- | --- | --- | --- |
+| `EdgeLayer.qml` | 1,183 | `210D2B47BB615590DF114C2225C405AE0994C29B06BD55ED965ABABA6D05799B` | `0/55/3` | `1/0/0/0/0/0/0/0/0` | `E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855` | `10AB4AA17128084011557906E37B9E28DA5BE514CC94E73612F897FC11BD32EC` |
+| `EdgeCanvasLayer.qml` | 884 | `A31B04F9711E6FA901860F5A56E7F1424377C7E4DEF35BDDAEAA2E2A5A6447A1` | `3/33/0` | `2/0/0/0/0/0/0/1/0` | `83C964977D15339B62021DCA792EABC3B98A29BF7966EA1FDB54FB523BC0929C` | `0B4412DEC95F079AF8718C142B1C3BC1308B3296B0F8FF1B38A5207D345EF845` |
+| `EdgeRetainedLayer.qml` | 591 | `40D3CA79FA77687722DBCFB32EE76974B02D3CE1EFF63112FF91EEBA6FA84AC7` | `2/25/0` | `3/0/0/0/0/0/0/0/3` | `CBCE0219514F4BA2ADF322E8CAC76B57CA5C354850DEC8289A8A95BFA7E1A730` | `588779D840AA7E5711BE61D924F3A4C4516FFEC2BCA1BF98C39D93AE9EE7EE05` |
+| `EdgeScenegraphLayer.qml` | 16 | `4ADFE72F0598A5296E90FFC51A0CEC9A80354ADC115800BA9444359211B067CB` | `1/1/0` | `1/0/0/0/0/0/0/0/0` | `1959BD9D0A52F9725431C0E669EC0B875AF60000253F43BA931E19665E821201` | `7F0621D875F46CF31D1E0089214DD64D19538232BCC38A1ECAACE105B89052C0` |
+| `GraphCanvasRootLayers.qml` | 1,198 | `717DA3F964A353DF0F350E368B27EE0A5F685B197AE31359D0F2796E0BD1CB56` | `23/57/1` | `5/0/2/0/0/2/0/0/1` | `FF0C1E8D7DEC4014753AD1F61999082BDB7B64642FFEA35A759274267CC3E200` | `7D2B64F03372CCFDE9D280A451A292C810E2BF97321BC04C7749588B8807602D` |
+| `GraphCanvasSurfaceEditorOverlays.qml` | 703 | `E6EF34B2D6072C6C055AF9824356D73F5F675CB35242ADC32FBE359555513C79` | `5/39/0` | `5/0/0/0/0/5/0/0/0` | `B8BE8BB484337FF3D295BB8AAFCAF3546EF2709393E6A4B6FC958D29D9407745` | `A5F7882A623CF28687B667CF0759412DAD927936009AE44BC01DDE6B8799BC2D` |
+| `GraphNodePortsLayer.qml` | 1,166 | `8EB1A09300EEB40597B449D0D51181D8EE017CB8F650C7A9F66EB3551513F76D` | `9/61/1` | `1/0/0/1/0/2/0/2/4` | `44F3CEB41A929CEA4DC255D9692D8090CF135AD8BE886C8141EBCCDB2FADFF46` | `8F493579C2E991994C8D9C1416FB67F5A7D1B4161C527DC23549089DEE861112` |
+| `GraphNodePortRow.qml` | 802 | `5AC321D4A2C78132E5787E83968315AE00EEF10166A561E74F7FAA0E304CAF26` | `2/6/0` | `2/0/0/0/0/0/0/0/0` | `BE85C640B8694426D1EE03852AF9E8F6112D30F66C8891A6FDAA65B1D25D0073` | `D048F8FA5421FC2C684A45B6471298BCEE864B0518E758D913D6291ACED49375` |
+| `GraphNodePortContextMenu.qml` | 159 | `CA4ACF052C26EA2099657F22C5E555CE93D1966EC571BFB3CFBCCBDE60287574` | `12/0/0` | `0/0/0/0/1/0/0/0/0` | `BE90EC4E937E0658B87CC440FA375A64FF02B52B2125015B0431A9F58FE995E7` | `F78352C2D5323CF12DE3E63E7607B6E701800E86C08FF3F94896522EB2F6F88C` |
+| `GraphCanvasActionRouter.qml` | 663 | `B829907B1473DECFCADBA91C835D6F1D9CF8A2D67448DB66667C7F257E23A3C3` | `0/53/0` | `0/1/0/0/0/0/0/0/0` | `E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855` | `A716CE4E12FFFABD69F6B0126D01722FB7F401646EB06B636C0F9C43D0986108` |
+| `GraphNodeFloatingToolbar.qml` | 2,054 | `BA0A0B75D830FF12C2A1EAC414CD0F18D01454EA8DC2AD2552097CB827DA5511` | `36/45/0` | `8/0/0/0/0/0/2/0/4` | `89445200BFB6539454080AA2DE922BAFCE140EDCB8684F432A424D9626688A81` | `31F3588AE071C247320A58D933664221B5EC595A84EEBA399A390AC2225B2E0A` |
+| `GraphNodeHost.qml` | 1,861 | `B2EAB9DC8206118BB1577DF9BE1AFD0A5B3A17E370A475D9ED1D21159024C0B7` | `6/73/24` | `2/1/0/0/0/0/0/0/0` | `7772075880D2E075BAA9DA04C305D656C060A19F25A26C48099783F0842B3B81` | `3CD0B1B5CA47EF68F045C8954942CF51529D9327E861E1D435D4E1C17BD0B63B` |
+
+Totals across these twelve QML owners are 99 literal object names, 448
+functions, 29 signals, 30 Items, 2 QtObjects, 2 Timers, 1 Loader, 1 Menu,
+9 Connections, 2 Bindings, 3 Canvases, and 12 Repeaters. Conditional runtime
+port-row identity families are locked separately by the direct host topology
+test and are intentionally not miscounted as literal `objectName` declarations.
+`EdgePaintPolicy.js` remains 370 lines, 31 functions, SHA-256
+`3D9CE5CC986613E9B5300A566FA1C31B759F93E6C45F0925FCEB881B0CBEB09A`;
+`EdgeMath.js` remains 827 lines, 39 functions, SHA-256
+`A14DDE8DCA100652CBCC17D030286B1920B4F59C1D69B03CBE8982322DC68811`.
+
+The accepted T21 row topology remains exact: normalized unlocked/locked
+input/output hashes `d0078e01/55b1e6c7/ee335365/2fccbe03`, geometry hashes
+`055131d5/b0b81f42/d0188864/a6b75d7b`, QQuickItem counts `135/21/25/22`,
+Loaders `0/1/0/1`, and Canvases `1/0/1/1`. The T22 Menu retains one direct
+root, 12 ordered action identities, 24 named runtime objects, conceptual-root
+topology hash `CF84DD3A...72C7C`, action/check-state hash `158EAA1F...CD118`,
+geometry hash `848A334D...220F`, and real-canvas placement `x=-40.0/y=-189.0`.
+The layer prefix before the replaced Menu is byte-normalized equal to accepted
+T21 at SHA-256 `88F8D1D6...9DAF7`; `GraphNodePortRow.qml` is byte-identical.
+
+The action inventory remains exactly 65 `GraphActionId` values. Sorted IDs
+joined with `os.linesep` hash to
+`A549EC58DAC70857863A7F2543727291CFDF4C293AAFBC14B7092FC4B0522C7B`;
+the documented JSON action-spec serializer remains
+`524B320F94B2CFCC982A9D7284EC86BC123A2719B14BD862A0CDF32E90D7F9F4`.
+The affected QML inventory is 80 selectors, SHA-256
+`1C440B36F6D61F65162357C4382C3A460676D04CFCDF7B24DCBE513805227C1C`;
+the authoritative Qt 6.11.1 run reports 94 passes. The exact ordered 14-module
+Python cohort now collects 331 unique IDs, SHA-256
+`4C23CE3B7384E37BAAB5C54CECCC02164871A866951A8CF823F9EDD3B3C428A0`,
+with the same first/last IDs recorded above. The graph-surface snapshot remains
+30,674 bytes/SHA `8FACC5C4...A4B48`; the unrun real stress fixture remains
+1,203,145 bytes/SHA `DBE1B48C...C4FB`.
+
+The final Python owner roster remains exactly these 15 concrete owners:
+`WorkspaceEditController`, `WorkspaceDropConnectController`,
+`MediaPanelActionService`, `CanvasExportPresenter`,
+`GraphCanvasHostPresenter`, `GraphActionController`, `RunController`,
+`RunProjectionController`, `RunEventController`, `ContentFullscreenBridge`,
+`ViewerSessionBridge`, `ViewerControlBridge`, `ViewerHostService`,
+`PlotHostService`, and `NativePresentationHandoff`. T22 changes no Python
+production owner. T14–T18 direct owners, T19 edge policy/math/renderers, T20
+surface overlays, T21 row/layer topology, `GraphCanvasActionRouter`,
+`GraphNodeFloatingToolbar`, and `GraphNodeHost` remain stable. T23 must not
+start until T22 is independently reviewed and accepted against this baseline.
+
 ### Program B inventory and performance fixtures
 
 The current T13 Program B Python cohort still collects 706 IDs; its ordered Windows-newline
@@ -2067,6 +2191,23 @@ only until the root orchestrator requests the acceptance-status/commit update.
 | Working tree, protected paths, and privacy | `PASS`; the exact active inventory is 23 task paths, 1 added and 22 modified, with no deletions and zero staged paths. Working and cached diff checks pass. Protected untracked hashes remain `F1709CD27CDD97141E354AB0644B3602F8EA43EBEFBB294B0C5FA4578C6788F2` and `468C04C09DF327871ED6CD947EF58E8F26412D632A1E969C3C56303DFC44061B`; the mixed INDEX retains the user-owned Physical Simulation row plus only T21's synchronized status hunk. The added-line privacy scan is clear, task Qt variables are unset, and no T21 QML/pytest/performance/verification process remains. |
 | Review/status boundary | Architecture/ownership, correctness/no-lost-tests, and performance-causality reviews are `CLEAR`. T21 is accepted with `This commit`; nothing is staged, and T22 has not started. |
 
+### T22 accepted implementation evidence
+
+| Command / evidence | Result |
+| --- | --- |
+| Accepted-T21 Menu baseline | `PASS`; one inline Menu source block SHA-256 `C3B8B924...4773`, 12 ordered object names SHA `BE90EC4E...95E7`, runtime action/check-state hash `158EAA1F...CD118`, geometry hash `848A334D...220F`, 24 named runtime objects/12 actions, real-canvas placement `-40/-189`, and open/close behavior. The real mutation probe passed before production edit. |
+| Direct Menu owner | `PASS`; `GraphNodePortContextMenu.qml` is a 159-line root `Menu`, SHA-256 `CA4ACF05...7574`, and directly replaces the inline `portContextMenu`. It receives one required `portsLayer`, preserves all twelve object names/order/check/visibility/enable/read-only facts, and calls the existing modifier, Principal, dynamic insert/remove/rename, and label-edit methods directly. It has no signal/callback bag, registry, action model, factory, policy facade, Connection, Binding, Loader, Timer, or Item. |
+| Layer and T21 stability | `PASS`; `GraphNodePortsLayer.qml` is 1,166 lines, SHA-256 `8EB1A093...3F76D`; the complete prefix before the replaced Menu remains byte-normalized equal to accepted T21 at `88F8D1D6...9DAF7`. `_openPortContext` retains context assignment, map-to-layer placement/clamping, and the same `portContextMenu.open()` call. `GraphNodePortRow.qml` remains byte-identical at SHA `5AC321D4...AF26`; all T21 topology/geometry/count hashes remain green. |
+| Menu topology and allocation | `STRUCTURAL PASS`; runtime action/check-state and geometry hashes remain exact, conceptual-root normalized topology is `CF84DD3A...72C7C`, and direct Basic-style open/close/order checks pass. Combined port owner counts remain exactly 3 Items/2 Connections/0 Bindings/1 Loader/0 Timers/2 Canvases/4 Repeaters plus one Menu. No descendant, object-name family, menu pass, per-port object, or product hot-loop was added. |
+| Direct Menu tests | `PASS`; `tst_graph_node_port_context_menu.qml` reports 5 passes. Its three direct selectors own root/order/check state/open-close, explicit modifier/Principal/dynamic layer calls, data/flow visibility, and read-only guards. Authoritative Qt 6.11.1 QuickTest reports 94 passes across the complete directory. |
+| Retained mutation/history/persistence | `PASS`; graph input controls, data-tree UI, and dataflow persistence report 58 passes. The real canvas probe retains modifier/Principal results, flow exclusion, dynamic insert/remove/rename, label indicators, pointer/edge behavior, and exact Menu runtime hashes. Data-tree/history and serializer tests retain one-entry/no-op/undo/redo, sparse-state cleanup, stable-key order, and persistence. |
+| Test ownership migration | Four same-ID Python integration cases remain. Seven exact selector references in their finalized `retained` rows move Menu-local root/order/check/visibility/read-only/call assertions to the three direct QuickTests while Python retains real graph mutation, history, persistence, and canvas interaction. Every row contains exact replacements, passing results, and `This commit`. Affected QuickTest inventory is 80 selectors, SHA-256 `1C440B36...27C1C`; no test ID was deleted. |
+| Structural/performance disposition | `STRUCTURAL PASS; TIMING INCONCLUSIVE — STRUCTURAL MENU MOVE; NO PRODUCT TIMING COMPARATOR OR TIMING-ONLY ROLLBACK`; this is a declaration move with exact Menu and port counts, topology, geometry, and action state. No product timing comparator was manufactured; direct QuickTest duration is test evidence only. No repeat, material pause, or causal claim is made. |
+| Mandatory post-T22 convergence gate | `PASS`; the twelve-owner public/object/static-count table, pure edge policy/math hashes, exact row/menu runtime topology, 65-action hashes, 80-selector/94-pass QML facts, 331-ID Python collection hash, fixtures, and final 15-Python-owner roster are recorded above. T14–T22 owners are stable, and T23 remains blocked until T22 independent review/acceptance. |
+| Hygiene and routing | `PASS`; architecture/dead-code/ledger/navigation/traceability/Markdown hygiene passes 204 tests/472 subtests; ledger passes 12. Agent maps, traceability, Markdown links, and all three generated indexes pass direct checks; QML/source/route indexes report 174/1,222/242 entries. QML format parsing, Ruff check, Python compile, and full verification dry-run pass. Whole-file Ruff format-check remains pre-existing debt in the legacy Python test files and was not allowed to rewrite unrelated lines. |
+| Working tree, protected paths, and privacy | `PASS`; exact active inventory is 21 task paths, 2 added and 19 modified, with no deletions and zero staged paths. Working/cached diff checks pass. Protected untracked hashes remain `F1709CD27CDD97141E354AB0644B3602F8EA43EBEFBB294B0C5FA4578C6788F2` and `468C04C09DF327871ED6CD947EF58E8F26412D632A1E969C3C56303DFC44061B`; mixed INDEX retains the user-owned Physical Simulation row plus only T22's synchronized status hunk. Added-line privacy scan is clear, task Qt variables are unset, and no T22 QML/pytest/performance/verification process remains. |
+| Review/status boundary | Architecture/ownership, correctness/no-lost-tests, and performance-causality reviews are `CLEAR`. T22 and the mandatory convergence baseline are accepted with `This commit`; nothing is staged, and T23 has not started. |
+
 ## Review Ledger
 
 | Review | Scope | Reviewer | Findings | Resolution | Verdict |
@@ -2151,6 +2292,9 @@ only until the root orchestrator requests the acceptance-status/commit update.
 | T21 correctness/no-lost-tests | Six retained Python IDs, seven exact selector references, direct/full QuickTest, real mutation/history, topology/geometry identities, T22 menu, and docs/ledger routing | `t21_correctness_reviewer` | No remaining finding after migration, collection, direct/full QuickTest, history, topology, menu, ledger, map/index, traceability, link, dry-run, and diff review | Finalized all six rows as `retained` with seven selector references, passing results, and `This commit`; reviewer migration checks passed 7 tests/8 subtests, direct/full QuickTest and mutation/history spot checks passed, all topology identities match, and the T22 menu remains byte-normalized equal | `CLEAR` |
 | T21 performance causality | Four runtime topology/geometry hashes, identity/object/static counts, bounded delegate/live-drag counters, timing arithmetic, environment, and cleanup | `t14_performance_reviewer` | No remaining structural or causal finding; bounded software timings are mixed and the narrow steady-offset percentage represents only `+1.492 ms` | Confirmed every runtime hash/count, exact `3/2/0/1/0/2/4` static topology, bounded counter parity, timing/CPU/RSS arithmetic, and cleanup. Evidence remains a bounded software diagnostic with no material pause, product repeat, causal claim, or timing-only rollback | `CLEAR — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
 | T21 withdrawn tooltip concern | Placement of the output-only inactive tooltip under the reviewer-approved relaxed ownership boundary | Architecture/correctness review | Initial concern suggested moving the separate output inactive tooltip into the shared row | Withdrawn after confirming the approved design explicitly retains this output-only child inline to preserve exact object topology and avoid a hidden dual branch or added Loader; direct tooltip/accessibility and topology tests are green, so no source or test change is required | `RESOLVED-NO CHANGE` |
+| T22 architecture/ownership | Direct Menu root, explicit layer owner, twelve names/order/check/guards/placement/routes, exact static topology, T21 stability, and mandatory convergence baseline | `t14_architecture_reviewer` | No remaining finding after source/runtime topology, canonical QML, retained mutation owner, convergence, map/index, traceability, link, diff, privacy, staging, and protected-file review | Confirmed the direct root has no wrapper/framework; all twelve identities and `3/2/0/1/0/2/4/1` Item/Connections/Binding/Loader/Timer/Canvas/Repeater/Menu counts remain exact; T21 row is byte-identical and only the inline Menu moved. Reviewer checks passed 29 tests/215 subtests, direct/full QuickTest, and the exact 331-ID convergence collection; twelve-QML/65-action/80-selector/331-ID/15-owner baseline is complete and T23 remains blocked until this acceptance | `CLEAR` |
+| T22 correctness/no-lost-tests | Four retained Python IDs, seven selector references, direct/full QuickTest, real controls/mutation/history/persistence, Menu order/check/guard/placement/calls, and convergence facts | `t21_correctness_reviewer` | No remaining finding after migration, direct/full QuickTest, retained behavior, topology, convergence, ledger, map/index, traceability, link, dry-run, and diff review | Finalized all four rows as `retained` with seven exact selector references, passing results, and `This commit`; direct/full QuickTests pass 5/94, retained controls/mutation/history/persistence pass 58, and every twelve-owner/80-selector/331-ID/65-action/15-owner baseline fact reproduces | `CLEAR` |
+| T22 performance causality | Direct Menu replacement, MenuItem/separator/action identities, port topology, runtime hashes/placement, absence of new objects/passes/scans, and cleanup | `t14_performance_reviewer` | No remaining structural or causal finding; no comparable product timing exists or is claimed | Confirmed one Menu, eleven MenuItems, three separators, twelve ordered actions, exact T21 and T22 topology/geometry/action hashes, all twelve post-T22 owner totals, no wrapper/Loader/Connection/Binding/Timer/action pass/scan/runtime object growth, and clean task state. Direct QuickTest timing remains test-only evidence | `CLEAR — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
 | Program B architecture/ownership | T14–T25 | Pending | Pending | Pending | Pending |
 | Program B correctness/security/no-lost-tests | T14–T25 | Pending | Pending | Pending | Pending |
 | Program B performance causality | T14–T25 | Pending | Pending | Pending | Pending |

@@ -1,9 +1,9 @@
 {
   "version": 2,
   "summary": {
-    "entries": 241,
+    "entries": 242,
     "map_entries": 68,
-    "qml_component_entries": 173
+    "qml_component_entries": 174
   },
   "entries": [
     {
@@ -104,6 +104,7 @@
         "flow",
         "graphcanvassurfaceeditoroverlays",
         "graphnodeportrow",
+        "graphnodeportcontextmenu",
         "graphnodeportslayer",
         "graphcanvasstatebridge",
         "graphcanvascommandbridge",
@@ -1859,6 +1860,7 @@
         "ea_node_editor/ui_qml/components/graph/overlay/GraphSelectionEnvelopeOverlay.qml",
         "ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml",
         "ea_node_editor/ui_qml/graph_action_bridge.py",
         "ea_node_editor/ui/shell/controllers/graph_action_controller.py",
         "ea_node_editor/ui/shell/presenters/graph_canvas_host_presenter.py",
@@ -1879,7 +1881,8 @@
         "ea_node_editor/ui_qml/components/GraphCanvas.qml",
         "ea_node_editor/ui_qml/components/graph/overlay/GraphSelectionEnvelopeOverlay.qml",
         "ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml",
-        "ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml"
+        "ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml"
       ],
       "keywords": [
         "graph",
@@ -1903,6 +1906,7 @@
         "graphselectionenvelopeoverlay",
         "graphedgefloatingtoolbar",
         "graphnodehost",
+        "graphnodeportcontextmenu",
         "bridge",
         "controllers",
         "controller",
@@ -1925,6 +1929,7 @@
         "input",
         "reference",
         "dialog",
+        "graphnodeportslayer",
         "graphcanvasinteractionstate",
         "opencanvasoptions",
         "path",
@@ -1982,7 +1987,6 @@
         "port",
         "modifiers",
         "principal",
-        "graphnodeportslayer",
         "graphcanvascommandbridge",
         "pointer",
         "platform",
@@ -2082,6 +2086,7 @@
         "ea_node_editor/ui_qml/components/graph/overlay/GraphSelectionEnvelopeOverlay.qml",
         "ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml",
         "ea_node_editor/ui_qml/graph_action_bridge.py",
         "ea_node_editor/ui/shell/controllers/graph_action_controller.py",
         "ea_node_editor/ui/shell/presenters/graph_canvas_host_presenter.py",
@@ -5744,6 +5749,7 @@
         "ea_node_editor/ui_qml/graph_canvas_command/node_creation_ops.py",
         "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml",
         "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInteractionState.qml"
       ],
       "test_candidates": [
@@ -5762,6 +5768,7 @@
       "qml_candidates": [
         "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml",
         "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInteractionState.qml"
       ],
       "keywords": [
@@ -5809,6 +5816,7 @@
         "components",
         "graphnodeportslayer",
         "graphnodeportrow",
+        "graphnodeportcontextmenu",
         "graphcanvasinteractionstate",
         "tests",
         "test",
@@ -5827,6 +5835,7 @@
         "resolve",
         "portspec",
         "noderegistry",
+        "portslayer",
         "uses",
         "propertyspec",
         "source",
@@ -5924,6 +5933,7 @@
         "ea_node_editor/ui_qml/graph_canvas_command/node_creation_ops.py",
         "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml",
         "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInteractionState.qml",
         "tests/test_registry_validation.py",
         "tests/test_property_normalization.py",
@@ -16615,6 +16625,48 @@
       "section_anchors": []
     },
     {
+      "route_key": "qml:graphnodeportcontextmenu",
+      "kind": "qml_component",
+      "title": "GraphNodePortContextMenu.qml",
+      "map_path": "docs/agent_maps/subsystems/graph_canvas.md",
+      "source_candidates": [
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml"
+      ],
+      "test_candidates": [],
+      "qml_candidates": [
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml"
+      ],
+      "keywords": [
+        "graphnodeportcontextmenu",
+        "node",
+        "editor",
+        "qml",
+        "components",
+        "graph",
+        "menu",
+        "portslayer",
+        "item",
+        "dynamicgroup",
+        "var",
+        "graphnodeportaccessmetadata",
+        "graphnodeportmodifiergraft",
+        "graphnodeportmodifierflatten",
+        "graphnodeportmodifiersimplify",
+        "graphnodeportmodifierreverse",
+        "graphnodeportmodifierclean",
+        "graphnodeportprincipal",
+        "graphnodedynamicportinsertbefore",
+        "graphnodedynamicportinsertafter",
+        "graphnodedynamicportrename",
+        "graphnodedynamicportremove"
+      ],
+      "aliases": [],
+      "focused_verification": [],
+      "start_here": [],
+      "do_not_start_here": [],
+      "section_anchors": []
+    },
+    {
       "route_key": "qml:graphnodeportrow",
       "kind": "qml_component",
       "title": "GraphNodePortRow.qml",
@@ -16822,7 +16874,6 @@
         "portkeys",
         "actionactive",
         "actionfillcolor",
-        "dynamicgroup",
         "dynamicportgroupsapplied",
         "onnodedatachanged",
         "onnodes",
@@ -16906,19 +16957,7 @@
         "graphnodeinputdefaultproperty",
         "graphnodeoutputportpadlock",
         "graphnodedynamicportadd",
-        "graphnodedynamicportaddcircle",
-        "graphnodeportcontextmenu",
-        "graphnodeportaccessmetadata",
-        "graphnodeportmodifiergraft",
-        "graphnodeportmodifierflatten",
-        "graphnodeportmodifiersimplify",
-        "graphnodeportmodifierreverse",
-        "graphnodeportmodifierclean",
-        "graphnodeportprincipal",
-        "graphnodedynamicportinsertbefore",
-        "graphnodedynamicportinsertafter",
-        "graphnodedynamicportrename",
-        "graphnodedynamicportremove"
+        "graphnodedynamicportaddcircle"
       ],
       "aliases": [],
       "focused_verification": [],
@@ -25099,6 +25138,7 @@
         "group",
         "ids",
         "secreteditor",
+        "graphnodeportcontextmenu",
         "edgemath",
         "core",
         "trigger",
@@ -26694,6 +26734,7 @@
         "ea_node_editor/ui_qml/components/graph/GraphNodeHostRenderQuality.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeHostSceneAccess.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeHostTheme.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeResizeHandle.qml",
@@ -26732,8 +26773,7 @@
         "ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoRenderer.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphNativeExplorerSurface.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSettingsPopover.qml",
-        "ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSurface.qml",
-        "ea_node_editor/ui_qml/components/graph/passive/GraphPanelEditorPopover.qml"
+        "ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSurface.qml"
       ],
       "test_candidates": [
         "tests/test_content_fullscreen_bridge.py",
@@ -26767,6 +26807,7 @@
         "ea_node_editor/ui_qml/components/graph/GraphNodeHostRenderQuality.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeHostSceneAccess.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeHostTheme.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeResizeHandle.qml",
@@ -26821,8 +26862,7 @@
         "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInlineTextEditor.qml",
         "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInteractiveRegion.qml",
         "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalFields.qml",
-        "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml",
-        "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceListEditor.qml"
+        "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml"
       ],
       "keywords": [
         "qml",
@@ -28746,6 +28786,7 @@
         "tests/test_dataflow_graph_persistence.py",
         "tests/test_graph_scene_bridge_bind_regression.py",
         "tests/main_window_shell/mutation_ui_effects.py",
+        "tests/qml_quick/tst_graph_node_port_context_menu.qml",
         "tests/test_planning_annotation_catalog.py",
         "tests/test_flowchart_surfaces.py",
         "tests/test_group_backdrop_contracts.py",
@@ -28896,6 +28937,8 @@
         "graphnodehost",
         "run",
         "graphnodeportrow",
+        "context",
+        "menu",
         "planning",
         "annotation",
         "catalog",
