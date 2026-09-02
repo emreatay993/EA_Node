@@ -117,7 +117,7 @@ def _build_engineering_project(step_path: Path, registry: Any) -> Any:
     from ea_node_editor.graph.project_state import ProjectData
     from ea_node_editor.graph.records import EdgeInstance, NodeInstance
     from ea_node_editor.graph.workspace_state import ViewState, WorkspaceData
-    from ea_node_editor.nodes.registry import resolve_instance_ports
+    from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
 
     def node(
         node_id: str,

@@ -4603,6 +4603,83 @@ class TraceabilityCheckerTests(unittest.TestCase):
         for token in UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
+    def test_current_execution_architecture_rejects_retired_program_a_terms(self) -> None:
+        current_execution_docs = (
+            "ARCHITECTURE.md",
+            "docs/architecture_diagrams/component_map.mmd",
+            "docs/architecture_diagrams/runtime_pipeline.mmd",
+            "docs/architecture_diagrams/run_sequence.mmd",
+            "docs/specs/requirements/50_EXECUTION_ENGINE.md",
+            "docs/specs/requirements/TRACEABILITY_MATRIX.md",
+        )
+        retired_terms = (
+            "execution/protocol.py",
+            "execution/{protocol.py",
+            "execution/client.py",
+            "execution/{client.py",
+            "execution/headless_runtime.py",
+            "execution/{headless_runtime.py",
+            "node_completed",
+            "RunController.handle_execution_event",
+            "Run events and logs stream to RunController",
+            "AGREEMENT --> EXEC[ProcessExecutionClient]",
+            "participant EC as ProcessExecutionClient",
+            "EC->>RC: event callback",
+            "W->>EC: node_started / node_completed / log",
+            "REC->>RPC: append error log and update notifications",
+        )
+        for relative_path in current_execution_docs:
+            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8-sig")
+            for term in retired_terms:
+                self.assertNotIn(term, text, msg=f"{relative_path} retains retired current-route term {term!r}")
+
+        required_current_terms = {
+            "ARCHITECTURE.md": (
+                "CorexRuntime",
+                "ExecutionBackendClient",
+                "RunEventController",
+                "RunProjectionController",
+                "ViewerSessionBridge direct consumer",
+            ),
+            "docs/architecture_diagrams/component_map.mmd": (
+                "CorexRuntime",
+                "ExecutionBackendClient",
+                "RunEventController",
+                "RunProjectionController",
+                "ViewerSessionBridge direct consumer",
+            ),
+            "docs/architecture_diagrams/runtime_pipeline.mmd": (
+                "CorexRuntime",
+                "ExecutionBackendClient",
+                "RunEventController",
+                "RunProjectionController",
+                "ViewerSessionBridge consumes the event directly",
+            ),
+            "docs/architecture_diagrams/run_sequence.mmd": (
+                "participant CR as CorexRuntime",
+                "participant BC as ExecutionBackendClient",
+                "participant REC as RunEventController",
+                "participant RPC as RunProjectionController",
+                "REC->>VS: direct viewer delivery",
+            ),
+            "docs/specs/requirements/50_EXECUTION_ENGINE.md": (
+                "`CorexRuntime`",
+                "`ExecutionBackendClient`",
+                "`RunEventController`",
+                "`RunProjectionController`",
+                "one direct viewer-event delivery",
+            ),
+            "docs/specs/requirements/TRACEABILITY_MATRIX.md": (
+                "execution/{runtime.py,client_common.py,backend_client.py}",
+                "ui/shell/controllers/{run_event_controller.py,run_projection_controller.py}",
+                "ui_qml/viewer_session_bridge.py",
+            ),
+        }
+        for relative_path, terms in required_current_terms.items():
+            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8-sig")
+            for term in terms:
+                self.assertIn(term, text, msg=f"{relative_path} missing current-route term {term!r}")
+
 
 if __name__ == "__main__":
     unittest.main()

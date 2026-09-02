@@ -499,6 +499,14 @@ class _ExecutionClientCommon:
     def _encode_command(self, command: WorkerCommand) -> dict[str, Any]:
         return command_to_dict(command, catalog=getattr(self, "_data_types", None))
 
+    def _deliver_run_preflight_command(
+        self, command: WorkerCommand
+    ) -> tuple[bool, str]:
+        payload = self._encode_run_preflight_command(command)
+        with self._state_lock:
+            transport = self._pin_run_preflight_transport_locked()
+        return self._deliver_encoded_run_preflight_command(payload, transport)
+
     def _decode_command(self, payload: dict[str, Any]) -> WorkerCommand:
         from ea_node_editor.execution.protocol_codec import (
             dict_to_command,

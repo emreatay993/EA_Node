@@ -419,6 +419,8 @@ flowchart LR
 
     SW --> APC[AppPreferencesController]
     SW --> RUN[RunController]
+    SW --> RPROJ[RunProjectionController]
+    SW --> REVENT[RunEventController]
     SW --> PSC[ProjectSessionController]
     SW --> WLC[WorkspaceLibraryController]
     SW --> SEARCH[window_search_scope_state]
@@ -479,12 +481,16 @@ flowchart LR
     TRUSTED[Private trusted factories / generated descriptors] --> CAND
     SW --> REG
 
-    RUN --> AGREEMENT[RuntimeSnapshot + registry/plugin agreement]
-    AGREEMENT --> EXEC[ProcessExecutionClient]
-    EXEC -->|commands| CMDQ[(command_queue)]
-    CMDQ --> WORKER[worker_main / load_runtime_snapshot / run_workflow]
-    WORKER -->|events| EVTQ[(event_queue)]
-    EVTQ --> EXEC
+    RUN --> RUNTIME[CorexRuntime prepare + dispatch]
+    RUNTIME --> EXEC[ExecutionBackendClient]
+    EXEC --> TRANSPORT[Selected ProcessExecutionClient, ExternalPythonExecutionClient, or TrustedInProcessExecutionClient]
+    TRANSPORT --> WORKER[worker_main / load_runtime_snapshot / run_workflow]
+    WORKER -->|typed events via selected transport, backend, and runtime| ACCEPT
+    RUNTIME --> ACCEPT[Validate, accept in SolutionStore, and enrich settlements]
+    ACCEPT --> EXECSIGNAL[ShellWindow.execution_event]
+    EXECSIGNAL -->|one queued connection| REVENT
+    REVENT --> RPROJ
+    REVENT --> VIEWERCONSUMER[ViewerSessionBridge direct consumer]
     WORKER --> WREG[Worker NodeRegistry from attested agreement]
     WORKER --> VERIFY[Verify generation root and member digests]
     VERIFY --> FUNC[Lazy import + PythonFunctionAdapter]
@@ -535,11 +541,15 @@ flowchart TD
     T --> U[Node library refresh includes local and global workflow entries]
 
     J --> V[User clicks Run]
-    V --> W[RunController builds workflow settings plus runtime_snapshot]
-    W --> X[Execution client posts StartRunCommand with snapshot, bundle refs, fingerprints, and add-on state]
-    X --> Y[Worker validates the agreement, re-hashes generations, resolves project artifacts, compiles the selected workspace, and executes nodes]
-    Y --> Z[Run events and logs stream to RunController]
-    Z --> ZA[Status, console, failed-node focus, and actions updated]
+    V --> W[RunController builds ExecutionRequest plus runtime_snapshot]
+    W --> X[CorexRuntime prepares and dispatches the accepted run]
+    X --> XB[ExecutionBackendClient pins the selected process, external, or trusted transport]
+    XB --> Y[Selected transport sends StartRunCommand; worker validates agreement, resolves artifacts, compiles, and executes]
+    Y --> Z[Typed run, node_settled, and log events return through the selected transport]
+    Z --> ZR[CorexRuntime validates events, accepts solution records, and enriches settlements]
+    ZR --> ZE[ShellWindow.execution_event makes one queued hop to RunEventController]
+    ZE --> ZP[RunProjectionController updates state, status, focus, and actions]
+    ZE --> ZV[ViewerSessionBridge consumes the event directly after run-state routing]
 
     J --> ZB[Autosave tick or manual save]
     ZB --> ZC[ProjectSessionController persists view state, script editor state, workspace ownership, and artifact refs]
@@ -553,24 +563,37 @@ sequenceDiagram
     participant QML as MainShell + GraphCanvas
     participant SW as ShellWindow
     participant RC as RunController
-    participant EC as ProcessExecutionClient
+    participant CR as CorexRuntime
+    participant BC as ExecutionBackendClient
+    participant T as Selected process / external / trusted transport
     participant W as Worker (run_workflow)
     participant PR as WorkerPluginRuntime
     participant R as Worker NodeRegistry
     participant I as Function adapter / trusted factory
-    participant WLC as WorkspaceLibraryController
+    participant REC as RunEventController
+    participant RPC as RunProjectionController
+    participant VS as ViewerSessionBridge
 
     User->>QML: Click Run
     QML->>SW: request_run_workflow()
     SW->>RC: run_workflow()
-    RC->>RC: build runtime snapshot + registry/plugin agreement
-    RC->>EC: start_run(project_path, workspace_id, snapshot, bundle refs, fingerprints)
-    EC->>W: StartRunCommand (queue)
-    W->>EC: run_started + run_state(running)
+    RC->>RC: build ExecutionRequest + runtime snapshot
+    RC->>CR: prepare_execution() + dispatch_prepared()
+    CR->>BC: reserve and start the pinned backend route
+    BC->>T: selected process / external / trusted client
+    T->>W: StartRunCommand (queue, stdio, or direct)
     W->>W: load_runtime_snapshot()
     W->>PR: prepare_registry(command, trusted registry)
     PR->>PR: validate generation roots, digests, refs, and registry fingerprint
     PR-->>W: attested worker registry
+    W-->>T: run_started + run_state(running)
+    T-->>BC: typed event callback
+    BC-->>CR: generation-aware event
+    CR->>CR: validate event and update SolutionStore
+    CR-->>SW: enriched execution_event.emit
+    SW-->>REC: one Qt queued handle_execution_event
+    REC->>RPC: project run state first
+    REC->>VS: direct viewer delivery second
 
     loop per ready node
         W->>R: implementation_entry(node.type_id)
@@ -583,27 +606,49 @@ sequenceDiagram
         end
         W->>I: execute(ctx, inputs, settings)
         I-->>W: validated NodeResult
-        W->>EC: node_started / node_completed / log
+        W-->>T: node_started / node_settled / log
+        T-->>BC: typed event callback
+        BC-->>CR: generation-aware event
+        CR->>CR: validate, accept, and enrich node_settled
+        CR-->>SW: enriched execution_event.emit
+        SW-->>REC: one Qt queued handle_execution_event
+        REC->>RPC: project node state and accepted outputs
+        REC->>VS: direct viewer delivery after projection
     end
 
     alt run failed
-        W->>EC: run_failed + run_state(error)
-        EC->>RC: event callback
-        RC->>SW: append error + traceback to console
-        RC->>WLC: focus_failed_node(workspace_id, node_id)
+        W-->>T: run_failed + run_state(error)
+        T-->>BC: typed event callback
+        BC-->>CR: generation-aware event
+        CR-->>SW: validated execution_event.emit
+        SW-->>REC: one Qt queued handle_execution_event
+        REC->>RPC: project failure, focus, and terminal state
+        REC->>VS: direct viewer delivery after projection
     else run stopped
-        W->>EC: run_stopped + run_state(ready)
-        EC->>RC: event callback
-        RC->>RC: clear active run + update actions
+        W-->>T: run_stopped + run_state(ready)
+        T-->>BC: typed event callback
+        BC-->>CR: generation-aware event
+        CR-->>SW: validated execution_event.emit
+        SW-->>REC: one Qt queued handle_execution_event
+        REC->>RPC: clear active state and update actions
+        REC->>VS: direct viewer delivery after projection
     else run completed
-        W->>EC: run_completed + run_state(ready)
-        EC->>RC: event callback
-        RC->>RC: completed counters + clear active run
+        W-->>T: run_completed + run_state(ready)
+        T-->>BC: typed event callback
+        BC-->>CR: generation-aware event
+        CR-->>SW: validated execution_event.emit
+        SW-->>REC: one Qt queued handle_execution_event
+        REC->>RPC: completed counters and clear active state
+        REC->>VS: direct viewer delivery after projection
     end
 
     opt protocol problem
-        EC->>RC: protocol_error
-        RC->>SW: append error log + notification count
+        T-->>BC: protocol_error
+        BC-->>CR: generation-aware event
+        CR-->>SW: validated execution_event.emit
+        SW-->>REC: one Qt queued handle_execution_event
+        REC->>SW: append error log and update console/notification host
+        REC->>VS: direct viewer delivery after event handling
     end
 ```
 
@@ -616,9 +661,9 @@ sequenceDiagram
 - `NodeRegistry` via `build_default_registry()` (trusted internals plus statically discovered immutable function bundles),
 - serializer/session store (`JsonProjectSerializer`, `SessionAutosaveStore`),
 - `GraphModel` + `WorkspaceManager` + `RuntimeGraphHistory`,
-- controller layer (`AppPreferencesController`, `WorkspaceLibraryController`, `ProjectSessionController`, `RunController`),
+- controller layer (`AppPreferencesController`, `WorkspaceLibraryController`, `ProjectSessionController`, `RunController`, `RunProjectionController`, `RunEventController`),
 - QML bridges/models (`ThemeBridge`, `GraphThemeBridge`, `GraphSceneBridge`, `ViewportBridge`, `ShellLibraryBridge`, `ShellWorkspaceBridge`, `ShellInspectorBridge`, `AddOnManagerBridge`, `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, `GraphActionBridge`, and content/viewer/script/status/help surfaces),
-- execution client (`ProcessExecutionClient`) and event subscription.
+- execution runtime (`CorexRuntime` over `ExecutionBackendClient`) and its one queued shell event subscription.
 6. Graphics preferences are loaded into `ShellWindow`, updating runtime grid/minimap/snap, shell-theme, and graph-theme state before the shell is shown.
 7. QML shell is loaded (`ui_qml/MainShell.qml`) with the focused context-property set from `ea_node_editor.ui.shell.composition` and a composed `GraphCanvas` surface.
 8. `GraphCanvas` composes root bindings, scene/interaction/view controllers, `GraphCanvasRootLayers`, `GraphCanvasInputLayers`, and `GraphCanvasContextMenus`.
@@ -673,16 +718,19 @@ sequenceDiagram
 - `.cxwf` import/export is handled in `custom_workflows.file_codec` + workspace IO ops.
 
 ### 5) Workflow execution
-- `RunController.run_workflow()` builds a `RuntimeSnapshot`, captures the registry/plugin agreement and add-on state, and starts `ProcessExecutionClient`.
-- Client sends typed commands through multiprocessing queues.
+- `RunController.run_workflow()` builds an `ExecutionRequest` with the `RuntimeSnapshot`, backend policy, registry/plugin agreement, and add-on state, then asks `CorexRuntime` to prepare and dispatch it.
+- `CorexRuntime` owns preparation, solution-store context, event validation, settlement acceptance/enrichment, and publication. Its `ExecutionBackendClient` pins one selected process, external-Python, or trusted in-process transport for the run.
+- The selected transport sends typed commands through its queue, stdio, or trusted direct boundary.
 - Worker executes `run_workflow()`:
 - loads the selected `RuntimeSnapshot`,
 - compiles the selected workspace snapshot,
 - selects a private trusted factory or immutable function ref from the attested worker registry,
 - lazily imports public functions only from their verified generation and executes sync/async node logic through the generic adapter,
-- emits typed events (`run_state`, `node_started`, `node_completed`, `log`, terminal events).
+- emits typed events (`run_state`, `node_started`, `node_settled`, `log`, terminal events).
 - `project_doc` is rejected at the client/protocol boundary; current runs cross into the worker through `runtime_snapshot` plus bounded registry/plugin identity, while `project_path` supplies only artifact context.
-- On failure, UI focuses the failed node path and updates run state/counters.
+- Events return through the pinned transport to `CorexRuntime`, which validates them, applies solution-store acceptance, and enriches accepted settlements before publishing.
+- Shell composition makes exactly one `Qt.QueuedConnection` from `ShellWindow.execution_event` to `RunEventController`. It routes run state through `RunProjectionController` first, then calls the direct `ViewerSessionBridge` event consumer; no event returns to `RunController` through a forwarding facade.
+- On failure, `RunEventController` and `RunProjectionController` focus the failed node path and update run state/counters before the direct viewer delivery.
 
 ### 6) Persistence and recovery
 - Save path uses `JsonProjectSerializer.save()` (deterministic ordering + schema normalization).

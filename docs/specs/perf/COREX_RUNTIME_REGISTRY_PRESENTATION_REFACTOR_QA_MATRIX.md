@@ -1,6 +1,6 @@
 # COREX Runtime, Registry, and Presentation Ownership Refactor QA Matrix
 
-Status: `CHECKPOINT — T12 ACCEPTED; NEXT T13`
+Status: `CHECKPOINT — T13 ACCEPTED; NEXT T14`
 
 This is the single compaction-safe task, test-migration, performance, and review
 ledger for
@@ -88,7 +88,7 @@ diff, and any running writer. Only one writer may edit at a time.
 | T10 Runtime and CLI split | A | `ACCEPTED` | `t10_writer` | Runtime requests/loader/runtime/CLI and imports | Post-T09 baseline and final runtime owner suite 39 passed; seven new request/loader/CLI owner tests passed; bootstrap/script/packaging/architecture/dead-code 109 passed/189 subtests; CLI/bootstrap/run-script/packaging remediation 56 passed; digest/key/settlement proof 3 passed; registry replacement/plugin agreement 63 passed; project-save/solution/client 91 passed/66 subtests; run-controller/project-session 55 passed/15 subtests; ledger/runner/traceability 143 passed/4 subtests; 39 exact finalized migrations, maps/indexes, manifest, traceability, links, full dry-run, Ruff, format, compile, and diff hygiene passed | `STRUCTURAL COUNTERS PASS; TIMING INCONCLUSIVE — NON-COUNTERBALANCED, LOAD REPEAT NOISY, NO TIMING-ONLY ROLLBACK` | Architecture `CLEAR`; correctness/security/no-lost-tests `CLEAR`; performance `CLEAR` | This commit |
 | T11 Run projection | A | `ACCEPTED` | `python_ui_audit` | Run state/projection/controller/composition | Run projection/controller/architecture/dead-code/ledger cohort 125 passed/204 subtests; project/bootstrap/shell/port cohort 127 passed; runtime/cache/QML integration 139 passed/79 subtests; project/reset/open lifecycle 23 passed/21 deselected/5 subtests; focused main-window projection 8 passed/243 deselected/32 subtests; QML meta-object 8 passed; maps/traceability/links/ledger/runner hygiene 180 passed/19 subtests plus direct checks and full dry-run passed. Stale built-in migration nodes 2 passed, containing suite 5 passed, routing/default contracts 54 passed/17 subtests, and canonical fast verification passed both phases: parallel 4,420 passed/2 skipped/24 warnings and serial 218 passed; logs `artifacts/verification_logs/20260902_050722/`. | `STRUCTURAL COUNTERS PASS; TIMING INCONCLUSIVE — NON-COUNTERBALANCED, SMALL DELTAS NOT ATTRIBUTED` | Architecture `CLEAR`; correctness/security/no-lost-tests `CLEAR`; performance `CLEAR` | This commit |
 | T12 Event intake | A | `ACCEPTED` | `python_ui_audit` | Event controller/composition/ShellWindow forwarding | Initial T12 worker/backend/dataflow 105 passed/51 subtests and full shell isolation 242 passed/15 subtests remain applicable; remediation focused ordering/epoch/architecture 14 passed; viewer/event 50 passed/15 subtests; event/run/projection/architecture/shell 130 passed/175 subtests; viewer host/surface/bootstrap/dead-code 103 passed/29 subtests; exact run-controller shell isolation 4 passed; ledger/architecture/dead-code/routing/maps/traceability/Markdown 249 passed/289 subtests; final traceability/runner/ledger recheck 144 passed/4 subtests; direct checks, Ruff/format/compile/diff, maps/indexes/traceability/links, and full dry-run passed | `STRUCTURAL COUNTERS PASS; TIMING INCONCLUSIVE — PRE-REMEDIATION NON-COUNTERBALANCED SAMPLES, NO FRESH TIMING CLAIM, NO TIMING-ONLY ROLLBACK` | Architecture `CLEAR`; correctness/security/no-lost-tests `CLEAR`; performance `CLEAR` | This commit |
-| T13 Program A closeout | A gate | `NOT STARTED` | Pending | Plan/ledger/evidence and review corrections only | Pending | Pending | Pending | Pending |
+| T13 Program A closeout | A gate | `ACCEPTED` | `history_intent_audit` | Plan/ledger/evidence, shared preflight commoning, two same-ID owner fixes, architecture diagrams/requirements/traceability/guards, and final reviews | Program A 264 migrations closed with zero pending rows; deleted-module/import/facade and final-owner absence scans passed; current Program B structure/environment/hash/706-ID baseline locked with Program B rows pending; static closeout checks passed; authoritative final-tree full run passed fast 4,427/2 skipped, fast serial 218, Qt Quick, GUI 589/1 skipped, GUI serial 39/1 skipped, slow 56, and shell isolation 58 under `artifacts/verification_logs/20260902_101516/`; `QT_ROOT` restored `<UNSET>` | `CLEAR — ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE` | Architecture/ownership `CLEAR`; correctness/security/no-lost-tests `CLEAR`; performance `CLEAR — ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE` | This commit |
 | T14 Workspace graph actions | B | `NOT STARTED` | Pending | Workspace/direct graph-action owners/tests/maps | Pending | Pending | Pending | Pending |
 | T15 Media actions | B | `NOT STARTED` | Pending | Media action service/callback wiring/tests/maps | Pending | Pending | Pending | Pending |
 | T16 Canvas export | B | `NOT STARTED` | Pending | Canvas export owner and split bridge composition | Pending | Pending | Pending | Pending |
@@ -170,7 +170,7 @@ rewrite.
 | Public-plugin fingerprint | `9b8d91309eaf5db655e230e1411074fa41848f60183112b191ecddb0711e297a` |
 | Data-type catalog fingerprint | `1d20c15d960bb2cb84d63611903a445af12d47c8df65ce6864d2628164fc31d2` |
 | Graph/QML meta-object fixture | `tests/fixtures/graph_canvas_surface_snapshot.json`, 30,674 bytes, SHA-256 `8FACC5C409C1589D92ED16F5528328655265160A18DD7659497F1280C73A4B48` |
-| Current structural shell counts | 156 QObjects, 3 timers, 1 graph host, 1 shell host, 5 image providers, retained at the exact starting `HEAD` by the accepted predecessor QA matrix; this is not a fresh timing result and must be remeasured at T13 |
+| Current structural shell counts | 156 QObjects, 3 timers, 1 graph host, 1 shell host, 5 image providers, retained at the exact starting `HEAD` by the accepted predecessor QA matrix; T13 remeasurement is recorded below and is not a timing result |
 
 ## Seed Test Inventories
 
@@ -807,8 +807,8 @@ for release-style rendering conclusions.
 | T04 baseline | Fixed scalar/interval/serialized-DataTree/dynamic/Select/slider/Web/DPF corpus; current `ed41281f`; Python 3.11.6; one built registry; 3 warmups, 7 samples, 100 loops, three isolated processes | Run 1 raw ns `[1011158,978261,1008194,994856,1005167,995410,987541]`, median `995410`, p95 `1011158`, CV `0.010984`, MAD `9757`; Run 2 `[1004730,1001148,1003575,980600,1010465,999271,973042]`, median `1001148`, p95 `1010465`, CV `0.012835`, MAD `3582`; Run 3 `[1010521,1001979,993725,976371,1011866,990899,985713]`, median `993725`, p95 `1011866`, CV `0.012124`, MAD `8254` | Pending | Twelve ordered outputs SHA `AC83D000...FD27`, key/order SHA `745A0B28...9A53`; exact two-error sequence SHA `8B229768...20C7`; deep-copy isolation true; ambiguous DPF dual selector omits `time_scope_mode`; one corpus performs 13 `normalize_properties`, 3 `normalize_property_value`, 3 `default_properties`, 28 base-spec lookups, 12 instance resolutions, 12 dynamic-group resolutions, 77 coercions, 186 deep copies, and 0 validation calls. Process-median `995410 ns`; median p95 `1011158 ns`. | `BASELINE PASS — CANDIDATE PENDING` |
 | T04 candidate | Same fixed corpus/interpreter/registry/cache state/warmups/samples/loops/process shape as the T04 baseline | See baseline row; process-median `995410 ns`; median p95 `1011158 ns` | Run 1 raw ns `[983932,990886,994371,984285,974351,985538,968495]`, median `984285`, p95 `994371`, CV `0.008471`, MAD `6601`; Run 2 `[920250,923156,927939,908969,929822,980493,939496]`, median `927939`, p95 `980493`, CV `0.022813`, MAD `7689`; Run 3 `[1046093,985246,1130930,1055302,1044073,975085,991489]`, median `1044073`, p95 `1130930`, CV `0.048750`, MAD `52584` | Exact output/order/error hashes, deep-copy isolation, ambiguous DPF behavior, 13/3/3 API calls, 12 instance resolutions, 12 dynamic-group resolutions, 77 coercions, 186 deep copies, and 0 validation calls match baseline. Base-spec lookups improve from 28 to 16, exactly one per top-level API/error call. Process-median `984285 ns` (`-1.12%`); median p95 `994371 ns` (`-1.66%`). Baseline and candidate were sequential rather than counterbalanced, and the noisier third candidate run remains visible, so timing is not causally attributed. | `STRUCTURAL COUNTERS PASS; TIMING INCONCLUSIVE — NON-COUNTERBALANCED, SMALL DELTAS NOT ATTRIBUTED` |
 | T05 baseline | Fixed 933-spec default registry plus one custom-workflow item; whole Library/Quick Insert/cache anchors; blank/nonblank/DPF/custom filters; Python 3.11.6; 3 warmups, 7 samples, 20 loops, three isolated processes | Blank: R1 `[266235,205480,250465,225580,272660,208540,218935]`, median `225580`, p95 `272660`; R2 `[278775,204050,217260,255585,211785,236350,225320]`, median `225320`, p95 `278775`; R3 `[208175,209075,230305,204725,207610,223200,203240]`, median `208175`, p95 `230305`. Nonblank: R1 `[1890405,1748580,1799160,1811015,1746310,1716795,1751395]`, median `1751395`, p95 `1890405`; R2 `[1804745,1783965,1753635,1711920,1837490,1691400,1790095]`, median `1783965`, p95 `1837490`; R3 `[1786590,1769340,1881625,1849245,1755505,1743790,1741310]`, median `1769340`, p95 `1881625`. DPF: R1 `[2455200,2500125,2526855,2487800,2449160,2854955,2448060]`, median `2487800`, p95 `2854955`; R2 `[2559965,2497530,2706095,2508545,2450605,2452590,2418800]`, median `2497530`, p95 `2706095`; R3 `[2527510,2448375,2479980,2488025,2484580,2548780,2511550]`, median `2488025`, p95 `2548780`. Custom: R1 `[6036830,6203965,6101190,6030580,6008545,6069645,5967445]`, median `6036830`, p95 `6203965`; R2 `[5828870,6025675,5781460,6220315,5890845,5860305,5767880]`, median `5860305`, p95 `6220315`; R3 `[5903270,5842225,5866405,6226355,5939350,5967740,5825835]`, median `5903270`, p95 `6226355` | Pending | Exact inventory counts: 933 registry/934 combined, 805 DPF, one custom, one nonblank, 84 options, 1,017 grouped, 991 display, zero blank canvas Quick Insert, one queried canvas result, 12 blank connection results. Structural hashes: combined/blank `6B841E97...7D92`, nonblank `D0F09556...FE4C`, DPF `04ADF86A...60FD`, custom `F1047EFF...C326`, tree `29506EEB...1DB3`, grouped/order `D58FB214...4BFE`/`C8798116...7CBA`, display/order `4626B357...419`/`131FFA3A...982C`, options `62A375CA...E1A5`, presenter `F9A6EF56...39B8`; one registry projection, combined projection, category-tree build, category-options build, and custom-workflow read across three cached reads. Process medians: blank `225320`, nonblank `1769340`, DPF `2488025`, custom `5903270` ns; median p95s `272660`, `1881625`, `2706095`, `6220315` ns. | `BASELINE PASS — CANDIDATE PENDING` |
-| T05 candidate | Same fixed corpus/configuration/process shape as baseline; timed blank/nonblank/DPF/custom functions are unchanged | See baseline row | Blank: R1 `[211975,356160,269440,378845,230035,259215,228520]`, median `259215`, p95 `378845`; R2 `[217920,300845,235450,205210,210420,207785,225575]`, median `217920`, p95 `300845`; R3 `[230235,214415,241055,224795,209730,231045,208820]`, median `224795`, p95 `241055`. Nonblank: R1 `[1777925,1775495,1742995,1984445,1947225,2093630,2029145]`, median `1947225`, p95 `2093630`; R2 `[1861480,1569470,1584205,1553095,1579205,1548310,1553500]`, median `1569470`, p95 `1861480`; R3 `[3081570,1629425,1617310,1741740,1825390,2124600,1693825]`, median `1741740`, p95 `3081570`. DPF: R1 `[2634240,2769805,2439685,2478690,2435060,2511875,2480030]`, median `2480030`, p95 `2769805`; R2 `[2550140,2777050,2374375,2396645,2937810,2342070,2515520]`, median `2515520`, p95 `2937810`; R3 `[2448495,2365690,2323880,2361650,2312630,2331855,2321505]`, median `2331855`, p95 `2448495`. Custom: R1 `[6188685,6668590,6538400,5953850,6154435,7852155,6181570]`, median `6188685`, p95 `7852155`; R2 `[5654050,5825995,5789995,6025355,6223540,6165705,5661810]`, median `5825995`, p95 `6223540`; R3 `[6250095,5862405,7028350,6270255,7492565,6125810,6721285]`, median `6270255`, p95 `7492565` | Every count/hash/order/cache fact matches baseline exactly, including one category tree/options/registry/combined/custom read across three presenter reads and unchanged Quick Insert payloads. Process-median changes: blank `-0.23%`, nonblank `-1.56%`, DPF `-0.32%`, custom `+4.84%`; median-p95 changes `+10.34%`, `+11.27%`, `+2.35%`, `+20.46%`. The p95 variance triggered the advisory repeat; the timed filter implementation was not edited. | `STRUCTURAL COUNTERS PASS; TIMING REPEAT REQUIRED — NON-COUNTERBALANCED` |
-| T05 advisory repeat | Same candidate and measurement shape; repeat taken because the first candidate p95 batch crossed advisory thresholds despite an unchanged timed path | See T05 baseline row | Blank: R1 `[223460,230910,210850,216635,245410,234275,252680]`, median `230910`, p95 `252680`; R2 `[226105,230575,218715,224995,262705,220885,211695]`, median `224995`, p95 `262705`; R3 `[305615,212010,209835,230285,226145,211480,246785]`, median `226145`, p95 `305615`. Nonblank: R1 `[1778245,1917755,1828340,1746675,1717480,1836505,1916330]`, median `1828340`, p95 `1917755`; R2 `[1849135,1900955,1805270,2006230,2310080,2123520,1889590]`, median `1900955`, p95 `2310080`; R3 `[1843630,1769230,1740435,1842165,1724565,1748910,1720740]`, median `1748910`, p95 `1843630`. DPF: R1 `[2986245,2910925,2627325,2565740,3158035,2619230,3275685]`, median `2910925`, p95 `3275685`; R2 `[2627865,2634045,2589220,2600735,2580800,2661790,2524405]`, median `2600735`, p95 `2661790`; R3 `[2493805,2440900,2892665,2879885,2760280,2533850,2515095]`, median `2533850`, p95 `2892665`. Custom: R1 `[7036425,7021895,8234900,7744065,6331980,7795125,7156650]`, median `7156650`, p95 `8234900`; R2 `[6135645,6465550,6095810,6418525,6146600,6640495,6282035]`, median `6282035`, p95 `6640495`; R3 `[6389305,7278500,6351240,6153715,5886700,6237980,5985350]`, median `6237980`, p95 `7278500` | Structural facts again match exactly. Repeat process-median changes versus baseline: blank `+0.37%`, nonblank `+3.33%`, DPF `+4.53%`, custom `+6.42%`; repeat median-p95 changes `-3.65%`, `+1.92%`, `+6.89%`, custom `+17.00%`. High within-run CV/outliers remain visible, and the timed filter function is byte-unchanged; sequential non-counterbalanced timing is therefore not attributed to the ownership refactor. | `STRUCTURAL COUNTERS PASS; TIMING INCONCLUSIVE — NON-COUNTERBALANCED, NO TIMING-ONLY ROLLBACK` |
+| T05 candidate | Same fixed corpus/configuration/process shape as baseline; timed blank/nonblank/DPF/custom functions are unchanged | See baseline row | Blank: R1 `[211975,356160,269440,378845,230035,259215,228520]`, median `259215`, p95 `378845`; R2 `[217920,300845,235450,205210,210420,207785,225575]`, median `217920`, p95 `300845`; R3 `[230235,214415,241055,224795,209730,231045,208820]`, median `224795`, p95 `241055`. Nonblank: R1 `[1777925,1775495,1742995,1984445,1947225,2093630,2029145]`, median `1947225`, p95 `2093630`; R2 `[1861480,1569470,1584205,1553095,1579205,1548310,1553500]`, median `1569470`, p95 `1861480`; R3 `[3081570,1629425,1617310,1741740,1825390,2124600,1693825]`, median `1741740`, p95 `3081570`. DPF: R1 `[2634240,2769805,2439685,2478690,2435060,2511875,2480030]`, median `2480030`, p95 `2769805`; R2 `[2550140,2777050,2374375,2396645,2937810,2342070,2515520]`, median `2515520`, p95 `2937810`; R3 `[2448495,2365690,2323880,2361650,2312630,2331855,2321505]`, median `2331855`, p95 `2448495`. Custom: R1 `[6188685,6668590,6538400,5953850,6154435,7852155,6181570]`, median `6188685`, p95 `7852155`; R2 `[5654050,5825995,5789995,6025355,6223540,6165705,5661810]`, median `5825995`, p95 `6223540`; R3 `[6250095,5862405,7028350,6270255,7492565,6125810,6721285]`, median `6270255`, p95 `7492565` | Every count/hash/order/cache fact matches baseline exactly, including one category tree/options/registry/combined/custom read across three presenter reads and unchanged Quick Insert payloads. Process-median changes: blank `-0.23%`, nonblank `-1.56%`, DPF `-0.32%`, custom `+4.83%`; median-p95 changes `+10.34%`, `+11.27%`, `+2.35%`, `+20.45%`. The p95 variance triggered the advisory repeat; the timed filter implementation was not edited. | `STRUCTURAL COUNTERS PASS; TIMING REPEAT REQUIRED — NON-COUNTERBALANCED` |
+| T05 advisory repeat | Same candidate and measurement shape; repeat taken because the first candidate p95 batch crossed advisory thresholds despite an unchanged timed path | See T05 baseline row | Blank: R1 `[223460,230910,210850,216635,245410,234275,252680]`, median `230910`, p95 `252680`; R2 `[226105,230575,218715,224995,262705,220885,211695]`, median `224995`, p95 `262705`; R3 `[305615,212010,209835,230285,226145,211480,246785]`, median `226145`, p95 `305615`. Nonblank: R1 `[1778245,1917755,1828340,1746675,1717480,1836505,1916330]`, median `1828340`, p95 `1917755`; R2 `[1849135,1900955,1805270,2006230,2310080,2123520,1889590]`, median `1900955`, p95 `2310080`; R3 `[1843630,1769230,1740435,1842165,1724565,1748910,1720740]`, median `1748910`, p95 `1843630`. DPF: R1 `[2986245,2910925,2627325,2565740,3158035,2619230,3275685]`, median `2910925`, p95 `3275685`; R2 `[2627865,2634045,2589220,2600735,2580800,2661790,2524405]`, median `2600735`, p95 `2661790`; R3 `[2493805,2440900,2892665,2879885,2760280,2533850,2515095]`, median `2533850`, p95 `2892665`. Custom: R1 `[7036425,7021895,8234900,7744065,6331980,7795125,7156650]`, median `7156650`, p95 `8234900`; R2 `[6135645,6465550,6095810,6418525,6146600,6640495,6282035]`, median `6282035`, p95 `6640495`; R3 `[6389305,7278500,6351240,6153715,5886700,6237980,5985350]`, median `6237980`, p95 `7278500` | Structural facts again match exactly. Repeat process-median changes versus baseline: blank `+0.37%`, nonblank `+3.33%`, DPF `+4.53%`, custom `+6.42%`; repeat median-p95 changes `-3.65%`, `+1.92%`, `+6.89%`, custom `+17.01%`. High within-run CV/outliers remain visible, and the timed filter function is byte-unchanged; sequential non-counterbalanced timing is therefore not attributed to the ownership refactor. | `STRUCTURAL COUNTERS PASS; TIMING INCONCLUSIVE — NON-COUNTERBALANCED, NO TIMING-ONLY ROLLBACK` |
 | T06 baseline | Fixed T06 ledger corpus at accepted T05 `42a82b78`; Python 3.11.6; zero optional modules after worker import/factory; separate factory/first-result/cached-result/analysis/materialization labels; 3 isolated processes, 7 samples, `loops=1`; 3 warmups except analysis/materialization 1 | Factory R1 `[2194100,2076000,2183900,3517800,2214500,2083300,2177000]`, R2 `[2131200,2098200,2058600,2828300,2675500,2097200,2120000]`, R3 `[2102000,2017900,2059400,2243900,2868400,2442300,2231600]`; first result R1 `[3747600,2427000,2476100,2321400,2342300,2368400,3490500]`, R2 `[3466500,2272000,2205000,2545100,2249800,2266500,2486500]`, R3 `[3349000,2652800,2256700,2211100,2218700,2280900,2192500]`; cached result R1 `[84800,82500,79800,79900,86500,93700,83300]`, R2 `[77500,76600,74400,73700,80100,77600,74900]`, R3 `[84300,75300,75700,75000,85000,80500,74600]`; analysis R1 `[4286200,4118600,4508500,4213000,4036700,4040800,4254200]`, R2 `[4632700,4224000,4052000,4010700,4097800,4380300,3997100]`, R3 `[4534000,4126600,4259100,4171600,4221100,4145400,4265900]`; materialization R1 `[57298400,59689800,75651400,55328700,55426900,57000900,74557100]`, R2 `[58078200,67423700,56426200,54132600,82903600,63083400,56539700]`, R3 `[55990800,55216200,56400600,67415600,56517300,59423500,83552600]` | Pending | Zero PyDPF/PyVista modules after worker import and service factory; service/cache identity true; stable result/model handle IDs; each cache/run-a/run-b lease count 1; cleanup releases 2 and leaves run-a leases 0; reset releases 2 and advances generation to 2; 20,000 set/time/range items use 16-item samples and 1,656 encoded metadata bytes; every materialization stages one deterministic `csv` of 1,076,243 bytes | `BASELINE PASS — CANDIDATE PENDING` |
 | T06 candidate | Same fixed files, result path, operations, interpreter, warmups/samples/loops, process shape, and structural probe after direct-owner relocation | See baseline; process medians factory `2183900`, first result `2272000`, cached result `76600`, analysis `4213000`, materialization `57298400` ns; median p95s `2868400`, `3466500`, `85000`, `4534000`, `82903600` ns | Factory R1 `[2486600,2236600,2366900,2062300,2032200,2020700,2093300]`, R2 `[2109000,2301900,2821300,2175200,2042400,2031400,2090900]`, R3 `[3037100,2374200,2196100,2072200,2072300,2023800,2162300]`; first result R1 `[2285400,2621800,2311900,2245900,2582000,3179800,2492700]`, R2 `[2289100,2338400,2234500,2195900,2240100,2388500,3170200]`, R3 `[2304200,2368100,2223500,2240400,2607100,2919800,2408900]`; cached result R1 `[133300,101700,87400,87400,93800,91800,93800]`, R2 `[82700,74900,88000,76700,80500,85900,75000]`, R3 `[78600,75800,76400,75700,103100,82300,94400]`; analysis R1 `[4262000,3748600,4976700,4376500,4042700,3958700,4707400]`, R2 `[4433000,4049700,4208000,4027900,4088200,4189300,4248800]`, R3 `[4286300,4337400,4096200,3972600,4236100,4309500,4015300]`; materialization R1 `[56081800,57192000,55011000,69843900,78582200,55479500,53661200]`, R2 `[57887300,57639300,60166500,56270300,57783300,57993000,61890600]`, R3 `[58767800,66107800,55562500,56373900,57096900,59020500,56813200]` | Every baseline structural fact matches exactly; service module is now `ea_node_editor.execution.dpf_runtime.service`; optional modules remain zero after factory. Process-median changes: factory `-3.43%`, first result `+4.23%`, cached result `+5.09%`, analysis `+0.55%`, materialization `-0.35%`; median-p95 changes `-1.64%`, `-8.55%`, `+21.29%`, `-2.23%`, `-20.26%`. Cached-result advisory repeat R1 `[89500,86700,96400,95800,114900,84600,80300]`, R2 `[131200,84800,100700,92100,90600,111000,80600]`, R3 `[96400,124600,117100,107700,120900,85600,81000]`, process median `92100 ns` and median p95 `124600 ns`; this microsecond-scale repeat is noisier despite unchanged cached-load mechanics. Baseline/candidate/repeat are sequential, not counterbalanced, so no timing delta is causally attributed and no timing-only rollback is warranted. | `STRUCTURAL COUNTERS PASS; TIMING INCONCLUSIVE — NON-COUNTERBALANCED, CACHED-LOAD REPEAT NOISY, NO TIMING-ONLY ROLLBACK` |
 | T07 baseline | Representative full-catalog `StartRunCommand`, catalog-backed `NodeSettledEvent`, semantic `OpenViewerSessionCommand`, and catalog-free scalar `QueryViewerSessionCommand` at accepted T06 `2981cd0a`; Python 3.11.6; three isolated sequential processes; 3 warmups, 7 samples; loops `5/50/50/100`; one command/event encode, one JSON serialization/reparse, one decode, and one equality re-encode per loop | Start R1 `[115500380,116241740,120017100,119406760,116854260,119420440,122318700]`, R2 `[116630400,117322140,118568540,118204600,122252780,117247740,118767760]`, R3 `[115608300,120107940,123727620,115272540,128408160,120917160,120282520]`; settled R1 `[154876,189042,216058,152600,154546,148404,139242]`, R2 `[152902,147532,141324,163806,144372,155888,156362]`, R3 `[142388,156340,156260,147504,154050,144056,270180]`; semantic viewer R1 `[180790,245444,226310,186862,202896,208082,182794]`, R2 `[200944,188498,169938,180074,199418,203020,206162]`, R3 `[181164,179384,176052,177928,199092,185008,186224]`; scalar viewer R1 `[123615,116379,122142,115410,118457,115381,104598]`, R2 `[173814,112738,112262,123750,108173,119202,118037]`, R3 `[121989,116730,122515,114932,111052,113471,134965]` ns | Pending | Stable payload hashes Start `E95C4E6B...DBCC`, settled `79EF9EC7...CEF6`, semantic viewer `ED3D328D...E5BC`, scalar viewer `D9573556...1606`; stable field-order hashes `46465E9A...E4D7`, `EF781795...918E4`, `7845284B...66C`, `894F611A...5D9A`; payload bytes `73995/402/735/312`; top-level list fields `9/2/0/0`; allocation current/peak bytes `15344/1134380`, `1920/10581`, `9048/15651`, `17216/20095`; exact four-error SHA `39CD0ABA...C74B`; process medians `119406760/154050/199418/116730` and median p95s `122318700/216058/206162/134965` ns | `BASELINE PASS — CANDIDATE RECORDED NEXT ROW` |
@@ -827,6 +827,400 @@ for release-style rendering conclusions.
 | T12 baseline | Accepted T11 `17e2f668`; frozen `_RunHostStub`, deterministic project/workspace/node and one `ShellRunState`; 10,000 direct `run_started → node_started → accepted node_settled → solution_state_changed → viewer_invalidation_committed → run_completed` sequences followed by one foreign stale node event and one fatal `run_failed`; fixed `1000.0/1002.5/2.5 ms` timing and one warning; no Qt event delivery; Python 3.11.6; `warmups=3`, `samples=7`, `loops=1`; three isolated sequential processes | R1 `[1927715700,1929163300,1959547500,1932847500,1949396900,1942403700,1957460200]`, median `1942403700`, p95 `1959547500`, CV `0.006309`, MAD `13240400`; R2 `[1937780400,1930308900,1950386100,1922810800,1939680600,1938695100,1941385500]`, median `1938695100`, p95 `1950386100`, CV `0.004160`, MAD `2690400`; R3 `[1939287200,1937480500,1941703600,1923795200,1933306700,1934898600,1940941600]`, median `1937480500`, p95 `1941703600`, CV `0.002944`, MAD `3461100` ns | Pending | Every run: state SHA `5F6A88C...A5A02`, output SHA `4490E649...07BBD`; node/run/failure signals `40000/40002/0`; accepted cache calls/writes `10000/10000`; availability observations `10000`; solution queries `30000`; active-run filters `60002`; output decodes `20000`; projection/cache mapping copies `20000/10000`; Auto drains `10000`; viewer adoptions/resets `10000/1`; focus/log calls `1/2`; final solution/execution revisions `10000/40000`; pending Auto targets `0`; controllers QObjects/timers `0/0`; runtime subscriptions/queued Qt connections/ShellWindow wrapper hops `1/1/1`; shell execution-event subscribers `2` (queued shell state plus viewer bridge self-registration) | `BASELINE PASS — CANDIDATE PENDING` |
 | T12 candidate | Pre-remediation timing sample used the same frozen fixture, interpreter, timestamps, warmups/samples/loops, state/cache shape and isolated process order after the first direct event-intake extraction; the final second-subscriber remediation changed the delivery route, so these numbers are retained as historical context rather than current timing evidence | Pre-remediation only: R1 `[1940789100,1894287600,1892200600,1923190400,1906821000,1909416300,1898839400]`, median `1906821000`, p95 `1940789100`, CV `0.008440`, MAD `12533400`; R2 `[1879112800,1900506000,1880067700,1909632800,1887265200,1942935800,1870772900]`, median `1887265200`, p95 `1942935800`, CV `0.012062`, MAD `13240800`; R3 `[1876943100,1856325100,1912159000,1884012500,1892033300,1854788500,1854317600]`, median `1876943100`, p95 `1912159000`, CV `0.010919`, MAD `20618000` ns | Final structural route: runtime subscription remains `1`; production `ShellWindow.execution_event` subscribers intentionally reduce `2 → 1`; queued hops remain `1`; ShellWindow wrapper hops remain `0`; `ViewerSessionBridge` QObject/timer identity is unchanged; each emitted event reaches its direct viewer consumer once after run-state routing, so viewer delivery count is unchanged; epoch/request filtering and viewer projection outputs remain in the same owner. No fresh post-remediation timing run was claimed. | `STRUCTURAL COUNTERS PASS; TIMING INCONCLUSIVE — PRE-REMEDIATION NON-COUNTERBALANCED SAMPLES, NO FRESH TIMING CLAIM, NO TIMING-ONLY ROLLBACK` | `PASS — duplicate Qt fan-out removed with unchanged viewer delivery semantics; no timing-only rollback` |
 | T14–T25 | Baseline locked at T13/T18/QML gates | Pending | Pending | Pending | Pending |
+
+## T13 Retained T05–T10 Timing Dispersion Audit
+
+These values are calculated only from the retained seven-sample raw lists above.
+CV is `statistics.pstdev(values) / statistics.fmean(values)` and MAD is
+`statistics.median(abs(value - statistics.median(values)))` in nanoseconds.
+Each slash-separated tuple is R1/R2/R3 in the recorded order. No timing sample
+was added, discarded, or reconstructed.
+
+| Retained batch | Per-metric CV and MAD from raw samples |
+| --- | --- |
+| T05 baseline | blank: CV 0.108302/0.105388/0.044745, MAD 20100/13535/3450<br>nonblank: CV 0.030358/0.027165/0.028365, MAD 34600/30330/25550<br>DPF: CV 0.053224/0.035638/0.012382, MAD 38640/46925/23525<br>custom: CV 0.011691/0.025241/0.021310, MAD 32815/78845/61045 |
+| T05 candidate | blank: CV 0.219686/0.135072/0.050793, MAD 30695/10135/10380<br>nonblank: CV 0.068136/0.065125/0.247692, MAD 146405/15970/112315<br>DPF: CV 0.044912/0.081049/0.018508, MAD 40345/141145/19225<br>custom: CV 0.091386/0.036507/0.081087, MAD 234835/171945/407850 |
+| T05 advisory repeat | blank: CV 0.060367/0.066867/0.134218, MAD 14275/5580/14665<br>nonblank: CV 0.039839/0.083545/0.027380, MAD 81665/95685/24345<br>DPF: CV 0.090685/0.015843/0.067557, MAD 283600/27130/92950<br>custom: CV 0.080095/0.029875/0.067022, MAD 587415/146390/151325 |
+| T06 baseline | factory: CV 0.204129/0.130124/0.120101, MAD 30600/22800/172200<br>first result: CV 0.205491/0.165176/0.161113, MAD 84700/67000/45600<br>cached result: CV 0.052496/0.027061/0.053811, MAD 3200/1700/1100<br>analysis: CV 0.036357/0.051679/0.030059, MAD 94400/100700/49500<br>materialization: CV 0.133830/0.148096/0.154519, MAD 1969700/3945600/1301100 |
+| T06 candidate | factory: CV 0.077441/0.116012/0.144227, MAD 72600/66600/90100<br>first result: CV 0.117840/0.131655/0.094193, MAD 180800/54600/127700<br>cached result: CV 0.151466/0.060526/0.119265, MAD 6400/5400/2900<br>analysis: CV 0.093017/0.031093/0.033002, MAD 303300/101100/101300<br>materialization: CV 0.145180/0.029689/0.056357, MAD 1110200/248000/1534400 |
+| T06 cached-result advisory repeat | cached result: CV 0.114118/0.164309/0.153778, MAD 6300/8600/13200 |
+| T07 baseline | Start: CV 0.018958/0.014507/0.034963, MAD 2552500/882460/3445100<br>settled: CV 0.153514/0.047653/0.253207, MAD 6142/5370/6546<br>semantic viewer: CV 0.109394/0.064972/0.039163, MAD 20102/6744/3844<br>scalar viewer: CV 0.049213/0.168484/0.062574, MAD 2078/5713/5259 |
+| T07 candidate | Start: CV 0.006602/0.007598/0.004936, MAD 481360/683080/236520<br>settled: CV 0.112749/0.069341/0.076462, MAD 17584/10180/7256<br>semantic viewer: CV 0.051861/0.042926/0.046026, MAD 8080/4314/4548<br>scalar viewer: CV 0.100957/0.030553/0.052169, MAD 1973/1921/970 |
+| T08 baseline | cold: CV 0.191272/0.073286/0.172503, MAD 112500/93400/86200<br>warm: CV 0.009705/0.002214/0.020627, MAD 9702500/2323000/9757300<br>prepared: CV 0.003809/0.008379/0.013206, MAD 3312200/8632200/10602800<br>viewer: CV 0.002838/0.000780/0.001147, MAD 176900/121900/27700<br>retirement: CV 0.014792/0.009252/0.024305, MAD 9287100/4212300/7495100<br>shutdown: CV 0.001568/0.001136/0.000991, MAD 123800/191900/154500 |
+| T08 candidate | cold: CV 0.149640/0.138595/0.073000, MAD 183300/141300/139200<br>warm: CV 0.029572/0.006640/0.017594, MAD 7077600/3979800/5244600<br>prepared: CV 0.006061/0.042332/0.003512, MAD 5443200/4450200/2558800<br>viewer: CV 0.001996/0.001242/0.001218, MAD 270200/140500/243900<br>retirement: CV 0.031876/0.008070/0.015788, MAD 6687000/2847200/14047200<br>shutdown: CV 0.000921/0.001020/0.001082, MAD 137200/90300/152000 |
+| T08 cold advisory repeat | cold: CV 0.172120/0.146409/0.141932, MAD 155000/36600/197800 |
+| T09 baseline | prepare: CV 0.096454/0.034039/0.037120, MAD 585/960/650<br>settle: CV 0.132014/0.052667/0.174751, MAD 11735/13300/3690<br>select: CV 0.132232/0.183498/0.196948, MAD 345/400/110<br>invalidate: CV 0.105538/0.042210/0.031688, MAD 840/1585/500<br>evict: CV 0.240281/0.044026/0.067359, MAD 290/130/155<br>stage: CV 0.008884/0.009444/0.049745, MAD 3112500/619800/7029900<br>open+lookup: CV 0.070862/0.005813/0.009886, MAD 13595100/859600/3543700<br>lazy lookup: CV 0.009059/0.010577/0.018530, MAD 3372200/2019000/4344200 |
+| T09 candidate | prepare: CV 0.042507/0.038121/0.081891, MAD 1225/580/1260<br>settle: CV 0.094629/0.089732/0.111120, MAD 12085/1325/39760<br>select: CV 0.124740/0.263905/0.135007, MAD 65/140/70<br>invalidate: CV 0.142893/0.034217/0.125840, MAD 1290/820/1510<br>evict: CV 0.079714/0.107650/0.067473, MAD 215/275/650<br>stage: CV 0.009032/0.047225/0.010001, MAD 4721800/5324800/2139800<br>open+lookup: CV 0.002284/0.021588/0.004311, MAD 149100/3583000/1041800<br>lazy lookup: CV 0.011395/0.032977/0.017807, MAD 5873100/12539100/1348700 |
+| T09 advisory repeat | invalidate: CV 0.123072/0.089138/0.042261, MAD 1370/495/895<br>stage: CV 0.012522/0.007931/0.018577, MAD 2056200/2608600/4709200<br>open+lookup: CV 0.012808/0.010265/0.018869, MAD 4880900/2946300/8032200<br>lazy lookup: CV 0.014412/0.010040/0.011560, MAD 6030500/1830900/3433300 |
+| T10 baseline | load: CV 0.074146/0.046710/0.077296, MAD 29100/36800/21600<br>prepare: CV 0.011757/0.016973/0.016938, MAD 850500/1146500/1543500<br>dispatch: CV 0.016470/0.010382/0.007633, MAD 1727200/1110900/895100<br>synchronous run: CV 0.012530/0.007099/0.011447, MAD 1098000/1036900/1052900<br>fresh import: CV 0.007287/0.008717/0.010424, MAD 2463300/3479800/2274000 |
+| T10 candidate | load: CV 0.158210/0.074352/0.198093, MAD 6500/46500/63900<br>prepare: CV 0.010494/0.009162/0.013403, MAD 1205800/869000/398400<br>dispatch: CV 0.012832/0.015312/0.012632, MAD 1299300/827400/665600<br>synchronous run: CV 0.010753/0.014789/0.012513, MAD 1719000/2348000/1441000<br>fresh import: CV 0.006774/0.007422/0.007884, MAD 2083500/4155000/3128500 |
+| T10 load advisory repeat | load: CV 0.059439/0.030792/0.194272, MAD 31700/26000/72800 |
+
+Policy deviations are explicit rather than waived: every T05–T10 batch was run
+sequentially rather than counterbalanced, and every threshold-triggered repeat
+was candidate-only rather than a matched baseline/candidate repeat. Literal
+greater-than-5% improvements also lacked repeats: T06 first-result p95
+`-8.55%` and materialization p95 `-20.26%`; T07 Start median/p95
+`-5.35%/-6.78%` and settled p95 `-20.75%`; T09 settle p95 `-5.16%`.
+Those apparent improvements are no more causally attributable than regressions.
+T05 custom initial changes are corrected to median `+4.83%` and p95 `+20.45%`;
+its candidate-only repeat p95 is `+17.01%`. Every T05–T10 timing verdict remains
+`INCONCLUSIVE`.
+
+Under the user-selected advisory 5/10/20 policy, the orchestrator disposition is
+`ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE`: structural
+contracts pass, no material causal regression or pause condition is established,
+and timing-only rollback is not authorized.
+
+## T13 Program A Closeout Audit
+
+T13 is a closeout/remediation gate containing docs/evidence, shared execution
+preflight method commoning, two same-ID test/script owner fixes, architecture
+diagram regeneration, and focused traceability guards. It changes no feature
+behavior and does not alter the performance harness or report schema. The
+accepted implementation range is T01 `e1fd2664` through
+T12 `db2e717c`; T00 is `bc6df66a`. Program A has 264 finalized migration rows
+and zero pending migration rows: T01 9, T02 17, T03 4, T04 5, T05 19, T06 7,
+T07 40, T08 83, T09 18, T10 39, T11 17, and T12 6. Program B has not migrated
+any test yet; T14–T26 and all Program B review rows remain explicitly pending.
+
+### Retired Program A owners and symbols
+
+The post-A tree contains none of the following files, module imports, facade
+imports, or compatibility reexports:
+
+```text
+ea_node_editor/addons/hot_apply.py
+ea_node_editor/execution/dpf_runtime_service.py
+ea_node_editor/nodes/dpf_runtime_contracts.py
+ea_node_editor/execution/protocol.py
+ea_node_editor/execution/client.py
+ea_node_editor/execution/headless_runtime.py
+tests/test_registry_filters.py
+tests/test_execution_protocol.py
+tests/test_execution_client.py
+tests/test_headless_runtime.py
+```
+
+The final execution imports target the five protocol owners, six client owners,
+four runtime owners, two solution-contract owners plus `solution_store.py`, and
+the split DPF owners directly. The final shell run owners are
+`RunController`, `RunProjectionController`, and `RunEventController` over one
+`ShellRunState`. There is exactly one runtime subscription and one production
+`execution_event.connect`. The pre-A RunController projection/cache/event
+methods, ShellWindow `_handle_execution_event`, `_run_workflow`,
+`_clear_active_run`, failure-focus forwarding, ViewerSessionBridge
+self-subscription, and the retired protocol/client/runtime/solution facades are
+absent. T11/T12 names and this absence list are locked for Program B: no later
+task may recreate a forwarding alias, catch-all module, or second subscriber.
+
+### Program B current T13 structural baseline
+
+The first post-A sample was taken at `db2e717c`. The table below supersedes it
+with a fresh current-working-tree sample after all T13 remediations. It uses the
+repo's isolated `MainWindowShellTestBase`, so preferences/session paths and the
+execution client are test-owned and recoverable. This is structure-only evidence,
+not a timing result.
+
+Exact shell-probe invocation and hash serialization:
+
+```powershell
+$env:QT_QPA_PLATFORM = "offscreen"
+$env:QT_QUICK_CONTROLS_STYLE = "Basic"
+.\venv\Scripts\python.exe -  # stdin structure probe; hash portion reproduced below
+Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction SilentlyContinue
+```
+
+The stdin payload creates `MainWindowShellTestBase(methodName="runTest")`, calls
+`setUp()`, inspects `window.shell_services`, and calls `tearDown()` in `finally`.
+Its exact hash serialization is:
+
+```python
+bindings = list(window.shell_services.qml_context.qml_context_property_bindings)
+binding_names = [name for name, _obj in bindings]
+context_bytes = os.linesep.join(binding_names).encode("utf-8")
+selected_binding_names = (
+    "shellLibraryBridge",
+    "shellWorkspaceBridge",
+    "shellInspectorBridge",
+    "addonManagerBridge",
+    "graphActionBridge",
+    "graphCanvasStateBridge",
+    "graphCanvasCommandBridge",
+    "graphCanvasViewBridge",
+    "contentFullscreenBridge",
+    "viewerSessionBridge",
+    "viewerControlBridge",
+    "viewerHostService",
+    "plotHostService",
+)
+bindings_by_name = dict(bindings)
+selected_bindings = [
+    (name, bindings_by_name[name]) for name in selected_binding_names
+]
+meta_records = []
+for name, obj in selected_bindings:
+    meta = obj.metaObject()
+    for index in range(meta.propertyOffset(), meta.propertyCount()):
+        prop = meta.property(index)
+        meta_records.append(f"{name}|{type(obj).__name__}|property|{prop.name()}|{prop.typeName()}")
+    for index in range(meta.methodOffset(), meta.methodCount()):
+        method = meta.method(index)
+        signature = bytes(method.methodSignature()).decode("utf-8", "replace")
+        meta_records.append(f"{name}|{type(obj).__name__}|{method.methodType().name}|{signature}")
+meta_bytes = os.linesep.join(meta_records).encode("utf-8")
+meta_sha256 = hashlib.sha256(meta_bytes).hexdigest().upper()
+```
+
+| Current environment fact | T13 structure probe |
+| --- | --- |
+| Python / OS | Python `3.11.6`; `Windows-10-10.0.26200-SP0` |
+| PyQt distribution / compiled API | `PyQt6 6.11.0`; `PYQT_VERSION_STR 6.11.0` |
+| Bundled Qt distribution / runtime | `PyQt6-Qt6 6.11.1`; compiled header `6.11.0`; runtime `6.11.1` |
+| External Qt Quick Test SDK | `C:\Qt\6.11.1\msvc2022_64`; `qmltestrunner.exe`, `Qt6Qml.dll`, and `Qt6Quick.dll` file/product version `6.11.1.0` |
+| QPA / host | requested and actual `offscreen`; QML host `qquickwidget`; `QT_QUICK_CONTROLS_STYLE=Basic` |
+| QSG/RHI | probe-local `QSG_RHI_BACKEND=software`; `EA_NODE_EDITOR_QSG_RHI_BACKEND` `UNKNOWN`; static `QQuickWindow.graphicsApi()` reported `Direct3D11Rhi` |
+| Display | offscreen virtual geometry `800x800`, DPR `1.0`; display name, physical attachment, refresh rate, GPU, and driver `UNKNOWN` |
+| Power | Windows active scheme `Office`, GUID `5da85d85-eb0c-4710-a805-6da8bbcf1f02`; AC/battery and throttling state `UNKNOWN` |
+
+The offscreen/software request and contradictory static D3D11 API label are
+diagnostic facts only. They are not evidence of a display-attached D3D11 render
+path and must never be compared with or substituted for Program B D3D11 timing.
+
+| Structural fact | Current T13 value |
+| --- | --- |
+| QObject descendants / QTimer descendants | `156 / 3` |
+| Graph-canvas host presenters / shell-host presenters | `1 / 1` |
+| Image-provider bindings | `5`: `ui_icon_image_provider`, `local_media_preview_provider`, `local_pdf_preview_provider`, `plot_preview_cache_provider`, `viewer_preview_cache_provider` |
+| QML context bindings | `27`; exact serialization above; SHA-256 `5478633ABC7569983A92BD910AEA0C5DEFCB03C7FC2292A2C634DA69A3D1473D` |
+| Selected bridge/service Qt meta-object surface | exact declared-surface serialization above; SHA-256 `4237F1DF1CE292EEF125CDC0F55CED827385B2376B57F4511DB82343AAF29368` |
+| Run-controller QObject identities | all three controllers are plain Python; `0` additional QObjects/timers |
+| Runtime execution-event receivers | `1` |
+
+The 27 context names, in published order, are:
+
+```text
+shellContext, shellLibraryBridge, shellWorkspaceBridge, shellInspectorBridge,
+addonManagerBridge, graphActionBridge, graphCanvasStateBridge,
+graphCanvasCommandBridge, graphCanvasViewBridge, contentFullscreenBridge,
+jupyterServerBridge, graphWebBoardForceFallback, viewerSessionBridge,
+viewerControlBridge, viewerHostService, plotHostService, scriptEditorBridge,
+scriptHighlighterBridge, themeBridge, graphThemeBridge, uiIcons, statusEngine,
+statusJobs, statusMetrics, statusNotifications, helpBridge, tooltipCopyBridge
+```
+
+The selected declared property/method counts are addon `4/3`, fullscreen
+`13/24`, graph action `2/3`, graph command `1/115`, graph state `93/28`, graph
+view `9/15`, plot host `5/13`, Inspector `19/27`, Library `23/28`, Workspace
+`18/32`, viewer control `0/27`, viewer host `6/28`, and viewer session `4/30`.
+Program B must compare the exact ordered serialization above rather than a
+count-only sample.
+
+| Current T13 Python owner | Lines | Bytes | SHA-256 |
+| --- | ---: | ---: | --- |
+| `workspace_library_controller.py` | 564 | 23,737 | `44117BB39A211939BA880F2F58DD6AD65B3A7BD3E2AD44B9E2F7F09A3D42B640` |
+| `workspace_graph_edit_controller.py` | 401 | 15,711 | `F7D3D2A65528BA5DE57899772ADCA728B20AC23B1B88BF26AF0ADA7C4867C608` |
+| `workspace_edit_ops.py` | 979 | 36,568 | `A602CAB31C9F48333742BC26EF83D7B924F98E0BD6599E52932D9705A328736A` |
+| `workspace_drop_connect_ops.py` | 882 | 33,459 | `6CE34AD782CD1DBA72FA04DCA77AEEAACC20D2B7C6B4A6333DB77DC030A0E8D1` |
+| `graph_canvas_presenter.py` | 2,013 | 80,462 | `898BBEDCCAA57F82DFCDDD95D4E2BA525646825259C15C581A37E8B0EF3CAE20` |
+| `viewer_session_bridge.py` | 1,902 | 77,192 | `FE7D9FC8CDDD2E3030205F1190D7125B258D395C013E375881E65AB90BF6C8D3` |
+| `viewer_control_bridge.py` | 744 | 33,842 | `C7DF7B9E18FAEEB59E8F3791321DA8CD8F9BDE009DFF85CC74A13355EFDB7303` |
+| `viewer_host_service.py` | 2,769 | 114,795 | `C72048ECF4D053208036F46012FF20397ACC4C1465FE73D07E1B9C1B509403B8` |
+| `plot_host_service.py` | 1,742 | 72,300 | `5BFDBEE60BF269CA224DEE7691E90A555C70A7541326361C7BDE96B2B65BF760` |
+| `content_fullscreen_bridge.py` | 2,290 | 93,390 | `8B703F76150DE235D86C6423D79F6C6417BE8FBF2FB7761B4A1AEBA05A896C88` |
+
+Native viewer/plot construction remains lazy. `ViewerHostService` and
+`PlotHostService` have distinct empty `ViewerWidgetBinderRegistry` and
+`PlotWidgetBinderRegistry` instances (`binder_ids=[]`,
+`_binders_initialized=False`) and no custom binder. They share one
+`EmbeddedViewerOverlayManager`; it has zero overlay records, desired overlays,
+and desired overlay sources. There is no fullscreen target, detached window,
+pending detached viewer session, retained-inline key, or exit-render-gate
+window, and no native widget has been created.
+
+### Program B current T13 QML and action surface baseline
+
+The object-name hashes below are SHA-256 over the regex-selected `objectName`
+values in file order, joined with the Windows platform newline. Surface hashes
+are SHA-256 over ordered object-name, function-name, and signal-name records.
+
+| QML owner | Lines | File SHA-256 | Object names | Object-name SHA-256 | Surface SHA-256 |
+| --- | ---: | --- | ---: | --- | --- |
+| `EdgeCanvasLayer.qml` | 1,212 | `CD26C558A41CF375F407487E6845A88AC582DA8A1AC663CE7053FB2C62E6E443` | 3 | `83C964977D15339B62021DCA792EABC3B98A29BF7966EA1FDB54FB523BC0929C` | `33FEDF35A9814E0A4E17FFA24849B9B243190B3BE066FF73EEC1B2FFDF318721` |
+| `EdgeRetainedLayer.qml` | 585 | `3694BFA0F536C8D222BB7097CD960BD79D79C2431239B5045798A8E8F597F37B` | 2 | `CBCE0219514F4BA2ADF322E8CAC76B57CA5C354850DEC8289A8A95BFA7E1A730` | `F7673CCC3670DA87FFD63F40EB187523E09460375EF01006699803FC185589CC` |
+| `EdgeScenegraphLayer.qml` | 16 | `4ADFE72F0598A5296E90FFC51A0CEC9A80354ADC115800BA9444359211B067CB` | 1 | `1959BD9D0A52F9725431C0E669EC0B875AF60000253F43BA931E19665E821201` | `9192E68F3ADFA2C3F88918D72CEDB35683D5C7DDFC3D8CE93AC6759238B1F3E7` |
+| `GraphCanvasRootLayers.qml` | 1,823 | `0E52E26E7E8E8A432B82FC392FDC3CC2294689F1B3221D9BC2DCE43E495E937C` | 28 | `790DC50DA812517665593012A8E290B17F9A37236101B61FBFD2A79D344093E5` | `9742FDD955B71AD1BDF07267279C0A297ED34EA373CF825AAE8759DC81395CDE` |
+| `GraphNodePortsLayer.qml` | 2,520 | `F578B882F6B750A94453D205C8C3AAFA2310D87FFEAADEC8AC5FB7EF99E8CC16` | 41 | `06A51D6B48EBD66D2035EADAC3CCED21D2F5AF237CDDD0529B93B051E1D7B943` | `C1E36FE26A1EB2231BDBB62FE4380D4A9892EF34493AD5546B95D6EA5E1B7621` |
+| `GraphCanvasActionRouter.qml` | 663 | `B829907B1473DECFCADBA91C835D6F1D9CF8A2D67448DB66667C7F257E23A3C3` | 0 | `E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855` | `9068E8EE5B7B69903A0D652C1F046BDEDFBF1CC5F1190B9DFC3C3484050DEF20` |
+| `GraphNodeFloatingToolbar.qml` | 2,054 | `BA0A0B75D830FF12C2A1EAC414CD0F18D01454EA8DC2AD2552097CB827DA5511` | 36 | `89445200BFB6539454080AA2DE922BAFCE140EDCB8684F432A424D9626688A81` | `1BE43077747ABB67A71D5B33B5E2A1AA61902582B953F54D3E0CDEB377B7194A` |
+| `GraphNodeHost.qml` | 1,861 | `B2EAB9DC8206118BB1577DF9BE1AFD0A5B3A17E370A475D9ED1D21159024C0B7` | 6 | `7772075880D2E075BAA9DA04C305D656C060A19F25A26C48099783F0842B3B81` | `62FEA3B086346412D0CECA9132A617310BC5D50137771FD193EE2C8E18188AF9` |
+
+The exact moved-name anchors are retained in the files and in
+`tests/fixtures/graph_canvas_surface_snapshot.json` (30,674 bytes, SHA-256
+`8FACC5C409C1589D92ED16F5528328655265160A18DD7659497F1280C73A4B48`).
+The five root-layer editor names are `webPageAddressOverlayLayer`,
+`graphNodeTimestampOverlayLayer`, `graphNumberSliderOverlayLayer`,
+`graphSelectOverlayLayer`, and `graphPanelOverlayLayer`; the port-menu root is
+`graphNodePortContextMenu`; the toolbar popover root is
+`graphNodeFloatingToolbarActionPopoverBridge`. Edge roots remain
+`graphCanvasEdgeCanvasLayer`, `graphCanvasEdgeRetainedLayer`, and
+`graphCanvasEdgeScenegraphLayer`.
+
+`graph_action_contracts.py` contains 65 authoritative action IDs. Their sorted
+ID SHA-256 is `550B3533655C0449CFBB79AC5F8FB674619488F2E37961CACB0414C9D63B272F`;
+the complete ordered action-spec SHA-256 is
+`DD03E9FEC2C6F42967F42AE57FA76327D61A56BEFBFE871D14566E53E5538B0C`.
+`GraphCanvasActionRouter.qml` remains the sole QML dispatch owner; the file and
+surface hashes above lock its 53 direct functions before T23.
+
+### Program B inventory and performance fixtures
+
+The current T13 Program B Python cohort still collects 706 IDs; its ordered Windows-newline
+SHA-256 is `C49DD74EA68EF7BBBDF4AD22A24A34F05D2CAC51E3238DC577F86A053708D816`.
+The first and last IDs are
+`tests/test_graph_action_contracts.py::GraphActionBridgeDelegationTests::test_comment_peek_opens_via_graph_action_and_uses_command_bridge_helpers`
+and
+`tests/test_architecture_boundaries.py::GraphArchitectureBoundaryTests::test_workspace_navigation_view_lifecycle_uses_view_mutation_boundary`.
+The 62 qualified QML selectors retain SHA-256
+`ADE8746FC400E06B6950A4EBC078F97BD25FDA2C2D2585A06B6207C77616608B`;
+the 51 declaration-ordered shell targets retain SHA-256
+`2DACD2F801DDF72ABA2CDCA0099EE698F5BB40E99B9E4980269AF30A676D8EC0`.
+
+The exact collection command is the project interpreter followed by
+`-m pytest --collect-only -q -n 0 --ignore=venv` and the 35 Program B modules
+listed in the seed inventory. Node IDs are stdout lines containing `::`, in
+pytest output order, serialized as `os.linesep.join(node_ids).encode("utf-8")`
+with no trailing newline. The command exited `0`; count/hash and first/last IDs
+above are unchanged.
+
+All ten listed Python owners and all eight listed QML owners were re-read and
+re-hashed at the current working tree. Their hashes remain unchanged from the
+post-A sample; the toolbar's corrected regex-selected object-name count is `36`.
+The current T13 diff is not literally test-only: it contains closeout and
+architecture/performance docs, two same-ID test/script fixes, shared preflight
+commoning plus direct tests, generated diagrams, and focused traceability guards.
+`ea_node_editor/ui/perf/performance_harness.py` and the performance report schema
+are unchanged; `scripts/profile_canvas_lag.py` changed only its stale direct-owner
+import, not measurement/report logic.
+
+The performance harness/report schema is frozen. T13 records no new product
+timing verdict. Every task takes a fresh pre-edit sample at its accepted parent
+HEAD, then an isolated candidate sample using the same fixture, cache/warmup,
+Qt/backend/display/power state, process topology, and sample count. T19–T24 must
+discard T13 as their timing comparator and take the required post-T18
+Python/native-to-QML convergence baseline first. A movement above 5% triggers a
+matched/interleaved repeat; reproduced movement above 10% is explained; only a
+reproduced change above 20% with the plan's material-impact condition pauses for
+user review. No timing-only automatic rollback is permitted.
+
+| Tasks | Locked fixture / exact command family |
+| --- | --- |
+| T14 | `graph_mutations` on `examples/stress_1200_nodes.cxproj`; run all seven canonical mutation scenarios with `--scenario graph_mutations --stress-fixture real --baseline-runs 3` and compare exact payload/history hashes and dispatch depth |
+| T15 | committed animated GIF/WebP fixtures; `--scenario animated_media --nodes 5 --edges 0 --baseline-runs 3`; retain QThread/worker/decoder counts and artifact bytes/refs |
+| T16 | graph-surface snapshot plus canonical real stress fixture; `--scenario stress_fixture --stress-fixture real --baseline-runs 3`; retain deterministic capture geometry and PNG/PPTX hashes separately |
+| T17 | the fresh isolated shell structural probe recorded above plus viewer/plot/fullscreen owner tests; no graph-harness timing substitutes for QObject/provider/signal and lazy-construction facts |
+| T18 | distinct viewer/plot binder registries and one overlay manager, then `--scenario stress_fixture --stress-fixture real --baseline-runs 3`; retain widget/binder/overlay/render-connection/demotion counters and take the mandatory post-T18 convergence baseline |
+| T19 | post-T18 real stress fixture plus canonical `graph_mutations` `create_edge` and `drag_node_commit`; retain snapshot/order/geometry/cache/update/skip/paint counters |
+| T20 | post-T18 real stress fixture and `GraphCanvasRootLayers.qml` object surface; retain always-live object/timer counts and first-open identity/focus |
+| T21–T22 | post-T18 real stress fixture, `node_insertions`, and port-heavy QuickTests; retain QQuickItem/delegate/menu counts, geometry, object names, notch-cache behavior, and drag/open samples |
+| T23–T24 | post-T22 QML convergence baseline, action-spec/router hashes above, context/toolbar QuickTests, and real stress fixture; retain action-model rebuild and always-live object/timer counts plus diagnostic first-open samples |
+| T25 | exact before/after Python/QML/shell inventories and verification phase routing; product timing is unchanged and no product benchmark is manufactured for test-only work |
+
+For every display-attached sample, append
+`--baseline-mode interactive --qsg-rhi-backend d3d11 --baseline-tag <task>-<side> --report-dir artifacts/perf/corex_refactor/<task>`.
+The diagnostic-only matched command appends
+`--qt-platform offscreen --baseline-mode offscreen --qsg-rhi-backend software`
+instead. Never compare display-attached D3D11 results to offscreen/software
+results.
+
+### T13 closeout boundary
+
+| Command / evidence | Result |
+| --- | --- |
+| Ledger validator | `PASS`; 12 passed in 1.28 s |
+| `full --dry-run` | `PASS`; all seven phases rendered and the missing `qmltestrunner.exe` notice remained explicit |
+| Agent maps | `PASS`; all map and route-index paths resolve |
+| Traceability | `PASS` |
+| Markdown links | `PASS` |
+| Three navigation generator `--check` commands | `PASS`; route, source/test, and QML navigation outputs are current; no generated file changed |
+| Initial `full --summarize-output` | `BLOCKED BEFORE PHASE EXECUTION`; exit 1: `qmltestrunner.exe` absent from `PATH`, `QT_ROOT` unset, and no runner in the project PyQt6 Qt6 bin; no phase log was produced |
+| Resumed Qt runner evidence | `PASS`; process-scoped `QT_ROOT=C:\Qt\6.11.1\msvc2022_64` resolves `bin\qmltestrunner.exe` `6.11.1.0`; adjacent `Qt6Qml.dll` and `Qt6Quick.dll` are both `6.11.1.0` |
+| Resumed `full --summarize-output` | `FAIL`; Qt preflight passed, then `fast.pytest` stopped with 1 failed, 4,424 passed, 2 skipped, 24 warnings in 319.31 s; log `artifacts/verification_logs/20260902_073440/01_fast.pytest.log`; the other six phases were not run |
+| Resumed blocker diagnosis | `tests/test_plugin_authoring_controller.py::test_file_menu_orders_and_wires_plugin_actions_with_bool_signal_argument` uses `_ActionWindow.__getattr__` to return a function for every missing owner, so `window.run_controller` is a function; accepted T12 `window_actions.py` now correctly wires `window.run_controller.run_workflow`; this is stale test-fixture ownership, not a Qt runner or production-path failure; no test or production fix was made in T13 |
+| Process environment cleanup | `PASS`; the verification exit code `1` was preserved and `QT_ROOT` was removed in `finally`; observed post-run value `<UNSET>` |
+| Accepted-T12 test-fake remediation | `PASS — NO MIGRATION`; the same `tests/test_plugin_authoring_controller.py::test_file_menu_orders_and_wires_plugin_actions_with_bool_signal_argument` now gives `_ActionWindow` one minimal `_RunActionController` with `run_workflow()` and asserts the unrelated Run action was not triggered; the File-menu order, bool-signal calls, production action wiring, test ID, and existing assertions remain; independent architecture/correctness review returned `CLEAR` |
+| Second resumed `full --summarize-output` | `FAIL`; fast, fast serial, Qt Quick, GUI, and GUI serial passed; slow stopped with 1 failed, 55 passed, 5,275 deselected in 33.36 s; shell isolation was not run; logs under `artifacts/verification_logs/20260902_074429/` |
+| Second resumed blocker diagnosis | `tests/test_track_h_perf_harness.py::TrackHPerformanceHarnessTests::test_canvas_lag_profiler_exposes_project_fixture_mode` reaches `scripts/profile_canvas_lag.py::_build_engineering_project`, whose function-local import still targets T03-retired `ea_node_editor.nodes.registry.resolve_instance_ports`; the direct owner is `ea_node_editor.nodes.instance_resolution.resolve_instance_ports`; this is residual T03 performance-harness import debt, not a production registry or runtime failure; no script, production, or test fix was made |
+| Second process environment cleanup | `PASS`; verification exit code `1` preserved; `QT_ROOT` removed in `finally` and observed `<UNSET>` |
+| Accepted-T12 slow-harness remediation | `PASS — NO MIGRATION`; one function-local import in `scripts/profile_canvas_lag.py::_build_engineering_project` now targets T03 direct owner `ea_node_editor.nodes.instance_resolution.resolve_instance_ports`; the same slow test ID, project builder, arguments, assertions, and harness behavior remain; independent architecture/correctness review returned `CLEAR` |
+| Third resumed `full --summarize-output` | `PASS`; all seven canonical phases passed; logs under `artifacts/verification_logs/20260902_075957/`; exact phase results below |
+| Third process environment cleanup | `PASS`; verification exit code `0` preserved; `QT_ROOT` removed in `finally` and observed `<UNSET>` |
+| Working/cached diff, protected-path, and privacy hygiene | `PASS`; both diff checks exit 0, nothing is staged, tracked scope is the four T13 plan/ledger/index/validator paths plus the two independently cleared same-ID/no-migration predecessor-debt corrections, the exact INDEX-without-refactor hash is `43BFA388...D431`, both protected untracked hashes remain exact, and the added-line privacy scan is clear |
+
+First resumed-run status:
+
+| Phase | Result | Log |
+| --- | --- | --- |
+| `fast.pytest` | `FAIL`; 1 failed, 4,424 passed, 2 skipped, 24 warnings | `artifacts/verification_logs/20260902_073440/01_fast.pytest.log` |
+| `fast.serial.pytest` | `NOT RUN`; runner stopped after the first phase | None |
+| `gui.qml_quick` | `NOT RUN`; runner stopped after the first phase | None |
+| `gui.pytest` | `NOT RUN`; runner stopped after the first phase | None |
+| `gui.serial.pytest` | `NOT RUN`; runner stopped after the first phase | None |
+| `slow.pytest` | `NOT RUN`; runner stopped after the first phase | None |
+| `full.shell_isolation.pytest` | `NOT RUN`; runner stopped after the first phase | None |
+
+The first resumed run superseded the initial Qt-environment blocker. Its stale
+direct-owner fake was remediated and independently cleared without a migration.
+
+Second resumed-run status:
+
+| Phase | Result | Log |
+| --- | --- | --- |
+| `fast.pytest` | `PASS`; 4,425 passed, 2 skipped, 24 warnings in 308.51 s | `artifacts/verification_logs/20260902_074429/01_fast.pytest.log` |
+| `fast.serial.pytest` | `PASS`; 218 passed in 88.90 s | `artifacts/verification_logs/20260902_074429/02_fast.serial.pytest.log` |
+| `gui.qml_quick` | `PASS`; Qt 6.11.1 runner exit 0; zero-byte quiet log | `artifacts/verification_logs/20260902_074429/03_gui.qml_quick.log` |
+| `gui.pytest` | `PASS`; 589 passed, 1 skipped, 2 warnings in 198.85 s | `artifacts/verification_logs/20260902_074429/04_gui.pytest.log` |
+| `gui.serial.pytest` | `PASS`; 39 passed, 1 skipped in 49.71 s | `artifacts/verification_logs/20260902_074429/05_gui.serial.pytest.log` |
+| `slow.pytest` | `FAIL`; 1 failed, 55 passed, 5,275 deselected in 33.36 s | `artifacts/verification_logs/20260902_074429/06_slow.pytest.log` |
+| `full.shell_isolation.pytest` | `NOT RUN`; runner stopped after slow failure | None |
+
+The second resumed run exposed the stale T03 performance-harness import; its
+same-ID/no-migration correction was independently cleared.
+
+Third resumed-run status:
+
+| Phase | Result | Log |
+| --- | --- | --- |
+| `fast.pytest` | `PASS`; 4,425 passed, 2 skipped, 24 warnings in 282.65 s | `artifacts/verification_logs/20260902_075957/01_fast.pytest.log` |
+| `fast.serial.pytest` | `PASS`; 218 passed in 87.16 s | `artifacts/verification_logs/20260902_075957/02_fast.serial.pytest.log` |
+| `gui.qml_quick` | `PASS`; Qt 6.11.1 runner exit 0; zero-byte quiet log | `artifacts/verification_logs/20260902_075957/03_gui.qml_quick.log` |
+| `gui.pytest` | `PASS`; 589 passed, 1 skipped, 2 warnings in 162.49 s | `artifacts/verification_logs/20260902_075957/04_gui.pytest.log` |
+| `gui.serial.pytest` | `PASS`; 39 passed, 1 skipped in 48.39 s | `artifacts/verification_logs/20260902_075957/05_gui.serial.pytest.log` |
+| `slow.pytest` | `PASS`; 56 passed, 5,275 deselected in 31.90 s | `artifacts/verification_logs/20260902_075957/06_slow.pytest.log` |
+| `full.shell_isolation.pytest` | `PASS`; 58 passed in 282.41 s | `artifacts/verification_logs/20260902_075957/07_full.shell_isolation.pytest.log` |
+
+Authoritative current-tree full run:
+
+This is the acceptance-tree verification after shared preflight commoning, both
+same-ID owner fixes, diagram regeneration, traceability guards, and the final
+ledger wording. It supersedes earlier runs for acceptance while retaining their
+blocker/remediation history above.
+
+| Phase | Authoritative result | Log |
+| --- | --- | --- |
+| `fast.pytest` | `PASS`; 4,427 passed, 2 skipped, 24 warnings in 293.15 s | `artifacts/verification_logs/20260902_101516/01_fast.pytest.log` |
+| `fast.serial.pytest` | `PASS`; 218 passed in 85.46 s | `artifacts/verification_logs/20260902_101516/02_fast.serial.pytest.log` |
+| `gui.qml_quick` | `PASS`; external Qt 6.11.1 runner exit 0; zero-byte quiet log | `artifacts/verification_logs/20260902_101516/03_gui.qml_quick.log` |
+| `gui.pytest` | `PASS`; 589 passed, 1 skipped, 2 warnings in 161.93 s | `artifacts/verification_logs/20260902_101516/04_gui.pytest.log` |
+| `gui.serial.pytest` | `PASS`; 39 passed, 1 skipped in 48.45 s | `artifacts/verification_logs/20260902_101516/05_gui.serial.pytest.log` |
+| `slow.pytest` | `PASS`; 56 passed, 5,277 deselected in 31.79 s | `artifacts/verification_logs/20260902_101516/06_slow.pytest.log` |
+| `full.shell_isolation.pytest` | `PASS`; 58 passed in 281.85 s | `artifacts/verification_logs/20260902_101516/07_full.shell_isolation.pytest.log` |
+
+The command used process-scoped `QT_ROOT=C:\Qt\6.11.1\msvc2022_64`.
+`qmltestrunner.exe` resolved from that SDK, verification exit `0` was preserved,
+and `QT_ROOT` was removed in `finally`; observed post-run value `<UNSET>`.
+All three final Program A reviews are now resolved. T13 remains `IN PROGRESS`
+only until the root orchestrator requests the acceptance-status/commit update.
 
 ## Review Ledger
 
@@ -849,22 +1243,22 @@ for release-style rendering conclusions.
 | T04 performance review | Registry lookup, resolution/traversal/coercion/copy/validation counters and timing attribution | Performance reviewer | No remaining finding | Confirmed identical resolution/dynamic/coercion/deep-copy/validation counts with base-spec lookups reduced from 28 to 16; retained sequential `-1.12%` median and `-1.66%` median-p95 timing as inconclusive/unattributed | `CLEAR` |
 | T05 architecture review | Registry query deletion and direct Library projection/category ownership | Architecture reviewer | No remaining finding | Confirmed no production caller remained beyond the presenter dependency replaced in this task; registry filter/category APIs and private helpers are absent, the presenter has no registry-category cache, and the existing Library projection derives filters/options/tree from one combined registry/custom-workflow source without a replacement API | `CLEAR` |
 | T05 correctness/security/no-lost-tests review | Library/Quick Insert/QML payloads, DPF taxonomy, custom workflows, accepted unions, hidden ports, and test migrations | Correctness reviewer | No remaining finding | Confirmed exact item/order/category/tree/options/Quick Insert/presenter hashes, one cached tree/options build, DPF and custom-workflow discoverability, maintained flat-category behavior, accepted-type union/hidden-port coverage, 19 final migration rows, 22 replacement IDs, and one explicit obsolete disposition | `CLEAR` |
-| T05 performance review | Library query timings and presenter projection/cache construction counts | Performance reviewer | No correctness or structural finding; candidate timing remained noisy on an unchanged timed filter path | Confirmed exact structural/cache parity; recorded initial threshold-crossing raw samples and the advisory repeat; retained non-counterbalanced repeat deltas without timing-only rollback or causal attribution | `CLEAR` |
+| T05 performance review | Library query timings and presenter projection/cache construction counts | Performance reviewer | Conditional finding: retained raw samples lacked CV/MAD, the advisory repeat was candidate-only and sequential, and custom deltas were rounded incorrectly | Recorded every raw-list CV/MAD, corrected custom initial median/p95 to +4.83%/+20.45% and repeat p95 to +17.01%, and retained structural parity with timing explicitly inconclusive | `CLEAR — ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
 | T06 architecture review | DPF service/contract/handle-kind ownership, deleted facades, package exports, and direct imports | Architecture reviewer | No remaining finding | Confirmed concrete composition lives only in `execution/dpf_runtime/service.py`, DTOs/errors remain in `contracts.py`, all nine handle-kind strings are defined only in `nodes/ansys_dpf_data_types.py`, the package root exports only the lazy factory, and both retired modules plus three unused protocols are absent | `CLEAR` |
 | T06 correctness/security/no-lost-tests review | DPF loading, caches, leases, reset/cleanup, analysis/materialization, optional imports, and seven retained migrations | Correctness reviewer | No remaining finding | Confirmed exact runtime behavior across service, analysis, materialization, compute, viewer, worker, add-on, and packaging cohorts; clean-subprocess proof preserves PyDPF/PyVista laziness; all seven retained IDs have direct-owner equivalence and final evidence | `CLEAR` |
-| T06 performance review | Lazy factory/imports, first/cached result loading, analysis/materialization, structural counters, and timing attribution | Performance reviewer | No remaining correctness or structural finding; cached-result repeat remained noisy at microsecond scale | Confirmed exact service/cache/handle/lease/cleanup/reset/metadata/artifact structural parity and zero optional imports after factory; retained the sequential cached-load samples as non-counterbalanced and unattributed with no timing-only rollback | `CLEAR` |
+| T06 performance review | Lazy factory/imports, first/cached result loading, analysis/materialization, structural counters, and timing attribution | Performance reviewer | Conditional finding: retained raw samples lacked CV/MAD; the cached repeat was candidate-only and sequential; first-result/materialization improvements over 5% lacked repeats | Recorded every raw-list CV/MAD and the candidate-only cached repeat, disclosed missing improvement repeats, and retained structural parity with timing explicitly inconclusive | `CLEAR — ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
 | T07 architecture review | Direct protocol ownership, dependency direction, deleted catch-all, and caller/test migration | Architecture reviewer | No remaining finding | Confirmed the five direct owners, absent catch-all and compatibility reexports, cycle-safe prepared-execution local imports, direct settlement-contract imports, updated callers/maps/indexes, and no T08 ownership work | `CLEAR` |
 | T07 correctness/security/no-lost-tests review | Wire behavior, registry/plugin/add-on agreement, worker trust checks, handwritten dispatch, and 40 migrated IDs | Correctness reviewer | No remaining finding | Confirmed exact fields/order/defaults/bounds/errors, every StartRun agreement/prepared/viewer field, independent worker attestation, unchanged trust failures before transport work, and collecting replacements with final evidence for all 40 removed IDs | `CLEAR` |
-| T07 performance review | Representative run/settlement/viewer payloads, structural adapter counts, allocations, and timing attribution | Performance reviewer | No remaining correctness or structural finding | Confirmed exact payload/order/error hashes, bytes, list/copy/dict/allocation/serialization counts and cycle shape; retained sequential timing as non-counterbalanced and unattributed under the advisory policy with no timing-only rollback | `CLEAR` |
+| T07 performance review | Representative run/settlement/viewer payloads, structural adapter counts, allocations, and timing attribution | Performance reviewer | Conditional finding: retained raw samples lacked CV/MAD; all batches were sequential; Start and settled improvements over 5% lacked repeats | Recorded every raw-list CV/MAD and missing improvement repeats; exact payload/allocation structure remains proven while timing stays explicitly inconclusive | `CLEAR — ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
 | T08 architecture review | Direct common/generation/process/external/trusted/backend owners, deleted catch-all/reexports, dependency direction, and registry-publication authority | Architecture reviewer | No remaining finding | Confirmed every moved production class/helper has its exact baseline AST, the owner graph is acyclic, concrete transports do not import backend routing, package reexports are absent, CorexRuntime publication methods are unchanged, and no T09 ownership moved | `CLEAR` |
 | T08 correctness/security/no-lost-tests review | Process/stdio/thread/queue lifecycle, generation fencing, viewer invalidation, trust checks, shutdown/recovery, and 83 migrations | Correctness reviewer | No remaining finding | Confirmed exact method bodies, payload/event hashes, process/thread/queue/listener behavior, lock-sensitive delivery/finalization, failure recovery, registry replacement integration, and one collecting final replacement for every removed ID | `CLEAR` |
-| T08 performance review | Six matched lifecycle labels, structural method counters, thread/listener shutdown state, and timing attribution | Performance reviewer | No remaining correctness or structural finding; mocked cold-start repeat remained noisy | Confirmed exact AST/call/lock/process/thread/queue structure and transport hashes; retained the sequential `+13.91%` cold-repeat median with `-0.86%` p95 as non-counterbalanced and unattributed below the pause threshold, with no timing-only rollback | `CLEAR` |
+| T08 performance review | Six matched lifecycle labels, structural method counters, thread/listener shutdown state, and timing attribution | Performance reviewer | Conditional finding: retained raw samples lacked CV/MAD and the cold repeat was candidate-only after sequential baseline/candidate batches | Recorded every raw-list CV/MAD and candidate-only cold repeat; exact lifecycle structure remains proven while timing stays explicitly inconclusive | `CLEAR — ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
 | T09 architecture review | Durable/project boundary ownership, store algorithm retention, persistence dependency direction, and T10 lifecycle preservation | Architecture reviewer | No remaining finding | Confirmed `solution_backend.py` and `project_solution.py` own only boundary contracts, persistence imports only those modules, `SolutionStore` remains the sole session algorithm owner, runtime import direction is acyclic, and all CorexRuntime project-solution methods are unchanged | `CLEAR` |
 | T09 correctness/security/no-lost-tests review | Durable/project schemas, store/repository behavior, 18 migrations, and retained shell/add-on reopen proof | Correctness reviewer | Accepted T08 reproduced same-ID shell failure because residual T02 test debt patched removed `plugin_loader.importlib.import_module` | Deleted only the obsolete patch, retained the direct `addons.catalog.importlib.import_module` patch and all assertions; the same test ID, shell target, and add-on/reopen cohort pass, so no migration row was added. All 18 genuinely moved IDs have final replacements. | `CLEAR` |
-| T09 performance review | Store locks/calls, token/hash/JSON bytes, repository file passes, and matched timing attribution | Performance reviewer | No remaining correctness or structural finding; filesystem repeat remained jointly noisy | Confirmed exact AST/lock/call/file-pass/token/byte/hash parity; retained sequential stage/open/lazy shifts as non-counterbalanced and unattributed below the 20% plus material-impact pause threshold, with no timing-only rollback | `CLEAR` |
+| T09 performance review | Store locks/calls, token/hash/JSON bytes, repository file passes, and matched timing attribution | Performance reviewer | Conditional finding: retained raw samples lacked CV/MAD; repeats were candidate-only and sequential; the settle p95 improvement over 5% lacked a repeat | Recorded every raw-list CV/MAD, candidate-only filesystem repeats, and missing settle-improvement repeat; exact store/repository structure remains proven while timing stays explicitly inconclusive | `CLEAR — ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
 | T10 architecture review | Direct request/loader/runtime/CLI ownership, imports, module execution, and preferred-interpreter bootstrap | Architecture reviewer | `python -m ea_node_editor.execution.runtime_cli --help` produced no output because the moved CLI owner lacked a module-execution guard | Added the minimal `__main__` guard, a direct subprocess help test, and an assertion in the existing preferred-interpreter re-exec test that the requested runtime CLI module is preserved; re-review confirmed direct module and console-entry behavior | `CLEAR` |
 | T10 correctness/security/no-lost-tests review | Runtime lifecycle, registry publication, project loading/solution state, source identity evidence, 39 migrations, and seven new owner tests | Correctness reviewer | Candidate wording overclaimed the observed moved-file key change as a guaranteed one-time invalidation/reuse contract | Narrowed the statement to executable source-content-to-digest, implementation-digest-to-key, and accepted-key-to-settlement-output proofs; retained the T10 moved-file difference only as a structural observation; re-review confirmed the lifecycle, trust, output, migration, and direct-owner evidence | `CLEAR` |
-| T10 performance review | Import/load/prepare/dispatch/run structural counters and matched timing attribution | Performance reviewer | No remaining correctness or structural finding; project-load repeat remained noisy | Confirmed exact import count, moved-body ASTs, lifecycle/lock counts, project bytes/hashes, prepare/dispatch structure, event order, and CLI bytes/exits; retained the sequential load samples as non-counterbalanced and unattributed with no timing-only rollback | `CLEAR` |
+| T10 performance review | Import/load/prepare/dispatch/run structural counters and matched timing attribution | Performance reviewer | Conditional finding: retained raw samples lacked CV/MAD and the load repeat was candidate-only after sequential baseline/candidate batches | Recorded every raw-list CV/MAD and candidate-only load repeat; exact runtime/CLI structure remains proven while timing stays explicitly inconclusive | `CLEAR — ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
 | T11 architecture review | Direct shell run-projection ownership and preserved T12 intake boundary | Architecture reviewer | No remaining finding | Confirmed `RunProjectionController` is the sole non-QObject shell owner of execution sets, accepted-output observations, solution facts, availability, timing, warning, failure, and status projection over the shared `ShellRunState`; `RunController` retains commands/Auto/Trigger/history plus the pre-T12 intake, obsolete ShellWindow projection forwarders are absent, and no T12 owner exists. | `CLEAR` |
 | T11 correctness/security/no-lost-tests review | Accepted settlement trust, state transitions, direct callers, 17 migrations, predecessor debt, and mandatory routing | Correctness reviewer | Two stale T02 private-owner assertions and five process-sensitive fast targets initially kept the mandatory lane red | Confirmed retained-record identity gates before cache/availability publication, exact project/reset/open and elapsed/warning/failure behavior, 17 finalized moved IDs, minimal `builtin_catalog` test retarget, exact five-node serial routing with sanitized collection proof, and green parallel plus serial fast phases. | `CLEAR` |
 | T11 performance review | Frozen 10k run-projection sequence and structural counters | Performance reviewer | No remaining structural or causality finding | Exact state/output hashes, signal counts, accepted cache writes, mapping copies, solution queries, availability observations, final records/revisions, and zero QObject/timer facts match baseline. Sequential median/p95 shifts `+0.44%/+0.78%` remain below the repeat threshold and are not causally attributed. | `CLEAR` |
@@ -874,9 +1268,15 @@ for release-style rendering conclusions.
 | T12 architecture review | Sole queued shell event intake, ownership boundaries, and direct viewer projection delivery | Architecture reviewer | Initial review found that `ViewerSessionBridge` still self-registered on `ShellWindow.execution_event`, leaving two subscribers and allowing viewer delivery to race independently of the new run-state owner. | Removed the bridge self-registration and private handler; `RunEventController` completes run-state routing first, then calls the explicit viewer consumer once. Re-review confirmed one production signal connection, no ShellWindow/viewer facade, one retained controller, unchanged RunController/RunProjectionController boundaries, and no new QObject/timer/QML surface. | `CLEAR` |
 | T12 correctness/security/no-lost-tests review | Run filtering/order, accepted settlement projection, viewer epochs/requests, terminal/Auto behavior, exception isolation, and six migrations | Correctness reviewer | No remaining finding after duplicate-subscription remediation | Confirmed foreign/late rejection before shell mutation, runtime-enriched cache publication through the projection owner, run-state-before-viewer ordering, unchanged viewer epoch/session/request filters, logged viewer failure isolation, successful-only Auto drain, failure/stop/protocol clears, all six final moved IDs, and green focused/viewer/shell/runtime cohorts. | `CLEAR` |
 | T12 performance review | Frozen 10k structural facts, signal/subscription topology, viewer delivery count, QObject/timer identity, and timing attribution | Performance reviewer | No remaining structural or causality finding; final remediation occurred after the recorded sequential timing samples | Confirmed runtime subscription `1`, shell event subscribers `2 → 1`, queued hops `1`, wrapper hops `1 → 0`, one unchanged direct viewer delivery per emitted event, unchanged hashes/counters/projections, and no new QObject/timer. Pre-remediation samples remain explicitly non-counterbalanced historical context; no fresh timing or timing-only rollback claim was made. | `CLEAR` |
-| Program A architecture/ownership | T01–T12 | Pending | Pending | Pending | Pending |
-| Program A correctness/security/no-lost-tests | T01–T12 | Pending | Pending | Pending | Pending |
-| Program A performance causality | T01–T12 | Pending | Pending | Pending | Pending |
+| T13 T08 preflight-ownership remediation | Concrete execution-client preflight delivery orchestration | Independent architecture reviewer | P2: `process_client.py`, `external_python_client.py`, and `trusted_client.py` retained byte-identical `_deliver_run_preflight_command` orchestration after the T08 client split | Moved the exact body once to existing `_ExecutionClientCommon`; the normalized body SHA remains `02FD5A27...795A` with 3 calls, 1 `_state_lock`, and zero dict/list/copy constructions, while concrete clients retain only their existing encode/pin/deliver methods. Common ownership plus direct queue/stdio ordering tests pass across all backends; client cohort 84 passed/62 subtests, worker/preflight/plugin agreement 81 passed/5 subtests, architecture/dead-code/ledger 69 passed/189 subtests. | `CLEAR` |
+| T13 architecture-document remediation | Current run route, event terminology, diagrams, requirements, traceability, and focused stale-route guard | Independent architecture reviewer | P1: `ARCHITECTURE.md` and all three architecture diagrams bypassed `CorexRuntime`/`ExecutionBackendClient`, projected events back through `RunController`, and named nonexistent `node_completed`; `REQ-EXEC-003` omitted the sole queued `RunEventController` route; three traceability rows cited deleted `execution/protocol.py`, and the queued route omitted its direct composition/controllers/tests | Rewrote the current route as `RunController → CorexRuntime → ExecutionBackendClient → selected process/external/trusted transport`, followed by runtime validation/solution acceptance/enrichment and one queued `RunEventController → RunProjectionController` plus direct viewer delivery; standardized `node_settled`; retargeted protocol traceability to `run_messages.py`, `viewer_messages.py`, and `protocol_codec.py`; added exact composition/controller/test ownership and one focused current-doc stale-term guard; regenerated matching Mermaid sources and programmatic SVG/PNG exports as recorded below; architecture/traceability/Markdown cohort 159 passed/175 subtests and direct traceability, links, maps, and route-index checks passed | `CLEAR` |
+| T13 architecture-document remediation pass 2 | Protocol-error ownership, exact retired-route/current-owner guards, and native raster export | Independent architecture reviewer | P1: the sequence incorrectly sent `protocol_error` logging/notification through `RunProjectionController`; the first guard omitted exact retired event-route anchors and positive current-owner assertions; PNGs were rasterized from SVG through Qt rather than produced natively by the verified Mermaid renderer | `RunEventController` now logs through the shell console/notification host and performs direct viewer delivery after event handling without calling `RunProjectionController`; the focused current-doc guard rejects the retired RunController event handler/wording/edges/participant and asserts `CorexRuntime`, `ExecutionBackendClient`, `RunEventController`, `RunProjectionController`, and the direct viewer consumer; both SVG and transparent PNG outputs were regenerated directly with pinned Mermaid CLI `11.16.0` | `CLEAR` |
+| T13 architecture-diagram export evidence | Three Mermaid sources and committed SVG/PNG outputs | `history_intent_audit` | The documented `scripts/export_architecture_diagrams.py` consistently reached the public Kroki endpoint but received HTTP 500 before SVG output; the accepted-HEAD diagram and a two-node sample reproduced the same external failure | No repo dependency or hand edit: for each basename, `npx.cmd --yes @mermaid-js/mermaid-cli@11.16.0 -i docs/architecture_diagrams/<name>.mmd -o docs/architecture_diagrams/<name>.<svg-or-png> -b transparent`; every `.mmd` exactly matches `ARCHITECTURE.md`, all SVGs and alpha-channel PNGs validate, and visual inspection confirms readable labels with no missing/tofu glyphs. SVG/PNG dimensions and SHA-256: component `5317x4404`, `733394CD...0767` / `784x650`, `755AD70F...CC44`; runtime `2428x3678`, `71F08AC5...A1B7` / `784x1188`, `702F8742...309D`; sequence `3929x3404`, `F2D48174...9723` / `784x680`, `FC4949FD...A8B1` | `PASS — NATIVE SVG/PNG FALLBACK; DOCUMENTED EXTERNAL RENDERER OUTAGE RECORDED` |
+| Program A architecture/ownership | T01–T12 direct owners, deleted-module/facade absence, dependency direction, maps/routing, T11/T12 final owner boundaries, and no repeated/rejected architecture | Independent architecture reviewer | No remaining finding after shared-preflight, architecture-document, diagram, route-guard, and final-tree re-review | Confirmed all T01–T12 direct owners and deleted-facade absences, acyclic dependency direction, sole queued run-event route, direct viewer delivery, current maps/traceability, and no repeated rejected architecture on the authoritative green tree | `CLEAR` |
+| Program A correctness/security/no-lost-tests | T01–T12 public behavior, trust/admission order, atomic rollback, protocol/runtime/solution/run semantics, exact migration evidence, broad verification, protected user dirt, and privacy | Independent correctness/security reviewer | No remaining finding after same-ID owner fixes, migration/guard audit, and authoritative final-tree verification | Confirmed trust/admission/rollback and runtime/solution/run behavior, all 264 finalized migrations, no lost collecting test or hidden skip, both same-ID fixes, seven green canonical phases, protected user dirt, and public-repo privacy | `CLEAR` |
+| T13 performance-ledger remediation | T05–T10 retained dispersion, threshold/repeat policy, advisory disposition, and current Program B structural baseline | Independent performance reviewer | Conditional findings: CV/MAD were missing; all batches were sequential/non-counterbalanced; repeats were candidate-only; several greater-than-5% improvements lacked repeats; T05 rounding was wrong; current Program B environment/diff provenance needed refresh | Calculated every CV/MAD from retained raw lists, corrected T05, disclosed every deviation and missing improvement repeat, kept all timing inconclusive, and refreshed the exact current structure/environment/hash/collect-only baseline without a broad benchmark. Orchestrator disposition under the selected policy: `ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE`; no material causal regression/pause condition exists and no timing-only rollback is authorized. | `CLEAR — ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
+| T13 performance-ledger wording remediation | Reproducible selected meta-object serialization and accurate T13 change provenance | Independent performance reviewer | P2: the recorded meta probe named no explicit 13-binding selection/filter and could be misread as iterating all 27 bindings; P2: the closeout text inaccurately called T13 a documentation/evidence-only gate despite shared preflight commoning and two same-ID owner fixes | Recorded the 13 names, executable `bindings_by_name`/`selected_bindings` filter and exact SHA serialization; refreshed the small probe with the same `4237F1DF...68` result; replaced docs-only wording with the exact docs/evidence, shared preflight, same-ID fix, diagram, and guard provenance while retaining no feature behavior or harness/report-schema change | `CLEAR — ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
+| Program A performance causality | T01–T12 structural counters, retained raw timing, threshold handling, noisy/non-counterbalanced attribution, no automatic rollback, and Program B baseline/fixture locks | Independent performance reviewer | No remaining structural or causal finding after retained-dispersion, repeat-policy, environment/provenance, and selected-meta serialization remediation | Structural counters and current Program B baseline are accepted; all retained timing remains explicitly inconclusive under the advisory 5/10/20 policy, no material causal regression/pause condition exists, and no timing-only rollback is authorized | `CLEAR — ACCEPTABLE WITH CAVEATS — STRUCTURAL PASS; TIMING INCONCLUSIVE` |
 | Program B architecture/ownership | T14–T25 | Pending | Pending | Pending | Pending |
 | Program B correctness/security/no-lost-tests | T14–T25 | Pending | Pending | Pending | Pending |
 | Program B performance causality | T14–T25 | Pending | Pending | Pending | Pending |

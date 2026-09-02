@@ -187,6 +187,84 @@ class ClientCommonContractTests(unittest.TestCase):
             for client in clients:
                 client.shutdown()
 
+    def test_common_preflight_orchestration_preserves_each_backend_transport(
+        self,
+    ) -> None:
+        command = CommitRunPreflightCommand(
+            run_id="run_common_preflight",
+            viewer_invalidation_reservation_id="viewer_inv_common_preflight",
+            viewer_epoch_snapshot_digest="a" * 64,
+        )
+        clients = (
+            ProcessExecutionClient(),
+            ExternalPythonExecutionClient(),
+            TrustedInProcessExecutionClient(),
+        )
+        try:
+            for client in clients:
+                with self.subTest(client=type(client).__name__):
+                    order: list[str] = []
+                    if isinstance(client, ExternalPythonExecutionClient):
+                        transport = Mock()
+                        transport.poll.return_value = None
+                        transport.stdin = Mock()
+                        transport_patch = patch.object(client, "_process", transport)
+                    else:
+                        transport = queue.Queue()
+                        transport_patch = patch.object(
+                            client, "_command_queue", transport
+                        )
+                    encode = client._encode_run_preflight_command  # noqa: SLF001
+                    pin = client._pin_run_preflight_transport_locked  # noqa: SLF001
+                    deliver = client._deliver_encoded_run_preflight_command  # noqa: SLF001
+
+                    def encode_once(value):  # noqa: ANN001, ANN202
+                        order.append("encode")
+                        return encode(value)
+
+                    def pin_once():  # noqa: ANN202
+                        order.append("pin")
+                        return pin()
+
+                    def deliver_once(payload, pinned):  # noqa: ANN001, ANN202
+                        order.append("deliver")
+                        return deliver(payload, pinned)
+
+                    with (
+                        transport_patch,
+                        patch.object(
+                            client,
+                            "_encode_run_preflight_command",
+                            side_effect=encode_once,
+                        ),
+                        patch.object(
+                            client,
+                            "_pin_run_preflight_transport_locked",
+                            side_effect=pin_once,
+                        ),
+                        patch.object(
+                            client,
+                            "_deliver_encoded_run_preflight_command",
+                            side_effect=deliver_once,
+                        ) as deliver_mock,
+                    ):
+                        self.assertEqual(
+                            client._deliver_run_preflight_command(command),  # noqa: SLF001
+                            (True, ""),
+                        )
+
+                    self.assertEqual(order, ["encode", "pin", "deliver"])
+                    payload, pinned = deliver_mock.call_args.args
+                    self.assertIs(pinned, transport)
+                    if isinstance(client, ExternalPythonExecutionClient):
+                        transport.stdin.write.assert_called_once_with(payload)
+                        transport.stdin.flush.assert_called_once_with()
+                    else:
+                        self.assertEqual(transport.get_nowait(), payload)
+        finally:
+            for client in clients:
+                client.shutdown()
+
     def test_common_methods_and_commands_are_shared_across_backends(self) -> None:
         common_methods = (
             "subscribe",
@@ -195,6 +273,7 @@ class ClientCommonContractTests(unittest.TestCase):
             "_clear_active_run_state_locked",
             "_record_execution_event_state",
             "_emit_protocol_error",
+            "_deliver_run_preflight_command",
             "_next_viewer_request_id",
             "_track_viewer_request",
             "_complete_viewer_request",

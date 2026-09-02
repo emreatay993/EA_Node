@@ -74,11 +74,20 @@ class _ActionController:
         self.calls.append("reload")
 
 
+class _RunActionController:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def run_workflow(self) -> None:
+        self.calls += 1
+
+
 class _ActionWindow(QMainWindow, ShellWindowRunAndStyleStateMixin):
     def __init__(self) -> None:
         super().__init__()
         self.recent_project_paths: list[str] = []
         self.plugin_authoring_controller = _ActionController()
+        self.run_controller = _RunActionController()
 
     def __getattr__(self, _name: str):  # noqa: ANN204
         return lambda *_args, **_kwargs: None
@@ -625,6 +634,7 @@ def test_file_menu_orders_and_wires_plugin_actions_with_bool_signal_argument() -
             "show",
             "reload",
         ]
+        assert window.run_controller.calls == 0
     finally:
         window.close()
         window.deleteLater()

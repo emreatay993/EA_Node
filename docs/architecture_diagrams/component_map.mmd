@@ -46,6 +46,8 @@ flowchart LR
 
     SW --> APC[AppPreferencesController]
     SW --> RUN[RunController]
+    SW --> RPROJ[RunProjectionController]
+    SW --> REVENT[RunEventController]
     SW --> PSC[ProjectSessionController]
     SW --> WLC[WorkspaceLibraryController]
     SW --> SEARCH[window_search_scope_state]
@@ -106,12 +108,16 @@ flowchart LR
     TRUSTED[Private trusted factories / generated descriptors] --> CAND
     SW --> REG
 
-    RUN --> AGREEMENT[RuntimeSnapshot + registry/plugin agreement]
-    AGREEMENT --> EXEC[ProcessExecutionClient]
-    EXEC -->|commands| CMDQ[(command_queue)]
-    CMDQ --> WORKER[worker_main / load_runtime_snapshot / run_workflow]
-    WORKER -->|events| EVTQ[(event_queue)]
-    EVTQ --> EXEC
+    RUN --> RUNTIME[CorexRuntime prepare + dispatch]
+    RUNTIME --> EXEC[ExecutionBackendClient]
+    EXEC --> TRANSPORT[Selected ProcessExecutionClient, ExternalPythonExecutionClient, or TrustedInProcessExecutionClient]
+    TRANSPORT --> WORKER[worker_main / load_runtime_snapshot / run_workflow]
+    WORKER -->|typed events via selected transport, backend, and runtime| ACCEPT
+    RUNTIME --> ACCEPT[Validate, accept in SolutionStore, and enrich settlements]
+    ACCEPT --> EXECSIGNAL[ShellWindow.execution_event]
+    EXECSIGNAL -->|one queued connection| REVENT
+    REVENT --> RPROJ
+    REVENT --> VIEWERCONSUMER[ViewerSessionBridge direct consumer]
     WORKER --> WREG[Worker NodeRegistry from attested agreement]
     WORKER --> VERIFY[Verify generation root and member digests]
     VERIFY --> FUNC[Lazy import + PythonFunctionAdapter]

@@ -319,14 +319,6 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         success, _message = self._try_post_command(command)
         return success
 
-    def _deliver_run_preflight_command(
-        self, command: WorkerCommand
-    ) -> tuple[bool, str]:
-        payload = self._encode_run_preflight_command(command)
-        with self._state_lock:
-            transport = self._pin_run_preflight_transport_locked()
-        return self._deliver_encoded_run_preflight_command(payload, transport)
-
     def _encode_run_preflight_command(self, command: WorkerCommand) -> str:
         payload = self._encode_command(command)
         return json.dumps(payload, ensure_ascii=True, separators=(",", ":")) + "\n"
