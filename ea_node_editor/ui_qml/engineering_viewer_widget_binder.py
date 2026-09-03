@@ -2508,7 +2508,9 @@ class EngineeringViewerWidgetBinder(QObject):
             detach = getattr(widget, "SetInteractor", None)
             if callable(detach):
                 detach(None)
-        camera_widgets = getattr(interactor, "camera_widgets", None)
+        # PyVista 0.47 stores widget collections directly on the plotter.
+        widgets = getattr(interactor, "widgets", interactor)
+        camera_widgets = getattr(widgets, "camera_widgets", None)
         if isinstance(camera_widgets, list) and widget in camera_widgets:
             camera_widgets.remove(widget)
         state.view_cube_widget = None

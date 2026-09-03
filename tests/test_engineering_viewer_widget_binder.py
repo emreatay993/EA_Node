@@ -9,7 +9,8 @@ import weakref
 import gc
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import PropertyMock, patch
 
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QImage
@@ -1081,6 +1082,26 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             self.assertTrue(all(call["show_scalar_bar"] is False for call in color_calls))
             binder.shutdown()
 
+    def test_view_cube_cleanup_uses_widget_component(self) -> None:
+        interactor = _FakeInteractor()
+        cube = interactor.add_camera_orientation_widget()
+        other_cube = interactor.add_camera_orientation_widget()
+        interactor.widgets = SimpleNamespace(camera_widgets=interactor.camera_widgets)
+        state = SimpleNamespace(view_cube_widget=cube)
+
+        with patch.object(
+            _FakeInteractor, "camera_widgets", new_callable=PropertyMock, create=True
+        ) as deprecated_camera_widgets:
+            deprecated_camera_widgets.side_effect = AssertionError(
+                "Deprecated Plotter.camera_widgets accessed"
+            )
+            EngineeringViewerWidgetBinder._remove_view_cube(interactor, state)
+
+        self.assertEqual(interactor.widgets.camera_widgets, [other_cube])
+        self.assertTrue(cube.disabled)
+        self.assertIsNone(cube.GetInteractor())
+        self.assertIsNone(state.view_cube_widget)
+
     def test_orientation_aids_world_axes_and_release_cleanup(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             surface_path = Path(temporary_directory) / "surface.vtp"
@@ -1189,6 +1210,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             )
             self.assertTrue(cube.disabled)
             self.assertTrue(triad.disabled)
+            self.assertEqual(widget.camera_widgets, [])
             self.assertEqual(state.world_axes_actors, [])
             self.assertEqual(state.triad_drag_observers, [])
             self.assertEqual(widget._observers, {})
