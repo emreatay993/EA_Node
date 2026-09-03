@@ -12,7 +12,11 @@ from ea_node_editor.graph.subnode_contract import (
 )
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
 from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
-from ea_node_editor.runtime_contracts import DataTypeCatalog, GRAPH_DATA_TYPE_ID
+from ea_node_editor.runtime_contracts import (
+    DataTypeCatalog,
+    DataTypeCompatibility,
+    GRAPH_DATA_TYPE_ID,
+)
 
 _FLOW_EDGE_KINDS = frozenset({"flow"})
 _CARDINAL_SIDES = ("top", "right", "bottom", "left")
@@ -102,22 +106,48 @@ def port_accepted_data_types(port: EffectivePort | PortSpec) -> tuple[str, ...]:
     return tuple(dict.fromkeys(declared))
 
 
+def port_compatibility(
+    source_port: EffectivePort | PortSpec,
+    target_port: EffectivePort | PortSpec,
+    *,
+    data_types: DataTypeCatalog,
+) -> DataTypeCompatibility:
+    source_type_id = str(source_port.data_type)
+    target_type_id = str(target_port.data_type)
+    if not are_port_kinds_compatible(source_port.kind, target_port.kind):
+        return DataTypeCompatibility(
+            status="incompatible",
+            source_type_id=source_type_id,
+            target_type_id=target_type_id,
+            reason_code="port_kind_mismatch",
+        )
+    source_kind = str(source_port.kind or "").strip().lower()
+    target_kind = str(target_port.kind or "").strip().lower()
+    if source_kind == "flow" or target_kind == "flow":
+        return DataTypeCompatibility(
+            status="assignable",
+            source_type_id="flow",
+            target_type_id="flow",
+            matched_type_id="flow",
+            reason_code="flow_kind_match",
+        )
+    return data_types.compatibility(
+        source_type_id,
+        target_type_id,
+        tuple(getattr(target_port, "accepted_data_types", ()) or ()),
+    )
+
+
 def ports_compatible(
     source_port: EffectivePort | PortSpec,
     target_port: EffectivePort | PortSpec,
     *,
     data_types: DataTypeCatalog,
 ) -> bool:
-    if not are_port_kinds_compatible(source_port.kind, target_port.kind):
-        return False
-    source_kind = str(source_port.kind or "").strip().lower()
-    target_kind = str(target_port.kind or "").strip().lower()
-    if source_kind == "flow" or target_kind == "flow":
-        return True
-    return data_types.compatibility(
-        str(source_port.data_type),
-        str(target_port.data_type),
-        tuple(getattr(target_port, "accepted_data_types", ()) or ()),
+    return port_compatibility(
+        source_port,
+        target_port,
+        data_types=data_types,
     ).is_compatible
 
 
@@ -482,6 +512,7 @@ __all__ = [
     "port_direction",
     "port_display_tier",
     "port_kind",
+    "port_compatibility",
     "port_supports_incoming_edge",
     "port_supports_outgoing_edge",
     "preferred_connection_port",

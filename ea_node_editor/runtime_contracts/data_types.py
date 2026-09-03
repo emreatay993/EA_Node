@@ -27,6 +27,7 @@ CompatibilityStatus = Literal[
 ]
 
 GRAPH_DATA_TYPE_ID = "COREX.DataTypes.Any"
+JSON_VALUE_DATA_TYPE_ID = "COREX.DataTypes.JsonValue"
 BOOLEAN_DATA_TYPE_ID = "COREX.DataTypes.Bool"
 INTEGER_DATA_TYPE_ID = "COREX.DataTypes.Int"
 DOUBLE_DATA_TYPE_ID = "COREX.DataTypes.Double"
@@ -44,7 +45,9 @@ TABULAR_WINDOW_REF_TYPE_ID = "COREX.Runtime.TabularWindowRef"
 ENGINEERING_SCENE_DATA_TYPE_ID = "COREX.Engineering.Scene"
 ENGINEERING_SELECTION_SET_DATA_TYPE_ID = "COREX.Engineering.SelectionSet"
 VIEWER_SESSION_DATA_TYPE_ID = "COREX.Viewer.Session"
+PLOT_EXPORT_BUNDLE_DATA_TYPE_ID = "COREX.Plot.ExportBundle"
 COREX_VIEWER_SESSION_HANDLE_KIND = "corex.viewer_session"
+CONNECTION_FALLBACK_CAPABILITY = "connection_fallback"
 MAX_PAYLOAD_SCHEMA_VERSION = 2_147_483_647
 
 _CARRIER_KINDS = frozenset({"native", "inline", "handle", "artifact"})
@@ -304,51 +307,64 @@ class DataTypeCatalog:
                 reason_code="unknown_source",
             )
 
-        unresolved_target = ""
+        best: tuple[int, DataTypeCompatibility] | None = None
         for candidate_id in (target_type_id, *tuple(accepted_type_ids)):
             target = self._types.get(candidate_id)
             if target is None:
-                if not unresolved_target:
-                    unresolved_target = candidate_id
-                continue
-            if self.is_assignable(source_type_id, candidate_id):
-                return DataTypeCompatibility(
+                candidate = DataTypeCompatibility(
+                    status="unresolved",
+                    source_type_id=source_type_id,
+                    target_type_id=target_type_id,
+                    matched_type_id=candidate_id,
+                    reason_code="unknown_target",
+                )
+                rank = 4
+            elif self.is_assignable(source_type_id, candidate_id):
+                exact = source_type_id == candidate_id
+                candidate = DataTypeCompatibility(
                     status="assignable",
                     source_type_id=source_type_id,
                     target_type_id=target_type_id,
                     matched_type_id=candidate_id,
-                    reason_code=(
-                        "exact"
-                        if source_type_id == candidate_id
-                        else "declared_parent"
-                    ),
+                    reason_code="exact" if exact else "declared_parent",
                 )
-            if (source_type_id, candidate_id) in self._conversions:
-                return DataTypeCompatibility(
+                rank = 0 if exact else 1
+            elif (source_type_id, candidate_id) in self._conversions:
+                candidate = DataTypeCompatibility(
                     status="convertible",
                     source_type_id=source_type_id,
                     target_type_id=target_type_id,
                     matched_type_id=candidate_id,
                     reason_code="direct_conversion",
                 )
-            source = self._types[source_type_id]
-            if source.abstract and self.is_assignable(candidate_id, source_type_id):
-                return DataTypeCompatibility(
+                rank = 2
+            elif self._types[source_type_id].abstract and self.is_assignable(
+                candidate_id, source_type_id
+            ):
+                candidate = DataTypeCompatibility(
                     status="runtime_check",
                     source_type_id=source_type_id,
                     target_type_id=target_type_id,
                     matched_type_id=candidate_id,
                     reason_code="abstract_source_descendant",
                 )
+                rank = 3
+            else:
+                candidate = DataTypeCompatibility(
+                    status="incompatible",
+                    source_type_id=source_type_id,
+                    target_type_id=target_type_id,
+                    reason_code="no_declared_relation",
+                )
+                rank = 5
 
-        if unresolved_target:
-            return DataTypeCompatibility(
-                status="unresolved",
-                source_type_id=source_type_id,
-                target_type_id=target_type_id,
-                matched_type_id=unresolved_target,
-                reason_code="unknown_target",
-            )
+            if best is None or rank < best[0]:
+                best = (rank, candidate)
+                if rank == 0:
+                    break
+
+        if best is not None:
+            return best[1]
         return DataTypeCompatibility(
             status="incompatible",
             source_type_id=source_type_id,
@@ -946,6 +962,7 @@ __all__ = [
     "ARRAY_DATA_REF_TYPE_ID",
     "ARRAY_SLICE_2D_REF_TYPE_ID",
     "BOOLEAN_DATA_TYPE_ID",
+    "CONNECTION_FALLBACK_CAPABILITY",
     "COREX_VIEWER_SESSION_HANDLE_KIND",
     "DataConversionSpec",
     "DataTypeCatalog",
@@ -962,8 +979,10 @@ __all__ = [
     "INTEGER_DATA_TYPE_ID",
     "INTERVAL_1D_GRAPH_DATA_TYPE_ID",
     "JSON_DATA_TYPE_ID",
+    "JSON_VALUE_DATA_TYPE_ID",
     "MAX_PAYLOAD_SCHEMA_VERSION",
     "PATH_DATA_TYPE_ID",
+    "PLOT_EXPORT_BUNDLE_DATA_TYPE_ID",
     "STRING_DATA_TYPE_ID",
     "STRING_LIST_DATA_TYPE_ID",
     "TABULAR_DATA_REF_TYPE_ID",

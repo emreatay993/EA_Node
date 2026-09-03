@@ -4,11 +4,10 @@ from dataclasses import dataclass, field
 
 from ea_node_editor.graph.effective_ports import (
     EffectivePort,
-    are_port_kinds_compatible,
     effective_ports,
     find_port,
     is_flow_edge_port,
-    ports_compatible,
+    port_compatibility,
     port_supports_incoming_edge,
     port_supports_outgoing_edge,
     target_port_has_capacity,
@@ -206,12 +205,14 @@ class GraphInvariantKernel:
             return None
         if require_exposed_ports and (not source_port.exposed or not target_port.exposed):
             return None
-        if require_compatible_ports and not ports_compatible(
-            source_port,
-            target_port,
-            data_types=self.registry.data_types,
-        ):
-            return None
+        if require_compatible_ports:
+            compatibility = port_compatibility(
+                source_port,
+                target_port,
+                data_types=self.registry.data_types,
+            )
+            if not compatibility.is_compatible:
+                return None
         if self._target_node_has_existing_input(
             target_node_id=target_node_id,
             target_port_keys=higher_precedence_conflicting_target_input_keys(
@@ -251,21 +252,17 @@ class GraphInvariantKernel:
             raise ValueError(f"Source port must support outgoing edges: {source_node_id}.{source_port_key}")
         if not port_supports_incoming_edge(target_port):
             raise ValueError(f"Target port must support incoming edges: {target_node_id}.{target_port_key}")
-        if not are_port_kinds_compatible(source_port.kind, target_port.kind):
+        compatibility = port_compatibility(
+            source_port,
+            target_port,
+            data_types=self.registry.data_types,
+        )
+        if compatibility.reason_code == "port_kind_mismatch":
             raise ValueError(
                 "Incompatible ports: "
                 f"{source_node_id}.{source_port_key} -> {target_node_id}.{target_port_key}"
             )
-        if not ports_compatible(
-            source_port,
-            target_port,
-            data_types=self.registry.data_types,
-        ):
-            compatibility = self.registry.data_types.compatibility(
-                str(source_port.data_type),
-                str(target_port.data_type),
-                tuple(target_port.accepted_data_types),
-            )
+        if not compatibility.is_compatible:
             raise ValueError(
                 "Incompatible data types: "
                 f"{source_node_id}.{source_port_key} ({source_port.data_type}) -> "

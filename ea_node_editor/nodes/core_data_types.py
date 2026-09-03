@@ -1,13 +1,12 @@
 # Purpose: Declare the runtime-ready core semantic graph-data type contribution.
 # Map: subsystems/nodes_registry_builtins.md
-# Tests: tests/test_registry_validation.py, tests/test_core_value_codecs.py
+# Tests: tests/test_core_value_types.py, tests/test_registry_validation.py, tests/test_core_value_codecs.py
 
 from __future__ import annotations
 
-import json
 import math
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from numbers import Real
 
 from ea_node_editor.common.payload_tools import (
@@ -24,6 +23,7 @@ from ea_node_editor.runtime_contracts import (
     ArrayDataRef,
     ArraySlice2DRef,
     BOOLEAN_DATA_TYPE_ID,
+    CONNECTION_FALLBACK_CAPABILITY,
     COREX_VIEWER_SESSION_HANDLE_KIND,
     DataTypeFamilySpec,
     DataTypeSpec,
@@ -37,7 +37,9 @@ from ea_node_editor.runtime_contracts import (
     INTERVAL_1D_GRAPH_DATA_TYPE_ID,
     Interval1D,
     JSON_DATA_TYPE_ID,
+    JSON_VALUE_DATA_TYPE_ID,
     PATH_DATA_TYPE_ID,
+    PLOT_EXPORT_BUNDLE_DATA_TYPE_ID,
     RuntimeArtifactRef,
     RuntimeHandleRef,
     STRING_DATA_TYPE_ID,
@@ -66,11 +68,13 @@ def _is_any(_value: object) -> bool:
 
 
 def _is_int(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
+    return type(value) is int and _is_json_value(value)
 
 
 def _is_real(value: object) -> bool:
-    return type(value) is int or (type(value) is float and math.isfinite(value))
+    return (
+        type(value) is int or (type(value) is float and math.isfinite(value))
+    ) and _is_json_value(value)
 
 
 def _copy_exact_json_collection_value(value: object) -> object:
@@ -93,14 +97,12 @@ def _copy_exact_json_collection_value(value: object) -> object:
     raise TypeError("graph collection requires exact built-in JSON values")
 
 
-def _is_json_container(value: object, container_type: type[object]) -> bool:
-    if type(value) is not container_type:
-        return False
+def _is_json_value(value: object) -> bool:
     try:
         detached = _copy_exact_json_collection_value(value)
         copy_json_safe(
             detached,
-            field_name="graph collection",
+            field_name="JSON value",
             max_encoded_bytes=INLINE_PAYLOAD_MAX_BYTES,
         )
     except Exception:
@@ -108,23 +110,36 @@ def _is_json_container(value: object, container_type: type[object]) -> bool:
     return True
 
 
-def _is_sequence(value: object) -> bool:
-    return isinstance(value, Sequence) and not isinstance(
-        value,
-        (str, bytes, bytearray),
-    )
+def _is_json_container(value: object, container_type: type[object]) -> bool:
+    return type(value) is container_type and _is_json_value(value)
 
 
 def _is_string_list(value: object) -> bool:
-    return _is_sequence(value) and all(isinstance(item, str) for item in value)
+    return (
+        type(value) is list
+        and all(type(item) is str for item in value)
+        and _is_json_value(value)
+    )
 
 
-def _is_json_value(value: object) -> bool:
-    try:
-        json.dumps(value)
-    except (TypeError, ValueError):
+def _is_string(value: object) -> bool:
+    return type(value) is str and _is_json_value(value)
+
+
+def _is_plot_export_bundle(value: object) -> bool:
+    if type(value) is not dict or set(value) != {
+        "static_export",
+        "data_export",
+        "static_metadata",
+        "data_metadata",
+    }:
         return False
-    return True
+    return (
+        type(value["static_export"]) is RuntimeArtifactRef
+        and type(value["data_export"]) is RuntimeArtifactRef
+        and _is_json_container(value["static_metadata"], dict)
+        and _is_json_container(value["data_metadata"], dict)
+    )
 
 
 def _is_path(value: object) -> bool:
@@ -221,6 +236,8 @@ CORE_DATA_TYPE_FAMILIES = (
 )
 
 _GRAPH_PARENT = (GRAPH_DATA_TYPE_ID,)
+_JSON_VALUE_PARENT = (JSON_VALUE_DATA_TYPE_ID,)
+_CONNECTION_FALLBACK_CAPABILITIES = frozenset({CONNECTION_FALLBACK_CAPABILITY})
 
 CORE_DATA_TYPES = (
     DataTypeSpec(
@@ -230,14 +247,23 @@ CORE_DATA_TYPES = (
         _is_any,
         abstract=True,
         carriers=frozenset({"native", "inline", "handle", "artifact"}),
+        capabilities=_CONNECTION_FALLBACK_CAPABILITIES,
+    ),
+    DataTypeSpec(
+        JSON_VALUE_DATA_TYPE_ID,
+        "JSON Value",
+        "graph",
+        _is_json_value,
+        parents=_GRAPH_PARENT,
+        abstract=True,
     ),
     DataTypeSpec(
         BOOLEAN_DATA_TYPE_ID,
         "Boolean",
         "scalar",
-        lambda value: isinstance(value, bool),
+        lambda value: type(value) is bool,
         _coerce_bool,
-        parents=_GRAPH_PARENT,
+        parents=_JSON_VALUE_PARENT,
         persistence="inline",
     ),
     DataTypeSpec(
@@ -246,7 +272,7 @@ CORE_DATA_TYPES = (
         "scalar",
         _is_int,
         _coerce_int,
-        parents=_GRAPH_PARENT,
+        parents=_JSON_VALUE_PARENT,
         persistence="inline",
     ),
     DataTypeSpec(
@@ -255,16 +281,16 @@ CORE_DATA_TYPES = (
         "scalar",
         _is_real,
         _coerce_double,
-        parents=_GRAPH_PARENT,
+        parents=_JSON_VALUE_PARENT,
         persistence="inline",
     ),
     DataTypeSpec(
         STRING_DATA_TYPE_ID,
         "Text",
         "scalar",
-        lambda value: isinstance(value, str),
+        _is_string,
         str,
-        parents=_GRAPH_PARENT,
+        parents=_JSON_VALUE_PARENT,
         persistence="inline",
     ),
     DataTypeSpec(
@@ -272,14 +298,16 @@ CORE_DATA_TYPES = (
         "Dictionary",
         "container",
         lambda value: _is_json_container(value, dict),
-        parents=_GRAPH_PARENT,
+        parents=_JSON_VALUE_PARENT,
+        capabilities=_CONNECTION_FALLBACK_CAPABILITIES,
     ),
     DataTypeSpec(
         GRAPH_ARRAY_DATA_TYPE_ID,
         "Array",
         "container",
         lambda value: _is_json_container(value, list),
-        parents=_GRAPH_PARENT,
+        parents=_JSON_VALUE_PARENT,
+        capabilities=_CONNECTION_FALLBACK_CAPABILITIES,
     ),
     DataTypeSpec(
         INTERVAL_1D_GRAPH_DATA_TYPE_ID,
@@ -305,16 +333,24 @@ CORE_DATA_TYPES = (
         "JSON",
         "corex_data",
         _is_json_value,
-        parents=_GRAPH_PARENT,
+        parents=_JSON_VALUE_PARENT,
         persistence="inline",
+        capabilities=_CONNECTION_FALLBACK_CAPABILITIES,
     ),
     DataTypeSpec(
         STRING_LIST_DATA_TYPE_ID,
         "Text List",
         "corex_data",
         _is_string_list,
-        parents=_GRAPH_PARENT,
+        parents=_JSON_VALUE_PARENT,
         persistence="inline",
+    ),
+    DataTypeSpec(
+        PLOT_EXPORT_BUNDLE_DATA_TYPE_ID,
+        "Plot Export Bundle",
+        "container",
+        _is_plot_export_bundle,
+        parents=_GRAPH_PARENT,
     ),
     DataTypeSpec(
         ARRAY_DATA_REF_TYPE_ID,
@@ -404,7 +440,9 @@ __all__ = [
     "INTEGER_DATA_TYPE_ID",
     "INTERVAL_1D_GRAPH_DATA_TYPE_ID",
     "JSON_DATA_TYPE_ID",
+    "JSON_VALUE_DATA_TYPE_ID",
     "PATH_DATA_TYPE_ID",
+    "PLOT_EXPORT_BUNDLE_DATA_TYPE_ID",
     "STRING_DATA_TYPE_ID",
     "STRING_LIST_DATA_TYPE_ID",
     "TABULAR_DATA_REF_TYPE_ID",

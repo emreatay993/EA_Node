@@ -427,36 +427,74 @@ def test_direct_conversion_works_but_conversion_chaining_is_never_searched() -> 
         catalog.convert_typed_input("Test.A", "Test.C", "4")
 
 
-def test_accepted_union_uses_primary_then_explicit_declaration_order() -> None:
+def test_accepted_union_uses_strongest_relation_then_declaration_order() -> None:
     catalog = catalog_with(
-        type_spec("Test.Source"),
+        type_spec("Test.Parent", abstract=True),
+        type_spec("Test.Source", parents=("Test.Parent",)),
         type_spec("Test.Primary"),
         type_spec("Test.First"),
         type_spec("Test.Second"),
+        type_spec("Test.Interface", abstract=True),
+        type_spec("Test.Concrete", parents=("Test.Interface",)),
+        type_spec("Test.Converted"),
         conversions=(
             DataConversionSpec("Test.Source", "Test.Primary", lambda value: value),
             DataConversionSpec("Test.Source", "Test.First", lambda value: value),
             DataConversionSpec("Test.Source", "Test.Second", lambda value: value),
+            DataConversionSpec("Test.Interface", "Test.Converted", lambda value: value),
         ),
     )
 
-    primary = catalog.compatibility(
+    exact = catalog.compatibility(
+        "Test.Source",
+        "Test.Primary",
+        ("Test.First", "Test.Source"),
+    )
+    assert exact.status == "assignable"
+    assert exact.reason_code == "exact"
+    assert exact.matched_type_id == "Test.Source"
+
+    parent = catalog.compatibility(
+        "Test.Source",
+        "Test.Primary",
+        ("Test.Parent",),
+    )
+    assert parent.status == "assignable"
+    assert parent.reason_code == "declared_parent"
+    assert parent.matched_type_id == "Test.Parent"
+
+    first_conversion = catalog.compatibility(
         "Test.Source",
         "Test.Primary",
         ("Test.First", "Test.Second"),
     )
-    assert primary.status == "convertible"
-    assert primary.is_compatible
-    assert primary.matched_type_id == "Test.Primary"
+    assert first_conversion.status == "convertible"
+    assert first_conversion.is_compatible
+    assert first_conversion.matched_type_id == "Test.Primary"
 
-    accepted = catalog.compatibility(
-        "Test.Source",
-        "Test.Unrelated",
-        ("Test.First", "Test.Second"),
+    conversion_over_runtime_check = catalog.compatibility(
+        "Test.Interface",
+        "Test.Concrete",
+        ("Test.Converted",),
     )
-    assert accepted.status == "convertible"
-    assert accepted.is_compatible
-    assert accepted.matched_type_id == "Test.First"
+    assert conversion_over_runtime_check.status == "convertible"
+    assert conversion_over_runtime_check.matched_type_id == "Test.Converted"
+
+    exact_after_unresolved = catalog.compatibility(
+        "Test.Source",
+        "Test.Missing",
+        ("Test.Source",),
+    )
+    assert exact_after_unresolved.status == "assignable"
+    assert exact_after_unresolved.matched_type_id == "Test.Source"
+
+    first_unresolved = catalog.compatibility(
+        "Test.Source",
+        "Test.Missing",
+        ("Test.AlsoMissing",),
+    )
+    assert first_unresolved.status == "unresolved"
+    assert first_unresolved.matched_type_id == "Test.Missing"
     assert not catalog.compatibility(
         "Test.Source",
         "Test.Unrelated",

@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from ea_node_editor.graph.effective_ports import (
-    are_port_kinds_compatible,
     find_port,
+    port_compatibility,
     port_data_access,
     port_kind,
 )
@@ -104,20 +104,13 @@ def _data_type_warning_reason(
         return "missing_source_port"
     if target_port is None:
         return "missing_target_port"
-    source_kind = str(getattr(source_port, "kind", "") or "").strip().lower()
-    target_kind = str(getattr(target_port, "kind", "") or "").strip().lower()
-    if not are_port_kinds_compatible(
-        source_kind,
-        target_kind,
-    ):
-        return "incompatible_port_kind"
-    if source_kind == "flow":
-        return ""
-    compatibility = data_types.compatibility(
-        str(getattr(source_port, "data_type", "")),
-        str(getattr(target_port, "data_type", "")),
-        tuple(getattr(target_port, "accepted_data_types", ()) or ()),
+    compatibility = port_compatibility(
+        source_port,
+        target_port,
+        data_types=data_types,
     )
+    if compatibility.reason_code == "port_kind_mismatch":
+        return "incompatible_port_kind"
     if compatibility.is_compatible:
         return ""
     if compatibility.reason_code in {

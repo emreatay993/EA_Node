@@ -4,6 +4,7 @@ import copy
 import base64
 import json
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 
@@ -32,9 +33,21 @@ from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import (
+    BOOLEAN_DATA_TYPE_ID,
+    CONNECTION_FALLBACK_CAPABILITY,
     DataTree,
+    DOUBLE_DATA_TYPE_ID,
+    GRAPH_ARRAY_DATA_TYPE_ID,
+    GRAPH_DICTIONARY_DATA_TYPE_ID,
     ImageValue,
+    INTEGER_DATA_TYPE_ID,
+    JSON_DATA_TYPE_ID,
+    JSON_VALUE_DATA_TYPE_ID,
+    PATH_DATA_TYPE_ID,
+    PLOT_EXPORT_BUNDLE_DATA_TYPE_ID,
     RuntimeArtifactRef,
+    STRING_DATA_TYPE_ID,
+    STRING_LIST_DATA_TYPE_ID,
     TypedInlineValue,
     deserialize_runtime_value,
     serialize_runtime_value,
@@ -66,6 +79,107 @@ def _registry() -> NodeRegistry:
         owner_version=COREX_CORE_VALUE_OWNER_VERSION,
     )
     return registry
+
+
+def test_json_value_hierarchy_is_exact_bounded_and_marks_broad_types() -> None:
+    catalog = _registry().data_types
+    json_value = catalog.require(JSON_VALUE_DATA_TYPE_ID)
+    assert json_value.abstract
+    assert json_value.parents == (GRAPH_DATA_TYPE_ID,)
+
+    valid = (
+        None,
+        True,
+        4,
+        2.5,
+        "value",
+        [None, False, 3, 1.5, "nested"],
+        {"items": [1, {"ok": True}]},
+    )
+    assert all(json_value.validate_item(value) for value in valid)
+
+    too_deep: object = "leaf"
+    for _ in range(34):
+        too_deep = [too_deep]
+    invalid = (
+        float("nan"),
+        float("inf"),
+        (1, 2),
+        {1: "non-string key"},
+        {"nested": {"__ea_runtime_value__": "artifact_ref"}},
+        MappingProxyType({"mapping": True}),
+        object(),
+        "x" * (1024 * 1024),
+        too_deep,
+    )
+    assert all(not json_value.validate_item(value) for value in invalid)
+
+    json_children = (
+        BOOLEAN_DATA_TYPE_ID,
+        INTEGER_DATA_TYPE_ID,
+        DOUBLE_DATA_TYPE_ID,
+        STRING_DATA_TYPE_ID,
+        GRAPH_ARRAY_DATA_TYPE_ID,
+        GRAPH_DICTIONARY_DATA_TYPE_ID,
+        JSON_DATA_TYPE_ID,
+        STRING_LIST_DATA_TYPE_ID,
+    )
+    assert all(
+        catalog.is_assignable(type_id, JSON_VALUE_DATA_TYPE_ID)
+        for type_id in json_children
+    )
+    assert not catalog.require(STRING_DATA_TYPE_ID).validate_item(invalid[-2])
+    assert not catalog.require(STRING_LIST_DATA_TYPE_ID).validate_item(("tuple",))
+    assert not catalog.require(JSON_DATA_TYPE_ID).validate_item(float("nan"))
+
+    for type_id in (
+        GRAPH_DATA_TYPE_ID,
+        JSON_DATA_TYPE_ID,
+        GRAPH_ARRAY_DATA_TYPE_ID,
+        GRAPH_DICTIONARY_DATA_TYPE_ID,
+    ):
+        assert CONNECTION_FALLBACK_CAPABILITY in catalog.require(type_id).capabilities
+    assert CONNECTION_FALLBACK_CAPABILITY not in json_value.capabilities
+
+
+def test_plot_export_bundle_requires_exact_refs_and_bounded_json_metadata() -> None:
+    catalog = _registry().data_types
+    refs = tuple(
+        RuntimeArtifactRef.staged(
+            artifact_id,
+            data_type_id=PATH_DATA_TYPE_ID,
+            schema_version=1,
+            format=format_name,
+            size_bytes=0,
+            sha256="0" * 64,
+            provenance="corex.test.fixture",
+        )
+        for artifact_id, format_name in (("plot_static", "png"), ("plot_data", "csv"))
+    )
+    bundle = {
+        "static_export": refs[0],
+        "data_export": refs[1],
+        "static_metadata": {"backend_id": "test"},
+        "data_metadata": {"rows": 3, "columns": ["x", "y"]},
+    }
+    spec = catalog.require(PLOT_EXPORT_BUNDLE_DATA_TYPE_ID)
+    assert spec.parents == (GRAPH_DATA_TYPE_ID,)
+    assert spec.family_id == "container"
+    assert spec.carriers == frozenset({"native"})
+    assert spec.persistence == "never"
+    assert spec.validate_item(bundle)
+    catalog.validate_output(PLOT_EXPORT_BUNDLE_DATA_TYPE_ID, bundle)
+
+    invalid = (
+        {key: value for key, value in bundle.items() if key != "data_export"},
+        {**bundle, "extra": None},
+        {**bundle, "static_export": refs[0].to_payload(catalog=catalog)},
+        {**bundle, "static_metadata": {"nested_ref": refs[0]}},
+        {**bundle, "data_metadata": {"value": float("inf")}},
+        {**bundle, "data_metadata": {"blob": "x" * (1024 * 1024)}},
+        MappingProxyType(bundle),
+    )
+    assert all(not spec.validate_item(value) for value in invalid)
 
 
 
