@@ -102,6 +102,16 @@ TestCase {
         verify(!Presentation.actionIconOnly(action))
         verify(Presentation.actionChecked(action))
         compare(Presentation.childActions(action, "menuActions")[0].id, "child")
+
+        var fontSizeAction = {"label": "Text size", "toolbar_text": "24"}
+        compare(Presentation.actionToolbarText(fontSizeAction), "24")
+        compare(Presentation.actionToolbarIcon(fontSizeAction), "")
+        verify(!Presentation.actionIconOnly(fontSizeAction))
+
+        var pdfAction = {"label": "Navigate", "icon": "navigate"}
+        compare(Presentation.actionToolbarText(pdfAction), "Navigate")
+        compare(Presentation.actionToolbarIcon(pdfAction), "navigate")
+        verify(Presentation.actionIconOnly(pdfAction))
     }
 
     function test_order_filter_checked_and_menu_projection_are_stable() {

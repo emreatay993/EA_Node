@@ -6,6 +6,7 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 ## Start Here
 - `tests/qml_quick/tst_graph_node_host.qml`
 - `tests/qml_quick/tst_graph_surface_controls.qml`
+- `tests/qml_quick/tst_graph_node_toolbar_popover_host.qml`
 - `tests/qml_quick/tst_graph_canvas_surface_editor_overlays.qml`
 - `tests/qml_quick/tst_edge_paint_policy.qml`
 - `tests/qml_quick/tst_secret_editor.qml`
@@ -63,7 +64,8 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 - T21 extends `tests/qml_quick/tst_graph_node_host.qml` with the direct `GraphNodePortRow` owner contract: normalized descendant/parent topology, exact geometry and Item/Loader/Canvas counts across unlocked and locked input/output rows, direction-only child identity, default override, flow/type/accessibility consumption, and dynamic remove/label-edit geometry. Python graph-surface tests retain scene projection, real mutations/history, host shadow/notch integration, and loaded-surface ownership rather than duplicating the row-local markup checks.
 - `tests/qml_quick/tst_graph_node_port_context_menu.qml` owns the direct port Menu root/order/check state, open/close, modifier/Principal/dynamic layer calls, data visibility, and read-only guards. `tests/test_graph_surface_input_controls.py`, `tests/test_data_tree_ui.py`, and `tests/test_dataflow_graph_persistence.py` retain real command, mutation/history, Principal exclusivity, sparse-state cleanup, and persistence behavior.
 - `tests/qml_quick/tst_graph_action_presentation.qml` owns pure action descriptor lookup, edge normalization/choices/menu/toolbar state, action fields and child extraction, stable grouping/filtering/checked indexes/menu projection, and node context/common/available action composition. Existing graph-action, context/options, edge/node toolbar, media/viewer/plot, bridge, and snapshot tests retain dispatch, policy, lifecycle, and integration.
-- `tests/qml_quick/tst_graph_surface_controls.qml` owns pure-QML graph-surface control geometry, styling, native input, commit timing, dropdown state, filtering, inline fit-width behavior, node floating-toolbar action/popover behavior, and selection-envelope overlay behavior. Python retains the surrounding source, fullscreen bridge, scene/model, and provider contracts.
+- `tests/qml_quick/tst_graph_node_toolbar_popover_host.qml` owns the direct popover root/parent topology, toolbar-coordinate placement, same-owner toggle/flush behavior, bookmark refresh, font-size preview/commit/bounds, PDF navigation, source-storage selection, and font-family focus/filter/dispatch. These replace the five panel-local selectors formerly in `tst_graph_surface_controls.qml`.
+- `tests/qml_quick/tst_graph_surface_controls.qml` owns pure-QML graph-surface control geometry, styling, native input, commit timing, dropdown state, filtering, inline fit-width behavior, node-toolbar chrome/primary-button/public-open/run-menu integration, and selection-envelope overlay behavior. Python retains the surrounding source, fullscreen bridge, scene/model, and provider contracts.
 - `tests/qml_quick/tst_graph_canvas_surface_editor_overlays.qml` owns direct Web/Timestamp/Number Slider/Select/Panel layer identity, open/focus/position, active-toolbar reopen, outside-click cancellation, and commit callbacks. Real canvas and bridge tests retain loaded-surface identity, GraphCanvas dispatch, scene mutation, and Canvas-export exclusion.
 - `tests/test_planning_annotation_catalog.py` retains catalogue and metric facts; `tests/test_flowchart_surfaces.py` retains geometry and Python-owned drop-preview integration; `tests/test_group_backdrop_contracts.py` retains its seven catalogue/model/serialization facts. Their former pure-QML launch wrappers are not fallback coverage.
 - Keep Python QML probes for `GraphSceneBridge` and graph-model integration, registries, media providers/decoders, platform behavior, static source contracts, and shared-worker lifecycle/crash recovery. Qt Quick Test does not receive those Python-owned contexts.
@@ -91,6 +93,7 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 $env:QT_QPA_PLATFORM = "offscreen"
 $env:QT_QUICK_CONTROLS_STYLE = "Basic"
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_surface_controls.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
+& (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_node_toolbar_popover_host.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_canvas_surface_editor_overlays.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_edge_paint_policy.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_contract.py tests/test_graph_surface_input_inline.py tests/test_passive_graph_surface_host.py tests/test_media_panel_qml_surface.py tests/test_passive_image_nodes.py --ignore=venv -q

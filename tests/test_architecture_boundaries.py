@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import re
 import unittest
 from pathlib import Path
 
@@ -2642,6 +2643,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             qml_root / "graph_canvas/GraphCanvasOptionsMenu.qml",
             qml_root / "graph/overlay/GraphEdgeFloatingToolbar.qml",
             qml_root / "graph/overlay/GraphNodeFloatingToolbar.qml",
+            qml_root / "graph/overlay/GraphNodeToolbarPopoverHost.qml",
             qml_root / "graph/GraphNodeHost.qml",
         )
         consumer_texts = {
@@ -2737,6 +2739,117 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                 for name in ("Item", "QtObject", "Timer", "Loader")
             },
             {"Item": 14, "QtObject": 2, "Timer": 0, "Loader": 7},
+        )
+
+    def test_graph_node_toolbar_popover_host_directly_replaces_inline_owner(self) -> None:
+        overlay_root = REPO_ROOT / "ea_node_editor/ui_qml/components/graph/overlay"
+        toolbar_text = (overlay_root / "GraphNodeFloatingToolbar.qml").read_text(
+            encoding="utf-8"
+        )
+        owner_text = (overlay_root / "GraphNodeToolbarPopoverHost.qml").read_text(
+            encoding="utf-8"
+        )
+
+        def declaration_count(text: str, type_name: str) -> int:
+            return sum(line.strip() == f"{type_name} {{" for line in text.splitlines())
+
+        self.assertTrue(owner_text.startswith("import QtQuick 2.15\n"))
+        self.assertEqual(toolbar_text.count("GraphNodeToolbarPopoverHost {"), 1)
+        self.assertNotIn(
+            'objectName: "graphNodeFloatingToolbarActionPopoverBridge"', toolbar_text
+        )
+        self.assertEqual(
+            owner_text.count(
+                'objectName: "graphNodeFloatingToolbarActionPopoverBridge"'
+            ),
+            1,
+        )
+        self.assertIn("property Item toolbar: null", owner_text)
+        self.assertIn("toolbar: root", toolbar_text)
+        self.assertIn(
+            "function openActionPopover(action, anchorItem) {\n"
+            "        actionPopoverHost.openActionPopover(action, anchorItem);\n"
+            "    }",
+            toolbar_text,
+        )
+
+        for property_name in (
+            "actionPopoverVisible",
+            "actionPopoverActions",
+            "actionPopoverLayout",
+            "actionPopoverFontSizeDirty",
+            "actionPopoverFilterText",
+        ):
+            with self.subTest(property_name=property_name):
+                self.assertIn(f"property alias {property_name}: actionPopoverHost.", toolbar_text)
+                self.assertRegex(
+                    owner_text,
+                    rf"property (?:bool|string|var) {property_name}:",
+                )
+
+        combined = toolbar_text + "\n" + owner_text
+        self.assertEqual(
+            {
+                name: declaration_count(combined, name)
+                for name in (
+                    "Item",
+                    "QtObject",
+                    "Timer",
+                    "Loader",
+                    "Connections",
+                    "Binding",
+                    "Repeater",
+                )
+            },
+            {
+                "Item": 8,
+                "QtObject": 0,
+                "Timer": 0,
+                "Loader": 0,
+                "Connections": 0,
+                "Binding": 2,
+                "Repeater": 4,
+            },
+        )
+        self.assertNotIn("Loader {", owner_text)
+        self.assertNotIn("Timer {", owner_text)
+        self.assertNotIn("QtObject {", owner_text)
+        self.assertNotIn("Connections {", owner_text)
+        self.assertNotIn("Binding {", owner_text)
+        self.assertNotIn("factory", owner_text.lower())
+        self.assertNotIn("registry", owner_text.lower())
+
+        self.assertEqual(
+            re.findall(r'objectName:\s*"([^"\n]+)', owner_text),
+            [
+                "graphNodeFloatingToolbarActionPopoverBridge",
+                "graphNodeFloatingToolbarActionPopover",
+                "graphNodeFloatingToolbarPopoverAction_",
+                "graphNodeFloatingToolbarSourceStoragePanel",
+                "graphNodeFloatingToolbarSourceStorageCombo",
+                "graphNodeFloatingToolbarSourceBrowseButton",
+                "graphNodeFloatingToolbarVideoBookmarksPanel",
+                "graphNodeFloatingToolbarVideoBookmarkScroll",
+                "graphNodeFloatingToolbarVideoBookmarkList",
+                "graphNodeFloatingToolbarPopoverAction_",
+                "graphNodeFloatingToolbarVideoBookmarkLabel_",
+                "graphNodeFloatingToolbarVideoBookmarkJump_",
+                "graphNodeFloatingToolbarVideoBookmarkDelete_",
+                "graphNodeFloatingToolbarFontSizePanel",
+                "graphNodeFloatingToolbarFontSizeField",
+                "graphNodeFloatingToolbarFontSizeSlider",
+                "graphNodeFloatingToolbarFontSizeStepper",
+                "graphNodeFloatingToolbarPopoverAction_",
+                "graphNodeFloatingToolbarPdfPagePanel",
+                "graphNodeFloatingToolbarPopoverAction_pdf_page_previous",
+                "graphNodeFloatingToolbarPdfPageField",
+                "graphNodeFloatingToolbarPdfPageTotalLabel",
+                "graphNodeFloatingToolbarPopoverAction_pdf_page_next",
+                "graphNodeFloatingToolbarFontFamilyPanel",
+                "graphNodeFloatingToolbarFontFamilyField",
+                "graphNodeFloatingToolbarFontFamilyList",
+                "graphNodeFloatingToolbarPopoverAction_",
+            ],
         )
 
     def test_closeout_docs_publish_architecture_residual_matrix_from_packet_owned_surfaces(self) -> None:

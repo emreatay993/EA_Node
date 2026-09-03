@@ -1,6 +1,6 @@
 # COREX Runtime, Registry, and Presentation Ownership Refactor
 
-Status: `CHECKPOINT — T23 ACCEPTED; NEXT T24`
+Status: `CHECKPOINT — T24 ACCEPTED; NEXT T25`
 
 ## Summary
 
@@ -905,6 +905,10 @@ No aliases or deprecated forwarding modules remain for these changes:
     collection.
   - Update `verification_manifest.py` only for actual path/catalog changes;
     retain Qt Quick before Python GUI and canonical phase semantics.
+  - Harden the shared `hover_host_local_point` helper so it always forces an
+    outside-to-target pointer transition, then prove both sibling test orders in
+    the existing persistent probe process. Do not solve this by isolating every
+    test/process.
   - If no residual test or route change is justified, record an accepted no-op
     rather than manufacture one.
 - **Verification:** ledger validator, before/after collection, authoritative QML
@@ -913,8 +917,8 @@ No aliases or deprecated forwarding modules remain for these changes:
 - **Performance:** compare old and replacement test cohorts; product timing
   remains advisory and unchanged by test-only work.
 - **Non-goals:** no runner replacement, fixture rescope, timeout reduction,
-  in-process collapse of crash boundaries, generic fake hierarchy, or wholesale
-  source-assertion deletion.
+  in-process collapse of crash boundaries, per-test process isolation, generic
+  fake hierarchy, or wholesale source-assertion deletion.
 - **Commit:** `Reown remaining shell tests` when non-no-op.
 - **Packetization notes:** `PB12`.
 

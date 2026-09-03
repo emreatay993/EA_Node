@@ -27,6 +27,9 @@ _TOOLBAR_QML_PATH = (
     / "overlay"
     / "GraphNodeFloatingToolbar.qml"
 )
+_POPOVER_HOST_QML_PATH = _TOOLBAR_QML_PATH.with_name(
+    "GraphNodeToolbarPopoverHost.qml"
+)
 
 
 def _load_positioning_engine() -> QJSEngine:
@@ -169,7 +172,7 @@ class FloatingToolbarPositioningTests(unittest.TestCase):
         self.assertAlmostEqual(float(from_flipped["y"]), 22.0, places=4)
 
     def test_action_popover_reposition_is_thresholded(self) -> None:
-        qml = _TOOLBAR_QML_PATH.read_text(encoding="utf-8")
+        qml = _POPOVER_HOST_QML_PATH.read_text(encoding="utf-8")
 
         self.assertIn("function _positionActionPopoverIfSizeMoved()", qml)
         self.assertIn(">= 0.5", qml)

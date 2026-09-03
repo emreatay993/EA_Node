@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 174,
+    "qml_files": 175,
     "repeater_constructs": 98,
     "loader_constructs": 24,
-    "signal_handlers": 884,
+    "signal_handlers": 888,
     "connections": 47,
-    "property_bindings": 7607,
-    "local_component_refs": 277
+    "property_bindings": 7640,
+    "local_component_refs": 279
   },
   "entries": [
     {
@@ -32256,106 +32256,7 @@
           "name": "trailingDivider"
         },
         {
-          "name": "actionPopoverBridge"
-        },
-        {
-          "name": "actionPopoverBridgeHoverHandler"
-        },
-        {
-          "name": "actionPopover"
-        },
-        {
-          "name": "actionPopoverHoverHandler"
-        },
-        {
-          "name": "actionPopoverContent"
-        },
-        {
-          "name": "actionPopoverRow"
-        },
-        {
-          "name": "popoverActionButton"
-        },
-        {
-          "name": "sourceStoragePopoverPanel"
-        },
-        {
-          "name": "sourceStorageCombo"
-        },
-        {
-          "name": "sourceStorageBrowseButton"
-        },
-        {
-          "name": "videoBookmarksPopoverPanel"
-        },
-        {
-          "name": "videoBookmarkScroll"
-        },
-        {
-          "name": "videoBookmarkColumn"
-        },
-        {
-          "name": "videoBookmarkDelegate"
-        },
-        {
-          "name": "addBookmarkButton"
-        },
-        {
-          "name": "bookmarkRowContent"
-        },
-        {
-          "name": "bookmarkLabelField"
-        },
-        {
-          "name": "jumpBookmarkButton"
-        },
-        {
-          "name": "deleteBookmarkButton"
-        },
-        {
-          "name": "fontSizePopoverPanel"
-        },
-        {
-          "name": "fontSizeField"
-        },
-        {
-          "name": "fontSizeSlider"
-        },
-        {
-          "name": "fontSizeStepper"
-        },
-        {
-          "name": "fontSizeStepperRow"
-        },
-        {
-          "name": "fontSizeStepButton"
-        },
-        {
-          "name": "pdfPagePopoverPanel"
-        },
-        {
-          "name": "pdfPreviousButton"
-        },
-        {
-          "name": "pdfPageField"
-        },
-        {
-          "name": "pdfNextButton"
-        },
-        {
-          "name": "fontFamilyPopoverPanel"
-        },
-        {
-          "name": "fontFamilySearchField"
-        },
-        {
-          "name": "fontFamilyListFrame"
-        },
-        {
-          "name": "fontFamilyList"
-        },
-        {
-          "name": "fontFamilyActionButton"
+          "name": "actionPopoverHost"
         },
         {
           "name": "runMenuBridge"
@@ -32391,78 +32292,6 @@
         },
         {
           "name": "graphNodeFloatingToolbarActionMenu_"
-        },
-        {
-          "name": "graphNodeFloatingToolbarActionPopoverBridge"
-        },
-        {
-          "name": "graphNodeFloatingToolbarActionPopover"
-        },
-        {
-          "name": "graphNodeFloatingToolbarPopoverAction_"
-        },
-        {
-          "name": "graphNodeFloatingToolbarSourceStoragePanel"
-        },
-        {
-          "name": "graphNodeFloatingToolbarSourceStorageCombo"
-        },
-        {
-          "name": "graphNodeFloatingToolbarSourceBrowseButton"
-        },
-        {
-          "name": "graphNodeFloatingToolbarVideoBookmarksPanel"
-        },
-        {
-          "name": "graphNodeFloatingToolbarVideoBookmarkScroll"
-        },
-        {
-          "name": "graphNodeFloatingToolbarVideoBookmarkList"
-        },
-        {
-          "name": "graphNodeFloatingToolbarVideoBookmarkLabel_"
-        },
-        {
-          "name": "graphNodeFloatingToolbarVideoBookmarkJump_"
-        },
-        {
-          "name": "graphNodeFloatingToolbarVideoBookmarkDelete_"
-        },
-        {
-          "name": "graphNodeFloatingToolbarFontSizePanel"
-        },
-        {
-          "name": "graphNodeFloatingToolbarFontSizeField"
-        },
-        {
-          "name": "graphNodeFloatingToolbarFontSizeSlider"
-        },
-        {
-          "name": "graphNodeFloatingToolbarFontSizeStepper"
-        },
-        {
-          "name": "graphNodeFloatingToolbarPdfPagePanel"
-        },
-        {
-          "name": "graphNodeFloatingToolbarPopoverAction_pdf_page_previous"
-        },
-        {
-          "name": "graphNodeFloatingToolbarPdfPageField"
-        },
-        {
-          "name": "graphNodeFloatingToolbarPdfPageTotalLabel"
-        },
-        {
-          "name": "graphNodeFloatingToolbarPopoverAction_pdf_page_next"
-        },
-        {
-          "name": "graphNodeFloatingToolbarFontFamilyPanel"
-        },
-        {
-          "name": "graphNodeFloatingToolbarFontFamilyField"
-        },
-        {
-          "name": "graphNodeFloatingToolbarFontFamilyList"
         },
         {
           "name": "graphNodeFloatingToolbarRunMenuBridge"
@@ -32689,91 +32518,83 @@
           "name": "runMenuActions"
         },
         {
-          "kind": "bool",
+          "kind": "alias",
           "name": "actionPopoverVisible"
         },
         {
-          "kind": "real",
+          "kind": "alias",
           "name": "actionPopoverX"
         },
         {
-          "kind": "real",
+          "kind": "alias",
           "name": "actionPopoverY"
         },
         {
-          "kind": "real",
-          "name": "_lastPositionedActionPopoverImplicitWidth"
-        },
-        {
-          "kind": "real",
-          "name": "_lastPositionedActionPopoverImplicitHeight"
-        },
-        {
-          "kind": "real",
+          "kind": "alias",
           "name": "actionPopoverAnchorCenterX"
         },
         {
-          "kind": "string",
+          "kind": "alias",
           "name": "actionPopoverOwnerId"
         },
         {
-          "kind": "string",
+          "kind": "alias",
           "name": "actionPopoverLayout"
         },
         {
-          "kind": "var",
+          "kind": "alias",
           "name": "actionPopoverActions"
         },
         {
-          "kind": "string",
+          "kind": "alias",
           "name": "actionPopoverActionKind"
         },
         {
-          "kind": "int",
+          "kind": "alias",
           "name": "actionPopoverFontSizeValue"
         },
         {
-          "kind": "int",
+          "kind": "alias",
           "name": "actionPopoverFontSizeMin"
         },
         {
-          "kind": "int",
+          "kind": "alias",
           "name": "actionPopoverFontSizeMax"
         },
         {
-          "kind": "string",
+          "kind": "alias",
           "name": "actionPopoverFontSizeSetActionPrefix"
         },
         {
-          "kind": "string",
+          "kind": "alias",
           "name": "actionPopoverFontSizePreviewActionPrefix"
         },
         {
-          "kind": "bool",
+          "kind": "alias",
           "name": "actionPopoverFontSizeDirty"
         },
         {
-          "kind": "int",
+          "kind": "alias",
           "name": "actionPopoverPageValue"
         },
         {
-          "kind": "int",
+          "kind": "alias",
           "name": "actionPopoverPageMin"
         },
         {
-          "kind": "int",
+          "kind": "alias",
           "name": "actionPopoverPageMax"
         },
         {
-          "kind": "string",
+          "kind": "alias",
           "name": "actionPopoverPageSetActionPrefix"
         },
         {
-          "kind": "int",
+          "kind": "alias",
           "name": "actionPopoverSourceStorageIndex"
         },
         {
-          "kind": "string",
+          "kind": "alias",
           "name": "actionPopoverFilterText"
         },
         {
@@ -32895,50 +32716,6 @@
         {
           "kind": "bool",
           "name": "_showLeadingSeparator"
-        },
-        {
-          "kind": "real",
-          "name": "innerPadding"
-        },
-        {
-          "kind": "int",
-          "name": "preferredWidth"
-        },
-        {
-          "kind": "int",
-          "name": "preferredHeight"
-        },
-        {
-          "kind": "var",
-          "name": "actionData"
-        },
-        {
-          "kind": "bool",
-          "name": "addRow"
-        },
-        {
-          "kind": "bool",
-          "name": "bookmarkRow"
-        },
-        {
-          "kind": "var",
-          "name": "previousAction"
-        },
-        {
-          "kind": "var",
-          "name": "nextAction"
-        },
-        {
-          "kind": "real",
-          "name": "preferredWidth"
-        },
-        {
-          "kind": "real",
-          "name": "preferredHeight"
-        },
-        {
-          "kind": "var",
-          "name": "filteredActions"
         }
       ],
       "signals": [],
@@ -32962,45 +32739,6 @@
           "name": "_iconSource"
         },
         {
-          "name": "_refreshActionPopoverActions"
-        },
-        {
-          "name": "_dispatchSourceStorageSelection"
-        },
-        {
-          "name": "_floatingToolbarDepth"
-        },
-        {
-          "name": "_floatingToolbarControlHeight"
-        },
-        {
-          "name": "_floatingToolbarIconSize"
-        },
-        {
-          "name": "_floatingToolbarTextPixelSize"
-        },
-        {
-          "name": "_floatingToolbarHorizontalPadding"
-        },
-        {
-          "name": "_floatingToolbarIconOnlyHorizontalPadding"
-        },
-        {
-          "name": "_floatingToolbarVerticalPadding"
-        },
-        {
-          "name": "_floatingToolbarRadius"
-        },
-        {
-          "name": "_boundedInteger"
-        },
-        {
-          "name": "_sanitizeIntegerText"
-        },
-        {
-          "name": "_flushActionPopoverDraft"
-        },
-        {
           "name": "_closeActionPopover"
         },
         {
@@ -33010,31 +32748,7 @@
           "name": "_commitFontSizeValue"
         },
         {
-          "name": "_commitFontSizeText"
-        },
-        {
-          "name": "_syncFontSizeEditor"
-        },
-        {
-          "name": "_commitPageNumberValue"
-        },
-        {
-          "name": "_commitPageNumberText"
-        },
-        {
-          "name": "_syncPageNumberEditor"
-        },
-        {
-          "name": "_positionActionPopover"
-        },
-        {
-          "name": "_positionActionPopoverIfSizeMoved"
-        },
-        {
           "name": "openActionPopover"
-        },
-        {
-          "name": "_dispatchPopoverAction"
         },
         {
           "name": "openActionMenu"
@@ -33066,28 +32780,7 @@
           "name": "GraphSurfaceControls.GraphSurfaceButton"
         },
         {
-          "name": "GraphSurfaceControls.GraphSurfaceComboBox"
-        },
-        {
-          "name": "ScrollView"
-        },
-        {
-          "name": "Column"
-        },
-        {
-          "name": "TextField"
-        },
-        {
-          "name": "Slider"
-        },
-        {
-          "name": "Text"
-        },
-        {
-          "name": "ListView"
-        },
-        {
-          "name": "MouseArea"
+          "name": "GraphNodeToolbarPopoverHost"
         },
         {
           "name": "ShellComponents.ShellContextMenu"
@@ -33108,52 +32801,12 @@
           "targets": [
             "root._orderedActions"
           ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "root.actionPopoverLayout"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "GraphActionPresentation.actionLabels",
-            "root.actionPopoverActions"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "root.actionPopoverLayout",
-            "root.actionPopoverActions"
-          ]
-        },
-        {
-          "kind": "ListView"
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "fontFamilyPopoverPanel.visible",
-            "fontFamilyPopoverPanel.filteredActions"
-          ]
-        },
-        {
-          "kind": "delegate",
-          "targets": [
-            "ItemDelegate"
-          ]
         }
       ],
       "signal_handlers": [
         {
           "kind": "handler",
           "name": "onAnchorChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onActionListChanged"
         },
         {
           "kind": "handler",
@@ -33178,46 +32831,6 @@
         {
           "kind": "handler",
           "name": "Keys.onEnterPressed"
-        },
-        {
-          "kind": "handler",
-          "name": "onImplicitWidthChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onImplicitHeightChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onActivated"
-        },
-        {
-          "kind": "handler",
-          "name": "onEditingFinished"
-        },
-        {
-          "kind": "handler",
-          "name": "Keys.onEscapePressed"
-        },
-        {
-          "kind": "handler",
-          "name": "onTextEdited"
-        },
-        {
-          "kind": "handler",
-          "name": "onActiveFocusChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onMoved"
-        },
-        {
-          "kind": "handler",
-          "name": "onPressedChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "Keys.onDownPressed"
         },
         {
           "kind": "handler",
@@ -33897,1146 +33510,9 @@
         },
         {
           "kind": "binding",
-          "name": "visible",
+          "name": "toolbar",
           "targets": [
-            "actionPopover.visible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "Math.min",
-            "actionPopover.x"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "root.flipped",
-            "chromeContainer.height",
-            "actionPopover.y",
-            "actionPopover.height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "Math.max",
-            "chromeContainer.width",
-            "actionPopover.x",
-            "actionPopover.width",
-            "x"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.visible",
-            "root.actionPopoverVisible",
-            "root.actionPopoverActions.length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "root.actionPopoverX"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "root.actionPopoverY"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius"
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "Qt.alpha",
-            "root._chromeBaseFill"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "Qt.alpha",
-            "root._chromeBaseBorder"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitWidth",
-          "targets": [
-            "actionPopoverContent.implicitWidth",
-            "innerPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "actionPopoverContent.implicitHeight",
-            "innerPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "implicitWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitWidth",
-          "targets": [
-            "root.actionPopoverLayout"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "root.actionPopoverLayout"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.actionPopoverLayout"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "spacing",
-          "targets": [
-            "root._popoverIconOnlyHorizontalPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "iconSize",
-          "targets": [
-            "root._popoverIconSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "controlHeight",
-          "targets": [
-            "root._popoverControlHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "chromeRadius",
-          "targets": [
-            "root._popoverRadius"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "contentVerticalPadding",
-          "targets": [
-            "root._popoverVerticalPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "accentColor",
-          "targets": [
-            "root._actionColor",
-            "modelData",
-            "root.accentColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "contentHorizontalPadding",
-          "targets": [
-            "GraphActionPresentation.actionIconOnly",
-            "modelData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "activeFillColor",
-          "targets": [
-            "Qt.alpha",
-            "root.accentColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "activeBorderColor",
-          "targets": [
-            "Qt.alpha",
-            "root.accentColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "spacing",
-          "targets": [
-            "root._popoverHorizontalPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "controlRadius",
-          "targets": [
-            "root._popoverRadius"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "contentLeftPadding",
-          "targets": [
-            "root._popoverHorizontalPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "contentRightPadding",
-          "targets": [
-            "Math.max",
-            "root._popoverHorizontalPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "indicatorRightMargin",
-          "targets": [
-            "root._popoverHorizontalPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "popupControlHeight",
-          "targets": [
-            "root._floatingToolbarControlHeight",
-            "root.floatingToolbarNestedPopoverLevel"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "Math.round",
-            "root._sizeScale"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "root._popoverControlHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "currentIndex",
-          "targets": [
-            "root.actionPopoverSourceStorageIndex"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "root.actionPopoverActions.length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.pixelSize",
-          "targets": [
-            "root._popoverTextPixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.weight",
-          "targets": [
-            "Font.DemiBold"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "fillColor",
-          "targets": [
-            "Qt.alpha",
-            "root._chromeForeground"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "borderColor",
-          "targets": [
-            "Qt.alpha",
-            "root._chromeForeground"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "focusBorderColor",
-          "targets": [
-            "root.accentColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "textColor",
-          "targets": [
-            "root._chromeForeground"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "popupFillColor",
-          "targets": [
-            "root._chromeBaseFill"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "popupBorderColor",
-          "targets": [
-            "Qt.alpha",
-            "root._chromeBaseBorder"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text"
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "GraphActionPresentation.boundedActionAt",
-            "root.actionPopoverActions",
-            "sourceStorageCombo.currentIndex"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "contentHorizontalPadding",
-          "targets": [
-            "root._popoverHorizontalPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "tooltipText",
-          "targets": [
-            "TooltipCopy.text",
-            "tooltipCopyBridge"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitWidth",
-          "targets": [
-            "preferredWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "Math.min"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "videoBookmarksPopoverPanel.preferredWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "videoBookmarksPopoverPanel.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "clip"
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "videoBookmarkScroll.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "spacing",
-          "targets": [
-            "root._popoverVerticalPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "videoBookmarkColumn.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "addRow"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "videoBookmarkDelegate.addRow"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "parent.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "GraphActionPresentation.actionToolbarText",
-            "videoBookmarkDelegate.actionData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "iconName",
-          "targets": [
-            "GraphActionPresentation.actionToolbarIcon",
-            "videoBookmarkDelegate.actionData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "videoBookmarkDelegate.actionData.enabled"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "tooltipText",
-          "targets": [
-            "String",
-            "videoBookmarkDelegate.actionData.label"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "baseFillColor",
-          "targets": [
-            "Qt.alpha",
-            "root._chromeForeground"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "baseBorderColor",
-          "targets": [
-            "Qt.alpha",
-            "root._chromeForeground"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "videoBookmarkDelegate.bookmarkRow"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.left",
-          "targets": [
-            "parent.left"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.right",
-          "targets": [
-            "parent.right"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.verticalCenter",
-          "targets": [
-            "parent.verticalCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "Math.max",
-            "videoBookmarkColumn.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "String",
-            "videoBookmarkDelegate.actionData.label"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "placeholderText",
-          "targets": [
-            "String",
-            "videoBookmarkDelegate.actionData.time_text"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root._chromeForeground"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "placeholderTextColor",
-          "targets": [
-            "Qt.alpha",
-            "root._chromeForeground"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "selectedTextColor",
-          "targets": [
-            "root._chromeForeground"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "selectionColor",
-          "targets": [
-            "Qt.alpha",
-            "root.accentColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "verticalAlignment",
-          "targets": [
-            "Text.AlignVCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "selectByMouse"
-        },
-        {
-          "kind": "binding",
-          "name": "background",
-          "targets": [
-            "Rectangle"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "root._popoverRadius"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "Qt.alpha",
-            "root._chromeForeground"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width",
-          "targets": [
-            "bookmarkLabelField.activeFocus"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "Qt.alpha",
-            "root.accentColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "contentHorizontalPadding",
-          "targets": [
-            "root._popoverIconOnlyHorizontalPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "accentColor"
-        },
-        {
-          "kind": "binding",
-          "name": "hoverFillColor",
-          "targets": [
-            "Qt.alpha"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "hoverBorderColor",
-          "targets": [
-            "Qt.alpha"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "String",
-            "root.actionPopoverFontSizeValue"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "horizontalAlignment",
-          "targets": [
-            "Text.AlignHCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.pixelSize",
-          "targets": [
-            "Math.max",
-            "root._popoverTextPixelSize",
-            "root._popoverIconSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "inputMethodHints",
-          "targets": [
-            "Qt.ImhDigitsOnly"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "validator",
-          "targets": [
-            "IntValidator"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "bottom",
-          "targets": [
-            "root.actionPopoverFontSizeMin"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "top",
-          "targets": [
-            "root.actionPopoverFontSizeMax"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width",
-          "targets": [
-            "fontSizeField.activeFocus"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "from",
-          "targets": [
-            "root.actionPopoverFontSizeMin"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "to",
-          "targets": [
-            "root.actionPopoverFontSizeMax"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "value",
-          "targets": [
-            "root.actionPopoverFontSizeValue"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "stepSize"
-        },
-        {
-          "kind": "binding",
-          "name": "snapMode",
-          "targets": [
-            "Slider.SnapAlways"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "live"
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "fontSizeSlider.leftPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "fontSizeSlider.topPadding",
-            "fontSizeSlider.availableHeight",
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "fontSizeSlider.availableWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "Math.max",
-            "root._floatingToolbarVerticalPadding",
-            "root.floatingToolbarNestedPopoverLevel"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "fontSizeSlider.visualPosition",
-            "parent.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "parent.radius"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "Qt.alpha",
-            "root.accentColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "handle",
-          "targets": [
-            "Rectangle"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "fontSizeSlider.topPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root._popoverIconSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root.accentColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width",
-          "targets": [
-            "Math.max",
-            "Math.round",
-            "root._sizeScale"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "root._chromeForeground"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color"
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "Qt.alpha",
-            "root._chromeForeground"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitWidth",
-          "targets": [
-            "fontSizeStepperRow.implicitWidth",
-            "root._popoverVerticalPadding"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "Math.max",
-            "root._popoverControlHeight",
-            "fontSizeStepperRow.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "spacing",
-          "targets": [
-            "Math.round",
-            "root._sizeScale"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "iconName",
-          "targets": [
-            "GraphActionPresentation.actionToolbarIcon",
-            "pdfPagePopoverPanel.previousAction"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "root.actionPopoverPageValue",
-            "root.actionPopoverPageMin"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "tooltipText",
-          "targets": [
-            "String",
-            "pdfPagePopoverPanel.previousAction.label",
-            "TooltipCopy.text",
-            "tooltipCopyBridge"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "String",
-            "root.actionPopoverPageValue"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "bottom",
-          "targets": [
-            "root.actionPopoverPageMin"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "top",
-          "targets": [
-            "root.actionPopoverPageMax"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width",
-          "targets": [
-            "pdfPageField.activeFocus"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "/",
-            "String",
-            "root.actionPopoverPageMax"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "iconName",
-          "targets": [
-            "GraphActionPresentation.actionToolbarIcon",
-            "pdfPagePopoverPanel.nextAction"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "root.actionPopoverPageValue",
-            "root.actionPopoverPageMax"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "tooltipText",
-          "targets": [
-            "String",
-            "pdfPagePopoverPanel.nextAction.label",
-            "TooltipCopy.text",
-            "tooltipCopyBridge"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "preferredWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "preferredHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "root.actionPopoverFilterText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "placeholderText"
-        },
-        {
-          "kind": "binding",
-          "name": "border.width",
-          "targets": [
-            "fontFamilySearchField.activeFocus"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.fill",
-          "targets": [
-            "parent"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "boundsBehavior",
-          "targets": [
-            "Flickable.StopAtBounds"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "currentIndex",
-          "targets": [
-            "GraphActionPresentation.checkedActionIndex",
-            "fontFamilyPopoverPanel.filteredActions"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "ScrollBar.vertical",
-          "targets": [
-            "ScrollBar"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "policy",
-          "targets": [
-            "ScrollBar.AsNeeded"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "interactive"
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "ListView.view",
-            "ListView.view.width",
-            "fontFamilyPopoverPanel.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "root._floatingToolbarControlHeight",
-            "root.floatingToolbarNestedPopoverLevel"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "highlighted",
-          "targets": [
-            "ListView.isCurrentItem",
-            "GraphActionPresentation.actionChecked",
-            "modelData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "contentItem",
-          "targets": [
-            "Text"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "fontFamilyActionButton.highlighted"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.pixelSize",
-          "targets": [
-            "root._floatingToolbarTextPixelSize",
-            "root.floatingToolbarNestedPopoverLevel"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.family",
-          "targets": [
-            "String",
-            "modelData.font_family",
-            "length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.weight",
-          "targets": [
-            "GraphActionPresentation.actionChecked",
-            "modelData",
-            "Font.DemiBold",
-            "Font.Normal"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "elide",
-          "targets": [
-            "Text.ElideRight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "root._floatingToolbarRadius",
-            "root.floatingToolbarNestedPopoverLevel"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "fontFamilyActionButton.down"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "cursorShape",
-          "targets": [
-            "Qt.PointingHandCursor"
+            "root"
           ]
         },
         {
@@ -35116,8 +33592,8 @@
         },
         {
           "kind": "localComponent",
-          "name": "GraphSurfaceControls.GraphSurfaceComboBox",
-          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceComboBox.qml"
+          "name": "GraphNodeToolbarPopoverHost",
+          "detail": "ea_node_editor/ui_qml/components/graph/overlay/GraphNodeToolbarPopoverHost.qml"
         },
         {
           "kind": "localComponent",
@@ -35454,133 +33930,121 @@
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverVisible",
           "kind": "property",
           "name": "actionPopoverVisible",
-          "detail": "bool"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverX",
           "kind": "property",
           "name": "actionPopoverX",
-          "detail": "real"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverY",
           "kind": "property",
           "name": "actionPopoverY",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarPropertyLastPositionedActionPopoverImplicitWidth",
-          "kind": "property",
-          "name": "_lastPositionedActionPopoverImplicitWidth",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarPropertyLastPositionedActionPopoverImplicitHeight",
-          "kind": "property",
-          "name": "_lastPositionedActionPopoverImplicitHeight",
-          "detail": "real"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverAnchorCenterX",
           "kind": "property",
           "name": "actionPopoverAnchorCenterX",
-          "detail": "real"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverOwnerId",
           "kind": "property",
           "name": "actionPopoverOwnerId",
-          "detail": "string"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverLayout",
           "kind": "property",
           "name": "actionPopoverLayout",
-          "detail": "string"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverActions",
           "kind": "property",
           "name": "actionPopoverActions",
-          "detail": "var"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverActionKind",
           "kind": "property",
           "name": "actionPopoverActionKind",
-          "detail": "string"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverFontSizeValue",
           "kind": "property",
           "name": "actionPopoverFontSizeValue",
-          "detail": "int"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverFontSizeMin",
           "kind": "property",
           "name": "actionPopoverFontSizeMin",
-          "detail": "int"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverFontSizeMax",
           "kind": "property",
           "name": "actionPopoverFontSizeMax",
-          "detail": "int"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverFontSizeSetActionPrefix",
           "kind": "property",
           "name": "actionPopoverFontSizeSetActionPrefix",
-          "detail": "string"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverFontSizePreviewActionPrefix",
           "kind": "property",
           "name": "actionPopoverFontSizePreviewActionPrefix",
-          "detail": "string"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverFontSizeDirty",
           "kind": "property",
           "name": "actionPopoverFontSizeDirty",
-          "detail": "bool"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverPageValue",
           "kind": "property",
           "name": "actionPopoverPageValue",
-          "detail": "int"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverPageMin",
           "kind": "property",
           "name": "actionPopoverPageMin",
-          "detail": "int"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverPageMax",
           "kind": "property",
           "name": "actionPopoverPageMax",
-          "detail": "int"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverPageSetActionPrefix",
           "kind": "property",
           "name": "actionPopoverPageSetActionPrefix",
-          "detail": "string"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverSourceStorageIndex",
           "kind": "property",
           "name": "actionPopoverSourceStorageIndex",
-          "detail": "int"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyActionPopoverFilterText",
           "kind": "property",
           "name": "actionPopoverFilterText",
-          "detail": "string"
+          "detail": "alias"
         },
         {
           "anchor": "GraphNodeFloatingToolbarPropertyFloatingToolbarPrimaryLevel",
@@ -35763,60 +34227,6 @@
           "detail": "bool"
         },
         {
-          "anchor": "GraphNodeFloatingToolbarPropertyInnerPadding",
-          "kind": "property",
-          "name": "innerPadding",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarPropertyPreferredWidth",
-          "kind": "property",
-          "name": "preferredWidth",
-          "detail": "int"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarPropertyPreferredHeight",
-          "kind": "property",
-          "name": "preferredHeight",
-          "detail": "int"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarPropertyActionData",
-          "kind": "property",
-          "name": "actionData",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarPropertyAddRow",
-          "kind": "property",
-          "name": "addRow",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarPropertyBookmarkRow",
-          "kind": "property",
-          "name": "bookmarkRow",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarPropertyPreviousAction",
-          "kind": "property",
-          "name": "previousAction",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarPropertyNextAction",
-          "kind": "property",
-          "name": "nextAction",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarPropertyFilteredActions",
-          "kind": "property",
-          "name": "filteredActions",
-          "detail": "var"
-        },
-        {
           "anchor": "GraphNodeFloatingToolbarFunctionCanvasStateBridge",
           "kind": "function",
           "name": "_canvasStateBridge"
@@ -35847,71 +34257,6 @@
           "name": "_iconSource"
         },
         {
-          "anchor": "GraphNodeFloatingToolbarFunctionRefreshActionPopoverActions",
-          "kind": "function",
-          "name": "_refreshActionPopoverActions"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionDispatchSourceStorageSelection",
-          "kind": "function",
-          "name": "_dispatchSourceStorageSelection"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionFloatingToolbarDepth",
-          "kind": "function",
-          "name": "_floatingToolbarDepth"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionFloatingToolbarControlHeight",
-          "kind": "function",
-          "name": "_floatingToolbarControlHeight"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionFloatingToolbarIconSize",
-          "kind": "function",
-          "name": "_floatingToolbarIconSize"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionFloatingToolbarTextPixelSize",
-          "kind": "function",
-          "name": "_floatingToolbarTextPixelSize"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionFloatingToolbarHorizontalPadding",
-          "kind": "function",
-          "name": "_floatingToolbarHorizontalPadding"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionFloatingToolbarIconOnlyHorizontalPadding",
-          "kind": "function",
-          "name": "_floatingToolbarIconOnlyHorizontalPadding"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionFloatingToolbarVerticalPadding",
-          "kind": "function",
-          "name": "_floatingToolbarVerticalPadding"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionFloatingToolbarRadius",
-          "kind": "function",
-          "name": "_floatingToolbarRadius"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionBoundedInteger",
-          "kind": "function",
-          "name": "_boundedInteger"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionSanitizeIntegerText",
-          "kind": "function",
-          "name": "_sanitizeIntegerText"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionFlushActionPopoverDraft",
-          "kind": "function",
-          "name": "_flushActionPopoverDraft"
-        },
-        {
           "anchor": "GraphNodeFloatingToolbarFunctionCloseActionPopover",
           "kind": "function",
           "name": "_closeActionPopover"
@@ -35927,49 +34272,9 @@
           "name": "_commitFontSizeValue"
         },
         {
-          "anchor": "GraphNodeFloatingToolbarFunctionCommitFontSizeText",
-          "kind": "function",
-          "name": "_commitFontSizeText"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionSyncFontSizeEditor",
-          "kind": "function",
-          "name": "_syncFontSizeEditor"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionCommitPageNumberValue",
-          "kind": "function",
-          "name": "_commitPageNumberValue"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionCommitPageNumberText",
-          "kind": "function",
-          "name": "_commitPageNumberText"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionSyncPageNumberEditor",
-          "kind": "function",
-          "name": "_syncPageNumberEditor"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionPositionActionPopover",
-          "kind": "function",
-          "name": "_positionActionPopover"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionPositionActionPopoverIfSizeMoved",
-          "kind": "function",
-          "name": "_positionActionPopoverIfSizeMoved"
-        },
-        {
           "anchor": "GraphNodeFloatingToolbarFunctionOpenActionPopover",
           "kind": "function",
           "name": "openActionPopover"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarFunctionDispatchPopoverAction",
-          "kind": "function",
-          "name": "_dispatchPopoverAction"
         },
         {
           "anchor": "GraphNodeFloatingToolbarFunctionOpenActionMenu",
@@ -35980,11 +34285,6 @@
           "anchor": "GraphNodeFloatingToolbarHandlerOnAnchorChanged",
           "kind": "handler",
           "name": "onAnchorChanged"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarHandlerOnActionListChanged",
-          "kind": "handler",
-          "name": "onActionListChanged"
         },
         {
           "anchor": "GraphNodeFloatingToolbarHandlerOnPointerOnToolbarChanged",
@@ -36017,56 +34317,6 @@
           "name": "Keys.onEnterPressed"
         },
         {
-          "anchor": "GraphNodeFloatingToolbarHandlerOnImplicitWidthChanged",
-          "kind": "handler",
-          "name": "onImplicitWidthChanged"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarHandlerOnImplicitHeightChanged",
-          "kind": "handler",
-          "name": "onImplicitHeightChanged"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarHandlerOnActivated",
-          "kind": "handler",
-          "name": "onActivated"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarHandlerOnEditingFinished",
-          "kind": "handler",
-          "name": "onEditingFinished"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarHandlerKeysOnEscapePressed",
-          "kind": "handler",
-          "name": "Keys.onEscapePressed"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarHandlerOnTextEdited",
-          "kind": "handler",
-          "name": "onTextEdited"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarHandlerOnActiveFocusChanged",
-          "kind": "handler",
-          "name": "onActiveFocusChanged"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarHandlerOnMoved",
-          "kind": "handler",
-          "name": "onMoved"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarHandlerOnPressedChanged",
-          "kind": "handler",
-          "name": "onPressedChanged"
-        },
-        {
-          "anchor": "GraphNodeFloatingToolbarHandlerKeysOnDownPressed",
-          "kind": "handler",
-          "name": "Keys.onDownPressed"
-        },
-        {
           "anchor": "GraphNodeFloatingToolbarHandlerOnActionTriggered",
           "kind": "handler",
           "name": "onActionTriggered"
@@ -36078,10 +34328,10 @@
           "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml"
         },
         {
-          "anchor": "GraphNodeFloatingToolbarLocalComponentGraphSurfaceControlsGraphSurfaceComboBox",
+          "anchor": "GraphNodeFloatingToolbarLocalComponentGraphNodeToolbarPopoverHost",
           "kind": "localComponent",
-          "name": "GraphSurfaceControls.GraphSurfaceComboBox",
-          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceComboBox.qml"
+          "name": "GraphNodeToolbarPopoverHost",
+          "detail": "ea_node_editor/ui_qml/components/graph/overlay/GraphNodeToolbarPopoverHost.qml"
         },
         {
           "anchor": "GraphNodeFloatingToolbarLocalComponentShellComponentsShellContextMenu",
@@ -38081,6 +36331,2585 @@
           "kind": "localComponent",
           "name": "GraphNodeFloatingToolbar",
           "detail": "ea_node_editor/ui_qml/components/graph/overlay/GraphNodeFloatingToolbar.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/graph/overlay/GraphNodeToolbarPopoverHost.qml",
+      "component_name": "GraphNodeToolbarPopoverHost",
+      "aliases": [
+        "GraphNodeToolbarPopoverHost",
+        "GraphNodeToolbarPopoverHost.qml",
+        "ea_node_editor/ui_qml/components/graph/overlay/GraphNodeToolbarPopoverHost.qml",
+        "ea_node_editor\\ui_qml\\components\\graph\\overlay\\GraphNodeToolbarPopoverHost.qml"
+      ],
+      "root_component": "Item",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "\"../surface_controls\" as GraphSurfaceControls",
+        "\"../GraphActionPresentation.js\" as GraphActionPresentation",
+        "\"../../common/TooltipCopy.js\" as TooltipCopy"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        },
+        {
+          "name": "actionPopoverBridgeHoverHandler"
+        },
+        {
+          "name": "actionPopover"
+        },
+        {
+          "name": "actionPopoverHoverHandler"
+        },
+        {
+          "name": "actionPopoverContent"
+        },
+        {
+          "name": "actionPopoverRow"
+        },
+        {
+          "name": "popoverActionButton"
+        },
+        {
+          "name": "sourceStoragePopoverPanel"
+        },
+        {
+          "name": "sourceStorageCombo"
+        },
+        {
+          "name": "sourceStorageBrowseButton"
+        },
+        {
+          "name": "videoBookmarksPopoverPanel"
+        },
+        {
+          "name": "videoBookmarkScroll"
+        },
+        {
+          "name": "videoBookmarkColumn"
+        },
+        {
+          "name": "videoBookmarkDelegate"
+        },
+        {
+          "name": "addBookmarkButton"
+        },
+        {
+          "name": "bookmarkRowContent"
+        },
+        {
+          "name": "bookmarkLabelField"
+        },
+        {
+          "name": "jumpBookmarkButton"
+        },
+        {
+          "name": "deleteBookmarkButton"
+        },
+        {
+          "name": "fontSizePopoverPanel"
+        },
+        {
+          "name": "fontSizeField"
+        },
+        {
+          "name": "fontSizeSlider"
+        },
+        {
+          "name": "fontSizeStepper"
+        },
+        {
+          "name": "fontSizeStepperRow"
+        },
+        {
+          "name": "fontSizeStepButton"
+        },
+        {
+          "name": "pdfPagePopoverPanel"
+        },
+        {
+          "name": "pdfPreviousButton"
+        },
+        {
+          "name": "pdfPageField"
+        },
+        {
+          "name": "pdfNextButton"
+        },
+        {
+          "name": "fontFamilyPopoverPanel"
+        },
+        {
+          "name": "fontFamilySearchField"
+        },
+        {
+          "name": "fontFamilyListFrame"
+        },
+        {
+          "name": "fontFamilyList"
+        },
+        {
+          "name": "fontFamilyActionButton"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "graphNodeFloatingToolbarActionPopoverBridge"
+        },
+        {
+          "name": "graphNodeFloatingToolbarActionPopover"
+        },
+        {
+          "name": "graphNodeFloatingToolbarPopoverAction_"
+        },
+        {
+          "name": "graphNodeFloatingToolbarSourceStoragePanel"
+        },
+        {
+          "name": "graphNodeFloatingToolbarSourceStorageCombo"
+        },
+        {
+          "name": "graphNodeFloatingToolbarSourceBrowseButton"
+        },
+        {
+          "name": "graphNodeFloatingToolbarVideoBookmarksPanel"
+        },
+        {
+          "name": "graphNodeFloatingToolbarVideoBookmarkScroll"
+        },
+        {
+          "name": "graphNodeFloatingToolbarVideoBookmarkList"
+        },
+        {
+          "name": "graphNodeFloatingToolbarVideoBookmarkLabel_"
+        },
+        {
+          "name": "graphNodeFloatingToolbarVideoBookmarkJump_"
+        },
+        {
+          "name": "graphNodeFloatingToolbarVideoBookmarkDelete_"
+        },
+        {
+          "name": "graphNodeFloatingToolbarFontSizePanel"
+        },
+        {
+          "name": "graphNodeFloatingToolbarFontSizeField"
+        },
+        {
+          "name": "graphNodeFloatingToolbarFontSizeSlider"
+        },
+        {
+          "name": "graphNodeFloatingToolbarFontSizeStepper"
+        },
+        {
+          "name": "graphNodeFloatingToolbarPdfPagePanel"
+        },
+        {
+          "name": "graphNodeFloatingToolbarPopoverAction_pdf_page_previous"
+        },
+        {
+          "name": "graphNodeFloatingToolbarPdfPageField"
+        },
+        {
+          "name": "graphNodeFloatingToolbarPdfPageTotalLabel"
+        },
+        {
+          "name": "graphNodeFloatingToolbarPopoverAction_pdf_page_next"
+        },
+        {
+          "name": "graphNodeFloatingToolbarFontFamilyPanel"
+        },
+        {
+          "name": "graphNodeFloatingToolbarFontFamilyField"
+        },
+        {
+          "name": "graphNodeFloatingToolbarFontFamilyList"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "Item",
+          "name": "toolbar"
+        },
+        {
+          "kind": "var",
+          "name": "host"
+        },
+        {
+          "kind": "var",
+          "name": "actionList"
+        },
+        {
+          "kind": "bool",
+          "name": "toolbarVisible"
+        },
+        {
+          "kind": "bool",
+          "name": "flipped"
+        },
+        {
+          "kind": "real",
+          "name": "chromeWidth"
+        },
+        {
+          "kind": "real",
+          "name": "chromeHeight"
+        },
+        {
+          "kind": "real",
+          "name": "_sizeScale"
+        },
+        {
+          "kind": "real",
+          "name": "_effectiveZoom"
+        },
+        {
+          "kind": "int",
+          "name": "_buttonIconSize"
+        },
+        {
+          "kind": "color",
+          "name": "_chromeBaseFill"
+        },
+        {
+          "kind": "color",
+          "name": "_chromeBaseBorder"
+        },
+        {
+          "kind": "color",
+          "name": "_chromeForeground"
+        },
+        {
+          "kind": "color",
+          "name": "_buttonHoverFillColor"
+        },
+        {
+          "kind": "color",
+          "name": "accentColor"
+        },
+        {
+          "kind": "Item",
+          "name": "actionPopoverItem"
+        },
+        {
+          "kind": "bool",
+          "name": "pointerHovered"
+        },
+        {
+          "kind": "bool",
+          "name": "actionPopoverVisible"
+        },
+        {
+          "kind": "real",
+          "name": "actionPopoverX"
+        },
+        {
+          "kind": "real",
+          "name": "actionPopoverY"
+        },
+        {
+          "kind": "real",
+          "name": "_lastPositionedActionPopoverImplicitWidth"
+        },
+        {
+          "kind": "real",
+          "name": "_lastPositionedActionPopoverImplicitHeight"
+        },
+        {
+          "kind": "real",
+          "name": "actionPopoverAnchorCenterX"
+        },
+        {
+          "kind": "string",
+          "name": "actionPopoverOwnerId"
+        },
+        {
+          "kind": "string",
+          "name": "actionPopoverLayout"
+        },
+        {
+          "kind": "var",
+          "name": "actionPopoverActions"
+        },
+        {
+          "kind": "string",
+          "name": "actionPopoverActionKind"
+        },
+        {
+          "kind": "int",
+          "name": "actionPopoverFontSizeValue"
+        },
+        {
+          "kind": "int",
+          "name": "actionPopoverFontSizeMin"
+        },
+        {
+          "kind": "int",
+          "name": "actionPopoverFontSizeMax"
+        },
+        {
+          "kind": "string",
+          "name": "actionPopoverFontSizeSetActionPrefix"
+        },
+        {
+          "kind": "string",
+          "name": "actionPopoverFontSizePreviewActionPrefix"
+        },
+        {
+          "kind": "bool",
+          "name": "actionPopoverFontSizeDirty"
+        },
+        {
+          "kind": "int",
+          "name": "actionPopoverPageValue"
+        },
+        {
+          "kind": "int",
+          "name": "actionPopoverPageMin"
+        },
+        {
+          "kind": "int",
+          "name": "actionPopoverPageMax"
+        },
+        {
+          "kind": "string",
+          "name": "actionPopoverPageSetActionPrefix"
+        },
+        {
+          "kind": "int",
+          "name": "actionPopoverSourceStorageIndex"
+        },
+        {
+          "kind": "string",
+          "name": "actionPopoverFilterText"
+        },
+        {
+          "kind": "int",
+          "name": "floatingToolbarPrimaryLevel"
+        },
+        {
+          "kind": "int",
+          "name": "floatingToolbarPopoverLevel"
+        },
+        {
+          "kind": "int",
+          "name": "floatingToolbarNestedPopoverLevel"
+        },
+        {
+          "kind": "int",
+          "name": "_popoverControlHeight"
+        },
+        {
+          "kind": "int",
+          "name": "_popoverIconSize"
+        },
+        {
+          "kind": "int",
+          "name": "_popoverTextPixelSize"
+        },
+        {
+          "kind": "int",
+          "name": "_popoverHorizontalPadding"
+        },
+        {
+          "kind": "int",
+          "name": "_popoverIconOnlyHorizontalPadding"
+        },
+        {
+          "kind": "int",
+          "name": "_popoverVerticalPadding"
+        },
+        {
+          "kind": "int",
+          "name": "_popoverRadius"
+        },
+        {
+          "kind": "real",
+          "name": "innerPadding"
+        },
+        {
+          "kind": "int",
+          "name": "preferredWidth"
+        },
+        {
+          "kind": "int",
+          "name": "preferredHeight"
+        },
+        {
+          "kind": "var",
+          "name": "actionData"
+        },
+        {
+          "kind": "bool",
+          "name": "addRow"
+        },
+        {
+          "kind": "bool",
+          "name": "bookmarkRow"
+        },
+        {
+          "kind": "var",
+          "name": "previousAction"
+        },
+        {
+          "kind": "var",
+          "name": "nextAction"
+        },
+        {
+          "kind": "real",
+          "name": "preferredWidth"
+        },
+        {
+          "kind": "real",
+          "name": "preferredHeight"
+        },
+        {
+          "kind": "var",
+          "name": "filteredActions"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "_refreshActionPopoverActions"
+        },
+        {
+          "name": "_dispatchSourceStorageSelection"
+        },
+        {
+          "name": "_floatingToolbarDepth"
+        },
+        {
+          "name": "_floatingToolbarControlHeight"
+        },
+        {
+          "name": "_floatingToolbarIconSize"
+        },
+        {
+          "name": "_floatingToolbarTextPixelSize"
+        },
+        {
+          "name": "_floatingToolbarHorizontalPadding"
+        },
+        {
+          "name": "_floatingToolbarIconOnlyHorizontalPadding"
+        },
+        {
+          "name": "_floatingToolbarVerticalPadding"
+        },
+        {
+          "name": "_floatingToolbarRadius"
+        },
+        {
+          "name": "_boundedInteger"
+        },
+        {
+          "name": "_sanitizeIntegerText"
+        },
+        {
+          "name": "_flushActionPopoverDraft"
+        },
+        {
+          "name": "_closeActionPopover"
+        },
+        {
+          "name": "_previewFontSizeValue"
+        },
+        {
+          "name": "_commitFontSizeValue"
+        },
+        {
+          "name": "_commitFontSizeText"
+        },
+        {
+          "name": "_syncFontSizeEditor"
+        },
+        {
+          "name": "_commitPageNumberValue"
+        },
+        {
+          "name": "_commitPageNumberText"
+        },
+        {
+          "name": "_syncPageNumberEditor"
+        },
+        {
+          "name": "_positionActionPopover"
+        },
+        {
+          "name": "_positionActionPopoverIfSizeMoved"
+        },
+        {
+          "name": "openActionPopover"
+        },
+        {
+          "name": "_dispatchPopoverAction"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "HoverHandler"
+        },
+        {
+          "name": "Rectangle"
+        },
+        {
+          "name": "Row"
+        },
+        {
+          "name": "Repeater"
+        },
+        {
+          "name": "GraphSurfaceControls.GraphSurfaceButton"
+        },
+        {
+          "name": "GraphSurfaceControls.GraphSurfaceComboBox"
+        },
+        {
+          "name": "ScrollView"
+        },
+        {
+          "name": "Column"
+        },
+        {
+          "name": "TextField"
+        },
+        {
+          "name": "Slider"
+        },
+        {
+          "name": "Text"
+        },
+        {
+          "name": "ListView"
+        },
+        {
+          "name": "MouseArea"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "Repeater"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.actionPopoverLayout"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "GraphActionPresentation.actionLabels",
+            "root.actionPopoverActions"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.actionPopoverLayout",
+            "root.actionPopoverActions"
+          ]
+        },
+        {
+          "kind": "ListView"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "fontFamilyPopoverPanel.visible",
+            "fontFamilyPopoverPanel.filteredActions"
+          ]
+        },
+        {
+          "kind": "delegate",
+          "targets": [
+            "ItemDelegate"
+          ]
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onActionListChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onImplicitWidthChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onImplicitHeightChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onControlStarted"
+        },
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onReturnPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onEnterPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "onActivated"
+        },
+        {
+          "kind": "handler",
+          "name": "onEditingFinished"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onEscapePressed"
+        },
+        {
+          "kind": "handler",
+          "name": "onTextEdited"
+        },
+        {
+          "kind": "handler",
+          "name": "onActiveFocusChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onMoved"
+        },
+        {
+          "kind": "handler",
+          "name": "onPressedChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onDownPressed"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.toolbarVisible",
+            "root.actionPopoverVisible",
+            "root.actionPopoverActions.length"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "Math.min",
+            "root.actionPopoverX"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "root.flipped",
+            "root.chromeHeight",
+            "root.actionPopoverY",
+            "actionPopover.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.max",
+            "root.chromeWidth",
+            "root.actionPopoverX",
+            "actionPopover.width",
+            "x"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height"
+        },
+        {
+          "kind": "binding",
+          "name": "z"
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "root.actionPopoverX",
+            "root.x"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "root.actionPopoverY",
+            "root.y"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius"
+        },
+        {
+          "kind": "binding",
+          "name": "antialiasing"
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "Qt.alpha",
+            "root._chromeBaseFill"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width"
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "Qt.alpha",
+            "root._chromeBaseBorder"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth",
+          "targets": [
+            "actionPopoverContent.implicitWidth",
+            "innerPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight",
+          "targets": [
+            "actionPopoverContent.implicitHeight",
+            "innerPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "implicitWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.centerIn",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth",
+          "targets": [
+            "root.actionPopoverLayout"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight",
+          "targets": [
+            "root.actionPopoverLayout"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.actionPopoverLayout"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "spacing",
+          "targets": [
+            "root._popoverIconOnlyHorizontalPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "host",
+          "targets": [
+            "root.host"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "GraphActionPresentation.actionToolbarText",
+            "modelData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "iconName",
+          "targets": [
+            "GraphActionPresentation.actionToolbarIcon",
+            "modelData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "iconOnly",
+          "targets": [
+            "GraphActionPresentation.actionIconOnly",
+            "modelData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "iconSize",
+          "targets": [
+            "root._popoverIconSize"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "controlHeight",
+          "targets": [
+            "root._popoverControlHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "chromeRadius",
+          "targets": [
+            "root._popoverRadius"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentVerticalPadding",
+          "targets": [
+            "root._popoverVerticalPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "iconSourceResolver",
+          "targets": [
+            "name",
+            "size",
+            "color"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "accentColor",
+          "targets": [
+            "root.toolbar._actionColor",
+            "modelData",
+            "root.accentColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "foregroundColor",
+          "targets": [
+            "root.toolbar._actionColor",
+            "modelData",
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "modelData.enabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "active",
+          "targets": [
+            "GraphActionPresentation.actionChecked",
+            "modelData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentHorizontalPadding",
+          "targets": [
+            "GraphActionPresentation.actionIconOnly",
+            "modelData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "GraphActionPresentation.actionTooltipText",
+            "modelData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipCategory"
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipScreenStablePositioning"
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipAnchorScale",
+          "targets": [
+            "root._effectiveZoom"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipScreenGap"
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipScreenStablePlacement",
+          "targets": [
+            "root.flipped"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "baseFillColor"
+        },
+        {
+          "kind": "binding",
+          "name": "baseBorderColor"
+        },
+        {
+          "kind": "binding",
+          "name": "hoverFillColor",
+          "targets": [
+            "root._buttonHoverFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "hoverBorderColor",
+          "targets": [
+            "root._buttonHoverFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "activeFillColor",
+          "targets": [
+            "Qt.alpha",
+            "root.accentColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "activeBorderColor",
+          "targets": [
+            "Qt.alpha",
+            "root.accentColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "hoverBorderWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "focusPolicy",
+          "targets": [
+            "Qt.TabFocus"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "spacing",
+          "targets": [
+            "root._popoverHorizontalPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "controlRadius",
+          "targets": [
+            "root._popoverRadius"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentLeftPadding",
+          "targets": [
+            "root._popoverHorizontalPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentRightPadding",
+          "targets": [
+            "Math.max",
+            "root._popoverHorizontalPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "indicatorRightMargin",
+          "targets": [
+            "root._popoverHorizontalPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "popupControlHeight",
+          "targets": [
+            "root._floatingToolbarControlHeight",
+            "root.floatingToolbarNestedPopoverLevel"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.round",
+            "root._sizeScale"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "root._popoverControlHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "currentIndex",
+          "targets": [
+            "root.actionPopoverSourceStorageIndex"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "root.actionPopoverActions.length"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize",
+          "targets": [
+            "root._popoverTextPixelSize"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.weight",
+          "targets": [
+            "Font.DemiBold"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "fillColor",
+          "targets": [
+            "Qt.alpha",
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "borderColor",
+          "targets": [
+            "Qt.alpha",
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "focusBorderColor",
+          "targets": [
+            "root.accentColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "accentColor",
+          "targets": [
+            "root.accentColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "textColor",
+          "targets": [
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "popupFillColor",
+          "targets": [
+            "root._chromeBaseFill"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "popupBorderColor",
+          "targets": [
+            "Qt.alpha",
+            "root._chromeBaseBorder"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "iconName"
+        },
+        {
+          "kind": "binding",
+          "name": "iconOnly"
+        },
+        {
+          "kind": "binding",
+          "name": "foregroundColor",
+          "targets": [
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "GraphActionPresentation.boundedActionAt",
+            "root.actionPopoverActions",
+            "sourceStorageCombo.currentIndex"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentHorizontalPadding",
+          "targets": [
+            "root._popoverHorizontalPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "TooltipCopy.text",
+            "tooltipCopyBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipCategory",
+          "targets": [
+            "TooltipCopy.category",
+            "tooltipCopyBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth",
+          "targets": [
+            "preferredWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight",
+          "targets": [
+            "Math.min"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "videoBookmarksPopoverPanel.preferredWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "videoBookmarksPopoverPanel.implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "clip"
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "videoBookmarkScroll.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "spacing",
+          "targets": [
+            "root._popoverVerticalPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "videoBookmarkColumn.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "addRow"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "videoBookmarkDelegate.addRow"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "GraphActionPresentation.actionToolbarText",
+            "videoBookmarkDelegate.actionData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "iconName",
+          "targets": [
+            "GraphActionPresentation.actionToolbarIcon",
+            "videoBookmarkDelegate.actionData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "videoBookmarkDelegate.actionData.enabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "String",
+            "videoBookmarkDelegate.actionData.label"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "baseFillColor",
+          "targets": [
+            "Qt.alpha",
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "baseBorderColor",
+          "targets": [
+            "Qt.alpha",
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "videoBookmarkDelegate.bookmarkRow"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.left",
+          "targets": [
+            "parent.left"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.right",
+          "targets": [
+            "parent.right"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.verticalCenter",
+          "targets": [
+            "parent.verticalCenter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.max",
+            "videoBookmarkColumn.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "String",
+            "videoBookmarkDelegate.actionData.label"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderText",
+          "targets": [
+            "String",
+            "videoBookmarkDelegate.actionData.time_text"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderTextColor",
+          "targets": [
+            "Qt.alpha",
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectedTextColor",
+          "targets": [
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectionColor",
+          "targets": [
+            "Qt.alpha",
+            "root.accentColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "verticalAlignment",
+          "targets": [
+            "Text.AlignVCenter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectByMouse"
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "root._popoverRadius"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "Qt.alpha",
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "bookmarkLabelField.activeFocus"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "Qt.alpha",
+            "root.accentColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentHorizontalPadding",
+          "targets": [
+            "root._popoverIconOnlyHorizontalPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "accentColor"
+        },
+        {
+          "kind": "binding",
+          "name": "hoverFillColor",
+          "targets": [
+            "Qt.alpha"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "hoverBorderColor",
+          "targets": [
+            "Qt.alpha"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "String",
+            "root.actionPopoverFontSizeValue"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "horizontalAlignment",
+          "targets": [
+            "Text.AlignHCenter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize",
+          "targets": [
+            "Math.max",
+            "root._popoverTextPixelSize",
+            "root._popoverIconSize"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "inputMethodHints",
+          "targets": [
+            "Qt.ImhDigitsOnly"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "validator",
+          "targets": [
+            "IntValidator"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "bottom",
+          "targets": [
+            "root.actionPopoverFontSizeMin"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "top",
+          "targets": [
+            "root.actionPopoverFontSizeMax"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "fontSizeField.activeFocus"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "from",
+          "targets": [
+            "root.actionPopoverFontSizeMin"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "to",
+          "targets": [
+            "root.actionPopoverFontSizeMax"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "value",
+          "targets": [
+            "root.actionPopoverFontSizeValue"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "stepSize"
+        },
+        {
+          "kind": "binding",
+          "name": "snapMode",
+          "targets": [
+            "Slider.SnapAlways"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "live"
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "fontSizeSlider.leftPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "fontSizeSlider.topPadding",
+            "fontSizeSlider.availableHeight",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "fontSizeSlider.availableWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "Math.max",
+            "root._floatingToolbarVerticalPadding",
+            "root.floatingToolbarNestedPopoverLevel"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "fontSizeSlider.visualPosition",
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "parent.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "parent.radius"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "Qt.alpha",
+            "root.accentColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "handle",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "fontSizeSlider.topPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "root._popoverIconSize"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.accentColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "Math.max",
+            "Math.round",
+            "root._sizeScale"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color"
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "Qt.alpha",
+            "root._chromeForeground"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth",
+          "targets": [
+            "fontSizeStepperRow.implicitWidth",
+            "root._popoverVerticalPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight",
+          "targets": [
+            "Math.max",
+            "root._popoverControlHeight",
+            "fontSizeStepperRow.implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "spacing",
+          "targets": [
+            "Math.round",
+            "root._sizeScale"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "iconName",
+          "targets": [
+            "GraphActionPresentation.actionToolbarIcon",
+            "pdfPagePopoverPanel.previousAction"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "root.actionPopoverPageValue",
+            "root.actionPopoverPageMin"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "String",
+            "pdfPagePopoverPanel.previousAction.label",
+            "TooltipCopy.text",
+            "tooltipCopyBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "String",
+            "root.actionPopoverPageValue"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "bottom",
+          "targets": [
+            "root.actionPopoverPageMin"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "top",
+          "targets": [
+            "root.actionPopoverPageMax"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "pdfPageField.activeFocus"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "/",
+            "String",
+            "root.actionPopoverPageMax"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "iconName",
+          "targets": [
+            "GraphActionPresentation.actionToolbarIcon",
+            "pdfPagePopoverPanel.nextAction"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "root.actionPopoverPageValue",
+            "root.actionPopoverPageMax"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "String",
+            "pdfPagePopoverPanel.nextAction.label",
+            "TooltipCopy.text",
+            "tooltipCopyBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "preferredWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "preferredHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "root.actionPopoverFilterText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderText"
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "fontFamilySearchField.activeFocus"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "boundsBehavior",
+          "targets": [
+            "Flickable.StopAtBounds"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "currentIndex",
+          "targets": [
+            "GraphActionPresentation.checkedActionIndex",
+            "fontFamilyPopoverPanel.filteredActions"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "ScrollBar.vertical",
+          "targets": [
+            "ScrollBar"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "policy",
+          "targets": [
+            "ScrollBar.AsNeeded"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "interactive"
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "ListView.view",
+            "ListView.view.width",
+            "fontFamilyPopoverPanel.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "root._floatingToolbarControlHeight",
+            "root.floatingToolbarNestedPopoverLevel"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "highlighted",
+          "targets": [
+            "ListView.isCurrentItem",
+            "GraphActionPresentation.actionChecked",
+            "modelData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentItem",
+          "targets": [
+            "Text"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "String",
+            "modelData.label"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "fontFamilyActionButton.highlighted"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize",
+          "targets": [
+            "root._floatingToolbarTextPixelSize",
+            "root.floatingToolbarNestedPopoverLevel"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.family",
+          "targets": [
+            "String",
+            "modelData.font_family",
+            "length"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.weight",
+          "targets": [
+            "GraphActionPresentation.actionChecked",
+            "modelData",
+            "Font.DemiBold",
+            "Font.Normal"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "elide",
+          "targets": [
+            "Text.ElideRight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "root._floatingToolbarRadius",
+            "root.floatingToolbarNestedPopoverLevel"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "fontFamilyActionButton.down"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "cursorShape",
+          "targets": [
+            "Qt.PointingHandCursor"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "GraphSurfaceControls.GraphSurfaceButton",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "GraphSurfaceControls.GraphSurfaceComboBox",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceComboBox.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyToolbar",
+          "kind": "property",
+          "name": "toolbar",
+          "detail": "Item"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyHost",
+          "kind": "property",
+          "name": "host",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionList",
+          "kind": "property",
+          "name": "actionList",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyToolbarVisible",
+          "kind": "property",
+          "name": "toolbarVisible",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyFlipped",
+          "kind": "property",
+          "name": "flipped",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyChromeWidth",
+          "kind": "property",
+          "name": "chromeWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyChromeHeight",
+          "kind": "property",
+          "name": "chromeHeight",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertySizeScale",
+          "kind": "property",
+          "name": "_sizeScale",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyEffectiveZoom",
+          "kind": "property",
+          "name": "_effectiveZoom",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyButtonIconSize",
+          "kind": "property",
+          "name": "_buttonIconSize",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyChromeBaseFill",
+          "kind": "property",
+          "name": "_chromeBaseFill",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyChromeBaseBorder",
+          "kind": "property",
+          "name": "_chromeBaseBorder",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyChromeForeground",
+          "kind": "property",
+          "name": "_chromeForeground",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyButtonHoverFillColor",
+          "kind": "property",
+          "name": "_buttonHoverFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyAccentColor",
+          "kind": "property",
+          "name": "accentColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverItem",
+          "kind": "property",
+          "name": "actionPopoverItem",
+          "detail": "Item"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyPointerHovered",
+          "kind": "property",
+          "name": "pointerHovered",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverVisible",
+          "kind": "property",
+          "name": "actionPopoverVisible",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverX",
+          "kind": "property",
+          "name": "actionPopoverX",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverY",
+          "kind": "property",
+          "name": "actionPopoverY",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyLastPositionedActionPopoverImplicitWidth",
+          "kind": "property",
+          "name": "_lastPositionedActionPopoverImplicitWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyLastPositionedActionPopoverImplicitHeight",
+          "kind": "property",
+          "name": "_lastPositionedActionPopoverImplicitHeight",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverAnchorCenterX",
+          "kind": "property",
+          "name": "actionPopoverAnchorCenterX",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverOwnerId",
+          "kind": "property",
+          "name": "actionPopoverOwnerId",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverLayout",
+          "kind": "property",
+          "name": "actionPopoverLayout",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverActions",
+          "kind": "property",
+          "name": "actionPopoverActions",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverActionKind",
+          "kind": "property",
+          "name": "actionPopoverActionKind",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverFontSizeValue",
+          "kind": "property",
+          "name": "actionPopoverFontSizeValue",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverFontSizeMin",
+          "kind": "property",
+          "name": "actionPopoverFontSizeMin",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverFontSizeMax",
+          "kind": "property",
+          "name": "actionPopoverFontSizeMax",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverFontSizeSetActionPrefix",
+          "kind": "property",
+          "name": "actionPopoverFontSizeSetActionPrefix",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverFontSizePreviewActionPrefix",
+          "kind": "property",
+          "name": "actionPopoverFontSizePreviewActionPrefix",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverFontSizeDirty",
+          "kind": "property",
+          "name": "actionPopoverFontSizeDirty",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverPageValue",
+          "kind": "property",
+          "name": "actionPopoverPageValue",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverPageMin",
+          "kind": "property",
+          "name": "actionPopoverPageMin",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverPageMax",
+          "kind": "property",
+          "name": "actionPopoverPageMax",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverPageSetActionPrefix",
+          "kind": "property",
+          "name": "actionPopoverPageSetActionPrefix",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverSourceStorageIndex",
+          "kind": "property",
+          "name": "actionPopoverSourceStorageIndex",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionPopoverFilterText",
+          "kind": "property",
+          "name": "actionPopoverFilterText",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyFloatingToolbarPrimaryLevel",
+          "kind": "property",
+          "name": "floatingToolbarPrimaryLevel",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyFloatingToolbarPopoverLevel",
+          "kind": "property",
+          "name": "floatingToolbarPopoverLevel",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyFloatingToolbarNestedPopoverLevel",
+          "kind": "property",
+          "name": "floatingToolbarNestedPopoverLevel",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyPopoverControlHeight",
+          "kind": "property",
+          "name": "_popoverControlHeight",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyPopoverIconSize",
+          "kind": "property",
+          "name": "_popoverIconSize",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyPopoverTextPixelSize",
+          "kind": "property",
+          "name": "_popoverTextPixelSize",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyPopoverHorizontalPadding",
+          "kind": "property",
+          "name": "_popoverHorizontalPadding",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyPopoverIconOnlyHorizontalPadding",
+          "kind": "property",
+          "name": "_popoverIconOnlyHorizontalPadding",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyPopoverVerticalPadding",
+          "kind": "property",
+          "name": "_popoverVerticalPadding",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyPopoverRadius",
+          "kind": "property",
+          "name": "_popoverRadius",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyInnerPadding",
+          "kind": "property",
+          "name": "innerPadding",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyPreferredWidth",
+          "kind": "property",
+          "name": "preferredWidth",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyPreferredHeight",
+          "kind": "property",
+          "name": "preferredHeight",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyActionData",
+          "kind": "property",
+          "name": "actionData",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyAddRow",
+          "kind": "property",
+          "name": "addRow",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyBookmarkRow",
+          "kind": "property",
+          "name": "bookmarkRow",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyPreviousAction",
+          "kind": "property",
+          "name": "previousAction",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyNextAction",
+          "kind": "property",
+          "name": "nextAction",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostPropertyFilteredActions",
+          "kind": "property",
+          "name": "filteredActions",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionRefreshActionPopoverActions",
+          "kind": "function",
+          "name": "_refreshActionPopoverActions"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionDispatchSourceStorageSelection",
+          "kind": "function",
+          "name": "_dispatchSourceStorageSelection"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionFloatingToolbarDepth",
+          "kind": "function",
+          "name": "_floatingToolbarDepth"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionFloatingToolbarControlHeight",
+          "kind": "function",
+          "name": "_floatingToolbarControlHeight"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionFloatingToolbarIconSize",
+          "kind": "function",
+          "name": "_floatingToolbarIconSize"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionFloatingToolbarTextPixelSize",
+          "kind": "function",
+          "name": "_floatingToolbarTextPixelSize"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionFloatingToolbarHorizontalPadding",
+          "kind": "function",
+          "name": "_floatingToolbarHorizontalPadding"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionFloatingToolbarIconOnlyHorizontalPadding",
+          "kind": "function",
+          "name": "_floatingToolbarIconOnlyHorizontalPadding"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionFloatingToolbarVerticalPadding",
+          "kind": "function",
+          "name": "_floatingToolbarVerticalPadding"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionFloatingToolbarRadius",
+          "kind": "function",
+          "name": "_floatingToolbarRadius"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionBoundedInteger",
+          "kind": "function",
+          "name": "_boundedInteger"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionSanitizeIntegerText",
+          "kind": "function",
+          "name": "_sanitizeIntegerText"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionFlushActionPopoverDraft",
+          "kind": "function",
+          "name": "_flushActionPopoverDraft"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionCloseActionPopover",
+          "kind": "function",
+          "name": "_closeActionPopover"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionPreviewFontSizeValue",
+          "kind": "function",
+          "name": "_previewFontSizeValue"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionCommitFontSizeValue",
+          "kind": "function",
+          "name": "_commitFontSizeValue"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionCommitFontSizeText",
+          "kind": "function",
+          "name": "_commitFontSizeText"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionSyncFontSizeEditor",
+          "kind": "function",
+          "name": "_syncFontSizeEditor"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionCommitPageNumberValue",
+          "kind": "function",
+          "name": "_commitPageNumberValue"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionCommitPageNumberText",
+          "kind": "function",
+          "name": "_commitPageNumberText"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionSyncPageNumberEditor",
+          "kind": "function",
+          "name": "_syncPageNumberEditor"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionPositionActionPopover",
+          "kind": "function",
+          "name": "_positionActionPopover"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionPositionActionPopoverIfSizeMoved",
+          "kind": "function",
+          "name": "_positionActionPopoverIfSizeMoved"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionOpenActionPopover",
+          "kind": "function",
+          "name": "openActionPopover"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostFunctionDispatchPopoverAction",
+          "kind": "function",
+          "name": "_dispatchPopoverAction"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerOnActionListChanged",
+          "kind": "handler",
+          "name": "onActionListChanged"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerOnImplicitWidthChanged",
+          "kind": "handler",
+          "name": "onImplicitWidthChanged"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerOnImplicitHeightChanged",
+          "kind": "handler",
+          "name": "onImplicitHeightChanged"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerOnControlStarted",
+          "kind": "handler",
+          "name": "onControlStarted"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerKeysOnReturnPressed",
+          "kind": "handler",
+          "name": "Keys.onReturnPressed"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerKeysOnEnterPressed",
+          "kind": "handler",
+          "name": "Keys.onEnterPressed"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerOnActivated",
+          "kind": "handler",
+          "name": "onActivated"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerOnEditingFinished",
+          "kind": "handler",
+          "name": "onEditingFinished"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerKeysOnEscapePressed",
+          "kind": "handler",
+          "name": "Keys.onEscapePressed"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerOnTextEdited",
+          "kind": "handler",
+          "name": "onTextEdited"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerOnActiveFocusChanged",
+          "kind": "handler",
+          "name": "onActiveFocusChanged"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerOnMoved",
+          "kind": "handler",
+          "name": "onMoved"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerOnPressedChanged",
+          "kind": "handler",
+          "name": "onPressedChanged"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostHandlerKeysOnDownPressed",
+          "kind": "handler",
+          "name": "Keys.onDownPressed"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostLocalComponentGraphSurfaceControlsGraphSurfaceButton",
+          "kind": "localComponent",
+          "name": "GraphSurfaceControls.GraphSurfaceButton",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml"
+        },
+        {
+          "anchor": "GraphNodeToolbarPopoverHostLocalComponentGraphSurfaceControlsGraphSurfaceComboBox",
+          "kind": "localComponent",
+          "name": "GraphSurfaceControls.GraphSurfaceComboBox",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceComboBox.qml"
         }
       ]
     },

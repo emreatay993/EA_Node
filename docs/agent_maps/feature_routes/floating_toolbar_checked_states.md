@@ -19,11 +19,11 @@ Passive `passive.*` hosts add a checked Lock action. A locked host normally clos
 
 Text annotation toolbar icons resolve through `ui/icon_registry.py` and `ui_qml/components/shell/icons/`; keep `GraphBareTextSurface.qml` action icon names in the registered kebab-case `uiIcons` namespace.
 
-Text annotation formatting uses grouped surface actions (`popoverActions`) rendered by `GraphNodeFloatingToolbar.qml` as toolbar-local compact popovers. The font-size group uses the toolbar's dedicated `font_size` popover layout with a validated integer field, slider, and `-` / `+` steppers. The font-family group uses the `font_family` searchable list layout, including Default clearing and surface-dispatched family selection. The text-style group owns emphasis plus markdown bulleted/numbered list toggles. Slider movement sends `text_font_size_preview:*` for local draft rendering and release/close flushes the final style commit through the text surface. Keep grouped popover controls surface-dispatched, include their embedded rects in the toolbar hit area, and use `tests/qml_quick/tst_graph_surface_controls.qml` for pure-QML routing, interaction, popover, tooltip, checked-state, and binding-loop behavior.
+Text annotation formatting uses grouped surface actions (`popoverActions`) rendered by `GraphNodeToolbarPopoverHost.qml` as toolbar-local compact popovers. The font-size group uses the owner's dedicated `font_size` layout with a validated integer field, slider, and `-` / `+` steppers. The font-family group uses the `font_family` searchable list layout, including Default clearing and surface-dispatched family selection. The text-style group owns emphasis plus markdown bulleted/numbered list toggles. Slider movement sends `text_font_size_preview:*` for local draft rendering and release/close flushes the final style commit through the text surface. Keep grouped popover controls surface-dispatched and include the owner's popover rect in the toolbar hit area. `tst_graph_node_toolbar_popover_host.qml` owns direct panel/focus/position/callback behavior; `tst_graph_surface_controls.qml` retains primary-button/open delegation, toolbar chrome, tooltip, checked-state, and binding-loop integration.
 
-Node floating-toolbar popovers use level-aware sizing tokens from `GraphNodeFloatingToolbar.qml`: `_popoverControlHeight`, `_popoverIconSize`, `_popoverTextPixelSize`, `_popoverHorizontalPadding`, `_popoverVerticalPadding`, and `_popoverRadius`. Source-storage dropdowns, browse buttons, font-size controls, PDF page controls, and font-family search/list rows should consume these tokens instead of fixed `*_sizeScale` heights or primary-toolbar padding.
+Node floating-toolbar popovers use level-aware sizing tokens owned by `GraphNodeToolbarPopoverHost.qml` and exposed through live compatibility reads on `GraphNodeFloatingToolbar.qml`: `_popoverControlHeight`, `_popoverIconSize`, `_popoverTextPixelSize`, `_popoverHorizontalPadding`, `_popoverVerticalPadding`, and `_popoverRadius`. Source-storage dropdowns, browse buttons, font-size controls, PDF page controls, and font-family search/list rows should consume these tokens instead of fixed `*_sizeScale` heights or primary-toolbar padding.
 
-`GraphNodeFloatingToolbar.qml` keeps popover placement through `_positionActionPopover`; implicit width/height handlers should call the thresholded `_positionActionPopoverIfSizeMoved()` wrapper so text entry does not reposition on sub-pixel size churn.
+`GraphNodeToolbarPopoverHost.qml` keeps popover placement in toolbar coordinates through `_positionActionPopover`; implicit width/height handlers call the thresholded `_positionActionPopoverIfSizeMoved()` wrapper so text entry does not reposition on sub-pixel size churn. `GraphNodeFloatingToolbar.qml` retains the toolbar anchor/chrome placement and passes itself as the explicit owner for dispatch and coordinate mapping.
 
 PDF media controls use the toolbar's `pdf_page` popover layout: a Navigate action opens previous/next page buttons around a validated page-number field that dispatches `pdf_page_set:*` to the PDF surface.
 
@@ -32,6 +32,7 @@ Text annotation copy/paste style buttons are surface actions (`text_copy_style`,
 ## Start Here
 - `ea_node_editor/ui_qml/components/graph/GraphActionPresentation.js`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeFloatingToolbar.qml`
+- `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeToolbarPopoverHost.qml`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphSelectionEnvelopeOverlay.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml`
@@ -48,8 +49,9 @@ Text annotation copy/paste style buttons are surface actions (`text_copy_style`,
 `GraphActionPresentation.js` shapes action fields, child menu/popover arrays,
 checked indexes, stable filter ordering, node grouping, and edge toolbar choices
 only when authoritative action lists or popover state change. Toolbar position,
-anchor, hover-grace, focus, dispatch, draft flush, and popup lifecycle remain in
-the concrete toolbar owners and are not presentation-model dependencies.
+anchor and hover grace remain in `GraphNodeFloatingToolbar.qml`; focus, draft
+flush, panel callbacks and action-popover lifecycle live in the direct
+`GraphNodeToolbarPopoverHost.qml` child. None are presentation-model dependencies.
 
 ## Focused Verification
 ```powershell
@@ -57,6 +59,7 @@ the concrete toolbar owners and are not presentation-model dependencies.
 $env:QT_QPA_PLATFORM = "offscreen"
 $env:QT_QUICK_CONTROLS_STYLE = "Basic"
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_surface_controls.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
+& (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_node_toolbar_popover_host.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction SilentlyContinue
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_inline.py -k "floating_toolbar" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_flow_edge_labels.py -k "toolbar or label" --ignore=venv -q
