@@ -1882,6 +1882,54 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             with self.subTest(source="TooltipPolicy.js", snippet=snippet):
                 self.assertIn(snippet, tooltip_policy)
 
+    def test_managed_tooltip_qml_contract_guards_popup_window_dismissal_lifecycle(
+        self,
+    ) -> None:
+        managed_tooltip = (
+            _REPO_ROOT / "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml"
+        ).read_text(encoding="utf-8")
+
+        # popupType: Popup.Window makes an open tooltip a real top-level OS
+        # window. Qt does not withdraw one when the app loses focus, when the
+        # host is minimized, or when a hover-exit event is never delivered, so
+        # these guards are what stop a tooltip floating over the desktop.
+        present_snippets = (
+            "popupType: Popup.Window",
+            "readonly property bool _lifecycleAllowsTooltip: Qt.application.active",
+            "&& control._hostWindowShown",
+            "&& control._anchorPresentable",
+            "&& !control._anchorMoved",
+            "active && text.length > 0 && control._lifecycleAllowsTooltip",
+            "visibility !== Window.Hidden",
+            "readonly property bool _anchorPresentable: !!control.parent && control.parent.visible",
+            "running: control.visible && !!control.parent",
+            "control._anchorMoved = true;",
+        )
+        for snippet in present_snippets:
+            with self.subTest(source="ManagedToolTip.qml", snippet=snippet):
+                self.assertIn(snippet, managed_tooltip)
+
+        timeout_lines = [
+            line.strip()
+            for line in managed_tooltip.splitlines()
+            if line.strip().startswith("timeout:")
+        ]
+        self.assertEqual(len(timeout_lines), 1, timeout_lines)
+        timeout_ms = int(timeout_lines[0].split(":", 1)[1].strip())
+        self.assertGreaterEqual(timeout_ms, 1000)
+
+        # Window.active is permanently false under QQuickWidget: the QML scene
+        # lives in a QQuickWidgetOffscreenWindow the window manager never
+        # activates, so guarding on it suppresses every tooltip in the app.
+        # Qt.application.active is the signal that tracks foreign-app focus.
+        absent_snippets = (
+            "Window.window.active",
+            "window.active &&",
+        )
+        for snippet in absent_snippets:
+            with self.subTest(source="ManagedToolTip.qml", snippet=snippet):
+                self.assertNotIn(snippet, managed_tooltip)
+
     def test_graph_typography_qml_contract_exposes_canvas_binding_and_shared_role_names(
         self,
     ) -> None:

@@ -38,6 +38,23 @@ tail) so tooltips stack above native embedded-surface overlays (plots,
 viewers, web pages); platforms without popup-window support fall back to the
 in-scene item.
 
+Because that popup is a real top-level OS window, `ManagedToolTip` owns its own
+dismissal lifecycle: Qt does not withdraw a windowed popup when the application
+loses focus, when the host window is minimized, or when a hover-exit event is
+never delivered, so an unguarded tooltip can survive as a floating window over
+the desktop and over other applications. `managedVisible` therefore also
+requires `Qt.application.active`, an anchor window that is not
+`Window.Hidden`, and a visible anchor item, and the control carries a bounded
+`timeout` as a backstop. Use `Qt.application.active` and never
+`Window.active` here: under `QQuickWidget` the QML scene lives in a
+`QQuickWidgetOffscreenWindow` that the window manager never activates, so
+`Window.active` is permanently `false` and would suppress every tooltip.
+An internal watchdog closes an open tooltip when its anchor item travels more
+than `anchorMoveThreshold` in scene coordinates (canvas pan, node drag, view
+switch); Qt delivers no pointer event when an item moves out from under a
+stationary cursor, so both `MouseArea.containsMouse` and `HoverHandler.hovered`
+stay stuck true in that case and callers cannot detect it themselves.
+
 Node and port descriptions are dynamic schema data, and execution diagnostics
 are dynamic runtime data. They stay out of the static copy registry and use
 `ManagedToolTip` with `general`, `inactive`, or `warning` category policy.
@@ -69,7 +86,7 @@ connection grips without data or execution semantics.
 - [Retained Work-Packet QA Evidence And Spec Navigation](work_packet_docs_status_qa.md)
 
 ## Update Triggers
-Update when tooltip manager APIs, policy tiers, central copy files, port type/availability/accessibility summaries, shell display behavior, or tooltip packet proof changes.
+Update when tooltip manager APIs, policy tiers, central copy files, port type/availability/accessibility summaries, shell display behavior, `ManagedToolTip` popup-window lifecycle guards, or tooltip packet proof changes.
 
 ## 2026-07-11 Performance Ownership
 
