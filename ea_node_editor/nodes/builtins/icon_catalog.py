@@ -83,7 +83,7 @@ BUILTIN_NODE_ICONS: Mapping[str, str] = {
     "geometry.cylinder": "cylinder",
     "geometry.deconstruct_transform": "matrix",
     "geometry.unchain_transforms": "matrix",
-    "fea.construct_zone": "select_all",
+    "geometry.construct_group": "select_all",
     "fea.force": "arrow_forward",
     "fea.load_container": "inventory_2",
     "mesh.deconstruct_mesh_face": "grid_on",

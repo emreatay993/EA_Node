@@ -16,11 +16,11 @@ from ea_node_editor.common.scene_protocol import (
     normalize_viewer_representation,
 )
 from ea_node_editor.nodes.builtins.geometry_primitives import (
+    GEOMETRY_GROUP_DATA_TYPE_ID,
     OCP_BODY_DATA_TYPE_ID,
-    ZONE_DATA_TYPE_ID,
+    _geometry_group_compound,
     _resolve_ocp_body,
-    _resolve_zone,
-    _zone_compound,
+    _resolve_geometry_group,
 )
 from ea_node_editor.nodes.core_data_types import VIEWER_SESSION_DATA_TYPE_ID
 from ea_node_editor.nodes.execution_context import NodeResult
@@ -64,10 +64,10 @@ def _prepare_primary_scene(ctx, value: object):  # noqa: ANN001, ANN202
     if runtime_ref.data_type_id == OCP_BODY_DATA_TYPE_ID:
         native_source_ref, shape = _resolve_ocp_body(ctx, value)
         source_name = "OCPBody"
-    elif runtime_ref.data_type_id == ZONE_DATA_TYPE_ID:
-        native_source_ref, zone = _resolve_zone(ctx, value)
-        shape = _zone_compound(ctx, zone)
-        source_name = "Zone"
+    elif runtime_ref.data_type_id == GEOMETRY_GROUP_DATA_TYPE_ID:
+        native_source_ref, group = _resolve_geometry_group(ctx, value)
+        shape = _geometry_group_compound(ctx, group)
+        source_name = "GeometryGroup"
     else:
         return _require_scene(value, label="scene"), None
 

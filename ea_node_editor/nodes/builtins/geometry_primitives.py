@@ -37,9 +37,9 @@ COREX_GEOMETRY_PRIMITIVES_OWNER_VERSION = "1"
 OCP_BODY_DATA_TYPE_ID = "COREX.Geometry.OCPBody"
 OCP_BODY_HANDLE_KIND = "corex.geometry.ocp_body"
 CYLINDER_NODE_TYPE_ID = "geometry.cylinder"
-ZONE_DATA_TYPE_ID = "COREX.DataTypes.Zone"
-ZONE_HANDLE_KIND = "corex.geometry.zone"
-CONSTRUCT_ZONE_NODE_TYPE_ID = "fea.construct_zone"
+GEOMETRY_GROUP_DATA_TYPE_ID = "COREX.Geometry.Group"
+GEOMETRY_GROUP_HANDLE_KIND = "corex.geometry.group"
+CONSTRUCT_GEOMETRY_GROUP_NODE_TYPE_ID = "geometry.construct_group"
 
 
 def is_ocp_body_handle(value: object) -> bool:
@@ -74,33 +74,38 @@ def _resolve_ocp_body(
     return value, shape
 
 
-def is_zone_handle(value: object) -> bool:
+def is_geometry_group_handle(value: object) -> bool:
     return (
         type(value) is RuntimeHandleRef
-        and value.data_type_id == ZONE_DATA_TYPE_ID
+        and value.data_type_id == GEOMETRY_GROUP_DATA_TYPE_ID
         and value.schema_version == 1
-        and value.kind == ZONE_HANDLE_KIND
+        and value.kind == GEOMETRY_GROUP_HANDLE_KIND
         and value.metadata == {}
     )
 
 
-def _resolve_zone(
+def _resolve_geometry_group(
     ctx: ExecutionContext,
     value: object,
-) -> tuple[RuntimeHandleRef, "_ZoneRecord"]:
-    if not is_zone_handle(value):
-        raise TypeError("Zone input must be an exact COREX Zone handle")
+) -> tuple[RuntimeHandleRef, "_GeometryGroupRecord"]:
+    if not is_geometry_group_handle(value):
+        raise TypeError(
+            "Geometry Group input must be an exact COREX Geometry Group handle"
+        )
     record = ctx.resolve_handle(
         value,
-        expected_data_type=ZONE_DATA_TYPE_ID,
-        expected_kind=ZONE_HANDLE_KIND,
+        expected_data_type=GEOMETRY_GROUP_DATA_TYPE_ID,
+        expected_kind=GEOMETRY_GROUP_HANDLE_KIND,
     )
-    if type(record) is not _ZoneRecord or record.closed:
-        raise RuntimeError("Zone handle no longer owns a live record")
+    if type(record) is not _GeometryGroupRecord or record.closed:
+        raise RuntimeError("Geometry Group handle no longer owns a live record")
     return value, record
 
 
-def _zone_compound(ctx: ExecutionContext, record: "_ZoneRecord") -> Any:
+def _geometry_group_compound(
+    ctx: ExecutionContext,
+    record: "_GeometryGroupRecord",
+) -> Any:
     from OCP.BRep import BRep_Builder
     from OCP.TopoDS import TopoDS_Compound
 
@@ -126,11 +131,11 @@ OCP_BODY_DATA_TYPE = DataTypeSpec(
     implementation_version="1",
 )
 
-ZONE_DATA_TYPE = DataTypeSpec(
-    ZONE_DATA_TYPE_ID,
-    "Zone",
+GEOMETRY_GROUP_DATA_TYPE = DataTypeSpec(
+    GEOMETRY_GROUP_DATA_TYPE_ID,
+    "Geometry Group",
     "engineering",
-    is_zone_handle,
+    is_geometry_group_handle,
     parents=(GRAPH_DATA_TYPE_ID,),
     carriers=frozenset({"handle"}),
     persistence="never",
@@ -140,7 +145,7 @@ ZONE_DATA_TYPE = DataTypeSpec(
 )
 
 COREX_GEOMETRY_PRIMITIVES_CONTRACT_MANIFEST = PluginContractManifest(
-    data_types=(OCP_BODY_DATA_TYPE, ZONE_DATA_TYPE),
+    data_types=(OCP_BODY_DATA_TYPE, GEOMETRY_GROUP_DATA_TYPE),
 )
 
 
@@ -155,7 +160,7 @@ class _OcpBodyRecord:
 
 
 @dataclass(slots=True)
-class _ZoneRecord:
+class _GeometryGroupRecord:
     name: str
     child_leases: tuple[RuntimeHandleRef, ...]
     tolerances: tuple[float, ...]
@@ -182,7 +187,7 @@ class _ZoneRecord:
     dispose = close
 
 
-def _zone_tolerances(
+def _geometry_group_tolerances(
     ctx: ExecutionContext,
     *,
     geometry_count: int,
@@ -191,10 +196,12 @@ def _zone_tolerances(
     if raw_values is None:
         raw_values = []
     if type(raw_values) is not list:
-        raise TypeError("Construct Zone tolerances must be a list")
+        raise TypeError("Construct Geometry Group tolerances must be a list")
     double_spec = ctx.worker_services.data_types.require(DOUBLE_DATA_TYPE_ID)
     if any(not double_spec.validate_item(value) for value in raw_values):
-        raise TypeError("Construct Zone tolerances must contain COREXDouble values")
+        raise TypeError(
+            "Construct Geometry Group tolerances must contain COREXDouble values"
+        )
     values = tuple(float(value) for value in raw_values)
     if not values:
         return (0.0,) * geometry_count
@@ -202,7 +209,8 @@ def _zone_tolerances(
         return values * geometry_count
     if len(values) != geometry_count:
         raise ValueError(
-            "Construct Zone tolerances must be empty, one value, or match geometry count"
+            "Construct Geometry Group tolerances must be empty, one value, or match "
+            "geometry count"
         )
     return values
 
@@ -295,16 +303,16 @@ def execute_cylinder(ctx: ExecutionContext) -> NodeResult:
         raise
 
 
-def execute_construct_zone(ctx: ExecutionContext) -> NodeResult:
+def execute_construct_geometry_group(ctx: ExecutionContext) -> NodeResult:
     name = ctx.inputs.get("name")
     if not isinstance(name, str):
-        raise TypeError("Construct Zone name must be a COREXString value")
+        raise TypeError("Construct Geometry Group name must be a COREXString value")
     geometry = ctx.inputs.get("geometry")
     if type(geometry) is not list or not geometry:
-        raise ValueError("Construct Zone requires a nonempty OCPBody list")
-    tolerances = _zone_tolerances(ctx, geometry_count=len(geometry))
-    aggregate_scope = f"cache:zone:{uuid4().hex}"
-    record = _ZoneRecord(
+        raise ValueError("Construct Geometry Group requires a nonempty OCPBody list")
+    tolerances = _geometry_group_tolerances(ctx, geometry_count=len(geometry))
+    aggregate_scope = f"cache:geometry_group:{uuid4().hex}"
+    record = _GeometryGroupRecord(
         name=name,
         child_leases=(),
         tolerances=tolerances,
@@ -316,21 +324,21 @@ def execute_construct_zone(ctx: ExecutionContext) -> NodeResult:
             child_ref, _shape = _resolve_ocp_body(ctx, value)
             acquired.append(ctx.lease_handle(child_ref, owner_scope=aggregate_scope))
         record.child_leases = tuple(acquired)
-        zone_ref = ctx.register_handle(
+        group_ref = ctx.register_handle(
             record,
-            data_type_id=ZONE_DATA_TYPE_ID,
-            kind=ZONE_HANDLE_KIND,
+            data_type_id=GEOMETRY_GROUP_DATA_TYPE_ID,
+            kind=GEOMETRY_GROUP_HANDLE_KIND,
             metadata={},
             dispose=record.close,
         )
-        return NodeResult(outputs={"zone": zone_ref})
+        return NodeResult(outputs={"group": group_ref})
     except Exception:
         record.child_leases = tuple(acquired)
         record.close()
         raise
 
 __all__ = [
-    "CONSTRUCT_ZONE_NODE_TYPE_ID",
+    "CONSTRUCT_GEOMETRY_GROUP_NODE_TYPE_ID",
     "CYLINDER_NODE_TYPE_ID",
     "OCP_BODY_DATA_TYPE",
     "OCP_BODY_DATA_TYPE_ID",
@@ -338,11 +346,11 @@ __all__ = [
     "COREX_GEOMETRY_PRIMITIVES_CONTRACT_MANIFEST",
     "COREX_GEOMETRY_PRIMITIVES_OWNER_ID",
     "COREX_GEOMETRY_PRIMITIVES_OWNER_VERSION",
-    "ZONE_DATA_TYPE",
-    "ZONE_DATA_TYPE_ID",
-    "ZONE_HANDLE_KIND",
-    "execute_construct_zone",
+    "GEOMETRY_GROUP_DATA_TYPE",
+    "GEOMETRY_GROUP_DATA_TYPE_ID",
+    "GEOMETRY_GROUP_HANDLE_KIND",
+    "execute_construct_geometry_group",
     "execute_cylinder",
+    "is_geometry_group_handle",
     "is_ocp_body_handle",
-    "is_zone_handle",
 ]

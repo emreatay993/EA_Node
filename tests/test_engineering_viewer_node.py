@@ -31,11 +31,11 @@ from ea_node_editor.nodes.builtins.engineering_viewer import (
 )
 from ea_node_editor.nodes.builtins import geometry_primitives
 from ea_node_editor.nodes.builtins.geometry_primitives import (
+    GEOMETRY_GROUP_DATA_TYPE_ID,
+    GEOMETRY_GROUP_HANDLE_KIND,
     OCP_BODY_DATA_TYPE_ID,
     OCP_BODY_HANDLE_KIND,
-    ZONE_DATA_TYPE_ID,
-    ZONE_HANDLE_KIND,
-    execute_construct_zone,
+    execute_construct_geometry_group,
     execute_cylinder,
 )
 from ea_node_editor.nodes.builtins.rich_value_nodes import PLANE_DATA_TYPE_ID
@@ -72,7 +72,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
         self.assertEqual(ports["scene"].data_type, COREX_SCENE_DATA_TYPE)
         self.assertEqual(
             ports["scene"].accepted_data_types,
-            (OCP_BODY_DATA_TYPE_ID, ZONE_DATA_TYPE_ID),
+            (OCP_BODY_DATA_TYPE_ID, GEOMETRY_GROUP_DATA_TYPE_ID),
         )
         self.assertEqual(ports["overlay"].data_type, COREX_SCENE_DATA_TYPE)
         self.assertEqual(ports["overlay"].accepted_data_types, ())
@@ -326,24 +326,26 @@ class EngineeringViewerNodeTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 SharedMemory(name=shared_memory_name, create=False)
 
-    def test_cylinder_zone_viewer_preserves_ordered_native_lifetime(self) -> None:
+    def test_geometry_group_viewer_preserves_ordered_native_lifetime(self) -> None:
         registry = build_builtin_registry()
         services = WorkerServices()
         services.bind_data_types(registry.data_types)
-        run_id = "run-zone-viewer"
-        workspace_id = "workspace-zone-viewer"
+        run_id = "run-geometry-group-viewer"
+        workspace_id = "workspace-geometry-group-viewer"
         body_disposals: list[int] = []
-        zone_disposals: list[int] = []
+        group_disposals: list[int] = []
         original_body_close = geometry_primitives._OcpBodyRecord.close  # noqa: SLF001
-        original_zone_close = geometry_primitives._ZoneRecord.close  # noqa: SLF001
+        original_group_close = (  # noqa: SLF001
+            geometry_primitives._GeometryGroupRecord.close
+        )
 
         def counted_body_close(record) -> None:  # noqa: ANN001
             body_disposals.append(id(record))
             original_body_close(record)
 
-        def counted_zone_close(record) -> None:  # noqa: ANN001
-            zone_disposals.append(id(record))
-            original_zone_close(record)
+        def counted_group_close(record) -> None:  # noqa: ANN001
+            group_disposals.append(id(record))
+            original_group_close(record)
 
         with (
             mock.patch.object(
@@ -352,9 +354,9 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 counted_body_close,
             ),
             mock.patch.object(
-                geometry_primitives._ZoneRecord,  # noqa: SLF001
+                geometry_primitives._GeometryGroupRecord,  # noqa: SLF001
                 "close",
-                counted_zone_close,
+                counted_group_close,
             ),
         ):
             body_refs = []
@@ -394,12 +396,12 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                     )
                 )
 
-            zone_context = ExecutionContext(
+            group_context = ExecutionContext(
                 run_id=run_id,
-                node_id="node-construct-zone",
+                node_id="node-construct-geometry-group",
                 workspace_id=workspace_id,
                 inputs={
-                    "name": "Primary Zone",
+                    "name": "Primary Geometry Group",
                     "geometry": body_refs,
                     "tolerances": [],
                 },
@@ -407,16 +409,16 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 emit_log=lambda _level, _message: None,
                 worker_services=services,
             )
-            zone_ref = execute_construct_zone(zone_context).outputs["zone"]
-            zone_record = services.resolve_handle(
-                zone_ref,
-                expected_data_type=ZONE_DATA_TYPE_ID,
-                expected_kind=ZONE_HANDLE_KIND,
+            group_ref = execute_construct_geometry_group(group_context).outputs["group"]
+            group_record = services.resolve_handle(
+                group_ref,
+                expected_data_type=GEOMETRY_GROUP_DATA_TYPE_ID,
+                expected_kind=GEOMETRY_GROUP_HANDLE_KIND,
             )
-            self.assertEqual(zone_record.name, "Primary Zone")
-            self.assertEqual(zone_record.tolerances, (0.0, 0.0))
+            self.assertEqual(group_record.name, "Primary Geometry Group")
+            self.assertEqual(group_record.tolerances, (0.0, 0.0))
             self.assertEqual(
-                [ref.handle_id for ref in zone_record.child_leases],
+                [ref.handle_id for ref in group_record.child_leases],
                 [ref.handle_id for ref in body_refs],
             )
 
@@ -424,7 +426,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 run_id=run_id,
                 node_id="node-model-viewer",
                 workspace_id=workspace_id,
-                inputs={"scene": zone_ref},
+                inputs={"scene": group_ref},
                 properties={},
                 emit_log=lambda _level, _message: None,
                 worker_services=services,
@@ -447,8 +449,8 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 all(not item["path"] for item in primary["geometry_assets"])
             )
             self.assertEqual(body_disposals, [])
-            self.assertEqual(zone_disposals, [])
-            json.dumps(zone_ref.metadata, allow_nan=False)
+            self.assertEqual(group_disposals, [])
+            json.dumps(group_ref.metadata, allow_nan=False)
             json.dumps(session_ref.metadata, allow_nan=False)
             json.dumps(session, allow_nan=False)
             attachment = SharedMemory(name=shared_memory_name, create=False)
@@ -459,11 +461,11 @@ class EngineeringViewerNodeTests(unittest.TestCase):
             ]
             native_source_ref = session_record.source_refs["native_source"]
             prepared_scene_ref = session_record.source_refs["scene"]
-            self.assertEqual(native_source_ref.handle_id, zone_ref.handle_id)
-            self.assertIs(services.resolve_handle(native_source_ref), zone_record)
+            self.assertEqual(native_source_ref.handle_id, group_ref.handle_id)
+            self.assertIs(services.resolve_handle(native_source_ref), group_record)
             self.assertEqual(
                 prepared_scene_ref.metadata["source"]["source_path"],
-                "memory://corex/Zone",
+                "memory://corex/GeometryGroup",
             )
 
             services.cleanup_run(run_id)
@@ -472,14 +474,14 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 with self.assertRaises(StaleHandleError):
                     services.resolve_handle(body_ref)
             with self.assertRaises(StaleHandleError):
-                services.resolve_handle(zone_ref)
-            self.assertFalse(zone_record.closed)
+                services.resolve_handle(group_ref)
+            self.assertFalse(group_record.closed)
             self.assertEqual(body_disposals, [])
-            self.assertEqual(zone_disposals, [])
+            self.assertEqual(group_disposals, [])
             self.assertIsNotNone(services.resolve_handle(prepared_scene_ref))
-            self.assertIs(services.resolve_handle(native_source_ref), zone_record)
+            self.assertIs(services.resolve_handle(native_source_ref), group_record)
             for child_ref, body_record in zip(
-                zone_record.child_leases,
+                group_record.child_leases,
                 body_records,
                 strict=True,
             ):
@@ -494,13 +496,13 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 )
             )
 
-            self.assertEqual(zone_disposals, [id(zone_record)])
+            self.assertEqual(group_disposals, [id(group_record)])
             self.assertEqual(
                 body_disposals,
                 [id(body_records[1]), id(body_records[0])],
             )
-            self.assertTrue(zone_record.closed)
-            self.assertEqual(zone_record.child_leases, ())
+            self.assertTrue(group_record.closed)
+            self.assertEqual(group_record.child_leases, ())
             self.assertTrue(all(record.shape is None for record in body_records))
             with self.assertRaises(FileNotFoundError):
                 SharedMemory(name=shared_memory_name, create=False)

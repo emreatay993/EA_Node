@@ -14,6 +14,7 @@ def test_corex_type_ids_and_owners_are_canonical() -> None:
     expected_owners = {
         "COREX.DataTypes.Image": "corex.core_values",
         "COREX.DataTypes.Point3D": "corex.spatial_values",
+        "COREX.Geometry.Group": "corex.geometry_primitives",
         "COREX.Geometry.OCPBody": "corex.geometry_primitives",
         "COREX.DataTypes.ViewerViewport": "corex.viewer_viewport",
         TREE_PATH_DATA_TYPE_ID: COREX_TREE_PATH_OWNER_ID,

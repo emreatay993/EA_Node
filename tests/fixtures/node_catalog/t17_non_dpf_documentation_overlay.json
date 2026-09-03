@@ -21,12 +21,6 @@
       "blue": "Blue channel value.",
       "alpha": "Alpha channel value."
     },
-    "fea.construct_zone": {
-      "name": "Name assigned to the zone.",
-      "geometry": "Ordered geometry bodies in the zone.",
-      "tolerances": "Optional per-body tolerances.",
-      "zone": "Zone containing the supplied geometry and tolerances."
-    },
     "fea.force": {
       "name": "Name assigned to the force load.",
       "index": "Optional load index.",

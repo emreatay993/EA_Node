@@ -5,7 +5,7 @@
 SOURCE = r'''import corex
 
 from ea_node_editor.nodes.builtins.geometry_primitives import (
-    execute_construct_zone,
+    execute_construct_geometry_group,
     execute_cylinder,
 )
 from ea_node_editor.nodes.builtins.mesh_contracts import (
@@ -60,20 +60,20 @@ def cylinder(ctx, plane, radius, interval):
 
 
 @corex.node(
-    id="fea.construct_zone",
+    id="geometry.construct_group",
     _solution_reuse_scope="session",
-    name="Construct Zone",
-    category=("FEA", "Model"),
+    name="Construct Geometry Group",
+    category=("Geometry", "Model"),
     icon="select_all",
-    description="Groups ordered OCP bodies and per-body tolerances into a Zone.",
-    keywords=("FEA", "zone", "geometry", "tolerance"),
+    description="Groups ordered OCP bodies and per-body tolerances.",
+    keywords=("geometry", "group", "body", "tolerance"),
 )
 @corex.input(
     "name",
     value_type="COREX.DataTypes.String",
     required=True,
     label="Name",
-    description="Name assigned to the zone.",
+    description="Name assigned to the geometry group.",
 )
 @corex.input(
     "geometry",
@@ -81,7 +81,7 @@ def cylinder(ctx, plane, radius, interval):
     structure="list",
     required=True,
     label="Geometry",
-    description="Ordered geometry bodies in the zone.",
+    description="Ordered OCP bodies in the geometry group.",
 )
 @corex.input(
     "tolerances",
@@ -92,13 +92,17 @@ def cylinder(ctx, plane, radius, interval):
     description="Optional per-body tolerances.",
 )
 @corex.output(
-    "zone",
-    value_type="COREX.DataTypes.Zone",
-    label="Zone",
-    description="Zone containing the supplied geometry and tolerances.",
+    "group",
+    value_type="COREX.Geometry.Group",
+    label="Geometry Group",
+    description="Geometry group containing the supplied bodies and tolerances.",
 )
-def construct_zone(ctx, name, geometry, tolerances):
-    return _outputs(ctx, execute_construct_zone(ctx), "fea_construct_zone")
+def construct_geometry_group(ctx, name, geometry, tolerances):
+    return _outputs(
+        ctx,
+        execute_construct_geometry_group(ctx),
+        "geometry_construct_group",
+    )
 
 
 @corex.node(

@@ -17,12 +17,12 @@ from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtin_functions import engineering_geometry
 from ea_node_editor.nodes.builtins.geometry_contracts import BODY_DATA_TYPE_ID
 from ea_node_editor.nodes.builtins.geometry_primitives import (
-    CONSTRUCT_ZONE_NODE_TYPE_ID,
+    CONSTRUCT_GEOMETRY_GROUP_NODE_TYPE_ID,
     CYLINDER_NODE_TYPE_ID,
     OCP_BODY_DATA_TYPE_ID,
     OCP_BODY_HANDLE_KIND,
     _resolve_ocp_body,
-    _resolve_zone,
+    _resolve_geometry_group,
 )
 from ea_node_editor.nodes.builtins.rich_value_nodes import PLANE_DATA_TYPE_ID
 from ea_node_editor.nodes.execution_context import ExecutionContext
@@ -36,7 +36,7 @@ from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 _CONVERTED_TYPE_IDS = (
     "geometry.cylinder",
-    "fea.construct_zone",
+    "geometry.construct_group",
     "mesh.deconstruct_mesh_face",
 )
 def _plane() -> TypedInlineValue:
@@ -113,19 +113,19 @@ def _runtime() -> tuple[object, WorkerServices, ExecutionContext]:
 
 
 
-def test_construct_zone_broadcasts_tolerance_and_releases_partial_leases() -> None:
+def test_construct_geometry_group_broadcasts_tolerance_and_releases_leases() -> None:
     cylinder, services, cylinder_context = _runtime()
     first_body = cylinder.execute(cylinder_context).outputs["body"]
     second_body = cylinder.execute(cylinder_context).outputs["body"]
-    zone_node = _function_adapters()[CONSTRUCT_ZONE_NODE_TYPE_ID]
+    group_node = _function_adapters()[CONSTRUCT_GEOMETRY_GROUP_NODE_TYPE_ID]
 
-    def zone_context(geometry: list[object], tolerances: list[object]):
+    def group_context(geometry: list[object], tolerances: list[object]):
         return ExecutionContext(
             run_id=cylinder_context.run_id,
-            node_id="construct-zone-node",
+            node_id="construct-geometry-group-node",
             workspace_id=cylinder_context.workspace_id,
             inputs={
-                "name": "Primary Zone",
+                "name": "Primary Geometry Group",
                 "geometry": geometry,
                 "tolerances": tolerances,
             },
@@ -134,22 +134,22 @@ def test_construct_zone_broadcasts_tolerance_and_releases_partial_leases() -> No
             worker_services=services,
         )
 
-    zone_ref = zone_node.execute(
-        zone_context([first_body, second_body], [-1.25])
-    ).outputs["zone"]
-    resolved_ref, record = _resolve_zone(
-        zone_context([], []),
-        zone_ref,
+    group_ref = group_node.execute(
+        group_context([first_body, second_body], [-1.25])
+    ).outputs["group"]
+    resolved_ref, record = _resolve_geometry_group(
+        group_context([], []),
+        group_ref,
     )
-    assert resolved_ref is zone_ref
-    assert record.name == "Primary Zone"
+    assert resolved_ref is group_ref
+    assert record.name == "Primary Geometry Group"
     assert record.tolerances == (-1.25, -1.25)
     assert [ref.handle_id for ref in record.child_leases] == [
         first_body.handle_id,
         second_body.handle_id,
     ]
     aggregate_scope = record.child_leases[0].owner_scope
-    assert aggregate_scope.startswith("cache:zone:")
+    assert aggregate_scope.startswith("cache:geometry_group:")
     assert aggregate_scope != first_body.owner_scope
     assert {ref.owner_scope for ref in record.child_leases} == {aggregate_scope}
     assert services.handle_registry.lease_count(
@@ -163,29 +163,29 @@ def test_construct_zone_broadcasts_tolerance_and_releases_partial_leases() -> No
 
     lease_count = services.handle_registry.active_lease_count
     with pytest.raises(ValueError, match="match geometry count"):
-        zone_node.execute(
-            zone_context([first_body, second_body], [1.0, 2.0, 3.0])
+        group_node.execute(
+            group_context([first_body, second_body], [1.0, 2.0, 3.0])
         )
     assert services.handle_registry.active_lease_count == lease_count
 
     wrong_kind = replace(second_body, kind="wrong.kind")
     with pytest.raises(TypeError, match="exact COREX OCPBody handle"):
-        zone_node.execute(zone_context([first_body, wrong_kind], []))
+        group_node.execute(group_context([first_body, wrong_kind], []))
     assert services.handle_registry.active_lease_count == lease_count
 
     class Hostile:
         def __getattribute__(self, _name: str) -> object:
             raise AssertionError("hostile input was accessed")
 
-    with pytest.raises(TypeError, match="exact COREX Zone handle"):
-        _resolve_zone(zone_context([], []), Hostile())
-    with pytest.raises(TypeError, match="exact COREX Zone handle"):
-        _resolve_zone(
-            zone_context([], []),
-            replace(zone_ref, kind="wrong.kind"),
+    with pytest.raises(TypeError, match="exact COREX Geometry Group handle"):
+        _resolve_geometry_group(group_context([], []), Hostile())
+    with pytest.raises(TypeError, match="exact COREX Geometry Group handle"):
+        _resolve_geometry_group(
+            group_context([], []),
+            replace(group_ref, kind="wrong.kind"),
         )
 
-    assert services.release_handle(zone_ref)
+    assert services.release_handle(group_ref)
     assert record.closed
     assert record.child_leases == ()
     assert services.handle_registry.lease_count(first_body) == 1

@@ -25,7 +25,7 @@ FROZEN_CATALOG_SHA256 = (
     "3CF91390E9E4C606B571ED3C907D7BF35647165F5358328F8FE9C18BF15C618F"
 )
 SOLUTION_REUSE_CLASSIFICATION_SHA256 = (
-    "D19369093E7A100A518A8B0E939CDEECC61AA1A78E26A1E51FD46543F6AB460A"
+    "0693C625B37118F46032DEF77BE4EB4C46D28774A984CB31684130DE62422551"
 )
 
 
@@ -56,6 +56,33 @@ def _catalog_by_type(catalog: object) -> dict[str, dict[str, Any]]:
             raise ValueError(f"Invalid or duplicate catalog type ID: {type_id!r}")
         by_type[type_id] = row
     return by_type
+
+
+def _replace_catalog_rows(
+    catalog: list[dict[str, Any]],
+    *,
+    remove_type_ids: object,
+    add_rows: object,
+    label: str,
+) -> list[dict[str, Any]]:
+    if (
+        type(remove_type_ids) is not list
+        or any(type(item) is not str or not item for item in remove_type_ids)
+        or len(remove_type_ids) != len(set(remove_type_ids))
+    ):
+        raise ValueError(f"{label} remove_type_ids must be a unique string list")
+    retained = _catalog_by_type(catalog)
+    unknown_removals = set(remove_type_ids) - set(retained)
+    if unknown_removals:
+        raise ValueError(f"Unknown {label.lower()} removal: {sorted(unknown_removals)}")
+    retained_rows = [
+        row for row in catalog if row["spec"]["type_id"] not in set(remove_type_ids)
+    ]
+    additions = _catalog_by_type(add_rows)
+    duplicates = set(additions) & set(_catalog_by_type(retained_rows))
+    if duplicates:
+        raise ValueError(f"Duplicate {label.lower()} addition: {sorted(duplicates)}")
+    return [*retained_rows, *deepcopy(add_rows)]
 
 
 def load_frozen_non_dpf_catalog(
@@ -179,29 +206,12 @@ def load_effective_non_dpf_catalog(
         raise ValueError("Structural overlay schema_version must be 1")
     if structural["frozen_sha256"] != FROZEN_CATALOG_SHA256:
         raise ValueError("Structural overlay targets the wrong frozen catalog")
-    remove_type_ids = structural["remove_type_ids"]
-    if (
-        type(remove_type_ids) is not list
-        or any(type(item) is not str or not item for item in remove_type_ids)
-        or len(remove_type_ids) != len(set(remove_type_ids))
-    ):
-        raise ValueError("remove_type_ids must be a unique string list")
-    unknown_removals = set(remove_type_ids) - set(by_type)
-    if unknown_removals:
-        raise ValueError(f"Unknown structural removal: {sorted(unknown_removals)}")
-    catalog = [
-        row for row in catalog if row["spec"]["type_id"] not in set(remove_type_ids)
-    ]
-
-    add_rows = structural["add_rows"]
-    additions = _catalog_by_type(add_rows)
-    retained = _catalog_by_type(catalog)
-    duplicate_additions = set(additions) & set(retained)
-    if duplicate_additions:
-        raise ValueError(
-            f"Duplicate structural addition: {sorted(duplicate_additions)}"
-        )
-    catalog.extend(deepcopy(add_rows))
+    catalog = _replace_catalog_rows(
+        catalog,
+        remove_type_ids=structural["remove_type_ids"],
+        add_rows=structural["add_rows"],
+        label="Structural overlay",
+    )
 
     current_contract = json.loads(
         current_contract_overlay_path.read_text(encoding="utf-8"),
@@ -209,13 +219,58 @@ def load_effective_non_dpf_catalog(
     )
     current_contract = _exact_keys(
         current_contract,
-        {"schema_version", "frozen_sha256", "property_default_patches"},
+        {
+            "schema_version",
+            "frozen_sha256",
+            "remove_type_ids",
+            "add_rows",
+            "model_viewer_patch",
+            "property_default_patches",
+        },
         label="Current contract overlay",
     )
     if type(current_contract["schema_version"]) is not int or current_contract["schema_version"] != 1:
         raise ValueError("Current contract overlay schema_version must be 1")
     if current_contract["frozen_sha256"] != FROZEN_CATALOG_SHA256:
         raise ValueError("Current contract overlay targets the wrong frozen catalog")
+    catalog = _replace_catalog_rows(
+        catalog,
+        remove_type_ids=current_contract["remove_type_ids"],
+        add_rows=current_contract["add_rows"],
+        label="Current contract overlay",
+    )
+    current_by_type = _catalog_by_type(catalog)
+    viewer_patch = _exact_keys(
+        current_contract["model_viewer_patch"],
+        {
+            "expected_description",
+            "replacement_description",
+            "expected_scene_description",
+            "replacement_scene_description",
+            "expected_scene_accepted_data_types",
+            "replacement_scene_accepted_data_types",
+        },
+        label="model_viewer_patch",
+    )
+    viewer = current_by_type["model.viewer"]
+    if viewer["spec"]["description"] != viewer_patch["expected_description"]:
+        raise ValueError("Model Viewer description patch drifted")
+    viewer["spec"]["description"] = viewer_patch["replacement_description"]
+    for ports in (viewer["spec"]["ports"], viewer["resolved_default_ports"]):
+        scene_ports = [port for port in ports if port["key"] == "scene"]
+        if len(scene_ports) != 1:
+            raise ValueError("Model Viewer scene port patch target is missing")
+        scene = scene_ports[0]
+        if (
+            scene["description"] != viewer_patch["expected_scene_description"]
+            or scene["accepted_data_types"]
+            != viewer_patch["expected_scene_accepted_data_types"]
+        ):
+            raise ValueError("Model Viewer scene port patch drifted")
+        scene["description"] = viewer_patch["replacement_scene_description"]
+        scene["accepted_data_types"] = viewer_patch[
+            "replacement_scene_accepted_data_types"
+        ]
     patches = _exact_keys(
         current_contract["property_default_patches"],
         {"model.viewer"},
@@ -231,7 +286,6 @@ def load_effective_non_dpf_catalog(
         {"expected_default", "replacement_default"},
         label="model.viewer.representation patch",
     )
-    current_by_type = _catalog_by_type(catalog)
     try:
         property_rows = current_by_type["model.viewer"]["spec"]["properties"]
     except KeyError as exc:

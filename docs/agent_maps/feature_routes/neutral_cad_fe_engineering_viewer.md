@@ -22,7 +22,7 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 ## Behavior
 - Model Viewer accepts supported engineering carriers and produces an owned
   prepared scene without exposing live worker objects to QML.
-- CAD/FE Import, Model Viewer, Cylinder, Construct Zone, and Deconstruct Mesh
+- CAD/FE Import, Model Viewer, Cylinder, Construct Geometry Group, and Deconstruct Mesh
   Face are inert reserved-bundle declarations; the existing trusted helpers
   retain file validation, prepared-scene work, native geometry, and session ownership.
 - CAD Import and FE Import receive trusted registry-owned file provenance for their `path` input. Content hashing is bounded and link/reparse-safe; connected path inputs bind through upstream solution keys instead. This metadata remains private to the shipped registry.

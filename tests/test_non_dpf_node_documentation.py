@@ -66,7 +66,7 @@ def test_t17_documentation_overlay_has_exact_scope() -> None:
     assert sum(
         len(descriptions)
         for descriptions in overlay["port_description_patches"].values()
-    ) == 105
+    ) == 101
     assert overlay["python_script_default_source"]["type_id"] == "core.python_script"
     assert overlay["python_script_default_source"]["property_key"] == "script"
     assert len(load_effective_non_dpf_catalog()) == 131

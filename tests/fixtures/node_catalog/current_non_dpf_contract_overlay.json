@@ -1,6 +1,200 @@
 {
   "schema_version": 1,
   "frozen_sha256": "3CF91390E9E4C606B571ED3C907D7BF35647165F5358328F8FE9C18BF15C618F",
+  "remove_type_ids": [
+    "fea.construct_zone"
+  ],
+  "add_rows": [
+    {
+      "spec": {
+        "type_id": "geometry.construct_group",
+        "display_name": "Construct Geometry Group",
+        "category_path": [
+          "Geometry",
+          "Model"
+        ],
+        "icon": "select_all",
+        "ports": [
+          {
+            "key": "name",
+            "direction": "in",
+            "kind": "data",
+            "data_type": "COREX.DataTypes.String",
+            "label": "Name",
+            "required": true,
+            "uses_property_default": false,
+            "exposed": true,
+            "allow_multiple_connections": false,
+            "side": "",
+            "source_metadata": null,
+            "accepted_data_types": [],
+            "display_tier": "",
+            "description": "Name assigned to the geometry group.",
+            "data_access": "item"
+          },
+          {
+            "key": "geometry",
+            "direction": "in",
+            "kind": "data",
+            "data_type": "COREX.Geometry.OCPBody",
+            "label": "Geometry",
+            "required": true,
+            "uses_property_default": false,
+            "exposed": true,
+            "allow_multiple_connections": false,
+            "side": "",
+            "source_metadata": null,
+            "accepted_data_types": [],
+            "display_tier": "",
+            "description": "Ordered OCP bodies in the geometry group.",
+            "data_access": "list"
+          },
+          {
+            "key": "tolerances",
+            "direction": "in",
+            "kind": "data",
+            "data_type": "COREX.DataTypes.Double",
+            "label": "Tolerances",
+            "required": false,
+            "uses_property_default": false,
+            "exposed": true,
+            "allow_multiple_connections": false,
+            "side": "",
+            "source_metadata": null,
+            "accepted_data_types": [],
+            "display_tier": "",
+            "description": "Optional per-body tolerances.",
+            "data_access": "list"
+          },
+          {
+            "key": "group",
+            "direction": "out",
+            "kind": "data",
+            "data_type": "COREX.Geometry.Group",
+            "label": "Geometry Group",
+            "required": null,
+            "uses_property_default": false,
+            "exposed": true,
+            "allow_multiple_connections": false,
+            "side": "",
+            "source_metadata": null,
+            "accepted_data_types": [],
+            "display_tier": "",
+            "description": "Geometry group containing the supplied bodies and tolerances.",
+            "data_access": "item"
+          }
+        ],
+        "properties": [],
+        "collapsible": true,
+        "description": "Groups ordered OCP bodies and per-body tolerances.",
+        "is_async": false,
+        "runtime_behavior": "active",
+        "surface_family": "standard",
+        "surface_variant": "",
+        "render_quality": {
+          "supported_quality_tiers": [
+            "full"
+          ]
+        },
+        "source_metadata": null,
+        "show_title_icon": false,
+        "keywords": [
+          "geometry",
+          "group",
+          "body",
+          "tolerance"
+        ],
+        "settings_groups": [],
+        "readiness_requirements": [],
+        "dynamic_port_groups": [],
+        "instance_spec_resolver": null
+      },
+      "resolved_default_ports": [
+        {
+          "key": "name",
+          "direction": "in",
+          "kind": "data",
+          "data_type": "COREX.DataTypes.String",
+          "label": "Name",
+          "required": true,
+          "uses_property_default": false,
+          "exposed": true,
+          "allow_multiple_connections": false,
+          "side": "",
+          "source_metadata": null,
+          "accepted_data_types": [],
+          "display_tier": "",
+          "description": "Name assigned to the geometry group.",
+          "data_access": "item"
+        },
+        {
+          "key": "geometry",
+          "direction": "in",
+          "kind": "data",
+          "data_type": "COREX.Geometry.OCPBody",
+          "label": "Geometry",
+          "required": true,
+          "uses_property_default": false,
+          "exposed": true,
+          "allow_multiple_connections": false,
+          "side": "",
+          "source_metadata": null,
+          "accepted_data_types": [],
+          "display_tier": "",
+          "description": "Ordered OCP bodies in the geometry group.",
+          "data_access": "list"
+        },
+        {
+          "key": "tolerances",
+          "direction": "in",
+          "kind": "data",
+          "data_type": "COREX.DataTypes.Double",
+          "label": "Tolerances",
+          "required": false,
+          "uses_property_default": false,
+          "exposed": true,
+          "allow_multiple_connections": false,
+          "side": "",
+          "source_metadata": null,
+          "accepted_data_types": [],
+          "display_tier": "",
+          "description": "Optional per-body tolerances.",
+          "data_access": "list"
+        },
+        {
+          "key": "group",
+          "direction": "out",
+          "kind": "data",
+          "data_type": "COREX.Geometry.Group",
+          "label": "Geometry Group",
+          "required": null,
+          "uses_property_default": false,
+          "exposed": true,
+          "allow_multiple_connections": false,
+          "side": "",
+          "source_metadata": null,
+          "accepted_data_types": [],
+          "display_tier": "",
+          "description": "Geometry group containing the supplied bodies and tolerances.",
+          "data_access": "item"
+        }
+      ]
+    }
+  ],
+  "model_viewer_patch": {
+    "expected_description": "Displays a neutral CAD/FE scene, OCP Body, or Zone with one optional overlay.",
+    "replacement_description": "Displays a neutral CAD/FE scene, OCP Body, or Geometry Group with one optional overlay.",
+    "expected_scene_description": "Primary prepared CAD/FE scene, worker-owned OCP Body, or Zone to display.",
+    "replacement_scene_description": "Primary prepared CAD/FE scene, worker-owned OCP Body, or Geometry Group to display.",
+    "expected_scene_accepted_data_types": [
+      "COREX.Geometry.OCPBody",
+      "COREX.DataTypes.Zone"
+    ],
+    "replacement_scene_accepted_data_types": [
+      "COREX.Geometry.OCPBody",
+      "COREX.Geometry.Group"
+    ]
+  },
   "property_default_patches": {
     "model.viewer": {
       "representation": {

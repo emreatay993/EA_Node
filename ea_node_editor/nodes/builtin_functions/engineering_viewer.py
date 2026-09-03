@@ -13,7 +13,7 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     name="Model Viewer",
     category=("Engineering", "Viewer"),
     icon="deployed_code",
-    description="Displays a neutral CAD/FE scene, OCP Body, or Zone with one optional overlay.",
+    description="Displays a neutral CAD/FE scene, OCP Body, or Geometry Group with one optional overlay.",
     keywords=("viewer", "cad", "finite element"),
     _surface_family="viewer",
     _render_quality_tiers=("full", "proxy"),
@@ -23,8 +23,8 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     value_type="COREX.Engineering.Scene",
     required=True,
     label="",
-    description="Primary prepared CAD/FE scene, worker-owned OCP Body, or Zone to display.",
-    _accepted_data_types=("COREX.Geometry.OCPBody", "COREX.DataTypes.Zone"),
+    description="Primary prepared CAD/FE scene, worker-owned OCP Body, or Geometry Group to display.",
+    _accepted_data_types=("COREX.Geometry.OCPBody", "COREX.Geometry.Group"),
 )
 @corex.input(
     "overlay",
