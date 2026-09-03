@@ -1419,9 +1419,15 @@ def test_canvas_execution_facts_project_waiting_and_retained_warning_diagnostics
             },
         ]
     )
+    blocked_warning = (
+        "The node has not been computed because the Required Mesh input did not "
+        "receive any data yet. Please provide data for all mandatory inputs and "
+        "check your upstream workflow for errors or missing wires."
+    )
     execution = _FlowExecutionStub()
     execution.run_state.runtime_warning_messages_by_workspace_id = {
         "workspace": {
+            "blocked": (blocked_warning,),
             "source": ("Mesh quality was reduced.", "Mesh quality was reduced.")
         }
     }
@@ -1434,7 +1440,10 @@ def test_canvas_execution_facts_project_waiting_and_retained_warning_diagnostics
     assert blocked_row["port_key"] == "required"
     assert blocked_row["target_keys"] == ["required"]
     assert blocked_row["target_labels"] == ["Required Mesh"]
-    assert "Required Mesh" in blocked_row["message"]
+    assert blocked_row["message"] == blocked_warning
+    assert [row["code"] for row in diagnostics["blocked"]["rows"]] == [
+        "required_input_waiting"
+    ]
     assert bridge.port_flow_state_lookup["blocked"]["required"] == "waiting"
 
     alternative_row = diagnostics["alternative"]["rows"][0]

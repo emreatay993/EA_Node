@@ -101,7 +101,7 @@ def test_viewer_capability_tooltips_are_registry_owned() -> None:
     )
 
 
-def test_managed_tooltip_tracks_shell_theme_colors(qapp) -> None:  # noqa: ANN001
+def test_managed_tooltip_tracks_shell_theme_colors_and_wraps_text(qapp) -> None:  # noqa: ANN001
     engine = QQmlEngine()
     bridge = ThemeBridge()
     engine.rootContext().setContextProperty("themeBridge", bridge)
@@ -119,7 +119,9 @@ def test_managed_tooltip_tracks_shell_theme_colors(qapp) -> None:  # noqa: ANN00
                 objectName: "managedToolTip"
                 parent: parent
                 themeBridgeRef: themeBridge
-                text: "Theme probe"
+                text: "<b>Elemental Difference</b> transforms a nodal field into an elemental field with a bounded multi-line explanation."
+                textFormat: Text.RichText
+                maximumTextWidth: 160
                 active: false
             }
         }
@@ -138,6 +140,15 @@ def test_managed_tooltip_tracks_shell_theme_colors(qapp) -> None:  # noqa: ANN00
         panel = tooltip.findChild(QObject, "managedToolTipPanel")
         assert content_item is not None
         assert panel is not None
+        qapp.processEvents()
+
+        maximum_width = tooltip.property("maximumTextWidth")
+        padded_maximum_width = (
+            maximum_width + tooltip.property("leftPadding") + tooltip.property("rightPadding")
+        )
+        assert tooltip.property("implicitWidth") <= padded_maximum_width
+        assert content_item.property("width") <= maximum_width
+        assert content_item.property("implicitHeight") > 40
 
         def assert_colors(tokens) -> None:  # noqa: ANN001
             assert _color_name(content_item.property("color")) == tokens.app_fg

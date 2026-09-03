@@ -29,8 +29,10 @@ controls must keep disabled items hoverable and show the exact unavailable
 reason.
 
 `ManagedToolTip` owns explicit shell-themed QML tooltip chrome using the
-`themeBridge` palette and a rounded card. QML callers use it instead of the
-native `ToolTip` control. `ManagedToolTip` renders as a popup window
+`themeBridge` palette and a rounded card. Its implicit width is capped by
+`maximumTextWidth`, so plain and rich text content receives a bounded width and
+wraps. QML callers use it instead of the native `ToolTip` control.
+`ManagedToolTip` renders as a popup window
 (`popupType: Popup.Window` with a negative bottom inset carrying the shadow
 tail) so tooltips stack above native embedded-surface overlays (plots,
 viewers, web pages); platforms without popup-window support fall back to the

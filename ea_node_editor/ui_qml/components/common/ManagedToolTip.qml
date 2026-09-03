@@ -56,6 +56,8 @@ ToolTip {
     rightPadding: 12
     topPadding: 8
     bottomPadding: 8
+    implicitWidth: Math.min(implicitContentWidth, maximumTextWidth)
+        + leftPadding + rightPadding
     // Render as a real popup window so tooltips composite above native child
     // widgets (embedded plot/viewer/web surfaces). Platforms without popup
     // window support silently fall back to the in-scene item.
@@ -70,7 +72,6 @@ ToolTip {
         font: control.font
         textFormat: control.textFormat
         wrapMode: Text.WordWrap
-        width: Math.min(implicitWidth, control.maximumTextWidth)
     }
 
     background: Item {

@@ -1651,16 +1651,16 @@ class ExecutionStateProps:
                             "message": message,
                         }
                     )
+            seen_messages = {row["message"] for row in rows}
             raw_warning_messages = warning_messages_by_node.get(node_id, ())
             if isinstance(raw_warning_messages, str):
                 raw_warning_messages = (raw_warning_messages,)
             if isinstance(raw_warning_messages, (list, tuple)):
                 for raw_message in raw_warning_messages:
                     message = str(raw_message).strip()
-                    row_key = ("runtime_warning", "", message)
-                    if not message or row_key in seen_rows:
+                    if not message or message in seen_messages:
                         continue
-                    seen_rows.add(row_key)
+                    seen_messages.add(message)
                     rows.append(
                         {
                             "severity": "warning",

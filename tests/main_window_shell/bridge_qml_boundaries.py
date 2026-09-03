@@ -1852,7 +1852,7 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "textFormat: control.textFormat",
             "property int maximumTextWidth: 360",
             "wrapMode: Text.WordWrap",
-            "width: Math.min(implicitWidth, control.maximumTextWidth)",
+            "implicitWidth: Math.min(implicitContentWidth, maximumTextWidth)",
             "readonly property bool managedVisible: TooltipPolicy.tooltipVisible(",
             "popupType: Popup.Window",
         )
