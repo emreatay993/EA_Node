@@ -132,6 +132,12 @@ QtObject {
         return Boolean(bridge.trigger_graph_action(String(actionId || ""), payload || ({})));
     }
 
+    function _finishInlineRename(actionId, nodeId, inlineEditStarted) {
+        if (inlineEditStarted)
+            return true;
+        return root.triggerGraphAction(actionId, { "node_id": String(nodeId || "") });
+    }
+
     function _canvasCommandBridge() {
         return root.canvasCommandBridge;
     }
@@ -459,9 +465,10 @@ QtObject {
         if (descriptor.inlineTitleEdit && root.canvasItem) {
             var renameTargetId = root.canvasItem.nodeContextNodeId;
             root.canvasItem._closeContextMenus();
+            var inlineEditStarted = false;
             if (root.canvasItem.requestInlineRenameForNode)
-                root.canvasItem.requestInlineRenameForNode(renameTargetId);
-            return true;
+                inlineEditStarted = Boolean(root.canvasItem.requestInlineRenameForNode(renameTargetId));
+            return root._finishInlineRename(actionId, renameTargetId, inlineEditStarted);
         }
         if (descriptor.clearEdgeSelection && root.canvasItem)
             root.canvasItem.clearEdgeSelection();
@@ -503,8 +510,12 @@ QtObject {
         var handled = root.triggerGraphAction(descriptor.actionId, payload);
         if (!handled)
             return false;
-        if (descriptor.inlineTitleEdit && nodeHost && nodeHost.beginInlineTitleEdit)
-            nodeHost.beginInlineTitleEdit();
+        if (descriptor.inlineTitleEdit) {
+            var inlineEditStarted = nodeHost && nodeHost.beginInlineTitleEdit
+                ? Boolean(nodeHost.beginInlineTitleEdit())
+                : false;
+            return root._finishInlineRename(descriptor.actionId, nodeId, inlineEditStarted);
+        }
         if (descriptor.clearEdgeSelection && root.canvasItem)
             root.canvasItem.clearEdgeSelection();
         return true;

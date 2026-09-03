@@ -1099,6 +1099,105 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
 
 
 class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
+    def test_trigger_rename_falls_back_when_inline_editor_is_unavailable(self) -> None:
+        self._run_qml_probe(
+            "trigger-rename-fallback",
+            """
+            component = QQmlComponent(engine)
+            component.setData(
+                b'''
+                import QtQuick 2.15
+                import "ea_node_editor/ui_qml/components/graph_canvas" as GraphCanvasComponents
+
+                Item {
+                    id: probeRoot
+                    property string nodeContextNodeId: "trigger_node"
+                    property bool inlineEditorAvailable: false
+                    property int flaggedRenameCalls: 0
+                    property int dialogRenameCalls: 0
+                    property int contextInlineAttempts: 0
+                    property int delegateInlineAttempts: 0
+                    property int closeCalls: 0
+
+                    function _closeContextMenus() { closeCalls += 1; }
+                    function requestInlineRenameForNode(_nodeId) {
+                        contextInlineAttempts += 1;
+                        return inlineEditorAvailable;
+                    }
+                    function runContextRename() {
+                        return actionRouter.handleNodeContextAction("rename_node");
+                    }
+                    function runToolbarRename() {
+                        return actionRouter.handleNodeDelegateAction(triggerNodeHost, nodeContextNodeId, "rename_node");
+                    }
+                    function resetCalls() {
+                        flaggedRenameCalls = 0;
+                        dialogRenameCalls = 0;
+                        contextInlineAttempts = 0;
+                        delegateInlineAttempts = 0;
+                        closeCalls = 0;
+                    }
+
+                    QtObject {
+                        id: graphActionBridge
+                        function trigger_graph_action(actionId, payload) {
+                            if (actionId !== "rename_node" || payload.node_id !== probeRoot.nodeContextNodeId)
+                                return false;
+                            if (payload.inline_title_edit)
+                                probeRoot.flaggedRenameCalls += 1;
+                            else
+                                probeRoot.dialogRenameCalls += 1;
+                            return true;
+                        }
+                    }
+
+                    QtObject {
+                        id: triggerNodeHost
+                        function beginInlineTitleEdit() {
+                            probeRoot.delegateInlineAttempts += 1;
+                            return probeRoot.inlineEditorAvailable;
+                        }
+                    }
+
+                    GraphCanvasComponents.GraphCanvasActionRouter {
+                        id: actionRouter
+                        canvasItem: probeRoot
+                        graphActionBridge: graphActionBridge
+                    }
+                }
+                ''',
+                QUrl.fromLocalFile(str(repo_root) + "/"),
+            )
+            if component.status() != QQmlComponent.Status.Ready:
+                errors = "\\n".join(error.toString() for error in component.errors())
+                raise AssertionError("Failed to load trigger rename probe:\\n" + errors)
+            probe = component.create()
+            if probe is None:
+                errors = "\\n".join(error.toString() for error in component.errors())
+                raise AssertionError("Failed to instantiate trigger rename probe:\\n" + errors)
+            app.processEvents()
+
+            assert probe.runContextRename() is True
+            assert probe.runToolbarRename() is True
+            assert int(probe.property("flaggedRenameCalls")) == 2
+            assert int(probe.property("dialogRenameCalls")) == 2
+            assert int(probe.property("contextInlineAttempts")) == 1
+            assert int(probe.property("delegateInlineAttempts")) == 1
+            assert int(probe.property("closeCalls")) == 1
+
+            probe.resetCalls()
+            probe.setProperty("inlineEditorAvailable", True)
+            assert probe.runContextRename() is True
+            assert probe.runToolbarRename() is True
+            assert int(probe.property("flaggedRenameCalls")) == 2
+            assert int(probe.property("dialogRenameCalls")) == 0
+
+            probe.deleteLater()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_graph_canvas_content_fullscreen_f11_routes_selection_and_hint_contract(self) -> None:
         self._run_qml_probe(
             "graph-canvas-content-fullscreen-shortcut",
