@@ -80,11 +80,20 @@ required; `description`, `keywords`, and `icon` are optional. One file may
 contain several top-level node functions with unique IDs and function names.
 Both `def` and `async def` are valid for plugins.
 
-Inputs and outputs accept `value_type`, `structure`, `label`, and `description`.
+Every `@corex.input` and `@corex.output` requires explicit `value_type=`.
+Omission produces a source-located declaration error; it never defaults to Any.
+Use `value_type=corex.Any` only for an intentionally generic or dynamic port.
+Inputs and outputs also accept `structure`, `label`, and `description`.
 Inputs also accept `required` and `section`. `structure` is exactly `"item"`,
 `"list"`, or `"tree"`. Use Python `bool`, `int`, `float`, and `str`, one of
 `corex.Any`, `corex.Image`, `corex.Color`, `corex.Interval`, or a registered
 canonical type-ID string.
+
+Choose the narrowest registered type that describes the values the port really
+produces or accepts. Blank connection Quick Insert shows precise type matches;
+legal broad and runtime-checked matches require a search and are labeled
+`Broad data match` or `Checked at runtime`. This recommendation policy does not
+prohibit an otherwise graph-legal manual connection.
 
 ## Add controls
 

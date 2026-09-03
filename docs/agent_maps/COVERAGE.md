@@ -130,6 +130,7 @@ implementation studies are intentionally excluded.
   session/handle ownership, and neutral COREX identifiers remain with the existing
   helper modules.
 - Retired import and placeholder surfaces are absent from current ownership.
+- Typed connection reliability keeps relation authority in `runtime_contracts/data_types.py` plus `graph/effective_ports.py`, recommendation tiers in `ui/shell/quick_insert_projection.py`, default-port Library/filter projection in `ui/shell/library_projection.py`, and restrictive post-insertion endpoint checks in `workspace_drop_connect_controller.py`. Public/Python Script input/output types are explicit; malformed workflow/Library/QML previews never become Any. The trusted non-DPF primary/accepted Any audit is exactly 20 endpoints, with existing MARS artifact maps retained.
 
 ## Hygiene
 

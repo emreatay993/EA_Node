@@ -82,7 +82,12 @@ def run(ctx, samples):
     return {"average": sum(samples) / len(samples)}
 ```
 
-`@corex.input` accepts `value_type=`, `structure=`, `required=`, `label=`,
+Every `@corex.input` and `@corex.output` requires explicit `value_type=`.
+Omission produces a source-located Apply error and leaves the applied node
+unchanged. Use `value_type=corex.Any` only for an intentionally generic or
+dynamic port; no type is inferred from the port name or function body.
+
+`@corex.input` also accepts `structure=`, `required=`, `label=`,
 `description=`, and `section=`. `@corex.output` accepts the same fields except
 `required` and `section`. Names must be ordinary Python identifiers and cannot
 be reused.
@@ -100,6 +105,10 @@ Use a built-in type, a supported alias, or a registered canonical type ID:
 The built-ins are `bool`, `int`, `float`, and `str`. The aliases are
 `corex.Any`, `corex.Image`, `corex.Color`, and `corex.Interval`. A canonical
 type-ID string must already be registered or Apply reports an error.
+
+Blank connection Quick Insert shows precise type matches. Legal broad or
+runtime-checked matches appear after a search, labeled `Broad data match` or
+`Checked at runtime`; manual graph-legal connections remain available.
 
 `structure` describes the outer shape, independently of the element type:
 

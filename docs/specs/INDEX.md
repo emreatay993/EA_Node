@@ -47,6 +47,7 @@ T01–T17 are complete, and the locked 176-type snapshot is fully classified.
 
 ### Completed Implementation Plans
 
+- [COREX Typed Connection Reliability](../PLAN_COREX_TYPED_CONNECTION_RELIABILITY.md) — `COMPLETED — T00–T06 ACCEPTED`; [task ledger](../PLANS/COREX_TYPED_CONNECTION_RELIABILITY_TASK_LEDGER.md)
 - [COREX Maintainability And Ownership Refactor](../PLAN_COREX_MAINTAINABILITY_OWNERSHIP_REFACTOR.md) — `COMPLETED — T00–T08 ACCEPTED`
 - [COREX Incremental Execution And Solution Snapshots](../PLAN_COREX_INCREMENTAL_EXECUTION_AND_SOLUTION_SNAPSHOTS.md) — `COMPLETED — T01–T09 ACCEPTED`
 - [COREX Novice Function Plugin SDK](../PLAN_COREX_NOVICE_PLUGIN_SDK.md) — `COMPLETED — T01–T17; RETAINED QA EVIDENCE BELOW`

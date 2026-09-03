@@ -100,6 +100,15 @@ def test_public_guides_do_not_teach_removed_plugin_apis() -> None:
             assert token not in text, f"{path}: removed public API {token!r}"
 
 
+def test_port_typing_guides_require_explicit_types_and_explain_search_fallbacks() -> None:
+    for name in ("PLUGIN_AUTHORING_GUIDE.md", "PLUGIN_MIGRATION_GUIDE.md", "PYTHON_SCRIPT_GUIDE.md"):
+        text = (_REPO_ROOT / "docs" / name).read_text(encoding="utf-8")
+        assert "requires explicit `value_type=`" in text, name
+        assert "`value_type=corex.Any`" in text, name
+        assert "`Broad data match`" in text, name
+        assert "`Checked at runtime`" in text, name
+
+
 def test_examples_build_one_candidate_registry_and_strain_runs_in_process(
     tmp_path: Path,
     monkeypatch,

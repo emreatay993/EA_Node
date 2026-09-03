@@ -91,6 +91,8 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 
 - `GraphCanvasStateBridge` projects `node_solution_freshness_lookup` through `GraphCanvasExecutionFacts.nodeSolutionFreshnessLookup`; missing means never. This is transport-only—no badge, color, tooltip, animation, or action consumes it yet. The unchanged `freshRunNodeLookup` is derived from current solution facts for existing neutral chrome.
 
+- `ConnectionQuickInsertOverlay.qml` renders Python-owned compatibility summaries and the exact blank/nonblank empty messages; it owns no type table or matching policy. Valid empty wire-release searches retain focus and remain searchable. `graph_scene_payload/builder.py` reuses Library-owned declared-type parsing for fallback previews, retaining the preview node while dropping malformed ports and preserving valid accepted types.
+
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_script_editor_dock.py --ignore=venv -q

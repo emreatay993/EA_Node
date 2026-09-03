@@ -20,9 +20,9 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | QML files | 175 |
 | Repeater constructs | 98 |
 | Loader constructs | 24 |
-| Signal handlers | 888 |
+| Signal handlers | 891 |
 | Connections targets | 47 |
-| Property bindings | 7640 |
+| Property bindings | 7644 |
 | Local component refs | 279 |
 
 ## Component Families
@@ -52,7 +52,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `DialogButton.qml` | `ea_node_editor/ui_qml/components/common/DialogButton.qml` | `Button` | _None_ | _None_ |
 | `DialogSurface.qml` | `ea_node_editor/ui_qml/components/common/DialogSurface.qml` | `FocusScope` | `Rectangle`, `MouseArea`, `ColumnLayout`, `Item`, `RowLayout`, `Text`, `ToolButton` | _None_ |
 | `DialogTextField.qml` | `ea_node_editor/ui_qml/components/common/DialogTextField.qml` | `TextField` | _None_ | _None_ |
-| `ManagedToolTip.qml` | `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml` | `ToolTip` | `Rectangle`, `Binding` | _None_ |
+| `ManagedToolTip.qml` | `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml` | `ToolTip` | `Rectangle`, `Timer`, `Binding` | _None_ |
 | `NodeLinkEditorForm.qml` | `ea_node_editor/ui_qml/components/common/NodeLinkEditorForm.qml` | `FocusScope` | `Rectangle`, `Column`, `StyledComboBox`, `DialogTextField`, `Row`, `LinkTargetPicker`, `IconActionButton`, `DialogButton`, ... +5 more | `model`, `delegate`, `source`, `Repeater` |
 | `SecretEditor.qml` | `ea_node_editor/ui_qml/components/common/SecretEditor.qml` | `FocusScope` | `RowLayout`, `Text`, `TextField`, `Button` | _None_ |
 | `GraphDpfWorkflowSurface.qml` | `ea_node_editor/ui_qml/components/graph/dpf/GraphDpfWorkflowSurface.qml` | `GraphShared.GraphSurfaceBase` | `Rectangle`, `ColumnLayout`, `Text`, `Repeater`, `SurfaceControls.GraphSurfaceComboBox` | `Repeater`, `model`, `delegate` |
@@ -286,17 +286,17 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Path: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`
 - Root component: `ToolTip`
 - Agent route aliases: `ManagedToolTip`, `ManagedToolTip.qml`, `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`, `ea_node_editor\ui_qml\components\common\ManagedToolTip.qml`
-- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQml 2.15`, `"TooltipPolicy.js" as TooltipPolicy`
-- IDs: `control`, `tooltipPanel`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Window 2.15`, `QtQml 2.15`, `"TooltipPolicy.js" as TooltipPolicy`
+- IDs: `control`, `tooltipPanel`, `anchorWatchdog`
 - Object names: `managedToolTipPanel`
-- Properties: `policyBridge: var`, `themeBridgeRef: var`, `category: string`, `active: bool`, `textFormat: int`, `maximumTextWidth: int`, `screenStablePositioning: bool`, `anchorScale: real`, `screenGap: real`, `screenStablePlacement: string`, `themePalette: var`, `resolvedBackgroundColor: color`, `resolvedBorderColor: color`, `resolvedTextColor: color`, `policyAllowsTooltip: bool`, `managedVisible: bool`, `_resolvedAnchorScale: real`, `_screenStableX: real`, ... +1 more
+- Properties: `policyBridge: var`, `themeBridgeRef: var`, `category: string`, `active: bool`, `textFormat: int`, `maximumTextWidth: int`, `screenStablePositioning: bool`, `anchorScale: real`, `screenGap: real`, `screenStablePlacement: string`, `anchorWatchInterval: int`, `anchorMoveThreshold: real`, `themePalette: var`, `resolvedBackgroundColor: color`, `resolvedBorderColor: color`, `resolvedTextColor: color`, `policyAllowsTooltip: bool`, `_anchorWindow: var`, ... +9 more
 - Signals: _None_
 - Functions: _None_
-- Instantiates: `Rectangle`, `Binding`
+- Instantiates: `Rectangle`, `Timer`, `Binding`
 - Dynamic constructs: _None_
-- Signal handlers: _None_
+- Signal handlers: `handler` `onActiveChanged`; `handler` `onVisibleChanged`; `handler` `onTriggered`
 - Connections: _None_
-- Property bindings: `binding` `visible` -> `managedVisible`; `binding` `leftPadding`; `binding` `rightPadding`; `binding` `topPadding`; `binding` `bottomPadding`; `binding` `popupType` -> `Popup.Window`; `binding` `bottomInset`; `binding` `contentItem` -> `Text`; `binding` `text` -> `control.text`; `binding` `color` -> `control.resolvedTextColor`; `binding` `font` -> `control.font`; `binding` `textFormat` -> `control.textFormat`; `binding` `wrapMode` -> `Text.WordWrap`; `binding` `width` -> `Math.min`, `implicitWidth`, `control.maximumTextWidth`; `binding` `background` -> `Item`; `binding` `x`; `binding` `y`; `binding` `width` -> `parent.width`; ... +13 more
+- Property bindings: `binding` `visible` -> `managedVisible`; `binding` `timeout`; `binding` `leftPadding`; `binding` `rightPadding`; `binding` `topPadding`; `binding` `bottomPadding`; `binding` `implicitWidth` -> `Math.min`, `implicitContentWidth`, `maximumTextWidth`; `binding` `popupType` -> `Popup.Window`; `binding` `bottomInset`; `binding` `contentItem` -> `Text`; `binding` `text` -> `control.text`; `binding` `color` -> `control.resolvedTextColor`; `binding` `font` -> `control.font`; `binding` `textFormat` -> `control.textFormat`; `binding` `wrapMode` -> `Text.WordWrap`; `binding` `background` -> `Item`; `binding` `x`; `binding` `y`; ... +17 more
 - Local component refs: _None_
 
 ### `NodeLinkEditorForm.qml`
@@ -1983,7 +1983,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Object names: _None_
 - Properties: `canvasItem: var`, `graphActionBridge: var`, `canvasCommandBridge: var`, `addonManagerBridge: var`, `helpBridge: var`, `contentFullscreenBridge: var`, `shellLibraryBridge: var`, `viewerSessionBridge: var`, `keyActionDescriptors: var`, `nodeDelegateActionDescriptors: var`, `edgeContextActionDescriptors: var`, `nodeContextActionDescriptors: var`, `selectionContextActionDescriptors: var`, `folderExplorerActionDescriptors: var`
 - Signals: _None_
-- Functions: `descriptorActionId`, `edgeContextActionId`, `nodeContextActionId`, `selectionContextActionId`, `folderExplorerActionId`, `_graphActionBridge`, `triggerGraphAction`, `_canvasCommandBridge`, `requestFolderExplorerAction`, `handleFolderExplorerAction`, `_nodePayload`, `_intValue`, `_mediaPanelSource`, `_isReadyPdfMediaPayload`, `nodeReadOnly`, `_nodeLockedState`, `nodeAddonFocusId`, `addonManagerAvailable`, ... +33 more
+- Functions: `descriptorActionId`, `edgeContextActionId`, `nodeContextActionId`, `selectionContextActionId`, `folderExplorerActionId`, `_graphActionBridge`, `triggerGraphAction`, `_finishInlineRename`, `_canvasCommandBridge`, `requestFolderExplorerAction`, `handleFolderExplorerAction`, `_nodePayload`, `_intValue`, `_mediaPanelSource`, `_isReadyPdfMediaPayload`, `nodeReadOnly`, `_nodeLockedState`, `nodeAddonFocusId`, ... +34 more
 - Instantiates: _None_
 - Dynamic constructs: _None_
 - Signal handlers: _None_
@@ -2412,7 +2412,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Agent route aliases: `ConnectionQuickInsertOverlay`, `ConnectionQuickInsertOverlay.qml`, `ea_node_editor/ui_qml/components/shell/ConnectionQuickInsertOverlay.qml`, `ea_node_editor\ui_qml\components\shell\ConnectionQuickInsertOverlay.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`
 - IDs: `root`, `quickInsertContent`, `quickInsertField`, `quickInsertResults`, `resultMouse`
-- Object names: `connectionQuickInsertOverlay`
+- Object names: `connectionQuickInsertOverlay`, `connectionQuickInsertField`, `connectionQuickInsertPortSummary`, `connectionQuickInsertEmptyMessage`
 - Properties: `shellLibraryBridgeRef: var`, `themeBridgeRef: var`, `themePalette: var`
 - Signals: _None_
 - Functions: `_wheelDeltaY`, `_clamp`, `_scrollResultsByWheel`, `onActiveFocusChanged`, `onConnection_quick_insert_changed`

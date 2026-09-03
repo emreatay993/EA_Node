@@ -8,9 +8,9 @@
     "qml_files": 175,
     "repeater_constructs": 98,
     "loader_constructs": 24,
-    "signal_handlers": 888,
+    "signal_handlers": 891,
     "connections": 47,
-    "property_bindings": 7640,
+    "property_bindings": 7644,
     "local_component_refs": 279
   },
   "entries": [
@@ -785,6 +785,7 @@
       "imports": [
         "QtQuick 2.15",
         "QtQuick.Controls 2.15",
+        "QtQuick.Window 2.15",
         "QtQml 2.15",
         "\"TooltipPolicy.js\" as TooltipPolicy"
       ],
@@ -794,6 +795,9 @@
         },
         {
           "name": "tooltipPanel"
+        },
+        {
+          "name": "anchorWatchdog"
         }
       ],
       "object_names": [
@@ -843,6 +847,14 @@
           "name": "screenStablePlacement"
         },
         {
+          "kind": "int",
+          "name": "anchorWatchInterval"
+        },
+        {
+          "kind": "real",
+          "name": "anchorMoveThreshold"
+        },
+        {
           "kind": "var",
           "name": "themePalette"
         },
@@ -863,6 +875,26 @@
           "name": "policyAllowsTooltip"
         },
         {
+          "kind": "var",
+          "name": "_anchorWindow"
+        },
+        {
+          "kind": "bool",
+          "name": "_hostWindowShown"
+        },
+        {
+          "kind": "bool",
+          "name": "_anchorPresentable"
+        },
+        {
+          "kind": "bool",
+          "name": "_anchorMoved"
+        },
+        {
+          "kind": "bool",
+          "name": "_lifecycleAllowsTooltip"
+        },
+        {
           "kind": "bool",
           "name": "managedVisible"
         },
@@ -877,6 +909,10 @@
         {
           "kind": "real",
           "name": "_screenStableY"
+        },
+        {
+          "kind": "point",
+          "name": "baseline"
         }
       ],
       "signals": [],
@@ -886,11 +922,27 @@
           "name": "Rectangle"
         },
         {
+          "name": "Timer"
+        },
+        {
           "name": "Binding"
         }
       ],
       "dynamic_refs": [],
-      "signal_handlers": [],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onActiveChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onVisibleChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onTriggered"
+        }
+      ],
       "connections": [],
       "property_bindings": [
         {
@@ -899,6 +951,10 @@
           "targets": [
             "managedVisible"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "timeout"
         },
         {
           "kind": "binding",
@@ -915,6 +971,15 @@
         {
           "kind": "binding",
           "name": "bottomPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth",
+          "targets": [
+            "Math.min",
+            "implicitContentWidth",
+            "maximumTextWidth"
+          ]
         },
         {
           "kind": "binding",
@@ -967,15 +1032,6 @@
           "name": "wrapMode",
           "targets": [
             "Text.WordWrap"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "Math.min",
-            "implicitWidth",
-            "control.maximumTextWidth"
           ]
         },
         {
@@ -1046,6 +1102,25 @@
           "targets": [
             "Qt.alpha",
             "control.resolvedBorderColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "interval",
+          "targets": [
+            "control.anchorWatchInterval"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "repeat"
+        },
+        {
+          "kind": "binding",
+          "name": "running",
+          "targets": [
+            "control.visible",
+            "control.parent"
           ]
         },
         {
@@ -1144,6 +1219,18 @@
           "detail": "string"
         },
         {
+          "anchor": "ManagedToolTipPropertyAnchorWatchInterval",
+          "kind": "property",
+          "name": "anchorWatchInterval",
+          "detail": "int"
+        },
+        {
+          "anchor": "ManagedToolTipPropertyAnchorMoveThreshold",
+          "kind": "property",
+          "name": "anchorMoveThreshold",
+          "detail": "real"
+        },
+        {
           "anchor": "ManagedToolTipPropertyThemePalette",
           "kind": "property",
           "name": "themePalette",
@@ -1174,6 +1261,36 @@
           "detail": "bool"
         },
         {
+          "anchor": "ManagedToolTipPropertyAnchorWindow",
+          "kind": "property",
+          "name": "_anchorWindow",
+          "detail": "var"
+        },
+        {
+          "anchor": "ManagedToolTipPropertyHostWindowShown",
+          "kind": "property",
+          "name": "_hostWindowShown",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ManagedToolTipPropertyAnchorPresentable",
+          "kind": "property",
+          "name": "_anchorPresentable",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ManagedToolTipPropertyAnchorMoved",
+          "kind": "property",
+          "name": "_anchorMoved",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ManagedToolTipPropertyLifecycleAllowsTooltip",
+          "kind": "property",
+          "name": "_lifecycleAllowsTooltip",
+          "detail": "bool"
+        },
+        {
           "anchor": "ManagedToolTipPropertyManagedVisible",
           "kind": "property",
           "name": "managedVisible",
@@ -1196,6 +1313,27 @@
           "kind": "property",
           "name": "_screenStableY",
           "detail": "real"
+        },
+        {
+          "anchor": "ManagedToolTipPropertyBaseline",
+          "kind": "property",
+          "name": "baseline",
+          "detail": "point"
+        },
+        {
+          "anchor": "ManagedToolTipHandlerOnActiveChanged",
+          "kind": "handler",
+          "name": "onActiveChanged"
+        },
+        {
+          "anchor": "ManagedToolTipHandlerOnVisibleChanged",
+          "kind": "handler",
+          "name": "onVisibleChanged"
+        },
+        {
+          "anchor": "ManagedToolTipHandlerOnTriggered",
+          "kind": "handler",
+          "name": "onTriggered"
         }
       ]
     },
@@ -86340,6 +86478,9 @@
           "name": "triggerGraphAction"
         },
         {
+          "name": "_finishInlineRename"
+        },
+        {
           "name": "_canvasCommandBridge"
         },
         {
@@ -86597,6 +86738,11 @@
           "anchor": "GraphCanvasActionRouterFunctionTriggerGraphAction",
           "kind": "function",
           "name": "triggerGraphAction"
+        },
+        {
+          "anchor": "GraphCanvasActionRouterFunctionFinishInlineRename",
+          "kind": "function",
+          "name": "_finishInlineRename"
         },
         {
           "anchor": "GraphCanvasActionRouterFunctionCanvasCommandBridge",
@@ -108793,6 +108939,15 @@
       "object_names": [
         {
           "name": "connectionQuickInsertOverlay"
+        },
+        {
+          "name": "connectionQuickInsertField"
+        },
+        {
+          "name": "connectionQuickInsertPortSummary"
+        },
+        {
+          "name": "connectionQuickInsertEmptyMessage"
         }
       ],
       "properties": [
@@ -109228,7 +109383,7 @@
           "kind": "binding",
           "name": "text",
           "targets": [
-            "modelData.compatible_port_labels",
+            "modelData.compatible_port_summaries",
             "join"
           ]
         },

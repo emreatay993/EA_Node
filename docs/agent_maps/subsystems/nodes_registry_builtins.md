@@ -10,6 +10,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `corex/__init__.py`
 - `ea_node_editor/nodes/bootstrap.py`
 - `ea_node_editor/nodes/registry.py`
+- `ea_node_editor/nodes/core_data_types.py`
 - `ea_node_editor/nodes/spec_validation.py`
 - `ea_node_editor/nodes/property_coercion.py`
 - `ea_node_editor/nodes/property_normalization.py`
@@ -46,7 +47,8 @@ Use this for node definitions, registry validation, built-in node families, data
 - Engineering contracts/helpers: `mesh_contracts.py`, `fem_contracts.py`, `engineering_imports.py`, `engineering_viewer.py`, and `voxel_contracts.py`; ordinary declarations live in `builtin_functions/{engineering_fem.py,engineering_imports.py,engineering_viewer.py}`.
 - Support contracts/helpers: `tree_path.py`, `units.py`, `viewer_viewport.py`, `security_contracts.py`, `reporting.py`, `rich_value_nodes.py`, and `ai_ml_contracts.py`; their converted declarations live in the matching `builtin_functions/` modules.
 - Signal Plot declaration/execution is owned by inert `builtin_functions/plot_signal.py`; rendering remains in `execution/signal_plot_renderer.py` and emits `COREX.DataTypes.Image`.
-- Public function plugins use the dependency-free top-level `corex` decorators and static `plugin_declaration.py` discovery. Python Script keeps its one-`run` signature while sharing only the bounded literal/control engine.
+- Public function plugins use the dependency-free top-level `corex` decorators and static `plugin_declaration.py` discovery. Both public plugins and Python Script require explicit `value_type=` on every input/output decorator; missing types fail at their source location, and deliberate broad ports use `corex.Any`. Python Script keeps its one-`run` signature while sharing only the bounded literal/control engine.
+- Core metadata narrows Constant/File Write data to JsonValue, Force output to Force, and eight generic plot exports to Plot Export Bundle. `tests/test_corex_contract_catalog.py` pins exactly 20 intentional non-DPF Any endpoints across primary and accepted declarations, including three MARS artifact maps, and rejects primary-type repetition in accepted alternatives. The frozen catalog is unchanged; `tests/non_dpf_catalog_fixture.py` applies strict current-contract port patches.
 - `corex.__all__` is the exact 17-name public SDK. `ea_node_editor.nodes` exports
   no authoring helpers, `nodes/types.py` is deleted, and `nodes/decorators.py`,
   `NodePlugin`, `PluginDescriptor`, `node_type`, and `PLUGIN_BACKENDS` remain

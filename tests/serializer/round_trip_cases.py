@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from ea_node_editor.graph.model import GraphModel
-from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
 from ea_node_editor.nodes.node_specs import (
     NodeTypeSpec,
     PortSpec,
@@ -33,6 +33,65 @@ from ea_node_editor.workspace.manager import WorkspaceManager
 
 
 class SerializerRoundTripMixin:
+    def test_load_prunes_only_incompatible_typed_edge_without_rewriting_source(self) -> None:
+        registry = build_builtin_registry()
+        serializer = JsonProjectSerializer(registry)
+        model = GraphModel()
+        workspace = model.active_workspace
+        mutations = model.validated_mutations(workspace_id=workspace.workspace_id, registry=registry)
+        nodes = {
+            type_id: mutations.add_node(
+                type_id=type_id, title=type_id, x=float(index * 100), y=0.0,
+                properties=registry.default_properties(type_id),
+            )
+            for index, type_id in enumerate((
+                "geometry.construct_group", "io.file_write", "core.constant",
+                "fea.force", "fea.load_container", "data.panel",
+            ))
+        }
+        valid_edges = [
+            mutations.add_edge(
+                source_node_id=nodes[source_type].node_id, source_port_key=source_port,
+                target_node_id=nodes[target_type].node_id, target_port_key=target_port,
+            )
+            for source_type, source_port, target_type, target_port in (
+                ("core.constant", "value", "io.file_write", "data"),
+                ("fea.force", "load", "fea.load_container", "load"),
+                ("core.constant", "value", "data.panel", "input"),
+            )
+        ]
+        document = serializer.to_persistent_document(model.project)
+        self.assertEqual(document["schema_version"], SCHEMA_VERSION)
+        workspace_doc = document["workspaces"][0]
+        workspace_doc["dirty"] = False
+        clean = serializer.from_document(json.loads(json.dumps(document)))
+        self.assertFalse(clean.workspaces[workspace.workspace_id].dirty)
+        obsolete_edge = {
+            **workspace_doc["edges"][0],
+            "edge_id": "old_geometry_to_file_write",
+            "source_node_id": nodes["geometry.construct_group"].node_id,
+            "source_port_key": "group",
+            "target_node_id": nodes["io.file_write"].node_id,
+            "target_port_key": "data",
+            "input_order": 1,
+        }
+        workspace_doc["edges"].append(obsolete_edge)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "typed_connections.cxproj"
+            path.write_text(json.dumps(document), encoding="utf-8")
+            original_bytes = path.read_bytes()
+            loaded = serializer.load(str(path))
+            loaded_workspace = loaded.workspaces[workspace.workspace_id]
+            expected_edge_ids = {edge.edge_id for edge in valid_edges}
+            self.assertEqual(set(loaded_workspace.edges), expected_edge_ids)
+            self.assertEqual(set(loaded_workspace.nodes), set(workspace.nodes))
+            self.assertTrue(loaded_workspace.dirty)
+            self.assertEqual(path.read_bytes(), original_bytes)
+            self.assertIn(obsolete_edge["edge_id"], {edge["edge_id"] for edge in json.loads(original_bytes)["workspaces"][0]["edges"]})
+            serializer.save(str(path), loaded)
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual({edge["edge_id"] for edge in saved["workspaces"][0]["edges"]}, expected_edge_ids)
+
     def test_round_trip_omits_removed_settings_section_state(self) -> None:
         model = GraphModel()
         workspace = model.active_workspace

@@ -38,6 +38,20 @@ Do not convert a trusted dynamic-topology, passive/custom-surface,
 backend-manifest, handle/session, or DPF node into a fake function; those remain
 internal implementation exceptions.
 
+## Make port types explicit
+
+Every `@corex.input` and `@corex.output` requires explicit `value_type=`.
+Declarations that previously omitted it now fail at the decorator's source
+location. Add the actual supported type, or use `value_type=corex.Any` only when
+the port deliberately accepts or produces generic dynamic values. COREX does
+not rewrite source or retain an implicit-Any compatibility shim.
+
+Blank connection Quick Insert now recommends precise matches. Legal fallback
+connections remain searchable as `Broad data match` or `Checked at runtime`.
+Existing projects open against the current registry; newly incompatible edges
+are removed in memory and mark the workspace dirty, without overwriting the
+source file until the user saves.
+
 ## Node package schema 1
 
 Schema-1 archives and installed directories are rejected with this exact
