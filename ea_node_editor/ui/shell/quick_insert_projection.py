@@ -11,7 +11,6 @@ from ea_node_editor.graph.effective_ports import ports_compatible
 from ea_node_editor.nodes.node_specs import PortSpec
 from ea_node_editor.runtime_contracts import (
     DataTypeCatalog,
-    GRAPH_DATA_TYPE_ID,
 )
 from ea_node_editor.ui.shell.library_projection import (
     projected_port_declared_data_types,
@@ -52,8 +51,10 @@ def _is_neutral_flow_library_port(port: dict[str, Any]) -> bool:
     return direction == "neutral" and kind == "flow" and data_type == "flow"
 
 
-def _library_port_spec(port: Mapping[str, Any]) -> PortSpec:
+def _library_port_spec(port: Mapping[str, Any]) -> PortSpec | None:
     declared_types = projected_port_declared_data_types(port)
+    if not declared_types:
+        return None
     return PortSpec(
         key=str(port.get("key", "")).strip(),
         direction=str(port.get("direction", "")).strip().lower(),
@@ -76,10 +77,14 @@ def _compatible_library_ports(
 ) -> list[dict[str, Any]]:
     normalized_source_direction = str(source_direction).strip().lower()
     normalized_source_kind = str(source_kind).strip().lower()
-    normalized_source_data_type = str(source_data_type).strip() or GRAPH_DATA_TYPE_ID
-    normalized_source_accepted_data_types = tuple(
-        str(value).strip() for value in source_accepted_data_types if str(value).strip()
-    )
+    source_declared_types = projected_port_declared_data_types({
+        "data_type": source_data_type,
+        "accepted_data_types": tuple(source_accepted_data_types),
+    })
+    if not source_declared_types:
+        return []
+    normalized_source_data_type = source_declared_types[0]
+    normalized_source_accepted_data_types = source_declared_types[1:]
     source_is_neutral_flow = (
         normalized_source_direction == "neutral"
         and normalized_source_kind == "flow"
@@ -95,7 +100,7 @@ def _compatible_library_ports(
     compatible_ports: list[dict[str, Any]] = []
     for port in _normalized_library_ports(item):
         candidate_port = _library_port_spec(port)
-        if not candidate_port.exposed:
+        if candidate_port is None or not candidate_port.exposed:
             continue
         if source_is_neutral_flow:
             if not _is_neutral_flow_library_port(port):

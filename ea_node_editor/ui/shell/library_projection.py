@@ -20,7 +20,8 @@ from ea_node_editor.nodes.category_paths import (
 )
 from ea_node_editor.custom_workflows import CUSTOM_WORKFLOW_LIBRARY_CATEGORY
 from ea_node_editor.graph.effective_ports import ordered_ports_for_display
-from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
+from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
+from ea_node_editor.runtime_contracts import DataTypeCatalog
 from ea_node_editor.ui.support.node_presentation import (
     project_port_data_type_presentation,
 )
@@ -99,14 +100,17 @@ def _flowchart_library_aspect_ratio(surface_variant: str) -> float:
 
 
 def projected_port_declared_data_types(port: Mapping[str, Any]) -> tuple[str, ...]:
-    primary = str(port.get("data_type", "")).strip() or GRAPH_DATA_TYPE_ID
+    raw_primary = port.get("data_type")
+    if not isinstance(raw_primary, str) or not raw_primary.strip():
+        return ()
+    primary = raw_primary.strip()
     raw_accepted = port.get("accepted_data_types", ())
     accepted = raw_accepted if isinstance(raw_accepted, (list, tuple)) else ()
     return tuple(
         dict.fromkeys(
             (
                 primary,
-                *(str(value).strip() for value in accepted if str(value).strip()),
+                *(value.strip() for value in accepted if isinstance(value, str) and value.strip()),
             )
         )
     )
@@ -161,16 +165,18 @@ def _project_library_item_payload(
     projected_ports: list[Any] = []
     for port in ports if isinstance(ports, list) else ():
         if not isinstance(port, Mapping):
-            projected_ports.append(port)
+            continue
+        declared_types = projected_port_declared_data_types(port)
+        if not declared_types:
             continue
         projected_port = dict(port)
+        projected_port["data_type"] = declared_types[0]
+        projected_port["accepted_data_types"] = list(declared_types[1:])
         if data_type_projection is not None or "catalog_generation" not in port:
             projected_port.update(
                 project_port_data_type_presentation(
-                    data_type=port.get("data_type", ""),
-                    accepted_data_types=tuple(
-                        port.get("accepted_data_types", ()) or ()
-                    ),
+                    data_type=declared_types[0],
+                    accepted_data_types=declared_types[1:],
                     data_access=port.get("data_access", "item"),
                     kind=port.get("kind", "data"),
                     projection=data_type_projection,
@@ -291,7 +297,7 @@ def _node_row(item: Mapping[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def _registry_library_item_from_spec(spec: Any) -> dict[str, Any]:
+def _registry_library_item_from_spec(spec: Any, ports: Iterable[Any]) -> dict[str, Any]:
     return {
         "type_id": spec.type_id,
         "display_name": spec.display_name,
@@ -319,19 +325,22 @@ def _registry_library_item_from_spec(spec: Any) -> dict[str, Any]:
                 "side": port.side,
                 "exposed": bool(port.exposed),
             }
-            for port in ordered_ports_for_display(spec.ports)
+            for port in ordered_ports_for_display(ports)
         ],
     }
 
 
 def build_registry_library_items(
     *,
-    registry_specs: Iterable[Any] = (),
+    registry_specs: Iterable[Any],
+    data_types: DataTypeCatalog,
     data_type_projection: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     return [
         _project_library_item_payload(
-            _registry_library_item_from_spec(spec),
+            _registry_library_item_from_spec(
+                spec, resolve_instance_ports(spec, {}, data_types=data_types)
+            ),
             data_type_projection=data_type_projection,
         )
         for spec in registry_specs
@@ -387,12 +396,15 @@ def library_item_matches_filters(
         for port in normalized_ports:
             if not isinstance(port, dict):
                 continue
+            declared_types = projected_port_declared_data_types(port)
+            if not declared_types:
+                continue
             port_direction = str(port.get("direction", "")).strip().lower()
             if direction and port_direction != direction:
                 continue
             if data_type and not any(
                 declared_type.casefold() == data_type.casefold()
-                for declared_type in projected_port_declared_data_types(port)
+                for declared_type in declared_types
             ):
                 continue
             matches_port = True
@@ -586,23 +598,10 @@ def build_library_direction_options() -> list[dict[str, str]]:
 
 def build_library_data_type_options(
     *,
-    registry_specs: Iterable[Any],
-    custom_workflow_items: Iterable[dict[str, Any]],
+    combined_items: Iterable[dict[str, Any]],
 ) -> list[dict[str, str]]:
-    data_types = {
-        type_id
-        for spec in registry_specs
-        for port in spec.ports
-        for type_id in (
-            str(port.data_type).strip(),
-            *(
-                str(value).strip()
-                for value in (getattr(port, "accepted_data_types", ()) or ())
-            ),
-        )
-        if type_id
-    }
-    for item in custom_workflow_items:
+    data_types: set[str] = set()
+    for item in combined_items:
         ports = item.get("ports", [])
         if not isinstance(ports, list):
             continue

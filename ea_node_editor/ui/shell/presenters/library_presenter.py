@@ -51,7 +51,6 @@ class ShellLibraryPresenter(QObject):
         self._host = host
         self._registry_cache_owner: Any | None = None
         self._registry_items_cache: list[dict[str, Any]] | None = None
-        self._registry_specs_cache: list[Any] | None = None
         self._data_type_projection_cache: dict[str, Any] | None = None
         self._custom_workflow_items_cache: list[dict[str, Any]] | None = None
         self._combined_items_cache: list[dict[str, Any]] | None = None
@@ -89,7 +88,6 @@ class ShellLibraryPresenter(QObject):
     def _invalidate_registry_items(self) -> None:
         self._registry_cache_owner = None
         self._registry_items_cache = None
-        self._registry_specs_cache = None
         self._data_type_projection_cache = None
         self._invalidate_combined_items()
 
@@ -116,12 +114,12 @@ class ShellLibraryPresenter(QObject):
         data_type_projection = build_data_type_ui_projection(registry.data_types)
         items = build_registry_library_items(
             registry_specs=specs,
+            data_types=registry.data_types,
             data_type_projection=data_type_projection,
         )
         self._invalidate_registry_items()
         self._registry_cache_owner = registry
         self._registry_items_cache = items
-        self._registry_specs_cache = specs
         self._data_type_projection_cache = data_type_projection
 
     def _registry_library_items(self) -> list[dict[str, Any]]:
@@ -248,8 +246,7 @@ class ShellLibraryPresenter(QObject):
         self._ensure_registry_items()
         if self._data_type_options_cache is None:
             self._data_type_options_cache = build_library_data_type_options(
-                registry_specs=self._registry_specs_cache or (),
-                custom_workflow_items=self._custom_workflow_library_items(),
+                combined_items=self._combined_library_items(),
             )
         return list(self._data_type_options_cache)
 

@@ -25,7 +25,7 @@ class QuickInsertProjectionTests(unittest.TestCase):
         registry = build_default_registry()
         cls.data_types = registry.data_types
         registry_items = build_registry_library_items(
-            registry_specs=registry.all_specs()
+            registry_specs=registry.all_specs(), data_types=registry.data_types
         )
         cls.combined_items = build_combined_library_items(
             registry_items=registry_items,

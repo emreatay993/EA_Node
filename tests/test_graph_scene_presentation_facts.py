@@ -66,18 +66,26 @@ def test_library_preview_fallback_keeps_only_canonical_primary_type() -> None:
             "type_id": "tests.library_preview",
             "ports": [
                 {
-                    "key": "value",
+                    "key": "missing_primary",
                     "direction": "in",
                     "kind": "data",
                     "accepted_data_types": [STRING_DATA_TYPE_ID],
+                },
+                {
+                    "key": "typed",
+                    "direction": "in",
+                    "kind": "data",
+                    "data_type": STRING_DATA_TYPE_ID,
+                    "accepted_data_types": [GRAPH_DATA_TYPE_ID, STRING_DATA_TYPE_ID, GRAPH_DATA_TYPE_ID],
                 }
             ],
         }
     )
 
     assert spec is not None
-    assert spec.ports[0].data_type == GRAPH_DATA_TYPE_ID
-    assert spec.ports[0].accepted_data_types == ()
+    assert [port.key for port in spec.ports] == ["typed"]
+    assert spec.ports[0].data_type == STRING_DATA_TYPE_ID
+    assert spec.ports[0].accepted_data_types == (GRAPH_DATA_TYPE_ID,)
 
 
 class _SettingsGroupProjectionNode:

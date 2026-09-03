@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import json
 
+from ea_node_editor.custom_workflows.codec import (
+    normalize_custom_workflow_metadata,
+    upsert_custom_workflow_definition,
+)
 from ea_node_editor.custom_workflows.global_store import (
     load_global_custom_workflow_definitions,
     save_global_custom_workflow_definitions,
@@ -15,6 +19,53 @@ from tests.workspace_controller_support import *  # noqa: F401,F403
 
 
 class WorkflowLibraryControllerPublishTests(WorkspaceDirectControllerTestBase):
+    def test_legacy_bad_preview_types_are_omitted_but_new_publication_rejects_them(self) -> None:
+        fragment = self._valid_fragment_payload()
+        base_port = {"key": "value", "direction": "out", "kind": "data"}
+        for raw_type in (None, "", " ", 4, []):
+            with self.subTest(data_type=raw_type):
+                malformed = {**base_port, "data_type": raw_type}
+                if raw_type is None:
+                    malformed.pop("data_type")
+                valid = {
+                    **base_port,
+                    "key": "valid",
+                    "data_type": STRING_DATA_TYPE_ID,
+                    "accepted_data_types": [STRING_DATA_TYPE_ID, JSON_DATA_TYPE_ID, JSON_DATA_TYPE_ID, None],
+                }
+                definitions = normalize_custom_workflow_metadata([
+                    {"workflow_id": "wf_test", "name": "Retained", "ports": [malformed, valid], "fragment": fragment}
+                ])
+                self.assertEqual(len(definitions), 1)
+                self.assertEqual(len(definitions[0]["fragment"]["nodes"]), 1)
+                self.assertEqual([port["key"] for port in definitions[0]["ports"]], ["valid"])
+                self.assertEqual(definitions[0]["ports"][0]["accepted_data_types"], [JSON_DATA_TYPE_ID])
+                with self.assertRaisesRegex(ValueError, "requires a non-empty data_type string"):
+                    upsert_custom_workflow_definition([], name="Invalid", ports=[malformed], fragment=fragment)
+
+    def test_publication_type_error_leaves_definitions_and_signals_unchanged(self) -> None:
+        host = _PublishHostStub()
+        controller = compose_workspace_controllers(host).workflow
+        shell = host.model.add_node(
+            host.workspace_manager.active_workspace_id(),
+            type_id="core.subnode", title="Shell", x=0.0, y=0.0,
+            properties=host.registry.default_properties("core.subnode"),
+        )
+        snapshot = {
+            "fragment": self._valid_fragment_payload(),
+            "ports": [{"key": "bad", "direction": "out", "kind": "data"}],
+        }
+        with patch(
+            "ea_node_editor.ui.shell.controllers.workflow_library_controller.build_subnode_custom_workflow_snapshot_data",
+            return_value=snapshot,
+        ):
+            result = controller.publish_custom_workflow_from_shell(shell.node_id)
+        self.assertFalse(result.ok)
+        self.assertIn("data_type", result.message)
+        self.assertEqual(host.model.project.metadata.get("custom_workflows", []), [])
+        self.assertEqual(host.project_meta_changed.calls, 0)
+        self.assertEqual(host.node_library_changed.calls, 0)
+
     def test_publish_custom_workflow_from_selected_subnode_persists_snapshot(
         self,
     ) -> None:

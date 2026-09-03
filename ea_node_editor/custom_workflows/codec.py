@@ -6,8 +6,6 @@ import uuid
 from collections.abc import Mapping
 from typing import Any
 
-from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
-
 from ea_node_editor.graph.fragment_payloads import normalize_graph_fragment_payload
 
 from ea_node_editor.nodes.category_paths import (
@@ -157,7 +155,9 @@ def upsert_custom_workflow_definition(
     definitions = normalize_custom_workflow_metadata(value)
     normalized_name = _coerce_workflow_name(name)
     normalized_description = str(description).strip()
-    normalized_ports = _normalize_port_preview_list(list(ports or []))
+    normalized_ports = _normalize_port_preview_list(
+        list(ports or []), reject_invalid_data_types=True
+    )
     normalized_fragment = normalize_graph_fragment_payload(
         copy.deepcopy(fragment if isinstance(fragment, Mapping) else {})
     )
@@ -218,7 +218,9 @@ def _merge_sorted_report(target: list[str] | None, entries: list[str]) -> None:
     target[:] = sorted(set((*target, *entries)))
 
 
-def _normalize_port_preview_list(items: list[Any]) -> list[dict[str, Any]]:
+def _normalize_port_preview_list(
+    items: list[Any], *, reject_invalid_data_types: bool = False
+) -> list[dict[str, Any]]:
     preview: list[dict[str, Any]] = []
     for item in items:
         if not isinstance(item, dict):
@@ -227,15 +229,22 @@ def _normalize_port_preview_list(items: list[Any]) -> list[dict[str, Any]]:
         label = str(item.get("label", "")).strip() or key
         direction = str(item.get("direction", "")).strip()
         kind = str(item.get("kind", "")).strip()
-        data_type = (
-            str(item.get("data_type", "")).strip() or GRAPH_DATA_TYPE_ID
-        )
+        raw_data_type = item.get("data_type")
+        if not isinstance(raw_data_type, str) or not raw_data_type.strip():
+            if kind == "data" and reject_invalid_data_types:
+                raise ValueError(
+                    f"Custom workflow data port {key!r} requires a non-empty data_type string."
+                )
+            continue
+        data_type = raw_data_type.strip()
         raw_accepted_data_types = item.get("accepted_data_types", ())
         accepted_data_types: list[str] = []
         seen_data_types = {data_type}
         if isinstance(raw_accepted_data_types, (list, tuple)):
             for raw_data_type in raw_accepted_data_types:
-                accepted_data_type = str(raw_data_type).strip()
+                if not isinstance(raw_data_type, str):
+                    continue
+                accepted_data_type = raw_data_type.strip()
                 if (
                     not accepted_data_type
                     or accepted_data_type in seen_data_types

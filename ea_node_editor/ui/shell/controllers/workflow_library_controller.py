@@ -463,14 +463,17 @@ class WorkflowLibraryController:
         if normalized_fragment is None:
             return ControllerResult(False, "Subnode snapshot fragment is invalid.", payload=False)
 
-        updated_definitions, _saved_definition = upsert_custom_workflow_definition(
-            self.custom_workflow_definitions(),
-            workflow_id=_published_workflow_id(shell_node.node_id),
-            name=shell_node.title,
-            description=_CUSTOM_WORKFLOW_DESCRIPTION,
-            ports=copy.deepcopy(snapshot.get("ports", [])),
-            fragment=normalized_fragment,
-        )
+        try:
+            updated_definitions, _saved_definition = upsert_custom_workflow_definition(
+                self.custom_workflow_definitions(),
+                workflow_id=_published_workflow_id(shell_node.node_id),
+                name=shell_node.title,
+                description=_CUSTOM_WORKFLOW_DESCRIPTION,
+                ports=copy.deepcopy(snapshot.get("ports", [])),
+                fragment=normalized_fragment,
+            )
+        except ValueError as exc:
+            return ControllerResult(False, str(exc), payload=False)
         self.set_custom_workflow_definitions(updated_definitions)
         self._host.project_meta_changed.emit()
         self._host.node_library_changed.emit()

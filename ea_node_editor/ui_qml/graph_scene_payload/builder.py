@@ -24,9 +24,9 @@ from ea_node_editor.app_preferences import (
 )
 from ea_node_editor.nodes.plugin_contracts import PluginProvenance
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
 from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
+from ea_node_editor.ui.shell.library_projection import projected_port_declared_data_types
 from ea_node_editor.ui.graph_theme import (
     GraphThemeDefinition,
 )
@@ -118,19 +118,21 @@ class GraphScenePayloadBuilder:
             kind = str(item.get("kind", "") or "").strip().lower()
             if not key or direction not in {"in", "out", "neutral"} or not kind:
                 continue
+            declared_types = projected_port_declared_data_types(item)
+            if not declared_types:
+                continue
             ports.append(
                 PortSpec(
                     key,
                     direction,
                     kind,
-                    str(
-                        item.get("data_type", GRAPH_DATA_TYPE_ID)
-                        or GRAPH_DATA_TYPE_ID
-                    ),
+                    declared_types[0],
                     label=str(item.get("label", "") or key),
                     required=bool(item.get("required", True)),
                     exposed=item.get("exposed", True) is not False,
                     side=str(item.get("side", "") or ""),
+                    accepted_data_types=declared_types[1:],
+                    data_access=str(item.get("data_access", "item") or "item"),
                 )
             )
         return NodeTypeSpec(

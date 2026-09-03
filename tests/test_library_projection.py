@@ -11,7 +11,7 @@ from ea_node_editor.addons.tabular_data.input_node import (
 )
 from ea_node_editor.custom_workflows.codec import custom_workflow_library_items
 from ea_node_editor.nodes.category_paths import category_display, category_key
-from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
 from ea_node_editor.runtime_contracts import (
     DOUBLE_DATA_TYPE_ID,
     GRAPH_DATA_TYPE_ID,
@@ -21,6 +21,7 @@ from ea_node_editor.ui.shell.library_projection import (
     build_filtered_library_items,
     build_library_category_tree,
     build_library_category_options,
+    build_library_data_type_options,
     build_registry_library_items,
     project_display_library_items,
     project_grouped_library_items,
@@ -60,7 +61,8 @@ from ea_node_editor.nodes.ansys_dpf_data_types import (
     DPF_RESULT_FILE_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
 )
-from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
+from ea_node_editor.nodes.node_specs import DynamicPortGroupSpec, NodeTypeSpec, PortSpec, PropertySpec
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
     ARRAY_DATA_REF_TYPE_ID,
     PATH_DATA_TYPE_ID,
@@ -138,7 +140,7 @@ class LibraryProjectionRegistryTests(unittest.TestCase):
         registry = build_default_registry()
         cls.data_types = registry.data_types
         registry_items = build_registry_library_items(
-            registry_specs=registry.all_specs()
+            registry_specs=registry.all_specs(), data_types=registry.data_types
         )
         cls.combined_items = build_combined_library_items(
             registry_items=registry_items,
@@ -157,7 +159,8 @@ class LibraryProjectionRegistryTests(unittest.TestCase):
             ),
             ("Primary", "Alternative"),
         )
-        self.assertEqual(projected_port_declared_data_types({}), (GRAPH_DATA_TYPE_ID,))
+        for malformed in ({}, {"data_type": " "}, {"data_type": None}, {"data_type": 4}):
+            self.assertEqual(projected_port_declared_data_types(malformed), ())
 
     def test_registry_library_items_keep_declared_data_port_order(self) -> None:
         excel_write_item = next(
@@ -180,10 +183,44 @@ class LibraryProjectionRegistryTests(unittest.TestCase):
         self.assertEqual(input_keys, ["rows", "path"])
         self.assertEqual(output_keys, ["written_path"])
 
+    def test_library_rows_and_filter_options_use_default_resolved_dynamic_ports(self) -> None:
+        registry = build_builtin_registry()
+        dynamic = NodeTypeSpec(
+            type_id="tests.dynamic_only", display_name="Dynamic", category_path=("Tests",),
+            icon="", ports=(), properties=(PropertySpec("port_ids", "json", ["file"], "Ports"),),
+            dynamic_port_groups=(DynamicPortGroupSpec(
+                "outputs", "port_ids", "out",
+                lambda properties: tuple(PortSpec(key, "out", "data", PATH_DATA_TYPE_ID) for key in properties["port_ids"]),
+                lambda _properties: "next",
+            ),),
+        )
+        items = build_registry_library_items(
+            registry_specs=[registry.get_spec("core.python_script"), registry.get_spec("core.stream_gate"), dynamic],
+            data_types=registry.data_types,
+        )
+        ports = {item["type_id"]: [port["key"] for port in item["ports"]] for item in items}
+        self.assertEqual(ports["core.python_script"], ["payload", "result"])
+        self.assertEqual(ports["core.stream_gate"], ["stream", "gate", "output_0", "output_1"])
+        self.assertEqual(ports["tests.dynamic_only"], ["file"])
+        self.assertIn(PATH_DATA_TYPE_ID, {item["value"] for item in build_library_data_type_options(combined_items=items)})
+
+    def test_combined_projection_retains_node_but_omits_malformed_data_ports(self) -> None:
+        ports = [
+            {"key": f"bad_{index}", "direction": "in", "kind": "data", "data_type": value, "accepted_data_types": [GRAPH_DATA_TYPE_ID]}
+            for index, value in enumerate((None, "", " ", 4, []))
+        ]
+        ports.append({"key": "valid", "direction": "in", "kind": "data", "data_type": DOUBLE_DATA_TYPE_ID})
+        items = build_combined_library_items(
+            registry_items=[],
+            custom_workflow_items=[{"type_id": "custom_workflow:test", "display_name": "Test", "ports": ports}],
+        )
+        self.assertEqual([port["key"] for port in items[0]["ports"]], ["valid"])
+        self.assertNotIn(GRAPH_DATA_TYPE_ID, {item["value"] for item in build_library_data_type_options(combined_items=items)})
+
     def test_registry_browser_payload_projects_help_metadata_and_real_port_labels(
         self,
     ) -> None:
-        spec = SimpleNamespace(
+        spec = NodeTypeSpec(
             type_id="example.sum",
             display_name="Sum",
             category_path=("Math",),
@@ -194,7 +231,7 @@ class LibraryProjectionRegistryTests(unittest.TestCase):
             description="Adds two values.",
             keywords=("add", "total"),
             ports=(
-                SimpleNamespace(
+                PortSpec(
                     key="left_value",
                     label="Left Value",
                     description="First value to add.",
@@ -205,9 +242,10 @@ class LibraryProjectionRegistryTests(unittest.TestCase):
                     exposed=True,
                 ),
             ),
+            properties=(),
         )
 
-        item = build_registry_library_items(registry_specs=[spec])[0]
+        item = build_registry_library_items(data_types=NodeRegistry().data_types, registry_specs=[spec])[0]
 
         self.assertEqual(item["keywords"], ["add", "total"])
         self.assertEqual(item["library_visual"]["kind"], "catalog_icon")
@@ -220,7 +258,7 @@ class LibraryProjectionFolderExplorerTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.registry = build_default_registry()
         cls.registry_items = build_registry_library_items(
-            registry_specs=cls.registry.all_specs(),
+            registry_specs=cls.registry.all_specs(), data_types=cls.registry.data_types,
         )
         cls.combined_items = build_combined_library_items(
             registry_items=cls.registry_items,
@@ -277,7 +315,7 @@ class LibraryProjectionTabularDataInputTests(unittest.TestCase):
         with patch.object(tabular_catalog, "_find_spec", return_value=object()):
             registry = build_default_registry()
         registry_items = build_registry_library_items(
-            registry_specs=registry.all_specs()
+            registry_specs=registry.all_specs(), data_types=registry.data_types
         )
         tabular_item = next(
             item
@@ -301,8 +339,8 @@ def _port(
     kind: str = "data",
     data_type: str = GRAPH_DATA_TYPE_ID,
     accepted_data_types: tuple[str, ...] = (),
-) -> SimpleNamespace:
-    return SimpleNamespace(
+) -> PortSpec:
+    return PortSpec(
         key=key,
         direction=direction,
         kind=kind,
@@ -318,20 +356,20 @@ def _spec(
     display_name: str,
     category_path: tuple[str, ...],
     *,
-    ports: tuple[SimpleNamespace, ...] | None = None,
+    ports: tuple[PortSpec, ...] | None = None,
     icon: str = "fixture",
     runtime_behavior: str = "active",
     surface_family: str = "standard",
     surface_variant: str = "",
-) -> SimpleNamespace:
-    return SimpleNamespace(
+) -> NodeTypeSpec:
+    return NodeTypeSpec(
         type_id=type_id,
         display_name=display_name,
         category_path=category_path,
-        category=category_display(category_path),
         icon=icon,
         description=f"{display_name} description",
         ports=ports or (_port(),),
+        properties=(),
         runtime_behavior=runtime_behavior,
         surface_family=surface_family,
         surface_variant=surface_variant,
@@ -344,7 +382,7 @@ class LibraryProjectionNestedCategoryPayloadTests(unittest.TestCase):
     ) -> None:
         path = ("Ansys DPF", "Compute", "Stress")
         [item] = build_registry_library_items(
-            registry_specs=[
+            data_types=NodeRegistry().data_types, registry_specs=[
                 _spec("fixture.dpf_stress", "DPF Stress", path),
             ]
         )
@@ -373,7 +411,7 @@ class LibraryProjectionNestedCategoryPayloadTests(unittest.TestCase):
         self,
     ) -> None:
         registry_items = build_registry_library_items(
-            registry_specs=[
+            data_types=NodeRegistry().data_types, registry_specs=[
                 _spec("fixture.root_direct", "Root Direct", ("Root",)),
                 _spec("fixture.beta_leaf", "Beta Leaf", ("Root", "Beta", "Leaf")),
                 _spec("fixture.alpha_leaf", "Alpha Leaf", ("Root", "Alpha", "Leaf")),
@@ -451,7 +489,7 @@ class LibraryProjectionNestedCategoryPayloadTests(unittest.TestCase):
         self,
     ) -> None:
         registry_items = build_registry_library_items(
-            registry_specs=[
+            data_types=NodeRegistry().data_types, registry_specs=[
                 _spec("fixture.active", "Active Node", ("Flowchart",)),
                 _spec(
                     "passive.flowchart.callout",
@@ -520,7 +558,7 @@ class LibraryProjectionNestedCategoryPayloadTests(unittest.TestCase):
         self,
     ) -> None:
         registry = build_default_registry()
-        items = build_registry_library_items(registry_specs=registry.all_specs())
+        items = build_registry_library_items(registry_specs=registry.all_specs(), data_types=registry.data_types)
         item_by_type = {str(item["type_id"]): item for item in items}
 
         visual = item_by_type["passive.flowchart.multi_document"]["library_visual"]
@@ -534,7 +572,7 @@ class LibraryProjectionNestedCategoryPayloadTests(unittest.TestCase):
     ) -> None:
         combined_items = build_combined_library_items(
             registry_items=build_registry_library_items(
-                registry_specs=[
+                data_types=NodeRegistry().data_types, registry_specs=[
                     _spec("fixture.compute", "Compute Node", ("Ansys DPF", "Compute")),
                     _spec("fixture.viewer", "Viewer Node", ("Ansys DPF", "Viewer")),
                     _spec("fixture.io", "Input Node", ("Input / Output",)),
@@ -641,7 +679,7 @@ class LibraryProjectionNestedCategoryPayloadTests(unittest.TestCase):
 def _projected_registry_items(registry):
     return build_combined_library_items(
         registry_items=build_registry_library_items(
-            registry_specs=registry.all_specs(),
+            registry_specs=registry.all_specs(), data_types=registry.data_types,
         ),
         custom_workflow_items=[],
     )
@@ -1069,7 +1107,7 @@ class LibraryProjectionRegistryCoverageTests(unittest.TestCase):
             properties=(),
         )
         combined = build_combined_library_items(
-            registry_items=build_registry_library_items(registry_specs=[spec]),
+            registry_items=build_registry_library_items(data_types=NodeRegistry().data_types, registry_specs=[spec]),
             custom_workflow_items=[],
         )
 

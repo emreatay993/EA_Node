@@ -249,6 +249,7 @@ def test_scene_and_library_ports_share_one_bounded_catalog_projection() -> None:
     constant_spec = registry.get_spec("core.constant")
     library_item = build_registry_library_items(
         registry_specs=(constant_spec,),
+        data_types=registry.data_types,
         data_type_projection=projection,
     )[0]
     library_port = next(
@@ -287,6 +288,32 @@ def test_scene_and_library_ports_share_one_bounded_catalog_projection() -> None:
     assert scene_port["data_type_label"] == library_port["data_type_label"]
     assert scene_port["data_type_family"] == library_port["data_type_family"]
     assert scene_port["catalog_generation"] == library_port["catalog_generation"]
+
+
+def test_library_preview_fallback_keeps_node_and_only_valid_typed_ports() -> None:
+    ports = [
+        {"key": f"bad_{index}", "direction": "in", "kind": "data", "data_type": value}
+        for index, value in enumerate((None, "", " ", 4, []))
+    ]
+    ports.append({
+        "key": "valid", "direction": "in", "kind": "data", "data_type": STRING_DATA_TYPE_ID,
+        "accepted_data_types": [BOOLEAN_DATA_TYPE_ID, STRING_DATA_TYPE_ID, BOOLEAN_DATA_TYPE_ID, None],
+        "data_access": "tree",
+    })
+    spec = GraphScenePayloadBuilder._library_preview_fallback_spec({"type_id": "custom_workflow:test", "ports": ports})
+    assert spec is not None
+    assert [port.key for port in spec.ports] == ["valid"]
+    assert spec.ports[0].accepted_data_types == (BOOLEAN_DATA_TYPE_ID,)
+    assert spec.ports[0].data_access == "tree"
+    empty = GraphScenePayloadBuilder._library_preview_fallback_spec({"type_id": "custom_workflow:test", "ports": ports[:-1]})
+    assert empty is not None and empty.ports == ()
+    preview = GraphScenePayloadBuilder().build_library_preview_node_payload(
+        model=None, registry=None, workspace_id="",
+        library_payload={"type_id": "custom_workflow:test", "ports": ports[:-1]},
+        graph_theme_bridge=None,
+    )
+    assert preview["type_id"] == "custom_workflow:test"
+    assert preview["ports"] == []
 
 
 def test_flow_and_unknown_type_projection_fail_soft_without_family_styling() -> None:
@@ -464,6 +491,14 @@ def test_type_warning_reason_is_static_and_availability_also_blocks_settlement()
             data_types=registry.data_types,
         )
         == ""
+    )
+    assert (
+        _data_type_warning_reason(
+            PortSpec("out", "out", "flow", "flow"),
+            PortSpec("in", "in", "data", STRING_DATA_TYPE_ID),
+            data_types=registry.data_types,
+        )
+        == "incompatible_port_kind"
     )
     assert (
         _data_type_warning_reason(

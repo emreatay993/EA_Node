@@ -7,6 +7,7 @@ import pytest
 from ea_node_editor.execution.compiler import compile_runtime_workspace_snapshot
 from ea_node_editor.execution.runtime_dto import RuntimeWorkspace
 from ea_node_editor.graph.fragment_payloads import build_graph_fragment_payload
+from ea_node_editor.graph.effective_ports import port_compatibility, ports_compatible
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.record_payloads import (
     edge_instance_to_mapping,
@@ -187,6 +188,45 @@ def _typed_registry() -> NodeRegistry:
     return registry
 
 
+def test_structured_port_compatibility_is_the_boolean_authority() -> None:
+    data_types = _typed_registry().data_types
+    source = PortSpec("value", "out", "data", STRING_DATA_TYPE_ID)
+    union_target = PortSpec(
+        "value",
+        "in",
+        "data",
+        BOOLEAN_DATA_TYPE_ID,
+        accepted_data_types=(STRING_DATA_TYPE_ID,),
+    )
+    exact = port_compatibility(source, union_target, data_types=data_types)
+    assert exact.status == "assignable"
+    assert exact.reason_code == "exact"
+    assert exact.matched_type_id == STRING_DATA_TYPE_ID
+    assert ports_compatible(source, union_target, data_types=data_types)
+
+    flow = port_compatibility(
+        PortSpec("flow", "out", "flow", "flow"),
+        PortSpec("flow", "in", "flow", "flow"),
+        data_types=data_types,
+    )
+    assert (
+        flow.status,
+        flow.source_type_id,
+        flow.target_type_id,
+        flow.matched_type_id,
+        flow.reason_code,
+    ) == ("assignable", "flow", "flow", "flow", "flow_kind_match")
+
+    mismatch = port_compatibility(
+        PortSpec("flow", "out", "flow", "flow"),
+        union_target,
+        data_types=data_types,
+    )
+    assert mismatch.status == "incompatible"
+    assert mismatch.reason_code == "port_kind_mismatch"
+    assert not mismatch.is_compatible
+
+
 def _add(
     mutations: ValidatedGraphMutation,
     type_id: str,
@@ -356,7 +396,7 @@ def test_path_pointer_cannot_replace_number_slider_on_bar_series() -> None:
     assert tuple(workspace.edges) == (number_edge.edge_id,)
 
     items = build_combined_library_items(
-        registry_items=build_registry_library_items(registry_specs=registry.all_specs()),
+        registry_items=build_registry_library_items(registry_specs=registry.all_specs(), data_types=registry.data_types),
         custom_workflow_items=[],
     )
     path_results = build_connection_quick_insert_items(
@@ -623,7 +663,7 @@ def test_fragment_compiler_normalization_quick_insert_and_route_use_catalog() ->
 
     items = build_combined_library_items(
         registry_items=build_registry_library_items(
-            registry_specs=registry.all_specs(),
+            registry_specs=registry.all_specs(), data_types=registry.data_types,
         ),
         custom_workflow_items=[],
     )
