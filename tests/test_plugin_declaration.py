@@ -59,8 +59,8 @@ def test_corex_public_exports_and_runtime_decorators_are_exact() -> None:
     assert corex.Interval == "COREX.DataTypes.Interval1D"
 
     @corex.node(id="custom.identity.a7c31e9b", name="Identity", category=("Core",))
-    @corex.input("value")
-    @corex.output("result")
+    @corex.input("value", value_type=corex.Any)
+    @corex.output("result", value_type=corex.Any)
     def identity(ctx, value):
         return {"result": value}
 
@@ -168,10 +168,10 @@ def controls(ctx, settings):
 def test_labels_derive_only_when_omitted_and_preserve_explicit_blank() -> None:
     source = '''
 @corex.node(id="custom.labels.1234abcd", name="Labels", category=("Tests",))
-@corex.input("omitted_input")
-@corex.input("blank_input", label="")
-@corex.output("omitted_output")
-@corex.output("blank_output", label="")
+@corex.input("omitted_input", value_type=corex.Any)
+@corex.input("blank_input", value_type=corex.Any, label="")
+@corex.output("omitted_output", value_type=corex.Any)
+@corex.output("blank_output", value_type=corex.Any, label="")
 @corex.text("omitted_control")
 @corex.text("blank_control", label="")
 def labels(ctx, omitted_input, blank_input, settings):
@@ -190,6 +190,24 @@ def labels(ctx, omitted_input, blank_input, settings):
     assert properties["blank_control"].label == ""
 
 
+@pytest.mark.parametrize("direction", ("input", "output"))
+def test_port_types_must_be_explicit_and_errors_locate_the_decorator(direction: str) -> None:
+    parameters = "ctx, value" if direction == "input" else "ctx"
+    source = f'''import corex
+@corex.node(id="custom.explicit.1234abcd", name="Explicit", category=("Tests",))
+@corex.{direction}("value")
+def explicit({parameters}): return {{}}
+'''
+    with pytest.raises(PluginDeclarationError, match="requires explicit value_type=") as caught:
+        _discover_plugin_declarations(source, filename="explicit.py")
+    assert (caught.value.filename, caught.value.line, caught.value.column) == (
+        "explicit.py", 3, 2
+    )
+    explicit_source = source.replace('(\"value\")', '(\"value\", value_type=corex.Any)')
+    (declaration,) = _discover_plugin_declarations(explicit_source)
+    assert declaration.spec.ports[0].data_type == "COREX.DataTypes.Any"
+
+
 def test_hostile_source_is_never_executed_during_discovery(tmp_path: Path) -> None:
     marker = tmp_path / "marker.txt"
     source = f'''
@@ -197,7 +215,7 @@ from pathlib import Path
 Path({str(marker)!r}).write_text("executed", encoding="utf-8")
 
 @corex.node(id="custom.safe.1234abcd", name="Safe", category=("Tests",))
-@corex.output("result")
+@corex.output("result", value_type=corex.Any)
 def safe(ctx):
     return {{"result": True}}
 '''
@@ -211,7 +229,7 @@ def safe(ctx):
     (
         (
             '''
-@corex.input("value")
+@corex.input("value", value_type=corex.Any)
 @corex.node(id="custom.order.1234abcd", name="Order", category=("Tests",))
 def order(ctx, value): return {}
 ''',
@@ -295,11 +313,11 @@ def imported(ctx): return {}
 @pytest.mark.parametrize(
     ("signature", "decorators"),
     (
-        ("ctx, settings", '@corex.input("value")'),
+        ("ctx, settings", '@corex.input("value", value_type=corex.Any)'),
         ("ctx, value", '@corex.slider("factor", default=1.0, minimum=0.0, maximum=2.0)'),
-        ("ctx, second, first", '@corex.input("first")\n@corex.input("second")'),
-        ("ctx, value=None", '@corex.input("value")'),
-        ("ctx, *, value", '@corex.input("value")'),
+        ("ctx, second, first", '@corex.input("first", value_type=corex.Any)\n@corex.input("second", value_type=corex.Any)'),
+        ("ctx, value=None", '@corex.input("value", value_type=corex.Any)'),
+        ("ctx, *, value", '@corex.input("value", value_type=corex.Any)'),
     ),
 )
 def test_signature_must_match_inputs_and_settings_exactly(
@@ -336,8 +354,8 @@ def same(ctx): return {}
 
     collision = '''
 @corex.node(id="custom.collision.1234abcd", name="Collision", category=("Tests",))
-@corex.input("value")
-@corex.output("value")
+@corex.input("value", value_type=corex.Any)
+@corex.output("value", value_type=corex.Any)
 def collision(ctx, value): return {"value": value}
 '''
     with pytest.raises(PluginDeclarationError, match="cross-direction"):
@@ -1003,7 +1021,7 @@ def private_t12(ctx, settings): return {{}}
 @pytest.mark.parametrize(
     "decorator",
     (
-        '@corex.input("value", _accepted_data_types=("COREX.DataTypes.Any",))',
+        '@corex.input("value", value_type=corex.Any, _accepted_data_types=("COREX.DataTypes.Any",))',
         '@corex.node(id="custom.private_node.1234abcd", name="Private", category=("Tests",), _readiness_requirements=())',
     ),
 )
@@ -1059,9 +1077,9 @@ def reuse_default(ctx): return {}
 @pytest.mark.parametrize(
     ("decorator", "message"),
     (
-        ('@corex.input("value", _accepted_data_types="Bad")', "tuple or list"),
+        ('@corex.input("value", value_type=corex.Any, _accepted_data_types="Bad")', "tuple or list"),
         (
-            '@corex.input("value", _accepted_data_types=("Type.One", "Type.One"))',
+            '@corex.input("value", value_type=corex.Any, _accepted_data_types=("Type.One", "Type.One"))',
             "duplicates",
         ),
         (
@@ -1136,7 +1154,7 @@ def test_runtime_private_metadata_accepts_known_fields_and_rejects_unknown() -> 
         _surface_family="viewer",
         _surface_variant="embedded",
     )
-    @corex.input("path", _accepted_data_types=("COREX.DataTypes.Path",))
+    @corex.input("path", value_type=corex.Any, _accepted_data_types=("COREX.DataTypes.Path",))
     @corex.text(
         "value",
         _property_type="json",
@@ -1173,7 +1191,7 @@ def test_internal_node_surface_metadata_maps_to_node_type_spec() -> None:
     _render_quality_tiers=("full", "proxy"),
     _solution_reuse_scope="session",
 )
-@corex.output("session")
+@corex.output("session", value_type=corex.Any)
 def viewer(ctx): return {"session": None}
 '''
 
@@ -1296,7 +1314,7 @@ def test_internal_property_output_collision_requires_exact_node_allowlist() -> N
     id="core.constant", name="Constant", category=("Core",),
     _property_output_collisions=("value",),
 )
-@corex.output("value")
+@corex.output("value", value_type=corex.Any)
 @corex.text("value", default="")
 def constant(ctx, settings): return {"value": settings.value}
 '''
@@ -1326,7 +1344,7 @@ def test_internal_property_output_collision_allowlist_is_narrow(
 ) -> None:
     source = f'''
 @corex.node(id="core.constant", name="Constant", category=("Core",), {metadata})
-@corex.output("value")
+@corex.output("value", value_type=corex.Any)
 {control}
 def constant(ctx, settings): return {{"value": settings.value}}
 '''
@@ -1341,7 +1359,7 @@ def test_internal_property_output_collision_allowlist_rejects_unused_keys() -> N
     id="core.constant", name="Constant", category=("Core",),
     _property_output_collisions=("missing",),
 )
-@corex.output("result")
+@corex.output("result", value_type=corex.Any)
 @corex.text("value")
 def constant(ctx, settings): return {"result": settings.value}
 '''
@@ -1368,7 +1386,7 @@ def test_source_and_decorator_counts_are_bounded() -> None:
     with pytest.raises(PluginDeclarationError, match="source is too large"):
         discover_plugin_declarations("#" * (256 * 1024 + 1))
 
-    decorators = "\n".join(f'@corex.input("value_{index}")' for index in range(129))
+    decorators = "\n".join(f'@corex.input("value_{index}", value_type=corex.Any)' for index in range(129))
     parameters = ", ".join(f"value_{index}" for index in range(129))
     source = f'''
 @corex.node(id="custom.large.1234abcd", name="Large", category=("Tests",))

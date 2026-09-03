@@ -235,7 +235,7 @@ def _standard_plot_ports(plot_type: str) -> tuple[PortSpec, ...]:
             "exports",
             "out",
             "data",
-            'COREX.DataTypes.Any',
+            'COREX.Plot.ExportBundle',
             label="Exports",
             exposed=True,
             description="Metadata describing the image and data artifacts created by this plot.",

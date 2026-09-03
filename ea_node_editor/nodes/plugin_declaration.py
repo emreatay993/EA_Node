@@ -24,7 +24,6 @@ from ea_node_editor.nodes.node_specs import (
     SettingsGroupItemSpec,
     SettingsGroupSpec,
 )
-from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
 
 _CUSTOM_TYPE_ID = re.compile(
     r"^custom\.[a-z0-9]+(?:[._-][a-z0-9]+)*\.[0-9a-f]{8}$"
@@ -642,6 +641,8 @@ def _parse_function(
                 reserved=_RESERVED_DECLARATION_NAMES,
                 reject_private=True,
             )
+            if "value_type" not in values:
+                raise fail(decorator, "@corex.input requires explicit value_type=")
             structure = _engine.string_value(values, "structure", "item")
             if structure not in {"item", "list", "tree"}:
                 raise fail(decorator, "structure must be 'item', 'list', or 'tree'")
@@ -657,7 +658,7 @@ def _parse_function(
                 port = _engine.port_spec(
                     key,
                     direction="in",
-                    data_type=values.get("value_type", GRAPH_DATA_TYPE_ID),
+                    data_type=values["value_type"],
                     label=_engine.label_value(key, values),
                     description=_engine.string_value(values, "description"),
                     required=_engine.bool_value(values, "required"),
@@ -680,13 +681,15 @@ def _parse_function(
                 reserved=_RESERVED_DECLARATION_NAMES,
                 reject_private=True,
             )
+            if "value_type" not in values:
+                raise fail(decorator, "@corex.output requires explicit value_type=")
             structure = _engine.string_value(values, "structure", "item")
             if structure not in {"item", "list", "tree"}:
                 raise fail(decorator, "structure must be 'item', 'list', or 'tree'")
             port = _engine.port_spec(
                 key,
                 direction="out",
-                data_type=values.get("value_type", GRAPH_DATA_TYPE_ID),
+                data_type=values["value_type"],
                 label=_engine.label_value(key, values),
                 description=_engine.string_value(values, "description"),
                 data_access=structure,

@@ -24,7 +24,7 @@ from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 
 DECONSTRUCT_COLOR_TYPE_ID = "data.deconstruct_color"
-_TYPE_IDS = ("core.if", DECONSTRUCT_COLOR_TYPE_ID)
+_TYPE_IDS = ("core.constant", "core.if", DECONSTRUCT_COLOR_TYPE_ID)
 
 
 def _context(*, inputs: dict[str, object]) -> ExecutionContext:
@@ -78,6 +78,23 @@ def test_converted_entries_match_pre_cutover_specs_without_descriptors(
         assert registry.descriptor_or_none(type_id) is None
         actual = json.loads(json.dumps(asdict(registry.get_spec(type_id))))
         assert actual == expected[type_id]
+
+
+def test_constant_serializes_only_finite_json(tmp_path: Path) -> None:
+    runtime, adapter = _adapter(tmp_path, "core.constant")
+    context = _context(inputs={})
+    try:
+        context.properties = {"value": {"value": 2.5}}
+        assert adapter.execute(context).outputs == {
+            "value": {"value": 2.5},
+            "as_text": '{"value": 2.5}',
+        }
+        for non_finite in (float("nan"), float("inf"), float("-inf")):
+            context.properties = {"value": {"value": non_finite}}
+            with pytest.raises(ValueError, match="JSON serializable"):
+                adapter.execute(context)
+    finally:
+        runtime.clear()
 
 
 @pytest.mark.parametrize(

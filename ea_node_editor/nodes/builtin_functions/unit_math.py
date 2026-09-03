@@ -427,7 +427,7 @@ def deconstruct_interval(ctx, interval):
     label="Start",
     port=True,
     _port_value_type="COREX.DataTypes.Double",
-    _port_accepted_data_types=("COREX.DataTypes.Double", "COREX.DataTypes.Int"),
+    _port_accepted_data_types=("COREX.DataTypes.Int",),
     _port_description="Interval start value; overrides the configured Start property when connected.",
 )
 @corex.number(
@@ -436,7 +436,7 @@ def deconstruct_interval(ctx, interval):
     label="End",
     port=True,
     _port_value_type="COREX.DataTypes.Double",
-    _port_accepted_data_types=("COREX.DataTypes.Double", "COREX.DataTypes.Int"),
+    _port_accepted_data_types=("COREX.DataTypes.Int",),
     _port_description="Interval end value; overrides the configured End property when connected.",
 )
 @corex.output(

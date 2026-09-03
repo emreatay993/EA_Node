@@ -289,24 +289,24 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
 
         series_a = model.add_node(
             workspace.workspace_id,
-            "core.constant",
+            "core.python_script",
             "DPF Field A",
             120.0,
             0.0,
-            properties={"value": {"runtime_handle": "field-a"}},
+            properties=registry.default_properties("core.python_script"),
         )
         series_b = model.add_node(
             workspace.workspace_id,
-            "core.constant",
+            "core.python_script",
             "DPF Field B",
             120.0,
             140.0,
-            properties={"value": {"runtime_handle": "field-b"}},
+            properties=registry.default_properties("core.python_script"),
         )
         plot = model.add_node(workspace.workspace_id, "dpf.plot.line", "DPF Line Plot", 340.0, 80.0)
 
-        model.add_edge(workspace.workspace_id, series_a.node_id, "value", plot.node_id, "series")
-        model.add_edge(workspace.workspace_id, series_b.node_id, "value", plot.node_id, "series")
+        model.add_edge(workspace.workspace_id, series_a.node_id, "result", plot.node_id, "series")
+        model.add_edge(workspace.workspace_id, series_b.node_id, "result", plot.node_id, "series")
 
         workspace_doc = serializer.to_document(model.project)["workspaces"][0]
         compiled = compile_runtime_workspace(workspace_doc, registry=registry)

@@ -103,7 +103,7 @@ def secret(ctx, settings):
     required=False,
     label="Private key path",
     description="Path to SSH private key file.",
-    _accepted_data_types=("COREX.DataTypes.String", "COREX.DataTypes.Path"),
+    _accepted_data_types=("COREX.DataTypes.Path",),
 )
 @corex.input(
     "private_key_passphrase",

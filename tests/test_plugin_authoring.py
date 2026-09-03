@@ -164,7 +164,7 @@ def test_validation_preserves_exact_static_parser_position() -> None:
     source = '''import corex
 
 @corex.node(id="custom.bad.1234abcd", name="Bad", category=("Custom",))
-@corex.output("result")
+@corex.output("result", value_type=corex.Any)
 @corex.number("factor", default=2.0)
 def bad(ctx, settings):
     return {"result": settings.fator}

@@ -142,7 +142,9 @@ def _parse(source: str) -> _Declaration:
                 },
                 fail=_fail,
             )
-            data_type = values.get("value_type", GRAPH_DATA_TYPE_ID)
+            if "value_type" not in values:
+                raise _fail(decorator, "@corex.input requires explicit value_type=")
+            data_type = values["value_type"]
             structure = _declaration_engine.string_value(
                 values, "structure", "item"
             )
@@ -171,7 +173,9 @@ def _parse(source: str) -> _Declaration:
             )
             if "section" in values:
                 raise _fail(decorator, "@corex.output does not support section")
-            data_type = values.get("value_type", GRAPH_DATA_TYPE_ID)
+            if "value_type" not in values:
+                raise _fail(decorator, "@corex.output requires explicit value_type=")
+            data_type = values["value_type"]
             structure = _declaration_engine.string_value(
                 values, "structure", "item"
             )

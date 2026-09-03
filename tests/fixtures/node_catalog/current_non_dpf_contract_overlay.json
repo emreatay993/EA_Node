@@ -181,6 +181,146 @@
       ]
     }
   ],
+  "port_contract_patches": {
+    "core.constant": {
+      "value": {
+        "expected_data_type": "COREX.DataTypes.Any",
+        "replacement_data_type": "COREX.DataTypes.JsonValue",
+        "expected_accepted_data_types": [],
+        "replacement_accepted_data_types": []
+      }
+    },
+    "io.file_write": {
+      "data": {
+        "expected_data_type": "COREX.DataTypes.Any",
+        "replacement_data_type": "COREX.DataTypes.JsonValue",
+        "expected_accepted_data_types": [],
+        "replacement_accepted_data_types": []
+      }
+    },
+    "fea.force": {
+      "load": {
+        "expected_data_type": "COREX.Fem.Loads.ILoad",
+        "replacement_data_type": "COREX.Fem.Force",
+        "expected_accepted_data_types": [],
+        "replacement_accepted_data_types": []
+      }
+    },
+    "plot.scatter": {
+      "exports": {
+        "expected_data_type": "COREX.DataTypes.Any",
+        "replacement_data_type": "COREX.Plot.ExportBundle",
+        "expected_accepted_data_types": [],
+        "replacement_accepted_data_types": []
+      }
+    },
+    "plot.bar": {
+      "exports": {
+        "expected_data_type": "COREX.DataTypes.Any",
+        "replacement_data_type": "COREX.Plot.ExportBundle",
+        "expected_accepted_data_types": [],
+        "replacement_accepted_data_types": []
+      }
+    },
+    "plot.histogram": {
+      "exports": {
+        "expected_data_type": "COREX.DataTypes.Any",
+        "replacement_data_type": "COREX.Plot.ExportBundle",
+        "expected_accepted_data_types": [],
+        "replacement_accepted_data_types": []
+      }
+    },
+    "plot.heatmap": {
+      "exports": {
+        "expected_data_type": "COREX.DataTypes.Any",
+        "replacement_data_type": "COREX.Plot.ExportBundle",
+        "expected_accepted_data_types": [],
+        "replacement_accepted_data_types": []
+      }
+    },
+    "plot.contour": {
+      "exports": {
+        "expected_data_type": "COREX.DataTypes.Any",
+        "replacement_data_type": "COREX.Plot.ExportBundle",
+        "expected_accepted_data_types": [],
+        "replacement_accepted_data_types": []
+      }
+    },
+    "plot.surface": {
+      "exports": {
+        "expected_data_type": "COREX.DataTypes.Any",
+        "replacement_data_type": "COREX.Plot.ExportBundle",
+        "expected_accepted_data_types": [],
+        "replacement_accepted_data_types": []
+      }
+    },
+    "plot.point_cloud": {
+      "exports": {
+        "expected_data_type": "COREX.DataTypes.Any",
+        "replacement_data_type": "COREX.Plot.ExportBundle",
+        "expected_accepted_data_types": [],
+        "replacement_accepted_data_types": []
+      }
+    },
+    "plot.streamlines": {
+      "exports": {
+        "expected_data_type": "COREX.DataTypes.Any",
+        "replacement_data_type": "COREX.Plot.ExportBundle",
+        "expected_accepted_data_types": [],
+        "replacement_accepted_data_types": []
+      }
+    },
+    "math.construct_interval": {
+      "start": {
+        "expected_data_type": "COREX.DataTypes.Double",
+        "replacement_data_type": "COREX.DataTypes.Double",
+        "expected_accepted_data_types": [
+          "COREX.DataTypes.Double",
+          "COREX.DataTypes.Int"
+        ],
+        "replacement_accepted_data_types": [
+          "COREX.DataTypes.Int"
+        ]
+      },
+      "end": {
+        "expected_data_type": "COREX.DataTypes.Double",
+        "replacement_data_type": "COREX.DataTypes.Double",
+        "expected_accepted_data_types": [
+          "COREX.DataTypes.Double",
+          "COREX.DataTypes.Int"
+        ],
+        "replacement_accepted_data_types": [
+          "COREX.DataTypes.Int"
+        ]
+      }
+    },
+    "ssh_sftp.host": {
+      "private_key_path": {
+        "expected_data_type": "COREX.DataTypes.String",
+        "replacement_data_type": "COREX.DataTypes.String",
+        "expected_accepted_data_types": [
+          "COREX.DataTypes.String",
+          "COREX.DataTypes.Path"
+        ],
+        "replacement_accepted_data_types": [
+          "COREX.DataTypes.Path"
+        ]
+      }
+    },
+    "core.stream_gate": {
+      "gate": {
+        "expected_data_type": "COREX.DataTypes.Double",
+        "replacement_data_type": "COREX.DataTypes.Double",
+        "expected_accepted_data_types": [
+          "COREX.DataTypes.Double",
+          "COREX.DataTypes.Int"
+        ],
+        "replacement_accepted_data_types": [
+          "COREX.DataTypes.Int"
+        ]
+      }
+    }
+  },
   "model_viewer_patch": {
     "expected_description": "Displays a neutral CAD/FE scene, OCP Body, or Zone with one optional overlay.",
     "replacement_description": "Displays a neutral CAD/FE scene, OCP Body, or Geometry Group with one optional overlay.",

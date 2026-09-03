@@ -226,6 +226,7 @@ def load_effective_non_dpf_catalog(
             "add_rows",
             "model_viewer_patch",
             "property_default_patches",
+            "port_contract_patches",
         },
         label="Current contract overlay",
     )
@@ -240,6 +241,48 @@ def load_effective_non_dpf_catalog(
         label="Current contract overlay",
     )
     current_by_type = _catalog_by_type(catalog)
+    port_contract_patches = current_contract["port_contract_patches"]
+    if type(port_contract_patches) is not dict:
+        raise ValueError("port_contract_patches must be an object")
+    for type_id, port_patches in port_contract_patches.items():
+        if type_id not in current_by_type or type(port_patches) is not dict:
+            raise ValueError(f"Unknown or invalid port contract target: {type_id}")
+        for port_key, raw_patch in port_patches.items():
+            patch = _exact_keys(
+                raw_patch,
+                {
+                    "expected_data_type",
+                    "replacement_data_type",
+                    "expected_accepted_data_types",
+                    "replacement_accepted_data_types",
+                },
+                label=f"{type_id}.{port_key} port contract patch",
+            )
+            replacement_type = patch["replacement_data_type"]
+            replacement_accepted = patch["replacement_accepted_data_types"]
+            if (
+                type(replacement_type) is not str
+                or not replacement_type
+                or replacement_type != replacement_type.strip()
+                or type(replacement_accepted) is not list
+                or any(type(item) is not str or not item for item in replacement_accepted)
+                or len(replacement_accepted) != len(set(replacement_accepted))
+                or replacement_type in replacement_accepted
+            ):
+                raise ValueError(f"Invalid port contract replacement: {type_id}.{port_key}")
+            row = current_by_type[type_id]
+            for ports in (row["spec"]["ports"], row["resolved_default_ports"]):
+                matching_ports = [port for port in ports if port["key"] == port_key]
+                if len(matching_ports) != 1:
+                    raise ValueError(f"Unknown port contract target: {type_id}.{port_key}")
+                port = matching_ports[0]
+                if (
+                    port["data_type"] != patch["expected_data_type"]
+                    or port["accepted_data_types"] != patch["expected_accepted_data_types"]
+                ):
+                    raise ValueError(f"Port contract patch drifted: {type_id}.{port_key}")
+                port["data_type"] = replacement_type
+                port["accepted_data_types"] = list(replacement_accepted)
     viewer_patch = _exact_keys(
         current_contract["model_viewer_patch"],
         {

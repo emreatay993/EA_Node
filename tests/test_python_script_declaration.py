@@ -83,10 +83,10 @@ def run(ctx, values, image, title, count, enabled, mode, width, accent, folder, 
 
 def test_python_script_labels_preserve_explicit_blank_and_derive_omitted() -> None:
     source = '''@corex.node
-@corex.input("omitted_input")
-@corex.input("blank_input", label="")
-@corex.output("omitted_output")
-@corex.output("blank_output", label="")
+@corex.input("omitted_input", value_type=corex.Any)
+@corex.input("blank_input", value_type=corex.Any, label="")
+@corex.output("omitted_output", value_type=corex.Any)
+@corex.output("blank_output", value_type=corex.Any, label="")
 @corex.text("omitted_control")
 @corex.text("blank_control", label="")
 def run(ctx, omitted_input, blank_input, omitted_control, blank_control):
@@ -103,6 +103,23 @@ def run(ctx, omitted_input, blank_input, omitted_control, blank_control):
     assert ports["blank_output"].label == ""
     assert properties["omitted_control"].label == "Omitted Control"
     assert properties["blank_control"].label == ""
+
+
+@pytest.mark.parametrize("direction", ("input", "output"))
+def test_python_script_port_types_require_explicit_source_located_declarations(
+    direction: str,
+) -> None:
+    parameters = "ctx, value" if direction == "input" else "ctx"
+    source = f'''@corex.node
+@corex.{direction}("value")
+def run({parameters}): return {{}}
+'''
+    with pytest.raises(PythonScriptDeclarationError, match="requires explicit value_type=") as caught:
+        _resolve(source)
+    assert "line 2, column 2" in str(caught.value)
+    explicit_source = source.replace('(\"value\")', '(\"value\", value_type=corex.Any)')
+    _registry, _properties, spec = _resolve(explicit_source)
+    assert spec.ports[0].data_type == "COREX.DataTypes.Any"
 
 
 def test_decorator_discovery_rejects_expressions_without_executing_them() -> None:
@@ -154,7 +171,7 @@ def run(ctx, scale):
     ("source", "message"),
     (
         (
-            "@corex.node\n@corex.input('value')\ndef run(ctx):\n    return {}\n",
+            "@corex.node\n@corex.input('value', value_type=corex.Any)\ndef run(ctx):\n    return {}\n",
             "exactly match",
         ),
         (
@@ -162,7 +179,7 @@ def run(ctx, scale):
             "Unknown corex decorator",
         ),
         (
-            "@corex.node\n@corex.output('value', section='Bad')\ndef run(ctx):\n    return {}\n",
+            "@corex.node\n@corex.output('value', value_type=corex.Any, section='Bad')\ndef run(ctx):\n    return {}\n",
             "does not support section",
         ),
         (
@@ -213,7 +230,7 @@ def run(ctx):
         '@corex.text("value", _property_group="Internal")',
         '@corex.text("value", _sensitive=True)',
         '@corex.text("value", _sensitive_scope_key="scope")',
-        '@corex.input("value", _accepted_data_types=("COREX.DataTypes.Any",))',
+        '@corex.input("value", value_type=corex.Any, _accepted_data_types=("COREX.DataTypes.Any",))',
     ),
 )
 def test_python_script_rejects_internal_control_fields(decorator: str) -> None:
@@ -233,7 +250,7 @@ def run(ctx, value):
 
 def test_python_script_rejects_internal_node_readiness_metadata() -> None:
     source = '''@corex.node(_readiness_requirements=())
-@corex.output("result")
+@corex.output("result", value_type=corex.Any)
 def run(ctx):
     return {}
 '''
@@ -257,7 +274,7 @@ def run(ctx):
 )
 def test_python_script_rejects_internal_node_surface_metadata(field: str) -> None:
     source = f'''@corex.node({field})
-@corex.output("result")
+@corex.output("result", value_type=corex.Any)
 def run(ctx):
     return {{}}
 '''

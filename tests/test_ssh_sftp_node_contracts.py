@@ -108,7 +108,7 @@ PORT_CONTRACTS = {
             "item",
             False,
             False,
-            ('COREX.DataTypes.String', 'COREX.DataTypes.Path'),
+            ('COREX.DataTypes.Path',),
             "Path to SSH private key file.",
         ),
         (
@@ -578,7 +578,6 @@ def test_ssh_sftp_properties_and_typed_credential_boundaries() -> None:
     assert host_ports["private_key_passphrase"].accepted_data_types == ()
     assert host_ports["private_key_path"].data_type == "COREX.DataTypes.String"
     assert host_ports["private_key_path"].accepted_data_types == (
-        "COREX.DataTypes.String",
         "COREX.DataTypes.Path",
     )
 

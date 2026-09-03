@@ -6,6 +6,7 @@ import struct
 import zlib
 from contextlib import contextmanager
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -46,7 +47,9 @@ from ea_node_editor.execution.viewer_messages import (
 from ea_node_editor.execution.worker_runner import WorkflowRunner
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.builtin_functions import core_value
 from ea_node_editor.nodes.output_artifacts import register_staged_artifact
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.persistence.solution_repository import (
     SolutionRepository,
@@ -68,7 +71,7 @@ from ea_node_editor.runtime_contracts.solution_records import (
     SolutionFreshness,
     SolutionResidency,
 )
-from ea_node_editor.settings import PROJECT_ARTIFACT_STORE_METADATA_KEY
+from ea_node_editor.settings import PROJECT_ARTIFACT_STORE_METADATA_KEY, plugin_generations_dir
 
 
 class _Client:
@@ -273,8 +276,10 @@ def _runtime(
     model: GraphModel,
     *,
     limits: SolutionStoreLimits | None = None,
+    registry: NodeRegistry | None = None,
 ):  # noqa: ANN201
-    registry = build_default_registry()
+    if registry is None:
+        registry = build_default_registry()
     client = _Client()
     runtime = CorexRuntime(
         client=client,
@@ -282,6 +287,32 @@ def _runtime(
         solution_store=SolutionStore(limits=limits),
     )
     return runtime, client, registry
+
+
+def _typed_session_producer_registry(
+    monkeypatch: pytest.MonkeyPatch, data_type_id: str, *, generation_root: Path
+) -> NodeRegistry:
+    monkeypatch.setattr(
+        core_value,
+        "SOURCE",
+        core_value.SOURCE + f'''
+@corex.node(
+    id="tests.typed_session_value", name="Typed Session Value",
+    category=("Tests",), _solution_reuse_scope="session",
+)
+@corex.output("value", value_type={data_type_id!r})
+def typed_session_value(ctx):
+    raise AssertionError("Reuse-validation fixture must not execute")
+''',
+    )
+    registry = build_default_registry(
+        include_public_plugins=False, generation_root=generation_root
+    )
+    monkeypatch.setattr(
+        "ea_node_editor.nodes.bootstrap.build_default_registry",
+        lambda **_kwargs: registry,
+    )
+    return registry
 
 
 def _snapshot(model: GraphModel, registry, workspace_id: str):  # noqa: ANN001, ANN201
@@ -1752,13 +1783,19 @@ def test_mixed_output_descriptor_records_concrete_types_and_carriers() -> None:
     assert again.node_decisions[0].action is PreparedAction.EXECUTE
 
 
-def test_live_resource_lease_is_released_on_project_reset() -> None:
+def test_live_resource_lease_is_released_on_project_reset(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    registry = _typed_session_producer_registry(
+        monkeypatch, VIEWER_SESSION_DATA_TYPE_ID, generation_root=plugin_generations_dir()
+    )
     model = GraphModel()
     workspace = model.active_workspace
     node = model.add_node(
-        workspace.workspace_id, "core.constant", "Constant", 0, 0
+        workspace.workspace_id, "tests.typed_session_value", "Session", 0, 0
     )
-    runtime, client, registry = _runtime(model)
+    runtime, client, registry = _runtime(model, registry=registry)
     client.lease_resources = True
     snapshot = _snapshot(model, registry, workspace.workspace_id)
     prepared = runtime.prepare_execution(
@@ -1798,6 +1835,8 @@ def test_live_resource_lease_is_released_on_project_reset() -> None:
         emitted.append(worker_events.get())
     assert any(event.get("type") == "run_failed" for event in emitted)
     assert not any(event.get("type") == "node_settled" for event in emitted)
+    failure = next(event for event in emitted if event.get("type") == "run_failed")
+    assert "Runtime handle ref is stale or unknown: 'handle_live'" in failure["error"]
     runtime.reset_project_session("replacement", "")
     assert len(client.released_resources) == 1
 
@@ -1935,7 +1974,9 @@ def test_missing_artifact_payload_is_observed_but_never_indexed() -> None:
 
 def test_preparation_revalidates_artifact_integrity_before_selecting_reuse(
     tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:  # noqa: ANN001
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
     project_path = tmp_path / "artifact.cxproj"
     store = ProjectArtifactStore(project_path=project_path, metadata=None)
     store.ensure_staging_root(temporary_root_parent=tmp_path)
@@ -1950,12 +1991,14 @@ def test_preparation_revalidates_artifact_integrity_before_selecting_reuse(
     payload_path.parent.mkdir(parents=True, exist_ok=True)
     payload_path.write_bytes(b"payload")
 
+    registry = _typed_session_producer_registry(
+        monkeypatch, PATH_DATA_TYPE_ID, generation_root=plugin_generations_dir()
+    )
     model = GraphModel()
     workspace = model.active_workspace
     node = model.add_node(
-        workspace.workspace_id, "core.constant", "Constant", 0, 0
+        workspace.workspace_id, "tests.typed_session_value", "Artifact", 0, 0
     )
-    registry = build_default_registry()
     path_type = registry.data_types.require(PATH_DATA_TYPE_ID)
     runtime_ref = register_staged_artifact(
         store=store,
@@ -2005,6 +2048,8 @@ def test_preparation_revalidates_artifact_integrity_before_selecting_reuse(
         emitted.append(worker_events.get())
     assert any(event.get("type") == "run_failed" for event in emitted)
     assert not any(event.get("type") == "node_settled" for event in emitted)
+    failure = next(event for event in emitted if event.get("type") == "run_failed")
+    assert f"artifact {runtime_ref.artifact_id!r} sha256 does not match" in failure["error"]
 
     prepared = runtime.prepare_execution(request)
     assert prepared.node_decisions[0].action is PreparedAction.EXECUTE

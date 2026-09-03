@@ -3800,9 +3800,9 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(len(registry.all_specs()), 933)
         self.assertEqual(len(data_ports), 4450)
         self.assertEqual(len(resolved_data_ports), 4454)
-        self.assertEqual(len(primary_type_ids), 60)
+        self.assertEqual(len(primary_type_ids), 63)
         self.assertEqual(len(accepted_type_ids), 25)
-        self.assertEqual(len(registry.data_types.all_specs()), 171)
+        self.assertEqual(len(registry.data_types.all_specs()), 173)
         self.assertEqual(
             len(
                 [
@@ -3811,7 +3811,7 @@ class RegistryValidationTests(unittest.TestCase):
                     if spec.type_id != LOAD_STEP_DATA_TYPE_ID
                 ]
             ),
-            170,
+            172,
         )
         self.assertFalse(
             primary_type_ids

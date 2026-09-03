@@ -80,7 +80,7 @@ def file_read(ctx, settings):
 )
 @corex.input(
     "data",
-    value_type=corex.Any,
+    value_type="COREX.DataTypes.JsonValue",
     structure="tree",
     required=False,
     label="",

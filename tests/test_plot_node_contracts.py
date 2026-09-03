@@ -43,6 +43,7 @@ from ea_node_editor.runtime_contracts import (
     GRAPH_DICTIONARY_DATA_TYPE_ID,
     INTEGER_DATA_TYPE_ID,
     PATH_DATA_TYPE_ID,
+    PLOT_EXPORT_BUNDLE_DATA_TYPE_ID,
     TABULAR_DATA_REF_TYPE_ID,
     TABULAR_WINDOW_REF_TYPE_ID,
 )
@@ -346,6 +347,7 @@ def test_generic_plot_catalog_registers_v1_specs_through_builtin_bootstrap() -> 
         ports = {port.key: port for port in spec.ports}
         assert "render_request" not in ports
         assert ports["static_export"].label == "Image Export"
+        assert ports["exports"].data_type == PLOT_EXPORT_BUNDLE_DATA_TYPE_ID
 
 
 def test_generic_plot_standard_properties_are_stable_and_colormap_is_scoped() -> None:
@@ -1104,6 +1106,7 @@ def test_generic_plot_node_archive_export_writes_static_and_data_artifacts() -> 
         assert "sample" in data_path.read_text(encoding="utf-8")
         assert result.outputs["exports"]["static_metadata"]["backend_id"] == MATPLOTLIB_PLOT_BACKEND_ID
         assert result.outputs["exports"]["data_metadata"]["metadata"]["row_count"] == 3
+        registry.data_types.validate_output(PLOT_EXPORT_BUNDLE_DATA_TYPE_ID, result.outputs["exports"])
 
 
 def test_generic_plot_archive_second_registration_failure_rolls_back_pair(

@@ -306,6 +306,21 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
                 json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True),
             )
 
+    def test_file_write_rejects_non_finite_json_before_overwriting_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "payload.json"
+            path.write_text("sentinel", encoding="utf-8")
+            for value in (float("nan"), float("inf"), float("-inf")):
+                with self.subTest(value=value):
+                    with self.assertRaisesRegex(ValueError, "serialize payload as JSON"):
+                        execute_file_write(
+                            _context(
+                                inputs={"data": {"value": value}},
+                                properties={"path": str(path), "as_json": True},
+                            )
+                        )
+                    self.assertEqual(path.read_text(encoding="utf-8"), "sentinel")
+
     def test_email_send_with_mocked_smtp(self) -> None:
         class FakeSMTP:
             instances: list["FakeSMTP"] = []
@@ -1169,11 +1184,11 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
             workspace = model.active_workspace
             blank_path = model.add_node(
                 workspace.workspace_id,
-                "core.constant",
+                "core.python_script",
                 "Blank Path",
                 120,
                 0,
-                properties={"value": ""},
+                properties={"script": _decorated_transform("result = ''")},
             )
             payload = model.add_node(
                 workspace.workspace_id,
@@ -1194,7 +1209,7 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
             model.add_edge(
                 workspace.workspace_id,
                 blank_path.node_id,
-                "value",
+                "result",
                 file_write.node_id,
                 "path",
             )

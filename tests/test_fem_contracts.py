@@ -1745,6 +1745,8 @@ def _plane() -> TypedInlineValue:
 
 def test_force_load_container_lifecycle_rolls_back_and_releases_in_reverse() -> None:
     registry = build_builtin_registry()
+    load_port = next(port for port in registry.get_spec(FORCE_NODE_TYPE_ID).ports if port.key == "load")
+    assert load_port.data_type == FORCE_DATA_TYPE_ID
     services = WorkerServices()
     services.bind_data_types(registry.data_types)
 

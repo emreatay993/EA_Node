@@ -67,7 +67,7 @@ def _outputs(ctx, result, code):
 )
 @corex.output(
     "load",
-    value_type="COREX.Fem.Loads.ILoad",
+    value_type="COREX.Fem.Force",
     label="Load",
     description="Constructed force load handle.",
 )

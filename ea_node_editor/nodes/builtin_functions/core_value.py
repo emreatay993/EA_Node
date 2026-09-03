@@ -25,7 +25,7 @@ from ea_node_editor.runtime_contracts.data_tree import resolve_single_run_inputs
 )
 @corex.output(
     "value",
-    value_type="COREX.DataTypes.Any",
+    value_type="COREX.DataTypes.JsonValue",
     label="",
     description="The configured JSON-compatible value.",
 )
@@ -47,8 +47,8 @@ def constant(ctx, settings):
     del ctx
     value = settings.to_dict()["value"]
     try:
-        as_text = json.dumps(value, sort_keys=True, ensure_ascii=True)
-    except TypeError as exc:
+        as_text = json.dumps(value, sort_keys=True, ensure_ascii=True, allow_nan=False)
+    except (TypeError, ValueError) as exc:
         raise ValueError("Constant node value must be JSON serializable.") from exc
     return {"value": value, "as_text": as_text}
 

@@ -322,7 +322,7 @@ class StreamGateNodePlugin:
                     'COREX.DataTypes.Double',
                     required=False,
                     uses_property_default=True,
-                    accepted_data_types=('COREX.DataTypes.Double', 'COREX.DataTypes.Int'),
+                    accepted_data_types=('COREX.DataTypes.Int',),
                     description="Zero-based output index; midpoint values round away from zero.",
                 ),
             ),

@@ -153,7 +153,7 @@ def test_interval_node_specs_register_with_numeric_defaults_and_icon(
         construct_ports["start"].accepted_data_types,
     ) == (
         DOUBLE_DATA_TYPE_ID,
-        (DOUBLE_DATA_TYPE_ID, INTEGER_DATA_TYPE_ID),
+        (INTEGER_DATA_TYPE_ID,),
     )
     assert construct_ports["start"].uses_property_default is True
     assert construct_ports["end"].uses_property_default is True
@@ -308,11 +308,15 @@ def test_deconstruct_interval_invalid_connected_value_reports_runtime_diagnostic
     workspace = model.active_workspace
     source = model.add_node(
         workspace.workspace_id,
-        "core.constant",
+        "core.python_script",
         "Empty interval",
         0.0,
         0.0,
-        properties={"value": None},
+        properties={"script": '''@corex.node
+@corex.output("value", value_type=corex.Any)
+def run(ctx):
+    return {"value": {}}
+'''},
     )
     deconstruct = model.add_node(
         workspace.workspace_id,

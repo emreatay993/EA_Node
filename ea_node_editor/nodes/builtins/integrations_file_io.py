@@ -32,9 +32,9 @@ def _write_file_payload(
         payload = inputs["data"] if "data" in inputs else inputs.get("text", "")
         try:
             serialized = json.dumps(
-                payload, indent=2, sort_keys=True, ensure_ascii=True
+                payload, indent=2, sort_keys=True, ensure_ascii=True, allow_nan=False
             )
-        except TypeError as exc:
+        except (TypeError, ValueError) as exc:
             raise ValueError(
                 f"File Write could not serialize payload as JSON: {exc}"
             ) from exc

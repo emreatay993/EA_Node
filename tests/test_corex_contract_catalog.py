@@ -186,6 +186,50 @@ def test_frozen_non_dpf_catalog_plus_documentation_and_structural_overlays_match
     assert representation_default(current) == "surface_with_edges"
 
 
+def _any_port_endpoints(catalog: list[dict[str, object]]) -> set[str]:
+    return {
+        f"{row['spec']['type_id']}.{port['key']}"
+        for row in catalog
+        for port in row["resolved_default_ports"]
+        if port["kind"] == "data"
+        and "COREX.DataTypes.Any" in (port["data_type"], *port["accepted_data_types"])
+    }
+
+
+def test_default_resolved_non_dpf_any_ports_are_only_intentional_generic_ports() -> None:
+    actual = _any_port_endpoints(_current_non_dpf_catalog())
+    assert actual == {
+        "core.if.true_value", "core.if.false_value", "core.if.result",
+        "io.process_run.stdout", "io.process_run.stderr",
+        "data.panel.input", "data.panel.output",
+        "core.trigger.input", "core.trigger.output",
+        "core.stream_gate.stream", "core.stream_gate.output_0", "core.stream_gate.output_1",
+        "core.python_script.payload", "core.python_script.result",
+        "core.subnode_input.pin", "core.subnode_output.pin",
+        "media.panel._surface_source",
+        "mars.batch_solve.files", "mars.run_job.files", "mars.time_history.files",
+    }
+
+
+def test_non_dpf_any_inventory_detects_an_accepted_type_leak() -> None:
+    catalog = _current_non_dpf_catalog()
+    baseline = _any_port_endpoints(catalog)
+    file_write = next(row for row in catalog if row["spec"]["type_id"] == "io.file_write")
+    data_port = next(port for port in file_write["resolved_default_ports"] if port["key"] == "data")
+    data_port["accepted_data_types"].append("COREX.DataTypes.Any")
+    assert _any_port_endpoints(catalog) - baseline == {"io.file_write.data"}
+
+
+def test_default_resolved_non_dpf_accepted_types_never_repeat_the_primary() -> None:
+    repeated = {
+        f"{row['spec']['type_id']}.{port['key']}"
+        for row in _current_non_dpf_catalog()
+        for port in row["resolved_default_ports"]
+        if port["data_type"] in port["accepted_data_types"]
+    }
+    assert repeated == set()
+
+
 def test_current_contract_overlay_rejects_extra_drift_duplicate_unknown_and_enum_invalid(
     tmp_path: Path,
 ) -> None:
@@ -216,6 +260,32 @@ def test_current_contract_overlay_rejects_extra_drift_duplicate_unknown_and_enum
                     "representation": {
                         "expected_default": "surface",
                         "replacement_default": "invalid",
+                    }
+                }
+            },
+        },
+        "port_drift": {
+            **base,
+            "port_contract_patches": {
+                "core.constant": {
+                    "value": {
+                        **base["port_contract_patches"]["core.constant"]["value"],
+                        "expected_data_type": "COREX.DataTypes.String",
+                    }
+                }
+            },
+        },
+        "port_unknown": {
+            **base,
+            "port_contract_patches": {"unknown.node": {}},
+        },
+        "port_repeated_primary": {
+            **base,
+            "port_contract_patches": {
+                "core.constant": {
+                    "value": {
+                        **base["port_contract_patches"]["core.constant"]["value"],
+                        "replacement_accepted_data_types": ["COREX.DataTypes.JsonValue"],
                     }
                 }
             },
