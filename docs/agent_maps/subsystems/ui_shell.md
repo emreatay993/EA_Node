@@ -19,6 +19,8 @@ Use this for shell-backed workflows, controllers, presenters, context bridges, a
 - `ea_node_editor/ui/shell/controllers/plugin_authoring_controller.py`
 - `ea_node_editor/ui/shell/presenters/`
 - `ea_node_editor/ui/shell/presenters/graph_canvas_host_presenter.py`
+- `ea_node_editor/telemetry/frame_rate.py`
+- `tests/test_frame_rate_sampler.py`
 - `tests/test_run_controller_unit.py`
 - `tests/test_run_projection_controller.py`
 - `tests/test_run_event_controller.py`

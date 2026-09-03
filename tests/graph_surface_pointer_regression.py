@@ -101,6 +101,8 @@ QML_POINTER_REGRESSION_HELPERS = textwrap.dedent(
 
     def hover_host_local_point(window, host, local_x, local_y, settle_cycles=5):
         point = host_scene_point(host, local_x, local_y)
+        QTest.mouseMove(window, host_scene_point(host, -1.0, -1.0))
+        settle_events(1)
         QTest.mouseMove(window, point)
         settle_events(settle_cycles)
         return point

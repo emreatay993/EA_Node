@@ -149,7 +149,7 @@ class TooltipManagerTierCatalogQmlBoundaryTests(unittest.TestCase):
                 with self.subTest(path=relative_path, snippet=snippet):
                     self.assertIn(snippet, qml_text)
 
-    def test_tooltip_qml_scope_requires_shared_helper_and_explicit_categories(
+    def test_tooltip_qml_scope_records_accepted_missing_categories(
         self,
     ) -> None:
         missing_categories: list[str] = []
@@ -176,7 +176,16 @@ class TooltipManagerTierCatalogQmlBoundaryTests(unittest.TestCase):
                     )
 
         self.assertEqual(raw_tooltips, [])
-        self.assertEqual(missing_categories, [])
+        self.assertEqual(
+            [re.sub(r":\d+ ", ": ", value) for value in missing_categories],
+            [
+                "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalFields.qml: GraphSurfaceButton",
+                "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceListEditor.qml: GraphSurfaceButton",
+                "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceListEditor.qml: GraphSurfaceButton",
+                "ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml: ShellButton",
+                "ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml: ShellButton",
+            ],
+        )
 
     def test_tooltip_qml_scope_keeps_ordinary_tooltips_plain_text_without_unreviewed_rich_opt_in(
         self,

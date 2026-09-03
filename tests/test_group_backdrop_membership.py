@@ -93,6 +93,9 @@ class GroupBackdropSceneIntegrationTests(unittest.TestCase):
         self.scene = GraphSceneBridge()
         self.scene.set_workspace(self.model, self.registry, self.workspace_id)
 
+    def test_wrap_selected_nodes_is_a_noop_without_selection(self) -> None:
+        self.assertFalse(self.scene.wrap_selected_nodes_in_group_backdrop())
+
     def _scene_payload(self, node_id: str) -> dict[str, object]:
         for payload in [*self.scene.nodes_model, *self.scene.backdrop_nodes_model]:
             if str(payload["node_id"]) == str(node_id):

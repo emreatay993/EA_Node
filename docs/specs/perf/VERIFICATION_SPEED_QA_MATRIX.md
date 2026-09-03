@@ -21,7 +21,7 @@ or explicit requests.
 | `fast` | `./venv/Scripts/python.exe scripts/run_verification.py --mode fast` | Broad non-GUI integration lane for tests that are not marked `gui` or `slow` | Runs `fast.pytest` first with `pytest -o faulthandler_timeout=120 -m "not gui and not slow"` and ignores the shell-backed modules plus `tests/test_shell_isolation_phase.py`; when `pytest-xdist` is importable in the project venv, resolves workers as `psutil.cpu_count(logical=True)` else `os.cpu_count()` else `1`, then passes `-n <resolved_count> --dist load` while deselecting known xdist-sensitive fast targets. Then runs `fast.serial.pytest` for those targets without xdist |
 | `gui` | `./venv/Scripts/python.exe scripts/run_verification.py --mode gui` | Authoritative pure-QML QuickTest directory, parallel QML-heavy pytest slice marked `gui and not slow`, then its proven-contention serial targets | Runs `gui.qml_quick` before pytest with offscreen/Basic controls and zero input delays. `gui.pytest` uses `-o faulthandler_timeout=300`; resolves workers as `psutil.cpu_count(logical=True)` else `os.cpu_count()` else `1`, caps that value at `6`, and passes `-n <gui_resolved_count> --dist load` when `pytest-xdist` is available. `gui.serial.pytest` then runs one DOCX selector and `tests/test_viewer_surface_contract.py` outside xdist. Otherwise it prints the serial fallback notice. Both slices ignore the shell-backed modules plus `tests/test_shell_isolation_phase.py` |
 | `slow` | `./venv/Scripts/python.exe scripts/run_verification.py --mode slow` | Slow pytest slice marked `slow` | Serial by design, uses `pytest -o faulthandler_timeout=600 -m slow`, and still ignores the shell-backed modules plus `tests/test_shell_isolation_phase.py` |
-| `full` | `./venv/Scripts/python.exe scripts/run_verification.py --mode full` | Runs `fast.pytest`, `fast.serial.pytest`, `gui.qml_quick`, `gui.pytest`, `gui.serial.pytest`, and `slow` first, then the dedicated fresh-process shell-isolation phase | Use `--dry-run` to inspect the exact subprocess commands before execution; with `pytest-xdist`, the 47-target shell catalog runs through `./venv/Scripts/python.exe -m pytest -o faulthandler_timeout=330 --ignore=venv tests/test_shell_isolation_phase.py -q -n 4 --dist load`, with a 360-second hard limit on each child; without xdist, the same phase runs serially |
+| `full` | `./venv/Scripts/python.exe scripts/run_verification.py --mode full` | Runs `fast.pytest`, `fast.serial.pytest`, `gui.qml_quick`, `gui.pytest`, `gui.serial.pytest`, and `slow` first, then the dedicated fresh-process shell-isolation phase | Use `--dry-run` to inspect the exact subprocess commands before execution; with `pytest-xdist`, the current exact 49-target shell catalog runs through `./venv/Scripts/python.exe -m pytest -o faulthandler_timeout=330 --ignore=venv tests/test_shell_isolation_phase.py -q -n 4 --dist load`, with a 360-second hard limit on each child; without xdist, the same phase runs serially |
 
 ## Locked Shell Isolation Rules
 
@@ -30,7 +30,8 @@ or explicit requests.
   `--ignore=tests/main_window_shell/shell_basics_and_search.py`,
   `--ignore=tests/test_script_editor_dock.py`,
   `--ignore=tests/test_shell_run_controller.py`,
-  `--ignore=tests/test_shell_project_session_controller.py`, and
+  `--ignore=tests/test_shell_project_session_controller.py`,
+  `--ignore=tests/test_shell_window_lifecycle_isolated.py`, and
   `--ignore=tests/test_shell_isolation_phase.py`.
 - The `fast.pytest` xdist phase additionally deselects
   `tests/test_execution_client.py::ProcessExecutionClientTests` and
@@ -62,6 +63,7 @@ or explicit requests.
   - `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest tests.test_script_editor_dock -v`
   - `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest tests.test_shell_run_controller -v`
   - `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest tests.test_shell_project_session_controller -v`
+  - `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest tests.test_shell_window_lifecycle_isolated -v`
 - Do not replace the dedicated shell-isolation phase with `unittest discover`,
   shared `ShellWindow()` reuse, or shell coverage folded back into the earlier
   pytest phases.

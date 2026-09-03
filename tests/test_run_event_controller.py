@@ -75,6 +75,41 @@ class RunEventControllerTests(unittest.TestCase):
         self.assertEqual(host.console_panel.logs, [])
         self.assertEqual(host.run_state.active_run_id, "run_live")
 
+    def test_log_events_publish_only_for_the_active_run(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        host.run_state.active_run_id = "run_live"
+        host.run_state.active_run_workspace_id = workspace_id
+        host.run_state.engine_state_value = "running"
+        _run_controller(host)
+
+        for run_id, message in (
+            ("run_live", "[stdout] tick_ui_0"),
+            ("run_live", "[stderr] warn_ui_0"),
+            ("run_stale", "[stdout] should_not_appear"),
+        ):
+            host.run_event_controller.handle_execution_event(
+                {
+                    "type": "log",
+                    "run_id": run_id,
+                    "workspace_id": workspace_id,
+                    "node_id": "node_stream",
+                    "level": "info",
+                    "message": message,
+                }
+            )
+
+        self.assertEqual(
+            host.console_panel.logs,
+            [
+                ("info", "[stdout] tick_ui_0"),
+                ("info", "[stderr] warn_ui_0"),
+            ],
+        )
+        self.assertEqual(host.run_state.active_run_id, "run_live")
+        self.assertEqual(host.run_state.active_run_workspace_id, workspace_id)
+        self.assertEqual(host.run_state.engine_state_value, "running")
+
     def test_run_failed_event_focuses_node_logs_traceback_and_clears_active_run(
         self,
     ) -> None:

@@ -13,6 +13,7 @@ Use this for Group geometry, membership, collapse/peek behavior, collision avoid
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeDelegate.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHostGestureLayer.qml`
+- `tests/main_window_shell/group_backdrop_integration.py`
 
 ## Input Layer Notes
 - Groups render as a visual layer under edges plus a transparent input overlay above edges. Keep edge click, context, and hover-cursor routing explicit in the input overlay path so edges inside a Group remain selectable while empty Group areas still drag/select the Group.
@@ -23,6 +24,7 @@ Use this for Group geometry, membership, collapse/peek behavior, collision avoid
 - Group-backdrop wrap transactions are graph-owned in `group_backdrop_mutation_ops.py`; scene helpers should call that operation directly and keep membership fields derived in payload projection.
 - The display name is `Group`, registered as `passive.annotation.group_backdrop` under `Utilities > Canvas`. Its hidden title defaults to empty; an untitled selected Group shows `Double click to edit title`, and double-click opens the shared title editor. It has no body/rich-text content, Inspector-editable properties, or shadow.
 - `tests/qml_quick/tst_graph_node_host.qml` owns the four pure-QML Group host checks: chrome/shadow suppression, untitled edit prompt, icon-independent collapsed title, and long-title width. `tests/test_group_backdrop_contracts.py` retains the seven catalogue, model, metric, serialization, and scene-projection checks.
+- The focused mounted-shell integration checks share the existing `main_window__shell_basics_and_search__workspace_actions` child. They retain the real Library add/drop route, shortcut noncollision, Peek menu eligibility, current `Group` fallback, direct/nested/outside peek visibility, editing, explicit exit, and click-away dismissal without reviving the obsolete 12-test shard.
 
 ## Focused Verification
 ```powershell
@@ -30,7 +32,8 @@ $env:QT_QPA_PLATFORM = "offscreen"
 $env:QT_QUICK_CONTROLS_STYLE = "Basic"
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_node_host.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction SilentlyContinue
-.\venv\Scripts\python.exe -m pytest tests/test_group_backdrop_contracts.py tests/test_group_backdrop_membership.py tests/test_group_backdrop_interactions.py tests/main_window_shell/group_backdrop_workflows.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_group_backdrop_contracts.py tests/test_group_backdrop_membership.py tests/test_group_backdrop_interactions.py tests/test_graph_action_contracts.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_shell_isolation_phase.py -k "main_window__shell_basics_and_search__workspace_actions" --ignore=venv -q -n 0
 ```
 
 ## Breadcrumbs

@@ -1,4 +1,5 @@
 """Shared runtime for shell-isolated verification targets."""
+
 from __future__ import annotations
 
 import importlib
@@ -18,26 +19,6 @@ except ModuleNotFoundError:
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _PROJECT_SESSION_SCENARIO_ARG = "--scenario"
 _PROJECT_SESSION_SCENARIO_MODULE = "tests.test_shell_project_session_controller"
-_LEGACY_PYTEST_NODEID_ALIASES = {
-    "tests/test_main_window_shell.py::ShellLibraryBridgeTests": (
-        "tests/main_window_shell/bridge_contracts.py::ShellLibraryBridgeTests"
-    ),
-    "tests/test_main_window_shell.py::ShellInspectorBridgeTests": (
-        "tests/main_window_shell/bridge_contracts.py::ShellInspectorBridgeTests"
-    ),
-    "tests/test_main_window_shell.py::ShellWorkspaceBridgeTests": (
-        "tests/main_window_shell/bridge_contracts.py::ShellWorkspaceBridgeTests"
-    ),
-    "tests/test_main_window_shell.py::ShellLibraryBridgeQmlBoundaryTests": (
-        "tests/main_window_shell/bridge_qml_boundaries.py::ShellLibraryBridgeQmlBoundaryTests"
-    ),
-    "tests/test_main_window_shell.py::ShellInspectorBridgeQmlBoundaryTests": (
-        "tests/main_window_shell/bridge_qml_boundaries.py::ShellInspectorBridgeQmlBoundaryTests"
-    ),
-    "tests/test_main_window_shell.py::ShellWorkspaceBridgeQmlBoundaryTests": (
-        "tests/main_window_shell/bridge_qml_boundaries.py::ShellWorkspaceBridgeQmlBoundaryTests"
-    ),
-}
 
 
 class ShellIsolationTargetTimeout(RuntimeError):
@@ -49,14 +30,12 @@ def _stable_target_id(prefix: str, value: str) -> str:
     return f"{prefix}::{normalized}"
 
 
-def _normalized_env_overrides(extra_env: Mapping[str, str] | None) -> tuple[tuple[str, str], ...]:
+def _normalized_env_overrides(
+    extra_env: Mapping[str, str] | None,
+) -> tuple[tuple[str, str], ...]:
     if not extra_env:
         return ()
     return tuple(sorted((str(key), str(value)) for key, value in extra_env.items()))
-
-
-def _normalize_pytest_nodeid(nodeid: str) -> str:
-    return _LEGACY_PYTEST_NODEID_ALIASES.get(nodeid, nodeid)
 
 
 def build_unittest_module_command(module_name: str) -> tuple[str, ...]:
@@ -67,22 +46,23 @@ def build_unittest_target_command(dotted_target: str) -> tuple[str, ...]:
     return (sys.executable, "-m", "unittest", dotted_target)
 
 
-def build_unittest_target_list_command(dotted_targets: Sequence[str]) -> tuple[str, ...]:
+def build_unittest_target_list_command(
+    dotted_targets: Sequence[str],
+) -> tuple[str, ...]:
     if not dotted_targets:
         raise ValueError("unittest_target_list requires at least one dotted target.")
     return (sys.executable, "-m", "unittest", *dotted_targets)
 
 
 def build_pytest_nodeid_command(nodeid: str) -> tuple[str, ...]:
-    pytest_args = manifest.shell_isolation_target_pytest_args(_normalize_pytest_nodeid(nodeid))
+    pytest_args = manifest.shell_isolation_target_pytest_args(nodeid)
     return (sys.executable, *pytest_args[:2], "-n", "0", *pytest_args[2:])
 
 
 def build_pytest_nodeid_list_command(nodeids: Sequence[str]) -> tuple[str, ...]:
     if not nodeids:
         raise ValueError("pytest_nodeid_list requires at least one nodeid.")
-    normalized_nodeids = tuple(_normalize_pytest_nodeid(nodeid) for nodeid in nodeids)
-    pytest_args = manifest.shell_isolation_target_pytest_args(*normalized_nodeids)
+    pytest_args = manifest.shell_isolation_target_pytest_args(*nodeids)
     return (sys.executable, *pytest_args[:2], "-n", "0", *pytest_args[2:])
 
 
@@ -183,7 +163,8 @@ class ShellIsolationTarget:
         extra_env: Mapping[str, str] | None = None,
     ) -> "ShellIsolationTarget":
         return cls(
-            target_id=target_id or _stable_target_id("project-session-scenario", scenario_name),
+            target_id=target_id
+            or _stable_target_id("project-session-scenario", scenario_name),
             command=build_project_session_scenario_command(scenario_name),
             extra_env=_normalized_env_overrides(extra_env),
         )

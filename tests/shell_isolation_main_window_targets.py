@@ -1,4 +1,5 @@
 """Main-window shell isolation targets."""
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -210,6 +211,10 @@ def _build_targets():
                 "tests.main_window_shell.shell_basics_and_search.MainWindowShellBasicsAndSearchTests.test_snap_to_grid_setting_persists_across_window_restart",
                 "tests.main_window_shell.shell_basics_and_search.MainWindowShellBasicsAndSearchTests.test_locked_object_interaction_action_is_session_only_and_uses_ctrl_l",
                 "tests.main_window_shell.shell_basics_and_search.MainWindowShellBasicsAndSearchTests.test_align_overlap_posts_tidy_hint",
+                "tests.main_window_shell.group_backdrop_integration.MainWindowShellGroupBackdropIntegrationTests.test_group_library_add_drop_and_current_empty_title_fallback",
+                "tests.main_window_shell.group_backdrop_integration.MainWindowShellGroupBackdropIntegrationTests.test_plain_c_wrap_shortcut_does_not_collide_with_group_shortcuts",
+                "tests.main_window_shell.group_backdrop_integration.MainWindowShellGroupBackdropIntegrationTests.test_peek_inside_action_is_collapsed_group_only",
+                "tests.main_window_shell.group_backdrop_integration.MainWindowShellGroupBackdropIntegrationTests.test_comment_peek_filters_members_keeps_scope_and_supports_both_exit_paths",
             ),
         ),
         ShellIsolationTarget.unittest_target_list(
@@ -352,30 +357,61 @@ def _build_targets():
             extra_env={"EA_NODE_EDITOR_PASSIVE_PDF_NODES_DIRECT": "1"},
         ),
         ShellIsolationTarget.pytest_nodeid_list(
-            "main_window__bridge_local_pack__contracts_and_library_qml",
+            "main_window__lifecycle__composition_context_provider_action_identity",
             (
-                "tests/main_window_shell/shell_runtime_contracts.py::FrameRateSamplerTests",
-                "tests/main_window_shell/bridge_contracts.py::ShellLibraryBridgeTests",
-                "tests/main_window_shell/bridge_contracts.py::ShellInspectorBridgeTests",
-                "tests/main_window_shell/bridge_contracts.py::ShellWorkspaceBridgeTests",
-                "tests/main_window_shell/bridge_qml_boundaries.py::ShellLibraryBridgeQmlBoundaryTests",
-            ),
-        ),
-        ShellIsolationTarget.pytest_nodeid_list(
-            "main_window__bridge_local_pack__remaining_qml_and_runtime",
-            (
-                "tests/main_window_shell/bridge_qml_boundaries.py::ShellInspectorBridgeQmlBoundaryTests",
-                "tests/main_window_shell/bridge_qml_boundaries.py::ShellWorkspaceBridgeQmlBoundaryTests",
+                "tests/test_main_window_shell.py::MainWindowShellContextBootstrapTests::test_qml_context_removes_raw_canvas_globals_and_registers_split_canvas_bridges",
+                "tests/test_main_window_shell.py::MainWindowShellContextBootstrapTests::test_shell_window_keeps_services_bundle_in_sync_with_context_bundle",
+                "tests/test_main_window_shell.py::MainWindowGraphCanvasSplitBridgeTests::test_qml_context_registers_action_state_command_and_view_canvas_bridges",
+                "tests/test_main_window_shell.py::MainWindowPyQtGraphActionRouteTests::test_pyqt_duplicate_clipboard_group_backdrop_subnode_group_align_scope_actions_dispatch_to_controller",
+                "tests/test_shell_window_lifecycle_isolated.py::test_empty_shell_configures_tabular_policy_without_allocating_shared_service",
+                "tests/test_shell_window_lifecycle_isolated.py::test_shell_window_exposes_qtquick_backend_debug_payload",
                 "tests/main_window_shell/shell_runtime_contracts.py::MainWindowShellTelemetryTests",
                 "tests/main_window_shell/shell_runtime_contracts.py::MainWindowShellBootstrapCompositionTests",
                 "tests/main_window_shell/shell_runtime_contracts.py::MainWindowShellContextBootstrapTests",
                 "tests/main_window_shell/shell_runtime_contracts.py::MainWindowShellHostProtocolStateTests",
+                "tests/main_window_shell/shell_runtime_contracts.py::_MainWindowShellGraphCanvasHostDirectTests",
             ),
         ),
         ShellIsolationTarget.pytest_nodeid(
-            "tests/main_window_shell/shell_runtime_contracts.py::_MainWindowShellGraphCanvasHostDirectTests",
-            target_id="main_window__graph_canvas_host_subprocess",
-            extra_env={"EA_NODE_EDITOR_GRAPH_CANVAS_HOST_DIRECT": "1"},
+            "tests/test_shell_window_lifecycle_isolated.py::test_shell_window_can_use_opt_in_qquickview_container_host",
+            target_id="main_window__lifecycle__native_parenting",
+        ),
+        ShellIsolationTarget.pytest_nodeid_list(
+            "main_window__lifecycle__repeated_mount_close_teardown",
+            (
+                "tests/test_shell_window_lifecycle_isolated.py::test_shell_window_close_allows_repeated_in_process_cycles",
+                "tests/test_shell_window_lifecycle_isolated.py::test_create_shell_window_factory_tracks_application_state_signal_for_teardown",
+                "tests/test_shell_window_lifecycle_isolated.py::test_close_releases_viewer_host_service_overlay_manager",
+                "tests/test_shell_window_lifecycle_isolated.py::test_window_deactivate_coalesces_duplicate_events_and_clears_unowned_focus",
+                "tests/test_shell_window_lifecycle_isolated.py::test_application_inactive_clears_immediately_and_cancels_queued_deactivation",
+            ),
+        ),
+        ShellIsolationTarget.pytest_nodeid_list(
+            "main_window__lifecycle__project_reset_timer_cancellation",
+            (
+                "tests/test_shell_window_lifecycle_isolated.py::test_shared_shell_reset_reapplies_tabular_policy_after_service_reset",
+                "tests/test_shell_window_lifecycle_isolated.py::test_close_skips_deferred_autosave_recovery_after_teardown_starts",
+                "tests/test_shell_window_lifecycle_isolated.py::test_content_fullscreen_bridge_closes_during_project_reset_lifecycle",
+            ),
+        ),
+        ShellIsolationTarget.pytest_nodeid_list(
+            "main_window__lifecycle__fullscreen_media_handoff",
+            (
+                "tests/test_shell_window_lifecycle_isolated.py::test_content_fullscreen_overlay_renders_image_media_and_keeps_node_state_read_only",
+                "tests/test_shell_window_lifecycle_isolated.py::test_content_fullscreen_overlay_owns_animated_image_playback",
+                "tests/test_shell_window_lifecycle_isolated.py::test_content_fullscreen_overlay_preserves_cropped_image_source_aspect",
+                "tests/test_shell_window_lifecycle_isolated.py::test_content_fullscreen_overlay_renders_pdf_media_blocks_background_and_close_button",
+                "tests/test_shell_window_lifecycle_isolated.py::test_content_fullscreen_overlay_renders_video_media_and_persists_close_state",
+                "tests/test_shell_window_lifecycle_isolated.py::test_content_fullscreen_overlay_closes_open_state_with_escape_and_f11",
+            ),
+        ),
+        ShellIsolationTarget.pytest_nodeid_list(
+            "main_window__lifecycle__viewer_reparent_restore",
+            (
+                "tests/test_shell_window_lifecycle_isolated.py::test_content_fullscreen_overlay_exposes_viewer_viewport_placeholder_contract",
+                "tests/test_viewer_host_service.py::ViewerHostServiceTests::test_content_fullscreen_bridge_retargets_existing_live_widget_to_shell_viewport_and_restores",
+                "tests/test_viewer_host_service.py::ViewerHostServiceTests::test_detached_reparent_lifecycle_prepares_and_refreshes_the_same_widget",
+            ),
         ),
     )
 

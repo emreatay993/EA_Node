@@ -153,7 +153,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_native_presentation_handoff.py tests/test_viewer_session_bridge.py tests/test_execution_viewer_service.py tests/test_viewer_control_bridge.py tests/test_viewer_host_service.py tests/test_viewer_preview_cache_provider.py tests/test_embedded_viewer_overlay_manager.py tests/test_viewer_surface_contract.py tests/test_viewer_surface_host.py tests/test_execution_viewer_protocol.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_content_fullscreen_bridge_lifecycle.py tests/test_media_panel_qml_surface.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_shell_window_lifecycle.py -k content_fullscreen_overlay_renders_pdf_media --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_shell_isolation_phase.py -k "main_window__lifecycle__fullscreen_media_handoff" --ignore=venv -q -n 0
 .\venv\Scripts\python.exe -m pytest tests/main_window_shell/shell_runtime_contracts.py -k content_fullscreen --ignore=venv -q
 ```
 

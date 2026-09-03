@@ -2399,7 +2399,7 @@ TITLE_ICONS_FOR_NON_PASSIVE_NODES_P03_HEADER_COMMAND = (
 )
 TITLE_ICONS_FOR_NON_PASSIVE_NODES_P03_COMMENT_COMMAND = (
     r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
-    r"tests/main_window_shell/group_backdrop_workflows.py "
+    r"tests/test_group_backdrop_collapse.py "
     r"tests/main_window_shell/shell_runtime_contracts.py "
     r"tests/test_icon_registry.py tests/test_group_backdrop_contracts.py "
     r"-k title_icon --ignore=venv -q"
@@ -2496,7 +2496,7 @@ TITLE_ICONS_FOR_NON_PASSIVE_NODES_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[
         "AC-REQ-PERF-013-01": (
             "tests/graph_surface/inline_editor_suite.py",
             "tests/graph_surface/passive_host_interaction_suite.py",
-            "tests/main_window_shell/group_backdrop_workflows.py",
+            "tests/qml_quick/tst_graph_node_host.qml",
             "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
         ),
     },
@@ -2534,7 +2534,7 @@ TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, 
         "tests/graph_surface/inline_editor_suite.py",
         "tests/graph_surface/passive_host_interaction_suite.py",
         "tests/graph_track_b/qml_preference_rendering_suite.py",
-        "tests/main_window_shell/group_backdrop_workflows.py",
+        "tests/qml_quick/tst_graph_node_host.qml",
         "tests/test_group_backdrop_contracts.py",
         "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
     ),
@@ -2583,7 +2583,7 @@ TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, 
         "tests/graph_surface/inline_editor_suite.py",
         "tests/graph_surface/passive_host_interaction_suite.py",
         "tests/graph_track_b/qml_preference_rendering_suite.py",
-        "tests/main_window_shell/group_backdrop_workflows.py",
+        "tests/qml_quick/tst_graph_node_host.qml",
         "tests/test_group_backdrop_contracts.py",
         "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
     ),

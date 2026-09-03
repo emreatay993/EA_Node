@@ -34,7 +34,7 @@ QML_QUICK_ENV = {
     "QT_QUICK_CONTROLS_STYLE": "Basic",
 }
 WORKTREE_PYTEST_IGNORE_PATHS = ("venv",)
-SHELL_WINDOW_LIFECYCLE_TEST_PATH = "tests/test_shell_window_lifecycle.py"
+SHELL_WINDOW_LIFECYCLE_TEST_PATH = "tests/test_shell_window_lifecycle_isolated.py"
 SHELL_LIFECYCLE_TRUTH = "deterministic in-process shell window teardown"
 SHELL_LIFECYCLE_SHARED_WINDOW_SCOPE = "repeated create/show/close cycles inside one isolated child process"
 
@@ -749,7 +749,7 @@ VERIFICATION_TEST_PATH_SPECS = (
     VerificationTestPathSpec("tests/test_passive_style_presets.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_pdf_preview_provider.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_planning_annotation_catalog.py", (GUI_SUITE_KEY,)),
-    VerificationTestPathSpec(SHELL_WINDOW_LIFECYCLE_TEST_PATH, (GUI_SUITE_KEY,)),
+    VerificationTestPathSpec(SHELL_WINDOW_LIFECYCLE_TEST_PATH, (SHELL_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_shell_theme.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_viewer_control_bridge.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_viewer_host_service.py", (GUI_SUITE_KEY,)),
@@ -921,6 +921,17 @@ SHELL_ISOLATION_SPEC = ShellIsolationSpec(
 
 SHELL_ISOLATION_OWNERSHIP_SPECS = (
     ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/group_backdrop_integration.py",
+        coverage_kind="method_targets",
+        owner_name="MainWindowShellGroupBackdropIntegrationTests",
+        covered_names=(
+            "test_group_library_add_drop_and_current_empty_title_fallback",
+            "test_plain_c_wrap_shortcut_does_not_collide_with_group_shortcuts",
+            "test_peek_inside_action_is_collapsed_group_only",
+            "test_comment_peek_filters_members_keeps_scope_and_supports_both_exit_paths",
+        ),
+    ),
+    ShellIsolationOwnershipSpec(
         source_path="tests/test_main_window_shell.py",
         coverage_kind="class_targets",
         excluded_names=(
@@ -933,48 +944,12 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
         ),
     ),
     ShellIsolationOwnershipSpec(
-        source_path="tests/main_window_shell/bridge_contracts.py",
-        coverage_kind="class_targets",
-        covered_names=(
-            "ShellLibraryBridgeTests",
-            "ShellInspectorBridgeTests",
-            "ShellWorkspaceBridgeTests",
-        ),
-        excluded_names=(
-            "SharedUiSupportBoundaryTests",
-        ),
-    ),
-    ShellIsolationOwnershipSpec(
-        source_path="tests/main_window_shell/bridge_qml_boundaries.py",
-        coverage_kind="class_targets",
-        covered_names=(
-            "ShellLibraryBridgeQmlBoundaryTests",
-            "ShellInspectorBridgeQmlBoundaryTests",
-            "ShellWorkspaceBridgeQmlBoundaryTests",
-        ),
-        excluded_names=(
-            "ShellStatusStripQmlBoundaryTests",
-            "GraphCanvasQmlBoundaryTests",
-            "TooltipManagerTierCatalogQmlBoundaryTests",
-        ),
-    ),
-    ShellIsolationOwnershipSpec(
-        source_path="tests/main_window_shell/group_backdrop_workflows.py",
-        coverage_kind="class_targets",
-        excluded_names=("MainWindowShellGroupBackdropWorkflowTests",),
-    ),
-    ShellIsolationOwnershipSpec(
         source_path="tests/main_window_shell/drop_connect_and_workflow_io.py",
         coverage_kind="module_target",
     ),
     ShellIsolationOwnershipSpec(
         source_path="tests/main_window_shell/edit_clipboard_history.py",
         coverage_kind="module_target",
-    ),
-    ShellIsolationOwnershipSpec(
-        source_path="tests/main_window_shell/mutation_ui_effects.py",
-        coverage_kind="class_targets",
-        excluded_names=("MutationUiEffectsTests",),
     ),
     ShellIsolationOwnershipSpec(
         source_path="tests/main_window_shell/passive_image_nodes.py",
@@ -1002,13 +977,13 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
         source_path="tests/main_window_shell/shell_runtime_contracts.py",
         coverage_kind="class_targets",
         covered_names=(
-            "FrameRateSamplerTests",
             "MainWindowShellTelemetryTests",
             "MainWindowShellBootstrapCompositionTests",
             "MainWindowShellContextBootstrapTests",
             "MainWindowShellHostProtocolStateTests",
             "_MainWindowShellGraphCanvasHostDirectTests",
         ),
+        excluded_names=("FrameRateSamplerTests",),
     ),
     ShellIsolationOwnershipSpec(
         source_path="tests/main_window_shell/view_library_inspector.py",
@@ -1034,12 +1009,6 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
         source_path="tests/test_shell_run_controller.py",
         coverage_kind="method_targets",
         owner_name="ShellRunControllerTests",
-        covered_names=(
-            "test_stream_log_events_are_scoped_to_active_run",
-            "test_stale_run_events_do_not_mutate_active_run_ui",
-            "test_failure_focus_reveals_parent_chain_when_present",
-            "test_node_settled_failure_centers_failed_node_and_retains_root_error_details",
-        ),
         excluded_names=(
             "test_node_execution_visualization_shell_events_drive_graph_node_chrome_states",
             "test_node_execution_visualization_failure_priority_overrides_completed_chrome",
@@ -1066,7 +1035,6 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
             "test_recovery_prompt_reject_keeps_empty_startup_project_and_discards_autosave",
             "test_restore_session_handles_corrupted_session_and_autosave_files",
             "test_recovery_prompt_is_deferred_until_main_window_is_visible",
-            "test_recent_project_paths_are_owned_by_explicit_session_state",
         ),
         excluded_names=(
             "test_saved_project_reopen_seeds_run_required_viewer_projection_without_persisting_live_transport",
@@ -1081,6 +1049,30 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
             "test_save_prompt_receives_project_file_summary_before_saving",
             "test_open_project_path_can_abort_when_project_files_summary_has_staged_and_broken_entries",
             "test_recovery_prompt_receives_project_file_summary_for_recovered_project",
+        ),
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path=SHELL_WINDOW_LIFECYCLE_TEST_PATH,
+        coverage_kind="function_targets",
+        covered_names=(
+            "test_application_inactive_clears_immediately_and_cancels_queued_deactivation",
+            "test_close_releases_viewer_host_service_overlay_manager",
+            "test_close_skips_deferred_autosave_recovery_after_teardown_starts",
+            "test_content_fullscreen_bridge_closes_during_project_reset_lifecycle",
+            "test_content_fullscreen_overlay_closes_open_state_with_escape_and_f11",
+            "test_content_fullscreen_overlay_exposes_viewer_viewport_placeholder_contract",
+            "test_content_fullscreen_overlay_owns_animated_image_playback",
+            "test_content_fullscreen_overlay_preserves_cropped_image_source_aspect",
+            "test_content_fullscreen_overlay_renders_image_media_and_keeps_node_state_read_only",
+            "test_content_fullscreen_overlay_renders_pdf_media_blocks_background_and_close_button",
+            "test_content_fullscreen_overlay_renders_video_media_and_persists_close_state",
+            "test_create_shell_window_factory_tracks_application_state_signal_for_teardown",
+            "test_empty_shell_configures_tabular_policy_without_allocating_shared_service",
+            "test_shared_shell_reset_reapplies_tabular_policy_after_service_reset",
+            "test_shell_window_can_use_opt_in_qquickview_container_host",
+            "test_shell_window_close_allows_repeated_in_process_cycles",
+            "test_shell_window_exposes_qtquick_backend_debug_payload",
+            "test_window_deactivate_coalesces_duplicate_events_and_clears_unowned_focus",
         ),
     ),
 )

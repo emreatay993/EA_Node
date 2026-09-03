@@ -1160,30 +1160,6 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             format_managed_artifact_ref("pending_output"),
         )
 
-    def test_recent_project_paths_are_owned_by_explicit_session_state(self) -> None:
-        base_path = self._session_path.with_name("packet_recent")
-        paths = [
-            str(base_path.with_name("alpha")),
-            str(base_path.with_name("beta.cxproj")),
-            str(base_path.with_name("alpha.cxproj")),
-        ]
-
-        normalized = self.window.project_session_controller.set_recent_project_paths(
-            paths, persist=False
-        )
-
-        self.assertEqual(
-            normalized,
-            [
-                str(base_path.with_name("alpha.cxproj")),
-                str(base_path.with_name("beta.cxproj")),
-            ],
-        )
-        self.assertEqual(
-            self.window.project_session_state.recent_project_paths, normalized
-        )
-        self.assertEqual(self.window.recent_project_paths, normalized)
-
     def test_new_project_uses_navigation_controller_surface_without_workspace_library_facade(
         self,
     ) -> None:
@@ -1503,11 +1479,6 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
     ) -> None:
         self._run_scenario(
             "test_save_as_default_copy_switches_project_path_and_excludes_staging"
-        )
-
-    def test_recent_project_paths_are_owned_by_explicit_session_state(self) -> None:
-        self._run_scenario(
-            "test_recent_project_paths_are_owned_by_explicit_session_state"
         )
 
     def test_new_project_uses_navigation_controller_surface_without_workspace_library_facade(

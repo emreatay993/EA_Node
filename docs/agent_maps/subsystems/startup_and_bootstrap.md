@@ -26,6 +26,7 @@ Use this for launch path, app lifetime, splash handoff, and startup authority ch
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_main_bootstrap.py tests/test_shell_window_lifecycle.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_shell_isolation_phase.py -k "main_window__lifecycle" --ignore=venv -q -n 0
 .\venv\Scripts\python.exe -m pytest tests/test_runtime.py -k "project_solution" -q
 .\venv\Scripts\python.exe -m pytest tests/test_runtime_cli.py tests/test_run_script.py -q
 ```
@@ -44,7 +45,7 @@ Update this map when launch entry points, app lifetime, splash handoff, shell co
 ## 2026-06-10 Shell Composition Package Update
 
 - Shell composition is the `ea_node_editor/ui/shell/composition/` package; `ShellWindowComposition` remains the startup contract and `ShellServices` the attached dependency aggregate, re-exported unchanged from the package `__init__`.
-- Bootstrap-attach behavior is pinned by `tests/test_main_bootstrap.py` (patch targets for the startup internals live on `composition.bootstrap`) and `tests/test_shell_window_lifecycle.py` (the shared shell test harness patches `composition.controllers._create_shell_execution_client`).
+- Bootstrap-attach behavior is pinned by `tests/test_main_bootstrap.py` and the isolated lifecycle targets backed by `tests/shell_window_lifecycle_support.py`; the latter patches `composition.controllers._create_shell_execution_client`.
 
 ## 2026-06-10 Empty Startup Project Update
 

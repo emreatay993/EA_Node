@@ -1,10 +1,10 @@
 """Controller/session shell isolation targets."""
+
 from __future__ import annotations
 
 from functools import lru_cache
 
 _SCRIPT_EDITOR_TEST_CLASS = "tests.test_script_editor_dock.ScriptEditorDockTests"
-_RUN_CONTROLLER_TEST_CLASS = "tests.test_shell_run_controller.ShellRunControllerTests"
 
 
 @lru_cache(maxsize=1)
@@ -44,22 +44,6 @@ def _build_targets():
             f"{_SCRIPT_EDITOR_TEST_CLASS}.test_script_draft_survives_same_node_property_refresh",
             target_id="script_editor__test_script_draft_survives_same_node_property_refresh",
         ),
-        ShellIsolationTarget.unittest_target(
-            f"{_RUN_CONTROLLER_TEST_CLASS}.test_stream_log_events_are_scoped_to_active_run",
-            target_id="run_controller__test_stream_log_events_are_scoped_to_active_run",
-        ),
-        ShellIsolationTarget.unittest_target(
-            f"{_RUN_CONTROLLER_TEST_CLASS}.test_stale_run_events_do_not_mutate_active_run_ui",
-            target_id="run_controller__test_stale_run_events_do_not_mutate_active_run_ui",
-        ),
-        ShellIsolationTarget.unittest_target(
-            f"{_RUN_CONTROLLER_TEST_CLASS}.test_failure_focus_reveals_parent_chain_when_present",
-            target_id="run_controller__test_failure_focus_reveals_parent_chain_when_present",
-        ),
-        ShellIsolationTarget.unittest_target(
-            f"{_RUN_CONTROLLER_TEST_CLASS}.test_node_settled_failure_centers_failed_node_and_retains_root_error_details",
-            target_id="run_controller__test_node_settled_failure_centers_failed_node_and_retains_root_error_details",
-        ),
         ShellIsolationTarget.project_session_scenario(
             "test_session_restore_recovers_workspace_order_active_workspace_and_view_camera",
             target_id="project_session__test_session_restore_recovers_workspace_order_active_workspace_and_view_camera",
@@ -87,10 +71,6 @@ def _build_targets():
         ShellIsolationTarget.project_session_scenario(
             "test_recovery_prompt_is_deferred_until_main_window_is_visible",
             target_id="project_session__test_recovery_prompt_is_deferred_until_main_window_is_visible",
-        ),
-        ShellIsolationTarget.project_session_scenario(
-            "test_recent_project_paths_are_owned_by_explicit_session_state",
-            target_id="project_session__test_recent_project_paths_are_owned_by_explicit_session_state",
         ),
     )
 

@@ -77,7 +77,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py tests/test_transform_layout_ops.py tests/main_window_shell/passive_style_context_menus.py tests/main_window_shell/group_backdrop_workflows.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py tests/test_transform_layout_ops.py tests/main_window_shell/passive_style_context_menus.py tests/test_group_backdrop_membership.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_host_presenter.py tests/test_passive_style_presets.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py -k SelectionEnvelope --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py -k floating_toolbar_run_action_exposes_selected_run_menu --ignore=venv -q
