@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from contextlib import nullcontext
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -719,6 +721,74 @@ class WorkspaceViewNavOpsMutationServiceTests(unittest.TestCase):
 
 
 class WorkspaceDropConnectControllerValidationTests(unittest.TestCase):
+    def test_quick_insert_port_keys_restrict_actual_ports_and_keep_none_unrestricted(self) -> None:
+        registry = build_default_registry()
+        for keys, expected_keys in ((None, ["value", "as_text"]), (("as_text",), ["as_text"]), ((), []), (("stale",), [])):
+            with self.subTest(keys=keys):
+                model = GraphModel()
+                workspace = model.active_workspace
+                source = model.add_node(workspace.workspace_id, "core.constant", "New", 0.0, 0.0)
+                target = model.add_node(workspace.workspace_id, "core.if", "Target", 300.0, 0.0)
+                callbacks = _SelectingDropConnectControllerStub(workspace)
+                ops = _drop_connect_owner(SimpleNamespace(registry=registry, scene=_DropConnectSceneStub(model, workspace.workspace_id, registry)), callbacks)
+                connected = ops.auto_connect_dropped_node_to_port(source.node_id, target.node_id, "true_value", compatible_port_keys=keys)
+                self.assertEqual([item["source_port_key"] for item in callbacks.last_candidates], expected_keys)
+                self.assertEqual(connected, bool(expected_keys))
+                self.assertEqual(len(workspace.edges), int(bool(expected_keys)))
+
+    def test_quick_insert_rechecks_selected_type_and_resolves_default_dynamic_ports(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        source = model.add_node(workspace.workspace_id, "core.constant", "New", 0.0, 0.0)
+        path_target = model.add_node(workspace.workspace_id, "io.file_read", "Path", 300.0, 0.0)
+        callbacks = _SelectingDropConnectControllerStub(workspace)
+        ops = _drop_connect_owner(SimpleNamespace(registry=registry, scene=_DropConnectSceneStub(model, workspace.workspace_id, registry)), callbacks)
+        self.assertFalse(ops.auto_connect_dropped_node_to_port(source.node_id, path_target.node_id, "path", compatible_port_keys=("value",)))
+        self.assertEqual(workspace.edges, {})
+        dynamic = model.add_node(workspace.workspace_id, "core.stream_gate", "Dynamic", 0.0, 100.0)
+        target = model.add_node(workspace.workspace_id, "core.if", "Target", 300.0, 100.0)
+        self.assertTrue(ops.auto_connect_dropped_node_to_port(dynamic.node_id, target.node_id, "true_value", compatible_port_keys=("output_1",)))
+        self.assertEqual(next(iter(workspace.edges.values())).source_port_key, "output_1")
+
+    def test_workflow_restrictions_use_preview_keys_and_recheck_live_endpoint_types(self) -> None:
+        registry = build_default_registry()
+        for keys, expected in ((None, "value"), (("preview_text",), "as_text"), (("as_text",), None), ((), None), (("stale",), None)):
+            with self.subTest(keys=keys):
+                model = GraphModel()
+                workspace = model.active_workspace
+                source = model.add_node(workspace.workspace_id, "core.constant", "New", 0.0, 0.0)
+                target = model.add_node(workspace.workspace_id, "core.if", "Target", 300.0, 0.0)
+                callbacks = _SelectingDropConnectControllerStub(workspace)
+                ops = _drop_connect_owner(SimpleNamespace(registry=registry, scene=_DropConnectSceneStub(model, workspace.workspace_id, registry)), callbacks)
+                endpoints = [{"key": "preview_value", "node_id": source.node_id, "port_key": "value"}, {"key": "preview_text", "node_id": source.node_id, "port_key": "as_text"}]
+                connected = ops._connect_workflow_endpoint_to_port(endpoints, target.node_id, "true_value", compatible_port_keys=keys)
+                self.assertEqual(connected, expected is not None)
+                if expected is not None:
+                    self.assertEqual(next(iter(workspace.edges.values())).source_port_key, expected)
+                else:
+                    self.assertEqual(workspace.edges, {})
+                path_target = model.add_node(workspace.workspace_id, "io.file_read", "Path", 500.0, 0.0)
+                self.assertFalse(ops._connect_workflow_endpoint_to_port(endpoints, path_target.node_id, "path", compatible_port_keys=("preview_value",)))
+
+    def test_restricted_workflow_drop_with_stale_endpoints_never_falls_back_to_shell(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        host = SimpleNamespace(runtime_history=SimpleNamespace(grouped_action=lambda *_args: nullcontext()))
+        ops = _drop_connect_owner(host, _DropConnectControllerStub(workspace))
+        with (
+            patch.object(ops, "insert_custom_workflow_snapshot_with_endpoints", return_value=("created", [])),
+            patch.object(ops, "insert_library_node", return_value="created"),
+            patch.object(ops, "_connect_workflow_endpoint_to_port", return_value=False) as workflow_connect,
+            patch.object(ops, "auto_connect_dropped_node_to_port", return_value=False) as node_connect,
+        ):
+            result = ops.request_drop_node_from_library("custom_workflow:test", 0.0, 0.0, "port", "target", "input", "", compatible_port_keys=())
+            self.assertTrue(result.payload)
+            workflow_connect.assert_called_once_with([], "target", "input", False, compatible_port_keys=())
+            node_connect.assert_not_called()
+            ops.request_drop_node_from_library("core.constant", 0.0, 0.0, "port", "target", "input", "", compatible_port_keys=("as_text",))
+            node_connect.assert_called_once_with("created", "target", "input", False, compatible_port_keys=("as_text",))
+
     def test_auto_connect_dropped_node_to_port_replaces_occupied_data_input(
         self,
     ) -> None:

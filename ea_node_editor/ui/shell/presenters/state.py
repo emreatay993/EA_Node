@@ -304,7 +304,9 @@ def build_connection_quick_insert_context(host: Any, node_id: str, port_key: str
     node = workspace.nodes.get(normalized_node_id)
     if node is None:
         return None
-    spec = host.registry.get_spec(node.type_id)
+    spec = host.registry.spec_or_none(node.type_id)
+    if spec is None:
+        return None
     port = find_port(
         node=node,
         spec=spec,

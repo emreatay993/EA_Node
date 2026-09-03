@@ -13,6 +13,8 @@ from ea_node_editor.graph.effective_ports import (
     effective_ports,
     find_port,
     is_neutral_flow_port,
+    is_subnode_pin_type,
+    port_compatibility,
     ports_compatible,
     target_port_has_capacity,
 )
@@ -254,6 +256,8 @@ class WorkspaceDropConnectController:
         workflow_id: str,
         x: float,
         y: float,
+        *,
+        map_published_shell_ports: bool = False,
     ) -> tuple[str, list[dict[str, str]]]:
         workspace = self._active_workspace()
         if workspace is None:
@@ -312,13 +316,27 @@ class WorkspaceDropConnectController:
         for port in definition.get("ports", []):
             if not isinstance(port, dict):
                 continue
-            node_id = node_id_by_ref.get(str(port.get("node_ref_id", "")).strip(), "")
+            preview_key = str(port.get("key", "")).strip()
+            node_ref_id = str(port.get("node_ref_id", "")).strip()
+            node_id = node_id_by_ref.get(node_ref_id, "")
             port_key = str(port.get("port_key", "")).strip()
+            if map_published_shell_ports and not node_ref_id and not port_key and shell_node_id:
+                # Published shell ports are keyed by their original child-pin IDs.
+                mapped_pin_id = node_id_by_ref.get(preview_key, "")
+                mapped_pin = workspace.nodes.get(mapped_pin_id)
+                if (
+                    mapped_pin is None
+                    or mapped_pin.parent_node_id != shell_node_id
+                    or not is_subnode_pin_type(mapped_pin.type_id)
+                ):
+                    continue
+                node_id = shell_node_id
+                port_key = mapped_pin_id
             if not node_id or not port_key:
                 continue
             endpoints.append(
                 {
-                    "key": str(port.get("key", "")).strip(),
+                    "key": preview_key,
                     "node_id": node_id,
                     "port_key": port_key,
                 }
@@ -376,6 +394,8 @@ class WorkspaceDropConnectController:
         target_node_id: str,
         target_port_key: str,
         append_requested: bool = False,
+        *,
+        compatible_port_keys: tuple[str, ...] | None = None,
     ) -> bool:
         workspace = self._active_workspace()
         if workspace is None:
@@ -404,7 +424,7 @@ class WorkspaceDropConnectController:
                 spec=new_spec,
                 workspace_nodes=workspace.nodes,
             )
-            if port.exposed
+            if port.exposed and (compatible_port_keys is None or port.key in compatible_port_keys)
         ]
         candidates: list[dict[str, Any]] = []
         if is_neutral_flow_port(target_port):
@@ -413,7 +433,9 @@ class WorkspaceDropConnectController:
                 peer_node=target_node,
                 neutral_ports=_neutral_flow_ports(new_ports),
             )
-            if selected_port is not None:
+            if selected_port is not None and port_compatibility(
+                target_port, selected_port, data_types=self._host.registry.data_types
+            ).is_compatible:
                 candidates.append(
                     {
                         "source_node_id": target_node.node_id,
@@ -442,11 +464,11 @@ class WorkspaceDropConnectController:
             for port in new_ports:
                 if port.direction != "out":
                     continue
-                if not ports_compatible(
+                if not port_compatibility(
                     port,
                     target_port,
                     data_types=self._host.registry.data_types,
-                ):
+                ).is_compatible:
                     continue
                 candidates.append(
                     {
@@ -464,11 +486,11 @@ class WorkspaceDropConnectController:
             for port in new_ports:
                 if port.direction != "in":
                     continue
-                if not ports_compatible(
+                if not port_compatibility(
                     target_port,
                     port,
                     data_types=self._host.registry.data_types,
-                ):
+                ).is_compatible:
                     continue
                 candidates.append(
                     {
@@ -667,6 +689,8 @@ class WorkspaceDropConnectController:
         target_node_id: str,
         target_port_key: str,
         append_requested: bool = False,
+        *,
+        compatible_port_keys: tuple[str, ...] | None = None,
     ) -> bool:
         workspace = self._active_workspace()
         if workspace is None:
@@ -697,25 +721,30 @@ class WorkspaceDropConnectController:
         ):
             return False
 
+        candidates: list[dict[str, Any]] = []
         for endpoint in endpoints:
+            if compatible_port_keys is not None and endpoint["key"] not in compatible_port_keys:
+                continue
             endpoint_node = workspace.nodes.get(endpoint["node_id"])
             if endpoint_node is None:
                 continue
-            endpoint_spec = self._host.registry.get_spec(endpoint_node.type_id)
+            endpoint_spec = self._host.registry.spec_or_none(endpoint_node.type_id)
+            if endpoint_spec is None:
+                continue
             endpoint_port = find_port(
                 node=endpoint_node,
                 spec=endpoint_spec,
                 workspace_nodes=workspace.nodes,
                 port_key=endpoint["port_key"],
             )
-            if endpoint_port is None:
+            if endpoint_port is None or not endpoint_port.exposed:
                 continue
             if target_port.direction == "in":
-                if endpoint_port.direction != "out" or not ports_compatible(
+                if endpoint_port.direction != "out" or not port_compatibility(
                     endpoint_port,
                     target_port,
                     data_types=self._host.registry.data_types,
-                ):
+                ).is_compatible:
                     continue
                 source_node_id, source_port_key = (
                     endpoint_node.node_id,
@@ -726,11 +755,11 @@ class WorkspaceDropConnectController:
                     target_port.key,
                 )
             elif target_port.direction == "out":
-                if endpoint_port.direction != "in" or not ports_compatible(
+                if endpoint_port.direction != "in" or not port_compatibility(
                     target_port,
                     endpoint_port,
                     data_types=self._host.registry.data_types,
-                ):
+                ).is_compatible:
                     continue
                 if not target_port_has_capacity(
                     edges=workspace.edges.values(),
@@ -747,18 +776,43 @@ class WorkspaceDropConnectController:
                 )
             else:
                 continue
+            candidate = {
+                "source_node_id": source_node_id,
+                "source_port_key": source_port_key,
+                "target_node_id": connected_target_node_id,
+                "target_port_key": connected_target_port_key,
+                "label": f"{endpoint_spec.display_name}.{endpoint_port.label or endpoint_port.key}",
+            }
+            if compatible_port_keys is not None:
+                candidates.append(candidate)
+                continue
             try:
                 self._host.scene.add_edge(
-                    source_node_id,
-                    source_port_key,
-                    connected_target_node_id,
-                    connected_target_port_key,
+                    candidate["source_node_id"],
+                    candidate["source_port_key"],
+                    candidate["target_node_id"],
+                    candidate["target_port_key"],
                     bool(append_requested),
                 )
                 return True
             except (KeyError, ValueError):
                 continue
-        return False
+        if compatible_port_keys is None:
+            return False
+        selected = self._prompt_connection_candidate(
+            title="Auto-Connect Port", label="Choose connection:", candidates=candidates,
+        )
+        if selected is None:
+            return False
+        try:
+            self._host.scene.add_edge(
+                selected["source_node_id"], selected["source_port_key"],
+                selected["target_node_id"], selected["target_port_key"],
+                bool(append_requested),
+            )
+            return True
+        except (KeyError, ValueError):
+            return False
 
     def _connect_workflow_endpoints_to_edge(
         self,
@@ -869,6 +923,8 @@ class WorkspaceDropConnectController:
         target_port_key: str,
         target_edge_id: str,
         append_requested: bool = False,
+        *,
+        compatible_port_keys: tuple[str, ...] | None = None,
     ) -> ControllerResult[bool]:
         workspace = self._active_workspace()
         if workspace is None:
@@ -888,6 +944,7 @@ class WorkspaceDropConnectController:
                         custom_workflow_id,
                         scene_x,
                         scene_y,
+                        map_published_shell_ports=mode == "port" and compatible_port_keys is not None,
                     )
                 )
             else:
@@ -908,12 +965,13 @@ class WorkspaceDropConnectController:
                 )
 
             if mode == "port":
-                if workflow_endpoints:
+                if workflow_endpoints or (custom_workflow_id and compatible_port_keys is not None):
                     self._connect_workflow_endpoint_to_port(
                         workflow_endpoints,
                         str(target_node_id).strip(),
                         str(target_port_key).strip(),
                         append_requested,
+                        compatible_port_keys=compatible_port_keys,
                     )
                 else:
                     self.auto_connect_dropped_node_to_port(
@@ -921,6 +979,7 @@ class WorkspaceDropConnectController:
                         str(target_node_id).strip(),
                         str(target_port_key).strip(),
                         append_requested,
+                        compatible_port_keys=compatible_port_keys,
                     )
             elif mode == "edge":
                 if workflow_endpoints:

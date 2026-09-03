@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import copy
 import unittest
 
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
     BOOLEAN_DATA_TYPE_ID,
+    DataConversionSpec,
+    ENGINEERING_SCENE_DATA_TYPE_ID,
+    GRAPH_ARRAY_DATA_TYPE_ID,
     GRAPH_DATA_TYPE_ID,
+    GRAPH_DICTIONARY_DATA_TYPE_ID,
     INTEGER_DATA_TYPE_ID,
+    JSON_DATA_TYPE_ID,
+    JSON_VALUE_DATA_TYPE_ID,
     STRING_DATA_TYPE_ID,
 )
 from ea_node_editor.ui.shell.library_projection import (
@@ -17,6 +25,14 @@ from ea_node_editor.ui.shell.quick_insert_projection import (
     build_canvas_quick_insert_items,
     build_connection_quick_insert_items,
 )
+
+
+def _item(type_id: str, name: str, ports: list[dict[str, object]]) -> dict[str, object]:
+    return {"type_id": type_id, "display_name": name, "ports": ports}
+
+
+def _port(key: str, data_type: str, direction: str = "in", **extra) -> dict[str, object]:
+    return {"key": key, "label": key, "direction": direction, "kind": "data", "data_type": data_type, **extra}
 
 
 class QuickInsertProjectionTests(unittest.TestCase):
@@ -65,11 +81,16 @@ class QuickInsertProjectionTests(unittest.TestCase):
             query="",
             source_direction="out",
             source_kind="data",
-            source_data_type=GRAPH_DATA_TYPE_ID,
+            source_data_type=STRING_DATA_TYPE_ID,
         )
 
         self.assertTrue(results)
         self.assertTrue(all(item.get("compatible_port_labels") for item in results))
+        self.assertTrue(all(item["compatibility_kind"] not in {"generic", "runtime_check"} for item in results))
+        self.assertEqual(build_connection_quick_insert_items(
+            combined_items=self.combined_items, data_types=self.data_types, query=" ",
+            source_direction="out", source_kind="data", source_data_type=GRAPH_DATA_TYPE_ID,
+        ), [])
 
     def test_connection_quick_insert_filters_data_ports_by_type(self) -> None:
         results = build_connection_quick_insert_items(
@@ -101,6 +122,22 @@ class QuickInsertProjectionTests(unittest.TestCase):
         self.assertNotIn(
             "io.process_run", {str(item.get("type_id", "")) for item in incompatible}
         )
+
+    def test_connection_quick_insert_skips_missing_or_invalid_primary_types(self) -> None:
+        for value in (None, "", " ", 4, []):
+            with self.subTest(data_type=value):
+                item = {"type_id": "tests.invalid", "display_name": "Invalid", "ports": [{
+                    "key": "input", "direction": "in", "kind": "data", "data_type": value,
+                    "accepted_data_types": [STRING_DATA_TYPE_ID],
+                }]}
+                self.assertEqual(build_connection_quick_insert_items(
+                    combined_items=[item], data_types=self.data_types, query="",
+                    source_direction="out", source_kind="data", source_data_type=STRING_DATA_TYPE_ID,
+                ), [])
+                self.assertEqual(build_connection_quick_insert_items(
+                    combined_items=self.combined_items, data_types=self.data_types, query="",
+                    source_direction="out", source_kind="data", source_data_type=value,
+                ), [])
 
     def test_connection_quick_insert_treats_primary_and_accepted_types_as_union(
         self,
@@ -231,7 +268,7 @@ class QuickInsertProjectionTests(unittest.TestCase):
         forward = build_connection_quick_insert_items(
             combined_items=[item],
             data_types=self.data_types,
-            query="",
+            query="runtime check",
             source_direction="out",
             source_kind="data",
             source_data_type=GRAPH_DATA_TYPE_ID,
@@ -239,7 +276,7 @@ class QuickInsertProjectionTests(unittest.TestCase):
         reverse = build_connection_quick_insert_items(
             combined_items=[item],
             data_types=self.data_types,
-            query="",
+            query="runtime check",
             source_direction="in",
             source_kind="data",
             source_data_type=STRING_DATA_TYPE_ID,
@@ -253,6 +290,84 @@ class QuickInsertProjectionTests(unittest.TestCase):
             [port["key"] for port in reverse[0]["compatible_ports"]],
             ["abstract_output"],
         )
+        self.assertEqual(forward[0]["compatibility_label"], "Checked at runtime")
+        self.assertEqual(reverse[0]["compatibility_label"], "Checked at runtime")
+
+    def test_geometry_group_suggestions_are_precise_in_both_drag_directions(self) -> None:
+        forward = build_connection_quick_insert_items(
+            combined_items=self.combined_items, data_types=self.data_types, query="",
+            source_direction="out", source_kind="data", source_data_type="COREX.Geometry.Group", limit=100,
+        )
+        by_id = {item["type_id"]: item for item in forward}
+        self.assertIn("model.viewer", by_id)
+        self.assertEqual(by_id["model.viewer"]["compatible_port_summaries"], ["scene — Exact type"])
+        self.assertNotIn("io.file_write", by_id)
+        self.assertNotIn("data.panel", by_id)
+        reverse = build_connection_quick_insert_items(
+            combined_items=self.combined_items, data_types=self.data_types, query="",
+            source_direction="in", source_kind="data", source_data_type=ENGINEERING_SCENE_DATA_TYPE_ID,
+            source_accepted_data_types=("COREX.Geometry.OCPBody", "COREX.Geometry.Group"), limit=100,
+        )
+        reverse_by_id = {item["type_id"]: item for item in reverse}
+        self.assertEqual(reverse_by_id["geometry.construct_group"]["compatibility_kind"], "exact")
+        self.assertNotIn("core.constant", reverse_by_id)
+        searched = build_connection_quick_insert_items(
+            combined_items=self.combined_items, data_types=self.data_types, query="python script",
+            source_direction="in", source_kind="data", source_data_type=ENGINEERING_SCENE_DATA_TYPE_ID,
+        )
+        self.assertEqual(searched[0]["type_id"], "core.python_script")
+        self.assertEqual(searched[0]["compatibility_kind"], "runtime_check")
+
+    def test_best_tier_and_accepted_union_are_kept_without_mutating_library_rows(self) -> None:
+        items = [_item("tests.best", "Best", [
+            _port("broad", GRAPH_DATA_TYPE_ID),
+            _port("second", STRING_DATA_TYPE_ID),
+            _port("first", GRAPH_DATA_TYPE_ID, accepted_data_types=[STRING_DATA_TYPE_ID]),
+            _port("parent", JSON_VALUE_DATA_TYPE_ID),
+        ])]
+        before = copy.deepcopy(items)
+        result = build_connection_quick_insert_items(
+            combined_items=items, data_types=self.data_types, query="",
+            source_direction="out", source_kind="data", source_data_type=STRING_DATA_TYPE_ID,
+        )[0]
+        self.assertEqual([port["key"] for port in result["compatible_ports"]], ["second", "first"])
+        self.assertEqual({port["matched_data_type"] for port in result["compatible_ports"]}, {STRING_DATA_TYPE_ID})
+        self.assertEqual(result["compatibility_kind"], "exact")
+        self.assertEqual(items, before)
+
+    def test_tiers_sort_after_text_rank_and_filter_before_result_cap(self) -> None:
+        catalog = NodeRegistry().data_types
+        catalog.register_many(conversions=(DataConversionSpec(STRING_DATA_TYPE_ID, BOOLEAN_DATA_TYPE_ID, bool),), owner_id="tests.quick_insert")
+        items = [
+            _item("tests.parent", "Node A", [_port("value", JSON_VALUE_DATA_TYPE_ID)]),
+            _item("tests.convert", "Node B", [_port("value", BOOLEAN_DATA_TYPE_ID)]),
+            _item("tests.exact_many", "Node C", [_port("a", STRING_DATA_TYPE_ID), _port("b", STRING_DATA_TYPE_ID)]),
+            _item("tests.exact", "Node Z", [_port("value", STRING_DATA_TYPE_ID)]),
+            _item("tests.generic", "Node", [_port("value", GRAPH_DATA_TYPE_ID)]),
+        ]
+        blank = build_connection_quick_insert_items(combined_items=items, data_types=catalog, query="", source_direction="out", source_kind="data", source_data_type=STRING_DATA_TYPE_ID, limit=100)
+        self.assertEqual([item["type_id"] for item in blank], ["tests.exact", "tests.exact_many", "tests.parent", "tests.convert"])
+        self.assertEqual([item["compatibility_label"] for item in blank][-2:], ["Compatible type", "Converts automatically"])
+        searched = build_connection_quick_insert_items(combined_items=items, data_types=catalog, query="node", source_direction="out", source_kind="data", source_data_type=STRING_DATA_TYPE_ID, limit=1)
+        self.assertEqual(searched[0]["type_id"], "tests.generic")
+        many_broad = [_item(f"tests.broad{index}", f"A {index}", [_port("value", GRAPH_DATA_TYPE_ID)]) for index in range(20)]
+        capped = build_connection_quick_insert_items(combined_items=[*many_broad, items[3]], data_types=catalog, query="", source_direction="out", source_kind="data", source_data_type=STRING_DATA_TYPE_ID, limit=1)
+        self.assertEqual(capped[0]["type_id"], "tests.exact")
+
+    def test_structural_exact_matches_are_search_only_and_runtime_status_takes_priority(self) -> None:
+        for data_type in (GRAPH_DATA_TYPE_ID, JSON_DATA_TYPE_ID, GRAPH_ARRAY_DATA_TYPE_ID, GRAPH_DICTIONARY_DATA_TYPE_ID):
+            exact_items = [_item("tests.broad", "Broad", [_port("value", data_type)])]
+            self.assertEqual(build_connection_quick_insert_items(combined_items=exact_items, data_types=self.data_types, query="", source_direction="out", source_kind="data", source_data_type=data_type), [])
+            exact = build_connection_quick_insert_items(combined_items=exact_items, data_types=self.data_types, query="broad", source_direction="out", source_kind="data", source_data_type=data_type)[0]
+            self.assertEqual(exact["compatibility_kind"], "generic")
+        items = [_item("tests.metadata", "Metadata", [_port("metadata", GRAPH_DICTIONARY_DATA_TYPE_ID)])]
+        blank = build_connection_quick_insert_items(combined_items=items, data_types=self.data_types, query="", source_direction="out", source_kind="data", source_data_type=GRAPH_DICTIONARY_DATA_TYPE_ID)
+        self.assertEqual(blank, [])
+        for source_type, expected in ((GRAPH_DICTIONARY_DATA_TYPE_ID, "Broad data match"), (GRAPH_DATA_TYPE_ID, "Checked at runtime")):
+            result = build_connection_quick_insert_items(combined_items=items, data_types=self.data_types, query="metadata", source_direction="out", source_kind="data", source_data_type=source_type)[0]
+            self.assertEqual(result["compatibility_label"], expected)
+        unknown = [_item("tests.unknown", "Unknown", [_port("unknown", "Unknown.Type")])]
+        self.assertEqual(build_connection_quick_insert_items(combined_items=unknown, data_types=self.data_types, query="unknown", source_direction="out", source_kind="data", source_data_type=GRAPH_DATA_TYPE_ID), [])
 
     def test_connection_quick_insert_neutral_flow_source_returns_flowchart_nodes(
         self,

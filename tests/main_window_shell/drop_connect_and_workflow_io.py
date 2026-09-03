@@ -6,6 +6,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+from PyQt6.QtTest import QTest
+
 from ea_node_editor.custom_workflows import import_custom_workflow_file
 from ea_node_editor.nodes.category_paths import category_key
 from tests.main_window_shell.base import *  # noqa: F401,F403
@@ -408,12 +410,13 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         self.assertTrue(self.window.connection_quick_insert_results)
 
     def test_qml_connection_quick_insert_path_filters_plot_series_but_keeps_exports(self) -> None:
-        path_node_id = self.window.scene.add_node_from_type("dpf.result_file", x=40.0, y=40.0)
+        path_node_id = self.window.scene.add_node_from_type("io.file_write", x=40.0, y=40.0)
+        path_target_id = self.window.scene.add_node_from_type("io.file_read", x=40.0, y=240.0)
         self.app.processEvents()
 
         opened = self.window.request_open_connection_quick_insert(
             path_node_id,
-            "normalized_path",
+            "written_path",
             220.0,
             80.0,
             340.0,
@@ -431,7 +434,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         self.window.request_close_connection_quick_insert()
 
         opened = self.window.request_open_connection_quick_insert(
-            path_node_id,
+            path_target_id,
             "path",
             220.0,
             80.0,
@@ -449,8 +452,84 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         )
         self.assertEqual(
             [str(port.get("key", "")) for port in bar_plot["compatible_ports"]],
-            ["static_export", "data_export", "exports"],
+            ["static_export", "data_export"],
         )
+
+    def test_qml_connection_quick_insert_geometry_group_uses_typed_rows_and_reconnects(self) -> None:
+        workspace = self.window.model.active_workspace
+        source_id = self.window.scene.add_node_from_type("geometry.construct_group", x=40.0, y=40.0)
+        self.app.processEvents()
+        self.assertTrue(self.window.request_open_connection_quick_insert(source_id, "group", 300.0, 60.0, 400.0, 180.0))
+        rows = self.window.connection_quick_insert_results
+        self.assertIn("model.viewer", {row["type_id"] for row in rows})
+        self.assertTrue(all(row["compatibility_kind"] not in {"generic", "runtime_check"} for row in rows))
+        self.window.set_connection_quick_insert_query("panel")
+        panel = next(row for row in self.window.connection_quick_insert_results if row["type_id"] == "data.panel")
+        self.assertEqual(panel["compatibility_label"], "Broad data match")
+        self.window.set_connection_quick_insert_query("")
+        index = next(index for index, row in enumerate(self.window.connection_quick_insert_results) if row["type_id"] == "model.viewer")
+        self.assertTrue(self.window.request_connection_quick_insert_choose(index))
+        edge = next(iter(workspace.edges.values()))
+        self.assertEqual((edge.source_node_id, edge.source_port_key, edge.target_port_key), (source_id, "group", "scene"))
+        self.assertTrue(self.window.request_open_connection_quick_insert(edge.target_node_id, "scene", 200.0, 100.0, 300.0, 150.0))
+        reverse_rows = {row["type_id"]: row for row in self.window.connection_quick_insert_results}
+        self.assertEqual(reverse_rows["geometry.construct_group"]["compatibility_kind"], "exact")
+        self.assertNotIn("core.constant", reverse_rows)
+
+    def test_qml_connection_quick_insert_default_dynamic_output_connects_selected_key(self) -> None:
+        workspace = self.window.model.active_workspace
+        target_id = self.window.scene.add_node_from_type("core.if", x=320.0, y=40.0)
+        self.assertTrue(self.window.request_open_connection_quick_insert(target_id, "condition", 120.0, 60.0, 300.0, 180.0))
+        self.window.set_connection_quick_insert_query("python script")
+        rows = self.window.connection_quick_insert_results
+        index = next(index for index, row in enumerate(rows) if row["type_id"] == "core.python_script")
+        self.assertEqual([port["key"] for port in rows[index]["compatible_ports"]], ["result"])
+        self.assertTrue(self.window.request_connection_quick_insert_choose(index))
+        edge = next(iter(workspace.edges.values()))
+        self.assertEqual(workspace.nodes[edge.source_node_id].type_id, "core.python_script")
+        self.assertEqual((edge.source_port_key, edge.target_node_id, edge.target_port_key), ("result", target_id, "condition"))
+
+    def test_qml_connection_quick_insert_empty_wire_release_stays_open_and_searchable(self) -> None:
+        workspace = self.window.model.active_workspace
+        self.assertFalse(self.window.request_open_connection_quick_insert("missing", "result", 0.0, 0.0, 0.0, 0.0))
+        source_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
+        self.app.processEvents()
+        QTest.qWait(30)
+        canvas = self._graph_canvas_item()
+        end_x = max(400.0, float(canvas.property("width")) - 80.0)
+        end_y = max(300.0, float(canvas.property("height")) - 80.0)
+        canvas.beginPortWireDrag(source_id, "result", "out", 200.0, 80.0, 200.0, 80.0, 0)
+        canvas.finishPortWireDrag(source_id, "result", "out", 200.0, 80.0, end_x, end_y, True, 0)
+        self.app.processEvents()
+        QTest.qWait(30)
+        self.assertTrue(self.window.connection_quick_insert_open)
+        self.assertEqual(self.window.connection_quick_insert_results, [])
+        message = self._find_qml_item("connectionQuickInsertEmptyMessage")
+        field = self._find_qml_item("connectionQuickInsertField")
+        self.assertIsNotNone(message)
+        self.assertIsNotNone(field)
+        self.assertEqual(message.property("text"), "No direct type matches. Type to search broader compatible nodes.")
+        self.assertTrue(field.property("activeFocus"))
+        field.setProperty("text", "no_such_compatible_node")
+        self.app.processEvents()
+        self.assertEqual(message.property("text"), "No matching compatible nodes.")
+        field.setProperty("text", "logger")
+        self.app.processEvents()
+        self.assertEqual(self.window.connection_quick_insert_results[0]["compatibility_label"], "Checked at runtime")
+        summary = self._find_qml_item("connectionQuickInsertPortSummary")
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary.property("text"), "message — Checked at runtime")
+        QTest.keyClick(self._qml_input_widget(), Qt.Key.Key_Return)
+        self.app.processEvents()
+        self.assertFalse(self.window.connection_quick_insert_open)
+        edge = next(iter(workspace.edges.values()))
+        self.assertEqual((edge.source_node_id, edge.source_port_key, edge.target_port_key), (source_id, "result", "message"))
+        self.assertTrue(self.window.request_open_connection_quick_insert(source_id, "result", 300.0, 60.0, 400.0, 180.0))
+        self.app.processEvents()
+        QTest.qWait(20)
+        QTest.keyClick(self._qml_input_widget(), Qt.Key.Key_Escape)
+        self.app.processEvents()
+        self.assertFalse(self.window.connection_quick_insert_open)
 
     def test_qml_nested_category_library_payload_filters_and_quick_insert_use_path_values(self) -> None:
         self.window.set_library_query("")
@@ -501,6 +580,122 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         self.assertTrue(
             all(item["category_key"] == building_blocks_key for item in results)
         )
+
+    def test_qml_published_workflow_quick_insert_maps_displayed_pin_keys_in_both_directions(self) -> None:
+        workspace = self.window.model.active_workspace
+        for pin_type, origin_type, origin_port, direction in (
+            ("core.subnode_input", "core.constant", "as_text", "out"),
+            ("core.subnode_output", "core.logger", "message", "in"),
+        ):
+            with self.subTest(direction=direction):
+                title = f"Published {direction} Workflow"
+                source_shell_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=120.0)
+                self.window.scene.set_node_title(source_shell_id, title)
+                self.assertTrue(self.window.request_open_subnode_scope(source_shell_id))
+                broad_pin_id = self.window.scene.add_node_from_type(pin_type, x=80.0, y=40.0)
+                self.window.scene.set_node_property(broad_pin_id, "label", "Broad")
+                typed_pin_id = self.window.scene.add_node_from_type(pin_type, x=80.0, y=140.0)
+                self.window.scene.set_node_property(typed_pin_id, "label", "Typed")
+                self.window.scene.set_node_property(typed_pin_id, "data_type", "COREX.DataTypes.String")
+                self.assertTrue(self.window.request_navigate_scope_parent())
+                self.window.scene.focus_node(source_shell_id)
+                self.assertTrue(self.window.request_publish_custom_workflow_from_selected())
+                self.app.processEvents()
+
+                library_item = next(
+                    item for item in self.window.filtered_node_library_items
+                    if item.get("workflow_id") == f"wf_shell_{source_shell_id}"
+                )
+                self.assertEqual({port["key"] for port in library_item["ports"]}, {broad_pin_id, typed_pin_id})
+                self.assertTrue(all("node_ref_id" not in port and "port_key" not in port for port in library_item["ports"]))
+                origin_id = self.window.scene.add_node_from_type(origin_type, x=40.0, y=40.0)
+                self.assertTrue(self.window.request_open_connection_quick_insert(origin_id, origin_port, 600.0, 200.0, 400.0, 180.0))
+                self.window.set_connection_quick_insert_query(title)
+                rows = self.window.connection_quick_insert_results
+                index = next(index for index, row in enumerate(rows) if row["type_id"] == library_item["type_id"])
+                self.assertEqual([port["key"] for port in rows[index]["compatible_ports"]], [typed_pin_id])
+                before_nodes = set(workspace.nodes)
+                before_edges = set(workspace.edges)
+                self.assertTrue(self.window.request_connection_quick_insert_choose(index))
+                self.app.processEvents()
+
+                inserted_ids = set(workspace.nodes) - before_nodes
+                inserted_shell_id = next(node_id for node_id in inserted_ids if workspace.nodes[node_id].type_id == "core.subnode")
+                inserted_typed_pin_id = next(
+                    node_id for node_id in inserted_ids
+                    if workspace.nodes[node_id].parent_node_id == inserted_shell_id
+                    and workspace.nodes[node_id].properties.get("label") == "Typed"
+                )
+                new_edges = set(workspace.edges) - before_edges
+                self.assertEqual(len(new_edges), 1)
+                edge = workspace.edges[new_edges.pop()]
+                expected = (
+                    (origin_id, origin_port, inserted_shell_id, inserted_typed_pin_id)
+                    if direction == "out"
+                    else (inserted_shell_id, inserted_typed_pin_id, origin_id, origin_port)
+                )
+                self.assertEqual((edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key), expected)
+                self.assertNotIn(source_shell_id, (edge.source_node_id, edge.target_node_id))
+                self.assertNotIn(typed_pin_id, (edge.source_port_key, edge.target_port_key))
+
+    def test_qml_ordinary_published_workflow_port_and_edge_drops_keep_chooser_selection(self) -> None:
+        workspace = self.window.model.active_workspace
+        for mode in ("port", "edge"):
+            with self.subTest(mode=mode):
+                source_shell_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=120.0)
+                self.window.scene.set_node_title(source_shell_id, f"Ordinary {mode} Workflow")
+                self.assertTrue(self.window.request_open_subnode_scope(source_shell_id))
+                for pin_type, label, y in (
+                    ("core.subnode_input", "Input A", 40.0),
+                    ("core.subnode_input", "Input B", 140.0),
+                    ("core.subnode_output", "Output", 240.0),
+                ):
+                    pin_id = self.window.scene.add_node_from_type(pin_type, x=80.0, y=y)
+                    self.window.scene.set_node_property(pin_id, "label", label)
+                    self.window.scene.set_node_property(pin_id, "data_type", "COREX.DataTypes.String")
+                self.assertTrue(self.window.request_navigate_scope_parent())
+                self.window.scene.focus_node(source_shell_id)
+                self.assertTrue(self.window.request_publish_custom_workflow_from_selected())
+                self.app.processEvents()
+                library_item = next(
+                    item for item in self.window.filtered_node_library_items
+                    if item.get("workflow_id") == f"wf_shell_{source_shell_id}"
+                )
+                self.assertTrue(all("node_ref_id" not in port and "port_key" not in port for port in library_item["ports"]))
+                source_id = self.window.scene.add_node_from_type("core.constant", x=20.0, y=20.0)
+                target_id = self.window.scene.add_node_from_type("core.logger", x=900.0, y=20.0)
+                original_edge_id = self.window.scene.add_edge(source_id, "as_text", target_id, "message") if mode == "edge" else ""
+                before_nodes = set(workspace.nodes)
+                before_edges = set(workspace.edges)
+
+                def choose_input_b(_parent, _title, _label, options, *_args):
+                    self.assertEqual(len(options), 2)
+                    return next(option for option in options if ".Input B" in option), True
+
+                with patch("PyQt6.QtWidgets.QInputDialog.getItem", side_effect=choose_input_b) as chooser:
+                    self.assertTrue(self.window.request_drop_node_from_library(
+                        library_item["type_id"], 600.0, 200.0, mode,
+                        source_id if mode == "port" else "",
+                        "as_text" if mode == "port" else "", original_edge_id,
+                    ))
+                self.app.processEvents()
+                chooser.assert_called_once()
+                inserted_ids = set(workspace.nodes) - before_nodes
+                inserted_shell_id = next(node_id for node_id in inserted_ids if workspace.nodes[node_id].type_id == "core.subnode")
+                inserted_pin_ids = {
+                    workspace.nodes[node_id].properties.get("label"): node_id
+                    for node_id in inserted_ids
+                    if workspace.nodes[node_id].parent_node_id == inserted_shell_id
+                }
+                new_edge_pairs = {
+                    (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key)
+                    for edge_id, edge in workspace.edges.items() if edge_id not in before_edges
+                }
+                expected = {(source_id, "as_text", inserted_shell_id, inserted_pin_ids["Input B"])}
+                if mode == "edge":
+                    expected.add((inserted_shell_id, inserted_pin_ids["Output"], target_id, "message"))
+                    self.assertNotIn(original_edge_id, workspace.edges)
+                self.assertEqual(new_edge_pairs, expected)
 
     def test_qml_custom_workflow_publish_appears_in_library_and_places_independent_snapshots(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

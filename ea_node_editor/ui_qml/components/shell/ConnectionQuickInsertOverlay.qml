@@ -142,6 +142,7 @@ Rectangle {
 
         TextField {
             id: quickInsertField
+            objectName: "connectionQuickInsertField"
             width: parent.width
             placeholderText: root.shellLibraryBridgeRef.connection_quick_insert_is_canvas_mode
                 ? "Search nodes..."
@@ -234,8 +235,9 @@ Rectangle {
                     }
 
                     Text {
+                        objectName: "connectionQuickInsertPortSummary"
                         width: parent.width
-                        text: (modelData.compatible_port_labels || []).join(", ")
+                        text: (modelData.compatible_port_summaries || []).join(", ")
                         color: "#8EC9A6"
                         font.pixelSize: 10
                         elide: Text.ElideRight
@@ -254,12 +256,15 @@ Rectangle {
         }
 
         Text {
+            objectName: "connectionQuickInsertEmptyMessage"
             visible: root.shellLibraryBridgeRef.connection_quick_insert_results.length === 0
             width: parent.width
             wrapMode: Text.WordWrap
             text: root.shellLibraryBridgeRef.connection_quick_insert_is_canvas_mode
                 ? "No matching nodes."
-                : "No compatible nodes."
+                : (String(root.shellLibraryBridgeRef.connection_quick_insert_query || "").trim().length === 0
+                    ? "No direct type matches. Type to search broader compatible nodes."
+                    : "No matching compatible nodes.")
             color: root.themePalette.muted_fg
             font.pixelSize: 11
         }

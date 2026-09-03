@@ -467,11 +467,7 @@ class ShellLibraryPresenter(QObject):
         )
         self._set_connection_quick_insert_state(open_=True, query="", results=[], highlight_index=-1, context=context)
         self._refresh_connection_quick_insert_results("")
-        if self.connection_quick_insert_results:
-            return True
-        self.show_graph_hint("No compatible nodes found for quick insert.", 2200)
-        self.request_close_connection_quick_insert()
-        return False
+        return True
 
     def request_open_canvas_quick_insert(
         self,
@@ -556,6 +552,10 @@ class ShellLibraryPresenter(QObject):
                 str(context.get("port_key", "")),
                 "",
                 bool(context.get("append_requested", False)),
+                compatible_port_keys=tuple(
+                    str(port["key"])
+                    for port in selected_item.get("compatible_ports", ())
+                ),
             ).payload
         self.request_close_connection_quick_insert()
         return bool(created)
