@@ -1,3 +1,8 @@
+# Purpose: Own native plot binding, cached previews, and inline/detached/fullscreen presentation.
+# Map: subsystems/viewer_surfaces.md
+# Tests: tests/test_plot_host_service.py
+# Landmarks: _PlotHostSnapshot; _DetachedPlotWindow; _PlotHostPresentationService; PlotHostService; presentation reconciliation
+
 from __future__ import annotations
 
 import copy

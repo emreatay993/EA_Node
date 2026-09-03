@@ -1,3 +1,7 @@
+// Purpose: Own the standard graph-port access, modifier, and dynamic-action menu.
+// Map: feature_routes/port_availability_and_default_values.md
+// Tests: tests/qml_quick/tst_graph_node_port_context_menu.qml
+
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 

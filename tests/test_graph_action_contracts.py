@@ -67,6 +67,14 @@ ACTION_PRESENTATION_JS = (
     / "graph"
     / "GraphActionPresentation.js"
 )
+GRAPH_ACTION_CONTROLLER = (
+    REPO_ROOT
+    / "ea_node_editor"
+    / "ui"
+    / "shell"
+    / "controllers"
+    / "graph_action_controller.py"
+)
 SELECTION_ENVELOPE_OVERLAY_QML = (
     REPO_ROOT
     / "ea_node_editor"
@@ -1012,6 +1020,28 @@ def test_qml_graph_action_slots_are_mixin_methods_dispatching_to_controller() ->
     assert "graph_action_controller.trigger(GraphActionId" in source
     assert re.search(r"^(?:request_\w+|_\w+) = \w+$", source, re.M) is None
     assert "WINDOW_STATE_FACADE_BINDINGS" not in source
+
+
+def test_graph_action_controller_calls_scope_owners_directly() -> None:
+    source = _source(GRAPH_ACTION_CONTROLLER)
+    tree = ast.parse(source, filename=str(GRAPH_ACTION_CONTROLLER))
+    controller = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "GraphActionController"
+    )
+
+    assert not any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "getattr"
+        for node in ast.walk(controller)
+    )
+    assert "search_scope.navigate_scope(" in source
+    assert "scene.open_subnode_scope(node_id)" in source
+    assert "search_scope is None or scene is None" in source
+    assert "callable(navigate)" not in source
+    assert "callable(open_scope)" not in source
 
 
 def test_required_payload_keys_are_declared_for_payload_actions() -> None:

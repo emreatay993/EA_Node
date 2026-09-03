@@ -1,4 +1,7 @@
 .pragma library
+// Purpose: Shape authoritative graph-action DTOs for QML menus and toolbars.
+// Map: feature_routes/graph_actions_and_context_menus.md
+// Tests: tests/qml_quick/tst_graph_action_presentation.qml
 
 function toArray(value) {
     if (Array.isArray(value))

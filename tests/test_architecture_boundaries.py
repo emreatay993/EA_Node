@@ -2753,7 +2753,8 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         def declaration_count(text: str, type_name: str) -> int:
             return sum(line.strip() == f"{type_name} {{" for line in text.splitlines())
 
-        self.assertTrue(owner_text.startswith("import QtQuick 2.15\n"))
+        self.assertTrue(owner_text.startswith("// Purpose:"))
+        self.assertIn("\nimport QtQuick 2.15\n", owner_text[:512])
         self.assertEqual(toolbar_text.count("GraphNodeToolbarPopoverHost {"), 1)
         self.assertNotIn(
             'objectName: "graphNodeFloatingToolbarActionPopoverBridge"', toolbar_text

@@ -197,13 +197,12 @@ class GraphActionController:
 
         if action_id is GraphActionId.OPEN_SUBNODE_SCOPE:
             node_id = _required_str(payload, "node_id")
-            navigate = getattr(self._search_scope_controller, "navigate_scope", None)
-            open_scope = getattr(self._scene_bridge, "open_subnode_scope", None)
+            search_scope = self._search_scope_controller
+            scene = self._scene_bridge
+            if not node_id or search_scope is None or scene is None:
+                return False
             return bool(
-                node_id
-                and callable(navigate)
-                and callable(open_scope)
-                and navigate(lambda: open_scope(node_id))
+                search_scope.navigate_scope(lambda: scene.open_subnode_scope(node_id))
             )
 
         if action_id is GraphActionId.PUBLISH_CUSTOM_WORKFLOW_FROM_NODE:

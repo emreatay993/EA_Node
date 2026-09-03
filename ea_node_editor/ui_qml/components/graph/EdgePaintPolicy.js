@@ -1,4 +1,7 @@
 .pragma library
+// Purpose: Own renderer-neutral edge paint and drag-preview presentation facts.
+// Map: feature_routes/edge_routing_labels_progress.md
+// Tests: tests/qml_quick/tst_edge_paint_policy.qml
 
 function edgeIsFlow(edge) {
     if (!edge)

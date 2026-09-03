@@ -1,3 +1,8 @@
+# Purpose: Own native viewer binding, cached previews, and inline/detached/fullscreen presentation.
+# Map: subsystems/viewer_surfaces.md
+# Tests: tests/test_viewer_host_service.py
+# Landmarks: _ViewerHostSessionSnapshot; _DetachedViewerWindow; _ViewerHostPresentationService; ViewerHostService; presentation reconciliation
+
 from __future__ import annotations
 
 import copy

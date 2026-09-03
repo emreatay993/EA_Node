@@ -1,3 +1,8 @@
+// Purpose: Own graph-node toolbar popover state, placement, focus, and panel controls.
+// Map: feature_routes/floating_toolbar_checked_states.md
+// Tests: tests/qml_quick/tst_graph_node_toolbar_popover_host.qml
+// Landmarks: action popover; source storage; bookmark/font/PDF panels; draft flush
+
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../surface_controls" as GraphSurfaceControls

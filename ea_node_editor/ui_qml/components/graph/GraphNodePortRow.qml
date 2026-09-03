@@ -1,3 +1,7 @@
+// Purpose: Render one shared input or output graph-node port row.
+// Map: feature_routes/port_availability_and_default_values.md
+// Tests: tests/qml_quick/tst_graph_node_host.qml
+
 import QtQuick 2.15
 import "../common" as Common
 import "../common/TooltipPolicy.js" as TooltipPolicy

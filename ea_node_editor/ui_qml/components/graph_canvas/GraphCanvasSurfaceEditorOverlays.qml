@@ -1,3 +1,7 @@
+// Purpose: Own graph-canvas Web, Timestamp, Slider, Select, and Panel editor overlays.
+// Map: feature_routes/surface_input_and_inline_controls.md
+// Tests: tests/qml_quick/tst_graph_canvas_surface_editor_overlays.qml
+
 import QtQuick 2.15
 import "../graph/passive" as GraphPassive
 import "../web" as WebComponents
