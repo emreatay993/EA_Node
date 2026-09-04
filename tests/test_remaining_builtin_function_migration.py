@@ -21,6 +21,7 @@ from ea_node_editor.nodes.plugin_contracts import PluginAvailability
 from ea_node_editor.nodes.registry import PythonFunctionEntry, TrustedFactoryEntry
 from ea_node_editor.runtime_contracts import TypedInlineValue
 from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.test_corex_contract_catalog import _catalog_value
 
 
 _T15_CONVERTED_TYPE_IDS = (
@@ -89,7 +90,7 @@ def test_exact_t15_entries_match_golden_and_leave_exact_exception_set(
         assert isinstance(entry, PythonFunctionEntry)
         assert entry.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
         assert registry.descriptor_or_none(type_id) is None
-        assert json.loads(json.dumps(asdict(entry.spec))) == expected[type_id]
+        assert _catalog_value(entry.spec) == expected[type_id]
 
     bundle = registry.plugin_bundle_refs()
     assert len(bundle) == 1

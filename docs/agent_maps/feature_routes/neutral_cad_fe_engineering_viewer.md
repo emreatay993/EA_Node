@@ -22,6 +22,20 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 ## Behavior
 - Model Viewer accepts supported engineering carriers and produces an owned
   prepared scene without exposing live worker objects to QML.
+- Model Viewer uses the existing dynamic input group (`scene_input_ids`): one
+  initial Scene 1 socket, add/remove/label editing, and optional empty slots.
+  Each socket accepts Scene, OCP Body, or Geometry Group. `scene_styles` persists
+  per-ID opacity/color; the sidebar selects a scene and Auto restores its colors.
+  Ports, actors, selections, queries, and export use stable scene IDs, not names.
+- The exact trusted function registration adds its dynamic group in both GUI
+  and worker registries. Model Viewer remains session-reusable; public callbacks
+  are not admitted into function fingerprints. ExecutionContext carries copied
+  node port labels so viewer labels match authored graph labels.
+- Engineering transport v2 uses ordered `layers`, flat per-scene/native source
+  leases, and a composition selection fingerprint. Source coordinates remain
+  unchanged and display units follow the first populated port. Removed source
+  handles are released on authoritative scene replacement; identity-only opens
+  preserve the active session. There is no old overlay contract or migration.
 - CAD/FE Import, Model Viewer, Cylinder, Construct Geometry Group, and Deconstruct Mesh
   Face are inert reserved-bundle declarations; the existing trusted helpers
   retain file validation, prepared-scene work, native geometry, and session ownership.

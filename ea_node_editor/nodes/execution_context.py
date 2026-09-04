@@ -115,6 +115,7 @@ class ExecutionContext:
     node_title: str = ""
     node_type_id: str = ""
     node_type_display_name: str = ""
+    node_port_labels: Mapping[str, str] = field(default_factory=dict)
     semantic_links: tuple[Mapping[str, Any], ...] = ()
     workspace_node_types: Mapping[str, str] = field(
         default_factory=lambda: MappingProxyType({})

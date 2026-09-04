@@ -300,7 +300,7 @@ class QuickInsertProjectionTests(unittest.TestCase):
         )
         by_id = {item["type_id"]: item for item in forward}
         self.assertIn("model.viewer", by_id)
-        self.assertEqual(by_id["model.viewer"]["compatible_port_summaries"], ["scene — Exact type"])
+        self.assertEqual(by_id["model.viewer"]["compatible_port_summaries"], ["Scene 1 — Exact type"])
         self.assertNotIn("io.file_write", by_id)
         self.assertNotIn("data.panel", by_id)
         reverse = build_connection_quick_insert_items(

@@ -17,7 +17,7 @@ from ea_node_editor.common.scene_protocol import (
     ENGINEERING_SELECTION_SCHEMA,
     empty_engineering_selection_set,
     normalize_engineering_selection_set,
-    normalize_viewer_opacity,
+    normalize_scene_styles,
     normalize_viewer_representation,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
@@ -141,8 +141,7 @@ _VIEWER_OPTION_COERCERS: dict[str, Any] = {
     DPF_VIEWER_SHOW_MINMAX_MARKERS_PROPERTY: lambda value: _bool_value(value, False),
     DPF_VIEWER_BACKGROUND_PROPERTY: normalize_dpf_viewer_background,
     "representation": _normalized_representation,
-    "primary_opacity": lambda value: normalize_viewer_opacity(value, default=1.0),
-    "overlay_opacity": lambda value: normalize_viewer_opacity(value, default=0.35),
+    "scene_styles": normalize_scene_styles,
     "parallel_projection": lambda value: _bool_value(value, False),
     "clip_enabled": lambda value: _bool_value(value, False),
     "clip_axis": _normalized_clip_axis,
@@ -365,7 +364,10 @@ class ViewerControlBridge(QObject):
         coercer = _VIEWER_OPTION_COERCERS.get(option_key)
         if not normalized_node_id or coercer is None:
             return False
-        normalized_value = coercer(value)
+        try:
+            normalized_value = coercer(value)
+        except (TypeError, ValueError):
+            return False
         if option_key == "selection_filter":
             setter = getattr(
                 self._viewer_host_service,
@@ -388,6 +390,21 @@ class ViewerControlBridge(QObject):
         self._sync_viewer_session_option(normalized_node_id, option_key, normalized_value)
         self.viewer_control_changed.emit(normalized_node_id)
         return True
+
+    @pyqtSlot(str, str, str, "QVariant", result=bool)
+    def set_scene_style(self, node_id: str, scene_id: str, key: str, value: Any) -> bool:
+        resolved = self._node_properties(node_id)
+        if resolved is None or key not in {"opacity", "color"}:
+            return False
+        properties = resolved[2]
+        if scene_id not in properties.get("scene_input_ids", ["scene_1"]):
+            return False
+        try:
+            styles = normalize_scene_styles(properties.get("scene_styles", {}))
+            styles.setdefault(scene_id, {})[key] = value
+            return self.set_viewer_option(node_id, "scene_styles", styles)
+        except (TypeError, ValueError):
+            return False
 
     @pyqtSlot(result=float)
     def viewer_tangent_selection_angle_degrees(self) -> float:
@@ -781,7 +798,14 @@ class ViewerControlBridge(QObject):
             output_path = str(picker(f"Export {normalized.upper()}", f"{safe_title}{suffix}", file_filter) or "").strip()
         if not output_path:
             return {"supported": False, "value": {}, "explanation": ""}
-        return self.query_viewer(node_id, "export", {"format": normalized, "output_path": output_path})
+        stats_getter = getattr(self._viewer_host_service, "viewer_render_stats", None)
+        stats = stats_getter(node_id) if callable(stats_getter) else {}
+        display_state = stats.get("display_state", {}) if isinstance(stats, Mapping) else {}
+        return self.query_viewer(node_id, "export", {
+            "format": normalized,
+            "path": output_path,
+            "display_state": dict(display_state),
+        })
 
 
 __all__ = ["ViewerControlBridge"]

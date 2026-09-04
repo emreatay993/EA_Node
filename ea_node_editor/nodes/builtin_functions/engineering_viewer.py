@@ -13,25 +13,10 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     name="Model Viewer",
     category=("Engineering", "Viewer"),
     icon="deployed_code",
-    description="Displays a neutral CAD/FE scene, OCP Body, or Geometry Group with one optional overlay.",
+    description="Displays multiple CAD/FE scenes, OCP Bodies, and Geometry Groups together with per-scene appearance.",
     keywords=("viewer", "cad", "finite element"),
     _surface_family="viewer",
     _render_quality_tiers=("full", "proxy"),
-)
-@corex.input(
-    "scene",
-    value_type="COREX.Engineering.Scene",
-    required=True,
-    label="",
-    description="Primary prepared CAD/FE scene, worker-owned OCP Body, or Geometry Group to display.",
-    _accepted_data_types=("COREX.Geometry.OCPBody", "COREX.Geometry.Group"),
-)
-@corex.input(
-    "overlay",
-    value_type="COREX.Engineering.Scene",
-    required=False,
-    label="",
-    description="Optional second scene displayed over the primary scene.",
 )
 @corex.output(
     "session",
@@ -94,19 +79,23 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     _inline_editor="",
     _property_group="View",
 )
-@corex.number(
-    "primary_opacity",
-    default=1.0,
-    label="Primary Opacity",
+@corex.text(
+    "scene_input_ids",
+    default="",
+    label="Scene Inputs",
     _inline_editor="",
-    _property_group="View",
+    _inspector_visible=False,
+    _property_type="json",
+    _property_default=["scene_1"],
 )
-@corex.number(
-    "overlay_opacity",
-    default=0.35,
-    label="Overlay Opacity",
+@corex.text(
+    "scene_styles",
+    default="",
+    label="Scene Appearance",
     _inline_editor="",
-    _property_group="View",
+    _inspector_visible=False,
+    _property_type="json",
+    _property_default={},
 )
 @corex.switch(
     "clip_enabled",
@@ -134,13 +123,6 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     "parallel_projection",
     default=False,
     label="Parallel Projection",
-    _inline_editor="",
-    _property_group="View",
-)
-@corex.text(
-    "overlay_color",
-    default="#ff9f43",
-    label="Overlay Color",
     _inline_editor="",
     _property_group="View",
 )
@@ -175,8 +157,8 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     _property_type="json",
     _property_default=[],
 )
-def model_viewer(ctx, scene, overlay, settings):
-    del scene, overlay, settings
+def model_viewer(ctx, settings):
+    del settings
     result = execute_engineering_viewer(ctx)
     for warning in result.warnings:
         ctx.warn(warning, code="model_viewer")

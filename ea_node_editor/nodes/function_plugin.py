@@ -143,21 +143,23 @@ class PluginBundleRef:
         )
 
 
-def _stable_fingerprint_value(value: object) -> object:
+def _stable_fingerprint_value(value: object, *, approved_callbacks: tuple = ()) -> object:
+    if callable(value) and value in approved_callbacks:
+        return {"__callable__": f"{value.__module__}:{value.__qualname__}"}
     if is_dataclass(value):
         return {
-            field.name: _stable_fingerprint_value(getattr(value, field.name))
+            field.name: _stable_fingerprint_value(getattr(value, field.name), approved_callbacks=approved_callbacks)
             for field in fields(value)
         }
     if isinstance(value, Mapping):
         return {
-            str(key): _stable_fingerprint_value(item)
+            str(key): _stable_fingerprint_value(item, approved_callbacks=approved_callbacks)
             for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
         }
     if isinstance(value, (tuple, list)):
-        return [_stable_fingerprint_value(item) for item in value]
+        return [_stable_fingerprint_value(item, approved_callbacks=approved_callbacks) for item in value]
     if isinstance(value, (set, frozenset)):
-        items = [_stable_fingerprint_value(item) for item in value]
+        items = [_stable_fingerprint_value(item, approved_callbacks=approved_callbacks) for item in value]
         return sorted(items, key=lambda item: json.dumps(item, sort_keys=True))
     if isinstance(value, Enum):
         return _stable_fingerprint_value(value.value)
@@ -174,10 +176,17 @@ def plugin_fingerprint(
     entries: Sequence[tuple[NodeTypeSpec, PythonFunctionRef]],
     bundles: Sequence[PluginBundleRef],
 ) -> str:
+    from .builtins.engineering_viewer import next_scene_input_id, resolve_scene_input_ports
+
     included_owners = {bundle.owner_id for bundle in bundles}
     entry_payload = [
         {
-            "spec": _stable_fingerprint_value(spec),
+            "spec": _stable_fingerprint_value(
+                spec,
+                approved_callbacks=(resolve_scene_input_ports, next_scene_input_id)
+                if function_ref.bundle_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID and spec.type_id == "model.viewer"
+                else (),
+            ),
             "function": _stable_fingerprint_value(function_ref),
         }
         for spec, function_ref in sorted(entries, key=lambda item: item[0].type_id)

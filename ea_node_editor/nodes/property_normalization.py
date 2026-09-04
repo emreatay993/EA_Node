@@ -175,6 +175,10 @@ def _normalize_legacy_dpf_time_scope_properties(
 
 
 def _normalize_special_property_value(type_id: str, key: str, value: Any) -> Any:
+    if type_id == "model.viewer" and key == "scene_styles":
+        from ea_node_editor.common.scene_protocol import normalize_scene_styles
+
+        return normalize_scene_styles(value)
     if type_id == "data.number_slider":
         from ea_node_editor.nodes.builtins.data_control import (
             normalize_number_slider_property_value,
@@ -196,6 +200,13 @@ def _normalize_special_properties(
     type_id: str,
     values: dict[str, Any],
 ) -> dict[str, Any]:
+    if type_id == "model.viewer":
+        scene_ids = set(values.get("scene_input_ids", ["scene_1"]))
+        if "scene_styles" in values:
+            values["scene_styles"] = {
+                key: style for key, style in values["scene_styles"].items() if key in scene_ids
+            }
+        return values
     if type_id == "data.select":
         from ea_node_editor.nodes.builtins.data_control import (
             normalize_select_properties,

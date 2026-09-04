@@ -42,7 +42,7 @@ def test_all_repo_owned_non_dpf_nodes_have_authored_documentation() -> None:
     resolved_ports = tuple((spec, resolve_instance_ports(spec, {})) for spec in specs)
 
     assert len(specs) == 131
-    assert sum(len(ports) for _, ports in resolved_ports) == 509
+    assert sum(len(ports) for _, ports in resolved_ports) == 508
     assert len({spec.type_id for spec in specs}) == len(specs)
 
     missing_node_descriptions = [spec.type_id for spec in specs if not spec.description.strip()]

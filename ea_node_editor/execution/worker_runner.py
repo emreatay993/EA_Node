@@ -1491,6 +1491,7 @@ class NodeExecutor:
             node_title=node.title,
             node_type_id=node.type_id,
             node_type_display_name=display_name,
+            node_port_labels=dict(node.port_labels),
             semantic_links=self._semantic_links_by_node[node_id],
             workspace_node_types=self._workspace_node_types,
             _publish_node_state=self._publish_node_state,

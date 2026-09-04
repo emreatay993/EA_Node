@@ -941,8 +941,13 @@ function _viewerSurfaceMetrics(node, source, _widthOverride, heightOverride, gra
     var inlineHeight = inlineBodyHeight(node);
     var defaultBodyHeight = Math.max(VIEWER_DEFAULT_BODY_HEIGHT, inlineHeight);
     var minBodyHeight = Math.max(VIEWER_MIN_BODY_HEIGHT, inlineHeight);
-    var defaultHeight = resolvedBodyTop + defaultBodyHeight + portCount * portHeight + VIEWER_BODY_BOTTOM_PADDING;
-    var minHeight = resolvedBodyTop + minBodyHeight + portCount * portHeight + VIEWER_BODY_BOTTOM_PADDING;
+    var bottomPadding = _dynamicPortBottomPadding(
+        node, portCount, portHeight,
+        _metricNumber(source, "port_center_offset", _contractNumber(standard, "port_center_offset")),
+        VIEWER_BODY_BOTTOM_PADDING
+    );
+    var defaultHeight = resolvedBodyTop + defaultBodyHeight + portCount * portHeight + bottomPadding;
+    var minHeight = resolvedBodyTop + minBodyHeight + portCount * portHeight + bottomPadding;
     var resolvedDefaultHeight = Math.max(
         _metricNumber(source, "default_height", defaultHeight),
         defaultHeight
@@ -952,7 +957,7 @@ function _viewerSurfaceMetrics(node, source, _widthOverride, heightOverride, gra
         heightOverride,
         resolvedDefaultHeight
     );
-    var bodyBottomMargin = _metricNumber(source, "body_bottom_margin", VIEWER_BODY_BOTTOM_PADDING);
+    var bodyBottomMargin = Math.max(_metricNumber(source, "body_bottom_margin", bottomPadding), bottomPadding);
     var bodyHeight = Math.max(
         minBodyHeight,
         activeHeight - resolvedBodyTop - portCount * portHeight - bodyBottomMargin

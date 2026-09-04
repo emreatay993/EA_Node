@@ -52,8 +52,8 @@ EXPECTED_NODES = {
 }
 
 EXPECTED_EDGES = {
-    ("node_cad_import", "scene", VIEWER_NODE_ID, "scene"),
-    ("node_fe_import", "scene", VIEWER_NODE_ID, "overlay"),
+    ("node_cad_import", "scene", VIEWER_NODE_ID, "scene_1"),
+    ("node_fe_import", "scene", VIEWER_NODE_ID, "scene_2"),
 }
 
 
@@ -283,8 +283,9 @@ def test_viewer_defaults_and_seeded_bookmarks_exercise_the_new_controls(
     assert properties["show_view_cube"] is True
     assert properties["show_world_axes"] is True
     assert properties["parallel_projection"] is False
-    assert properties["primary_opacity"] == pytest.approx(1.0)
-    assert properties["overlay_opacity"] == pytest.approx(0.32)
+    assert properties["scene_input_ids"] == ["scene_1", "scene_2"]
+    assert properties["scene_styles"]["scene_2"]["opacity"] == pytest.approx(0.32)
+    assert properties["scene_styles"]["scene_2"]["color"] == ""
 
     bookmarks = properties["camera_bookmarks"]
     assert [bookmark["name"] for bookmark in bookmarks] == [
@@ -311,6 +312,7 @@ def test_viewer_defaults_and_seeded_bookmarks_exercise_the_new_controls(
 
 def _run_example_and_get_viewer_session(
     example,
+    *, additional_native_body: bool = False,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa: ANN001
     pytest.importorskip(
         "OCP",
@@ -401,6 +403,30 @@ def _run_example_and_get_viewer_session(
         "session_id",
         "backend_id",
     }
+    if additional_native_body:
+        from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering_viewer
+        from ea_node_editor.nodes.builtins.geometry_primitives import execute_cylinder
+        from ea_node_editor.nodes.builtins.rich_value_nodes import PLANE_DATA_TYPE_ID
+        from ea_node_editor.nodes.execution_context import ExecutionContext
+        from ea_node_editor.runtime_contracts import Interval1D, TypedInlineValue
+
+        context = ExecutionContext(
+            run_id="run_native_third_scene", node_id="native_body", workspace_id=WORKSPACE_ID,
+            inputs={"plane": TypedInlineValue(PLANE_DATA_TYPE_ID, 1, {
+                "origin": [5.0, 0.0, 0.0], "axes": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+                "normal": [0.0, 0.0, 1.0],
+            }), "radius": 2.0, "interval": Interval1D(0.0, 5.0)},
+            properties={}, emit_log=lambda *_args: None, worker_services=worker_services,
+        )
+        body = execute_cylinder(context).outputs["body"]
+        record = worker_services.viewer_session_service._sessions[(WORKSPACE_ID, session_ref.metadata["session_id"])]
+        context.node_id = VIEWER_NODE_ID
+        context.inputs = {"scene_1": record.source_refs["scene:scene_1"],
+                          "scene_2": record.source_refs["scene:scene_2"], "scene_3": body}
+        context.properties = {**workspace.nodes[VIEWER_NODE_ID].properties,
+                              "scene_input_ids": ["scene_1", "scene_2", "scene_3"],
+                              "scene_styles": {"scene_3": {"color": "#ff0000", "opacity": 0.6}}}
+        session_ref = execute_engineering_viewer(context).outputs["session"]
     session = worker_services.resolve_handle(
         session_ref,
         expected_data_type=VIEWER_SESSION_DATA_TYPE_ID,
@@ -417,8 +443,8 @@ def test_example_runs_solution_and_materializes_exact_viewer_capabilities(
     summary = dict(session["summary"])
     capabilities = dict(summary["capabilities"])
     transport = dict(session["transport"])
-    primary = dict(transport["primary"])
-    overlay = dict(transport["overlays"][0])
+    primary = dict(transport["layers"][0])
+    overlay = dict(transport["layers"][1])
 
     assert session["backend_id"] == ENGINEERING_VIEWER_BACKEND_ID
     assert session["live_open_status"] == "ready"
@@ -458,8 +484,10 @@ def test_example_runs_solution_and_materializes_exact_viewer_capabilities(
 
 
 @pytest.mark.gui
+@pytest.mark.parametrize("additional_native_body", [False, True])
 def test_example_transport_populates_and_captures_the_real_native_viewer(
     example,
+    additional_native_body,
 ) -> None:  # noqa: ANN001
     pytest.importorskip(
         "pyvistaqt", reason="The native Model Viewer requires PyVistaQt."
@@ -472,7 +500,7 @@ def test_example_transport_populates_and_captures_the_real_native_viewer(
     )
     from ea_node_editor.ui_qml.viewer_widget_binder import ViewerWidgetBindRequest
 
-    session, _events = _run_example_and_get_viewer_session(example)
+    session, _events = _run_example_and_get_viewer_session(example, additional_native_body=additional_native_body)
     app = QApplication.instance() or QApplication([])
     container = QWidget()
     container.resize(QSize(640, 480))
@@ -496,8 +524,7 @@ def test_example_transport_populates_and_captures_the_real_native_viewer(
     )
     widget = None
     try:
-        widget = binder.bind_widget(
-            ViewerWidgetBindRequest(
+        request = ViewerWidgetBindRequest(
                 workspace_id=WORKSPACE_ID,
                 node_id=VIEWER_NODE_ID,
                 session_id=str(session["session_id"]),
@@ -518,11 +545,11 @@ def test_example_transport_populates_and_captures_the_real_native_viewer(
                 options=options,
                 session_model=session,
                 container=container,
-            )
         )
+        widget = binder.bind_widget(request)
         stats = binder.render_stats(widget)
-        assert stats["layer_count"] == 2
-        assert stats["dataset_count"] >= 2
+        assert stats["layer_count"] == (3 if additional_native_body else 2)
+        assert stats["dataset_count"] >= stats["layer_count"]
         assert not render_calls
 
         if os.name == "nt" and os.environ.get("QT_QPA_PLATFORM", "").casefold() in {
@@ -541,6 +568,24 @@ def test_example_transport_populates_and_captures_the_real_native_viewer(
         for _index in range(5):
             app.processEvents()
 
+        if additional_native_body:
+            from dataclasses import replace
+
+            original_actor = binder._widget_state[widget].actors["scene_1"]
+            actor = binder._widget_state[widget].actors["scene_3"]
+            assert actor.GetProperty().GetOpacity() == pytest.approx(0.6)
+            automatic = replace(request, current_widget=widget, options={
+                **options, "scene_styles": {"scene_3": {"color": "", "opacity": 0.25}},
+            })
+            assert binder.bind_widget(automatic) is widget
+            assert binder._widget_state[widget].actors["scene_1"] is original_actor
+            actor = binder._widget_state[widget].actors["scene_3"]
+            assert actor.GetProperty().GetOpacity() == pytest.approx(0.25)
+            assert actor.GetProperty().GetColor() != (1.0, 0.0, 0.0)
+            assert binder.set_layer_visibility(widget, "scene_3", False)
+            assert not actor.GetVisibility()
+            assert binder.set_layer_visibility(widget, "scene_3", True)
+
         preview = binder.capture_preview_image(widget)
         assert not preview.isNull()
         assert preview.width() > 1
@@ -553,7 +598,8 @@ def test_example_transport_populates_and_captures_the_real_native_viewer(
         assert len(sampled_colors) > 1
     finally:
         if widget is not None:
-            widget.hide()
+            binder.prepare_for_reparent(widget)
+            widget.close()
         binder.shutdown()
         container.close()
         app.processEvents()

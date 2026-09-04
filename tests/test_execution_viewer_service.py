@@ -39,6 +39,7 @@ from ea_node_editor.execution.viewer_backend import (
 )
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.execution.viewer_backend_engineering import (
+    COREX_SCENE_HANDLE_KIND,
     ENGINEERING_VIEWER_BACKEND_ID,
 )
 from ea_node_editor.execution.viewer_session_service import (
@@ -52,6 +53,7 @@ from ea_node_editor.nodes.ansys_dpf_data_types import (
 )
 from ea_node_editor.runtime_contracts import (
     COREX_VIEWER_SESSION_HANDLE_KIND,
+    ENGINEERING_SCENE_DATA_TYPE_ID,
     PATH_DATA_TYPE_ID,
     RuntimeArtifactRef,
     VIEWER_SESSION_DATA_TYPE_ID,
@@ -71,6 +73,105 @@ class ViewerSessionServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.services = dpf_worker_services()
         self.service = self.services.viewer_session_service
+
+    def test_engineering_open_replaces_scene_snapshot_after_acquiring_all_new_leases(
+        self,
+    ) -> None:
+        disposed = []
+        new_lease_counts = []
+        session_scope = []
+
+        def register(label, run_id):
+            def dispose():
+                disposed.append(label)
+                if label == "removed":
+                    new_lease_counts.append(
+                        self.services.handle_registry.lease_count(
+                            new_ref, owner_scope=session_scope[0]
+                        )
+                    )
+
+            return self.services.register_handle(
+                {"label": label},
+                data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
+                kind=COREX_SCENE_HANDLE_KIND,
+                run_id=run_id,
+                dispose=dispose,
+            )
+
+        removed_ref = register("removed", "old")
+        retained_ref = register("retained", "old")
+        native_ref = register("native", "old")
+        new_ref = register("new", "new")
+        identity = {
+            "workspace_id": "ws_main",
+            "node_id": "model_viewer",
+            "session_id": "scene_snapshot",
+            "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
+        }
+        first_refs = {
+            "scene_order": ["a", "b", "c"],
+            "scene_labels": {"a": "First"},
+            "scene:a": removed_ref,
+            "scene:b": retained_ref,
+            "scene:c": retained_ref,
+            "native_source:a": native_ref,
+        }
+        self.service.open_session(
+            OpenViewerSessionCommand(
+                **identity,
+                data_refs=first_refs,
+                transport={"kind": "engineering_scene_bundle", "layers": []},
+            )
+        )
+        record = self.service._sessions[("ws_main", "scene_snapshot")]
+        session_scope.append(record.owner_scope)
+        moved_ref = record.source_refs["scene:b"]
+        self.services.cleanup_run("old")
+        replacement_refs = {
+            "scene_order": ["x", "d", "e"],
+            "scene_labels": {"x": "Renamed"},
+            "scene:x": moved_ref,
+            "scene:d": new_ref,
+            "scene:e": new_ref,
+        }
+        self.service.open_session(
+            OpenViewerSessionCommand(**identity, data_refs=replacement_refs)
+        )
+        self.assertEqual(new_lease_counts, [2])
+        self.assertEqual(set(disposed), {"removed", "native"})
+        self.assertEqual(set(record.source_refs), set(replacement_refs))
+        self.assertEqual(record.source_refs["scene_order"], ["x", "d", "e"])
+        self.assertEqual(record.transport, {})
+        self.assertEqual(
+            self.services.handle_registry.lease_count(
+                moved_ref, owner_scope=record.owner_scope
+            ),
+            1,
+        )
+        self.service.open_session(
+            OpenViewerSessionCommand(**identity, data_refs=replacement_refs)
+        )
+        self.service.open_session(OpenViewerSessionCommand(**identity))
+        self.service.update_session(
+            UpdateViewerSessionCommand(**identity, options={"active_scene_id": "e"})
+        )
+        self.assertEqual(set(record.source_refs), set(replacement_refs))
+        self.assertEqual(
+            self.services.handle_registry.lease_count(
+                new_ref, owner_scope=record.owner_scope
+            ),
+            2,
+        )
+        self.services.cleanup_run("new")
+        self.service.close_session(
+            CloseViewerSessionCommand(
+                workspace_id="ws_main",
+                node_id="model_viewer",
+                session_id="scene_snapshot",
+            )
+        )
+        self.assertCountEqual(disposed, ["removed", "native", "retained", "new"])
 
     def test_viewer_session_service_facade_stays_within_packet_budget(self) -> None:
         execution_dir = (

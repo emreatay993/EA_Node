@@ -25,6 +25,7 @@ from ea_node_editor.execution.worker_services import WorkerServices
 from tests.typed_handle_support import core_worker_services
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtins.engineering_viewer import (
+    _composition_fingerprint,
     _require_scene,
     _selection_output_for_scene,
     execute_engineering_viewer,
@@ -39,7 +40,8 @@ from ea_node_editor.nodes.builtins.geometry_primitives import (
     execute_cylinder,
 )
 from ea_node_editor.nodes.builtins.rich_value_nodes import PLANE_DATA_TYPE_ID
-from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeInputNotReadyError
+from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
 from ea_node_editor.nodes.core_data_types import VIEWER_SESSION_DATA_TYPE_ID
 from ea_node_editor.runtime_contracts import (
     COREX_VIEWER_SESSION_HANDLE_KIND,
@@ -50,6 +52,55 @@ from ea_node_editor.runtime_contracts import (
 
 
 class EngineeringViewerNodeTests(unittest.TestCase):
+    def test_dynamic_callback_fingerprints_are_trusted_and_deterministic(self) -> None:
+        from ea_node_editor.nodes.builtins.engineering_viewer import resolve_scene_input_ports
+        from ea_node_editor.nodes.function_plugin import _stable_fingerprint_value
+        from ea_node_editor.nodes.registry import PythonFunctionEntry
+
+        first, second = build_builtin_registry(), build_builtin_registry()
+        self.assertIsInstance(first.get_entry("model.viewer"), PythonFunctionEntry)
+        self.assertEqual(first.plugin_fingerprint(), second.plugin_fingerprint())
+        self.assertEqual(first.contract_fingerprint(), second.contract_fingerprint())
+        with self.assertRaises(TypeError):
+            _stable_fingerprint_value(resolve_scene_input_ports)
+
+    def test_empty_ports_wait_and_invalid_supplied_values_identify_the_port(self) -> None:
+        context = ExecutionContext(
+            run_id="run", node_id="viewer", workspace_id="ws", inputs={},
+            properties={"scene_input_ids": ["scene_1", "scene_2"]},
+            emit_log=lambda *_args: None,
+        )
+        with self.assertRaisesRegex(NodeInputNotReadyError, "at least one scene"):
+            execute_engineering_viewer(context)
+        context.inputs["scene_2"] = 42
+        context.node_port_labels = {"scene_2": "Housing"}
+        with self.assertRaisesRegex(TypeError, r"Housing \(scene_2\)"):
+            execute_engineering_viewer(context)
+
+    def test_three_scene_inputs_ignore_gaps_and_keep_duplicate_sources_distinct(self) -> None:
+        references = {
+            key: RuntimeHandleRef(
+                data_type_id=COREX_SCENE_DATA_TYPE, schema_version=1,
+                handle_id=key, kind=COREX_SCENE_HANDLE_KIND,
+                owner_scope="run:test", worker_generation=1,
+                metadata={"source": {"sha256": fingerprint * 64}},
+            )
+            for key, fingerprint in (("cad", "a"), ("fe", "b"))
+        }
+        context = ExecutionContext(
+            run_id="run", node_id="viewer", workspace_id="ws",
+            inputs={"scene_2": references["cad"], "scene_4": references["fe"], "scene_5": references["cad"]},
+            properties={"scene_input_ids": [f"scene_{n}" for n in range(1, 6)]},
+            emit_log=lambda *_args: None,
+            node_port_labels={"scene_2": "Housing", "scene_5": "Housing"},
+        )
+        with mock.patch("ea_node_editor.nodes.builtins.engineering_viewer._open_engineering_viewer_session") as opened:
+            execute_engineering_viewer(context)
+        arguments = opened.call_args.kwargs
+        self.assertEqual(list(arguments["scenes"]), ["scene_2", "scene_4", "scene_5"])
+        self.assertIs(arguments["scenes"]["scene_2"], arguments["scenes"]["scene_5"])
+        self.assertEqual(arguments["labels"], {"scene_2": "Housing", "scene_4": "Scene 4", "scene_5": "Housing"})
+
     def test_scene_guard_rejects_correct_kind_with_wrong_semantic_type(self) -> None:
         spoof = RuntimeHandleRef(
             data_type_id=VIEWER_SESSION_DATA_TYPE_ID,
@@ -63,21 +114,23 @@ class EngineeringViewerNodeTests(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "engineering_scene"):
             _require_scene(spoof, label="scene")
 
-    def test_spec_exposes_primary_overlay_session_and_saved_selection_contracts(self) -> None:
+    def test_spec_exposes_dynamic_scenes_session_and_saved_selection_contracts(self) -> None:
         spec = build_builtin_registry().get_spec("model.viewer")
-        ports = {port.key: port for port in spec.ports}
+        ports = {port.key: port for port in resolve_instance_ports(spec, {"scene_input_ids": ["scene_1", "scene_2"]})}
 
         self.assertEqual(spec.type_id, "model.viewer")
         self.assertEqual(spec.display_name, "Model Viewer")
-        self.assertEqual(ports["scene"].data_type, COREX_SCENE_DATA_TYPE)
+        self.assertEqual(ports["scene_1"].data_type, COREX_SCENE_DATA_TYPE)
         self.assertEqual(
-            ports["scene"].accepted_data_types,
+            ports["scene_1"].accepted_data_types,
             (OCP_BODY_DATA_TYPE_ID, GEOMETRY_GROUP_DATA_TYPE_ID),
         )
-        self.assertEqual(ports["overlay"].data_type, COREX_SCENE_DATA_TYPE)
-        self.assertEqual(ports["overlay"].accepted_data_types, ())
-        self.assertTrue(ports["scene"].required)
-        self.assertFalse(ports["overlay"].required)
+        self.assertEqual(ports["scene_2"].data_type, COREX_SCENE_DATA_TYPE)
+        self.assertEqual(ports["scene_2"].accepted_data_types, ports["scene_1"].accepted_data_types)
+        self.assertFalse(ports["scene_1"].required)
+        self.assertFalse(ports["scene_2"].required)
+        self.assertNotIn("overlay", ports)
+        self.assertEqual(spec.solution_reuse_scope, "session")
         self.assertEqual(ports["session"].data_type, VIEWER_SESSION_DATA_TYPE_ID)
         self.assertEqual(ports["selections"].data_type, ENGINEERING_SELECTION_DATA_TYPE)
         self.assertEqual(spec.surface_family, "viewer")
@@ -121,29 +174,28 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 run_id="run-engineering-viewer",
                 node_id="node-engineering-viewer",
                 workspace_id="workspace-engineering-viewer",
-                inputs={"scene": primary_ref, "overlay": overlay_ref},
+                inputs={"scene_1": primary_ref, "scene_2": overlay_ref},
                 properties={
+                    "scene_input_ids": ["scene_1", "scene_2"],
                     "show_mesh_edges": True,
                     "representation": "surface",
                     "show_attribute_colors": True,
                     "show_orientation_triad": False,
                     "show_view_cube": False,
                     "show_world_axes": True,
-                    "primary_opacity": 1.0,
-                    "overlay_opacity": 0.35,
-                    "overlay_color": "#ff9f43",
+                    "scene_styles": {"scene_2": {"opacity": 0.35, "color": "#ff9f43"}},
                     "viewer_background": "theme",
                     "saved_selections": {
                         "schema": ENGINEERING_SELECTION_SCHEMA,
-                        "scene_fingerprint": primary_fingerprint,
+                        "scene_fingerprint": _composition_fingerprint({"scene_1": primary_fingerprint, "scene_2": overlay_ref.metadata["source"]["sha256"]}),
                         "published_name": "bolt_faces",
                         "selections": [
                             {
                                 "name": "bolt_faces",
-                                "scene_fingerprint": primary_fingerprint,
+                                "scene_fingerprint": _composition_fingerprint({"scene_1": primary_fingerprint, "scene_2": overlay_ref.metadata["source"]["sha256"]}),
                                 "entities": [
                                     {
-                                        "layer_id": "primary",
+                                        "layer_id": "scene_1",
                                         "source_fingerprint": primary_fingerprint,
                                         "entity_kind": "fe_node",
                                         "entity_id": f"block:0/node:{value}",
@@ -177,8 +229,8 @@ class EngineeringViewerNodeTests(unittest.TestCase):
         self.assertEqual(session["backend_id"], ENGINEERING_VIEWER_BACKEND_ID)
         self.assertEqual(session["live_open_status"], "ready")
         self.assertEqual(session["options"]["live_mode"], "proxy")
-        self.assertEqual(len(session["transport"]["overlays"]), 1)
-        self.assertEqual(session["transport"]["overlays"][0]["scale_factor"], 1000.0)
+        self.assertEqual(len(session["transport"]["layers"]), 2)
+        self.assertEqual(session["transport"]["layers"][1]["scale_factor"], 1000.0)
         self.assertEqual(session["summary"]["source_kind"], "fe")
         self.assertTrue(session["summary"]["capabilities"]["model_tree"])
         self.assertTrue(session["options"]["show_attribute_colors"])
@@ -257,7 +309,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 run_id=run_id,
                 node_id="node-model-viewer",
                 workspace_id=workspace_id,
-                inputs={"scene": body_ref},
+                inputs={"scene_1": body_ref},
                 properties={},
                 emit_log=lambda _level, _message: None,
                 worker_services=services,
@@ -270,7 +322,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 expected_data_type=VIEWER_SESSION_DATA_TYPE_ID,
                 expected_kind=COREX_VIEWER_SESSION_HANDLE_KIND,
             )
-            primary = session["transport"]["primary"]
+            primary = session["transport"]["layers"][0]
             asset = primary["display_asset"]
             shared_memory_name = asset["name"]
 
@@ -290,8 +342,8 @@ class EngineeringViewerNodeTests(unittest.TestCase):
             record = services.viewer_session_service._sessions[  # noqa: SLF001
                 (workspace_id, session_ref.metadata["session_id"])
             ]
-            native_source_ref = record.source_refs["native_source"]
-            prepared_scene_ref = record.source_refs["scene"]
+            native_source_ref = record.source_refs["native_source:scene_1"]
+            prepared_scene_ref = record.source_refs["scene:scene_1"]
             self.assertEqual(native_source_ref.handle_id, body_ref.handle_id)
             self.assertIs(
                 services.resolve_handle(
@@ -426,7 +478,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 run_id=run_id,
                 node_id="node-model-viewer",
                 workspace_id=workspace_id,
-                inputs={"scene": group_ref},
+                inputs={"scene_1": group_ref},
                 properties={},
                 emit_log=lambda _level, _message: None,
                 worker_services=services,
@@ -438,7 +490,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 expected_data_type=VIEWER_SESSION_DATA_TYPE_ID,
                 expected_kind=COREX_VIEWER_SESSION_HANDLE_KIND,
             )
-            primary = session["transport"]["primary"]
+            primary = session["transport"]["layers"][0]
             asset = primary["display_asset"]
             shared_memory_name = asset["name"]
 
@@ -459,8 +511,8 @@ class EngineeringViewerNodeTests(unittest.TestCase):
             session_record = services.viewer_session_service._sessions[  # noqa: SLF001
                 (workspace_id, session_ref.metadata["session_id"])
             ]
-            native_source_ref = session_record.source_refs["native_source"]
-            prepared_scene_ref = session_record.source_refs["scene"]
+            native_source_ref = session_record.source_refs["native_source:scene_1"]
+            prepared_scene_ref = session_record.source_refs["scene:scene_1"]
             self.assertEqual(native_source_ref.handle_id, group_ref.handle_id)
             self.assertIs(services.resolve_handle(native_source_ref), group_record)
             self.assertEqual(
@@ -523,25 +575,26 @@ class EngineeringViewerNodeTests(unittest.TestCase):
 
         result = _selection_output_for_scene(
             saved,
-            layer_fingerprints={"primary": "a" * 64},
+            layer_fingerprints={"scene_1": "a" * 64},
         )
 
-        self.assertEqual(result["scene_fingerprint"], "a" * 64)
+        self.assertEqual(result["scene_fingerprint"], _composition_fingerprint({"scene_1": "a" * 64}))
         self.assertEqual(result["published_name"], "")
         self.assertEqual(result["selections"], [])
 
     def test_replaced_overlay_entities_are_not_published(self) -> None:
+        fingerprint = _composition_fingerprint({"scene_1": "a" * 64, "scene_2": "b" * 64})
         saved = {
             "schema": ENGINEERING_SELECTION_SCHEMA,
-            "scene_fingerprint": "a" * 64,
+            "scene_fingerprint": fingerprint,
             "published_name": "overlay_elements",
             "selections": [
                 {
                     "name": "overlay_elements",
-                    "scene_fingerprint": "a" * 64,
+                    "scene_fingerprint": fingerprint,
                     "entities": [
                         {
-                            "layer_id": "overlay",
+                            "layer_id": "scene_2",
                             "source_fingerprint": "b" * 64,
                             "entity_kind": "fe_element",
                             "entity_id": "block:2/element:9",
@@ -553,25 +606,26 @@ class EngineeringViewerNodeTests(unittest.TestCase):
 
         result = _selection_output_for_scene(
             saved,
-            layer_fingerprints={"primary": "a" * 64, "overlay": "c" * 64},
+            layer_fingerprints={"scene_1": "a" * 64, "scene_2": "c" * 64},
         )
 
-        self.assertEqual(result["scene_fingerprint"], "a" * 64)
+        self.assertEqual(result["scene_fingerprint"], _composition_fingerprint({"scene_1": "a" * 64, "scene_2": "c" * 64}))
         self.assertEqual(result["published_name"], "")
         self.assertEqual(result["selections"], [])
 
     def test_current_overlay_entities_remain_publishable_for_the_scene(self) -> None:
+        fingerprint = _composition_fingerprint({"scene_1": "a" * 64, "scene_2": "b" * 64})
         saved = {
             "schema": ENGINEERING_SELECTION_SCHEMA,
-            "scene_fingerprint": "a" * 64,
+            "scene_fingerprint": fingerprint,
             "published_name": "overlay_elements",
             "selections": [
                 {
                     "name": "overlay_elements",
-                    "scene_fingerprint": "a" * 64,
+                    "scene_fingerprint": fingerprint,
                     "entities": [
                         {
-                            "layer_id": "overlay",
+                            "layer_id": "scene_2",
                             "source_fingerprint": "b" * 64,
                             "entity_kind": "fe_element",
                             "entity_id": "block:2/element:9",
@@ -583,7 +637,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
 
         result = _selection_output_for_scene(
             saved,
-            layer_fingerprints={"primary": "a" * 64, "overlay": "b" * 64},
+            layer_fingerprints={"scene_1": "a" * 64, "scene_2": "b" * 64},
         )
 
         self.assertEqual(result["published_name"], "overlay_elements")
@@ -593,29 +647,30 @@ class EngineeringViewerNodeTests(unittest.TestCase):
         )
 
     def test_mixed_selection_keeps_only_entities_from_current_layers(self) -> None:
+        fingerprint = _composition_fingerprint({"scene_1": "a" * 64, "scene_2": "b" * 64})
         saved = {
             "schema": ENGINEERING_SELECTION_SCHEMA,
-            "scene_fingerprint": "a" * 64,
+            "scene_fingerprint": fingerprint,
             "published_name": "mixed",
             "selections": [
                 {
                     "name": "mixed",
-                    "scene_fingerprint": "a" * 64,
+                    "scene_fingerprint": fingerprint,
                     "entities": [
                         {
-                            "layer_id": "primary",
+                            "layer_id": "scene_1",
                             "source_fingerprint": "a" * 64,
                             "entity_kind": "cad_face",
                             "entity_id": "part:1/face:2",
                         },
                         {
-                            "layer_id": "overlay",
+                            "layer_id": "scene_2",
                             "source_fingerprint": "b" * 64,
                             "entity_kind": "fe_element",
                             "entity_id": "block:2/element:9",
                         },
                         {
-                            "layer_id": "overlay",
+                            "layer_id": "scene_2",
                             "source_fingerprint": "c" * 64,
                             "entity_kind": "fe_element",
                             "entity_id": "block:2/element:10",
@@ -627,7 +682,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
 
         result = _selection_output_for_scene(
             saved,
-            layer_fingerprints={"primary": "a" * 64, "overlay": "b" * 64},
+            layer_fingerprints={"scene_1": "a" * 64, "scene_2": "b" * 64},
         )
 
         self.assertEqual(result["published_name"], "mixed")
@@ -636,7 +691,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 (entity["layer_id"], entity["source_fingerprint"])
                 for entity in result["selections"][0]["entities"]
             ],
-            [("overlay", "b" * 64), ("primary", "a" * 64)],
+            [("scene_1", "a" * 64), ("scene_2", "b" * 64)],
         )
 
 

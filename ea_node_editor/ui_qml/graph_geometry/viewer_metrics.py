@@ -9,6 +9,7 @@ from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE
 
 from .standard_metrics import (
+    _dynamic_port_bottom_padding,
     _standard_surface_min_width_contract,
     standard_body_top,
     standard_header_height,
@@ -59,6 +60,16 @@ def _viewer_surface_metrics(
     port_row_height = standard_viewer_port_row_height(
         graph_label_pixel_size=graph_label_pixel_size,
     )
+    bottom_padding = max(VIEWER_BODY_BOTTOM_PADDING, _dynamic_port_bottom_padding(
+        node,
+        spec,
+        workspace_nodes,
+        port_count=port_count,
+        port_row_height=port_row_height,
+        port_center_offset=STANDARD_PORT_CENTER_OFFSET,
+        graph_label_pixel_size=graph_label_pixel_size,
+        visible_ports_override=visible_ports_override,
+    ))
     header_height = standard_header_height(
         graph_label_pixel_size=graph_label_pixel_size,
         graph_node_icon_pixel_size=graph_node_icon_pixel_size,
@@ -73,7 +84,7 @@ def _viewer_surface_metrics(
     )
     default_body_height = max(VIEWER_DEFAULT_BODY_HEIGHT, inline_body_height)
     min_body_height = max(VIEWER_MIN_BODY_HEIGHT, inline_body_height)
-    default_height = body_top + default_body_height + port_count * port_row_height + VIEWER_BODY_BOTTOM_PADDING
+    default_height = body_top + default_body_height + port_count * port_row_height + bottom_padding
     width_contract = _standard_surface_min_width_contract(
         node,
         spec,
@@ -84,7 +95,7 @@ def _viewer_surface_metrics(
         VIEWER_MIN_WIDTH,
         width_contract.min_width_with_labels if show_port_labels else width_contract.min_width_without_labels,
     )
-    min_height = body_top + min_body_height + port_count * port_row_height + VIEWER_BODY_BOTTOM_PADDING
+    min_height = body_top + min_body_height + port_count * port_row_height + bottom_padding
     _active_width, active_height = _resolved_dimensions(
         node,
         default_width=VIEWER_DEFAULT_WIDTH,
@@ -92,7 +103,7 @@ def _viewer_surface_metrics(
     )
     body_height = max(
         min_body_height,
-        active_height - body_top - port_count * port_row_height - VIEWER_BODY_BOTTOM_PADDING,
+        active_height - body_top - port_count * port_row_height - bottom_padding,
     )
     return GraphNodeSurfaceMetrics(
         default_width=VIEWER_DEFAULT_WIDTH,
@@ -118,7 +129,7 @@ def _viewer_surface_metrics(
         title_centered=False,
         body_left_margin=VIEWER_BODY_LEFT_MARGIN,
         body_right_margin=VIEWER_BODY_RIGHT_MARGIN,
-        body_bottom_margin=VIEWER_BODY_BOTTOM_PADDING,
+        body_bottom_margin=bottom_padding,
         use_host_chrome=STANDARD_USE_HOST_CHROME,
         standard_title_full_width=width_contract.title_full_width,
         standard_left_label_width=width_contract.left_label_width,

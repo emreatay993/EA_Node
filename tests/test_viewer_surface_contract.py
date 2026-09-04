@@ -312,6 +312,165 @@ class ViewerSurfaceContractTests(unittest.TestCase):
 
         self.assertEqual(registry.get_spec(spec.type_id).surface_family, "viewer")
 
+    def test_model_viewer_dynamic_port_controls_and_geometry_match_python(self) -> None:
+        self._run_qml_probe(
+            "model-viewer-dynamic-ports",
+            """
+            from PyQt6.QtCore import pyqtSlot
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+
+            model = GraphModel()
+            registry = build_default_registry()
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, model.active_workspace.workspace_id)
+            node_id = scene.add_node_from_type("model.viewer", 50.0, 40.0)
+            node = model.active_workspace.nodes[node_id]
+
+            class CanvasStub(QQuickItem):
+                @pyqtProperty(QObject, constant=True)
+                def sceneCommandBridge(self):
+                    return scene.command_bridge
+
+                @pyqtProperty(QObject, constant=True)
+                def sceneBridge(self):
+                    return scene
+
+            canvas = CanvasStub()
+
+            def payload():
+                return next(item for item in scene.nodes_model if item["node_id"] == node_id)
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload(), "canvasItem": canvas})
+            scene.nodes_changed.connect(lambda: host.setProperty("nodeData", payload()))
+            window = attach_host_to_window(host, 650, 600)
+            settle_events(5)
+
+            def assert_metrics():
+                projected = variant_value(host.property("nodeData"))["surface_metrics"]
+                rendered = variant_value(host.property("surfaceMetrics"))
+                for key in ("default_height", "min_height", "body_height", "port_top", "body_bottom_margin"):
+                    assert abs(float(projected[key]) - float(rendered[key])) < 0.1, (key, projected, rendered)
+                button = named_item(host, "graphNodeDynamicPortAdd_scenes")
+                assert button is not None and button.property("visible")
+                bottom = button.mapToItem(host, QPointF(0, button.height())).y()
+                assert bottom <= host.height(), (bottom, host.height())
+                return button
+
+            assert node.properties["scene_input_ids"] == ["scene_1"]
+            for count in (2, 3, 4):
+                button = assert_metrics()
+                mouse_click(window, item_scene_point(button))
+                settle_events(5)
+                assert len(node.properties["scene_input_ids"]) == count, node.properties
+            assert_metrics()
+            scene_ids = list(node.properties["scene_input_ids"])
+            layer = named_item(host, "graphNodePortsLayer")
+            renamed = variant_value(layer._renameDynamicPort("scenes", scene_ids[1], "Housing"))
+            settle_events(5)
+            assert renamed["port_key"] == scene_ids[1]
+            assert node.port_labels[scene_ids[1]] == "Housing"
+            remove = named_item(host, "graphNodeDynamicPortRemove_" + scene_ids[1])
+            mouse_click(window, item_scene_point(remove))
+            settle_events(5)
+            assert node.properties["scene_input_ids"] == [scene_ids[0], *scene_ids[2:]]
+            assert_metrics()
+            dispose_host_window(host, window)
+            """,
+        )
+
+    def test_scene_sidebar_selects_styles_queries_and_visibility_by_id(self) -> None:
+        self._run_qml_probe(
+            "model-viewer-scene-sidebar",
+            """
+            from PyQt6.QtCore import QMetaObject, Q_ARG, pyqtSignal, pyqtSlot
+
+            class ControlStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.styles = []
+                    self.queries = []
+
+                @pyqtSlot(str, str, str, "QVariant", result=bool)
+                def set_scene_style(self, node, scene, key, value):
+                    self.styles.append((node, scene, key, value))
+                    return True
+
+                @pyqtSlot(str, str, "QVariantMap", result="QVariantMap")
+                def query_viewer(self, node, query, payload):
+                    self.queries.append((node, query, payload))
+                    return {"supported": True, "value": {}}
+
+            class HostStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.visibility = []
+                    self.isolated = []
+
+                @pyqtSlot(str, result="QVariantMap")
+                def viewer_render_stats(self, node):
+                    return {"layers": [{"id": "scene_1", "name": "Same", "visible": True},
+                                       {"id": "scene_2", "name": "Same", "visible": False}]}
+
+                @pyqtSlot(str, str, bool, result=bool)
+                def set_viewer_layer_visibility(self, node, scene, visible):
+                    self.visibility.append((node, scene, visible))
+                    return True
+
+                @pyqtSlot(str, str, result=bool)
+                def isolate_viewer_layer(self, node, scene):
+                    self.isolated.append((node, scene))
+                    return True
+
+            bridge = ControlStub()
+            host_service = HostStub()
+            layers = [
+                {"id": "scene_1", "name": "Same", "result_name": "CAD", "capabilities": {"measure": True}},
+                {"id": "scene_2", "name": "Same", "result_name": "Stress", "unit": "MPa", "capabilities": {"measure": False}},
+                {"id": "scene_3", "name": "Last", "result_name": "Displacement", "unit": "mm"},
+            ]
+            panel = create_component(repo_root / "ea_node_editor/ui_qml/components/graph/viewer/ViewerSidePanel.qml", {
+                "nodeId": "viewer", "bridgeRef": bridge, "hostServiceRef": host_service, "panelCollapsed": False,
+                "sessionState": {"summary": {"viewer_kind": "engineering_scene", "scene_layers": layers,
+                    "capabilities": {"scene_layers": True, "model_tree": True, "live_query_transport": True}},
+                    "options": {"scene_styles": {"scene_2": {"opacity": 0.4, "color": "#123456"}}}},
+                "width": 288, "height": 900,
+            })
+            selector = panel.findChild(QObject, "viewerSidePanelSceneSelector")
+            assert selector is not None
+            assert int(selector.property("count")) == 3
+            selector.activated.emit(1)
+            settle_events(3)
+            assert panel.property("selectedSceneId") == "scene_2"
+            assert panel.property("supportsMeasurements") is False
+            opacity = panel.findChild(QObject, "viewerSidePanelSceneOpacityField")
+            color = panel.findChild(QObject, "viewerSidePanelSceneColorField")
+            assert opacity.property("text") == "0.4"
+            assert color.property("text") == "#123456"
+            assert panel.findChild(QObject, "viewerSidePanelResultValue").property("text") == "Stress"
+            opacity.setProperty("text", "0.25")
+            opacity.editingFinished.emit()
+            color.setProperty("text", "#abcdef")
+            color.editingFinished.emit()
+            auto = panel.findChild(QObject, "viewerSidePanelSceneColorAutoButton")
+            auto.clicked.emit()
+            panel.runEngineeringQuery("bounds")
+            assert bridge.styles == [("viewer", "scene_2", "opacity", "0.25"),
+                ("viewer", "scene_2", "color", "#abcdef"), ("viewer", "scene_2", "color", "")], bridge.styles
+            assert bridge.queries == [("viewer", "bounds", {"layer_id": "scene_2"})], bridge.queries
+            scene_row = next(item for item in walk_items(panel) if item.property("layerId") == "scene_2")
+            show = next(item for item in walk_items(scene_row) if item.property("text") == "Show")
+            show.clicked.emit()
+            isolate = next(item for item in walk_items(scene_row) if item.property("text") == "Iso")
+            isolate.clicked.emit()
+            assert host_service.visibility == [("viewer", "scene_2", True)], host_service.visibility
+            assert host_service.isolated == [("viewer", "scene_2")], host_service.isolated
+            panel.deleteLater()
+            settle_events(2)
+            """,
+        )
+
     def test_viewer_surface_metrics_publish_reserved_body_contract(self) -> None:
         spec = _viewer_surface_spec()
         node = NodeInstance(

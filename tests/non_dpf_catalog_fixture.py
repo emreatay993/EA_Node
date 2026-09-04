@@ -225,6 +225,7 @@ def load_effective_non_dpf_catalog(
             "remove_type_ids",
             "add_rows",
             "model_viewer_patch",
+            "dynamic_scene_ports",
             "property_default_patches",
             "port_contract_patches",
         },
@@ -314,6 +315,18 @@ def load_effective_non_dpf_catalog(
         scene["accepted_data_types"] = viewer_patch[
             "replacement_scene_accepted_data_types"
         ]
+    dynamic_scene_ports = _exact_keys(
+        current_contract["dynamic_scene_ports"],
+        {"properties", "group", "input_port"},
+        label="dynamic_scene_ports",
+    )
+    viewer["spec"]["ports"] = [port for port in viewer["spec"]["ports"] if port["direction"] == "out"]
+    viewer["resolved_default_ports"] = [*deepcopy(viewer["spec"]["ports"]), deepcopy(dynamic_scene_ports["input_port"])]
+    viewer["spec"]["dynamic_port_groups"] = [deepcopy(dynamic_scene_ports["group"])]
+    viewer_properties = viewer["spec"]["properties"]
+    style_index = next(index for index, prop in enumerate(viewer_properties) if prop["key"] == "primary_opacity")
+    viewer_properties[style_index:style_index + 2] = deepcopy(dynamic_scene_ports["properties"])
+    viewer["spec"]["properties"] = [prop for prop in viewer_properties if prop["key"] != "overlay_color"]
     patches = _exact_keys(
         current_contract["property_default_patches"],
         {"model.viewer"},

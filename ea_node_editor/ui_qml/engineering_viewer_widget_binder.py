@@ -26,6 +26,7 @@ from ea_node_editor.app_preferences import (
     AppPreferencesStore,
     engineering_viewer_tangent_selection_angle,
 )
+from ea_node_editor.common.scene_protocol import normalize_scene_styles
 from ea_node_editor.execution.viewer_backend_engineering import (
     ENGINEERING_VIEWER_BACKEND_ID,
     ENGINEERING_VIEWER_SHARED_MEMORY_ASSET_SCHEMA,
@@ -407,9 +408,14 @@ class EngineeringViewerWidgetBinder(QObject):
             ),
             "selected_entity_count": len(state.selected_entities),
             "selection_isolated": state.selection_isolated,
+            "display_state": {
+                **state.current_options,
+                "layer_visibility": dict(state.layer_visibility),
+            },
             "layers": [
                 {
-                    "name": name,
+                    "id": name,
+                    "name": _string(state.layers.get(name, {}).get("name")),
                     "visible": state.layer_visibility.get(name, True),
                     "topological_edges": name in state.topology_actors,
                 }
@@ -608,18 +614,20 @@ class EngineeringViewerWidgetBinder(QObject):
         if _string(transport.get("status")).casefold() == "blocked":
             raise ViewerWidgetNoBind("Model viewer scene transport is blocked.")
 
-        primary = _mapping(transport.get("primary"))
-        if not primary:
-            raise ViewerWidgetNoBind("Model viewer primary scene layer is missing.")
-        overlay_values = transport.get("overlays")
-        overlays = [_mapping(value) for value in overlay_values] if isinstance(overlay_values, list) else []
+        layers = transport.get("layers")
+        if not isinstance(layers, list) or not layers:
+            raise ViewerWidgetNoBind("Model viewer scene layers are missing.")
 
         descriptors: list[dict[str, Any]] = []
         shared_memory_asset_count = 0
         shared_memory_total_bytes = 0
-        for layer in (primary, *overlays):
-            if layer.get("visible") is False:
-                continue
+        layer_ids: set[str] = set()
+        for raw_layer in layers:
+            layer = _mapping(raw_layer)
+            layer_id = _string(layer.get("id"))
+            if not layer_id or layer_id in layer_ids:
+                raise ValueError("Model viewer scene layer IDs must be nonempty and unique.")
+            layer_ids.add(layer_id)
             display_asset_value = layer.get("display_asset")
             display_asset = (
                 self._shared_memory_descriptor(display_asset_value)
@@ -808,7 +816,7 @@ class EngineeringViewerWidgetBinder(QObject):
                 }
             )
         if not descriptors:
-            raise ViewerWidgetNoBind("Model viewer scene has no visible layers.")
+            raise ViewerWidgetNoBind("Model viewer scene has no layers.")
         return descriptors
 
     @staticmethod
@@ -971,7 +979,7 @@ class EngineeringViewerWidgetBinder(QObject):
     def _scaled_dataset(dataset: Any, scale_factor: float) -> Any:
         scale = getattr(dataset, "scale", None)
         if not callable(scale):
-            raise TypeError("Model viewer overlay dataset cannot apply unit conversion.")
+            raise TypeError("Model viewer scene dataset cannot apply unit conversion.")
         scaled = scale(scale_factor, inplace=False)
         return dataset if scaled is None else scaled
 
@@ -1132,7 +1140,7 @@ class EngineeringViewerWidgetBinder(QObject):
         topology_actors: dict[str, Any] = {}
         for layer in layers:
             actor = add_mesh(layer["dataset"], **self._mesh_kwargs(layer, options=request.options))
-            name = str(layer.get("name", "")).strip()
+            name = _string(layer.get("id"))
             actors[name] = actor
             topology_dataset = layer.get("topological_edges_dataset")
             if topology_dataset is not None:
@@ -1158,8 +1166,15 @@ class EngineeringViewerWidgetBinder(QObject):
             layer_count=len(layers),
             actors=actors,
             topology_actors=topology_actors,
-            layers={str(layer.get("name", "")).strip(): dict(layer) for layer in layers},
-            layer_visibility={str(layer.get("name", "")).strip(): True for layer in layers},
+            layers={_string(layer.get("id")): dict(layer) for layer in layers},
+            layer_visibility={
+                _string(layer.get("id")): (
+                    previous_state.layer_visibility.get(_string(layer.get("id")), True)
+                    if previous_state is not None and previous_state.session_id == request.session_id
+                    else layer.get("visible") is not False
+                )
+                for layer in layers
+            },
             current_options=dict(request.options),
             scene_fingerprint=_string(request.summary.get("scene_fingerprint")),
             presentation_attach_required=bool(defer_until_attach),
@@ -1218,8 +1233,10 @@ class EngineeringViewerWidgetBinder(QObject):
         self._apply_projection(interactor, request.options)
         old_attribute_colors = _coerce_bool(state.current_options.get(_SHOW_ATTRIBUTE_COLORS_OPTION))
         new_attribute_colors = _coerce_bool(request.options.get(_SHOW_ATTRIBUTE_COLORS_OPTION))
-        if old_attribute_colors != new_attribute_colors:
-            self._replace_direct_color_actors(interactor, state, request.options)
+        self._replace_direct_color_actors(
+            interactor, state, request.options,
+            attribute_colors_changed=old_attribute_colors != new_attribute_colors,
+        )
         old_representation = self._representation(state.current_options)
         new_representation = self._representation(request.options)
         if (old_representation == "wireframe_visible_edges") != (
@@ -1250,7 +1267,12 @@ class EngineeringViewerWidgetBinder(QObject):
                     representation_setter()
                 self._apply_actor_material(actor_property, kwargs)
             self._apply_clipping(actor, request.options)
-        for actor in state.topology_actors.values():
+        for name, actor in state.topology_actors.items():
+            kwargs = self._topological_edge_kwargs(state.layers[name], options=request.options)
+            actor_property = getattr(actor, "GetProperty", lambda: None)()
+            opacity_setter = getattr(actor_property, "SetOpacity", None)
+            if callable(opacity_setter):
+                opacity_setter(float(kwargs["opacity"]))
             self._apply_clipping(actor, request.options)
         self._apply_clipping(state.selection_highlight_actor, request.options)
         self._apply_clipping(state.selection_isolate_actor, request.options)
@@ -1279,7 +1301,7 @@ class EngineeringViewerWidgetBinder(QObject):
         if not callable(add_mesh):
             return
         for name, layer in state.layers.items():
-            role = _string(layer.get("role")) or name
+            layer_id = _string(layer.get("id"))
             source = _mapping(layer.get("source"))
             source_fingerprint = _string(source.get("sha256")).casefold()
             assets = _mapping(layer.get("selection_assets"))
@@ -1308,13 +1330,12 @@ class EngineeringViewerWidgetBinder(QObject):
                 set_use_bounds = getattr(actor, "SetUseBounds", None)
                 if callable(set_use_bounds):
                     set_use_bounds(0)
-                state.selection_source_actors[f"{role}:{entity_kind}"] = {
+                state.selection_source_actors[f"{layer_id}:{entity_kind}"] = {
                     "actor": actor,
                     "association": _string(asset.get("association")) or "cell",
                     "dataset": dataset,
                     "entity_kind": entity_kind,
-                    "layer_id": role,
-                    "layer_name": name,
+                    "layer_id": layer_id,
                     "source_fingerprint": source_fingerprint,
                 }
         self._sync_selection_source_cues(state)
@@ -1504,7 +1525,7 @@ class EngineeringViewerWidgetBinder(QObject):
             value
             for value in state.selection_source_actors.values()
             if value["entity_kind"] == entity_kind
-            and state.layer_visibility.get(value["layer_name"], True)
+            and state.layer_visibility.get(value["layer_id"], True)
         ]
         renderer = getattr(interactor, "renderer", None)
         if not sources or renderer is None:
@@ -1638,7 +1659,7 @@ class EngineeringViewerWidgetBinder(QObject):
             (
                 value
                 for value in state.layers.values()
-                if _string(value.get("role")) == entity["layer_id"]
+                if _string(value.get("id")) == entity["layer_id"]
                 and _string(_mapping(value.get("source")).get("sha256")).casefold()
                 == entity["source_fingerprint"]
             ),
@@ -2031,7 +2052,7 @@ class EngineeringViewerWidgetBinder(QObject):
             if callable(setter):
                 setter(
                     1
-                    if state.layer_visibility.get(source.get("layer_name"), True)
+                    if state.layer_visibility.get(source.get("layer_id"), True)
                     and not state.selection_isolated
                     else 0
                 )
@@ -2044,13 +2065,18 @@ class EngineeringViewerWidgetBinder(QObject):
         interactor: QWidget,
         state: _EngineeringWidgetState,
         options: Mapping[str, Any],
+        *,
+        attribute_colors_changed: bool,
     ) -> None:
         add_mesh = getattr(interactor, "add_mesh", None)
         remove_actor = getattr(interactor, "remove_actor", None)
         if not callable(add_mesh) or not callable(remove_actor):
             return
+        old_styles = normalize_scene_styles(state.current_options.get("scene_styles", {}))
+        new_styles = normalize_scene_styles(options.get("scene_styles", {}))
         for name, layer in state.layers.items():
-            if self._attribute_colors_available(layer):
+            color_changed = old_styles.get(name, {}).get("color", "") != new_styles.get(name, {}).get("color", "")
+            if color_changed or (attribute_colors_changed and self._attribute_colors_available(layer)):
                 old_actor = state.actors.get(name)
                 if old_actor is not None:
                     remove_actor(old_actor, render=False)
@@ -2058,7 +2084,9 @@ class EngineeringViewerWidgetBinder(QObject):
                 self._apply_clipping(actor, options)
                 state.actors[name] = actor
             topology = _mapping(layer.get("topological_edges"))
-            if name in state.topology_actors and self._attribute_colors_available(topology):
+            if name in state.topology_actors and (
+                color_changed or (attribute_colors_changed and self._attribute_colors_available(topology))
+            ):
                 remove_actor(state.topology_actors[name], render=False)
                 actor = add_mesh(
                     layer["topological_edges_dataset"],
@@ -2162,26 +2190,18 @@ class EngineeringViewerWidgetBinder(QObject):
     ) -> dict[str, Any]:
         topology = _mapping(layer.get("topological_edges"))
         dataset = layer.get("topological_edges_dataset")
-        role = _string(layer.get("role")).casefold()
-        try:
-            opacity = float(
-                options.get(
-                    "overlay_opacity" if role == "overlay" else "primary_opacity",
-                    0.35 if role == "overlay" else 1.0,
-                )
-            )
-        except (TypeError, ValueError):
-            opacity = 0.35 if role == "overlay" else 1.0
+        scene_style = normalize_scene_styles(options.get("scene_styles", {})).get(_string(layer.get("id")), {})
+        color = _string(scene_style.get("color"))
         kwargs: dict[str, Any] = {
-            "name": f"{_string(layer.get('name'))}::topological_edges",
-            "color": _string(_mapping(layer.get("style")).get("edge_color")) or "#374151",
+            "name": f"{_string(layer.get('id'))}::topological_edges",
+            "color": color or _string(_mapping(layer.get("style")).get("edge_color")) or "#374151",
             "line_width": 2,
-            "opacity": min(1.0, max(0.0, opacity)),
+            "opacity": scene_style.get("opacity", 1.0),
             "pickable": False,
             "reset_camera": False,
             "render": False,
         }
-        direct = cls._direct_color_kwargs(topology, options=options, dataset=dataset)
+        direct = {} if color else cls._direct_color_kwargs(topology, options=options, dataset=dataset)
         if direct:
             kwargs.pop("color", None)
             kwargs.update(direct)
@@ -2652,9 +2672,9 @@ class EngineeringViewerWidgetBinder(QObject):
 
     @staticmethod
     def _mesh_kwargs(layer: Mapping[str, Any], *, options: Mapping[str, Any]) -> dict[str, Any]:
-        role = _string(layer.get("role")).casefold()
         source_kind = _string(layer.get("source_kind")).casefold()
         style = _mapping(layer.get("style"))
+        scene_style = normalize_scene_styles(options.get("scene_styles", {})).get(_string(layer.get("id")), {})
         representation_mode = EngineeringViewerWidgetBinder._representation(options, style=style)
         representation = representation_mode
         if source_kind == "cad" and representation in {
@@ -2670,17 +2690,6 @@ class EngineeringViewerWidgetBinder(QObject):
         if representation not in {"surface", "wireframe", "points"}:
             representation = "surface"
 
-        try:
-            opacity_option = "overlay_opacity" if role == "overlay" else "primary_opacity"
-            opacity = min(
-                1.0,
-                max(
-                    0.0,
-                    float(options.get(opacity_option, style.get("opacity", 0.35 if role == "overlay" else 1.0))),
-                ),
-            )
-        except (TypeError, ValueError):
-            opacity = 0.35 if role == "overlay" else 1.0
         show_edges = (
             source_kind != "cad"
             and
@@ -2688,9 +2697,9 @@ class EngineeringViewerWidgetBinder(QObject):
             and _coerce_bool(options.get(_SHOW_MESH_EDGES_OPTION))
         )
         kwargs: dict[str, Any] = {
-            "name": _string(layer.get("name")) or ("Overlay" if role == "overlay" else "Primary"),
-            "opacity": opacity,
-            "pickable": _coerce_bool(style.get("pickable"), default=role != "overlay"),
+            "name": _string(layer.get("id")),
+            "opacity": scene_style.get("opacity", 1.0),
+            "pickable": True,
             "reset_camera": False,
             "render": False,
             "show_edges": show_edges,
@@ -2710,13 +2719,12 @@ class EngineeringViewerWidgetBinder(QObject):
                     "smooth_shading": smooth_shading,
                 }
             )
-        color = _string(style.get("color"))
+        color_override = _string(scene_style.get("color"))
+        color = color_override or _string(style.get("color"))
         scalars = _string(style.get("scalars"))
         if color:
             kwargs["color"] = color
-        elif role == "overlay" and not scalars:
-            kwargs["color"] = "#ff9f43"
-        if scalars:
+        if scalars and not color_override:
             kwargs["scalars"] = scalars
         cmap = _string(options.get("colormap", style.get("cmap")))
         if cmap:
@@ -2737,7 +2745,7 @@ class EngineeringViewerWidgetBinder(QObject):
                 kwargs[key] = style[key]
         if "smooth_shading" in style:
             kwargs["smooth_shading"] = _coerce_bool(style.get("smooth_shading"))
-        direct_colors = EngineeringViewerWidgetBinder._direct_color_kwargs(
+        direct_colors = {} if color_override else EngineeringViewerWidgetBinder._direct_color_kwargs(
             layer,
             options=options,
             dataset=layer.get("dataset"),

@@ -60,6 +60,13 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - `_ViewerSessionProjection` contains the execution-owned canonical session model. Command methods publish responsive phase, option, playback, and error hints through `_ViewerPendingDisplay`; the next authoritative worker event replaces that pending display and is normalized once in `_apply_authoritative_projection`. QML reads project the stored canonical model plus pending display without recoercing it.
 - Viewer node outputs are `RuntimeHandleRef` values with semantic ID `COREX.Viewer.Session`, kind `corex.viewer_session`, and identity-only metadata (`workspace_id`, `node_id`, `session_id`, `backend_id`). `ViewerSessionBridge` decodes NodeSettled values with the injected active catalog and sends an idempotent `open_viewer_session` command for the worker-owned authoritative projection; it does not accept or project a raw session dictionary.
 - Each worker session owns a collision-safe cache scope and leases source/materialized handles into it. Alias inputs deduplicate, replacement acquires new ownership before releasing the prior ref, and run cleanup leaves the active viewer lease alive. Explicit close completes cleanup and reports disposer failures; invalidation/reset warn and continue while releasing all owned refs.
+- Model Viewer authoritative opens carry `scene_order`, `scene_labels`, and flat
+  `scene:<id>`/`native_source:<id>` references. Removed scene keys release their
+  leases after replacements have been acquired; identity-only opens still merge.
+  Engineering transport v2 contains ordered layers with stable IDs. The binder
+  keys actors and selection sources by ID, not display name, and the sidebar
+  edits `scene_styles` through ViewerControlBridge. Export receives live ID-based
+  visibility and appearance; scene-specific queries carry the selected layer ID.
 - Engineering sessions may hold both a memory-backed prepared scene and its
   native OCPBody or Geometry Group source. The binder accepts the backend's bounded,
   hashed shared-memory VTK XML descriptor, deep-copies the reconstructed

@@ -3798,10 +3798,11 @@ class RegistryValidationTests(unittest.TestCase):
         }
 
         self.assertEqual(len(registry.all_specs()), 933)
-        self.assertEqual(len(data_ports), 4450)
-        self.assertEqual(len(resolved_data_ports), 4454)
+        self.assertEqual(len(data_ports), 4448)
+        self.assertEqual(len(resolved_data_ports), 4453)
         self.assertEqual(len(primary_type_ids), 63)
-        self.assertEqual(len(accepted_type_ids), 25)
+        self.assertEqual(len(accepted_type_ids), 23)
+        self.assertEqual(len({accepted for _, port in resolved_data_ports for accepted in port.accepted_data_types}), 25)
         self.assertEqual(len(registry.data_types.all_specs()), 173)
         self.assertEqual(
             len(
@@ -3847,6 +3848,7 @@ class RegistryValidationTests(unittest.TestCase):
             {
                 ("core.python_script", "payload"),
                 ("core.python_script", "result"),
+                ("model.viewer", "scene_1"),
                 ("core.stream_gate", "output_0"),
                 ("core.stream_gate", "output_1"),
             },

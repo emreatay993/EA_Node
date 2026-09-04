@@ -1,6 +1,6 @@
 # Purpose: Define the dependency-light neutral scene metadata shared by import nodes and execution.
 # Map: subsystems/execution.md
-# Tests: tests/test_engineering_import_nodes.py
+# Tests: tests/test_engineering_import_nodes.py, tests/test_engineering_viewer_node.py
 from __future__ import annotations
 
 import json
@@ -132,6 +132,31 @@ def normalize_viewer_opacity(value: object, *, default: float) -> float:
     except (TypeError, ValueError):
         normalized = float(default)
     return min(1.0, max(0.0, normalized))
+
+
+def normalize_scene_styles(value: object) -> dict[str, dict[str, Any]]:
+    """Validate persisted and live per-scene appearance without importing UI code."""
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise ValueError("Scene styles must be a mapping.")
+    styles: dict[str, dict[str, Any]] = {}
+    for scene_id, style in value.items():
+        if not isinstance(scene_id, str) or not scene_id or scene_id != scene_id.strip():
+            raise ValueError("Scene styles require non-empty scene IDs.")
+        if not isinstance(style, Mapping) or set(style) - {"opacity", "color"}:
+            raise ValueError("Scene styles support only opacity and color.")
+        try:
+            opacity = float(style.get("opacity", 1.0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Scene opacity must be a finite number from 0 to 1.") from exc
+        if not math.isfinite(opacity) or not 0.0 <= opacity <= 1.0:
+            raise ValueError("Scene opacity must be a finite number from 0 to 1.")
+        color = style.get("color", "")
+        if not isinstance(color, str) or (color and re.fullmatch(r"#[0-9a-fA-F]{6}", color) is None):
+            raise ValueError("Scene color must be #RRGGBB, or empty for Auto.")
+        styles[scene_id] = {"opacity": opacity, "color": color.lower()}
+    return styles
 
 
 @dataclass(slots=True, frozen=True)
@@ -1333,6 +1358,7 @@ __all__ = [
     "validate_engineering_selection_topology",
     "normalize_length_unit",
     "normalize_viewer_opacity",
+    "normalize_scene_styles",
     "normalize_viewer_representation",
     "validate_scene_bundle",
 ]

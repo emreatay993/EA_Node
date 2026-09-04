@@ -470,7 +470,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         index = next(index for index, row in enumerate(self.window.connection_quick_insert_results) if row["type_id"] == "model.viewer")
         self.assertTrue(self.window.request_connection_quick_insert_choose(index))
         edge = next(iter(workspace.edges.values()))
-        self.assertEqual((edge.source_node_id, edge.source_port_key, edge.target_port_key), (source_id, "group", "scene"))
+        self.assertEqual((edge.source_node_id, edge.source_port_key, edge.target_port_key), (source_id, "group", "scene_1"))
         self.assertTrue(self.window.request_open_connection_quick_insert(edge.target_node_id, "scene", 200.0, 100.0, 300.0, 150.0))
         reverse_rows = {row["type_id"]: row for row in self.window.connection_quick_insert_results}
         self.assertEqual(reverse_rows["geometry.construct_group"]["compatibility_kind"], "exact")

@@ -272,13 +272,12 @@ def _build_document(
         "show_orientation_triad": True,
         "show_view_cube": True,
         "show_world_axes": True,
-        "primary_opacity": 1.0,
-        "overlay_opacity": 0.32,
+        "scene_input_ids": ["scene_1", "scene_2"],
+        "scene_styles": {"scene_2": {"opacity": 0.32, "color": ""}},
         "clip_enabled": False,
         "clip_axis": "x",
         "clip_offset": 0.0,
         "parallel_projection": False,
-        "overlay_color": "#ff9f43",
         "viewer_background": "theme",
         "saved_selections": empty_engineering_selection_set(),
         "camera_bookmarks": _camera_bookmarks(),
@@ -352,8 +351,8 @@ def _build_document(
             20.0,
             properties=viewer_properties,
             exposed_ports={
-                "scene": True,
-                "overlay": True,
+                "scene_1": True,
+                "scene_2": True,
                 "session": True,
                 "selections": True,
             },
@@ -362,8 +361,8 @@ def _build_document(
         ),
     ]
     edges = [
-        _edge("edge_cad_scene", CAD_IMPORT_ID, "scene", VIEWER_ID, "scene"),
-        _edge("edge_fe_overlay", FE_IMPORT_ID, "scene", VIEWER_ID, "overlay"),
+        _edge("edge_cad_scene", CAD_IMPORT_ID, "scene", VIEWER_ID, "scene_1"),
+        _edge("edge_fe_scene", FE_IMPORT_ID, "scene", VIEWER_ID, "scene_2"),
     ]
     return {
         "schema_version": SCHEMA_VERSION,
@@ -398,7 +397,7 @@ def _build_document(
                 "general": {
                     "project_name": "Model Viewer Capabilities",
                     "description": (
-                        "A self-contained colored CAD and RGBA FE overlay walkthrough for the "
+                        "A self-contained colored CAD and RGBA FE multi-scene walkthrough for the "
                         "fullscreen and detached Model Viewer controls."
                     ),
                     "author": "",

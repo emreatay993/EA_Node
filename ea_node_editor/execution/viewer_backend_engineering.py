@@ -15,11 +15,13 @@ from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ea_node_editor.common.coercions import coerce_int
 from ea_node_editor.common.scene_protocol import (
     COREX_SCENE_SCHEMA,
     COREX_SCENE_HANDLE_KIND,
     ENGINEERING_VIEWER_BACKEND_ID,
     length_unit_scale,
+    normalize_scene_styles,
     validate_engineering_selection_topology,
     validate_scene_bundle,
 )
@@ -37,7 +39,7 @@ if TYPE_CHECKING:
 
 
 ENGINEERING_VIEWER_TRANSPORT_KIND = "engineering_scene_bundle"
-ENGINEERING_VIEWER_TRANSPORT_SCHEMA = "ea.corex.engineering_scene.v1"
+ENGINEERING_VIEWER_TRANSPORT_SCHEMA = "ea.corex.engineering_scene.v2"
 ENGINEERING_VIEWER_SHARED_MEMORY_ASSET_SCHEMA = (
     "ea.corex.engineering_scene.shared_memory_asset.v1"
 )
@@ -93,18 +95,21 @@ class EngineeringViewerBackend:
     ) -> ViewerBackendMaterializationResult:
         try:
             descriptor = self._resolve_scene_descriptor(request.source_refs)
+            layers = self._scene_layers(
+                descriptor,
+                project_path=request.project_path,
+                session_options=request.session_options,
+            )
         except (TypeError, ValueError) as exc:
             return self._blocked_result(
                 code="scene_contract_invalid",
                 reason=f"Engineering scene contract is invalid: {exc}",
                 rerun_required=True,
             )
-        primary, overlays = self._scene_layers(
-            descriptor,
-            project_path=request.project_path,
-            session_options=request.session_options,
-        )
-        if not primary.get("display_path") and primary.get("_prepared_scene") is None:
+        if any(
+            not layer.get("display_path") and layer.get("_prepared_scene") is None
+            for layer in layers
+        ):
             return self._blocked_result(
                 code="display_path_missing",
                 reason="The COREX scene does not provide display geometry.",
@@ -114,7 +119,7 @@ class EngineeringViewerBackend:
         validated_selection_topologies: list[
             tuple[Mapping[str, Any], dict[str, Any]]
         ] = []
-        for layer in (primary, *overlays):
+        for layer in layers:
             has_memory_geometry = layer.get("_prepared_scene") is not None
             for key in ("display_path", "interaction_display_path"):
                 path = str(layer.get(key, "")).strip()
@@ -217,25 +222,23 @@ class EngineeringViewerBackend:
         selection_filters = self._selection_filter_summary(
             validated_selection_topologies
         )
-        display_bounds = self._combined_display_bounds(primary, overlays)
+        display_bounds = self._combined_display_bounds(layers)
         fit = self._fit_data(
             display_bounds,
-            length_unit=str(primary.get("length_unit", "")),
+            length_unit=str(layers[0].get("length_unit", "")),
         )
         transport = {
             "kind": ENGINEERING_VIEWER_TRANSPORT_KIND,
             "schema": ENGINEERING_VIEWER_TRANSPORT_SCHEMA,
             "backend_id": self.backend_id,
             "status": "ready",
-            "primary": primary,
-            "overlays": overlays,
+            "layers": layers,
             "display_bounds": display_bounds,
             "fit": fit,
         }
         try:
             shared_memory_payloads = self._prepare_shared_memory_payloads(
-                primary,
-                overlays,
+                layers,
             )
         except Exception:  # noqa: BLE001
             return self._blocked_result(
@@ -248,6 +251,10 @@ class EngineeringViewerBackend:
         previous_signature, previous_revision = self._session_revisions.get(
             session_key, ("", 0)
         )
+        previous_revision = max(
+            previous_revision,
+            coerce_int(request.session_summary.get("transport_revision"), default=0),
+        )
         force_recompute = _truthy(request.request_options.get("force_recompute"))
         reuse_revision = (
             previous_revision > 0
@@ -258,10 +265,9 @@ class EngineeringViewerBackend:
         revision = previous_revision if reuse_revision else previous_revision + 1
         if reuse_revision:
             transport = copy.deepcopy(self._session_transports[session_key])
-            primary = _mapping(transport.get("primary"))
-            overlays = [
+            layers = [
                 _mapping(value)
-                for value in transport.get("overlays", ())
+                for value in transport.get("layers", ())
                 if isinstance(value, Mapping)
             ]
         else:
@@ -281,14 +287,18 @@ class EngineeringViewerBackend:
         transport["transport_revision"] = revision
         self._session_transports[session_key] = copy.deepcopy(transport)
 
-        warnings = self._composition_warnings(primary, overlays)
+        warnings = self._composition_warnings(layers)
         display_capabilities = {
             **_mapping(request.session_summary.get("capabilities")),
             **self._display_capabilities(
-                primary,
-                overlays,
+                layers,
                 selection_summary=selection_filters,
             ),
+        }
+        scene_summaries = {
+            str(item.get("id", "")): dict(item)
+            for item in request.session_summary.get("scene_layers", [])
+            if isinstance(item, Mapping)
         }
         return ViewerBackendMaterializationResult(
             backend_id=self.backend_id,
@@ -298,9 +308,7 @@ class EngineeringViewerBackend:
             camera_state=_mapping(request.session_summary.get("camera_state")),
             summary={
                 "viewer_kind": "engineering_scene",
-                "primary_display_path": str(primary["display_path"]),
-                "overlay_count": len(overlays),
-                "scene_layer_count": 1 + len(overlays),
+                "scene_layer_count": len(layers),
                 "display_bounds": display_bounds,
                 "fit": fit,
                 "capabilities": display_capabilities,
@@ -309,31 +317,36 @@ class EngineeringViewerBackend:
                 ),
                 "supported_selection_filters": selection_filters["filters"],
                 "default_selection_filter": selection_filters["default"],
-                "display_format": Path(str(primary["display_path"]))
-                .suffix.casefold()
-                .lstrip("."),
                 "scene_layers": [
                     {
+                        **scene_summaries.get(str(layer["id"]), {}),
+                        "id": str(layer["id"]),
                         "name": str(layer.get("name", "")),
-                        "role": str(layer.get("role", "")),
                         "length_unit": str(layer.get("length_unit", "")),
                         "visible": bool(layer.get("visible", True)),
+                        "source_kind": str(layer.get("source_kind", "")),
+                        "display_format": Path(str(layer.get("display_path", "")))
+                        .suffix.casefold()
+                        .lstrip("."),
+                        "result_fields": copy.deepcopy(layer.get("result_fields", [])),
+                        "time_steps": list(layer.get("time_steps", [])),
+                        "bounds": list(layer.get("bounds", [])),
                     }
-                    for layer in (primary, *overlays)
+                    for layer in layers
                 ],
                 "model_tree": [
                     {
                         **dict(item),
-                        "role": str(layer.get("role", "")),
+                        "layer_id": str(layer["id"]),
                         "layer_name": str(layer.get("name", "")),
-                        "id": (f"{layer.get('role', '')}:{item.get('id', '')}"),
+                        "id": (f"{layer['id']}:{item.get('id', '')}"),
                         "parent_id": (
-                            f"{layer.get('role', '')}:{item.get('parent_id', '')}"
+                            f"{layer['id']}:{item.get('parent_id', '')}"
                             if str(item.get("parent_id", "")).strip()
                             else ""
                         ),
                     }
-                    for layer in (primary, *overlays)
+                    for layer in layers
                     for item in layer.get("hierarchy", ())
                     if isinstance(item, Mapping)
                 ],
@@ -373,30 +386,63 @@ class EngineeringViewerBackend:
                 supported=False,
                 explanation="The engineering scene is not materialized in this worker session.",
             )
-        scene_ref = source_refs.get("scene")
-        prepared = self._resolve_prepared_scene(scene_ref)
+        query_type = str(request.query_type).strip().casefold()
+        transport = _mapping(request.transport) or self._session_transports.get(
+            session_key, {}
+        )
+        if query_type == "bounds":
+            fit = _mapping(transport.get("fit"))
+            return ViewerBackendQueryResult(
+                supported=True,
+                value={
+                    "bounds": self._coerce_bounds(transport.get("display_bounds")),
+                    "fit": fit,
+                    "length_unit": str(fit.get("length_unit", "")),
+                },
+            )
+        if query_type == "export":
+            return self._export_query(
+                request=request, source_refs=source_refs, transport=transport
+            )
+        entity_ids = {
+            str(entity.get("layer_id", "")).strip()
+            for key in ("entity", "entity_a", "entity_b", "vertex_entity")
+            if isinstance(entity := request.payload.get(key), Mapping)
+            and str(entity.get("layer_id", "")).strip()
+        }
+        requested_id = str(request.payload.get("layer_id", "")).strip()
+        if len(entity_ids) > 1 or (
+            entity_ids and requested_id and requested_id not in entity_ids
+        ):
+            return ViewerBackendQueryResult(
+                supported=False,
+                explanation="Entity geometry queries require entities from one scene.",
+            )
+        order = source_refs["scene_order"]
+        layer_id = (
+            next(iter(entity_ids), "")
+            or requested_id
+            or str(request.session_options.get("active_scene_id", "")).strip()
+            or order[0]
+        )
+        if layer_id not in order:
+            return ViewerBackendQueryResult(
+                supported=False,
+                explanation=f"Scene {layer_id!r} is not in the displayed composition.",
+            )
+        prepared = self._resolve_prepared_scene(source_refs.get(f"scene:{layer_id}"))
         if prepared is None:
             return ViewerBackendQueryResult(
                 supported=False,
                 explanation="This scene transport does not retain queryable engineering data.",
             )
-        query_type = str(request.query_type).strip().casefold()
         if query_type == "entity_info":
-            return self._entity_info_query(prepared, request.payload)
-        if query_type == "bounds":
-            transport = _mapping(request.transport) or self._session_transports.get(
-                session_key, {}
-            )
-            display_bounds = self._coerce_bounds(transport.get("display_bounds"))
-            return ViewerBackendQueryResult(
-                supported=True,
-                value={
-                    "bounds": display_bounds or list(prepared.descriptor.bounds),
-                    "source_bounds": list(prepared.descriptor.bounds),
-                    "fit": _mapping(transport.get("fit")),
-                    "length_unit": prepared.descriptor.length_unit,
-                },
-            )
+            result = self._entity_info_query(prepared, request.payload)
+            if result.supported:
+                return ViewerBackendQueryResult(
+                    supported=True, value={**result.value, "layer_id": layer_id}
+                )
+            return result
         if query_type in {"distance", "shortest_distance"}:
             return self._distance_query(
                 prepared,
@@ -426,14 +472,6 @@ class EngineeringViewerBackend:
             return self._radius_query(prepared, request.payload)
         if query_type == "mass_properties":
             return self._mass_properties_query(prepared)
-        if query_type == "export":
-            return self._export_query(
-                prepared,
-                request=request,
-                source_refs=source_refs,
-                transport=_mapping(request.transport)
-                or self._session_transports.get(session_key, {}),
-            )
         return ViewerBackendQueryResult(
             supported=False,
             explanation=f"Model viewer query '{request.query_type}' is not supported.",
@@ -932,7 +970,6 @@ class EngineeringViewerBackend:
 
     def _export_query(
         self,
-        prepared: Any,
         *,
         request: ViewerBackendQueryRequest,
         source_refs: Mapping[str, Any],
@@ -960,7 +997,6 @@ class EngineeringViewerBackend:
                 explanation="Part/entity-level export visibility is unavailable without exact topology mapping.",
             )
         layers = self._visible_export_layers(
-            prepared,
             source_refs=source_refs,
             transport=transport,
             session_options=request.session_options,
@@ -1042,6 +1078,7 @@ class EngineeringViewerBackend:
                 "path": str(output_path.resolve()),
                 "format": export_format,
                 "visible_layers": [layer["name"] for layer in layers],
+                "visible_layer_ids": [layer["id"] for layer in layers],
                 "display_state_applied": True,
                 **extra,
             },
@@ -1049,24 +1086,13 @@ class EngineeringViewerBackend:
 
     def _visible_export_layers(
         self,
-        primary: Any,
         *,
         source_refs: Mapping[str, Any],
         transport: Mapping[str, Any],
         session_options: Mapping[str, Any],
         payload: Mapping[str, Any],
     ) -> list[dict[str, Any]]:
-        source_values: list[Any] = [source_refs.get("scene")]
-        if source_refs.get("overlay") is not None:
-            source_values.append(source_refs.get("overlay"))
-        overlays = source_refs.get("overlays")
-        if isinstance(overlays, (list, tuple)):
-            source_values.extend(overlays)
-
-        transport_layers = [_mapping(transport.get("primary"))]
-        raw_overlays = transport.get("overlays")
-        if isinstance(raw_overlays, (list, tuple)):
-            transport_layers.extend(_mapping(value) for value in raw_overlays)
+        transport_layers = transport.get("layers", [])
         display_state = _mapping(payload.get("display_state"))
         visibility: dict[str, Any] = {}
         for candidate in (
@@ -1075,37 +1101,32 @@ class EngineeringViewerBackend:
             payload.get("layer_visibility"),
         ):
             visibility.update(_mapping(candidate))
-        visible_names_value = payload.get(
+        visible_ids_value = payload.get(
             "visible_layers", display_state.get("visible_layers")
         )
-        visible_names = (
-            {str(value).strip() for value in visible_names_value if str(value).strip()}
-            if isinstance(visible_names_value, (list, tuple, set, frozenset))
+        visible_ids = (
+            {str(value).strip() for value in visible_ids_value if str(value).strip()}
+            if isinstance(visible_ids_value, (list, tuple, set, frozenset))
             else None
         )
 
+        scene_styles = normalize_scene_styles(
+            display_state.get("scene_styles", session_options.get("scene_styles", {}))
+        )
         layers: list[dict[str, Any]] = []
-        for index, layer in enumerate(transport_layers):
-            if index >= len(source_values) or source_values[index] is None:
-                continue
-            resolved = (
-                primary
-                if index == 0
-                else self._resolve_prepared_scene(source_values[index])
+        for layer in transport_layers:
+            layer_id = str(layer["id"])
+            resolved = self._resolve_prepared_scene(
+                source_refs.get(f"scene:{layer_id}")
             )
             if resolved is None:
                 continue
-            role = str(layer.get("role", "primary" if index == 0 else "overlay"))
-            name = str(
-                layer.get("name", "Primary" if index == 0 else f"Overlay {index}")
-            )
+            name = str(layer["name"])
             visible = bool(layer.get("visible", True))
-            if role in visibility:
-                visible = _truthy(visibility[role])
-            if name in visibility:
-                visible = _truthy(visibility[name])
-            if visible_names is not None:
-                visible = name in visible_names or role in visible_names
+            if layer_id in visibility:
+                visible = _truthy(visibility[layer_id])
+            if visible_ids is not None:
+                visible = layer_id in visible_ids
             if not visible:
                 continue
             style = _mapping(layer.get("style"))
@@ -1119,27 +1140,19 @@ class EngineeringViewerBackend:
                 "show_mesh_edges",
                 session_options.get("show_mesh_edges", style.get("show_edges", False)),
             )
-            if role == "primary":
-                style["opacity"] = display_state.get(
-                    "primary_opacity",
-                    session_options.get("primary_opacity", style.get("opacity", 1.0)),
-                )
-            else:
-                style["opacity"] = display_state.get(
-                    "overlay_opacity",
-                    session_options.get("overlay_opacity", style.get("opacity", 0.35)),
-                )
-                style["color"] = display_state.get(
-                    "overlay_color",
-                    session_options.get("overlay_color", style.get("color", "#ff9f43")),
-                )
+            scene_style = scene_styles.get(layer_id, {})
+            if scene_style:
+                style["opacity"] = scene_style.get("opacity", 1.0)
+                if scene_style.get("color"):
+                    style["color"] = scene_style["color"]
             layers.append(
                 {
                     "name": name,
-                    "role": role,
+                    "id": layer_id,
                     "prepared": resolved,
                     "scale_factor": float(layer.get("scale_factor", 1.0) or 1.0),
                     "style": style,
+                    "attribute_colors": _mapping(layer.get("attribute_colors")),
                 }
             )
         return layers
@@ -1253,9 +1266,15 @@ class EngineeringViewerBackend:
         scene = pv.MultiBlock()
         for layer in layers:
             layer_block = pv.MultiBlock()
+            style = layer["style"]
             color = self._rgba_color(
-                layer["style"].get("color", "#d0d7de"),
-                opacity=layer["style"].get("opacity", 1.0),
+                style.get("color", "#d0d7de"), opacity=style.get("opacity", 1.0)
+            )
+            attribute_colors = _mapping(layer.get("attribute_colors"))
+            source_color_array = (
+                str(attribute_colors.get("array_name", ""))
+                if attribute_colors.get("available") and not style.get("color")
+                else ""
             )
             for piece_index, leaf in enumerate(
                 self._dataset_leaves(layer["prepared"].dataset)
@@ -1269,16 +1288,40 @@ class EngineeringViewerBackend:
                 triangulate = getattr(surface, "triangulate", None)
                 surface = triangulate() if callable(triangulate) else surface
                 surface = surface.copy(deep=True)
+                if source_color_array in surface.cell_data:
+                    # Keep authored face colors sharp when exporting point colors.
+                    surface = (
+                        surface.separate_cells()
+                        .extract_surface(algorithm=None)
+                        .cell_data_to_point_data()
+                    )
                 scale_factor = float(layer["scale_factor"])
                 if scale_factor != 1.0:
                     surface.scale(
                         (scale_factor, scale_factor, scale_factor), inplace=True
                     )
                 if int(getattr(surface, "n_points", 0)) > 0:
-                    surface.point_data["COLOR_0"] = np.tile(
+                    colors = np.tile(
                         np.asarray(color, dtype=np.uint8),
                         (int(surface.n_points), 1),
                     )
+                    if source_color_array in surface.point_data:
+                        authored = np.asarray(surface.point_data[source_color_array])
+                        if authored.ndim == 2 and authored.shape[1] in {3, 4}:
+                            colors[:, :3] = authored[:, :3]
+                            if authored.shape[1] == 4:
+                                colors[:, 3] = np.rint(
+                                    authored[:, 3].astype(float)
+                                    * float(style.get("opacity", 1.0))
+                                ).astype(np.uint8)
+                            mask_name = str(attribute_colors.get("valid_mask_name", ""))
+                            if mask_name in surface.point_data:
+                                colors[
+                                    ~np.asarray(
+                                        surface.point_data[mask_name], dtype=bool
+                                    )
+                                ] = color
+                    surface.point_data["COLOR_0"] = colors
                 layer_block.append(surface, name=f"piece_{piece_index}")
             scene.append(layer_block, name=layer["name"])
 
@@ -1319,51 +1362,33 @@ class EngineeringViewerBackend:
     def _resolve_scene_descriptor(
         self, source_refs: Mapping[str, Any]
     ) -> dict[str, Any]:
-        scene_value: Any = source_refs.get("scene")
-        if scene_value is None:
-            for candidate in source_refs.values():
-                runtime_ref = coerce_runtime_handle_ref(candidate)
-                if (
-                    runtime_ref is not None
-                    and runtime_ref.data_type_id
-                    == ENGINEERING_SCENE_DATA_TYPE_ID
-                    and runtime_ref.kind == COREX_SCENE_HANDLE_KIND
-                ):
-                    scene_value = candidate
-                    break
-                candidate_map = _mapping(candidate)
-                if any(
-                    key in candidate_map
-                    for key in (
-                        "display_path",
-                        "display_artifact_path",
-                        "primary",
-                        "layers",
-                    )
-                ):
-                    scene_value = candidate
-                    break
-        if scene_value is None:
+        order = source_refs.get("scene_order")
+        if not isinstance(order, (list, tuple)) or not order:
             raise ValueError(
-                "Model viewer materialization requires a COREX scene source."
+                "Model viewer materialization requires ordered scene sources."
             )
-
-        primary = self._resolve_scene_value(scene_value)
-        overlay_values: list[Any] = []
-        overlay = source_refs.get("overlay")
-        if overlay is not None:
-            overlay_values.append(overlay)
-        overlays = source_refs.get("overlays")
-        if isinstance(overlays, (list, tuple)):
-            overlay_values.extend(overlays)
-        if overlay_values:
-            return {
-                "primary": primary,
-                "overlays": [
-                    self._resolve_scene_value(value) for value in overlay_values
-                ],
-            }
-        return primary
+        if any(not isinstance(value, str) or not value.strip() for value in order):
+            raise ValueError("Scene IDs must be non-empty strings.")
+        if len(set(order)) != len(order):
+            raise ValueError("Scene IDs must be unique.")
+        labels = _mapping(source_refs.get("scene_labels"))
+        layers = []
+        for index, layer_id in enumerate(order, start=1):
+            scene_value = source_refs.get(f"scene:{layer_id}")
+            if scene_value is None:
+                raise ValueError(f"Scene input {layer_id!r} has no source.")
+            try:
+                layer = self._resolve_scene_value(scene_value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Scene input {layer_id!r}: {exc}") from exc
+            layers.append(
+                {
+                    **layer,
+                    "id": layer_id,
+                    "name": str(labels.get(layer_id, f"Scene {index}")),
+                }
+            )
+        return {"layers": layers}
 
     def _resolve_scene_value(self, scene_value: Any) -> dict[str, Any]:
         runtime_ref = coerce_runtime_handle_ref(scene_value)
@@ -1430,85 +1455,31 @@ class EngineeringViewerBackend:
         *,
         project_path: str,
         session_options: Mapping[str, Any],
-    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        primary_value: Any = descriptor.get("primary")
-        overlay_values: list[Any] = []
-
-        layers = descriptor.get("layers")
-        if isinstance(layers, (list, tuple)):
-            for layer in layers:
-                layer_map = _mapping(layer)
-                role = str(layer_map.get("role", "")).strip().casefold()
-                if primary_value is None and role in {
-                    "",
-                    "primary",
-                    "geometry",
-                    "mesh",
-                }:
-                    primary_value = layer
-                else:
-                    overlay_values.append(layer)
-
-        if primary_value is None:
-            primary_value = descriptor
-        overlays = descriptor.get("overlays", descriptor.get("overlay", ()))
-        if isinstance(overlays, (list, tuple)):
-            overlay_values.extend(overlays)
-        elif overlays:
-            overlay_values.append(overlays)
-
-        primary = cls._layer(
-            primary_value,
-            role="primary",
-            default_name="Primary",
-            project_path=project_path,
-        )
-        normalized_overlays = [
-            cls._layer(
-                value,
-                role="overlay",
-                default_name=f"Overlay {index}",
-                project_path=project_path,
-            )
-            for index, value in enumerate(overlay_values, start=1)
+    ) -> list[dict[str, Any]]:
+        layers = [
+            cls._layer(value, project_path=project_path)
+            for value in descriptor["layers"]
         ]
-        primary_style = _mapping(primary.get("style"))
-        primary_style.setdefault(
-            "representation", session_options.get("representation", "surface")
-        )
-        primary_style.setdefault("opacity", session_options.get("primary_opacity", 1.0))
-        primary_style.setdefault(
-            "show_edges", session_options.get("show_mesh_edges", False)
-        )
-        primary["style"] = primary_style
-        primary["scale_factor"] = 1.0
-        primary_unit = str(primary.get("length_unit", "")).strip()
-        for overlay in normalized_overlays:
-            overlay_style = _mapping(overlay.get("style"))
-            overlay_style.setdefault(
-                "representation", session_options.get("representation", "surface")
+        normalize_scene_styles(session_options.get("scene_styles", {}))
+        display_unit = str(layers[0].get("length_unit", "")).strip()
+        for layer in layers:
+            style = _mapping(layer.get("style"))
+            style["representation"] = session_options.get("representation", "surface")
+            style["show_edges"] = session_options.get("show_mesh_edges", False)
+            style["pickable"] = True
+            # Appearance overrides stay in session options so Auto restores the source.
+            style["opacity"] = 1.0
+            layer["style"] = style
+            layer["scale_factor"] = length_unit_scale(
+                str(layer.get("length_unit", "")), display_unit
             )
-            overlay_style.setdefault(
-                "opacity", session_options.get("overlay_opacity", 0.35)
-            )
-            overlay_style.setdefault(
-                "color", session_options.get("overlay_color", "#ff9f43")
-            )
-            overlay_style.setdefault(
-                "show_edges", session_options.get("show_mesh_edges", False)
-            )
-            overlay["style"] = overlay_style
-            overlay_unit = str(overlay.get("length_unit", "")).strip()
-            overlay["scale_factor"] = length_unit_scale(overlay_unit, primary_unit)
-        return primary, normalized_overlays
+        return layers
 
     @classmethod
     def _layer(
         cls,
         value: Any,
         *,
-        role: str,
-        default_name: str,
         project_path: str,
     ) -> dict[str, Any]:
         layer = cls._descriptor(value)
@@ -1554,8 +1525,8 @@ class EngineeringViewerBackend:
             if key in layer:
                 style[key] = copy.deepcopy(layer[key])
         return {
-            "role": role,
-            "name": str(layer.get("name", "")).strip() or default_name,
+            "id": str(layer["id"]),
+            "name": str(layer["name"]),
             "display_path": display_path,
             "interaction_display_path": interaction_path,
             "topological_edge_path": topological_edge_path,
@@ -1610,11 +1581,10 @@ class EngineeringViewerBackend:
     @classmethod
     def _combined_display_bounds(
         cls,
-        primary: Mapping[str, Any],
-        overlays: list[dict[str, Any]],
+        layers: list[dict[str, Any]],
     ) -> list[float]:
         layer_bounds: list[list[float]] = []
-        for layer in (primary, *overlays):
+        for layer in layers:
             if not bool(layer.get("visible", True)):
                 continue
             bounds = cls._coerce_bounds(layer.get("bounds"))
@@ -1650,32 +1620,31 @@ class EngineeringViewerBackend:
 
     @staticmethod
     def _composition_warnings(
-        primary: Mapping[str, Any],
-        overlays: list[dict[str, Any]],
+        layers: list[dict[str, Any]],
     ) -> list[str]:
-        primary_bounds = primary.get("bounds")
-        if not isinstance(primary_bounds, (list, tuple)) or len(primary_bounds) != 6:
+        reference_bounds = layers[0].get("bounds")
+        if (
+            not isinstance(reference_bounds, (list, tuple))
+            or len(reference_bounds) != 6
+        ):
             return []
         warnings: list[str] = []
-        for overlay in overlays:
-            if not bool(overlay.get("visible", True)):
+        for layer in layers[1:]:
+            if not bool(layer.get("visible", True)):
                 continue
-            overlay_bounds = overlay.get("bounds")
-            if (
-                not isinstance(overlay_bounds, (list, tuple))
-                or len(overlay_bounds) != 6
-            ):
+            bounds = layer.get("bounds")
+            if not isinstance(bounds, (list, tuple)) or len(bounds) != 6:
                 continue
-            scale = float(overlay.get("scale_factor", 1.0) or 1.0)
-            scaled = [float(value) * scale for value in overlay_bounds]
+            scale = float(layer.get("scale_factor", 1.0) or 1.0)
+            scaled = [float(value) * scale for value in bounds]
             overlaps = all(
-                float(primary_bounds[axis * 2]) <= scaled[axis * 2 + 1]
-                and scaled[axis * 2] <= float(primary_bounds[axis * 2 + 1])
+                float(reference_bounds[axis * 2]) <= scaled[axis * 2 + 1]
+                and scaled[axis * 2] <= float(reference_bounds[axis * 2 + 1])
                 for axis in range(3)
             )
             if not overlaps:
                 warnings.append(
-                    f"Scene bounds do not overlap for overlay '{overlay.get('name', 'Overlay')}'. "
+                    f"Scene bounds do not overlap for scene '{layer['name']}'. "
                     "COREX preserved the source coordinates and did not align the model."
                 )
         return warnings
@@ -1696,12 +1665,10 @@ class EngineeringViewerBackend:
 
     @staticmethod
     def _display_capabilities(
-        primary: Mapping[str, Any],
-        overlays: list[dict[str, Any]],
+        layers: list[dict[str, Any]],
         *,
         selection_summary: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        layers = (primary, *overlays)
         has_topological_edges = any(
             bool(str(layer.get("topological_edge_path", "")).strip())
             for layer in layers
@@ -2169,12 +2136,11 @@ class EngineeringViewerBackend:
     @classmethod
     def _prepare_shared_memory_payloads(
         cls,
-        primary: dict[str, Any],
-        overlays: list[dict[str, Any]],
+        layers: list[dict[str, Any]],
     ) -> list[tuple[dict[str, Any], bytes]]:
         payloads: list[tuple[dict[str, Any], bytes]] = []
         total_bytes = 0
-        for layer in (primary, *overlays):
+        for layer in layers:
             prepared = layer.pop("_prepared_scene", None)
             dataset = getattr(prepared, "dataset", None)
             if dataset is None:
@@ -2307,13 +2273,7 @@ class EngineeringViewerBackend:
     def _transport_signature(transport: Mapping[str, Any]) -> str:
         file_facts: list[tuple[str, int, int]] = []
         visited_paths: set[str] = set()
-        primary = _mapping(transport.get("primary"))
-        overlays = (
-            transport.get("overlays")
-            if isinstance(transport.get("overlays"), list)
-            else []
-        )
-        for layer in (primary, *[_mapping(value) for value in overlays]):
+        for layer in transport.get("layers", []):
             layer_paths = [
                 str(layer.get(key, "")).strip()
                 for key in (

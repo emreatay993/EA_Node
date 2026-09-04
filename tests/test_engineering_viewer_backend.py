@@ -20,7 +20,10 @@ from ea_node_editor.execution.viewer_messages import (
     OpenViewerSessionCommand,
     ViewerDataMaterializedEvent,
 )
-from ea_node_editor.execution.viewer_backend import ViewerBackendMaterializationRequest
+from ea_node_editor.execution.viewer_backend import (
+    ViewerBackendMaterializationRequest,
+    ViewerBackendQueryRequest,
+)
 from ea_node_editor.execution.viewer_backend_engineering import (
     COREX_SCENE_HANDLE_KIND,
     ENGINEERING_VIEWER_BACKEND_ID,
@@ -36,6 +39,7 @@ def _request(
     source_refs: dict[str, object],
     *,
     options: dict[str, object] | None = None,
+    session_options: dict[str, object] | None = None,
     session_id: str = "session-engineering",
 ) -> ViewerBackendMaterializationRequest:
     return ViewerBackendMaterializationRequest(
@@ -45,7 +49,7 @@ def _request(
         owner_scope=f"viewer:workspace-engineering:{session_id}",
         source_refs=source_refs,
         session_summary={"camera_state": {"position": [2.0, 3.0, 4.0]}},
-        session_options={},
+        session_options=session_options or {},
         request_options=options or {},
         output_profile="memory",
     )
@@ -349,6 +353,240 @@ class EngineeringViewerBackendTests(unittest.TestCase):
     def setUp(self) -> None:
         self.services = core_worker_services()
         self.backend = EngineeringViewerBackend(self.services)
+        self.addCleanup(self.backend.reset)
+
+    def test_scene_queries_and_export_use_stable_ids_with_duplicate_sources(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            first = self._prepared_scene_ref(root, name="first", dataset=pyvista.Cube())
+            second = self._prepared_scene_ref(
+                root, name="second", dataset=pyvista.Cube(center=(10, 0, 0))
+            )
+            source_refs = {
+                "scene_order": ["a", "b", "c"],
+                "scene_labels": {
+                    "a": "Duplicate name",
+                    "b": "Duplicate name",
+                    "c": "Again",
+                },
+                "scene:a": first,
+                "scene:b": second,
+                "scene:c": first,
+            }
+            result = self.backend.materialize(_request(source_refs))
+            self.assertEqual(result.live_open_status, "ready")
+            self.assertEqual(
+                [item["id"] for item in result.summary["model_tree"]],
+                ["a:root", "b:root", "c:root"],
+            )
+            self.assertEqual(
+                [layer["id"] for layer in result.transport["layers"]], ["a", "b", "c"]
+            )
+
+            def query(query_type, payload, active="a"):
+                return self.backend.query(
+                    ViewerBackendQueryRequest(
+                        workspace_id="workspace-engineering",
+                        session_id="session-engineering",
+                        query_type=query_type,
+                        payload=payload,
+                        session_options={"active_scene_id": active},
+                    )
+                )
+
+            selected = query(
+                "entity_info", {"entity_kind": "scene", "entity_id": "root"}, active="b"
+            )
+            self.assertTrue(selected.supported, selected.explanation)
+            self.assertEqual(selected.value["name"], "second")
+            self.assertEqual(selected.value["layer_id"], "b")
+            explicit = query(
+                "entity_info",
+                {
+                    "entity": {
+                        "entity_kind": "scene",
+                        "entity_id": "root",
+                        "layer_id": "c",
+                    }
+                },
+                active="b",
+            )
+            self.assertEqual(explicit.value["name"], "first")
+            self.assertEqual(explicit.value["layer_id"], "c")
+            unknown = query("mass_properties", {"layer_id": "removed"})
+            self.assertFalse(unknown.supported)
+            mixed = query(
+                "distance",
+                {"entity_a": {"layer_id": "a"}, "entity_b": {"layer_id": "b"}},
+            )
+            self.assertFalse(mixed.supported)
+            conflict = query(
+                "entity_info", {"layer_id": "a", "entity": {"layer_id": "b"}}
+            )
+            self.assertFalse(conflict.supported)
+            bounds = query("bounds", {}, active="b")
+            self.assertEqual(bounds.value["bounds"], [-0.5, 10.5, -0.5, 0.5, -0.5, 0.5])
+            exported = query(
+                "export",
+                {
+                    "path": str(root / "visible.vtm"),
+                    "format": "vtm",
+                    "visible_layers": ["b", "c"],
+                },
+            )
+            self.assertTrue(exported.supported, exported.explanation)
+            self.assertEqual(exported.value["visible_layer_ids"], ["b", "c"])
+            self.assertEqual(pyvista.read(root / "visible.vtm").n_blocks, 2)
+
+    def test_scene_source_order_and_style_validation_fail_closed(self) -> None:
+        for refs in (
+            {"scene": {}},
+            {"scene_order": []},
+            {"scene_order": ["a", "a"], "scene:a": {}},
+            {"scene_order": ["a"]},
+        ):
+            with self.subTest(refs=refs):
+                result = self.backend.materialize(_request(refs))
+                self.assertEqual(
+                    result.live_open_blocker["code"], "scene_contract_invalid"
+                )
+        result = self.backend.materialize(
+            _request(
+                {"scene_order": ["a"], "scene:a": {"display_path": "test.vtp"}},
+                session_options={"scene_styles": {"a": {"opacity": float("nan")}}},
+            )
+        )
+        self.assertEqual(result.live_open_blocker["code"], "scene_contract_invalid")
+
+    def test_same_session_scene_replacements_advance_revisions_and_release_old_assets(
+        self,
+    ) -> None:
+        service = self.services.viewer_session_service
+        identity = {
+            "workspace_id": "workspace-engineering",
+            "node_id": "node-engineering",
+            "session_id": "session-replacements",
+            "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
+        }
+        revisions = []
+        previous_asset_names = []
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            for replacement in range(4):
+                with self.subTest(replacement=replacement):
+                    source_name = f"source-{replacement}"
+                    ref = self._prepared_scene_ref(
+                        root,
+                        name=source_name,
+                        dataset=pyvista.Cube(center=(replacement * 10.0, 0.0, 0.0)),
+                    )
+                    opened = service.open_session(
+                        OpenViewerSessionCommand(
+                            **identity,
+                            data_refs={
+                                "scene_order": ["a", "b", "c"],
+                                "scene:a": ref,
+                                "scene:b": ref,
+                                "scene:c": ref,
+                            },
+                        )
+                    )
+                    if revisions:
+                        self.assertGreater(opened.transport_revision, revisions[-1])
+                    for name in previous_asset_names:
+                        with self.assertRaises(FileNotFoundError):
+                            SharedMemory(name=name)
+                    materialized = service.materialize_data(
+                        MaterializeViewerDataCommand(**identity)
+                    )
+                    self.assertIsInstance(materialized, ViewerDataMaterializedEvent)
+                    self.assertEqual(materialized.live_open_status, "ready")
+                    self.assertGreater(
+                        materialized.transport_revision, opened.transport_revision
+                    )
+                    self.assertEqual(
+                        materialized.transport["transport_revision"],
+                        materialized.transport_revision,
+                    )
+                    self.assertEqual(
+                        [
+                            layer["scene_id"]
+                            for layer in materialized.transport["layers"]
+                        ],
+                        [source_name] * 3,
+                    )
+                    revisions.append(materialized.transport_revision)
+                    previous_asset_names = [
+                        layer["display_asset"]["name"]
+                        for layer in materialized.transport["layers"]
+                    ]
+            service._backend_registry.reset()
+            for name in previous_asset_names:
+                with self.assertRaises(FileNotFoundError):
+                    SharedMemory(name=name)
+        self.assertEqual(revisions, [1, 3, 5, 7])
+
+    def test_gltf_auto_preserves_authored_face_colors_and_per_scene_opacity(
+        self,
+    ) -> None:
+        import numpy as np
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            dataset = pyvista.Cube().triangulate()
+            dataset.cell_data["corex_source_rgba"] = np.tile(
+                np.asarray([[255, 0, 0, 255], [0, 255, 0, 128]], dtype=np.uint8),
+                (dataset.n_cells // 2, 1),
+            )
+            ref = self._prepared_scene_ref(root, name="colored", dataset=dataset)
+            source_refs = {"scene_order": ["a", "b"], "scene:a": ref, "scene:b": ref}
+            materialized = self.backend.materialize(
+                _request(
+                    source_refs,
+                    session_options={
+                        "scene_styles": {"a": {"opacity": 0.2, "color": "#ff0000"}}
+                    },
+                )
+            )
+            self.assertNotIn("color", materialized.transport["layers"][0]["style"])
+            self.assertEqual(
+                materialized.transport["layers"][0]["style"]["opacity"], 1.0
+            )
+            layers = self.backend._visible_export_layers(
+                source_refs=source_refs,
+                transport=materialized.transport,
+                payload={},
+                session_options={
+                    "scene_styles": {
+                        "a": {"opacity": 0.5, "color": ""},
+                        "b": {"opacity": 1.0, "color": "#0000ff"},
+                    }
+                },
+            )
+            with mock.patch("vtkmodules.vtkIOGeometry.vtkGLTFWriter") as writer_type:
+                writer_type.return_value.Write.return_value = 1
+                result = self.backend._write_gltf_export(
+                    root / "colors.gltf",
+                    export_format="gltf",
+                    layers=layers,
+                    session_options={},
+                    display_state={},
+                )
+            self.assertIsNone(result)
+            exported = writer_type.return_value.SetInputDataObject.call_args.args[0]
+            auto_colors = exported[0][0].point_data["COLOR_0"]
+            override_colors = exported[1][0].point_data["COLOR_0"]
+            self.assertEqual(
+                {tuple(value) for value in auto_colors.tolist()},
+                {(255, 0, 0, 128), (0, 255, 0, 64)},
+            )
+            self.assertEqual(
+                {tuple(value) for value in override_colors.tolist()}, {(0, 0, 255, 255)}
+            )
+            self.assertEqual(dataset.n_points, 8)
+            self.assertNotIn("COLOR_0", dataset.point_data)
 
     def _prepared_scene_ref(
         self,
@@ -422,11 +660,12 @@ class EngineeringViewerBackendTests(unittest.TestCase):
         scene_ref: object,
         *,
         session_id: str,
-        overlay_ref: object | None = None,
+        second_scene_ref: object | None = None,
     ) -> None:
-        data_refs = {"scene": scene_ref}
-        if overlay_ref is not None:
-            data_refs["overlay"] = overlay_ref
+        data_refs = {"scene_order": ["scene_1"], "scene:scene_1": scene_ref}
+        if second_scene_ref is not None:
+            data_refs["scene:scene_2"] = second_scene_ref
+            data_refs["scene_order"].append("scene_2")
         service = self.services.viewer_session_service
         service.open_session(
             OpenViewerSessionCommand(
@@ -464,16 +703,20 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                 dataset=surface,
             )
 
-            first = self.backend.materialize(_request({"scene": scene_ref}))
-            second = self.backend.materialize(_request({"scene": scene_ref}))
+            first = self.backend.materialize(
+                _request({"scene_order": ["scene_1"], "scene:scene_1": scene_ref})
+            )
+            second = self.backend.materialize(
+                _request({"scene_order": ["scene_1"], "scene:scene_1": scene_ref})
+            )
             forced = self.backend.materialize(
                 _request(
-                    {"scene": scene_ref},
+                    {"scene_order": ["scene_1"], "scene:scene_1": scene_ref},
                     options={"force_recompute": True},
                 )
             )
 
-            asset = first.transport["primary"]["display_asset"]
+            asset = first.transport["layers"][0]["display_asset"]
             self.assertEqual(
                 set(asset),
                 {
@@ -516,10 +759,10 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             self.assertNotIn(asset["name"], json.dumps(scene_ref.metadata))
             self.assertEqual(second.transport_revision, first.transport_revision)
             self.assertEqual(
-                second.transport["primary"]["display_asset"]["name"],
+                second.transport["layers"][0]["display_asset"]["name"],
                 asset["name"],
             )
-            forced_name = forced.transport["primary"]["display_asset"]["name"]
+            forced_name = forced.transport["layers"][0]["display_asset"]["name"]
             self.assertNotEqual(forced_name, asset["name"])
 
             self.backend.release_session_transport(
@@ -563,7 +806,11 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             ):
                 failed = self.backend.materialize(
                     _request(
-                        {"scene": primary_ref, "overlay": overlay_ref},
+                        {
+                            "scene_order": ["scene_1", "scene_2"],
+                            "scene:scene_1": primary_ref,
+                            "scene:scene_2": overlay_ref,
+                        },
                         session_id="session-partial",
                     )
                 )
@@ -577,9 +824,12 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                 SharedMemory(name=created_names[0], create=False)
 
             workspace_ready = self.backend.materialize(
-                _request({"scene": primary_ref}, session_id="session-workspace")
+                _request(
+                    {"scene_order": ["scene_1"], "scene:scene_1": primary_ref},
+                    session_id="session-workspace",
+                )
             )
-            workspace_name = workspace_ready.transport["primary"]["display_asset"][
+            workspace_name = workspace_ready.transport["layers"][0]["display_asset"][
                 "name"
             ]
             self.backend.release_workspace_transport(
@@ -589,9 +839,12 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                 SharedMemory(name=workspace_name, create=False)
 
             reset_ready = self.backend.materialize(
-                _request({"scene": primary_ref}, session_id="session-reset")
+                _request(
+                    {"scene_order": ["scene_1"], "scene:scene_1": primary_ref},
+                    session_id="session-reset",
+                )
             )
-            reset_name = reset_ready.transport["primary"]["display_asset"]["name"]
+            reset_name = reset_ready.transport["layers"][0]["display_asset"]["name"]
             self.backend.reset()
             self.backend.reset()
             with self.assertRaises(FileNotFoundError):
@@ -659,51 +912,70 @@ class EngineeringViewerBackendTests(unittest.TestCase):
         self.assertEqual(len(resolved.descriptor.point_arrays), 20_000)
         self.assertEqual(len(resolved.descriptor.topology_mappings["blocks"]), 20_000)
 
-    def test_plain_scene_mapping_builds_primary_and_overlay_transport(self) -> None:
+    def test_plain_scene_mappings_build_ordered_three_scene_transport(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             primary = root / "mesh.vtu"
             overlay = root / "selection.vtp"
             primary.write_text("primary", encoding="utf-8")
             overlay.write_text("overlay", encoding="utf-8")
-            source = {
+            first_source = {
                 "display_path": str(primary),
                 "length_unit": "mm",
                 "bounds": [0, 1, 0, 1, 0, 1],
                 "style": {"scalars": "stress", "cmap": "viridis"},
-                "overlays": [
-                    {
-                        "display_path": str(overlay),
-                        "name": "Selection",
-                        "opacity": 0.2,
-                        "length_unit": "mm",
-                        "bounds": [0, 1, 0, 1, 0, 1],
-                    }
-                ],
             }
-
-            first = self.backend.materialize(_request({"scene": source}))
-            second = self.backend.materialize(_request({"scene": source}))
+            source = {
+                "scene_order": ["scene_1", "scene_2", "scene_3"],
+                "scene_labels": {"scene_2": "Selection"},
+                "scene:scene_1": first_source,
+                "scene:scene_2": {
+                    "display_path": str(overlay),
+                    "style": {"color": "#00ff00"},
+                    "length_unit": "mm",
+                    "bounds": [0, 1, 0, 1, 0, 1],
+                },
+                "scene:scene_3": first_source,
+            }
+            styles = {"scene_styles": {"scene_2": {"opacity": 0.2, "color": "#ff0000"}}}
+            first = self.backend.materialize(_request(source, session_options=styles))
+            second = self.backend.materialize(_request(source, session_options=styles))
             forced = self.backend.materialize(
-                _request({"scene": source}, options={"force_recompute": True})
+                _request(
+                    source, options={"force_recompute": True}, session_options=styles
+                )
             )
 
         self.assertEqual(first.backend_id, ENGINEERING_VIEWER_BACKEND_ID)
         self.assertEqual(first.live_open_status, "ready")
         self.assertEqual(first.transport["kind"], ENGINEERING_VIEWER_TRANSPORT_KIND)
         self.assertEqual(
-            first.transport["primary"]["display_path"], str(primary.resolve())
+            first.transport["layers"][0]["display_path"], str(primary.resolve())
         )
-        self.assertEqual(first.transport["primary"]["style"]["scalars"], "stress")
-        self.assertEqual(first.transport["overlays"][0]["name"], "Selection")
-        self.assertEqual(first.transport["overlays"][0]["style"]["opacity"], 0.2)
-        self.assertEqual(first.summary["scene_layer_count"], 2)
+        self.assertEqual(first.transport["layers"][0]["style"]["scalars"], "stress")
+        self.assertEqual(first.transport["layers"][1]["name"], "Selection")
+        self.assertEqual(first.transport["layers"][1]["style"]["opacity"], 1.0)
+        self.assertEqual(first.transport["schema"], "ea.corex.engineering_scene.v2")
+        self.assertNotIn("primary", first.transport)
+        self.assertNotIn("overlays", first.transport)
+        self.assertEqual(
+            [layer["id"] for layer in first.transport["layers"]],
+            ["scene_1", "scene_2", "scene_3"],
+        )
+        self.assertEqual(first.transport["layers"][2]["style"]["opacity"], 1.0)
+        self.assertEqual(first.transport["layers"][1]["style"]["color"], "#00ff00")
+        self.assertTrue(
+            all(layer["style"]["pickable"] for layer in first.transport["layers"])
+        )
+        self.assertEqual(first.summary["scene_layer_count"], 3)
         self.assertEqual(first.camera_state, {"position": [2.0, 3.0, 4.0]})
         self.assertEqual(first.transport_revision, 1)
         self.assertEqual(second.transport_revision, 1)
         self.assertEqual(forced.transport_revision, 2)
 
-    def test_overlay_bounds_are_combined_in_primary_display_units_for_fit(self) -> None:
+    def test_scene_bounds_are_combined_in_first_scene_display_units_for_fit(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             primary_path = root / "primary.vtk"
@@ -713,12 +985,13 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             result = self.backend.materialize(
                 _request(
                     {
-                        "scene": {
+                        "scene_order": ["scene_1", "scene_2"],
+                        "scene:scene_1": {
                             "display_path": str(primary_path),
                             "length_unit": "mm",
                             "bounds": [0, 10, 0, 10, 0, 10],
                         },
-                        "overlay": {
+                        "scene:scene_2": {
                             "display_path": str(overlay_path),
                             "length_unit": "m",
                             "bounds": [0.02, 0.03, 0.02, 0.03, 0.02, 0.03],
@@ -727,7 +1000,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual(result.transport["overlays"][0]["scale_factor"], 1000.0)
+        self.assertEqual(result.transport["layers"][1]["scale_factor"], 1000.0)
         self.assertEqual(
             result.transport["display_bounds"], [0.0, 30.0, 0.0, 30.0, 0.0, 30.0]
         )
@@ -751,20 +1024,30 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                 owner_scope="cache:tests:engineering_scene",
             )
 
-            result = self.backend.materialize(_request({"scene": scene_ref}))
+            result = self.backend.materialize(
+                _request({"scene_order": ["scene_1"], "scene:scene_1": scene_ref})
+            )
 
         self.assertEqual(result.live_open_status, "ready")
         self.assertEqual(
-            result.transport["primary"]["display_path"], str(display_path.resolve())
+            result.transport["layers"][0]["display_path"], str(display_path.resolve())
         )
-        self.assertEqual(result.summary["display_format"], "stl")
+        self.assertEqual(result.summary["scene_layers"][0]["display_format"], "stl")
 
     def test_missing_display_file_returns_blocked_transport(self) -> None:
         missing = Path(tempfile.gettempdir()) / "corex_missing_engineering_scene.vtu"
         missing.unlink(missing_ok=True)
 
         result = self.backend.materialize(
-            _request({"scene": {"display_path": str(missing), "length_unit": "mm"}})
+            _request(
+                {
+                    "scene_order": ["scene_1"],
+                    "scene:scene_1": {
+                        "display_path": str(missing),
+                        "length_unit": "mm",
+                    },
+                }
+            )
         )
 
         self.assertEqual(result.live_open_status, "blocked")
@@ -839,18 +1122,27 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             }
 
             first = self.backend.materialize(
-                _request({"scene": source}, session_id="session-exact-assets")
+                _request(
+                    {"scene_order": ["scene_1"], "scene:scene_1": source},
+                    session_id="session-exact-assets",
+                )
             )
             second = self.backend.materialize(
-                _request({"scene": source}, session_id="session-exact-assets")
+                _request(
+                    {"scene_order": ["scene_1"], "scene:scene_1": source},
+                    session_id="session-exact-assets",
+                )
             )
             edge_path.write_text("edges changed and longer", encoding="utf-8")
             changed = self.backend.materialize(
-                _request({"scene": source}, session_id="session-exact-assets")
+                _request(
+                    {"scene_order": ["scene_1"], "scene:scene_1": source},
+                    session_id="session-exact-assets",
+                )
             )
 
         self.assertEqual(first.live_open_status, "ready")
-        primary = first.transport["primary"]
+        primary = first.transport["layers"][0]
         self.assertEqual(
             primary["interaction_display_path"], str(coarse_path.resolve())
         )
@@ -873,7 +1165,8 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             result = self.backend.materialize(
                 _request(
                     {
-                        "scene": {
+                        "scene_order": ["scene_1"],
+                        "scene:scene_1": {
                             "display_artifact_path": str(full_path),
                             "length_unit": "mm",
                             "bounds": [0, 1, 0, 1, 0, 1],
@@ -893,7 +1186,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                                     "content": "topological_edges",
                                 },
                             ],
-                        }
+                        },
                     }
                 )
             )
@@ -926,7 +1219,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
 
             result = self.backend.materialize(
                 _request(
-                    {"scene": descriptor},
+                    {"scene_order": ["scene_1"], "scene:scene_1": descriptor},
                     session_id="session-v4-missing-selection-asset",
                 )
             )
@@ -1107,7 +1400,10 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                 Path, "read_bytes", autospec=True, side_effect=read_bytes_once
             ):
                 result = self.backend.materialize(
-                    _request({"scene": source}, session_id="session-selection-topology")
+                    _request(
+                        {"scene_order": ["scene_1"], "scene:scene_1": source},
+                        session_id="session-selection-topology",
+                    )
                 )
             self.assertEqual(result.live_open_status, "ready")
             self.assertEqual(topology_reads, [topology_path])
@@ -1133,7 +1429,10 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             }
             unsupported = self.backend.materialize(
                 _request(
-                    {"scene": source_without_vertices},
+                    {
+                        "scene_order": ["scene_1"],
+                        "scene:scene_1": source_without_vertices,
+                    },
                     session_id="session-selection-topology-assets",
                 )
             )
@@ -1145,7 +1444,10 @@ class EngineeringViewerBackendTests(unittest.TestCase):
 
             topology_path.write_text("{}", encoding="utf-8")
             blocked = self.backend.materialize(
-                _request({"scene": source}, session_id="session-selection-topology")
+                _request(
+                    {"scene_order": ["scene_1"], "scene:scene_1": source},
+                    session_id="session-selection-topology",
+                )
             )
             self.assertEqual(blocked.live_open_status, "blocked")
             self.assertEqual(
@@ -1159,7 +1461,8 @@ class EngineeringViewerBackendTests(unittest.TestCase):
 
             result = self.backend.materialize(
                 _request(
-                    {"scene": source}, session_id="session-corrupt-selection-asset"
+                    {"scene_order": ["scene_1"], "scene:scene_1": source},
+                    session_id="session-corrupt-selection-asset",
                 )
             )
 
@@ -1190,7 +1493,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
 
             result = self.backend.materialize(
                 _request(
-                    {"scene": source},
+                    {"scene_order": ["scene_1"], "scene:scene_1": source},
                     session_id="session-invalid-topology-relationships",
                 )
             )
@@ -1208,7 +1511,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
 
             result = self.backend.materialize(
                 _request(
-                    {"scene": source},
+                    {"scene_order": ["scene_1"], "scene:scene_1": source},
                     session_id="session-incomplete-canonical-identities",
                 )
             )
@@ -1232,7 +1535,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
 
             missing = self.backend.materialize(
                 _request(
-                    {"scene": missing_source},
+                    {"scene_order": ["scene_1"], "scene:scene_1": missing_source},
                     session_id="session-missing-selection-array",
                 )
             )
@@ -1244,7 +1547,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             surface.save(wrong_paths["full"])
             wrong = self.backend.materialize(
                 _request(
-                    {"scene": wrong_source},
+                    {"scene_order": ["scene_1"], "scene:scene_1": wrong_source},
                     session_id="session-wrong-selection-association",
                 )
             )
@@ -1271,7 +1574,10 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             root = Path(temporary_directory)
             source, paths = _write_fe_selection_source(root / "ready")
             ready = self.backend.materialize(
-                _request({"scene": source}, session_id="session-fe-selection-ready")
+                _request(
+                    {"scene_order": ["scene_1"], "scene:scene_1": source},
+                    session_id="session-fe-selection-ready",
+                )
             )
 
             missing_source, missing_paths = _write_fe_selection_source(root / "missing")
@@ -1280,7 +1586,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             faces.save(missing_paths["faces"])
             missing = self.backend.materialize(
                 _request(
-                    {"scene": missing_source},
+                    {"scene_order": ["scene_1"], "scene:scene_1": missing_source},
                     session_id="session-fe-face-array-missing",
                 )
             )
@@ -1292,7 +1598,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             identity.save(wrong_paths["identity"])
             wrong = self.backend.materialize(
                 _request(
-                    {"scene": wrong_source},
+                    {"scene_order": ["scene_1"], "scene:scene_1": wrong_source},
                     session_id="session-fe-node-array-wrong-association",
                 )
             )
@@ -1310,14 +1616,16 @@ class EngineeringViewerBackendTests(unittest.TestCase):
         self.assertIn("corex_node_index", wrong.live_open_blocker["reason"])
         self.assertIn("stored in cell_data", wrong.live_open_blocker["reason"])
 
-    def test_display_capabilities_include_overlay_topology_colors(self) -> None:
+    def test_display_capabilities_include_additional_scene_topology_colors(
+        self,
+    ) -> None:
         capabilities = self.backend._display_capabilities(  # noqa: SLF001
-            {
-                "display_path": "primary.vtp",
-                "attribute_colors": {"available": False},
-                "geometry_assets": [],
-            },
             [
+                {
+                    "display_path": "primary.vtp",
+                    "attribute_colors": {"available": False},
+                    "geometry_assets": [],
+                },
                 {
                     "display_path": "overlay.vtp",
                     "topological_edge_path": "overlay.edges.vtp",
@@ -1328,7 +1636,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                             "attribute_colors": {"available": True},
                         }
                     ],
-                }
+                },
             ],
         )
 
@@ -1362,7 +1670,13 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             display_path = Path(temporary_directory) / "mesh.vtk"
             display_path.write_text("mesh", encoding="utf-8")
             request = _request(
-                {"scene": {"display_path": str(display_path), "length_unit": "mm"}}
+                {
+                    "scene_order": ["scene_1"],
+                    "scene:scene_1": {
+                        "display_path": str(display_path),
+                        "length_unit": "mm",
+                    },
+                }
             )
             self.assertEqual(registered.materialize(request).transport_revision, 1)
             self.assertEqual(registered.materialize(request).transport_revision, 1)
@@ -1391,7 +1705,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                     node_id="node-engineering",
                     session_id="session-engineering-service",
                     backend_id=ENGINEERING_VIEWER_BACKEND_ID,
-                    data_refs={"scene": scene_ref},
+                    data_refs={"scene_order": ["scene_1"], "scene:scene_1": scene_ref},
                 )
             )
             materialized = service.materialize_data(
@@ -1432,7 +1746,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                     node_id="node-engineering",
                     session_id="session-query",
                     backend_id=ENGINEERING_VIEWER_BACKEND_ID,
-                    data_refs={"scene": scene_ref},
+                    data_refs={"scene_order": ["scene_1"], "scene:scene_1": scene_ref},
                 )
             )
             service.materialize_data(
@@ -1562,7 +1876,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             )
             self._open_prepared_session(
                 primary_ref,
-                overlay_ref=overlay_ref,
+                second_scene_ref=overlay_ref,
                 session_id="session-visible-export",
             )
             vtm = service.query_session(
@@ -1572,7 +1886,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                 payload={
                     "path": str(vtm_path),
                     "format": "vtm",
-                    "layer_visibility": {"Primary": False, "Overlay 1": True},
+                    "layer_visibility": {"scene_1": False, "scene_2": True},
                 },
             )
             glb = service.query_session(
@@ -1582,7 +1896,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                 payload={
                     "path": str(glb_path),
                     "format": "glb",
-                    "layer_visibility": {"Primary": False, "Overlay 1": True},
+                    "layer_visibility": {"scene_1": False, "scene_2": True},
                 },
             )
             hidden = service.query_session(
@@ -1592,16 +1906,16 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                 payload={
                     "path": str(hidden_path),
                     "format": "glb",
-                    "layer_visibility": {"Primary": False, "Overlay 1": False},
+                    "layer_visibility": {"scene_1": False, "scene_2": False},
                 },
             )
 
             self.assertTrue(vtm.supported, vtm.explanation)
-            self.assertEqual(vtm.value["visible_layers"], ["Overlay 1"])
+            self.assertEqual(vtm.value["visible_layers"], ["Scene 2"])
             self.assertEqual(pyvista.read(vtm_path).n_blocks, 1)
             self.assertTrue(glb.supported, glb.explanation)
             self.assertEqual(glb_path.read_bytes()[:4], b"glTF")
-            self.assertEqual(glb.value["visible_layers"], ["Overlay 1"])
+            self.assertEqual(glb.value["visible_layers"], ["Scene 2"])
             self.assertFalse(hidden.supported)
             self.assertFalse(hidden_path.exists())
 
@@ -1650,7 +1964,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                     node_id="node-engineering",
                     session_id="session-exact-query",
                     backend_id=ENGINEERING_VIEWER_BACKEND_ID,
-                    data_refs={"scene": scene_ref},
+                    data_refs={"scene_order": ["scene_1"], "scene:scene_1": scene_ref},
                 )
             )
             service.materialize_data(
@@ -1685,7 +1999,7 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                 payload={
                     "path": str(root / "hidden.step"),
                     "format": "step",
-                    "layer_visibility": {"Primary": False},
+                    "layer_visibility": {"scene_1": False},
                 },
             )
 

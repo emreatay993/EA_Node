@@ -1054,6 +1054,10 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "show_orientation_triad": ("false", False),
             "show_view_cube": ("false", False),
             "show_world_axes": ("true", True),
+            "scene_styles": (
+                {"scene_2": {"opacity": "0.3", "color": "#123456"}},
+                {"scene_2": {"opacity": 0.3, "color": "#123456"}},
+            ),
         }
         for key, (raw_value, expected) in expected_updates.items():
             with self.subTest(key=key):
@@ -1070,6 +1074,10 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
                     expected,
                 )
         update_count = len(self.host.execution_client.update_calls)
+        for invalid in ({"scene_2": {"opacity": float("inf")}}, {"scene_2": {"color": "red"}}):
+            self.assertFalse(self.bridge.sync_node_property_option(
+                "node_viewer", "scene_styles", invalid, {"workspace_id": "ws_main"},
+            ))
         self.assertFalse(
             self.bridge.sync_node_property_option(
                 "node_viewer",

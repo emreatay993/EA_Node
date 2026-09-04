@@ -323,7 +323,7 @@
   },
   "model_viewer_patch": {
     "expected_description": "Displays a neutral CAD/FE scene, OCP Body, or Zone with one optional overlay.",
-    "replacement_description": "Displays a neutral CAD/FE scene, OCP Body, or Geometry Group with one optional overlay.",
+    "replacement_description": "Displays multiple CAD/FE scenes, OCP Bodies, and Geometry Groups together with per-scene appearance.",
     "expected_scene_description": "Primary prepared CAD/FE scene, worker-owned OCP Body, or Zone to display.",
     "replacement_scene_description": "Primary prepared CAD/FE scene, worker-owned OCP Body, or Geometry Group to display.",
     "expected_scene_accepted_data_types": [
@@ -334,6 +334,107 @@
       "COREX.Geometry.OCPBody",
       "COREX.Geometry.Group"
     ]
+  },
+  "dynamic_scene_ports": {
+    "properties": [
+      {
+        "key": "scene_input_ids",
+        "type": "json",
+        "default": [
+          "scene_1"
+        ],
+        "label": "Scene Inputs",
+        "expose_port_toggle": false,
+        "enum_values": [],
+        "enum_codes": [],
+        "minimum": null,
+        "maximum": null,
+        "step": 0,
+        "inline_editor": "",
+        "inspector_editor": "",
+        "inspector_visible": false,
+        "source_metadata": null,
+        "group": "",
+        "file_filter": "",
+        "enabled_when": null,
+        "searchable": false,
+        "interval_direction": "",
+        "description": "",
+        "sensitive": false,
+        "sensitive_scope_key": "",
+        "persistence_data_type_id": "",
+        "nullable": false,
+        "list_item_type": "",
+        "list_item_enum_values": [],
+        "list_item_enum_codes": [],
+        "list_item_minimum": null,
+        "list_item_maximum": null,
+        "list_item_step": 0
+      },
+      {
+        "key": "scene_styles",
+        "type": "json",
+        "default": {},
+        "label": "Scene Appearance",
+        "expose_port_toggle": false,
+        "enum_values": [],
+        "enum_codes": [],
+        "minimum": null,
+        "maximum": null,
+        "step": 0,
+        "inline_editor": "",
+        "inspector_editor": "",
+        "inspector_visible": false,
+        "source_metadata": null,
+        "group": "",
+        "file_filter": "",
+        "enabled_when": null,
+        "searchable": false,
+        "interval_direction": "",
+        "description": "",
+        "sensitive": false,
+        "sensitive_scope_key": "",
+        "persistence_data_type_id": "",
+        "nullable": false,
+        "list_item_type": "",
+        "list_item_enum_values": [],
+        "list_item_enum_codes": [],
+        "list_item_minimum": null,
+        "list_item_maximum": null,
+        "list_item_step": 0
+      }
+    ],
+    "group": {
+      "group_id": "scenes",
+      "property_key": "scene_input_ids",
+      "direction": "in",
+      "ports_resolver": true,
+      "key_factory": true,
+      "minimum": 1,
+      "maximum": null,
+      "rename_mode": "label",
+      "key_renamer": null
+    },
+    "input_port": {
+      "key": "scene_1",
+      "direction": "in",
+      "kind": "data",
+      "data_type": "COREX.Engineering.Scene",
+      "label": "Scene 1",
+      "required": false,
+      "uses_property_default": false,
+      "exposed": true,
+      "allow_multiple_connections": false,
+      "side": "",
+      "source_metadata": null,
+      "accepted_data_types": [
+        "COREX.Geometry.OCPBody",
+        "COREX.Geometry.Group"
+      ],
+      "display_tier": "",
+      "description": "Prepared CAD/FE scene, OCP Body, or Geometry Group. Empty inputs are ignored.",
+      "data_access": "item"
+    }
   },
   "property_default_patches": {
     "model.viewer": {

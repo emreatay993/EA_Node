@@ -232,7 +232,7 @@ def _build_engineering_project(step_path: Path, registry: Any) -> Any:
             source_node_id=_ENGINEERING_CAD_NODE_ID,
             source_port_key="scene",
             target_node_id=_ENGINEERING_VIEWER_NODE_ID,
-            target_port_key="scene",
+            target_port_key="scene_1",
         ),
     }
     return ProjectData(

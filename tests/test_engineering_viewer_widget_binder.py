@@ -7,6 +7,8 @@ import time
 import unittest
 import weakref
 import gc
+import copy
+from dataclasses import replace
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
 from types import SimpleNamespace
@@ -424,11 +426,11 @@ def _request(
     if overlay is not None:
         overlays.append(
             {
-                "role": "overlay",
+                "id": "scene_2",
                 "name": "Selected faces",
                 "display_path": str(overlay),
                 "visible": True,
-                "style": {"color": "cyan", "opacity": 0.2},
+                "style": {},
             }
         )
     return ViewerWidgetBindRequest(
@@ -444,8 +446,8 @@ def _request(
             "kind": ENGINEERING_VIEWER_TRANSPORT_KIND,
             "schema": ENGINEERING_VIEWER_TRANSPORT_SCHEMA,
             "status": "ready",
-            "primary": {
-                "role": "primary",
+            "layers": [{
+                "id": "scene_1",
                 "name": "FE mesh",
                 "display_path": str(primary),
                 "visible": True,
@@ -506,8 +508,7 @@ def _request(
                     ),
                 ],
                 "attribute_colors": dict(attribute_colors or {}),
-            },
-            "overlays": overlays,
+            }, *overlays],
         },
         camera_state=camera_state or {},
         options={"viewer_background": "#20252c", **dict(options or {})},
@@ -521,9 +522,90 @@ def _request(
 
 
 class EngineeringViewerWidgetBinderTests(unittest.TestCase):
+    def test_three_same_source_scenes_keep_independent_identity_and_appearance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            surface = Path(directory) / "surface.vtp"
+            edges = Path(directory) / "edges.vtp"
+            surface.touch()
+            edges.touch()
+            binder = EngineeringViewerWidgetBinder(
+                interactor_factory=lambda parent: _FakeInteractor(parent),
+                dataset_loader=lambda path: _FakeDataset(path, [1, 2]),
+                background_loading=False,
+            )
+            request = _request(surface, topology_path=edges, source_kind="cad")
+            layer = request.transport["layers"][0]
+            request.transport["layers"] = [
+                {**copy.deepcopy(layer), "id": f"scene_{index}", "name": "Same name"}
+                for index in range(1, 4)
+            ]
+            widget = binder.bind_widget(request)
+            state = binder._widget_state[widget]
+            self.assertEqual(list(state.actors), ["scene_1", "scene_2", "scene_3"])
+            self.assertEqual(len(state.topology_actors), 3)
+            self.assertEqual(
+                {source["layer_id"] for source in state.selection_source_actors.values()},
+                {"scene_1", "scene_2", "scene_3"},
+            )
+            self.assertTrue(binder.set_layer_visibility(widget, "scene_1", False))
+            original_actors = dict(state.actors)
+            styled = replace(request, current_widget=widget, options={
+                **request.options,
+                "scene_styles": {"scene_2": {"opacity": 0.25, "color": "#112233"}},
+            })
+            self.assertIs(binder.bind_widget(styled), widget)
+            self.assertIs(state.actors["scene_1"], original_actors["scene_1"])
+            self.assertIs(state.actors["scene_3"], original_actors["scene_3"])
+            self.assertIsNot(state.actors["scene_2"], original_actors["scene_2"])
+            self.assertFalse(state.actors["scene_1"].visible)
+            self.assertEqual(state.actors["scene_2"].property.opacity, 0.25)
+            self.assertEqual(state.topology_actors["scene_2"].property.opacity, 0.25)
+            calls = {call["name"]: call for call in widget.add_mesh_calls}
+            self.assertEqual(calls["scene_2"]["color"], "#112233")
+            self.assertNotIn("scalars", calls["scene_2"])
+            self.assertEqual(calls["scene_2::topological_edges"]["color"], "#112233")
+            self.assertEqual(calls["scene_3"]["scalars"], "stress")
+
+            automatic = replace(styled, options={
+                **styled.options, "scene_styles": {"scene_2": {"opacity": 0.6, "color": ""}},
+            })
+            binder.bind_widget(automatic)
+            calls = {call["name"]: call for call in widget.add_mesh_calls}
+            self.assertEqual(calls["scene_2"]["scalars"], "stress")
+            self.assertEqual(state.topology_actors["scene_2"].property.opacity, 0.6)
+            self.assertTrue(binder.isolate_layer(widget, "scene_3"))
+            stats = binder.render_stats(widget)
+            self.assertEqual([entry["visible"] for entry in stats["layers"]], [False, False, True])
+            self.assertEqual([entry["id"] for entry in stats["layers"]], ["scene_1", "scene_2", "scene_3"])
+            self.assertEqual(stats["display_state"]["layer_visibility"], state.layer_visibility)
+
+            reduced = replace(automatic, transport_revision=5, transport={
+                **automatic.transport, "layers": automatic.transport["layers"][1:],
+            })
+            binder.bind_widget(reduced)
+            state = binder._widget_state[widget]
+            self.assertEqual(set(state.actors), {"scene_2", "scene_3"})
+            self.assertFalse(state.actors["scene_2"].visible)
+            self.assertTrue(state.actors["scene_3"].visible)
+            binder.shutdown()
+
+    def test_scene_transport_requires_unique_stable_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "mesh.vtu"
+            path.touch()
+            binder = EngineeringViewerWidgetBinder(background_loading=False)
+            request = _request(path)
+            request.transport["layers"].append(dict(request.transport["layers"][0]))
+            with self.assertRaisesRegex(ValueError, "IDs must be nonempty and unique"):
+                binder._layer_descriptors(request)
+            request.transport["layers"] = [{**request.transport["layers"][0], "id": ""}]
+            with self.assertRaisesRegex(ValueError, "IDs must be nonempty and unique"):
+                binder._layer_descriptors(request)
+            binder.shutdown()
+
     def test_mesh_kwargs_does_not_turn_missing_scalars_into_a_name(self) -> None:
         kwargs = EngineeringViewerWidgetBinder._mesh_kwargs(
-            {"role": "primary", "name": "Geometry", "style": {}},
+            {"id": "scene_1", "name": "Geometry", "style": {}},
             options={},
         )
 
@@ -533,7 +615,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "attribute-color array is missing"):
             EngineeringViewerWidgetBinder._mesh_kwargs(
                 {
-                    "role": "primary",
+                    "id": "scene_1",
                     "name": "Geometry",
                     "style": {},
                     "dataset": _FakeDataset("surface", [1]),
@@ -556,7 +638,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             block.cell_data["RGBA"] = [(10, 20, 30, 255)] * block.n_cells
         kwargs = EngineeringViewerWidgetBinder._mesh_kwargs(
             {
-                "role": "primary",
+                "id": "scene_1",
                 "name": "Colored blocks",
                 "style": {},
                 "dataset": pyvista.MultiBlock([first, second]),
@@ -621,7 +703,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             source_kind="cad",
             options={"show_attribute_colors": True},
         )
-        request.transport["primary"]["display_asset"] = descriptor
+        request.transport["layers"][0]["display_asset"] = descriptor
         binder = EngineeringViewerWidgetBinder(
             interactor_factory=lambda parent: _FakeInteractor(parent),
             dataset_loader=lambda _path: self.fail(
@@ -653,7 +735,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 source_kind="cad",
                 transport_revision=5,
             )
-            unknown_request.transport["primary"]["display_asset"] = unknown
+            unknown_request.transport["layers"][0]["display_asset"] = unknown
             with self.assertRaisesRegex(ValueError, "descriptor is invalid") as raised:
                 binder.bind_widget(unknown_request)
             self.assertNotIn(segment.name, str(raised.exception))
@@ -665,7 +747,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 source_kind="cad",
                 transport_revision=6,
             )
-            corrupt_request.transport["primary"]["display_asset"] = corrupt
+            corrupt_request.transport["layers"][0]["display_asset"] = corrupt
             with self.assertRaisesRegex(ValueError, "geometry is unavailable") as raised:
                 binder.bind_widget(corrupt_request)
             self.assertNotIn(segment.name, str(raised.exception))
@@ -716,14 +798,14 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             self.assertFalse(primary_call["show_edges"])
             self.assertEqual(primary_call["scalars"], "stress")
             self.assertEqual(overlay_call["dataset"], "dataset:selection.vtp")
-            self.assertEqual(overlay_call["color"], "cyan")
-            self.assertEqual(overlay_call["opacity"], 0.2)
-            self.assertFalse(overlay_call["pickable"])
+            self.assertNotIn("color", overlay_call)
+            self.assertEqual(overlay_call["opacity"], 1.0)
+            self.assertTrue(overlay_call["pickable"])
             self.assertTrue(widget.property("ea.nativeWindowOverlay"))
             self.assertEqual(binder.render_stats(widget)["layer_count"], 2)
-            self.assertTrue(binder.set_layer_visibility(widget, "Selected faces", False))
+            self.assertTrue(binder.set_layer_visibility(widget, "scene_2", False))
             self.assertFalse(binder.render_stats(widget)["layers"][1]["visible"])
-            self.assertTrue(binder.isolate_layer(widget, "FE mesh"))
+            self.assertTrue(binder.isolate_layer(widget, "scene_1"))
 
             created[0].camera_position = (
                 (9.0, 8.0, 7.0),
@@ -852,7 +934,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 background_loading=False,
             )
             widget = binder.bind_widget(_request(full_path, interaction_path=interaction_path))
-            actor = binder._widget_state[widget].actors["FE mesh"]
+            actor = binder._widget_state[widget].actors["scene_1"]
             self.assertIs(actor.mapper.dataset, full_dataset)
             widget.trigger("StartInteractionEvent")
             self.assertIs(actor.mapper.dataset, coarse_dataset)
@@ -868,7 +950,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                     widget,
                     [
                         {
-                            "layer_id": "primary",
+                            "layer_id": "scene_1",
                             "source_fingerprint": "a" * 64,
                             "entity_kind": "fe_element",
                             "entity_id": "block:0/element:20",
@@ -885,7 +967,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                     widget,
                     [
                         {
-                            "layer_id": "primary",
+                            "layer_id": "scene_1",
                             "source_fingerprint": "a" * 64,
                             "entity_kind": "fe_element",
                             "entity_id": f"block:0/element:{value}",
@@ -943,10 +1025,10 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             ]
             self.assertEqual(len(display_calls), 2)
             self.assertFalse(widget.add_mesh_calls[0]["show_edges"])
-            self.assertTrue(state.topology_actors["FE mesh"].visible)
+            self.assertTrue(state.topology_actors["scene_1"].visible)
             self.assertTrue(binder.set_selection_filter(widget, "cad_edge"))
             self.assertAlmostEqual(
-                state.selection_source_actors["primary:cad_edge"]["actor"].property.opacity,
+                state.selection_source_actors["scene_1:cad_edge"]["actor"].property.opacity,
                 0.18,
             )
 
@@ -962,7 +1044,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             )
             self.assertTrue(widget.hidden_line_enabled)
             occluder_call = next(
-                call for call in widget.add_mesh_calls if call.get("name") == "FE mesh"
+                call for call in widget.add_mesh_calls if call.get("name") == "scene_1"
             )
             self.assertEqual(occluder_call["style"], "surface")
             self.assertEqual(occluder_call["opacity"], 1.0)
@@ -973,8 +1055,8 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 widget.background_calls[-1]["color"],
                 widget.background_calls[-1]["top"],
             )
-            self.assertTrue(state.actors["FE mesh"].visible)
-            self.assertTrue(state.topology_actors["FE mesh"].visible)
+            self.assertTrue(state.actors["scene_1"].visible)
+            self.assertTrue(state.topology_actors["scene_1"].visible)
             self.assertEqual(tuple(widget.camera_position[0]), (7.0, 6.0, 5.0))
 
             binder.bind_widget(
@@ -991,8 +1073,8 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 widget.background_calls[-1]["color"],
                 widget.background_calls[-1]["top"],
             )
-            self.assertFalse(state.actors["FE mesh"].visible)
-            self.assertTrue(state.topology_actors["FE mesh"].visible)
+            self.assertFalse(state.actors["scene_1"].visible)
+            self.assertTrue(state.topology_actors["scene_1"].visible)
 
             binder.bind_widget(
                 _request(
@@ -1003,8 +1085,8 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                     options={"representation": "surface"},
                 )
             )
-            self.assertTrue(state.actors["FE mesh"].visible)
-            self.assertFalse(state.topology_actors["FE mesh"].visible)
+            self.assertTrue(state.actors["scene_1"].visible)
+            self.assertFalse(state.topology_actors["scene_1"].visible)
             self.assertEqual(widget.hidden_line_calls, [True, False])
             binder.shutdown()
 
@@ -1060,8 +1142,8 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 )
             )
             state = binder._widget_state[widget]
-            old_surface_actor = state.actors["FE mesh"]
-            old_topology_actor = state.topology_actors["FE mesh"]
+            old_surface_actor = state.actors["scene_1"]
+            old_topology_actor = state.topology_actors["scene_1"]
 
             binder.bind_widget(
                 _request(
@@ -1073,8 +1155,8 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                     options={"show_attribute_colors": True},
                 )
             )
-            self.assertIsNot(state.actors["FE mesh"], old_surface_actor)
-            self.assertIsNot(state.topology_actors["FE mesh"], old_topology_actor)
+            self.assertIsNot(state.actors["scene_1"], old_surface_actor)
+            self.assertIsNot(state.topology_actors["scene_1"], old_topology_actor)
             color_calls = [call for call in widget.add_mesh_calls if call.get("rgb")]
             self.assertEqual(len(color_calls), 2)
             self.assertTrue(all(call["scalars"] == "corex_source_rgba" for call in color_calls))
@@ -1241,7 +1323,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 lambda workspace_id, node_id: selection_events.append((workspace_id, node_id))
             )
             entity = {
-                "layer_id": "primary",
+                "layer_id": "scene_1",
                 "source_fingerprint": "a" * 64,
                 "entity_kind": "fe_element",
                 "entity_id": "block:0/element:20",
@@ -1255,7 +1337,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             self.assertEqual(widget.reset_camera_bounds, surface.bounds)
 
             state = binder._widget_state[widget]
-            base_actor = state.actors["FE mesh"]
+            base_actor = state.actors["scene_1"]
             self.assertTrue(binder.toggle_selection_isolate(widget))
             self.assertTrue(state.selection_isolated)
             self.assertFalse(base_actor.visible)
@@ -1599,14 +1681,14 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
         cad_dataset = _FakeDataset("cad", [1])
         cad_layer = {
             "source_kind": "cad",
-            "role": "primary",
+            "id": "scene_1",
             "name": "CAD",
             "dataset": cad_dataset,
             "style": {},
         }
         fe_layer = {
             "source_kind": "fe",
-            "role": "primary",
+            "id": "scene_1",
             "name": "FE",
             "dataset": _FakeDataset("fe", [1]),
             "style": {},

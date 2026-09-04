@@ -178,12 +178,15 @@ Item {
         return "";
     }
     readonly property string viewerResultLabel: String(
-        viewerSummary.result_name
+        (viewerSummary.scene_layers && viewerSummary.scene_layers.length > 1
+            ? viewerSummary.scene_layers.length + " scenes" : "")
+        || viewerSummary.result_name
         || viewerSummary.result_label
         || (host && host.nodeData ? host.nodeData.title || "" : "")
     )
     readonly property string viewerSourceKind: String(viewerSummary.source_kind || "").toLowerCase()
-    readonly property string viewerSetLabel: String(viewerSummary.set_label || viewerSummary.time_label || "")
+    readonly property string viewerSetLabel: viewerSummary.scene_layers && viewerSummary.scene_layers.length > 1
+        ? "" : String(viewerSummary.set_label || viewerSummary.time_label || "")
     readonly property string viewerInvalidatedReason: String(
         viewerSessionModel.invalidated_reason
         || viewerSummary.invalidated_reason
@@ -877,6 +880,13 @@ Item {
 
     function _buildFooterMetaModel() {
         var items = [];
+        if (surface.viewerSummary.scene_layers && surface.viewerSummary.scene_layers.length > 1) {
+            _appendFooterMeta(items, "graphNodeViewerSceneCountMeta", "Scenes",
+                String(surface.viewerSummary.scene_layers.length));
+            if (surface.viewerRunRequired)
+                _appendFooterMeta(items, "graphNodeViewerStatusMeta", "Status", "Rerun required");
+            return items;
+        }
         if (surface.viewerSourceKind === "cad")
             return items;
         if (surface.viewerSessionOpen || surface.viewerRunRequired) {

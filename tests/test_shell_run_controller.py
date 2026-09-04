@@ -433,7 +433,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         toggle_id = self.window.scene.add_node_from_type(
             "data.boolean_toggle", x=40.0, y=260.0
         )
-        self.window.scene.add_edge(cad_id, "scene", viewer_id, "scene")
+        self.window.scene.add_edge(cad_id, "scene", viewer_id, "scene_1")
         self.app.processEvents()
 
         viewer_fact = NodeSolutionFact(

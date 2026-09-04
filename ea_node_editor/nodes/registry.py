@@ -518,6 +518,10 @@ class NodeRegistry:
         )
         if not trusted_builtin and not trusted_tabular:
             raise ValueError("Trusted solution reuse provenance is invalid")
+        if trusted_builtin and spec.type_id == "model.viewer":
+            from .builtins.engineering_viewer import SCENE_INPUT_GROUP
+
+            spec = replace(spec, dynamic_port_groups=(SCENE_INPUT_GROUP,))
         self._register_python_function(
             spec,
             function_ref,

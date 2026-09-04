@@ -181,8 +181,10 @@ class ViewerControlBridgeTests(unittest.TestCase):
         self.assertTrue(self.bridge.set_viewer_option("node", "show_scalar_bar", "false"))
         self.assertTrue(self.bridge.set_viewer_option("node", "deform_scale", "-3"))
         self.assertTrue(self.bridge.set_viewer_option("node", "representation", "wireframe"))
-        self.assertTrue(self.bridge.set_viewer_option("node", "primary_opacity", "1.5"))
-        self.assertTrue(self.bridge.set_viewer_option("node", "overlay_opacity", "0.2"))
+        self.assertTrue(self.bridge.set_viewer_option("node", "scene_styles", {"scene_1": {"opacity": 1}}))
+        self.assertTrue(self.bridge.set_scene_style("node", "scene_1", "opacity", "0.2"))
+        self.assertFalse(self.bridge.set_viewer_option("node", "primary_opacity", "1.5"))
+        self.assertFalse(self.bridge.set_viewer_option("node", "overlay_opacity", "0.2"))
         self.assertTrue(self.bridge.set_viewer_option("node", "parallel_projection", True))
         self.assertFalse(self.bridge.set_viewer_option("node", "path", "C:/other.rst"))
         self.assertFalse(self.bridge.set_viewer_option("node", "unknown_key", 1))
@@ -191,8 +193,7 @@ class ViewerControlBridgeTests(unittest.TestCase):
         self.assertEqual(self.node.properties["colormap"], "turbo")
         self.assertIs(self.node.properties["show_scalar_bar"], False)
         self.assertEqual(self.node.properties["deform_scale"], "off")
-        self.assertEqual(self.node.properties["primary_opacity"], 1.0)
-        self.assertEqual(self.node.properties["overlay_opacity"], 0.2)
+        self.assertEqual(self.node.properties["scene_styles"], {"scene_1": {"opacity": 0.2, "color": ""}})
         self.assertIs(self.node.properties["parallel_projection"], True)
         self.assertEqual(len(self.session.sync_calls), 12)
         colormap_sync = next(
@@ -201,6 +202,35 @@ class ViewerControlBridgeTests(unittest.TestCase):
         self.assertEqual(colormap_sync[:3], ("node", "colormap", "turbo"))
         self.assertTrue(changed)
         self.assertEqual(set(changed), {"node"})
+
+    def test_per_scene_styles_validate_and_preserve_other_scenes(self) -> None:
+        self.node.properties["scene_input_ids"] = ["scene_1", "scene_2", "scene_3"]
+        self.assertTrue(self.bridge.set_scene_style("node", "scene_1", "color", "#123ABC"))
+        self.assertTrue(self.bridge.set_scene_style("node", "scene_2", "opacity", "0.3"))
+        before = dict(self.node.properties["scene_styles"])
+        for scene_id, key, value in [
+            ("missing", "color", "#123456"), ("scene_1", "color", "invalid"),
+            ("scene_1", "opacity", float("nan")), ("scene_1", "opacity", 1.1),
+            ("scene_1", "opacity", -0.1), ("scene_1", "unknown", True),
+        ]:
+            with self.subTest(scene_id=scene_id, key=key, value=value):
+                self.assertFalse(self.bridge.set_scene_style("node", scene_id, key, value))
+                self.assertEqual(self.node.properties["scene_styles"], before)
+        self.assertTrue(self.bridge.set_scene_style("node", "scene_1", "color", ""))
+        self.assertEqual(self.node.properties["scene_styles"]["scene_1"]["color"], "")
+        self.assertEqual(self.node.properties["scene_styles"]["scene_2"]["opacity"], 0.3)
+        self.assertEqual(self.session.sync_calls[-1][1:3], ("scene_styles", self.node.properties["scene_styles"]))
+
+    def test_export_uses_live_scene_visibility_and_styles(self) -> None:
+        self.bridge._save_file_dialog = lambda **_kwargs: "C:/tmp/scenes.vtm"
+        display_state = {"layer_visibility": {"scene_1": False, "scene_2": True},
+                         "scene_styles": {"scene_2": {"opacity": 0.4, "color": "#123456"}}}
+        self.host.viewer_render_stats = lambda _node_id: {"display_state": display_state}
+        with patch.object(self.session, "query_session", return_value={"supported": True}) as query:
+            self.assertTrue(self.bridge.export_engineering_viewer("node", "vtm")["supported"])
+        self.assertEqual(query.call_args.kwargs["payload"]["display_state"], display_state)
+        self.assertEqual(query.call_args.kwargs["payload"]["path"], "C:/tmp/scenes.vtm")
+        self.assertNotIn("output_path", query.call_args.kwargs["payload"])
 
     def test_direct_providers_follow_model_and_registry_replacement_and_fail_closed(
         self,

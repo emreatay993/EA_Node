@@ -399,6 +399,42 @@ def test_dynamic_port_label_rename_preserves_identity_wires_and_can_clear() -> N
     assert "output_0" not in gate.port_labels
 
 
+def test_model_viewer_dynamic_scenes_preserve_identity_styles_and_serialization() -> None:
+    from ea_node_editor.nodes.bootstrap import build_builtin_registry
+
+    registry = build_builtin_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    mutations = model.validated_mutations(workspace.workspace_id, registry)
+    viewer = mutations.add_node(type_id="model.viewer", title="Viewer", x=0, y=0)
+    source = mutations.add_node(type_id="geometry.cylinder", title="Body", x=0, y=100)
+    second = mutations.insert_dynamic_port(viewer.node_id, "scenes", 1)
+    third = mutations.insert_dynamic_port(viewer.node_id, "scenes", 1)
+    assert viewer.properties["scene_input_ids"] == ["scene_1", third, second]
+    edge = mutations.add_edge(source_node_id=source.node_id, source_port_key="body", target_node_id=viewer.node_id, target_port_key=second)
+    mutations.rename_dynamic_port(viewer.node_id, "scenes", second, "Housing")
+    mutations.set_node_property(viewer.node_id, "scene_styles", {second: {"opacity": 0.4, "color": "#AbCDef"}})
+    serializer = JsonProjectSerializer(registry)
+    document = serializer.to_persistent_document(model.project)
+    loaded = serializer.from_document(document).workspaces[workspace.workspace_id]
+    assert loaded.nodes[viewer.node_id].properties["scene_input_ids"] == ["scene_1", third, second]
+    assert loaded.nodes[viewer.node_id].port_labels[second] == "Housing"
+    assert loaded.nodes[viewer.node_id].properties["scene_styles"][second] == {"opacity": 0.4, "color": "#abcdef"}
+    assert loaded.edges[edge.edge_id].target_port_key == second
+    mutations.remove_dynamic_port(viewer.node_id, "scenes", third)
+    assert workspace.edges[edge.edge_id].target_port_key == second
+    _, removed_edges = mutations.remove_dynamic_port(viewer.node_id, "scenes", second)
+    assert removed_edges == (edge.edge_id,)
+    normalized = serializer.from_document(serializer.to_persistent_document(model.project))
+    assert second not in normalized.workspaces[workspace.workspace_id].nodes[viewer.node_id].properties["scene_styles"]
+    new_port = mutations.insert_dynamic_port(viewer.node_id, "scenes", 1)
+    assert new_port not in {second, third}
+    assert new_port not in viewer.properties["scene_styles"]
+    mutations.remove_dynamic_port(viewer.node_id, "scenes", new_port)
+    with pytest.raises(ValueError):
+        mutations.remove_dynamic_port(viewer.node_id, "scenes", "scene_1")
+
+
 def test_key_rename_prunes_wires_and_old_sparse_state_without_transfer() -> None:
     registry = _registry()
     model = GraphModel()

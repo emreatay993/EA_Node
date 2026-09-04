@@ -134,6 +134,12 @@ implementation studies are intentionally excluded.
 
 ## Hygiene
 
+- Model Viewer dynamic inputs reuse graph-owned port mutations and generic QML
+  authoring controls. Trusted node registration owns the scene-group metadata;
+  engineering execution owns v2 ordered layers and source leases; the binder and
+  viewer bridges own per-ID appearance, selection, visibility, and queries.
+  Viewer Python/QML geometry reserves the existing dynamic-add target space.
+
 - Update the owning map when source/test ownership moves.
 - Regenerate `docs/agent_route_index.*` and
   `docs/source_test_file_index.md` after path changes.

@@ -22,6 +22,7 @@ Rectangle {
     property bool panelCollapsed: true
     property var savedSelections: ({ "published_name": "", "selections": [] })
     property string engineeringToolMessage: ""
+    property string selectedSceneId: ""
 
     function refreshSelections() {
         if (!sidePanel.bridgeRef || !sidePanel.bridgeRef.viewer_saved_selections) {
@@ -32,6 +33,7 @@ Rectangle {
     }
 
     onNodeIdChanged: {
+        selectedSceneId = "";
         refreshSelections();
     }
     Component.onCompleted: {
@@ -40,6 +42,17 @@ Rectangle {
 
     readonly property var sessionOptions: sessionState.options ? sessionState.options : ({})
     readonly property var sessionSummary: sessionState.summary ? sessionState.summary : ({})
+    readonly property var sceneLayers: sessionSummary.scene_layers || []
+    readonly property int selectedSceneIndex: {
+        for (var index = 0; index < sceneLayers.length; ++index) {
+            if (String(sceneLayers[index].id || "") === selectedSceneId)
+                return index;
+        }
+        return sceneLayers.length ? 0 : -1;
+    }
+    readonly property var selectedScene: selectedSceneIndex >= 0 ? sceneLayers[selectedSceneIndex] : ({})
+    readonly property var selectedSceneStyle: (sessionOptions.scene_styles || {})[String(selectedScene.id || "")] || ({})
+    readonly property var infoSummary: engineeringViewer ? selectedScene : sessionSummary
     readonly property var capabilities: sessionSummary.capabilities ? sessionSummary.capabilities : ({})
     readonly property bool engineeringViewer: String(sessionSummary.viewer_kind || "") === "engineering_scene"
     readonly property bool supportsScalars: (capabilities.scalar_results === undefined
@@ -54,7 +67,8 @@ Rectangle {
     readonly property bool supportsModelTree: Boolean(capabilities.model_tree)
     readonly property bool supportsSceneLayers: Boolean(capabilities.scene_layers)
     readonly property bool supportsClipping: Boolean(capabilities.clipping)
-    readonly property bool supportsMeasurements: Boolean(capabilities.measure)
+    readonly property bool supportsMeasurements: Boolean(engineeringViewer
+        ? (selectedScene.capabilities || {}).measure : capabilities.measure)
     readonly property bool supportsNeutralExport: Boolean(capabilities.export_3d)
     // Query/export controls follow the exact backend capability advertised by
     // the active source; the shared bridge provides the node-scoped transport.
@@ -71,7 +85,8 @@ Rectangle {
             return ({});
         return sidePanel.hostServiceRef.viewer_render_stats(sidePanel.nodeId);
     }
-    readonly property string statsUnit: String(sidePanel.renderStats.unit || sidePanel.sessionSummary.unit || "")
+    readonly property string statsUnit: String((engineeringViewer ? "" : sidePanel.renderStats.unit)
+        || sidePanel.infoSummary.unit || "")
     readonly property var componentValues: ["magnitude", "x", "y", "z"]
     readonly property var rangeModeValues: ["auto", "custom"]
     readonly property var colormapValues: ["jet", "viridis", "turbo", "rainbow", "plasma", "coolwarm", "gray"]
@@ -90,6 +105,16 @@ Rectangle {
         if (!sidePanel.bridgeRef || !sidePanel.bridgeRef.set_viewer_option)
             return false;
         return Boolean(sidePanel.bridgeRef.set_viewer_option(sidePanel.nodeId, String(key || ""), value));
+    }
+
+    function setSceneStyle(key, value) {
+        if (!sidePanel.bridgeRef || !sidePanel.bridgeRef.set_scene_style || !sidePanel.selectedScene.id)
+            return false;
+        var accepted = sidePanel.bridgeRef.set_scene_style(
+            sidePanel.nodeId, String(sidePanel.selectedScene.id), key, value
+        );
+        sidePanel.engineeringToolMessage = accepted ? "" : "Use opacity from 0 to 1, or a color in #RRGGBB format.";
+        return Boolean(accepted);
     }
 
     function renderModeSupported(mode) {
@@ -125,7 +150,8 @@ Rectangle {
     function runEngineeringQuery(queryType) {
         if (!sidePanel.bridgeRef || !sidePanel.bridgeRef.query_viewer)
             return false;
-        var result = sidePanel.bridgeRef.query_viewer(sidePanel.nodeId, String(queryType || ""), ({}));
+        var result = sidePanel.bridgeRef.query_viewer(sidePanel.nodeId, String(queryType || ""),
+            { "layer_id": String(sidePanel.selectedScene.id || "") });
         sidePanel.engineeringToolMessage = result && result.pending
             ? String(result.explanation || "Engineering query queued.")
             : result && result.supported
@@ -329,11 +355,12 @@ Rectangle {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 4
+                    property string layerId: String(modelData.id || "")
                     property string layerName: String(modelData.name || ("Layer " + (index + 1)))
                     property bool layerVisible: {
                         var layers = sidePanel.renderStats.layers || [];
                         for (var itemIndex = 0; itemIndex < layers.length; ++itemIndex) {
-                            if (String(layers[itemIndex].name || "") === layerName)
+                            if (String(layers[itemIndex].id || "") === layerId)
                                 return Boolean(layers[itemIndex].visible);
                         }
                         return modelData.visible === undefined ? true : Boolean(modelData.visible);
@@ -352,7 +379,7 @@ Rectangle {
                         onClicked: {
                             if (sidePanel.hostServiceRef && sidePanel.hostServiceRef.set_viewer_layer_visibility)
                                 sidePanel.hostServiceRef.set_viewer_layer_visibility(
-                                    sidePanel.nodeId, parent.layerName, !parent.layerVisible
+                                    sidePanel.nodeId, parent.layerId, !parent.layerVisible
                                 );
                         }
                     }
@@ -361,7 +388,7 @@ Rectangle {
                         Layout.preferredWidth: 34
                         onClicked: {
                             if (sidePanel.hostServiceRef && sidePanel.hostServiceRef.isolate_viewer_layer)
-                                sidePanel.hostServiceRef.isolate_viewer_layer(sidePanel.nodeId, parent.layerName);
+                                sidePanel.hostServiceRef.isolate_viewer_layer(sidePanel.nodeId, parent.layerId);
                         }
                     }
                 }
@@ -497,37 +524,65 @@ Rectangle {
                 }
 
                 Text {
-                    text: "Primary opacity"
+                    text: "Scene"
                     visible: sidePanel.supportsSceneLayers
                     color: sidePanel.themePalette.muted_fg
                     font.pixelSize: 11
                 }
-                PanelField {
-                    objectName: "viewerSidePanelPrimaryOpacityField"
+                ComboBox {
+                    objectName: "viewerSidePanelSceneSelector"
+                    Accessible.name: "Scene"
+                    Layout.fillWidth: true
                     visible: sidePanel.supportsSceneLayers
-                    text: String(sidePanel.sessionOptions.primary_opacity === undefined
-                        ? 1.0 : sidePanel.sessionOptions.primary_opacity)
-                    placeholderText: "0.0 - 1.0"
-                    onEditingFinished: sidePanel.setViewerOption("primary_opacity", text)
+                    model: sidePanel.sceneLayers
+                    textRole: "name"
+                    currentIndex: sidePanel.selectedSceneIndex
+                    palette.text: sidePanel.themePalette.tab_fg
+                    palette.buttonText: sidePanel.themePalette.tab_fg
+                    palette.base: sidePanel.themePalette.input_bg
+                    palette.window: sidePanel.themePalette.panel_bg
+                    palette.highlight: sidePanel.themePalette.accent
+                    onActivated: function(index) {
+                        sidePanel.selectedSceneId = String(sidePanel.sceneLayers[index].id);
+                    }
                 }
-
                 Text {
-                    text: "Overlay opacity"
+                    text: "Opacity"
                     visible: sidePanel.supportsSceneLayers
-                        && sidePanel.sessionSummary.scene_layers
-                        && sidePanel.sessionSummary.scene_layers.length > 1
                     color: sidePanel.themePalette.muted_fg
                     font.pixelSize: 11
                 }
                 PanelField {
-                    objectName: "viewerSidePanelOverlayOpacityField"
+                    objectName: "viewerSidePanelSceneOpacityField"
+                    Accessible.name: "Scene opacity"
                     visible: sidePanel.supportsSceneLayers
-                        && sidePanel.sessionSummary.scene_layers
-                        && sidePanel.sessionSummary.scene_layers.length > 1
-                    text: String(sidePanel.sessionOptions.overlay_opacity === undefined
-                        ? 0.35 : sidePanel.sessionOptions.overlay_opacity)
+                    text: String(sidePanel.selectedSceneStyle.opacity === undefined
+                        ? 1.0 : sidePanel.selectedSceneStyle.opacity)
                     placeholderText: "0.0 - 1.0"
-                    onEditingFinished: sidePanel.setViewerOption("overlay_opacity", text)
+                    onEditingFinished: sidePanel.setSceneStyle("opacity", text)
+                }
+                Text {
+                    text: "Color"
+                    visible: sidePanel.supportsSceneLayers
+                    color: sidePanel.themePalette.muted_fg
+                    font.pixelSize: 11
+                }
+                RowLayout {
+                    visible: sidePanel.supportsSceneLayers
+                    Layout.fillWidth: true
+                    PanelField {
+                        objectName: "viewerSidePanelSceneColorField"
+                        Accessible.name: "Scene color"
+                        Layout.fillWidth: true
+                        text: String(sidePanel.selectedSceneStyle.color || "")
+                        placeholderText: "Auto / #RRGGBB"
+                        onEditingFinished: sidePanel.setSceneStyle("color", text)
+                    }
+                    ShellButton {
+                        objectName: "viewerSidePanelSceneColorAutoButton"
+                        text: "Auto"
+                        onClicked: sidePanel.setSceneStyle("color", "")
+                    }
                 }
 
                 Text {
@@ -797,8 +852,8 @@ Rectangle {
             }
 
             Text {
-                text: "Result Info"
-                visible: sidePanel.supportsScalars
+                text: sidePanel.engineeringViewer ? "Selected Scene" : "Result Info"
+                visible: sidePanel.supportsScalars || sidePanel.supportsSceneLayers
                 color: sidePanel.themePalette.panel_title_fg
                 font.pixelSize: 12
                 font.bold: true
@@ -809,12 +864,12 @@ Rectangle {
                 columnSpacing: 8
                 rowSpacing: 3
                 Layout.fillWidth: true
-                visible: sidePanel.supportsScalars
+                visible: sidePanel.supportsScalars || sidePanel.supportsSceneLayers
 
                 Text { text: "Result"; color: sidePanel.themePalette.muted_fg; font.pixelSize: 11 }
                 Text {
                     objectName: "viewerSidePanelResultValue"
-                    text: String(sidePanel.sessionSummary.result_name || "—")
+                    text: String(sidePanel.infoSummary.result_name || sidePanel.infoSummary.name || "—")
                     color: sidePanel.themePalette.tab_fg
                     font.pixelSize: 11
                     elide: Text.ElideRight
@@ -823,7 +878,7 @@ Rectangle {
 
                 Text { text: "Location"; color: sidePanel.themePalette.muted_fg; font.pixelSize: 11 }
                 Text {
-                    text: String(sidePanel.sessionSummary.location || "—")
+                    text: String(sidePanel.infoSummary.location || "—")
                     color: sidePanel.themePalette.tab_fg
                     font.pixelSize: 11
                 }
@@ -837,14 +892,14 @@ Rectangle {
 
                 Text { text: "Sets"; color: sidePanel.themePalette.muted_fg; font.pixelSize: 11 }
                 Text {
-                    text: String(sidePanel.sessionSummary.field_count || "—")
+                    text: String(sidePanel.infoSummary.field_count || "—")
                     color: sidePanel.themePalette.tab_fg
                     font.pixelSize: 11
                 }
 
                 Text { text: "Set"; color: sidePanel.themePalette.muted_fg; font.pixelSize: 11 }
                 Text {
-                    text: String(sidePanel.sessionSummary.set_label || "—")
+                    text: String(sidePanel.infoSummary.set_label || "—")
                     color: sidePanel.themePalette.tab_fg
                     font.pixelSize: 11
                 }

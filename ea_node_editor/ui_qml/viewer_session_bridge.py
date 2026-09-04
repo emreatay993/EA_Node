@@ -15,7 +15,7 @@ from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
 from ea_node_editor.common.coercions import coerce_float
 from ea_node_editor.common.scene_protocol import (
-    normalize_viewer_opacity,
+    normalize_scene_styles,
     normalize_viewer_representation,
 )
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
@@ -224,8 +224,7 @@ _VIEW_OPTION_COERCERS: dict[str, Any] = {
     DPF_VIEWER_SHOW_MINMAX_MARKERS_PROPERTY: _coerce_bool,
     DPF_VIEWER_BACKGROUND_PROPERTY: normalize_dpf_viewer_background,
     "representation": normalize_viewer_representation,
-    "primary_opacity": lambda value: normalize_viewer_opacity(value, default=1.0),
-    "overlay_opacity": lambda value: normalize_viewer_opacity(value, default=0.35),
+    "scene_styles": normalize_scene_styles,
     "parallel_projection": _coerce_bool,
     "clip_enabled": _coerce_bool,
     "clip_axis": lambda value: (
@@ -246,7 +245,10 @@ def _session_option_updates_for_node_property(key: Any, value: Any) -> dict[str,
     coercer = _VIEW_OPTION_COERCERS.get(normalized_key)
     if coercer is None:
         return {}
-    return {normalized_key: coercer(value)}
+    try:
+        return {normalized_key: coercer(value)}
+    except (TypeError, ValueError):
+        return {}
 
 
 def _normalize_live_mode(value: Any) -> str:

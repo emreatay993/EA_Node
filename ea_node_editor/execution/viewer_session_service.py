@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from ea_node_editor.common.coercions import coerce_int as _coerce_int
+from ea_node_editor.common.scene_protocol import ENGINEERING_VIEWER_BACKEND_ID
 from ea_node_editor.execution.handle_registry import (
     HandleDisposalError,
     StaleHandleError,
@@ -950,6 +951,12 @@ class ViewerSessionService:
             playback_state=command.playback_state,
             summary=command.summary,
             options=command.options,
+            replace_scene_sources=(
+                (command.backend_id or record.backend_id)
+                == ENGINEERING_VIEWER_BACKEND_ID
+                and isinstance(command.data_refs.get("scene_order"), (list, tuple))
+                and bool(command.data_refs["scene_order"])
+            ),
         )
         if command.data_refs or command.transport:
             record.invalidated_reason = ""
@@ -1222,6 +1229,11 @@ class ViewerSessionService:
                 source_refs=record.source_refs,
                 session_summary={
                     **copy.deepcopy(record.summary),
+                    **(
+                        {"transport_revision": record.transport_revision}
+                        if backend_id == ENGINEERING_VIEWER_BACKEND_ID
+                        else {}
+                    ),
                     "camera_state": copy.deepcopy(record.camera_state),
                 },
                 session_options=record.options,
@@ -1373,6 +1385,7 @@ class ViewerSessionService:
         playback_state: Mapping[str, Any],
         summary: Mapping[str, Any],
         options: Mapping[str, Any],
+        replace_scene_sources: bool = False,
     ) -> None:
         source_refs: dict[str, Any] = {}
         materialized_refs: dict[str, Any] = {}
@@ -1393,6 +1406,20 @@ class ViewerSessionService:
                 normalized_key,
                 record.materialized_refs.get(normalized_key),
             )
+            runtime_ref = coerce_runtime_handle_ref(value)
+            previous_ref = coerce_runtime_handle_ref(previous_value)
+            if (
+                replace_scene_sources
+                and runtime_ref is not None
+                and runtime_ref.owner_scope == record.owner_scope
+                and (
+                    previous_ref is None
+                    or previous_ref.handle_id != runtime_ref.handle_id
+                )
+            ):
+                value = self._worker_services.lease_handle(
+                    value, owner_scope=record.owner_scope
+                )
             persisted_value = self._persist_ref_value(
                 value,
                 owner_scope=record.owner_scope,
@@ -1407,11 +1434,34 @@ class ViewerSessionService:
                 source_refs[normalized_key] = persisted_value
             record.stale_ref_keys.discard(normalized_key)
 
+        removed_scene_keys = {
+            key
+            for key in record.source_refs
+            if replace_scene_sources
+            and key.startswith(("scene:", "native_source:"))
+            and key not in source_refs
+        }
+        scene_sources_changed = replace_scene_sources and (
+            bool(removed_scene_keys)
+            or any(
+                record.source_refs.get(key) != value
+                for key, value in source_refs.items()
+            )
+        )
         self._merge_record_refs(
             record,
             source_refs=source_refs,
             materialized_refs=materialized_refs,
         )
+        for key in removed_scene_keys:
+            self._release_session_handle(
+                record.source_refs.pop(key), owner_scope=record.owner_scope
+            )
+            record.stale_ref_keys.discard(key)
+        if scene_sources_changed and record.transport:
+            self._release_live_transport(
+                record, reason="scene_sources_changed", mark_rerun_required=False
+            )
         normalized_backend_id = str(backend_id).strip()
         if normalized_backend_id:
             record.backend_id = normalized_backend_id

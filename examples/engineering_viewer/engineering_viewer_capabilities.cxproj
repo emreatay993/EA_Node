@@ -67,7 +67,7 @@
       },
       "general": {
         "author": "",
-        "description": "A self-contained colored CAD and RGBA FE overlay walkthrough for the fullscreen and detached Model Viewer controls.",
+        "description": "A self-contained colored CAD and RGBA FE multi-scene walkthrough for the fullscreen and detached Model Viewer controls.",
         "project_name": "Model Viewer Capabilities"
       },
       "logging": {
@@ -99,17 +99,6 @@
       "dirty": true,
       "edges": [
         {
-          "edge_id": "edge_fe_overlay",
-          "enabled": true,
-          "input_order": 0,
-          "label": "",
-          "source_node_id": "node_fe_import",
-          "source_port_key": "scene",
-          "target_node_id": "node_engineering_viewer",
-          "target_port_key": "overlay",
-          "visual_style": {}
-        },
-        {
           "edge_id": "edge_cad_scene",
           "enabled": true,
           "input_order": 0,
@@ -117,7 +106,18 @@
           "source_node_id": "node_cad_import",
           "source_port_key": "scene",
           "target_node_id": "node_engineering_viewer",
-          "target_port_key": "scene",
+          "target_port_key": "scene_1",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_fe_scene",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_fe_import",
+          "source_port_key": "scene",
+          "target_node_id": "node_engineering_viewer",
+          "target_port_key": "scene_2",
           "visual_style": {}
         }
       ],
@@ -185,8 +185,8 @@
           "custom_width": 860.0,
           "expanded_settings_group_ids": [],
           "exposed_ports": {
-            "overlay": true,
-            "scene": true,
+            "scene_1": true,
+            "scene_2": true,
             "selections": true,
             "session": true
           },
@@ -253,16 +253,23 @@
             "clip_axis": "x",
             "clip_enabled": false,
             "clip_offset": 0.0,
-            "overlay_color": "#ff9f43",
-            "overlay_opacity": 0.32,
             "parallel_projection": false,
-            "primary_opacity": 1.0,
             "representation": "surface_with_edges",
             "saved_selections": {
               "published_name": "",
               "scene_fingerprint": "",
               "schema": "engineering_selection_set.v2",
               "selections": []
+            },
+            "scene_input_ids": [
+              "scene_1",
+              "scene_2"
+            ],
+            "scene_styles": {
+              "scene_2": {
+                "color": "",
+                "opacity": 0.32
+              }
             },
             "show_attribute_colors": true,
             "show_mesh_edges": true,

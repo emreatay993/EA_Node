@@ -3,16 +3,19 @@
 # Tests: tests/test_engineering_viewer_node.py
 from __future__ import annotations
 
+import hashlib
+import json
+from collections.abc import Mapping
 from typing import Any
+from uuid import uuid4
 
 from ea_node_editor.common.scene_protocol import (
     COREX_SCENE_DATA_TYPE,
     COREX_SCENE_HANDLE_KIND,
     ENGINEERING_VIEWER_BACKEND_ID,
-    ENGINEERING_SELECTION_DATA_TYPE,
     empty_engineering_selection_set,
     normalize_engineering_selection_set,
-    normalize_viewer_opacity,
+    normalize_scene_styles,
     normalize_viewer_representation,
 )
 from ea_node_editor.nodes.builtins.geometry_primitives import (
@@ -22,8 +25,8 @@ from ea_node_editor.nodes.builtins.geometry_primitives import (
     _resolve_ocp_body,
     _resolve_geometry_group,
 )
-from ea_node_editor.nodes.core_data_types import VIEWER_SESSION_DATA_TYPE_ID
-from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.execution_context import NodeInputNotReadyError, NodeResult
+from ea_node_editor.nodes.node_specs import DynamicPortGroupSpec, PortSpec
 from ea_node_editor.nodes.viewer_runtime_contracts import (
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
@@ -34,6 +37,42 @@ from ea_node_editor.nodes.viewer_runtime_contracts import (
 from ea_node_editor.runtime_contracts import coerce_runtime_handle_ref
 
 ENGINEERING_VIEWER_NODE_TYPE_ID = "model.viewer"
+
+
+def scene_input_ids(properties: Mapping[str, object]) -> tuple[str, ...]:
+    values = properties.get("scene_input_ids", ["scene_1"])
+    if (
+        not isinstance(values, (list, tuple))
+        or not values
+        or any(not isinstance(key, str) or not key.startswith("scene_") or not key.isidentifier() for key in values)
+        or len(set(values)) != len(values)
+    ):
+        raise ValueError("Model Viewer scene inputs require unique scene_ identifiers.")
+    return tuple(values)
+
+
+def resolve_scene_input_ports(properties: Mapping[str, object]) -> tuple[PortSpec, ...]:
+    return tuple(
+        PortSpec(
+            key, "in", "data", COREX_SCENE_DATA_TYPE,
+            label=f"Scene {index}", required=False,
+            accepted_data_types=(OCP_BODY_DATA_TYPE_ID, GEOMETRY_GROUP_DATA_TYPE_ID),
+            description="Prepared CAD/FE scene, OCP Body, or Geometry Group. Empty inputs are ignored.",
+        )
+        for index, key in enumerate(scene_input_ids(properties), start=1)
+    )
+
+
+def next_scene_input_id(_properties: Mapping[str, object]) -> str:
+    # IDs are never reused, so removing and adding a scene cannot revive stale style/selection state.
+    return f"scene_{uuid4().hex}"
+
+
+SCENE_INPUT_GROUP = DynamicPortGroupSpec(
+    group_id="scenes", property_key="scene_input_ids", direction="in",
+    ports_resolver=resolve_scene_input_ports, key_factory=next_scene_input_id,
+    minimum=1, rename_mode="label",
+)
 
 
 def _require_scene(value: object, *, label: str):  # noqa: ANN202
@@ -56,10 +95,10 @@ def _scene_fingerprint(scene_ref: Any) -> str:
     return str(source.get("sha256", "")).strip()
 
 
-def _prepare_primary_scene(ctx, value: object):  # noqa: ANN001, ANN202
+def _prepare_scene(ctx, value: object, *, label: str):  # noqa: ANN001, ANN202
     runtime_ref = coerce_runtime_handle_ref(value)
     if runtime_ref is None:
-        return _require_scene(value, label="scene"), None
+        return _require_scene(value, label=label), None
 
     if runtime_ref.data_type_id == OCP_BODY_DATA_TYPE_ID:
         native_source_ref, shape = _resolve_ocp_body(ctx, value)
@@ -69,7 +108,7 @@ def _prepare_primary_scene(ctx, value: object):  # noqa: ANN001, ANN202
         shape = _geometry_group_compound(ctx, group)
         source_name = "GeometryGroup"
     else:
-        return _require_scene(value, label="scene"), None
+        return _require_scene(value, label=label), None
 
     services = ctx.worker_services
     scene_ref = services.prepared_scene_runtime.prepare_cad_shape(
@@ -83,6 +122,14 @@ def _prepare_primary_scene(ctx, value: object):  # noqa: ANN001, ANN202
     return scene_ref, native_source_ref
 
 
+def _composition_fingerprint(layer_fingerprints: Mapping[str, str]) -> str:
+    if not layer_fingerprints or any(not value for value in layer_fingerprints.values()):
+        return ""
+    return hashlib.sha256(
+        json.dumps(list(layer_fingerprints.items()), separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
 def _selection_output_for_scene(
     value: object,
     *,
@@ -93,7 +140,7 @@ def _selection_output_for_scene(
         for layer_id, fingerprint in layer_fingerprints.items()
         if str(layer_id).strip() and str(fingerprint).strip()
     }
-    current_fingerprint = current_layer_fingerprints.get("primary", "")
+    current_fingerprint = _composition_fingerprint(current_layer_fingerprints)
     if not current_fingerprint:
         return empty_engineering_selection_set()
     try:
@@ -146,31 +193,29 @@ def _metadata_sequence_count(
         return len(sample)
 
 
-def _viewer_summary(primary_ref: Any, overlay_ref: Any | None) -> dict[str, Any]:
-    point_arrays = _metadata_sequence_sample(primary_ref.metadata, "point_arrays")
-    cell_arrays = _metadata_sequence_sample(primary_ref.metadata, "cell_arrays")
+def _scene_summary(scene_id: str, name: str, scene_ref: Any) -> dict[str, Any]:
+    point_arrays = _metadata_sequence_sample(scene_ref.metadata, "point_arrays")
+    cell_arrays = _metadata_sequence_sample(scene_ref.metadata, "cell_arrays")
     point_array_count = _metadata_sequence_count(
-        primary_ref.metadata,
+        scene_ref.metadata,
         "point_arrays",
         point_arrays,
     )
     cell_array_count = _metadata_sequence_count(
-        primary_ref.metadata,
+        scene_ref.metadata,
         "cell_arrays",
         cell_arrays,
     )
-    source = primary_ref.metadata.get("source")
-    source = source if isinstance(source, dict) else {}
     hierarchy = [
         dict(item)
         for item in _metadata_sequence_sample(
-            primary_ref.metadata,
+            scene_ref.metadata,
             "hierarchy",
         )
         if isinstance(item, dict)
     ]
     hierarchy_count = _metadata_sequence_count(
-        primary_ref.metadata,
+        scene_ref.metadata,
         "hierarchy",
         hierarchy,
     )
@@ -202,57 +247,11 @@ def _viewer_summary(primary_ref: Any, overlay_ref: Any | None) -> dict[str, Any]
         "wireframe_visible_edges": True,
         "world_axes": True,
     }
-    scene_layers = [
-        {
-            "role": "primary",
-            "name": str(source.get("source_path", ""))
-            .rsplit("\\", 1)[-1]
-            .rsplit("/", 1)[-1]
-            or "Primary",
-            "length_unit": str(primary_ref.metadata.get("length_unit", "")),
-        }
-    ]
-    if overlay_ref is not None:
-        overlay_source = overlay_ref.metadata.get("source")
-        overlay_source = overlay_source if isinstance(overlay_source, dict) else {}
-        scene_layers.append(
-            {
-                "role": "overlay",
-                "name": str(overlay_source.get("source_path", ""))
-                .rsplit("\\", 1)[-1]
-                .rsplit("/", 1)[-1]
-                or "Overlay",
-                "length_unit": str(overlay_ref.metadata.get("length_unit", "")),
-            }
-        )
-        hierarchy.extend(
-            {
-                **dict(item),
-                "role": "overlay",
-            }
-            for item in _metadata_sequence_sample(
-                overlay_ref.metadata,
-                "hierarchy",
-            )
-            if isinstance(item, dict)
-        )
-        capabilities["model_tree"] = capabilities["model_tree"] or bool(
-            _metadata_sequence_count(
-                overlay_ref.metadata,
-                "hierarchy",
-                _metadata_sequence_sample(
-                    overlay_ref.metadata,
-                    "hierarchy",
-                ),
-            )
-        )
-    for item in hierarchy:
-        item.setdefault("role", "primary")
     return {
-        "viewer_kind": "engineering_scene",
-        "source_kind": str(primary_ref.metadata.get("source_kind", "")),
+        "id": scene_id,
+        "name": name,
+        "source_kind": str(scene_ref.metadata.get("source_kind", "")),
         "capabilities": capabilities,
-        "scene_layers": scene_layers,
         "model_tree": hierarchy,
         "result_name": (point_arrays + cell_arrays)[0]
         if point_arrays or cell_arrays
@@ -266,17 +265,38 @@ def _viewer_summary(primary_ref: Any, overlay_ref: Any | None) -> dict[str, Any]
             if cell_array_count
             else ""
         ),
-        "unit": str(primary_ref.metadata.get("length_unit", "")),
-        "scene_fingerprint": _scene_fingerprint(primary_ref),
+        "unit": str(scene_ref.metadata.get("length_unit", "")),
+        "length_unit": str(scene_ref.metadata.get("length_unit", "")),
+    }
+
+
+def _viewer_summary(scenes: Mapping[str, Any], labels: Mapping[str, str]) -> dict[str, Any]:
+    layers = [_scene_summary(key, labels[key], ref) for key, ref in scenes.items()]
+    source_kinds = {layer["source_kind"] for layer in layers}
+    return {
+        **{key: value for key, value in layers[0].items() if key not in {"id", "name"}},
+        "viewer_kind": "engineering_scene",
+        "source_kind": layers[0]["source_kind"] if len(source_kinds) == 1 else "mixed",
+        "result_name": layers[0]["result_name"] if len(layers) == 1 else f"{len(layers)} scenes",
+        "scene_layers": layers,
+        "scene_fingerprint": _composition_fingerprint({key: _scene_fingerprint(ref) for key, ref in scenes.items()}),
+        "capabilities": {
+            key: any(layer["capabilities"].get(key, False) for layer in layers)
+            for key in layers[0]["capabilities"]
+        },
+        "model_tree": [
+            {**item, "layer_id": layer["id"]}
+            for layer in layers for item in layer["model_tree"]
+        ],
     }
 
 
 def _open_engineering_viewer_session(
     ctx,
     *,
-    scene_ref: Any,
-    overlay_ref: Any | None,
-    native_source_ref: Any | None = None,
+    scenes: Mapping[str, Any],
+    native_sources: Mapping[str, Any],
+    labels: Mapping[str, str],
 ):  # noqa: ANN001, ANN202
     service = getattr(ctx.worker_services, "viewer_session_service", None)
     if service is None:
@@ -301,25 +321,22 @@ def _open_engineering_viewer_session(
         "representation": normalize_viewer_representation(
             ctx.properties.get("representation")
         ),
-        "primary_opacity": normalize_viewer_opacity(
-            ctx.properties.get("primary_opacity"), default=1.0
-        ),
-        "overlay_opacity": normalize_viewer_opacity(
-            ctx.properties.get("overlay_opacity"), default=0.35
-        ),
+        "scene_styles": {
+            key: style for key, style in normalize_scene_styles(ctx.properties.get("scene_styles")).items()
+            if key in scenes
+        },
+        "active_scene_id": next(iter(scenes)),
         "parallel_projection": bool(ctx.properties.get("parallel_projection", False)),
-        "overlay_color": str(
-            ctx.properties.get("overlay_color", "#ff9f43") or "#ff9f43"
-        ),
         "clip_enabled": bool(ctx.properties.get("clip_enabled", False)),
         "clip_axis": str(ctx.properties.get("clip_axis", "x") or "x"),
         "clip_offset": float(ctx.properties.get("clip_offset", 0.0) or 0.0),
     }
-    data_refs = {"scene": scene_ref}
-    if native_source_ref is not None:
-        data_refs["native_source"] = native_source_ref
-    if overlay_ref is not None:
-        data_refs["overlay"] = overlay_ref
+    data_refs = {
+        "scene_order": list(scenes),
+        "scene_labels": dict(labels),
+        **{f"scene:{key}": ref for key, ref in scenes.items()},
+        **{f"native_source:{key}": ref for key, ref in native_sources.items()},
+    }
     opened = service.open_session(
         OpenViewerSessionCommand(
             workspace_id=ctx.workspace_id,
@@ -328,7 +345,7 @@ def _open_engineering_viewer_session(
             backend_id=ENGINEERING_VIEWER_BACKEND_ID,
             data_refs=data_refs,
             playback_state={"state": "paused", "step_index": 0},
-            summary=_viewer_summary(scene_ref, overlay_ref),
+            summary=_viewer_summary(scenes, labels),
             options=options,
         )
     )
@@ -349,28 +366,34 @@ def _open_engineering_viewer_session(
 
 
 def execute_engineering_viewer(ctx) -> NodeResult:  # noqa: ANN001
-    scene_ref, native_source_ref = _prepare_primary_scene(
-        ctx,
-        ctx.inputs.get("scene"),
-    )
-    overlay_value = ctx.inputs.get("overlay")
-    overlay_ref = (
-        _require_scene(overlay_value, label="overlay")
-        if overlay_value is not None
-        else None
-    )
-    layer_fingerprints = {"primary": _scene_fingerprint(scene_ref)}
-    if overlay_ref is not None:
-        layer_fingerprints["overlay"] = _scene_fingerprint(overlay_ref)
+    scenes = {}
+    native_sources = {}
+    labels = {}
+    port_labels = ctx.node_port_labels
+    for index, key in enumerate(scene_input_ids(ctx.properties), start=1):
+        value = ctx.inputs.get(key)
+        if value is None:
+            continue
+        label = port_labels.get(key) or f"Scene {index}"
+        try:
+            scenes[key], native_source = _prepare_scene(ctx, value, label=label)
+        except (TypeError, ValueError) as exc:
+            raise type(exc)(f"{label} ({key}): {exc}") from exc
+        labels[key] = label
+        if native_source is not None:
+            native_sources[key] = native_source
+    if not scenes:
+        raise NodeInputNotReadyError("Connect at least one scene to Model Viewer.")
+    layer_fingerprints = {key: _scene_fingerprint(ref) for key, ref in scenes.items()}
     selections = _selection_output_for_scene(
         ctx.properties.get("saved_selections"),
         layer_fingerprints=layer_fingerprints,
     )
     session_payload = _open_engineering_viewer_session(
         ctx,
-        scene_ref=scene_ref,
-        overlay_ref=overlay_ref,
-        native_source_ref=native_source_ref,
+        scenes=scenes,
+        native_sources=native_sources,
+        labels=labels,
     )
     return NodeResult(
         outputs={
