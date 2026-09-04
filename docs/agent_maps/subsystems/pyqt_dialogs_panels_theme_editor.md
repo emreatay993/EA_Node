@@ -21,6 +21,7 @@ Use this for PyQt dialogs, script/editor support, graph theme editors, and non-Q
 - Keep dialog-specific state inside the dialog/controller pair.
 - `PluginAuthoringDialog` is the native novice plugin editor. It reuses `PythonCodeEditor`, projects structured static-validation diagnostics, never executes source or closes on Save/Validate/Reload, and leaves filesystem/reload ownership in `PluginAuthoringController`.
 - For theme or style changes, update theme assets and focused dialog tests together.
+- Native editor/dialog context menus and menu-bar dropdowns inherit node-menu colors, density, rounded rows, disabled/check states, and separators from the shared `QMenu` rules in `ea_node_editor/ui/theme/styles.py`. `tests/test_shell_theme.py` checks dark/light standard menus without replacing native actions or keyboard handling.
 - App-owned `QDialog`, `QMessageBox`, and `QInputDialog` surfaces inherit their shared adaptive styling from `ea_node_editor/ui/theme/styles.py`. Use `dialogRole` only for semantic muted/error/danger states; keep native `QFileDialog` and `QColorDialog` behavior and native title bars.
 - Graph Theme Manager gradient controls are typed node-token editors, not generic hex rows; update color, boolean, and direction handling together.
 - Passive Node Style gradients use `Inherit / Custom / Off` so blank per-node style still inherits graph theme defaults.

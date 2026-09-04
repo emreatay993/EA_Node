@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../surface_controls" as SurfaceControls
+import "../../shell" as Shell
 
 Item {
     id: root
@@ -65,55 +66,49 @@ Item {
         id: entryModel
     }
 
-    // Windows-style right-click menu for a file/folder row. Destructive actions
-    // (cut/copy/paste/rename/delete) are intentionally out of scope here.
-    Menu {
+    Shell.ShellContextPopup {
         id: rowContextMenu
         objectName: "graphFolderExplorerRowContextMenu"
-
-        MenuItem {
-            objectName: "graphFolderExplorerRowOpenItem"
-            text: "Open"
-            enabled: root._menuPath.length > 0
-            onTriggered: root.openPath(root._menuPath)
-        }
-        MenuItem {
-            objectName: "graphFolderExplorerRowOpenWithItem"
-            text: "Open with..."
-            visible: root._menuPath.length > 0 && !root._menuIsFolder && !root._menuIsParent
-            height: visible ? implicitHeight : 0
-            enabled: visible
-            onTriggered: root.openPathWith(root._menuPath)
-        }
-        MenuSeparator {}
-        MenuItem {
-            objectName: "graphFolderExplorerRowCopyPathItem"
-            text: "Copy Path"
-            enabled: root._menuPath.length > 0
-            onTriggered: root._runMenuAction("folder_explorer_copy_path", root._menuPath, false)
-        }
-        MenuItem {
-            objectName: "graphFolderExplorerRowOpenNewWindowItem"
-            text: "Open in New Classic Explorer"
-            visible: root._menuPath.length > 0 && (root._menuIsFolder || root._menuIsParent)
-            height: visible ? implicitHeight : 0
-            enabled: visible
-            onTriggered: root._createNodeFromMenu("folder_explorer_open_in_new_window", root._menuPath)
-        }
-        MenuItem {
-            objectName: "graphFolderExplorerRowSendToCorexItem"
-            text: "Send to COREX as Path Pointer"
-            visible: root._menuPath.length > 0 && !root._menuIsParent
-            height: visible ? implicitHeight : 0
-            enabled: visible
-            onTriggered: root._createNodeFromMenu("folder_explorer_send_to_corex_path_pointer", root._menuPath)
-        }
-        MenuSeparator {}
-        MenuItem {
-            objectName: "graphFolderExplorerRowPropertiesItem"
-            text: "Properties"
-            enabled: root._menuPath.length > 0
-            onTriggered: root._runMenuAction("folder_explorer_properties", root._menuPath, true)
+        actions: [
+            {
+                objectName: "graphFolderExplorerRowOpenItem", actionId: "open", text: "Open",
+                enabled: root._menuPath.length > 0
+            },
+            {
+                objectName: "graphFolderExplorerRowOpenWithItem", actionId: "open_with", text: "Open with...",
+                visible: root._menuPath.length > 0 && !root._menuIsFolder && !root._menuIsParent
+            },
+            {
+                objectName: "graphFolderExplorerRowCopyPathItem", actionId: "copy_path", text: "Copy Path",
+                enabled: root._menuPath.length > 0
+            },
+            {
+                objectName: "graphFolderExplorerRowOpenNewWindowItem", actionId: "open_in_new_window",
+                text: "Open in New Classic Explorer",
+                visible: root._menuPath.length > 0 && (root._menuIsFolder || root._menuIsParent)
+            },
+            {
+                objectName: "graphFolderExplorerRowSendToCorexItem", actionId: "send_to_corex_path_pointer",
+                text: "Send to COREX as Path Pointer", visible: root._menuPath.length > 0 && !root._menuIsParent
+            },
+            {
+                objectName: "graphFolderExplorerRowPropertiesItem", actionId: "properties", text: "Properties",
+                enabled: root._menuPath.length > 0
+            }
+        ]
+        onActionTriggered: function(actionId) {
+            if (actionId === "open")
+                root.openPath(root._menuPath)
+            else if (actionId === "open_with")
+                root.openPathWith(root._menuPath)
+            else if (actionId === "copy_path")
+                root._runMenuAction("folder_explorer_copy_path", root._menuPath, false)
+            else if (actionId === "open_in_new_window")
+                root._createNodeFromMenu("folder_explorer_open_in_new_window", root._menuPath)
+            else if (actionId === "send_to_corex_path_pointer")
+                root._createNodeFromMenu("folder_explorer_send_to_corex_path_pointer", root._menuPath)
+            else if (actionId === "properties")
+                root._runMenuAction("folder_explorer_properties", root._menuPath, true)
         }
     }
 
@@ -294,7 +289,7 @@ Item {
         var canvasPoint = root._canvasPointFromMouse(mouseArea, mouse);
         root._menuSceneX = canvas && canvas.screenToSceneX ? Number(canvas.screenToSceneX(canvasPoint.x)) : 0;
         root._menuSceneY = canvas && canvas.screenToSceneY ? Number(canvas.screenToSceneY(canvasPoint.y)) : 0;
-        rowContextMenu.popup();
+        rowContextMenu.openAt(mouseArea, mouse.x, mouse.y);
     }
 
     function setSort(sortKey) {

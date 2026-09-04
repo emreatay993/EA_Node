@@ -16,6 +16,9 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - `ea_node_editor/ui_qml/components/shell/NodeBrowserOverlay.qml`
 - `ea_node_editor/ui_qml/components/shell/ConnectionQuickInsertOverlay.qml`
 - `ea_node_editor/ui_qml/components/shell/ShellLabeledTabStrip.qml`
+- `ea_node_editor/ui_qml/components/shell/ShellContextMenu.qml`
+- `ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml`
+- `tests/qml_quick/tst_shell_context_popup.qml`
 - `ea_node_editor/ui_qml/components/shell/ScriptEditorOverlay.qml`
 - `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml`
 - `ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml`
@@ -61,6 +64,7 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - Keep `ShellLibraryBridge` and `NodeLibraryPane.qml` aligned when node-library row models or passive display modes change.
 - Keep `ShellLibraryBridge`, `NodeBrowserOverlay.qml`, `ConnectionQuickInsertOverlay.qml`, and `window_actions.py` aligned. The typed `node_browser_requested(str, float, float)` signal carries explicit detailed-browser requests into `MainShell.openNodeBrowser(...)`; Ctrl+B instead opens canvas-mode Quick Insert at the viewport center.
 - Shared QML dialog chrome, fields, focus, and actions live in `components/common/DialogSurface.qml`, `DialogTextField.qml`, and `DialogButton.qml`. They are app-theme surfaces used by Node Browser, Number Slider settings, Timestamp, and Web Address only; do not route menus, command palettes, inline graph controls, panes, or fullscreen overlays through them.
+- `ShellContextMenu.qml` owns context-menu rows, measured label/shortcut widths, accessibility, and keyboard selection using 30 px rows and 4 px padding. `ShellContextPopup.qml` hosts it for ports, Folder Explorer, workspace/view tabs, and library workflows; window-overlay parenting avoids graph scaling/clipping, and the popup owns bounded scrolling, dismissal, and focus restoration. Action descriptors and dispatch stay with each feature owner; scene-anchored graph menus retain their existing positioning.
 - Authored passive-object locking projects through `GraphSceneReadBridge.interact_with_locked_objects` and `GraphSceneCommandBridge.set_node_locked(...)`. The interaction override is scene-session state, not an app preference or project field.
 - `ConnectionQuickInsertOverlay.qml` owns both connection-origin and canvas-mode Quick Insert. `MainShell.qml` no longer mounts `CanvasInsertRadialMenu.qml`; keep the presenter state, shell bridge properties, and focus-loss close path aligned with the shared overlay.
 - Python compatibility flows query the active scene registry catalog; do not add a parallel QML type table or equality rule. Real drag snapshots flow through `GraphSceneMutationPolicy.compatible_endpoint_snapshot(...)` -> `GraphScenePolicyBridge` -> `graph_canvas_state/scene_models_props.py` -> the existing `GraphCanvasInteractionState.wireDragState`, where one generation-checked result is reused for the gesture. Quick Insert continues to query Python catalog compatibility and the primary/accepted union directly.

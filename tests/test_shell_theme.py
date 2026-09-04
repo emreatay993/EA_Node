@@ -5,9 +5,10 @@ import copy
 import unittest
 from unittest.mock import patch
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, QPoint, Qt
 from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import QDialog
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QApplication, QDialog, QLineEdit
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.telemetry.status_service import ShellStatusService
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
@@ -42,6 +43,43 @@ def _alpha_color_name(value: str, alpha: float) -> str:
 
 
 class ShellThemeServiceTests(unittest.TestCase):
+    def test_native_context_menu_uses_shell_theme_and_preserves_standard_actions(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        self.addCleanup(app.setStyleSheet, app.styleSheet())
+        field = QLineEdit("COREX")
+        self.addCleanup(field.deleteLater)
+
+        for theme_id, tokens in (("stitch_dark", STITCH_DARK_V1), ("stitch_light", STITCH_LIGHT_V1)):
+            with self.subTest(theme_id=theme_id):
+                app.setStyleSheet(build_theme_stylesheet(theme_id))
+                field.setText("COREX")
+                field.selectAll()
+                menu = field.createStandardContextMenu()
+                self.addCleanup(menu.deleteLater)
+                actions = {action.objectName(): action for action in menu.actions()}
+                self.assertFalse(actions["edit-undo"].isEnabled())
+                self.assertTrue(actions["edit-copy"].isEnabled())
+
+                menu.ensurePolished()
+                menu.resize(menu.sizeHint())
+                rendered = menu.grab().toImage()
+                self.assertEqual(rendered.pixelColor(rendered.width() // 2, 2), QColor(tokens.panel_bg))
+                menu.setActiveAction(actions["edit-copy"])
+                row = menu.actionGeometry(actions["edit-copy"])
+                self.assertGreaterEqual(row.height(), 30)
+                self.assertLessEqual(row.height(), 34)
+                rendered = menu.grab().toImage()
+                self.assertEqual(rendered.pixelColor(row.left() + 1, row.center().y()), QColor(tokens.accent))
+                hover = rendered.pixelColor(row.right() - 5, row.center().y())
+                self.assertNotEqual(hover, QColor(tokens.panel_bg))
+                self.assertNotEqual(hover, QColor(tokens.accent_strong))
+
+                actions["edit-delete"].trigger()
+                self.assertEqual(field.text(), "")
+                menu.popup(QPoint(0, 0))
+                QTest.keyClick(menu, Qt.Key.Key_Escape)
+                self.assertFalse(menu.isVisible())
+
     def test_dialog_styles_use_theme_tokens_without_targeting_native_picker_dialogs(self) -> None:
         stylesheet = build_theme_stylesheet("stitch_light")
 

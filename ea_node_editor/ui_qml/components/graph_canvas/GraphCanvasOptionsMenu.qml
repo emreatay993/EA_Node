@@ -17,7 +17,7 @@ Item {
     readonly property int panelW: 252
     readonly property int submenuW: 170
     readonly property int rowH: 30
-    readonly property int contentPad: 6
+    readonly property int contentPad: 4
     readonly property int shadowDepth: 12
     readonly property int menuGap: 6
     readonly property int viewportPadding: 4

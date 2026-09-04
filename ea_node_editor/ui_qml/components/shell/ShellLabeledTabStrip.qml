@@ -29,7 +29,6 @@ RowLayout {
     property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
     readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
     readonly property bool compactDensity: String(root.densityPreset).toLowerCase() === "compact"
-    readonly property int contextMenuRowHeight: 29
     readonly property int titleFontSize: root.compactDensity ? 8 : 10
     readonly property real titleLetterSpacing: root.compactDensity ? 0.9 : 1.1
     readonly property int cardVerticalPadding: root.compactDensity ? 1 : 5
@@ -231,11 +230,7 @@ RowLayout {
         if (!actions.length)
             return
         root.contextMenuItemData = itemData
-        var popupWidth = Math.max(1, Number(contextActionPopup.implicitWidth) || 148)
-        var popupHeight = Math.max(1, Number(contextActionPopup.implicitHeight) || root.contextMenuRowHeight)
-        contextActionPopup.x = Math.max(0, Math.min(root.width - popupWidth, Math.round(Number(positionX) || 0)))
-        contextActionPopup.y = Math.max(0, Math.min(root.height - popupHeight, Math.round(Number(positionY) || 0)))
-        contextActionPopup.open()
+        contextActionPopup.openAt(root, positionX, positionY)
     }
 
     function clampTabsContentX(value) {
@@ -768,28 +763,13 @@ RowLayout {
         }
     }
 
-    Popup {
+    ShellContextPopup {
         id: contextActionPopup
-        parent: root
-        modal: false
-        focus: true
-        padding: 0
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        implicitWidth: contextActionMenu.implicitWidth
-        implicitHeight: contextActionMenu.implicitHeight
-        z: 1000
-
-        background: Item {}
-
-        contentItem: ShellContextMenu {
-            id: contextActionMenu
-            themeBridgeRef: root.themeBridgeRef
-            minimumWidth: 188
-            actions: root.contextMenuActions
-            onActionTriggered: function(actionId) {
-                root.contextMenuActionRequested(actionId, root.contextMenuItemData)
-                contextActionPopup.close()
-            }
+        themeBridgeRef: root.themeBridgeRef
+        minimumWidth: 188
+        actions: root.contextMenuActions
+        onActionTriggered: function(actionId) {
+            root.contextMenuActionRequested(actionId, root.contextMenuItemData)
         }
     }
 }

@@ -622,10 +622,7 @@ Item {
         if (!root._isDataPort(portData) || !sourceItem)
             return;
         root.contextPortData = portData;
-        var point = sourceItem.mapToItem(root, localX, localY);
-        portContextMenu.x = Math.max(0, Math.min(root.width - portContextMenu.implicitWidth, point.x));
-        portContextMenu.y = Math.max(0, Math.min(root.height - portContextMenu.implicitHeight, point.y));
-        portContextMenu.open();
+        portContextMenu.openAt(sourceItem, localX, localY);
     }
 
     function _togglePortModifier(modifier) {

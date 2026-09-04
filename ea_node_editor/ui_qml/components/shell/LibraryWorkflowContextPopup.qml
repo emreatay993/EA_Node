@@ -26,11 +26,7 @@ Item {
         }
         libraryContextWorkflowId = String(workflowId || "")
         libraryContextWorkflowScope = String(workflowScope || "")
-        var popupWidth = Math.max(1, Number(libraryContextPopup.implicitWidth) || 168)
-        var popupHeight = Math.max(1, Number(libraryContextPopup.implicitHeight) || 114)
-        libraryContextPopup.x = Math.max(0, Math.min(root.width - popupWidth, Math.round(Number(positionX) || 0)))
-        libraryContextPopup.y = Math.max(0, Math.min(root.height - popupHeight, Math.round(Number(positionY) || 0)))
-        libraryContextPopup.open()
+        libraryContextPopup.openAt(root, positionX, positionY)
     }
 
     onWidthChanged: {
@@ -43,40 +39,25 @@ Item {
             libraryContextPopup.close()
     }
 
-    Popup {
+    ShellContextPopup {
         id: libraryContextPopup
-        parent: root
-        modal: false
-        focus: true
-        padding: 0
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        implicitWidth: workflowContextMenu.implicitWidth
-        implicitHeight: workflowContextMenu.implicitHeight
-        z: 1000
-
-        background: Item {}
-
-        contentItem: ShellContextMenu {
-            id: workflowContextMenu
-            themeBridgeRef: root.themeBridgeRef
-            minimumWidth: 188
-            actions: root.contextMenuActions
-            onActionTriggered: function(actionId) {
-                if (actionId === "rename") {
-                    root.shellLibraryBridgeRef.request_rename_custom_workflow_from_library(
-                        root.libraryContextWorkflowId,
-                        root.libraryContextWorkflowScope
-                    )
-                } else if (actionId === "scope") {
-                    var nextScope = root.libraryContextWorkflowScope === "global" ? "local" : "global"
-                    root.shellLibraryBridgeRef.request_set_custom_workflow_scope(root.libraryContextWorkflowId, nextScope)
-                } else if (actionId === "delete") {
-                    root.shellLibraryBridgeRef.request_delete_custom_workflow_from_library(
-                        root.libraryContextWorkflowId,
-                        root.libraryContextWorkflowScope
-                    )
-                }
-                libraryContextPopup.close()
+        themeBridgeRef: root.themeBridgeRef
+        minimumWidth: 188
+        actions: root.contextMenuActions
+        onActionTriggered: function(actionId) {
+            if (actionId === "rename") {
+                root.shellLibraryBridgeRef.request_rename_custom_workflow_from_library(
+                    root.libraryContextWorkflowId,
+                    root.libraryContextWorkflowScope
+                )
+            } else if (actionId === "scope") {
+                var nextScope = root.libraryContextWorkflowScope === "global" ? "local" : "global"
+                root.shellLibraryBridgeRef.request_set_custom_workflow_scope(root.libraryContextWorkflowId, nextScope)
+            } else if (actionId === "delete") {
+                root.shellLibraryBridgeRef.request_delete_custom_workflow_from_library(
+                    root.libraryContextWorkflowId,
+                    root.libraryContextWorkflowScope
+                )
             }
         }
     }

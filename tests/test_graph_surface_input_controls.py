@@ -3641,10 +3641,6 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
         self._run_qml_probe(
             "dataflow-port-and-edge-authoring-controls",
             """
-            import hashlib
-            import json
-            import re
-
             from PyQt6.QtCore import QMetaObject, QObject, pyqtProperty, pyqtSlot
 
             from ea_node_editor.graph.model import GraphModel
@@ -3802,12 +3798,12 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             authoring_layer = layer_for(authoring_id)
             updated_a_payload = port_payload(authoring_id, "a")
             authoring_layer.setProperty("contextPortData", updated_a_payload)
-            graft_action = authoring_layer.findChild(QObject, "graphNodePortModifierGraft")
-            assert graft_action is not None and bool(graft_action.property("checked")) is True, (
-                graft_action,
-                None if graft_action is None else graft_action.property("checked"),
-                updated_a_payload,
+            port_menu = authoring_layer.findChild(QObject, "graphNodePortContextMenu")
+            graft_action = next(
+                action for action in variant_value(port_menu.property("actions"))
+                if action["actionId"] == "graft"
             )
+            assert graft_action["checked"] is True, (graft_action, updated_a_payload)
             label_a = port_dot(authoring_id, "graphNodeInputPortLabel", "a")
             assert "[G]" in str(label_a.property("text")), label_a.property("text")
 
@@ -3825,17 +3821,11 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             flow_layer.setProperty("contextPortData", port_payload(flow_id, "top"))
             settle_events(2)
             assert bool(flow_layer._togglePortModifier("graft")) is False
-            for object_name in (
-                "graphNodePortAccessMetadata",
-                "graphNodePortModifierGraft",
-                "graphNodePortModifierFlatten",
-                "graphNodePortModifierSimplify",
-                "graphNodePortModifierReverse",
-                "graphNodePortModifierClean",
-                "graphNodePortPrincipal",
-            ):
-                item = flow_layer.findChild(QObject, object_name)
-                assert item is not None and bool(item.property("visible")) is False, object_name
+            flow_menu = flow_layer.findChild(QObject, "graphNodePortContextMenu")
+            assert not any(
+                action.get("visible", True)
+                for action in variant_value(flow_menu.property("actions"))
+            )
 
             gate_layer = layer_for(gate_id)
             gate_payload = variant_value(host_for(gate_id).property("nodeData")) or {}
@@ -4299,84 +4289,22 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             settle_events(3)
             port_menu = authoring_layer.findChild(QObject, "graphNodePortContextMenu")
             assert port_menu is not None and bool(port_menu.property("visible")) is True
-            menu_objects = [port_menu, *port_menu.findChildren(QObject)]
-            named_menu_objects = [
-                item for item in menu_objects if str(item.objectName() or "")
-            ]
-            topology_records = []
-            action_records = []
-            geometry_records = []
-            for item in named_menu_objects:
-                class_name = re.sub(
-                    r"_QMLTYPE_\\d+",
-                    "_QMLTYPE",
-                    str(item.metaObject().className()),
-                )
-                class_name = re.sub(r"_QML_\\d+", "_QML", class_name)
-                class_name = class_name.split("_QML", 1)[0]
-                parent = item.parent()
-                parent_name = str(parent.objectName() or "") if parent is not None else ""
-                object_name = str(item.objectName())
-                if object_name == "graphNodePortContextMenu":
-                    class_name = "QQuickMenu"
-                topology_records.append((class_name, object_name, parent_name))
-                if object_name.startswith(("graphNodePort", "graphNodeDynamicPort")):
-                    action_records.append((
-                        object_name,
-                        str(item.property("text") or ""),
-                        bool(item.property("visible")),
-                        bool(item.property("enabled")),
-                        bool(item.property("checkable")),
-                        bool(item.property("checked")),
-                    ))
-                    geometry_records.append((
-                        object_name,
-                        round(float(item.property("x") or 0.0), 3),
-                        round(float(item.property("y") or 0.0), 3),
-                        round(float(item.property("width") or 0.0), 3),
-                        round(float(item.property("height") or 0.0), 3),
-                    ))
-            topology_records.sort()
-
-            def stable_hash(value):
-                return hashlib.sha256(
-                    json.dumps(value, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
-                ).hexdigest().upper()
-
-            menu_snapshot = {
-                "topology_hash": stable_hash(topology_records),
-                "action_hash": stable_hash(action_records),
-                "geometry_hash": stable_hash(geometry_records),
-                "named_count": len(named_menu_objects),
-                "action_count": len(action_records),
-                "x": round(float(port_menu.property("x") or 0.0), 3),
-                "y": round(float(port_menu.property("y") or 0.0), 3),
-                "visible": bool(port_menu.property("visible")),
-            }
-            assert menu_snapshot == {
-                "topology_hash": "CF84DD3AA02B7535C6A8B81EC6D662386A95B03F55F970E40B8ED3036C272C7C",
-                "action_hash": "158EAA1F2F9D7D837687BE32BB326DFA6519D59E78F406D67B0E056EBF8CD118",
-                "geometry_hash": "848A334D320F99A80E7AF1D03B14E033467BFAC49960AA81A55938945A46220F",
-                "named_count": 24,
-                "action_count": 12,
-                "x": -40.0,
-                "y": -189.0,
-                "visible": True,
-            }, menu_snapshot
-            assert [record[0] for record in action_records] == [
-                "graphNodePortContextMenu",
-                "graphNodePortAccessMetadata",
-                "graphNodePortModifierGraft",
-                "graphNodePortModifierFlatten",
-                "graphNodePortModifierSimplify",
-                "graphNodePortModifierReverse",
-                "graphNodePortModifierClean",
-                "graphNodePortPrincipal",
-                "graphNodeDynamicPortInsertBefore",
-                "graphNodeDynamicPortInsertAfter",
-                "graphNodeDynamicPortRename",
-                "graphNodeDynamicPortRemove",
-            ]
+            menu_content = port_menu.property("menuContent")
+            actions = variant_value(menu_content.property("visibleActions"))
+            menu_bounds = tuple(port_menu.property(key) for key in ("x", "y", "width", "height"))
+            assert [action["actionId"] for action in actions] == [
+                "access", "graft", "flatten", "simplify", "reverse", "clean",
+                "principal",
+            ], actions
+            assert actions[0]["enabled"] is False
+            assert actions[1]["checked"] is True and actions[1]["checkable"] is True, (actions[1], updated_a_payload)
+            assert int(menu_content.property("rowHeight")) == 30
+            assert int(menu_content.property("contentPadding")) == 4
+            assert float(menu_content.property("scale")) == 1.0
+            assert float(port_menu.property("x")) >= 4, menu_bounds
+            assert float(port_menu.property("y")) >= 4, menu_bounds
+            assert float(port_menu.property("x")) + float(port_menu.property("width")) <= window.width() - 4, (menu_bounds, window.width())
+            assert float(port_menu.property("y")) + float(port_menu.property("height")) <= window.height() - 4, (menu_bounds, window.height())
             port_menu.close()
             settle_events(2)
             assert bool(port_menu.property("visible")) is False

@@ -3,161 +3,78 @@
 // Tests: tests/qml_quick/tst_graph_node_port_context_menu.qml
 
 import QtQuick 2.15
-import QtQuick.Controls 2.15
+import "../shell" as Shell
 
-Menu {
+Shell.ShellContextPopup {
     id: menu
     required property Item portsLayer
-
+    readonly property var dynamicGroup: portsLayer._dynamicPortGroupForPort(portsLayer.contextPortData)
     objectName: "graphNodePortContextMenu"
-    modal: false
 
-    MenuItem {
-        objectName: "graphNodePortAccessMetadata"
-        visible: menu.portsLayer._isDataPort(menu.portsLayer.contextPortData)
-        text: "Access: " + menu.portsLayer._dataAccessLabel(
-            menu.portsLayer.contextPortData
-        )
-        enabled: false
-    }
-    MenuSeparator {
-        visible: menu.portsLayer._isDataPort(menu.portsLayer.contextPortData)
-    }
-    MenuItem {
-        objectName: "graphNodePortModifierGraft"
-        text: "Graft"
-        visible: menu.portsLayer._isDataPort(menu.portsLayer.contextPortData)
-        checkable: true
-        checked: menu.portsLayer._modifierChecked("graft")
-        enabled: visible && !(menu.portsLayer.host && menu.portsLayer.host.graphReadOnly)
-        onTriggered: menu.portsLayer._togglePortModifier("graft")
-    }
-    MenuItem {
-        objectName: "graphNodePortModifierFlatten"
-        text: "Flatten"
-        visible: menu.portsLayer._isDataPort(menu.portsLayer.contextPortData)
-        checkable: true
-        checked: menu.portsLayer._modifierChecked("flatten")
-        enabled: visible && !(menu.portsLayer.host && menu.portsLayer.host.graphReadOnly)
-        onTriggered: menu.portsLayer._togglePortModifier("flatten")
-    }
-    MenuItem {
-        objectName: "graphNodePortModifierSimplify"
-        text: "Simplify"
-        visible: menu.portsLayer._isDataPort(menu.portsLayer.contextPortData)
-        checkable: true
-        checked: menu.portsLayer._modifierChecked("simplify")
-        enabled: visible && !(menu.portsLayer.host && menu.portsLayer.host.graphReadOnly)
-        onTriggered: menu.portsLayer._togglePortModifier("simplify")
-    }
-    MenuItem {
-        objectName: "graphNodePortModifierReverse"
-        text: "Reverse"
-        visible: menu.portsLayer._isDataPort(menu.portsLayer.contextPortData)
-        checkable: true
-        checked: menu.portsLayer._modifierChecked("reverse")
-        enabled: visible && !(menu.portsLayer.host && menu.portsLayer.host.graphReadOnly)
-        onTriggered: menu.portsLayer._togglePortModifier("reverse")
-    }
-    MenuItem {
-        objectName: "graphNodePortModifierClean"
-        text: "Clean"
-        visible: menu.portsLayer._isDataPort(menu.portsLayer.contextPortData)
-        checkable: true
-        checked: menu.portsLayer._modifierChecked("clean")
-        enabled: visible && !(menu.portsLayer.host && menu.portsLayer.host.graphReadOnly)
-        onTriggered: menu.portsLayer._togglePortModifier("clean")
-    }
-    MenuSeparator {
-        visible: Boolean(
-            menu.portsLayer.contextPortData
-                && menu.portsLayer.contextPortData.principal_eligible
-        )
-    }
-    MenuItem {
-        objectName: "graphNodePortPrincipal"
-        text: "Principal"
-        visible: Boolean(
-            menu.portsLayer.contextPortData
-                && menu.portsLayer.contextPortData.principal_eligible
-        )
-        checkable: true
-        checked: Boolean(
-            menu.portsLayer.contextPortData
-                && menu.portsLayer.contextPortData.principal
-        )
-        enabled: !(menu.portsLayer.host && menu.portsLayer.host.graphReadOnly)
-        onTriggered: menu.portsLayer._togglePrincipal()
-    }
-    MenuSeparator {
-        visible: menu.portsLayer._dynamicPortGroupForPort(
-            menu.portsLayer.contextPortData
-        ) !== null
-    }
-    MenuItem {
-        objectName: "graphNodeDynamicPortInsertBefore"
-        text: "Insert Before"
-        readonly property var dynamicGroup: menu.portsLayer._dynamicPortGroupForPort(
-            menu.portsLayer.contextPortData
-        )
-        visible: dynamicGroup !== null && Boolean(dynamicGroup.can_insert)
-        enabled: visible && menu.portsLayer._dynamicPortAuthoringAllowed()
-        onTriggered: {
-            var ordinal = menu.portsLayer._dynamicPortOrdinal(
-                dynamicGroup,
-                menu.portsLayer._portKey(menu.portsLayer.contextPortData)
-            );
-            if (ordinal >= 0)
-                menu.portsLayer._insertDynamicPort(dynamicGroup.id, ordinal);
+    actions: {
+        var layer = menu.portsLayer
+        var port = layer.contextPortData
+        var editable = !(layer.host && layer.host.graphReadOnly)
+        var dataPort = layer._isDataPort(port)
+        var group = menu.dynamicGroup
+        var dynamicEditable = layer._dynamicPortAuthoringAllowed()
+        var items = [{
+            objectName: "graphNodePortAccessMetadata", actionId: "access",
+            text: "Access: " + layer._dataAccessLabel(port), visible: dataPort, enabled: false
+        }]
+        var modifiers = ["Graft", "Flatten", "Simplify", "Reverse", "Clean"]
+        for (var i = 0; i < modifiers.length; ++i) {
+            var modifier = modifiers[i].toLowerCase()
+            items.push({
+                objectName: "graphNodePortModifier" + modifiers[i], actionId: modifier,
+                text: modifiers[i], visible: dataPort, enabled: editable,
+                checkable: true, checked: layer._modifierChecked(modifier)
+            })
         }
+        return items.concat([
+            {
+                objectName: "graphNodePortPrincipal", actionId: "principal", text: "Principal",
+                visible: Boolean(port && port.principal_eligible), enabled: editable,
+                checkable: true, checked: Boolean(port && port.principal)
+            },
+            {
+                objectName: "graphNodeDynamicPortInsertBefore", actionId: "insert_before", text: "Insert Before",
+                visible: group !== null && Boolean(group.can_insert), enabled: dynamicEditable
+            },
+            {
+                objectName: "graphNodeDynamicPortInsertAfter", actionId: "insert_after", text: "Insert After",
+                visible: group !== null && Boolean(group.can_insert), enabled: dynamicEditable
+            },
+            {
+                objectName: "graphNodeDynamicPortRename", actionId: "rename", text: "Rename",
+                visible: group !== null && String(group.rename_mode || "none").trim().toLowerCase() !== "none",
+                enabled: dynamicEditable
+            },
+            {
+                objectName: "graphNodeDynamicPortRemove", actionId: "remove", text: "Remove",
+                visible: group !== null && layer._dynamicPortCanRemove(port), enabled: dynamicEditable
+            }
+        ])
     }
-    MenuItem {
-        objectName: "graphNodeDynamicPortInsertAfter"
-        text: "Insert After"
-        readonly property var dynamicGroup: menu.portsLayer._dynamicPortGroupForPort(
-            menu.portsLayer.contextPortData
-        )
-        visible: dynamicGroup !== null && Boolean(dynamicGroup.can_insert)
-        enabled: visible && menu.portsLayer._dynamicPortAuthoringAllowed()
-        onTriggered: {
-            var ordinal = menu.portsLayer._dynamicPortOrdinal(
-                dynamicGroup,
-                menu.portsLayer._portKey(menu.portsLayer.contextPortData)
-            );
-            if (ordinal >= 0)
-                menu.portsLayer._insertDynamicPort(dynamicGroup.id, ordinal + 1);
-        }
-    }
-    MenuItem {
-        objectName: "graphNodeDynamicPortRename"
-        text: "Rename"
-        readonly property var dynamicGroup: menu.portsLayer._dynamicPortGroupForPort(
-            menu.portsLayer.contextPortData
-        )
-        visible: dynamicGroup !== null
-            && String(dynamicGroup.rename_mode || "none").trim().toLowerCase() !== "none"
-        enabled: visible && menu.portsLayer._dynamicPortAuthoringAllowed()
-        onTriggered: {
-            menu.portsLayer.beginPortLabelEdit(
-                menu.portsLayer._portKey(menu.portsLayer.contextPortData),
-                String(dynamicGroup.direction || "")
-            );
-        }
-    }
-    MenuItem {
-        objectName: "graphNodeDynamicPortRemove"
-        text: "Remove"
-        readonly property var dynamicGroup: menu.portsLayer._dynamicPortGroupForPort(
-            menu.portsLayer.contextPortData
-        )
-        visible: dynamicGroup !== null
-            && menu.portsLayer._dynamicPortCanRemove(menu.portsLayer.contextPortData)
-        enabled: visible && menu.portsLayer._dynamicPortAuthoringAllowed()
-        onTriggered: {
-            menu.portsLayer._removeDynamicPort(
-                dynamicGroup.id,
-                menu.portsLayer._portKey(menu.portsLayer.contextPortData)
-            );
+
+    onActionTriggered: function(actionId) {
+        var layer = menu.portsLayer
+        if (["graft", "flatten", "simplify", "reverse", "clean"].indexOf(actionId) >= 0) {
+            layer._togglePortModifier(actionId)
+        } else if (actionId === "principal") {
+            layer._togglePrincipal()
+        } else if (menu.dynamicGroup !== null) {
+            var group = menu.dynamicGroup
+            var key = layer._portKey(layer.contextPortData)
+            if (actionId === "insert_before" || actionId === "insert_after") {
+                var ordinal = layer._dynamicPortOrdinal(group, key)
+                if (ordinal >= 0)
+                    layer._insertDynamicPort(group.id, ordinal + (actionId === "insert_after" ? 1 : 0))
+            } else if (actionId === "rename") {
+                layer.beginPortLabelEdit(key, String(group.direction || ""))
+            } else if (actionId === "remove") {
+                layer._removeDynamicPort(group.id, key)
+            }
         }
     }
 }

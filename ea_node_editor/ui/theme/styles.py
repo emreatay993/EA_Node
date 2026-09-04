@@ -45,15 +45,38 @@ QMenuBar::item:selected {{
     background: {tokens.hover};
 }}
 QMenu {{
-    background: {tokens.panel_alt_bg};
-    color: {tokens.app_fg};
-    border: 1px solid {tokens.border};
+    background: {tokens.panel_bg};
+    color: {tokens.panel_title_fg};
+    border: 1px solid rgba{(*QColor(tokens.input_border).getRgb()[:3], 235)};
+    border-radius: 8px;
+    padding: 4px;
 }}
 QMenu::item {{
-    padding: 5px 18px;
+    padding: 9px 12px 9px 25px;
+    border-left: 3px solid transparent;
+    border-radius: 6px;
 }}
-QMenu::item:selected {{
-    background: {tokens.accent_strong};
+QMenu::item:selected:enabled {{
+    background: rgba{(*QColor(tokens.accent).getRgb()[:3], 31)};
+    border-left-color: {tokens.accent};
+}}
+QMenu::item:disabled {{
+    color: rgba{(*QColor(tokens.panel_title_fg).getRgb()[:3], 117)};
+}}
+QMenu::separator {{
+    height: 1px;
+    background: rgba{(*QColor(tokens.border).getRgb()[:3], 140)};
+    margin: 3px 10px;
+}}
+QMenu::indicator {{
+    width: 14px;
+    height: 14px;
+    margin-left: 8px;
+    border-radius: 3px;
+}}
+QMenu::indicator:checked {{
+    background: {tokens.accent};
+    image: url({check_icon});
 }}
 QToolBar#mainToolbar {{
     background: {tokens.toolbar_bg};

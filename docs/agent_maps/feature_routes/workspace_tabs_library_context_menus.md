@@ -19,6 +19,7 @@ Use this for workspace tabs, view tabs, labeled tab strip visual states, library
 
 ## Design Reference
 - `ShellLabeledTabStrip.qml` owns production view/workspace pill styling; production behavior stays in shell QML.
+- Tab and library workflow menus use the shared `ShellContextPopup` with node-menu styling, window-relative placement, keyboard navigation, and focus restoration. Their existing owners retain the action lists and command dispatch.
 - `NodeBrowserOverlay.qml` owns the explicit three-column browser opened through `ShellLibraryBridge.request_open_node_browser(...)`, including transient category/query/direction selection, category headers with two-column node rows in the middle pane, and optional scene-anchored insertion through the existing library and canvas-drop commands.
 - `ConnectionQuickInsertOverlay.qml` owns the compact result list for both connection-origin and canvas-mode Quick Insert. Ctrl+B routes through `window_actions.py` to canvas mode at the viewport center; explicit Node Browser requests remain separate.
 - Connection-origin Quick Insert compares the eventual output-to-input edge in both drag directions through graph-owned `port_compatibility(...)`. Its shell-owned tiers are exact, assignable, convertible, flow, generic, and runtime-check; each node retains only equal-best ports in declaration order. Blank search hides generic/runtime tiers, explicit search reveals their labels, text rank precedes tier/count/name/type tie-breaks, and the cap is last. Cached Library port dictionaries are never annotated in place.

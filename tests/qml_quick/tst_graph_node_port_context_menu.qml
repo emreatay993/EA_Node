@@ -12,6 +12,13 @@ TestCase {
     when: windowShown
 
     QtObject {
+        id: themeBridge
+        property var palette: ({panel_bg: "#1b1d22", panel_title_fg: "#f0f4fb",
+            input_border: "#3a3d45", border: "#3a3d45", accent: "#60cdff",
+            inspector_danger_border: "#ff5449", inspector_danger_fg: "#ff5449"})
+    }
+
+    QtObject {
         id: sceneBridgeStub
         property var modifierCalls: []
         property var principalCalls: []
@@ -111,6 +118,16 @@ TestCase {
         return null
     }
 
+    function clickAction(name) {
+        menu.openAt(testCase, 24, 36)
+        tryCompare(menu, "opened", true)
+        waitForRendering(menu.menuContent)
+        var item = itemByName(name)
+        verify(item !== null, name)
+        mouseClick(item, item.width / 2, 15)
+        tryCompare(menu, "visible", false)
+    }
+
     function dynamicGroup() {
         return {
             "id": "inputs",
@@ -155,12 +172,12 @@ TestCase {
     function test_root_order_checks_and_open_close_stay_exact() {
         compare(menu.objectName, "graphNodePortContextMenu")
         verify(!menu.modal)
-        menu.x = 24
-        menu.y = 36
-        menu.open()
+        menu.openAt(testCase, 24, 36)
         tryVerify(function() { return menu.visible && menu.opened })
+        waitForRendering(menu.menuContent)
         compare(menu.x, 24)
-        compare(menu.y, 1)
+        verify(menu.y >= 4)
+        verify(menu.y + menu.height <= menu.parent.height - 4)
         var names = [menu.objectName]
         var items = namedMenuItems()
         for (var index = 0; index < items.length; ++index)
@@ -191,7 +208,7 @@ TestCase {
     }
 
     function test_modifier_principal_and_dynamic_items_call_the_layer_owner() {
-        itemByName("graphNodePortModifierFlatten").triggered()
+        clickAction("graphNodePortModifierFlatten")
         compare(sceneBridgeStub.modifierCalls.length, 1)
         compare(JSON.stringify(sceneBridgeStub.modifierCalls[0]), JSON.stringify([
             "node_menu_test",
@@ -199,24 +216,24 @@ TestCase {
             ["graft", "clean", "flatten"]
         ]))
 
-        itemByName("graphNodePortPrincipal").triggered()
+        clickAction("graphNodePortPrincipal")
         compare(sceneBridgeStub.principalCalls.length, 1)
         compare(JSON.stringify(sceneBridgeStub.principalCalls[0]), JSON.stringify([
             "node_menu_test",
             "a"
         ]))
 
-        itemByName("graphNodeDynamicPortInsertBefore").triggered()
-        itemByName("graphNodeDynamicPortInsertAfter").triggered()
+        clickAction("graphNodeDynamicPortInsertBefore")
+        clickAction("graphNodeDynamicPortInsertAfter")
         compare(JSON.stringify(sceneBridgeStub.insertCalls), JSON.stringify([
             ["node_menu_test", "inputs", 0],
             ["node_menu_test", "inputs", 1]
         ]))
-        itemByName("graphNodeDynamicPortRename").triggered()
+        clickAction("graphNodeDynamicPortRename")
         compare(portsLayer.editingPortKey, "a")
         compare(portsLayer.editingPortDirection, "in")
         portsLayer.cancelPortLabelEdit()
-        itemByName("graphNodeDynamicPortRemove").triggered()
+        clickAction("graphNodeDynamicPortRemove")
         compare(JSON.stringify(sceneBridgeStub.removeCalls), JSON.stringify([
             ["node_menu_test", "inputs", "a"]
         ]))
@@ -260,7 +277,7 @@ TestCase {
             "graphNodeDynamicPortRename",
             "graphNodeDynamicPortRemove"
         ]) {
-            verify(!itemByName(hiddenName).visible, hiddenName)
+            compare(itemByName(hiddenName), null, hiddenName)
         }
     }
 }
