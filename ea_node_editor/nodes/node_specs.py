@@ -509,6 +509,8 @@ class DynamicPortGroupSpec:
     maximum: int | None = None
     rename_mode: DynamicPortRenameMode = "none"
     key_renamer: Callable[[Mapping[str, object], str, str], str] | None = None
+    # Source-backed groups edit one property and reference already resolved ports.
+    property_editor: Callable[[Mapping[str, object], tuple[str, ...]], object] | None = None
 
 
 @dataclass(slots=True, frozen=True)

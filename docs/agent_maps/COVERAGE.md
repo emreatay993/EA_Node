@@ -81,6 +81,8 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
   that exact component path.
 - Decorator-driven Python Script declarations are owned jointly by the node
   registry/parser, graph-owned atomic Apply, worker revalidation, and generic persistence.
+  Shared canvas handles edit that source through dynamic-port mutations; canvas
+  commands and workspace editing own dirty-draft protection and clean-editor refresh.
 - Deterministic `.cxpkg` schema-2 archive IO, static package validation, and
   immutable function-package asset provenance are owned by the Nodes map;
   title-icon projection remains owned by the icon and graph-scene routes.

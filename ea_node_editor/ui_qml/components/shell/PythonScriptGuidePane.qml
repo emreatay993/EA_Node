@@ -70,6 +70,8 @@ Rectangle {
             "<div class='callout success'><b>Signature rule:</b> every input or control name must appear once after <code>ctx</code> in <code>run(...)</code>. Returned mapping keys must match declared outputs.</div>",
 
             "<h2>2. Declare typed ports</h2>",
+            "<p>Green canvas handles add input/output decorators with <code>value_type=corex.Any</code>. Red handles remove them; input changes also update the <code>run</code> parameters. Apply or Revert a dirty draft first. Each click is undoable.</p>",
+            "<div class='callout'>Handles preserve your function body and comments. After removing a port, update any references or returned output keys before Run. Control decorators are edited in source; port-label rename changes only the display label.</div>",
             "<pre>@corex.input(&quot;values&quot;, value_type=float, structure=&quot;tree&quot;, required=True, section=&quot;Data&quot;)\n@corex.output(&quot;image&quot;, value_type=corex.Image)</pre>",
             "<table><tr><th>Option</th><th>Meaning</th></tr>",
             "<tr><td><code>value_type</code></td><td><code>bool</code>, <code>int</code>, <code>float</code>, <code>str</code>, <code>corex.Any</code>, <code>corex.Image</code>, <code>corex.Color</code>, <code>corex.Interval</code>, or a registered type-ID string.</td></tr>",

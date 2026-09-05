@@ -25,7 +25,7 @@ from ea_node_editor.graph.subnode_contract import (
     is_subnode_pin_type,
 )
 from ea_node_editor.graph.workspace_state import ViewState, WorkspaceData
-from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
+from ea_node_editor.nodes.instance_resolution import resolve_dynamic_port_groups, resolve_instance_ports
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.node_specs import DynamicPortGroupSpec, NodeTypeSpec, PortSpec
@@ -556,7 +556,7 @@ class ValidatedGraphMutation:
 
         candidate_keys = [port.key for port in ports]
         candidate_keys.insert(insert_at, port_key)
-        resolved_keys = self._preflight_dynamic_port_keys(
+        resolved_keys, property_value = self._preflight_dynamic_port_keys(
             node=node,
             spec=spec,
             group=group,
@@ -567,11 +567,14 @@ class ValidatedGraphMutation:
             raise ValueError(
                 f"Dynamic port group {group.group_id} did not preserve inserted key {port_key}."
             )
+        if group.property_editor is not None and node.type_id == "core.python_script":
+            self.set_node_property(node_id, group.property_key, property_value)
+            return port_key
         self.model._set_node_property_record(
             self.workspace_id,
             node_id,
             group.property_key,
-            list(resolved_keys),
+            property_value,
         )
         return port_key
 
@@ -593,7 +596,7 @@ class ValidatedGraphMutation:
                 f"Dynamic port group {group.group_id} must retain at least {group.minimum} ports."
             )
         candidate_keys = [key for key in current_keys if key != normalized_key]
-        resolved_keys = self._preflight_dynamic_port_keys(
+        resolved_keys, property_value = self._preflight_dynamic_port_keys(
             node=node,
             spec=spec,
             group=group,
@@ -601,13 +604,16 @@ class ValidatedGraphMutation:
             candidate_keys=candidate_keys,
         )
         removed_edge_ids = self._incident_edge_ids(node_id, normalized_key)
+        if group.property_editor is not None and node.type_id == "core.python_script":
+            self.set_node_property(node_id, group.property_key, property_value)
+            return normalized_key, removed_edge_ids
         for edge_id in removed_edge_ids:
             self.model._remove_edge_record(self.workspace_id, edge_id)
         self.model._set_node_property_record(
             self.workspace_id,
             node_id,
             group.property_key,
-            list(resolved_keys),
+            property_value,
         )
         self._clear_dynamic_port_state(node, normalized_key)
         return normalized_key, removed_edge_ids
@@ -668,7 +674,7 @@ class ValidatedGraphMutation:
         rename_at = current_keys.index(normalized_key)
         candidate_keys = list(current_keys)
         candidate_keys[rename_at] = renamed_key
-        resolved_keys = self._preflight_dynamic_port_keys(
+        resolved_keys, property_value = self._preflight_dynamic_port_keys(
             node=node,
             spec=spec,
             group=group,
@@ -680,13 +686,16 @@ class ValidatedGraphMutation:
                 f"Dynamic port group {group.group_id} did not preserve renamed key {renamed_key}."
             )
         removed_edge_ids = self._incident_edge_ids(node_id, normalized_key)
+        if group.property_editor is not None and node.type_id == "core.python_script":
+            self.set_node_property(node_id, group.property_key, property_value)
+            return renamed_key, removed_edge_ids
         for edge_id in removed_edge_ids:
             self.model._remove_edge_record(self.workspace_id, edge_id)
         self.model._set_node_property_record(
             self.workspace_id,
             node_id,
             group.property_key,
-            list(resolved_keys),
+            property_value,
         )
         self._clear_dynamic_port_state(node, normalized_key)
         return renamed_key, removed_edge_ids
@@ -979,7 +988,7 @@ class ValidatedGraphMutation:
         tuple[PortSpec, ...],
     ]:
         node = self.workspace.nodes[node_id]
-        spec = self.registry.get_spec(node.type_id)
+        spec = self.registry.resolve_spec(node.type_id, node.properties)
         normalized_group_id = str(group_id or "").strip()
         group = next(
             (
@@ -998,12 +1007,9 @@ class ValidatedGraphMutation:
             copy.deepcopy(node.properties),
             include_defaults=True,
         )
-        resolved_ports = resolve_instance_ports(spec, properties)
-        group_ports = tuple(
-            port
-            for port in resolved_ports[len(spec.ports) :]
-            if port.direction == group.direction
-        )
+        group_ports = resolve_dynamic_port_groups(spec, properties)[
+            spec.dynamic_port_groups.index(group)
+        ]
         return node, spec, group, properties, group_ports
 
     def _preflight_dynamic_port_keys(
@@ -1014,26 +1020,32 @@ class ValidatedGraphMutation:
         group: DynamicPortGroupSpec,
         properties: dict[str, object],
         candidate_keys: list[str],
-    ) -> tuple[str, ...]:
+    ) -> tuple[tuple[str, ...], object]:
         candidate_properties = copy.deepcopy(properties)
-        candidate_properties[group.property_key] = list(candidate_keys)
+        candidate_properties[group.property_key] = (
+            group.property_editor(copy.deepcopy(properties), tuple(candidate_keys))
+            if group.property_editor is not None else list(candidate_keys)
+        )
         normalized = self.registry.normalize_properties(
             node.type_id,
             candidate_properties,
             include_defaults=False,
         )
+        spec = self.registry.resolve_spec(node.type_id, normalized)
         resolved = resolve_instance_ports(spec, normalized)
         self._validate_resolved_port_data_types(resolved)
         resolved_keys = tuple(
             port.key
-            for port in resolved[len(spec.ports) :]
-            if port.direction == group.direction
+            for port in resolve_dynamic_port_groups(spec, normalized)[
+                next(i for i, candidate in enumerate(spec.dynamic_port_groups)
+                     if candidate.group_id == group.group_id)
+            ]
         )
         if resolved_keys != tuple(candidate_keys):
             raise ValueError(
                 f"Dynamic port group {group.group_id} rejected the requested port keys."
             )
-        return resolved_keys
+        return resolved_keys, normalized[group.property_key]
 
     def _preflight_port_semantic_updates(
         self,

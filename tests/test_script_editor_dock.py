@@ -23,6 +23,54 @@ _SHELL_TEST_RUNNER = (
 
 
 class ScriptEditorDockTests(MainWindowShellTestBase):
+    def test_canvas_port_edits_preserve_dirty_drafts_and_refresh_clean_editor(self) -> None:
+        node_id = self.window.scene.add_node_from_type("core.python_script", 40.0, 40.0)
+        self.window.scene.focus_node(node_id)
+        self.window.set_script_editor_panel_visible(True)
+        self.app.processEvents()
+        from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
+
+        hints = []
+        commands = GraphCanvasCommandBridge(
+            scene_bridge=self.window.scene,
+            workspace_edit_controller=self.window.workspace_edit_controller,
+            show_graph_hint=lambda message, duration: hints.append(message),
+        )
+        node = self.window.model.active_workspace.nodes[node_id]
+        source = node.properties["script"]
+        draft = source + "\n# unsaved work\n"
+        self.window.script_editor.set_script_text(draft)
+        self.assertEqual(commands.insert_dynamic_port(node_id, "inputs", 1), "")
+        self.assertEqual(commands.remove_dynamic_port(node_id, "outputs", "result"), {})
+        self.assertEqual(node.properties["script"], source)
+        self.assertEqual(self.window.script_editor.script_text, draft)
+        self.assertTrue(self.window.script_editor.dirty)
+        self.assertIn("Apply or Revert", hints[-1])
+        self.window.script_editor.revert()
+        self.assertEqual(commands.insert_dynamic_port(node_id, "inputs", 1), "input1")
+        self.app.processEvents()
+        self.assertEqual(self.window.script_editor.script_text, node.properties["script"])
+        self.assertFalse(self.window.script_editor.dirty)
+        self.assertTrue(self.window.script_editor.apply())
+        self.assertIn('@corex.input("input1"', node.properties["script"])
+        after_add = node.properties["script"]
+        self.assertTrue(self.window.workspace_edit_controller.undo())
+        self.assertEqual(self.window.script_editor.script_text, source)
+        self.assertFalse(self.window.script_editor.dirty)
+        self.assertTrue(self.window.workspace_edit_controller.redo())
+        self.assertEqual(self.window.script_editor.script_text, after_add)
+        dirty_after_add = after_add + "\n# keep my draft during Undo\n"
+        self.window.script_editor.set_script_text(dirty_after_add)
+        self.assertTrue(self.window.workspace_edit_controller.undo())
+        self.assertEqual(self.window.script_editor.script_text, dirty_after_add)
+        self.assertTrue(self.window.script_editor.dirty)
+        self.window.script_editor.revert()
+        self.assertEqual(self.window.script_editor.script_text, source)
+        self.assertEqual(self.window.model.active_workspace.nodes[node_id].properties["script"], source)
+        self.assertFalse(self.window.script_editor.dirty)
+        self.assertTrue(self.window.script_editor.apply())
+        self.assertEqual(self.window.model.active_workspace.nodes[node_id].properties["script"], source)
+
     def test_script_editor_binds_to_selected_python_script_node(self) -> None:
         script_node_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
         workspace_id = self.window.workspace_manager.active_workspace_id()

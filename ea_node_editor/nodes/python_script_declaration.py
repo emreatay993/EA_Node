@@ -5,9 +5,11 @@
 from __future__ import annotations
 
 import ast
+import io
+import tokenize
 from collections import OrderedDict
 from dataclasses import dataclass, replace
-from functools import lru_cache
+from functools import lru_cache, partial
 from types import SimpleNamespace
 from typing import Any, Mapping
 
@@ -17,6 +19,7 @@ from ea_node_editor.nodes.builtins.core_values import (
     IMAGE_DATA_TYPE_ID,
 )
 from ea_node_editor.nodes.node_specs import (
+    DynamicPortGroupSpec,
     NodeTypeSpec,
     PortSpec,
     PropertySpec,
@@ -308,9 +311,136 @@ def resolve_python_script_spec(
         ports=declaration.ports,
         properties=base_properties + declaration.properties,
         settings_groups=declaration.settings_groups,
-        dynamic_port_groups=(),
+        dynamic_port_groups=tuple(
+            DynamicPortGroupSpec(
+                group_id=group_id,
+                property_key="script",
+                direction=direction,
+                ports_resolver=lambda _properties, ports=tuple(
+                    port for port in declaration.ports
+                    if port.direction == direction and not port.uses_property_default
+                ): ports,
+                key_factory=partial(_next_port_key, direction=direction),
+                rename_mode="label",
+                property_editor=partial(_edit_port_keys, direction=direction),
+            )
+            for group_id, direction in (("inputs", "in"), ("outputs", "out"))
+        ),
         instance_spec_resolver=None,
     )
+
+
+def _next_port_key(properties: Mapping[str, object], *, direction: str) -> str:
+    source = str(properties["script"])
+    declaration = _parse(source)
+    used = set(declaration.parameter_keys) | set(declaration.output_keys) | _BASE_PROPERTY_KEYS
+    used.update(node.id for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Name))
+    prefix = "input" if direction == "in" else "output"
+    index = 1
+    while f"{prefix}{index}" in used:
+        index += 1
+    return f"{prefix}{index}"
+
+
+def _edit_port_keys(
+    properties: Mapping[str, object], keys: tuple[str, ...], *, direction: str,
+) -> str:
+    """Edit declaration/signature spans only; authored body logic stays untouched."""
+    source = str(properties["script"])
+    declaration = _parse(source)
+    current = tuple(
+        port.key for port in declaration.ports
+        if port.direction == direction and not port.uses_property_default
+    )
+    added = set(keys) - set(current)
+    removed = set(current) - set(keys)
+    if (
+        len(added) + len(removed) != 1
+        or len(keys) != len(set(keys))
+        or tuple(key for key in keys if key not in added)
+        != tuple(key for key in current if key not in removed)
+    ):
+        raise PythonScriptDeclarationError("Canvas port edits must add or remove one declaration")
+    function = next(
+        node for node in ast.parse(source).body
+        if isinstance(node, ast.FunctionDef) and node.name == "run"
+        and any(_declaration_engine.corex_decorator_name(d) == "node" for d in node.decorator_list)
+    )
+    name = "input" if direction == "in" else "output"
+    decorators = [
+        node for node in function.decorator_list
+        if _declaration_engine.corex_decorator_name(node) == name
+    ]
+    # AST columns are UTF-8 byte offsets, including non-ASCII labels/annotations.
+    raw = source.encode("utf-8")
+    lines = raw.splitlines(keepends=True)
+    offsets = [0]
+    for line in lines:
+        offsets.append(offsets[-1] + len(line))
+
+    def start(node: ast.AST) -> int:
+        return offsets[node.lineno - 1] + node.col_offset
+
+    def end(node: ast.AST) -> int:
+        return offsets[node.end_lineno - 1] + node.end_col_offset
+
+    def token_offset(position: tuple[int, int]) -> int:
+        row, column = position
+        return offsets[row - 1] + len(lines[row - 1].decode("utf-8")[:column].encode("utf-8"))
+
+    tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+
+    def decorator_span(decorator: ast.AST) -> tuple[int, int]:
+        at = max(
+            index for index, token in enumerate(tokens)
+            if token.string == "@" and token_offset(token.start) <= start(decorator)
+        )
+        first = token_offset(tokens[at].start)
+        last = first
+        for token in tokens[at:]:
+            if token.type == tokenize.NEWLINE:
+                break
+            if token.type not in {tokenize.COMMENT, tokenize.NL}:
+                last = token_offset(token.end)
+        return first, last
+
+    edits: list[tuple[int, int, bytes]] = []
+    if added:
+        key = next(iter(added))
+        ordinal = keys.index(key)
+        position = (
+            decorator_span(decorators[ordinal])[0]
+            if ordinal < len(decorators) else offsets[function.lineno - 1]
+        )
+        newline = b"\r\n" if b"\r\n" in raw else b"\n"
+        edits.append((position, position, f'@corex.{name}("{key}", value_type=corex.Any)'.encode() + newline))
+        if direction == "in":
+            position = end(function.args.args[-1])
+            edits.append((position, position, f", {key}".encode()))
+    else:
+        key = next(iter(removed))
+        decorator = decorators[current.index(key)]
+        first, last = decorator_span(decorator)
+        edits.append((first, last, b""))
+        if direction == "in":
+            arguments = function.args.args
+            index = next(i for i, arg in enumerate(arguments) if arg.arg == key)
+            argument = arguments[index]
+            previous_end = end(arguments[index - 1])
+            # Tokenization skips commas inside comments and type annotations.
+            for token in tokens:
+                if token.string != ",":
+                    continue
+                position = token_offset(token.start)
+                if previous_end <= position < start(argument):
+                    edits.append((position, position + 1, b""))
+                    break
+            edits.append((start(argument), end(argument), b""))
+    for first, last, value in sorted(edits, reverse=True):
+        raw = raw[:first] + value + raw[last:]
+    result = raw.decode("utf-8")
+    _parse(result)
+    return result
 
 
 def python_script_parameter_keys(spec: NodeTypeSpec) -> tuple[str, ...]:

@@ -340,6 +340,17 @@ class WorkspaceEditController:
         self._effects.after_subnode_pin_removed()
         return ControllerResult(True, payload=True)
 
+    def dynamic_port_edit_error(self, node_id: str) -> str:
+        editor = self._host.script_editor
+        if editor.current_node_id == str(node_id) and editor.dirty:
+            return "Apply or Revert your Python Script draft before editing its ports."
+        return ""
+
+    def on_dynamic_ports_changed(self, node_id: str) -> None:
+        editor = self._host.script_editor
+        if not editor.dirty:
+            self._effects.sync_script_editor_node(str(node_id))
+
     def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
         workspace = self._selection_context.active_workspace()
         node = workspace.nodes.get(node_id) if workspace is not None else None

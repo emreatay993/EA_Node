@@ -179,13 +179,15 @@ def _readiness_payload_for_spec(
 def _dynamic_port_groups_payload(
     spec: NodeTypeSpec,
     ports: tuple[EffectivePort, ...],
+    properties: Mapping[str, object],
 ) -> list[dict[str, Any]]:
     dynamic_ports = ports[len(spec.ports) :]
     payload: list[dict[str, Any]] = []
     for group in spec.dynamic_port_groups:
+        group_ports = group.ports_resolver(properties) if group.property_editor is not None else dynamic_ports
         keys = [
             port.key
-            for port in dynamic_ports
+            for port in group_ports
             if port.direction == group.direction
         ]
         payload.append(
@@ -1242,6 +1244,7 @@ class _GraphSceneNodePayloadFactory:
             payload["dynamic_port_groups"] = _dynamic_port_groups_payload(
                 spec,
                 all_ports,
+                node.properties,
             )
         if port_presentation.settings_groups:
             payload["port_presentation"] = {

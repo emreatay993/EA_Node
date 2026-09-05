@@ -90,7 +90,7 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
         self.assertIn("host.surfaceFullscreenAction", surface_source)
         self.assertIn("host.requestSurfaceContentFullscreen", surface_source)
 
-    def test_python_script_decorator_ports_do_not_reserve_dynamic_add_targets(self) -> None:
+    def test_python_script_decorator_ports_reserve_dynamic_add_targets(self) -> None:
         registry = build_default_registry()
         properties = registry.default_properties("core.python_script")
         spec = registry.resolve_spec("core.python_script", properties)
@@ -108,8 +108,8 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             {node.node_id: node},
             graph_label_pixel_size=16,
         )
-        self.assertEqual(spec.dynamic_port_groups, ())
-        self.assertEqual(float(metrics.body_bottom_margin), float(STANDARD_BOTTOM_PADDING))
+        self.assertEqual([group.group_id for group in spec.dynamic_port_groups], ["inputs", "outputs"])
+        self.assertGreater(float(metrics.body_bottom_margin), float(STANDARD_BOTTOM_PADDING))
 
         static_spec = NodeTypeSpec(
             type_id="tests.static_height_unchanged_by_dynamic_controls",
@@ -1099,6 +1099,72 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
 
 
 class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
+    def test_python_script_dynamic_handles_click_through_real_canvas_bridge(self) -> None:
+        self._run_qml_probe(
+            "python-script-dynamic-handles",
+            '''
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+            from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+            model = GraphModel()
+            registry = build_default_registry()
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, model.active_workspace.workspace_id)
+            view = ViewportBridge()
+            view.set_viewport_size(980.0, 680.0)
+            state, commands = build_canvas_bridges(scene_bridge=scene, view_bridge=view)
+            node_id = scene.add_node_from_type("core.python_script", -200.0, -150.0)
+            node = model.active_workspace.nodes[node_id]
+            canvas = create_component(graph_canvas_qml_path, {
+                "canvasStateBridge": state, "canvasCommandBridge": commands,
+                "width": 980.0, "height": 680.0,
+            })
+            settle_events(8)
+            window = attach_host_to_window(canvas, 1040, 740)
+            settle_events(4)
+
+            def host():
+                return next(item for item in named_child_items(canvas, "graphNodeCard")
+                    if variant_value(item.property("nodeData"))["node_id"] == node_id)
+
+            def click(name):
+                item = named_item(host(), name)
+                assert item is not None and item.property("visible"), name
+                QTest.mouseMove(window, item_scene_point(item))
+                settle_events(2)
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier, item_scene_point(item))
+                settle_events(6)
+
+            original = node.properties["script"]
+            click("graphNodeDynamicPortAdd_inputs")
+            assert '@corex.input("input1", value_type=corex.Any)' in node.properties["script"], node.properties["script"]
+            assert 'def run(ctx, payload, input1)' in node.properties["script"], node.properties["script"]
+            click("graphNodeDynamicPortAdd_outputs")
+            assert '@corex.output("output1", value_type=corex.Any)' in node.properties["script"], node.properties["script"]
+            click("graphNodeDynamicPortRemove_input1")
+            click("graphNodeDynamicPortRemove_output1")
+            assert "input1" not in node.properties["script"]
+            assert "output1" not in node.properties["script"]
+            assert original.split("def run", 1)[1].split(":", 1)[1] == node.properties["script"].split("def run", 1)[1].split(":", 1)[1]
+
+            # The zero-port sides must still expose clickable green handles.
+            click("graphNodeDynamicPortRemove_payload")
+            click("graphNodeDynamicPortRemove_result")
+            spec = registry.resolve_spec(node.type_id, node.properties)
+            assert not spec.ports
+            click("graphNodeDynamicPortAdd_inputs")
+            click("graphNodeDynamicPortAdd_outputs")
+            assert {p.key for p in registry.resolve_spec(node.type_id, node.properties).ports} == {"input1", "output1"}
+            window.close()
+            canvas.deleteLater()
+            engine.deleteLater()
+            app.processEvents()
+            ''',
+        )
+
     def test_collapsible_toolbar_action_reaches_scene_through_canvas_command_bridge(self) -> None:
         self._run_qml_probe(
             "collapsible-toolbar-canvas-command-route",

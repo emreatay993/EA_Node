@@ -137,6 +137,9 @@ class MutationUiEffects:
 
     def after_history_replayed(self, workspace_id: str, entry: object) -> None:
         self.refresh_scene_from_model(workspace_id)
+        script_editor = getattr(self._host, "script_editor", None)
+        if script_editor is not None:
+            self.sync_script_editor_node(str(getattr(script_editor, "current_node_id", "")))
         self.invalidate_solution_for_history_entry(workspace_id, entry)
         self.refresh_workspace_tabs()
 

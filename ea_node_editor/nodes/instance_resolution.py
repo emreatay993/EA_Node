@@ -143,7 +143,8 @@ def resolve_dynamic_port_groups(
         )
         for prop in spec.properties
     }
-    seen_keys = {port.key for port in spec.ports}
+    static_ports = {port.key: port for port in spec.ports}
+    seen_keys = set(static_ports)
     resolved_groups: list[tuple[PortSpec, ...]] = []
     for group in spec.dynamic_port_groups:
         try:
@@ -164,6 +165,7 @@ def resolve_dynamic_port_groups(
             raise ValueError(
                 f"Node {spec.type_id} dynamic port group {group.group_id} allows at most {group.maximum} ports"
             )
+        member_keys: set[str] = set()
         for port in ports:
             if not isinstance(port, PortSpec):
                 raise ValueError(
@@ -186,13 +188,23 @@ def resolve_dynamic_port_groups(
                 raise ValueError(
                     f"Node {spec.type_id} dynamic port group {group.group_id} has invalid port key: {port.key!r}"
                 )
-            if port.key in seen_keys:
+            if port.key in member_keys:
+                raise ValueError(f"Node {spec.type_id} has duplicate port key: {port.key}")
+            member_keys.add(port.key)
+            if group.property_editor is not None:
+                if static_ports.get(port.key) != port:
+                    raise ValueError(
+                        f"Node {spec.type_id} source-backed group {group.group_id} "
+                        f"must reference an existing resolved port: {port.key}"
+                    )
+            elif port.key in seen_keys:
                 raise ValueError(
                     f"Node {spec.type_id} has duplicate port key: {port.key}"
                 )
             seen_keys.add(port.key)
         resolved_groups.append(ports)
-        resolved_properties[group.property_key] = [port.key for port in ports]
+        if group.property_editor is None:
+            resolved_properties[group.property_key] = [port.key for port in ports]
     return tuple(resolved_groups)
 
 
@@ -205,11 +217,12 @@ def resolve_instance_ports(
     spec = resolve_instance_spec(spec, properties)
     dynamic_ports = tuple(
         port
-        for group_ports in resolve_dynamic_port_groups(
-            spec,
-            properties,
-            data_types=data_types,
+        for group, group_ports in zip(
+            spec.dynamic_port_groups,
+            resolve_dynamic_port_groups(spec, properties, data_types=data_types),
+            strict=True,
         )
+        if group.property_editor is None
         for port in group_ports
     )
     return spec.ports + dynamic_ports

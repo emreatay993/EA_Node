@@ -99,7 +99,7 @@ def normalize_properties(
         resolved_groups,
         strict=True,
     ):
-        if include_defaults or group.property_key in provided:
+        if group.property_editor is None and (include_defaults or group.property_key in provided):
             normalized[group.property_key] = [port.key for port in ports]
     return normalized
 

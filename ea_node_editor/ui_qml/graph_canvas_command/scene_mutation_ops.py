@@ -536,6 +536,14 @@ scene_bridge.command_bridge directly."""
             )
         )
 
+    def _dynamic_port_edit_allowed(self, node_id: str) -> bool:
+        message = _invoke(
+            self._workspace_edit_controller, "dynamic_port_edit_error", node_id, default=""
+        )
+        if message and callable(self._show_graph_hint_callback):
+            self._show_graph_hint_callback(str(message), 4000)
+        return not message
+
     @pyqtSlot(str, str, int, result=str)
     def insert_dynamic_port(
         self,
@@ -543,7 +551,9 @@ scene_bridge.command_bridge directly."""
         group_id: str,
         ordinal: int,
     ) -> str:
-        return str(
+        if not self._dynamic_port_edit_allowed(node_id):
+            return ""
+        result = str(
             _invoke(
                 self._scene_command_source,
                 "insert_dynamic_port",
@@ -554,6 +564,11 @@ scene_bridge.command_bridge directly."""
             )
             or ""
         )
+        if not result and callable(self._show_graph_hint_callback):
+            self._show_graph_hint_callback("Unable to add port. Check the script declarations in the editor.", 4000)
+        if result:
+            _invoke(self._workspace_edit_controller, "on_dynamic_ports_changed", node_id)
+        return result
 
     @pyqtSlot(str, str, str, result="QVariantMap")
     def remove_dynamic_port(
@@ -562,7 +577,9 @@ scene_bridge.command_bridge directly."""
         group_id: str,
         port_key: str,
     ) -> dict[str, Any]:
-        return _copy_dict(
+        if not self._dynamic_port_edit_allowed(node_id):
+            return {}
+        result = _copy_dict(
             _invoke(
                 self._scene_command_source,
                 "remove_dynamic_port",
@@ -572,6 +589,12 @@ scene_bridge.command_bridge directly."""
                 default={},
             )
         )
+        message = result.get("error", {}).get("message", "")
+        if message and callable(self._show_graph_hint_callback):
+            self._show_graph_hint_callback(str(message), 4000)
+        if result.get("port_key"):
+            _invoke(self._workspace_edit_controller, "on_dynamic_ports_changed", node_id)
+        return result
 
     @pyqtSlot(str, str, str, str, result="QVariantMap")
     def rename_dynamic_port(

@@ -11,8 +11,8 @@ uses styled code cards, callouts, and tables and can be closed without changing
 the current draft.
 
 This guide is only for the built-in Python Script node. Its source is stored in
-the project, its function is synchronous, and its declaration changes only on
-**Apply**. Use the [Plugin Authoring Guide](PLUGIN_AUTHORING_GUIDE.md) when a
+the project and its function is synchronous. Editor changes take effect on
+**Apply**; canvas port handles update the same source immediately. Use the [Plugin Authoring Guide](PLUGIN_AUTHORING_GUIDE.md) when a
 node should be reusable across projects.
 
 ## Choose the workflow Python runtime
@@ -69,6 +69,18 @@ function receives the input and returns a mapping whose keys are declared
 outputs.
 
 ## Declare ports
+
+The green handles add `@corex.input` or `@corex.output` declarations with
+`value_type=corex.Any`; input additions also add the matching `run` parameter.
+The red handles remove the corresponding declaration and input parameter.
+They work on plain input/output ports; decorator-backed controls remain edited
+in the source. Apply or Revert an existing editor draft before using the handles.
+
+Each handle click is one undoable edit, including source, ports, and removed
+wires. Existing comments, decorator options, settings, and function logic are
+preserved. After removing a port, update any references or returned output keys
+in your function body before running. The handles do not rewrite your logic.
+Port-label rename changes only the displayed label, not the Python identifier.
 
 Put `@corex.node` directly above one synchronous function named `run`. Every
 other declaration sits between it and the function. The source order is the
@@ -252,9 +264,10 @@ def run(ctx, series):
 
 ## Apply, errors, and old scripts
 
-COREX updates a Python Script node only when you click **Apply**. It reads the
-decorators with a bounded, literal-only AST pass and does not import the script
-or execute decorator expressions while applying.
+Editor drafts update a Python Script node when you click **Apply**; canvas port
+edits apply their source changes immediately. Both paths read decorators with a
+bounded, literal-only AST pass without importing the script or executing decorator
+expressions.
 
 An invalid draft stays dirty, shows a line-and-column error in the console, and
 leaves the last applied source, ports, settings, wires, and collapsed-section
@@ -262,16 +275,14 @@ state untouched. A valid Apply is one graph/history action, so undo restores
 the prior shape. Explicit Run actions first use a valid pending Apply; automatic
 runs keep using the last applied script.
 
-The old assignment-style script and canvas-authored Python Script ports are
-removed. Convert this:
+The old assignment-style script is removed. Convert this:
 
 ```python
 result = payload
 ```
 
-to the pass-through script at the top of this page. Declare every input,
-output, and local setting in the source; do not add or rename Python Script
-ports on the canvas.
+to the pass-through script at the top of this page. Every input, output, and
+local setting is declared in the source, including ports added with canvas handles.
 
 ## Limits
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
@@ -11,10 +13,13 @@ from ea_node_editor.graph.transform_fragment_ops import (
 )
 from ea_node_editor.graph.validated_mutation import ValidatedGraphMutation
 from ea_node_editor.nodes.python_script_declaration import PythonScriptDeclarationError
+from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.spec_validation import validate_node_spec
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import Interval1D
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_scene_payload.builder import GraphScenePayloadBuilder
+from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 
 
 def _resolve(source: str):
@@ -24,6 +29,136 @@ def _resolve(source: str):
         {"script": source},
     )
     return registry, properties, registry.resolve_spec("core.python_script", properties)
+
+
+def test_canvas_port_handles_edit_declarations_and_signature_without_rewriting_body() -> None:
+    registry = build_builtin_registry()
+    model = GraphModel()
+    mutations = ValidatedGraphMutation(model, model.active_workspace.workspace_id, registry)
+    source = '''# Keep café and formatting.
+@corex.node
+@corex.input("payload", value_type=float, required=True, section="Data")  # keep me
+@corex.output("result", value_type=float)
+@corex.slider("scale", default=2.0, minimum=0.0, maximum=5.0, port=True, section="Style")
+def run(ctx, payload: float, scale,):  # signature comment
+    # Keep this logic even when an interface change needs a manual body edit.
+    return {"result": payload * scale}
+'''
+    node = mutations.add_node(type_id="core.python_script", title="Script", x=0, y=0,
+                              properties={"script": source})
+    mutations.set_node_property(node.node_id, "scale", 3.0)
+    before_spec = registry.resolve_spec(node.type_id, node.properties)
+    assert [group.group_id for group in before_spec.dynamic_port_groups] == ["inputs", "outputs"]
+    assert mutations.insert_dynamic_port(node.node_id, "inputs", 0) == "input1"
+    assert mutations.insert_dynamic_port(node.node_id, "outputs", 1) == "output1"
+    edited = node.properties["script"]
+    assert '@corex.input("input1", value_type=corex.Any)' in edited
+    assert '@corex.output("output1", value_type=corex.Any)' in edited
+    assert 'def run(ctx, payload: float, scale, input1,):  # signature comment' in edited
+    assert source.split("    # Keep this logic", 1)[1] == edited.split("    # Keep this logic", 1)[1]
+    assert node.properties["scale"] == 3.0
+    assert registry.resolve_spec(node.type_id, node.properties).settings_groups == before_spec.settings_groups
+    mutations.remove_dynamic_port(node.node_id, "inputs", "input1")
+    mutations.remove_dynamic_port(node.node_id, "outputs", "output1")
+    mutations.remove_dynamic_port(node.node_id, "inputs", "payload")
+    assert '@corex.input("payload"' not in node.properties["script"]
+    assert 'return {"result": payload * scale}' in node.properties["script"]
+    assert set(node.properties) == {"script", "timeout_sec", "scale"}
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_canvas_port_source_spans_preserve_multiline_unicode_and_parentheses(newline: str) -> None:
+    source = '''# café
+@corex.node
+@(
+    corex.input("payload", value_type=float, label="é")
+)  # retain trailing comment
+@(corex.output("result", value_type=float))
+@corex.number("input1", default=2)
+def run(
+    ctx,
+    payload: "é", # retain parameter comment, too
+    input1,
+):
+    return {"result": payload * input1}
+'''.replace("\n", newline)
+    registry = build_builtin_registry()
+    model = GraphModel()
+    mutation = ValidatedGraphMutation(model, model.active_workspace.workspace_id, registry)
+    node = mutation.add_node(type_id="core.python_script", title="Script", x=0, y=0,
+                             properties={"script": source})
+    assert mutation.insert_dynamic_port(node.node_id, "inputs", 0) == "input2"
+    mutation.remove_dynamic_port(node.node_id, "inputs", "payload")
+    mutation.remove_dynamic_port(node.node_id, "outputs", "result")
+    updated = node.properties["script"]
+    assert "# retain trailing comment" in updated
+    assert "# retain parameter comment, too" in updated
+    assert f'    return {{"result": payload * input1}}{newline}' in updated
+    assert 'value_type=float' not in updated
+    assert [port.key for port in registry.resolve_spec(node.type_id, node.properties).ports] == ["input2"]
+
+
+def test_source_backed_group_validation_and_mutations_keep_backing_write_guards() -> None:
+    registry = build_builtin_registry()
+    properties = registry.default_properties("core.python_script")
+    spec = registry.resolve_spec("core.python_script", properties)
+    group = spec.dynamic_port_groups[0]
+    port = spec.ports[0]
+    bad_group = replace(group, ports_resolver=lambda _properties: (port, port))
+    with pytest.raises(ValueError, match="duplicate port key"):
+        validate_node_spec(replace(spec, dynamic_port_groups=(bad_group,)), data_types=registry.data_types)
+    bad_group = replace(group, property_editor="untrusted")
+    with pytest.raises(TypeError, match="must be callable"):
+        validate_node_spec(replace(spec, dynamic_port_groups=(bad_group,)), data_types=registry.data_types)
+
+    base = registry.get_spec("core.python_script")
+    custom = replace(spec, type_id="tests.source_backed", instance_spec_resolver=base.instance_spec_resolver)
+    registry.register_descriptor(custom, lambda: None)
+    model = GraphModel()
+    mutation = ValidatedGraphMutation(model, model.active_workspace.workspace_id, registry)
+    node = mutation.add_node(type_id=custom.type_id, title="Source", x=0, y=0, properties=properties)
+    with pytest.raises(ValueError, match="only through dynamic port mutations"):
+        mutation.set_node_property(node.node_id, "script", properties["script"])
+    assert mutation.insert_dynamic_port(node.node_id, "inputs", 0) == "input1"
+    assert mutation.remove_dynamic_port(node.node_id, "inputs", "input1") == ("input1", ())
+    assert [p.key for p in registry.resolve_spec(node.type_id, node.properties).ports] == ["payload", "result"]
+
+
+def test_canvas_port_edits_execute_and_undo_source_wires_and_port_state_together() -> None:
+    registry = build_builtin_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    scene = GraphSceneBridge()
+    scene.set_workspace(model, registry, workspace.workspace_id)
+    history = RuntimeGraphHistory()
+    scene.bind_runtime_history(history)
+    node_id = scene.add_node_from_type("core.python_script", 0, 0)
+    peer_id = scene.add_node_from_type("core.python_script", 300, 0)
+    assert scene.insert_dynamic_port(node_id, "inputs", 1) == "input1"
+    assert scene.insert_dynamic_port(node_id, "outputs", 1) == "output1"
+    node = workspace.nodes[node_id]
+    ctx = ExecutionContext(run_id="test", node_id=node_id, workspace_id=workspace.workspace_id,
+                           inputs={"payload": 42, "input1": 9}, properties=node.properties,
+                           emit_log=lambda *_args: None)
+    assert registry.create(node.type_id).execute(ctx).outputs == {"result": 42}
+    input_edge = scene.add_edge(peer_id, "result", node_id, "input1")
+    output_edge = scene.add_edge(node_id, "output1", peer_id, "payload")
+    scene.set_port_modifiers(node_id, "input1", ["graft"])
+    scene.set_principal_input_port(node_id, "input1")
+    for group_id, port_key, edge_id in (("inputs", "input1", input_edge), ("outputs", "output1", output_edge)):
+        before = history.capture_workspace(workspace)
+        depth = history.undo_depth(workspace.workspace_id)
+        result = scene.remove_dynamic_port(node_id, group_id, port_key)
+        assert result["removed_edge_ids"] == [edge_id]
+        assert edge_id not in workspace.edges
+        assert history.undo_depth(workspace.workspace_id) == depth + 1
+        after = history.capture_workspace(workspace)
+        history.undo_workspace(workspace.workspace_id, workspace)
+        assert history.capture_workspace(workspace) == before
+        history.redo_workspace(workspace.workspace_id, workspace)
+        assert history.capture_workspace(workspace) == after
+    ctx.properties = workspace.nodes[node_id].properties
+    assert registry.create(node.type_id).execute(ctx).outputs == {"result": 42}
 
 
 def test_all_python_script_decorators_resolve_to_shared_metadata() -> None:

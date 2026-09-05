@@ -112,8 +112,10 @@ class ScriptEditorModel(QObject):
         if (
             self._dirty
             and self._current_node_id == node_id
-            and script == self._base_script
         ):
+            # History/source refresh changes the Revert baseline, never the draft.
+            self._base_script = script
+            self._set_dirty(self._script_text != script)
             return
         self._current_node_id = node_id
         self._current_node_label = str(getattr(node, "title", "")).strip() or "Python Script"

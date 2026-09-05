@@ -74,6 +74,9 @@ Use this for node definitions, registry validation, built-in node families, data
 - `plugin_authoring.py` owns one-time readable/random identities, novice templates, non-executing temporary validation, structured summaries, direct-child no-clobber saves, expected-content overwrites, and attested saved-draft reads. It has no watcher, installer, environment selection, or legacy descriptor path.
 - Python Script decorators resolve one applied source into ordinary ports,
   properties, and settings groups through the registry's instance-spec path.
+  Its input/output dynamic groups reference those resolved plain ports and use
+  the trusted `property_editor` callback to edit source spans and input parameters.
+  They never normalize source into JSON name lists; default-backed controls stay static.
 - Model Viewer reuses the existing dynamic input group with an exact trusted
   function-spec overlay. Ordered scene IDs and per-ID styles are ordinary hidden
   properties; the function adapter reads resolved inputs from ExecutionContext.

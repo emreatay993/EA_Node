@@ -845,6 +845,11 @@ def _dynamic_port_bottom_padding(
         visible_ports_override=visible_ports_override,
     )
     static_keys = {str(port.key) for port in spec.ports}
+    static_keys.difference_update(
+        port.key
+        for group in groups if group.property_editor is not None
+        for port in group.ports_resolver(node.properties)
+    )
     grouped_port_keys = {
         str(item.port_key)
         for settings_group in getattr(spec, "settings_groups", ()) or ()

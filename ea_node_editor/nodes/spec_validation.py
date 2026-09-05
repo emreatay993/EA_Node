@@ -268,7 +268,7 @@ class _SpecValidator:
         properties_by_key: Mapping[str, PropertySpec],
     ) -> tuple[PortSpec, ...]:
         group_ids: set[str] = set()
-        property_keys: set[str] = set()
+        property_keys: dict[str, bool] = {}
         directions: set[str] = set()
         for group in spec.dynamic_port_groups:
             if not isinstance(group, DynamicPortGroupSpec):
@@ -297,19 +297,25 @@ class _SpecValidator:
                     f"Node {spec.type_id} dynamic port group {group.group_id} has invalid property key: "
                     f"{group.property_key!r}"
                 )
-            if group.property_key in property_keys:
+            source_backed = group.property_editor is not None
+            if source_backed and not callable(group.property_editor):
+                raise TypeError("Dynamic port property_editor must be callable")
+            if group.property_key in property_keys and not (
+                source_backed and property_keys[group.property_key]
+            ):
                 raise ValueError(
                     f"Node {spec.type_id} dynamic port groups duplicate property key: {group.property_key}"
                 )
-            property_keys.add(group.property_key)
+            property_keys[group.property_key] = source_backed
             backing_property = properties_by_key.get(group.property_key)
             if (
                 backing_property is None
-                or backing_property.type != "json"
-                or backing_property.inspector_visible
+                or backing_property.type != ("str" if source_backed else "json")
+                or (not source_backed and backing_property.inspector_visible)
             ):
                 raise ValueError(
-                    f"Node {spec.type_id} dynamic port group {group.group_id} requires hidden JSON property "
+                    f"Node {spec.type_id} dynamic port group {group.group_id} requires "
+                    f"{'string' if source_backed else 'hidden JSON'} property "
                     f"{group.property_key}"
                 )
             if group.direction not in {"in", "out"}:
