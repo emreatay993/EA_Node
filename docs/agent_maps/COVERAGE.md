@@ -44,6 +44,7 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
 - [Retained Work-Packet QA Evidence And Spec Navigation](feature_routes/work_packet_docs_status_qa.md)
 
 ## Current ownership notes
+- Shared header diagnostics use external warning/error circles with no title-width reservation; the header owns placement, tooltip/accessibility, and failure precedence.
 
 - Canvas grids are one procedural GPU quad under `GraphCanvasBackground.qml` / `GraphCanvasGridShader.qml`, aligned immediately with live viewport state. Point marks retain compact logical-pixel size and background-aware contrast at high DPI. Software uses the single Canvas painter; the graph-canvas map owns rendering tests and the packaging map owns shader baking/distribution.
 
@@ -147,7 +148,8 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
   authoring controls. Trusted node registration owns the scene-group metadata;
   engineering execution owns v2 ordered layers and source leases; the binder and
   viewer bridges own per-ID appearance, selection, visibility, and queries.
-  Viewer Python/QML geometry reserves the existing dynamic-add target space.
+  Viewer Python/QML geometry reserves the resting dynamic-add dot; label widths
+  include removable controls, and hover targets can extend beyond the chrome.
 
 - Update the owning map when source/test ownership moves.
 - Regenerate `docs/agent_route_index.*` and

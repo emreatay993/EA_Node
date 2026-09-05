@@ -115,9 +115,10 @@ Item {
         : (root.groupTitleIconVisible
             ? root._groupTitleIconReserveWidth
             : root._nodeTitleIconReserveWidth)
-    readonly property real _headerBadgeReserveWidth: (root.lockedPlaceholderActive ? 64 : 0)
-        + (root.host && root.host.isFailedNode ? 70 : 0)
-        + (root.warningBadgeVisible ? 30 : 0)
+    readonly property real _headerBadgeReserveWidth: root.lockedPlaceholderActive ? 64 : 0
+    readonly property real diagnosticBadgeSize: Math.max(
+        16, (root.graphSharedTypography ? root.graphSharedTypography.badgePixelSize : 9) + 6
+    )
     readonly property string currentTitle: root.host && root.host.nodeData
         ? String(root.host.nodeData.title || root.host.nodeData.display_name || "")
         : ""
@@ -515,13 +516,13 @@ Item {
         id: warningBadge
         objectName: "graphNodeWarningBadge"
         visible: root.warningBadgeVisible
-        anchors.right: lockedBadge.visible ? lockedBadge.left : parent.right
-        anchors.rightMargin: lockedBadge.visible ? 6 : 8
-        y: root.host ? root.host._titleTop + Math.max(0, (root.host._titleHeight - height) * 0.5) : 0
-        width: 22
-        height: 18
-        radius: 9
-        color: root.host ? Qt.alpha(root.host.warningOutlineColor, 0.24) : "#4a3510"
+        anchors.right: parent.right
+        anchors.rightMargin: 8
+        y: -height * 0.5
+        width: root.diagnosticBadgeSize
+        height: width
+        radius: width * 0.5
+        color: root.host ? root.host.warningOutlineColor : "#E8A838"
         border.width: 1
         border.color: root.host ? root.host.warningOutlineColor : "#E8A838"
         Accessible.name: root.warningDiagnosticTitle
@@ -530,7 +531,7 @@ Item {
             objectName: "graphNodeWarningBadgeText"
             anchors.centerIn: parent
             text: "!"
-            color: root.host ? root.host.warningOutlineColor : "#E8A838"
+            color: "#FFFFFF"
             font.pixelSize: root.graphSharedTypography ? root.graphSharedTypography.badgePixelSize : 9
             font.weight: root.graphSharedTypography ? root.graphSharedTypography.badgeFontWeight : Font.Bold
             renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
@@ -645,24 +646,40 @@ Item {
         id: failureBadge
         objectName: "graphNodeFailureBadge"
         visible: root.host ? root.host.isFailedNode : false
-        anchors.right: lockedBadge.visible ? lockedBadge.left : parent.right
-        anchors.rightMargin: lockedBadge.visible ? 6 : 8
-        y: root.host ? root.host._titleTop + Math.max(0, (root.host._titleHeight - height) * 0.5) : 0
-        width: 62
-        height: 18
-        radius: 9
+        anchors.right: parent.right
+        anchors.rightMargin: 8
+        y: -height * 0.5
+        width: root.diagnosticBadgeSize
+        height: width
+        radius: width * 0.5
         color: root.host ? root.host.failureBadgeFillColor : "#421617"
         border.color: root.host ? root.host.failureBadgeBorderColor : "#FF8C74"
+        Accessible.name: "Execution halted"
 
         Text {
             id: failureBadgeText
             objectName: "graphNodeFailureBadgeText"
             anchors.centerIn: parent
-            text: "HALTED"
+            text: "!"
             color: root.host ? root.host.failureBadgeTextColor : "#FFE5DE"
             font.pixelSize: root.graphSharedTypography ? root.graphSharedTypography.badgePixelSize : 9
             font.weight: root.graphSharedTypography ? root.graphSharedTypography.badgeFontWeight : Font.Bold
             renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
+        }
+
+        HoverHandler { id: failureBadgeHover }
+
+        Common.ManagedToolTip {
+            objectName: "graphNodeFailureToolTip"
+            policyBridge: root.tooltipPolicyBridge
+            category: "general"
+            active: failureBadgeHover.hovered
+            text: "Execution halted"
+            delay: 240
+            screenStablePositioning: true
+            screenStablePlacement: root.nodeTooltipPlacement
+            anchorScale: root.nodeTooltipAnchorScale
+            screenGap: 8
         }
     }
 

@@ -533,28 +533,28 @@ TestCase {
         var expected = {
             "unlocked_input": {
                 "topology_hash": "d0078e01",
-                "geometry_hash": "055131d5",
+                "geometry_hash": "9f420013",
                 "qquickitem_count": 135,
                 "loader_count": 0,
                 "canvas_count": 1
             },
             "unlocked_output": {
                 "topology_hash": "55b1e6c7",
-                "geometry_hash": "b0b81f42",
+                "geometry_hash": "48eed5e1",
                 "qquickitem_count": 21,
                 "loader_count": 1,
                 "canvas_count": 0
             },
             "locked_input": {
                 "topology_hash": "ee335365",
-                "geometry_hash": "d0188864",
+                "geometry_hash": "1b603336",
                 "qquickitem_count": 25,
                 "loader_count": 0,
                 "canvas_count": 1
             },
             "locked_output": {
                 "topology_hash": "2fccbe03",
-                "geometry_hash": "a6b75d7b",
+                "geometry_hash": "e34bc1a8",
                 "qquickitem_count": 22,
                 "loader_count": 1,
                 "canvas_count": 1
@@ -704,11 +704,11 @@ TestCase {
         var outputRemove = findNamedItems(host, "graphNodeDynamicPortRemove_result")[0]
         compare(
             t21Rounded(inputRemove.x + inputRemove.width * 0.5 - inputRow.portPoint.x),
-            t21Rounded(33)
+            t21Rounded(18)
         )
         compare(
             t21Rounded(outputRow.portPoint.x - (outputRemove.x + outputRemove.width * 0.5)),
-            t21Rounded(33)
+            t21Rounded(18)
         )
         compare(inputRemove.propertyKey, "payload")
         compare(outputRemove.propertyKey, "result")

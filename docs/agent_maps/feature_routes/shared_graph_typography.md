@@ -17,6 +17,7 @@ Use this for shared typography controls, node header text, flow-edge labels and 
 - `ea_node_editor/assets/fonts/`
 
 ## Notes
+- Warning/error circles straddle the upper-right node border and reserve no title width. The shared header keeps title/icon sizing independent of diagnostics; the persistent-diagnostic host probe covers full titles at 8–50px label sizes and clamps undersized saved widths.
 - `GraphRichTextBlock.qml` is the canonical reusable markdown/plain rendering, source editing, style toolbar, and style copy/paste owner for prose-oriented passive graph text.
 - Bare annotation text stores whole-object text properties as node properties and normalizes shared text settings through `text_style.py`; `GraphBareTextSurface.qml` is now a thin wrapper around the reusable rich-text block.
 - Bare annotation text does not expose the generic passive `visual_style` context actions; its colors and typography stay on the property-owned floating-toolbar path.

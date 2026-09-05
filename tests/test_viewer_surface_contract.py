@@ -354,7 +354,8 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                     assert abs(float(projected[key]) - float(rendered[key])) < 0.1, (key, projected, rendered)
                 button = named_item(host, "graphNodeDynamicPortAdd_scenes")
                 assert button is not None and button.property("visible")
-                bottom = button.mapToItem(host, QPointF(0, button.height())).y()
+                circle = named_item(button, "graphNodeDynamicPortAddCircle")
+                bottom = circle.mapToItem(host, QPointF(0, circle.height())).y()
                 assert bottom <= host.height(), (bottom, host.height())
                 return button
 

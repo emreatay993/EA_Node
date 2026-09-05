@@ -107,13 +107,14 @@ _COMPACT_SECTION_MIN_WIDTH = 82.0
 _TRIGGER_LABEL_PADDING = 14.0
 _TRIGGER_LABEL_MIN_WIDTH = 68.0
 _DYNAMIC_PORT_ACTIVE_CONNECTOR_DIAMETER = 14.0
-_DYNAMIC_PORT_CONNECTOR_INTERACTION_PADDING = 9.0
-_DYNAMIC_PORT_HANDLE_TARGET_RADIUS = 13.0
-_DYNAMIC_PORT_HANDLE_GAP = 4.0
+_DYNAMIC_PORT_HANDLE_TARGET_RADIUS = 12.0
+_DYNAMIC_PORT_HANDLE_GAP = 0.0
+_DYNAMIC_PORT_HANDLE_REST_RADIUS = 4.0
+_DYNAMIC_PORT_REMOVE_TARGET_WIDTH = 20.0
+_DYNAMIC_PORT_REMOVE_CENTER_INTERVAL = 18.0
 _DYNAMIC_PORT_HANDLE_BOTTOM_INSET = 4.0
 _DYNAMIC_PORT_HANDLE_CENTER_INTERVAL = (
     _DYNAMIC_PORT_ACTIVE_CONNECTOR_DIAMETER * 0.5
-    + _DYNAMIC_PORT_CONNECTOR_INTERACTION_PADDING
     + _DYNAMIC_PORT_HANDLE_TARGET_RADIUS
     + _DYNAMIC_PORT_HANDLE_GAP
 )
@@ -634,9 +635,20 @@ def _standard_visible_label_widths(
         workspace_nodes,
         visible_ports_override=visible_ports_override,
     )
+    removable_keys = set()
+    for group in spec.dynamic_port_groups:
+        group_ports = group.ports_resolver(node.properties)
+        if len(group_ports) > group.minimum:
+            removable_keys.update(port.key for port in group_ports)
+    # Columns include the remove target and label gap, measured from the gutter.
+    remove_reserve = (
+        _DYNAMIC_PORT_REMOVE_CENTER_INTERVAL
+        + _DYNAMIC_PORT_REMOVE_TARGET_WIDTH * 0.5 + 4.0 - STANDARD_PORT_GUTTER
+    )
     left_label_width = max(
         (
             _estimate_standard_text_width(port.label or port.key, pixel_size=port_label_pixel_size)
+            + (remove_reserve if port.key in removable_keys else 0.0)
             for port in in_ports
         ),
         default=0.0,
@@ -644,6 +656,7 @@ def _standard_visible_label_widths(
     right_label_width = max(
         (
             _estimate_standard_text_width(port.label or port.key, pixel_size=port_label_pixel_size)
+            + (remove_reserve if port.key in removable_keys else 0.0)
             for port in out_ports
         ),
         default=0.0,
@@ -901,7 +914,8 @@ def _dynamic_port_bottom_padding(
     return max(
         float(STANDARD_BOTTOM_PADDING),
         max(add_centers)
-        + _DYNAMIC_PORT_HANDLE_TARGET_RADIUS
+        # Hover targets may overflow the chrome; only the resting dot sizes it.
+        + _DYNAMIC_PORT_HANDLE_REST_RADIUS
         + _DYNAMIC_PORT_HANDLE_BOTTOM_INSET
         - float(port_count) * port_row_height,
     )

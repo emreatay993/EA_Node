@@ -3287,10 +3287,41 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     self.state_changed.emit()
 
             canvas_item = DiagnosticCanvasItem()
+            from ea_node_editor.graph.records import NodeInstance
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui_qml.graph_geometry.standard_metrics import node_surface_metrics
+
+            spec = build_default_registry().get_spec("ssh_sftp.run_command")
+            node = NodeInstance(node_id="node_surface_host_test", type_id=spec.type_id,
+                title=spec.display_name, x=120, y=120)
+            metrics = node_surface_metrics(node, spec, graph_label_pixel_size=16,
+                graph_node_icon_pixel_size=16)
+            payload = node_payload()
+            payload.update(title=node.title, type_id=node.type_id,
+                width=metrics.default_width, height=metrics.default_height,
+                surface_metrics=metrics.to_payload(),
+                inline_properties=[],
+                ports=[{"key": port.key, "label": port.label or port.key,
+                    "direction": port.direction, "kind": port.kind,
+                    "data_type": port.data_type, "connected": False} for port in spec.ports],
+                icon_source=QUrl.fromLocalFile(str(repo_root / "ea_node_editor/assets/node_title_icons/ssh_sftp/terminal.svg")).toString())
             host = create_component(
                 graph_node_host_qml_path,
-                {"nodeData": node_payload(), "canvasItem": canvas_item},
+                {"nodeData": payload, "canvasItem": canvas_item, "graphLabelPixelSize": 16},
             )
+            title = host.findChild(QObject, "graphNodeTitle")
+            failure_badge = host.findChild(QObject, "graphNodeFailureBadge")
+            original_width = host.width()
+            original_title_width = title.width()
+
+            def assert_external_badge(indicator):
+                assert indicator.y() < 0
+                assert abs(indicator.y() + indicator.height() * 0.5) < 0.1
+                assert indicator.width() == indicator.height()
+                assert abs(host.width() - original_width) < 0.1
+                assert abs(title.width() - original_title_width) < 0.1
+                assert not title.property("truncated"), title.property("text")
+
             background = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
             badge = host.findChild(QObject, "graphNodeWarningBadge")
             tooltip = host.findChild(QObject, "graphNodeWarningToolTip")
@@ -3335,6 +3366,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert bool(host.property("isDiagnosticWarningNode"))
             assert str(background.property("effectiveBorderState")) == "warning"
             assert bool(badge.property("visible"))
+            assert_external_badge(badge)
             assert tooltip.property("category") == "warning"
             assert "Mesh quality was reduced." in tooltip.property("text")
             assert tooltip_header.property("text") == "2 warnings", tooltip_header.property("text")
@@ -3342,12 +3374,13 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert tooltip_index_one.property("text") == "1", tooltip_index_one.property("text")
             assert tooltip_message_one.property("text") == "Result path is missing.", tooltip_message_one.property("text")
 
-            window = attach_host_to_window(host)
+            window = attach_host_to_window(host, 800, 480)
             try:
-                QTest.mouseMove(window, item_scene_point(badge))
+                QTest.mouseMove(window, item_scene_point(badge, y_factor=0.25))
                 QTest.qWait(50)
                 settle_events(5)
-                assert bool(tooltip.property("managedVisible"))
+                assert bool(tooltip.property("managedVisible")), (item_scene_point(badge),
+                    host.width(), window.width(), tooltip.property("active"))
                 assert int(tooltip_table.property("width")) == 360, tooltip_table.property("width")
 
                 canvas_item.set_state(diagnostic=True, running=True, failed=False)
@@ -3359,6 +3392,25 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 app.processEvents()
                 assert str(background.property("effectiveBorderState")) == "failed"
                 assert not bool(badge.property("visible"))
+                assert bool(failure_badge.property("visible"))
+                assert_external_badge(failure_badge)
+                for pixel_size in (8, 30, 50):
+                    metrics = node_surface_metrics(node, spec, graph_label_pixel_size=pixel_size,
+                        graph_node_icon_pixel_size=pixel_size)
+                    payload.update(surface_metrics=metrics.to_payload(), width=1,
+                        height=metrics.default_height)
+                    host.setProperty("graphLabelPixelSize", pixel_size)
+                    host.setProperty("nodeData", payload)
+                    settle_events(3)
+                    assert host.width() >= metrics.min_width
+                    original_width = host.width()
+                    original_title_width = title.width()
+                    assert_external_badge(failure_badge)
+                    canvas_item.set_state(diagnostic=True, running=False, failed=False)
+                    settle_events(3)
+                    assert_external_badge(badge)
+                    canvas_item.set_state(diagnostic=True, running=False, failed=True)
+                    settle_events(3)
             finally:
                 dispose_host_window(host, window)
             """,

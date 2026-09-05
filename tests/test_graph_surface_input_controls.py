@@ -90,7 +90,7 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
         self.assertIn("host.surfaceFullscreenAction", surface_source)
         self.assertIn("host.requestSurfaceContentFullscreen", surface_source)
 
-    def test_python_script_decorator_ports_reserve_dynamic_add_targets(self) -> None:
+    def test_python_script_decorator_ports_reserve_only_resting_add_dots(self) -> None:
         registry = build_default_registry()
         properties = registry.default_properties("core.python_script")
         spec = registry.resolve_spec("core.python_script", properties)
@@ -109,7 +109,10 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             graph_label_pixel_size=16,
         )
         self.assertEqual([group.group_id for group in spec.dynamic_port_groups], ["inputs", "outputs"])
-        self.assertGreater(float(metrics.body_bottom_margin), float(STANDARD_BOTTOM_PADDING))
+        self.assertAlmostEqual(
+            metrics.body_bottom_margin,
+            metrics.port_center_offset + 19.0 + 4.0 + 4.0 - metrics.port_height,
+        )
 
         static_spec = NodeTypeSpec(
             type_id="tests.static_height_unchanged_by_dynamic_controls",
@@ -1139,11 +1142,27 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 settle_events(6)
 
             original = node.properties["script"]
+            def assert_compact_geometry():
+                current = host()
+                for direction in ("Input", "Output"):
+                    for label in named_child_items(current, "graphNode" + direction + "PortLabel"):
+                        assert not label.property("truncated"), (label.property("text"), label.width())
+                    for row in named_child_items(current, "graphNode" + direction + "PortRow"):
+                        remove = row.property("removeButtonItem")
+                        if remove is not None and remove.property("visible"):
+                            point = variant_value(row.property("portPoint"))
+                            assert abs(abs(remove.x() + remove.width() / 2 - point["x"]) - 18) < 0.1
+                projected = variant_value(current.property("nodeData"))["surface_metrics"]
+                rendered = variant_value(current.property("surfaceMetrics"))
+                assert abs(projected["body_bottom_margin"] - rendered["body_bottom_margin"]) < 0.1
+
+            assert_compact_geometry()
             click("graphNodeDynamicPortAdd_inputs")
             assert '@corex.input("input1", value_type=corex.Any)' in node.properties["script"], node.properties["script"]
             assert 'def run(ctx, payload, input1)' in node.properties["script"], node.properties["script"]
             click("graphNodeDynamicPortAdd_outputs")
             assert '@corex.output("output1", value_type=corex.Any)' in node.properties["script"], node.properties["script"]
+            assert_compact_geometry()
             click("graphNodeDynamicPortRemove_input1")
             click("graphNodeDynamicPortRemove_output1")
             assert "input1" not in node.properties["script"]
@@ -1158,6 +1177,13 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             click("graphNodeDynamicPortAdd_inputs")
             click("graphNodeDynamicPortAdd_outputs")
             assert {p.key for p in registry.resolve_spec(node.type_id, node.properties).ports} == {"input1", "output1"}
+            scene.rename_dynamic_port(node_id, "inputs", "input1", "long_input_parameter_name")
+            scene.rename_dynamic_port(node_id, "outputs", "output1", "long_output_parameter_name")
+            settle_events(6)
+            assert {label.property("text") for direction in ("Input", "Output")
+                for label in named_child_items(host(), "graphNode" + direction + "PortLabel")} == {
+                    "long_input_parameter_name", "long_output_parameter_name"}
+            assert_compact_geometry()
             window.close()
             canvas.deleteLater()
             engine.deleteLater()
@@ -3716,8 +3742,8 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
         )[1].split("function _triggerGraphAction", 1)[0]
         self.assertNotIn("viewZoom", dynamic_menu_source)
         self.assertIn("SurfaceControls.GraphSurfaceButton", row_source)
-        self.assertGreaterEqual(port_ui_source.count("width: 26"), 2)
-        self.assertGreaterEqual(port_ui_source.count("height: 26"), 2)
+        self.assertIn("width: root.dynamicPortTargetDiameter", ports_source)
+        self.assertIn("width: row.portsLayer.dynamicPortRemoveTargetWidth", row_source)
         self.assertGreaterEqual(port_ui_source.count("focusPolicy: Qt.TabFocus"), 2)
         self.assertGreaterEqual(port_ui_source.count("Accessible.name: tooltipText"), 2)
         self.assertIn('property color actionFillColor: "#55D65B"', ports_source)
@@ -3752,8 +3778,7 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
         self.assertGreaterEqual(port_ui_source.count("radius: width * 0.5"), 2)
         self.assertIn("readonly property real dynamicPortControlCenterInterval:", ports_source)
         self.assertIn(
-            "standardActivePortDiameter * 0.5 + portInteractionPadding "
-            "+ dynamicPortTargetRadius + dynamicPortControlGap",
+            "GraphNodeSurfaceMetrics.DYNAMIC_PORT_HANDLE_CENTER_INTERVAL",
             compact_ports,
         )
         self.assertIn(
@@ -3761,7 +3786,7 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             compact_ports,
         )
         self.assertIn(
-            "(row.isInput ? 1 : -1) * row.portsLayer.dynamicPortControlCenterInterval",
+            "(row.isInput ? 1 : -1) * row.portsLayer.dynamicPortRemoveCenterInterval",
             compact_row,
         )
         self.assertIn("DYNAMIC_PORT_HANDLE_CENTER_INTERVAL", surface_metrics_source)
@@ -4030,15 +4055,13 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
                 port_mouse = named_item(connector_dot, mouse_name)
                 assert bool(remove.property("visible")) is True
                 remove_center = item_scene_point(remove)
-                connector_center = item_scene_point(port_mouse)
+                connector_center = item_scene_point(connector_dot)
                 center_gap = abs(remove_center.x() - connector_center.x())
-                clear_gap = (
-                    center_gap
-                    - float(remove.property("width")) * 0.5
-                    - float(port_mouse.property("width")) * 0.5
-                )
-                assert 31.0 <= center_gap <= 33.0, center_gap
-                assert 4.0 <= clear_gap <= 6.0, clear_gap
+                mouse_edge = port_mouse.mapToItem(remove,
+                    QPointF(port_mouse.width() if direction == "in" else 0, 0)).x()
+                clear_gap = -mouse_edge if direction == "in" else mouse_edge - remove.width()
+                assert abs(center_gap - 18.0) < 0.1, center_gap
+                assert 1.0 <= clear_gap <= 3.0, clear_gap
                 return remove
 
             gate_layer = layer_for(gate_id)
@@ -4073,18 +4096,18 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             assert float(gate_remove_glyph.property("opacity")) == 1.0
             assert float(gate_remove.property("x")) == gate_remove_rest_x
             assert float(gate_remove.property("y")) == gate_remove_rest_y
-            assert int(gate_remove.property("width")) == 26
-            assert int(gate_remove.property("height")) == 26
+            assert int(gate_remove.property("width")) == 20
+            assert int(gate_remove.property("height")) == 24
             remove_rect = variant_value(gate_remove.property("interactiveRect")) or {}
-            assert float(remove_rect["width"]) == 26.0
-            assert float(remove_rect["height"]) == 26.0
+            assert float(remove_rect["width"]) == 20.0
+            assert float(remove_rect["height"]) == 24.0
             embedded_rects = [
                 variant_value(rect)
                 for rect in variant_list(gate_layer.property("embeddedInteractiveRects"))
             ]
             assert any(
-                float(rect.get("width", 0)) == 26.0
-                and float(rect.get("height", 0)) == 26.0
+                float(rect.get("width", 0)) == 20.0
+                and float(rect.get("height", 0)) == 24.0
                 for rect in embedded_rects
             ), embedded_rects
 
@@ -4248,6 +4271,7 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             assert pointer_preview["replaces_existing"] is True
             assert len(shell_bridge.connect_calls) == calls_before_pointer_drag
             assert variant_value(edge_layer.property("replacementPreviewEdgeIds")) == [edge_id]
+            settle_events(3)
             replacement_snapshot = variant_value(edge_layer._visibleEdgeSnapshot(edge_id))
             assert replacement_snapshot["replacementPreviewed"] is True, replacement_snapshot
             assert canvas.cancelWireDrag() is True

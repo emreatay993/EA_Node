@@ -318,10 +318,12 @@ Item {
             property real pressStartY: 0
             property bool movedState: false
             property bool hoverActive: false
-            x: -9
+            // Keep the generous outer hit area without covering authoring controls.
+            x: !row.isInput && removeButton.visible ? 0 : -9
             y: -9
-            width: parent.width + 18
-            height: parent.height + 18
+            width: parent.width + (removeButton.visible ? 9 : 18)
+            height: parent.height + (row.portsLayer._dynamicPortInlineControlsVisible()
+                && row.portsLayer._dynamicPortGroupForPort(row.portData) ? 9 : 18)
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             hoverEnabled: true
             preventStealing: true
@@ -563,11 +565,11 @@ Item {
         visible: row.portsLayer._dynamicPortInlineControlsVisible()
             && row.portsLayer._dynamicPortCanRemove(row.portData)
         x: Number(row.portPoint.x || 0)
-            + (row.isInput ? 1 : -1) * row.portsLayer.dynamicPortControlCenterInterval
+            + (row.isInput ? 1 : -1) * row.portsLayer.dynamicPortRemoveCenterInterval
             - width * 0.5
         anchors.verticalCenter: parent.verticalCenter
-        width: 26
-        height: 26
+        width: row.portsLayer.dynamicPortRemoveTargetWidth
+        height: row.portsLayer.dynamicPortTargetDiameter
         host: row.host
         text: ""
         foregroundColor: "#FFFFFF"

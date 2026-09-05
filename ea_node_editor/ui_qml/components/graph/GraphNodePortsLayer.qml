@@ -34,14 +34,14 @@ Item {
     readonly property bool hostLockedPlaceholder: root.host ? Boolean(root.host.lockedPlaceholderActive) : false
     readonly property real standardRestPortDiameter: 10
     readonly property real standardActivePortDiameter: 14
-    readonly property real portInteractionPadding: 9
-    readonly property real dynamicPortTargetRadius: 13
-    readonly property real dynamicPortControlGap: 4
     readonly property real dynamicPortControlCenterInterval:
-        standardActivePortDiameter * 0.5
-        + portInteractionPadding
-        + dynamicPortTargetRadius
-        + dynamicPortControlGap
+        GraphNodeSurfaceMetrics.DYNAMIC_PORT_HANDLE_CENTER_INTERVAL
+    readonly property real dynamicPortTargetDiameter:
+        GraphNodeSurfaceMetrics.DYNAMIC_PORT_HANDLE_TARGET_RADIUS * 2
+    readonly property real dynamicPortRemoveCenterInterval:
+        GraphNodeSurfaceMetrics.DYNAMIC_PORT_REMOVE_CENTER_INTERVAL
+    readonly property real dynamicPortRemoveTargetWidth:
+        GraphNodeSurfaceMetrics.DYNAMIC_PORT_REMOVE_TARGET_WIDTH
     readonly property real notchDiameter: 18
     // Fixed 6x raster for zoom/HiDPI; keep the shared image cache independent of zoom.
     readonly property size notchSourceSize: Qt.size(54, 108)
@@ -1108,8 +1108,8 @@ Item {
                 && groupId.length > 0
             x: Number(terminusPoint.x || 0) - width * 0.5
             y: Number(terminusPoint.y || 0) - height * 0.5
-            width: 26
-            height: 26
+            width: root.dynamicPortTargetDiameter
+            height: width
             host: root.host
             property color actionFillColor: "#55D65B"
             text: ""
