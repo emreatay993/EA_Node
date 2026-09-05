@@ -44,6 +44,7 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
 - [Retained Work-Packet QA Evidence And Spec Navigation](feature_routes/work_packet_docs_status_qa.md)
 
 ## Current ownership notes
+- Port-row sizing reserves editor height only for a nonempty `inline_editor`; stored input defaults alone do not create extra vertical space.
 - Shared header diagnostics use external warning/error circles with no title-width reservation; the header owns placement, tooltip/accessibility, and failure precedence.
 
 - Canvas grids are one procedural GPU quad under `GraphCanvasBackground.qml` / `GraphCanvasGridShader.qml`, aligned immediately with live viewport state. Point marks retain compact logical-pixel size and background-aware contrast at high DPI. Software uses the single Canvas painter; the graph-canvas map owns rendering tests and the packaging map owns shader baking/distribution.

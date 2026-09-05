@@ -1102,6 +1102,54 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
 
 
 class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
+    def test_ports_with_hidden_default_editors_use_single_rows(self) -> None:
+        self._run_qml_probe(
+            "hidden-default-editor-port-spacing",
+            '''
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+
+            registry = build_default_registry()
+            model = GraphModel()
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, model.active_workspace.workspace_id)
+            for type_id, default_keys in (
+                ("io.process_run", {"command", "args"}),
+                ("io.email_send", {"subject", "body"}),
+                ("optimization.construct_design", {"name"}),
+            ):
+                node_id = scene.add_node_from_type(type_id, 0, 0)
+                payload = next(item for item in scene.nodes_model if item["node_id"] == node_id)
+                ports = {port["key"]: port for port in payload["ports"]}
+                for key in default_keys:
+                    assert ports[key]["uses_property_default"]
+                    assert ports[key]["default_property"]["inline_editor"] == ""
+                host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+                window = attach_host_to_window(host, 700, 500)
+                settle_events(4)
+                counts = []
+                for direction, name in (("in", "Input"), ("out", "Output")):
+                    side_ports = [port for port in payload["ports"] if port["direction"] == direction]
+                    assert [port["layout_row"] for port in side_ports] == list(range(len(side_ports))), type_id
+                    counts.append(len(side_ports))
+                    rows = named_child_items(host, "graphNode" + name + "PortRow")
+                    points = sorted(float(variant_value(row.property("portPoint"))["y"]) for row in rows)
+                    row_height = payload["surface_metrics"]["port_height"]
+                    assert all(abs(b - a - row_height) < 0.1 for a, b in zip(points, points[1:])), (type_id, points)
+                    assert all(not row.property("defaultEditorVisible") for row in rows)
+                projected = payload["surface_metrics"]
+                assert abs(projected["default_height"] - (
+                    projected["body_top"] + projected["body_height"]
+                    + max(counts) * projected["port_height"] + projected["body_bottom_margin"]
+                )) < 0.1, type_id
+                assert abs(host.height() - payload["height"]) < 0.1, type_id
+                dispose_host_window(host, window)
+            engine.deleteLater()
+            app.processEvents()
+            ''',
+        )
+
     def test_python_script_dynamic_handles_click_through_real_canvas_bridge(self) -> None:
         self._run_qml_probe(
             "python-script-dynamic-handles",

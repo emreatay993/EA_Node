@@ -51,6 +51,7 @@
         "custom",
         "workflows",
         "telemetry",
+        "inline",
         "graphcanvasbackground",
         "graphcanvasgridshader",
         "shellcontextmenu",

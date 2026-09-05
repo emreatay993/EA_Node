@@ -303,6 +303,8 @@ def standard_inline_property_row_height(
     list_value: object = _STANDARD_INLINE_LIST_VALUE_UNSET,
 ) -> float:
     editor_name = str(editor or "").strip().lower()
+    if not editor_name:
+        return 0.0
     if editor_name == "textarea":
         return standard_inline_textarea_row_height(graph_label_pixel_size)
     if editor_name in {"slider", "interval_slider"}:

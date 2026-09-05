@@ -19,7 +19,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 
 | Route key | Kind | Map | Source | Tests | QML | Keywords |
 | --- | --- | --- | ---: | ---: | ---: | --- |
-| `coverage:coverage` | `coverage` | `docs/agent_maps/COVERAGE.md` | 13 | 3 | - | `agent`, `map`, `coverage`, `node`, `editor`, `graph`, `execution`, `persistence`, `nodes`, `addons`, ... +139 more |
+| `coverage:coverage` | `coverage` | `docs/agent_maps/COVERAGE.md` | 13 | 3 | - | `agent`, `map`, `coverage`, `node`, `editor`, `graph`, `execution`, `persistence`, `nodes`, `addons`, ... +140 more |
 | `feature_route:feature-routes-addon-manager` | `feature_route` | `docs/agent_maps/feature_routes/addon_manager.md` | 11 | 2 | 1 | `add`, `manager`, `addon`, `node`, `editor`, `addons`, `contracts`, `catalog`, `registry`, `contributions`, ... +58 more |
 | `feature_route:feature-routes-ansys-dpf-operator-viewer-transport` | `feature_route` | `docs/agent_maps/feature_routes/ansys_dpf_operator_viewer_transport.md` | 37 | - | 2 | `ansys`, `dpf`, `operator`, `nodes`, `viewer`, `and`, `transport`, `node`, `editor`, `data`, ... +262 more |
 | `feature_route:feature-routes-clipboard-undo-redo-mutation-history` | `feature_route` | `docs/agent_maps/feature_routes/clipboard_undo_redo_mutation_history.md` | 11 | - | - | `clipboard`, `undo`, `redo`, `and`, `mutation`, `history`, `node`, `editor`, `qml`, `graph`, ... +235 more |
