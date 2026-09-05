@@ -22,6 +22,8 @@ implementation studies are intentionally excluded.
 
 ## Cross-layer feature routes
 
+Shared node-toolbar Expand/Collapse and Run-options icons are owned by the floating-toolbar route and the shell icon registry.
+
 - [Graph Scene Payload And Projection](feature_routes/graph_scene_payload_and_projection.md)
 - [Graph Canvas Input Layers](feature_routes/graph_canvas_input_layers.md)
 - [Edge Routing, Labels, And Progress](feature_routes/edge_routing_labels_progress.md)

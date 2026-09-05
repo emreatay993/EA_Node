@@ -341,7 +341,7 @@ Item {
     }
 
     readonly property var _sideRailActions: [
-        { "id": "run_selected", "label": "Run Selected", "icon": "run", "glyph": "", "enabled": root.selectedNodeCount > 0 },
+        { "id": "run_selected", "label": "Run Selected", "icon": "node-run", "glyph": "", "enabled": root.selectedNodeCount > 0 },
         { "id": "align_selection_left", "label": "Align Left", "glyph": "L", "enabled": root.canAlignSelection },
         { "id": "align_selection_right", "label": "Align Right", "glyph": "R", "enabled": root.canAlignSelection },
         { "id": "align_selection_top", "label": "Align Top", "glyph": "T", "enabled": root.canAlignSelection },

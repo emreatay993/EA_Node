@@ -184,8 +184,9 @@ function nodeCommonActions(facts) {
     ];
     if (Boolean(source.runnable)) {
         actions.push({
-            "id": "run_selected", "label": "Run", "icon": "run", "kind": "common",
+            "id": "run_selected", "label": "Run", "icon": "node-run", "kind": "common",
             "enabled": true, "primary": true,
+            "menu_icon": "settings",
             "menuActions": [
                 {"id": "preview_selected_run", "label": "Preview Run"},
                 {"id": "open_selected_run_settings", "label": "Run Settings..."}
@@ -215,7 +216,7 @@ function nodeCommonActions(facts) {
         var collapsed = Boolean(source.collapsed);
         actions.push({
             "id": "toggle_node_collapsed", "label": collapsed ? "Expand" : "Collapse",
-            "icon": collapsed ? "chevron-up" : "chevron-down",
+            "icon": collapsed ? "node-expand" : "node-collapse",
             "kind": "common", "enabled": true, "primary": false
         });
     }

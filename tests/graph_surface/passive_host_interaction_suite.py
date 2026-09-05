@@ -7,14 +7,42 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
         self._run_qml_probe(
             "shared-expand-collapse-action",
             """
+            from ea_node_editor.ui.icon_registry import UiIconRegistryBridge, UiIconImageProvider, UI_ICON_PROVIDER_ID
+
+            ui_icons = UiIconRegistryBridge()
+            engine.rootContext().setContextProperty("uiIcons", ui_icons)
+            engine.addImageProvider(UI_ICON_PROVIDER_ID, UiIconImageProvider())
             payload = node_payload()
             payload["collapsible"] = True
             host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            window = attach_host_to_window(host, 640, 480)
+            host.setProperty("toolbarActive", True)
+            toolbar = create_component(
+                components_dir / "graph" / "overlay" / "GraphNodeFloatingToolbar.qml",
+                {"host": host, "visibleSceneRectPayload": {"x": 0, "y": 0, "width": 640, "height": 480}},
+            )
+            toolbar.setParentItem(window.contentItem())
+            settle_events(2)
+
+            for button_name, icon_name in (
+                ("graphNodeFloatingToolbarAction_run_selected", "node-run"),
+                ("graphNodeFloatingToolbarActionMenu_run_selected", "settings"),
+                ("graphNodeFloatingToolbarAction_toggle_node_collapsed", "node-collapse"),
+            ):
+                button = named_item(toolbar, button_name)
+                assert button.property("iconName") == icon_name
+                assert f"image://ui-icons/{icon_name}?" in button.property("resolvedIconSource")
+                assert not button.property("labelVisible")
+            options_button = named_item(toolbar, "graphNodeFloatingToolbarActionMenu_run_selected")
+            mouse_click(window, item_scene_point(options_button))
+            settle_events(2)
+            assert toolbar.property("runMenuVisible") is True
+            toolbar.setProperty("runMenuVisible", False)
 
             actions = [variant_value(action) for action in variant_list(host.property("commonNodeActions"))]
             toggle = next(action for action in actions if action["id"] == "toggle_node_collapsed")
             assert toggle["label"] == "Collapse"
-            assert toggle["icon"] == "chevron-down"
+            assert toggle["icon"] == "node-collapse"
 
             requests = []
             host.nodeActionRequested.connect(lambda node_id, action_id, action_payload: requests.append((node_id, action_id)))
@@ -27,9 +55,12 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             actions = [variant_value(action) for action in variant_list(host.property("commonNodeActions"))]
             toggle = next(action for action in actions if action["id"] == "toggle_node_collapsed")
             assert toggle["label"] == "Expand"
-            assert toggle["icon"] == "chevron-up"
+            assert toggle["icon"] == "node-expand"
+            expand_button = named_item(toolbar, "graphNodeFloatingToolbarAction_toggle_node_collapsed")
+            assert "image://ui-icons/node-expand?" in expand_button.property("resolvedIconSource")
 
-            host.deleteLater()
+            toolbar.deleteLater()
+            dispose_host_window(host, window)
             engine.deleteLater()
             app.processEvents()
             """,

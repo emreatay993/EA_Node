@@ -625,9 +625,9 @@ Item {
                         visible: buttonCell._hasMenu
                         host: root.host
                         text: String(modelData.label || "") + " menu"
-                        iconName: "chevron-down"
+                        iconName: String(modelData.menu_icon || "chevron-down")
                         iconOnly: true
-                        iconSize: Math.max(10, root._buttonIconSize - 3)
+                        iconSize: modelData.menu_icon ? root._buttonIconSize : Math.max(10, root._buttonIconSize - 3)
                         iconSourceResolver: function(name, size, color) {
                             return root._iconSource(name, size, color);
                         }

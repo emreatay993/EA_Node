@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtTest 1.3
 import "../../ea_node_editor/ui_qml/components/graph" as Graph
+import "../../ea_node_editor/ui_qml/components/graph/GraphActionPresentation.js" as Presentation
 import "../../ea_node_editor/ui_qml/components/graph/surface_controls" as Controls
 import "../../ea_node_editor/ui_qml/components/graph/overlay" as GraphOverlay
 import "../../ea_node_editor/ui_qml/components/common" as Common
@@ -498,18 +499,9 @@ TestCase {
                 }
 
                 function useRunMenuActionProbe() {
-                    floatingHost.availableActions = [{
-                        "id": "run_selected",
-                        "label": "Run",
-                        "icon": "run",
-                        "kind": "common",
-                        "enabled": true,
-                        "primary": true,
-                        "menuActions": [
-                            {"id": "preview_selected_run", "label": "Preview Run"},
-                            {"id": "open_selected_run_settings", "label": "Run Settings..."}
-                        ]
-                    }]
+                    floatingHost.availableActions = [Presentation.findAction(
+                        Presentation.nodeCommonActions({"runnable": true}), "run_selected"
+                    )]
                 }
 
                 Common.ManagedToolTip {
@@ -1508,7 +1500,9 @@ TestCase {
         })
         findChild(root, "graphNodeFloatingToolbarAction_run_selected").clicked()
         compare(JSON.stringify(events), JSON.stringify([["probe_node", "run_selected"]]))
-        findChild(root, "graphNodeFloatingToolbarActionMenu_run_selected").clicked()
+        var optionsButton = findChild(root, "graphNodeFloatingToolbarActionMenu_run_selected")
+        compare(optionsButton.iconName, "settings")
+        optionsButton.clicked()
         var menu = findChild(root, "graphNodeFloatingToolbarRunMenu")
         tryCompare(menu, "visible", true, 1000)
         compare(menu.visibleActions.length, 2)
