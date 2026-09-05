@@ -286,6 +286,7 @@ class PlotSurfaceInteractionQmlTests(unittest.TestCase):
                 for _index in range(cycles):
                     app.processEvents()
 
+            window = attach_host_to_window(probe)
             settle()
             host = probe.findChild(QObject, "probeHost")
             surface = probe.findChild(QObject, "graphNodePlotSurfaceProbe")
@@ -297,6 +298,16 @@ class PlotSurfaceInteractionQmlTests(unittest.TestCase):
             assert not bool(surface.property("proxySurfaceActive"))
             assert len(variant_list(surface.property("embeddedInteractiveRects"))) == 1
             assert "node-plot" in service._active_nodes
+
+            actions = variant_list(surface.property("surfaceActions"))
+            probe.setProperty("visible", False)
+            settle()
+            assert not surface.property("liveSurfaceActive"), "Hidden plot kept live surface active"
+            assert "node-plot" not in service._active_nodes, "Hidden plot stayed active in service"
+            assert variant_list(surface.property("surfaceActions")) == actions, "Hidden plot lost its actions"
+            probe.setProperty("visible", True)
+            settle()
+            assert surface.property("liveSurfaceActive"), "Showing plot did not restore live activity"
 
             host.setProperty("viewportInteractionCacheActive", True)
             settle()
@@ -320,7 +331,7 @@ class PlotSurfaceInteractionQmlTests(unittest.TestCase):
             assert bool(surface.property("proxySurfaceActive"))
             assert "node-plot" not in service._active_nodes
 
-            probe.deleteLater()
+            dispose_host_window(probe, window)
             engine.deleteLater()
             app.processEvents()
             """,

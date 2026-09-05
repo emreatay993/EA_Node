@@ -23,6 +23,7 @@ implementation studies are intentionally excluded.
 ## Cross-layer feature routes
 
 Shared node-toolbar Expand/Collapse and Run-options icons are owned by the floating-toolbar route and the shell icon registry.
+The surface loader retains action owners for active collapsed-node toolbars; hidden body input and native viewer/plot activity remain disabled.
 
 - [Graph Scene Payload And Projection](feature_routes/graph_scene_payload_and_projection.md)
 - [Graph Canvas Input Layers](feature_routes/graph_canvas_input_layers.md)

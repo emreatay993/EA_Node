@@ -36,6 +36,7 @@ Item {
     readonly property bool serviceAvailable: surface.plotHostServiceRef !== null
         && surface.plotHostServiceRef.set_embedded_interaction_active !== undefined
     readonly property bool liveSurfaceActive: surface.serviceAvailable
+        && surface.visible
         && surface.plotNodeId.length > 0
         && surface.plotLiveBackendId.length > 0
         && !surface.embeddedSuppressed

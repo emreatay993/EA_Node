@@ -310,6 +310,7 @@ Item {
         return "#5DA9FF";
     }
     readonly property bool embeddedInteractionActive: viewerHostServiceAvailable
+        && surface.visible
         && liveSurfaceSupported
         && viewerSessionOpen
         && !viewerRunRequired

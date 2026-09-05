@@ -19,6 +19,8 @@ Passive `passive.*` hosts add a checked Lock action. A locked host normally clos
 
 Node specs project their shared `collapsible` capability into scene payloads. Unlocked, editable collapsible nodes receive one common Expand/Collapse floating-toolbar action from `GraphActionPresentation.js`; `GraphCanvasActionRouter.qml` routes it through the existing scene collapse mutation, so no surface or node type owns a duplicate implementation.
 
+Collapsing hides the body but retains its surface while the floating toolbar is active, preserving live surface actions and dispatch (including Open Script) even when selecting an already-collapsed node. Closing the toolbar releases the collapsed surface; render-activation limits still apply. Hidden bodies publish no input rectangles or interaction locks, and viewer/plot embedded activity requires body visibility.
+
 Expand/Collapse use the registered `node-expand`/`node-collapse` vertical arrows. Run uses the `node-run` circled play symbol on node and selection toolbars. Run's options button uses the existing `settings` gear through its action's `menu_icon` field, rendered at the primary icon size; menus without an override retain the dropdown chevron.
 
 Text annotation toolbar icons resolve through `ui/icon_registry.py` and `ui_qml/components/shell/icons/`; keep `GraphBareTextSurface.qml` action icon names in the registered kebab-case `uiIcons` namespace.

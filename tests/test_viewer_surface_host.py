@@ -745,6 +745,23 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert bool(surface.property("liveSurfaceActive"))
                 assert viewerHostServiceStub.active_calls == baseline_active_calls
                 assert bridge.embedded_interaction_calls == baseline_session_calls
+
+                action_ids = [action["id"] for action in variant_list(host.property("availableActions"))]
+                host.setProperty("toolbarActive", True)
+                payload = variant_value(host.property("nodeData"))
+                payload["collapsed"] = True
+                host.setProperty("nodeData", payload)
+                settle_events(4)
+                assert host.findChild(QObject, "graphNodeViewerSurface") is surface, "Collapsed viewer lost its action owner"
+                assert not surface.isVisible()
+                assert not surface.property("embeddedInteractionActive"), "Hidden viewer kept embedded interaction"
+                assert not surface.property("liveSurfaceActive"), "Hidden viewer kept its native surface"
+                assert [action["id"] for action in variant_list(host.property("availableActions"))] == action_ids
+                payload["collapsed"] = False
+                host.setProperty("nodeData", payload)
+                settle_events(4)
+                assert surface.isVisible(), "Expanded viewer body stayed hidden"
+                assert [action["id"] for action in variant_list(host.property("availableActions"))] == action_ids
             finally:
                 dispose_host_window(host, window)
                 canvas_item.deleteLater()

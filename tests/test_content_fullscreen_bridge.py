@@ -10,7 +10,7 @@ from typing import Any
 import unittest
 from unittest import mock
 
-from PyQt6.QtCore import QObject, QMarginsF, QRectF, Qt, QUrl, pyqtSignal
+from PyQt6.QtCore import QObject, QPointF, QMarginsF, QRectF, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import QImage, QPainter, QPageLayout, QPageSize, QPdfWriter
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
@@ -56,6 +56,7 @@ from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
 from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 from ea_node_editor.web_host.bridge import WebSurfaceArtifactService, WebSurfaceBridge
 from tests.main_window_shell.base import MainWindowShellTestBase
+from tests.qt_wait import wait_for_condition_or_raise
 
 
 def _data_url(mime_type: str, payload: bytes) -> str:
@@ -1021,6 +1022,75 @@ class ContentFullscreenBridgeContentTests(_ContentFullscreenDirectTestCase):
         self.assertEqual(self.script_editor.script_text, PYTHON_SCRIPT_DEFAULT_SOURCE)
 
 class ContentFullscreenMountedIntegrationTests(MainWindowShellTestBase):
+    def test_collapsed_script_toolbar_keeps_working_surface_actions(self) -> None:
+        scene = self.window.scene
+        node_id = scene.add_node_from_type("core.python_script", x=240.0, y=140.0)
+        canvas = self._graph_canvas_item()
+        workspace = self.window.model.active_workspace
+        scene.select_node(node_id, False)
+
+        def toolbar_button(action_id: str):
+            name = "graphNodeFloatingToolbarAction_" + action_id
+            wait_for_condition_or_raise(
+                lambda: (item := self._find_qml_item(name)) is not None
+                and item.isVisible()
+                and self._find_qml_item("graphNodeFloatingToolbar").property("opacity") >= 0.99,
+                app=self.app,
+            )
+            return self._find_qml_item(name)
+
+        def click_action(action_id: str) -> None:
+            button = toolbar_button(action_id)
+            # Wait for Row layout after the toolbar is recreated.
+            wait_for_condition_or_raise(
+                lambda: self._find_qml_item("graphNodeFloatingToolbarAction_remove_node")
+                .mapToScene(QPointF()).x() > button.mapToScene(QPointF()).x() + button.width(),
+                app=self.app,
+            )
+            self.assertTrue(button.isEnabled(), action_id)
+            clicks = []
+            button.clicked.connect(lambda: clicks.append(action_id))
+            point = button.mapToScene(QPointF(button.width() / 2, button.height() / 2))
+            QTest.mouseMove(button.window(), point.toPoint())
+            self.app.processEvents()
+            QTest.mouseClick(button.window(), Qt.MouseButton.LeftButton, pos=point.toPoint())
+            self.app.processEvents()
+            self.assertEqual(clicks, [action_id], str(point))
+
+        def action_ids() -> list[str]:
+            host = canvas.hostForNodeId(node_id)
+            return [action["id"] for action in host.property("availableActions").toVariant()]
+
+        toolbar_button("fullscreen")
+        self.assertTrue(canvas.hostForNodeId(node_id).frameNodeInView())
+        canvas.property("viewBridge").set_zoom(1.0)
+        self.app.processEvents()
+        expanded_actions = action_ids()
+        click_action("toggle_node_collapsed")
+        self.assertTrue(workspace.nodes[node_id].collapsed)
+        self.assertEqual(action_ids(), expanded_actions)
+        loader = canvas.hostForNodeId(node_id).findChild(QObject, "graphNodeSurfaceLoader")
+        self.assertTrue(loader.property("surfaceLoaded"))
+        self.assertFalse(loader.property("visible"))
+        self.assertEqual(loader.property("embeddedInteractiveRects").toVariant(), [])
+
+        # Release the surface, then select the already-collapsed node again.
+        scene.clear_selection()
+        QTest.mouseMove(self.window.quick_widget, canvas.mapToScene(QPointF(20, 20)).toPoint())
+        wait_for_condition_or_raise(lambda: not loader.property("surfaceLoaded"), app=self.app)
+        scene.select_node(node_id, False)
+        toolbar_button("fullscreen")
+        self.assertEqual(action_ids(), expanded_actions)
+        click_action("fullscreen")
+        self.assertTrue(self.window.content_fullscreen_bridge.open, self.window.content_fullscreen_bridge.last_error)
+        self.assertEqual(self.window.content_fullscreen_bridge.node_id, node_id)
+        self.assertEqual(self.window.script_editor.current_node_id, node_id)
+        self.assertTrue(workspace.nodes[node_id].collapsed)
+        self.window.content_fullscreen_bridge.request_close()
+        click_action("toggle_node_collapsed")
+        self.assertFalse(workspace.nodes[node_id].collapsed)
+        self.assertEqual(action_ids(), expanded_actions)
+
     def test_content_fullscreen_script_editor_attaches_syntax_highlighter(self) -> None:
         node_id = self.window.scene.add_node_from_type(
             "core.python_script", x=240.0, y=140.0

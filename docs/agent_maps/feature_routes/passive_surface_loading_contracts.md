@@ -31,6 +31,8 @@ Use this for passive node host loading, surface contracts, metrics, surface sizi
 
 ## Surface Routing
 
+- A collapsed host keeps its surface loaded while its floating toolbar is active because the surface owns live action descriptors and dispatch. The body stays hidden, contributes no input rectangles or interaction lock, and viewer/plot native activity is disabled while hidden. Closing the toolbar unloads the collapsed body; off-screen render-activation policy is unchanged.
+
 - `surface_contracts.py` and the projected `surface_spec` solely own component routing; `GraphNodeHost.qml` falls back to the standard surface only when that object is absent. Projected `surface_variant` remains presentation metadata, and the host's variant override is reserved for the group-backdrop input overlay.
 
 ## Annotation Text Notes

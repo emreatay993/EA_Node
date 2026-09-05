@@ -27,7 +27,10 @@ Item {
             String(surfaceSpec && surfaceSpec.component_key ? surfaceSpec.component_key : "standard"),
             String(surfaceSpec && surfaceSpec.qml_component ? surfaceSpec.qml_component : "GraphStandardNodeSurface.qml")
         ].join("|")
-    readonly property bool _surfaceLoadEligible: !!root.host && !!root.nodeData && !Boolean(root.nodeData.collapsed)
+    // The loaded surface owns its toolbar actions and their live dispatch.
+    // Keep it available while the toolbar is open, even when its body is hidden.
+    readonly property bool _surfaceLoadEligible: !!root.host && !!root.nodeData
+        && (!Boolean(root.nodeData.collapsed) || Boolean(root.host.toolbarActive))
     readonly property bool _surfaceLoadActive: root._surfaceLoadEligible && root.renderActive
     property bool _asynchronousLoadInProgress: false
     readonly property bool hostReadOnly: host ? Boolean(host.graphReadOnly) : false
@@ -143,14 +146,14 @@ Item {
             return Number(host.surfaceMetrics.body_height || 0.0);
         return 0.0;
     }
-    readonly property bool blocksHostInteraction: hostReadOnly || (loader.item ? Boolean(loader.item.blocksHostInteraction) : false)
+    readonly property bool blocksHostInteraction: hostReadOnly || (root.visible && loader.item ? Boolean(loader.item.blocksHostInteraction) : false)
     readonly property rect lockedPlaceholderActionRect: {
         if (!loader.item || loader.item.lockedPlaceholderActionRect === undefined || loader.item.lockedPlaceholderActionRect === null)
             return Qt.rect(0.0, 0.0, 0.0, 0.0);
         return _rectValue(loader.item.lockedPlaceholderActionRect);
     }
     readonly property var embeddedInteractiveRects: {
-        if (hostReadOnly)
+        if (hostReadOnly || !root.visible)
             return [];
         if (!loader.item || loader.item.embeddedInteractiveRects === undefined || loader.item.embeddedInteractiveRects === null)
             return [];
