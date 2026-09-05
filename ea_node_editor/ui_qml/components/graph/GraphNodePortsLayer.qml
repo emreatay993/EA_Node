@@ -43,6 +43,8 @@ Item {
         + dynamicPortTargetRadius
         + dynamicPortControlGap
     readonly property real notchDiameter: 18
+    // Fixed 6x raster for zoom/HiDPI; keep the shared image cache independent of zoom.
+    readonly property size notchSourceSize: Qt.size(54, 108)
     readonly property bool notchedPortsEffective: root.host ? Boolean(root.host._notchedPortsEffective) : false
     readonly property color notchOutlineColor: root.host ? root.host._effectiveChromeOutlineColor : "transparent"
     readonly property real notchOutlineWidth: root.host ? root.host._effectiveChromeBorderWidth : 0
@@ -923,7 +925,7 @@ Item {
                     ? Number(settingsGroupAggregate.anchor.y || 0)
                         + root.settingsBandYOffset - height * 0.5
                     : 0
-                sourceSize: Qt.size(9, 18)
+                sourceSize: root.notchSourceSize
                 source: root.notchSvgSource
                 cache: true
                 asynchronous: false

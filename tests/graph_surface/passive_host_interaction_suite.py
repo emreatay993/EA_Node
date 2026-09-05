@@ -943,6 +943,8 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert bool(aggregate_notch.property("visible"))
             assert abs(float(aggregate_notch.width()) - 9.0) < 0.01
             assert abs(float(aggregate_notch.height()) - 18.0) < 0.01
+            assert aggregate_notch.property("sourceSize").width() == 54
+            assert aggregate_notch.property("sourceSize").height() == 108
             assert abs(float(aggregate.width()) - 10.0) < 0.01
             neutral_surface = QColor(collapsed_host.property("themeSurfaceColor"))
             assert QColor(aggregate.property("color")).rgba() == neutral_surface.rgba(), (
@@ -1666,8 +1668,8 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 assert bool(output_notch.property("mirror"))
                 for notch in notches:
                     source_size = notch.property("sourceSize")
-                    assert int(source_size.width()) == 9
-                    assert int(source_size.height()) == 18
+                    assert int(source_size.width()) == 54
+                    assert int(source_size.height()) == 108
                 wait_for_condition_or_raise(
                     lambda: all(float(notch.property("progress")) >= 0.999 for notch in notches),
                     timeout_ms=1000,
@@ -1680,6 +1682,15 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
 
                 sources = [encoded_source(notch) for notch in notches]
                 assert len(set(sources)) == 1
+                # Zoom must reuse the sharp cached image, not rerasterize it.
+                for zoom in (0.1, 1.0, 3.0):
+                    host.setScale(zoom)
+                    app.processEvents()
+                    assert [encoded_source(notch) for notch in notches] == sources
+                    for notch in notches:
+                        assert notch.property("sourceSize").width() == 54
+                        assert notch.property("sourceSize").height() == 108
+                host.setScale(1.0)
                 svg = unquote(sources[0].split(",", 1)[1])
                 assert svg.startswith("<svg ")
                 assert svg.count("<path ") == 2

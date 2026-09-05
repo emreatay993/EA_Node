@@ -182,7 +182,7 @@ Item {
         y: row.isInput
             ? row.portPoint.y - row.y - height * 0.5
             : (row.height - height) * 0.5
-        sourceSize: Qt.size(9, 18)
+        sourceSize: row.portsLayer.notchSourceSize
         source: row.portsLayer.notchSvgSource
         mirror: !row.isInput
         cache: true
