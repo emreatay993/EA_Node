@@ -22,6 +22,7 @@ Use this for graph canvas QML layers, retained edge rendering, node chrome, view
 - `ea_node_editor/ui_qml/graph_canvas_command/`
 - `ea_node_editor/ui_qml/graph_canvas_visible_model.py`
 - `tests/test_graph_canvas_split_bridges.py`
+- `tests/test_graph_canvas_grid.py`
 - `tests/test_graph_canvas_surface_snapshot.py`
 - `tests/test_data_type_ui_projection.py`
 - `tests/test_graph_surface_input_controls.py`
@@ -33,6 +34,8 @@ Use this for graph canvas QML layers, retained edge rendering, node chrome, view
 - Graph model private writers unless the feature changes domain state.
 
 ## Common Changes
+- `GraphCanvasBackground.qml` binds grid coordinates to the live viewport. `GraphCanvasGridShader.qml` and `shaders/grid.frag` draw both styles in one GPU quad with physical-pixel coverage; no per-dot delegates or zoom-bucket geometry cache. Software rendering (or shader errors) uses the existing single Canvas painter. `tests/test_graph_canvas_grid.py` checks live alignment, constant scene size, visibility and rendered pixels; run it with `python -m unittest tests.test_graph_canvas_grid` on Windows/D3D11 as well as software.
+- Rebuild the committed grid shader with `scripts/build_canvas_grid_shader.ps1 -Qsb <Qt-bin/qsb.exe>`. The source and `.qsb` live under `ea_node_editor/ui_qml/components/graph_canvas/shaders/`; wheels and frozen packages ship the `.qsb` so runtime needs no compiler.
 - Keep canvas state projection and command bridge changes paired.
 - Keep `GraphCanvas.qml` composed directly from `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, and `_canvasViewportBridge`; do not add an aggregate canvas facade, adapter, alias, or fallback.
 - `GraphCanvasStateBridge` and `GraphCanvasCommandBridge` receive exact domain owners and no aggregate canvas/shell fallback. State splits session state/signal/size, app preferences, persisted graphics, execution/project, scene, and viewport. Command splits run, scope/hint, Inspector, Library, edit/drop, media, graphics, host, scene, viewport, and navigation/model routes.

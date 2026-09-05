@@ -243,32 +243,17 @@ class GraphCanvasQmlPreferencePerformanceTests(GraphCanvasQmlPreferenceTestBase)
         edge_layer.deleteLater()
         self.app.processEvents()
 
-    def test_graph_canvas_grid_reports_tiled_item_counts_without_simplifying_visuals(self) -> None:
+    def test_graph_canvas_grid_uses_one_render_item_without_simplifying_visuals(self) -> None:
         background = self.canvas.findChild(QObject, "graphCanvasBackground")
-        tiled_renderer = self.canvas.findChild(QObject, "graphCanvasGridTiledRenderer")
+        shader_renderer = self.canvas.findChild(QObject, "graphCanvasGridShaderRenderer")
         self.assertIsNotNone(background)
-        self.assertIsNotNone(tiled_renderer)
-
-        wait_for_condition_or_raise(
-            lambda: int(background.property("profileGridItemCount") or 0) > 0,
-            timeout_ms=200,
-            app=self.app,
-            timeout_message="Timed out waiting for tiled grid item profiling to initialize.",
-        )
-
-        self.assertTrue(bool(background.property("effectiveShowGrid")))
-        self.assertEqual(str(background.property("profileGridRendererKind")), "tiled")
-        self.assertTrue(bool(tiled_renderer.property("effectiveGridVisible")))
-        self.assertGreater(int(tiled_renderer.property("profileGridItemCount") or 0), 0)
-        self.assertEqual(
-            int(background.property("profileGridItemCount") or 0),
-            int(tiled_renderer.property("profileGridItemCount") or 0),
-        )
-        self.assertEqual(
-            int(background.property("profileGridMinorItemCount") or 0),
-            int(tiled_renderer.property("profileGridMinorItemCount") or 0),
-        )
-        self.assertGreaterEqual(float(background.property("profileLastGridPaintMs") or 0.0), 0.0)
+        self.assertIsNotNone(shader_renderer)
+        for style in ("points", "lines"):
+            self.bridge.set_graphics_grid_style_value(style)
+            self.app.processEvents()
+            self.assertTrue(bool(background.property("effectiveShowGrid")))
+            self.assertEqual(int(background.property("profileGridItemCount")), 1)
+            self.assertEqual(shader_renderer.childItems(), [])
 
     def test_graph_canvas_minimap_static_cache_is_decoupled_from_viewport_rect_updates(self) -> None:
         minimap_overlay = self.canvas.findChild(QObject, "graphCanvasMinimapOverlay")
@@ -320,9 +305,8 @@ class GraphCanvasQmlPreferencePerformanceTests(GraphCanvasQmlPreferenceTestBase)
 
         background_redraws = int(background.property("_redrawRequestCount"))
         edge_redraws = int(edge_layer.property("_redrawRequestCount"))
-        background_cache_builds = int(background.property("_gridCacheBuildCount"))
         background_grid_updates = int(background.property("profileGridUpdateCount"))
-        self.assertEqual(str(background.property("profileGridRendererKind")), "tiled")
+        self.assertIn(str(background.property("profileGridRendererKind")), ("shader", "canvas"))
 
         zoom_before = float(self.view.zoom_value)
         self.view.set_zoom(1.4)
@@ -343,13 +327,11 @@ class GraphCanvasQmlPreferencePerformanceTests(GraphCanvasQmlPreferenceTestBase)
 
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
         self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
-        self.assertEqual(int(background.property("_gridCacheBuildCount")) - background_cache_builds, 1)
         self.assertEqual(int(background.property("profileGridUpdateCount")) - background_grid_updates, 1)
         self.assertAlmostEqual(float(retained_layer.property("viewportTransformCompensationScale")), 1.0, places=5)
 
         background_redraws = int(background.property("_redrawRequestCount"))
         edge_redraws = int(edge_layer.property("_redrawRequestCount"))
-        background_cache_builds = int(background.property("_gridCacheBuildCount"))
         background_grid_updates = int(background.property("profileGridUpdateCount"))
 
         self.view.centerOn(18.0, -22.0)
@@ -369,7 +351,6 @@ class GraphCanvasQmlPreferencePerformanceTests(GraphCanvasQmlPreferenceTestBase)
 
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
         self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
-        self.assertEqual(int(background.property("_gridCacheBuildCount")) - background_cache_builds, 0)
         self.assertEqual(int(background.property("profileGridUpdateCount")) - background_grid_updates, 1)
         self.assertAlmostEqual(float(retained_layer.property("viewportTransformCompensationX")), 0.0, places=5)
         self.assertAlmostEqual(float(retained_layer.property("viewportTransformCompensationY")), 0.0, places=5)

@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 175,
-    "repeater_constructs": 98,
+    "qml_files": 176,
+    "repeater_constructs": 90,
     "loader_constructs": 24,
-    "signal_handlers": 891,
-    "connections": 47,
-    "property_bindings": 7644,
-    "local_component_refs": 279
+    "signal_handlers": 904,
+    "connections": 48,
+    "property_bindings": 7625,
+    "local_component_refs": 283
   },
   "entries": [
     {
@@ -20571,10 +20571,10 @@
         "ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml",
         "ea_node_editor\\ui_qml\\components\\graph\\GraphNodePortContextMenu.qml"
       ],
-      "root_component": "Menu",
+      "root_component": "Shell.ShellContextPopup",
       "imports": [
         "QtQuick 2.15",
-        "QtQuick.Controls 2.15"
+        "\"../shell\" as Shell"
       ],
       "ids": [
         {
@@ -20589,19 +20589,7 @@
           "name": "graphNodePortAccessMetadata"
         },
         {
-          "name": "graphNodePortModifierGraft"
-        },
-        {
-          "name": "graphNodePortModifierFlatten"
-        },
-        {
-          "name": "graphNodePortModifierSimplify"
-        },
-        {
-          "name": "graphNodePortModifierReverse"
-        },
-        {
-          "name": "graphNodePortModifierClean"
+          "name": "graphNodePortModifier"
         },
         {
           "name": "graphNodePortPrincipal"
@@ -20631,121 +20619,107 @@
       ],
       "signals": [],
       "functions": [],
-      "instantiated_components": [
-        {
-          "name": "MenuItem"
-        },
-        {
-          "name": "MenuSeparator"
-        }
-      ],
+      "instantiated_components": [],
       "dynamic_refs": [],
       "signal_handlers": [
         {
           "kind": "handler",
-          "name": "onTriggered"
+          "name": "onActionTriggered"
         }
       ],
       "connections": [],
       "property_bindings": [
         {
           "kind": "binding",
-          "name": "modal"
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
+          "name": "text",
           "targets": [
-            "menu.portsLayer._isDataPort",
-            "menu.portsLayer.contextPortData"
+            "layer._dataAccessLabel",
+            "port",
+            "visible",
+            "dataPort",
+            "enabled"
           ]
         },
         {
           "kind": "binding",
           "name": "text",
           "targets": [
-            "menu.portsLayer._dataAccessLabel"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled"
-        },
-        {
-          "kind": "binding",
-          "name": "text"
-        },
-        {
-          "kind": "binding",
-          "name": "checkable"
-        },
-        {
-          "kind": "binding",
-          "name": "checked",
-          "targets": [
-            "menu.portsLayer._modifierChecked"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
+            "modifiers",
+            "i",
             "visible",
-            "menu.portsLayer.host",
-            "menu.portsLayer.host.graphReadOnly"
+            "dataPort",
+            "enabled",
+            "editable"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "checkable",
+          "targets": [
+            "checked",
+            "layer._modifierChecked",
+            "modifier"
           ]
         },
         {
           "kind": "binding",
           "name": "visible",
           "targets": [
-            "Boolean"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "checked",
-          "targets": [
-            "Boolean"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "menu.portsLayer.host",
-            "menu.portsLayer.host.graphReadOnly"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "menu.portsLayer._dynamicPortGroupForPort"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "dynamicGroup",
             "Boolean",
-            "dynamicGroup.can_insert"
+            "port",
+            "port.principal_eligible",
+            "enabled",
+            "editable"
           ]
         },
         {
           "kind": "binding",
-          "name": "enabled",
+          "name": "checkable",
           "targets": [
-            "visible",
-            "menu.portsLayer._dynamicPortAuthoringAllowed"
+            "checked",
+            "Boolean",
+            "port",
+            "port.principal"
           ]
         },
         {
           "kind": "binding",
           "name": "visible",
           "targets": [
-            "dynamicGroup"
+            "group",
+            "Boolean",
+            "group.can_insert",
+            "enabled",
+            "dynamicEditable"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "group",
+            "String",
+            "group.rename_mode",
+            "trim",
+            "toLowerCase"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "dynamicEditable"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "group",
+            "layer._dynamicPortCanRemove",
+            "port",
+            "enabled",
+            "dynamicEditable"
           ]
         }
       ],
@@ -20764,9 +20738,9 @@
           "detail": "var"
         },
         {
-          "anchor": "GraphNodePortContextMenuHandlerOnTriggered",
+          "anchor": "GraphNodePortContextMenuHandlerOnActionTriggered",
           "kind": "handler",
-          "name": "onTriggered"
+          "name": "onActionTriggered"
         }
       ]
     },
@@ -54033,7 +54007,8 @@
       "imports": [
         "QtQuick 2.15",
         "QtQuick.Controls 2.15",
-        "\"../surface_controls\" as SurfaceControls"
+        "\"../surface_controls\" as SurfaceControls",
+        "\"../../shell\" as Shell"
       ],
       "ids": [
         {
@@ -54565,13 +54540,7 @@
           "name": "ListModel"
         },
         {
-          "name": "Menu"
-        },
-        {
-          "name": "MenuItem"
-        },
-        {
-          "name": "MenuSeparator"
+          "name": "Shell.ShellContextPopup"
         },
         {
           "name": "Rectangle"
@@ -54624,7 +54593,7 @@
       "signal_handlers": [
         {
           "kind": "handler",
-          "name": "onTriggered"
+          "name": "onActionTriggered"
         },
         {
           "kind": "handler",
@@ -54707,7 +54676,7 @@
         },
         {
           "kind": "binding",
-          "name": "text"
+          "name": "actions"
         },
         {
           "kind": "binding",
@@ -54727,23 +54696,13 @@
         },
         {
           "kind": "binding",
-          "name": "height",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "text",
           "targets": [
             "visible",
-            "implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "visible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
             "root._menuPath.length",
             "root._menuIsParent"
           ]
@@ -55305,6 +55264,11 @@
         }
       ],
       "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "Shell.ShellContextPopup",
+          "detail": "ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml"
+        },
         {
           "kind": "localComponent",
           "name": "SurfaceControls.GraphSurfaceInteractiveRegion",
@@ -55938,9 +55902,9 @@
           "name": "_isOnResizeEdge"
         },
         {
-          "anchor": "GraphNativeExplorerSurfaceHandlerOnTriggered",
+          "anchor": "GraphNativeExplorerSurfaceHandlerOnActionTriggered",
           "kind": "handler",
-          "name": "onTriggered"
+          "name": "onActionTriggered"
         },
         {
           "anchor": "GraphNativeExplorerSurfaceHandlerOnCurrentPathChanged",
@@ -56021,6 +55985,12 @@
           "anchor": "GraphNativeExplorerSurfaceHandlerOnResizeEdge",
           "kind": "handler",
           "name": "onResizeEdge"
+        },
+        {
+          "anchor": "GraphNativeExplorerSurfaceLocalComponentShellShellContextPopup",
+          "kind": "localComponent",
+          "name": "Shell.ShellContextPopup",
+          "detail": "ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml"
         },
         {
           "anchor": "GraphNativeExplorerSurfaceLocalComponentSurfaceControlsGraphSurfaceInteractiveRegion",
@@ -84505,10 +84475,16 @@
           "name": "viewerSidePanelBackgroundCombo"
         },
         {
-          "name": "viewerSidePanelPrimaryOpacityField"
+          "name": "viewerSidePanelSceneSelector"
         },
         {
-          "name": "viewerSidePanelOverlayOpacityField"
+          "name": "viewerSidePanelSceneOpacityField"
+        },
+        {
+          "name": "viewerSidePanelSceneColorField"
+        },
+        {
+          "name": "viewerSidePanelSceneColorAutoButton"
         },
         {
           "name": "viewerSidePanelComponentCombo"
@@ -84610,12 +84586,36 @@
           "name": "engineeringToolMessage"
         },
         {
+          "kind": "string",
+          "name": "selectedSceneId"
+        },
+        {
           "kind": "var",
           "name": "sessionOptions"
         },
         {
           "kind": "var",
           "name": "sessionSummary"
+        },
+        {
+          "kind": "var",
+          "name": "sceneLayers"
+        },
+        {
+          "kind": "int",
+          "name": "selectedSceneIndex"
+        },
+        {
+          "kind": "var",
+          "name": "selectedScene"
+        },
+        {
+          "kind": "var",
+          "name": "selectedSceneStyle"
+        },
+        {
+          "kind": "var",
+          "name": "infoSummary"
         },
         {
           "kind": "var",
@@ -84691,6 +84691,10 @@
         },
         {
           "kind": "string",
+          "name": "layerId"
+        },
+        {
+          "kind": "string",
           "name": "layerName"
         },
         {
@@ -84709,6 +84713,9 @@
         },
         {
           "name": "setViewerOption"
+        },
+        {
+          "name": "setSceneStyle"
         },
         {
           "name": "renderModeSupported"
@@ -84801,6 +84808,12 @@
           "kind": "model",
           "targets": [
             "sidePanel.colormapValues"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "sidePanel.sceneLayers"
           ]
         },
         {
@@ -85402,10 +85415,17 @@
         },
         {
           "kind": "binding",
-          "name": "text",
+          "name": "Accessible.name"
+        },
+        {
+          "kind": "binding",
+          "name": "textRole"
+        },
+        {
+          "kind": "binding",
+          "name": "currentIndex",
           "targets": [
-            "String",
-            "sidePanel.sessionOptions.primary_opacity"
+            "sidePanel.selectedSceneIndex"
           ]
         },
         {
@@ -85413,7 +85433,22 @@
           "name": "text",
           "targets": [
             "String",
-            "sidePanel.sessionOptions.overlay_opacity"
+            "sidePanel.selectedSceneStyle.opacity"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "String",
+            "sidePanel.selectedSceneStyle.color"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderText",
+          "targets": [
+            "Auto / "
           ]
         },
         {
@@ -85610,8 +85645,15 @@
           "kind": "binding",
           "name": "text",
           "targets": [
-            "String",
-            "sidePanel.sessionSummary.result_name"
+            "sidePanel.engineeringViewer"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "sidePanel.supportsScalars",
+            "sidePanel.supportsSceneLayers"
           ]
         },
         {
@@ -85619,7 +85661,16 @@
           "name": "text",
           "targets": [
             "String",
-            "sidePanel.sessionSummary.location"
+            "sidePanel.infoSummary.result_name",
+            "sidePanel.infoSummary.name"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "String",
+            "sidePanel.infoSummary.location"
           ]
         },
         {
@@ -85635,7 +85686,7 @@
           "name": "text",
           "targets": [
             "String",
-            "sidePanel.sessionSummary.field_count"
+            "sidePanel.infoSummary.field_count"
           ]
         },
         {
@@ -85643,7 +85694,7 @@
           "name": "text",
           "targets": [
             "String",
-            "sidePanel.sessionSummary.set_label"
+            "sidePanel.infoSummary.set_label"
           ]
         },
         {
@@ -85750,6 +85801,12 @@
           "detail": "string"
         },
         {
+          "anchor": "ViewerSidePanelPropertySelectedSceneId",
+          "kind": "property",
+          "name": "selectedSceneId",
+          "detail": "string"
+        },
+        {
           "anchor": "ViewerSidePanelPropertySessionOptions",
           "kind": "property",
           "name": "sessionOptions",
@@ -85759,6 +85816,36 @@
           "anchor": "ViewerSidePanelPropertySessionSummary",
           "kind": "property",
           "name": "sessionSummary",
+          "detail": "var"
+        },
+        {
+          "anchor": "ViewerSidePanelPropertySceneLayers",
+          "kind": "property",
+          "name": "sceneLayers",
+          "detail": "var"
+        },
+        {
+          "anchor": "ViewerSidePanelPropertySelectedSceneIndex",
+          "kind": "property",
+          "name": "selectedSceneIndex",
+          "detail": "int"
+        },
+        {
+          "anchor": "ViewerSidePanelPropertySelectedScene",
+          "kind": "property",
+          "name": "selectedScene",
+          "detail": "var"
+        },
+        {
+          "anchor": "ViewerSidePanelPropertySelectedSceneStyle",
+          "kind": "property",
+          "name": "selectedSceneStyle",
+          "detail": "var"
+        },
+        {
+          "anchor": "ViewerSidePanelPropertyInfoSummary",
+          "kind": "property",
+          "name": "infoSummary",
           "detail": "var"
         },
         {
@@ -85870,6 +85957,12 @@
           "detail": "var"
         },
         {
+          "anchor": "ViewerSidePanelPropertyLayerId",
+          "kind": "property",
+          "name": "layerId",
+          "detail": "string"
+        },
+        {
           "anchor": "ViewerSidePanelPropertyLayerName",
           "kind": "property",
           "name": "layerName",
@@ -85896,6 +85989,11 @@
           "anchor": "ViewerSidePanelFunctionSetViewerOption",
           "kind": "function",
           "name": "setViewerOption"
+        },
+        {
+          "anchor": "ViewerSidePanelFunctionSetSceneStyle",
+          "kind": "function",
+          "name": "setSceneStyle"
         },
         {
           "anchor": "ViewerSidePanelFunctionRenderModeSupported",
@@ -86988,7 +87086,7 @@
           "name": "root"
         },
         {
-          "name": "tiledGridRenderer"
+          "name": "shaderGridRenderer"
         },
         {
           "name": "gridCanvas"
@@ -87030,10 +87128,6 @@
         },
         {
           "kind": "int",
-          "name": "_gridCacheBuildCount"
-        },
-        {
-          "kind": "int",
           "name": "profileGridUpdateCount"
         },
         {
@@ -87066,31 +87160,15 @@
         },
         {
           "kind": "real",
-          "name": "_zoomBucketScaleLimit"
+          "name": "_zoom"
         },
         {
           "kind": "real",
-          "name": "_committedZoom"
+          "name": "_centerX"
         },
         {
           "kind": "real",
-          "name": "_committedCenterX"
-        },
-        {
-          "kind": "real",
-          "name": "_committedCenterY"
-        },
-        {
-          "kind": "real",
-          "name": "_cachedGridStep"
-        },
-        {
-          "kind": "real",
-          "name": "_cachedGridPeriod"
-        },
-        {
-          "kind": "real",
-          "name": "_gridScale"
+          "name": "_centerY"
         },
         {
           "kind": "var",
@@ -87150,7 +87228,7 @@
         },
         {
           "kind": "bool",
-          "name": "_useTiledGridRenderer"
+          "name": "_useShaderGridRenderer"
         },
         {
           "kind": "real",
@@ -87164,18 +87242,6 @@
         },
         {
           "name": "_gridStepForZoom"
-        },
-        {
-          "name": "_normalizedGridRendererPreference"
-        },
-        {
-          "name": "_syncCommittedViewState"
-        },
-        {
-          "name": "_resetGridCache"
-        },
-        {
-          "name": "_ensureGridCache"
         },
         {
           "name": "requestGridRedraw"
@@ -87208,10 +87274,7 @@
           "name": "_recordGridUpdate"
         },
         {
-          "name": "_estimatedCanvasGridItemCount"
-        },
-        {
-          "name": "_syncGridItemMetrics"
+          "name": "onView_state_changed"
         },
         {
           "name": "drawLineGrid"
@@ -87228,7 +87291,10 @@
           "name": "GradientStop"
         },
         {
-          "name": "GraphCanvasGridTiled"
+          "name": "GraphCanvasGridShader"
+        },
+        {
+          "name": "Connections"
         },
         {
           "name": "Canvas"
@@ -87238,7 +87304,7 @@
       "signal_handlers": [
         {
           "kind": "handler",
-          "name": "onShowGridChanged"
+          "name": "onEffectiveShowGridChanged"
         },
         {
           "kind": "handler",
@@ -87250,7 +87316,7 @@
         },
         {
           "kind": "handler",
-          "name": "onGridRendererPreferenceChanged"
+          "name": "onActiveGridRendererKindChanged"
         },
         {
           "kind": "handler",
@@ -87273,8 +87339,20 @@
           "name": "onPaint"
         }
       ],
-      "connections": [],
+      "connections": [
+        {
+          "kind": "target",
+          "name": "root.viewBridge"
+        }
+      ],
       "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "on_DevicePixelRatioChanged",
+          "targets": [
+            "requestGridRedraw"
+          ]
+        },
         {
           "kind": "binding",
           "name": "anchors.fill",
@@ -87301,15 +87379,7 @@
           "name": "visible",
           "targets": [
             "root.effectiveShowGrid",
-            "root._useTiledGridRenderer"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "gridVisible",
-          "targets": [
-            "root.effectiveShowGrid",
-            "root._useTiledGridRenderer"
+            "root._useShaderGridRenderer"
           ]
         },
         {
@@ -87349,34 +87419,22 @@
         },
         {
           "kind": "binding",
-          "name": "minorOffsetX",
+          "name": "minorOffset",
           "targets": [
+            "Qt.vector2d",
             "root._gridOffsetX",
-            "root._currentGridStep"
+            "minorStep",
+            "root._gridOffsetY"
           ]
         },
         {
           "kind": "binding",
-          "name": "minorOffsetY",
+          "name": "majorOffset",
           "targets": [
-            "root._gridOffsetY",
-            "root._currentGridStep"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "majorOffsetX",
-          "targets": [
+            "Qt.vector2d",
             "root._gridOffsetX",
-            "root._currentGridPeriod"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "majorOffsetY",
-          "targets": [
-            "root._gridOffsetY",
-            "root._currentGridPeriod"
+            "majorStep",
+            "root._gridOffsetY"
           ]
         },
         {
@@ -87402,13 +87460,6 @@
         },
         {
           "kind": "binding",
-          "name": "updateRevision",
-          "targets": [
-            "root._redrawRequestCount"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "visible",
           "targets": [
             "root.effectiveShowGrid",
@@ -87423,8 +87474,8 @@
       "local_component_refs": [
         {
           "kind": "localComponent",
-          "name": "GraphCanvasGridTiled",
-          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridTiled.qml"
+          "name": "GraphCanvasGridShader",
+          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridShader.qml"
         }
       ],
       "symbol_anchors": [
@@ -87469,12 +87520,6 @@
           "kind": "property",
           "name": "_viewStateRedrawDirty",
           "detail": "bool"
-        },
-        {
-          "anchor": "GraphCanvasBackgroundPropertyGridCacheBuildCount",
-          "kind": "property",
-          "name": "_gridCacheBuildCount",
-          "detail": "int"
         },
         {
           "anchor": "GraphCanvasBackgroundPropertyProfileGridUpdateCount",
@@ -87525,45 +87570,21 @@
           "detail": "int"
         },
         {
-          "anchor": "GraphCanvasBackgroundPropertyZoomBucketScaleLimit",
+          "anchor": "GraphCanvasBackgroundPropertyZoom",
           "kind": "property",
-          "name": "_zoomBucketScaleLimit",
+          "name": "_zoom",
           "detail": "real"
         },
         {
-          "anchor": "GraphCanvasBackgroundPropertyCommittedZoom",
+          "anchor": "GraphCanvasBackgroundPropertyCenterX",
           "kind": "property",
-          "name": "_committedZoom",
+          "name": "_centerX",
           "detail": "real"
         },
         {
-          "anchor": "GraphCanvasBackgroundPropertyCommittedCenterX",
+          "anchor": "GraphCanvasBackgroundPropertyCenterY",
           "kind": "property",
-          "name": "_committedCenterX",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasBackgroundPropertyCommittedCenterY",
-          "kind": "property",
-          "name": "_committedCenterY",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasBackgroundPropertyCachedGridStep",
-          "kind": "property",
-          "name": "_cachedGridStep",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasBackgroundPropertyCachedGridPeriod",
-          "kind": "property",
-          "name": "_cachedGridPeriod",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasBackgroundPropertyGridScale",
-          "kind": "property",
-          "name": "_gridScale",
+          "name": "_centerY",
           "detail": "real"
         },
         {
@@ -87651,9 +87672,9 @@
           "detail": "bool"
         },
         {
-          "anchor": "GraphCanvasBackgroundPropertyUseTiledGridRenderer",
+          "anchor": "GraphCanvasBackgroundPropertyUseShaderGridRenderer",
           "kind": "property",
-          "name": "_useTiledGridRenderer",
+          "name": "_useShaderGridRenderer",
           "detail": "bool"
         },
         {
@@ -87671,26 +87692,6 @@
           "anchor": "GraphCanvasBackgroundFunctionGridStepForZoom",
           "kind": "function",
           "name": "_gridStepForZoom"
-        },
-        {
-          "anchor": "GraphCanvasBackgroundFunctionNormalizedGridRendererPreference",
-          "kind": "function",
-          "name": "_normalizedGridRendererPreference"
-        },
-        {
-          "anchor": "GraphCanvasBackgroundFunctionSyncCommittedViewState",
-          "kind": "function",
-          "name": "_syncCommittedViewState"
-        },
-        {
-          "anchor": "GraphCanvasBackgroundFunctionResetGridCache",
-          "kind": "function",
-          "name": "_resetGridCache"
-        },
-        {
-          "anchor": "GraphCanvasBackgroundFunctionEnsureGridCache",
-          "kind": "function",
-          "name": "_ensureGridCache"
         },
         {
           "anchor": "GraphCanvasBackgroundFunctionRequestGridRedraw",
@@ -87743,14 +87744,9 @@
           "name": "_recordGridUpdate"
         },
         {
-          "anchor": "GraphCanvasBackgroundFunctionEstimatedCanvasGridItemCount",
+          "anchor": "GraphCanvasBackgroundFunctionOnViewStateChanged",
           "kind": "function",
-          "name": "_estimatedCanvasGridItemCount"
-        },
-        {
-          "anchor": "GraphCanvasBackgroundFunctionSyncGridItemMetrics",
-          "kind": "function",
-          "name": "_syncGridItemMetrics"
+          "name": "onView_state_changed"
         },
         {
           "anchor": "GraphCanvasBackgroundFunctionDrawLineGrid",
@@ -87763,9 +87759,9 @@
           "name": "drawPointGrid"
         },
         {
-          "anchor": "GraphCanvasBackgroundHandlerOnShowGridChanged",
+          "anchor": "GraphCanvasBackgroundHandlerOnEffectiveShowGridChanged",
           "kind": "handler",
-          "name": "onShowGridChanged"
+          "name": "onEffectiveShowGridChanged"
         },
         {
           "anchor": "GraphCanvasBackgroundHandlerOnGridStyleChanged",
@@ -87778,9 +87774,9 @@
           "name": "onCanvasBackgroundVariantChanged"
         },
         {
-          "anchor": "GraphCanvasBackgroundHandlerOnGridRendererPreferenceChanged",
+          "anchor": "GraphCanvasBackgroundHandlerOnActiveGridRendererKindChanged",
           "kind": "handler",
-          "name": "onGridRendererPreferenceChanged"
+          "name": "onActiveGridRendererKindChanged"
         },
         {
           "anchor": "GraphCanvasBackgroundHandlerOnThemePaletteChanged",
@@ -87808,10 +87804,15 @@
           "name": "onPaint"
         },
         {
-          "anchor": "GraphCanvasBackgroundLocalComponentGraphCanvasGridTiled",
+          "anchor": "GraphCanvasBackgroundTargetRootViewBridge",
+          "kind": "target",
+          "name": "root.viewBridge"
+        },
+        {
+          "anchor": "GraphCanvasBackgroundLocalComponentGraphCanvasGridShader",
           "kind": "localComponent",
-          "name": "GraphCanvasGridTiled",
-          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridTiled.qml"
+          "name": "GraphCanvasGridShader",
+          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridShader.qml"
         }
       ]
     },
@@ -90907,40 +90908,29 @@
       ]
     },
     {
-      "path": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridTiled.qml",
-      "component_name": "GraphCanvasGridTiled",
+      "path": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridShader.qml",
+      "component_name": "GraphCanvasGridShader",
       "aliases": [
-        "GraphCanvasGridTiled",
-        "GraphCanvasGridTiled.qml",
-        "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridTiled.qml",
-        "ea_node_editor\\ui_qml\\components\\graph_canvas\\GraphCanvasGridTiled.qml"
+        "GraphCanvasGridShader",
+        "GraphCanvasGridShader.qml",
+        "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridShader.qml",
+        "ea_node_editor\\ui_qml\\components\\graph_canvas\\GraphCanvasGridShader.qml"
       ],
-      "root_component": "Item",
+      "root_component": "ShaderEffect",
       "imports": [
-        "QtQuick 2.15",
-        "QtQuick.Window 2.15"
+        "QtQuick 2.15"
       ],
       "ids": [
         {
           "name": "root"
-        },
-        {
-          "name": "lineGrid"
-        },
-        {
-          "name": "pointGrid"
         }
       ],
       "object_names": [
         {
-          "name": "graphCanvasGridTiledRenderer"
+          "name": "graphCanvasGridShaderRenderer"
         }
       ],
       "properties": [
-        {
-          "kind": "bool",
-          "name": "gridVisible"
-        },
         {
           "kind": "string",
           "name": "gridStyle"
@@ -90962,20 +90952,12 @@
           "name": "majorStep"
         },
         {
-          "kind": "real",
-          "name": "minorOffsetX"
+          "kind": "vector2d",
+          "name": "minorOffset"
         },
         {
-          "kind": "real",
-          "name": "minorOffsetY"
-        },
-        {
-          "kind": "real",
-          "name": "majorOffsetX"
-        },
-        {
-          "kind": "real",
-          "name": "majorOffsetY"
+          "kind": "vector2d",
+          "name": "majorOffset"
         },
         {
           "kind": "real",
@@ -90990,588 +90972,102 @@
           "name": "devicePixelRatio"
         },
         {
-          "kind": "int",
-          "name": "updateRevision"
+          "kind": "vector2d",
+          "name": "viewportSize"
         },
         {
           "kind": "real",
-          "name": "effectiveDevicePixelRatio"
-        },
-        {
-          "kind": "real",
-          "name": "linePixelSize"
-        },
-        {
-          "kind": "real",
-          "name": "minorPointPixelSize"
-        },
-        {
-          "kind": "real",
-          "name": "majorPointPixelSize"
-        },
-        {
-          "kind": "real",
-          "name": "_minorStep"
-        },
-        {
-          "kind": "real",
-          "name": "_majorStep"
-        },
-        {
-          "kind": "real",
-          "name": "_minorOffsetX"
-        },
-        {
-          "kind": "real",
-          "name": "_minorOffsetY"
-        },
-        {
-          "kind": "real",
-          "name": "_majorOffsetX"
-        },
-        {
-          "kind": "real",
-          "name": "_majorOffsetY"
-        },
-        {
-          "kind": "bool",
-          "name": "effectiveGridVisible"
-        },
-        {
-          "kind": "bool",
           "name": "pointStyle"
-        },
-        {
-          "kind": "int",
-          "name": "minorColumnCount"
-        },
-        {
-          "kind": "int",
-          "name": "minorRowCount"
-        },
-        {
-          "kind": "int",
-          "name": "majorColumnCount"
-        },
-        {
-          "kind": "int",
-          "name": "majorRowCount"
-        },
-        {
-          "kind": "int",
-          "name": "profileGridMinorItemCount"
-        },
-        {
-          "kind": "int",
-          "name": "profileGridMajorItemCount"
-        },
-        {
-          "kind": "int",
-          "name": "profileGridItemCount"
-        },
-        {
-          "kind": "int",
-          "name": "profileGridRowCount"
-        },
-        {
-          "kind": "int",
-          "name": "profileGridColumnCount"
         }
       ],
       "signals": [],
-      "functions": [
-        {
-          "name": "_positiveNumber"
-        },
-        {
-          "name": "_normalizedOffset"
-        },
-        {
-          "name": "_countAlong"
-        }
-      ],
-      "instantiated_components": [
-        {
-          "name": "Repeater"
-        },
-        {
-          "name": "Rectangle"
-        }
-      ],
-      "dynamic_refs": [
-        {
-          "kind": "Repeater"
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "lineGrid.visible",
-            "root.minorColumnCount"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "lineGrid.visible",
-            "root.minorRowCount"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "lineGrid.visible",
-            "root.majorColumnCount"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "lineGrid.visible",
-            "root.majorRowCount"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "pointGrid.visible",
-            "root.minorRowCount"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "root.minorColumnCount"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "pointGrid.visible",
-            "root.majorRowCount"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "root.majorColumnCount"
-          ]
-        }
-      ],
+      "functions": [],
+      "instantiated_components": [],
+      "dynamic_refs": [],
       "signal_handlers": [],
       "connections": [],
       "property_bindings": [
         {
           "kind": "binding",
-          "name": "anchors.fill",
+          "name": "fragmentShader",
           "targets": [
-            "parent"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.effectiveGridVisible",
-            "root.pointStyle"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "Math.round",
-            "root._minorOffsetX",
-            "index",
-            "root._minorStep",
-            "root.linePixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y"
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root.linePixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "root.height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root.minorGridColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "antialiasing"
-        },
-        {
-          "kind": "binding",
-          "name": "x"
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "Math.round",
-            "root._minorOffsetY",
-            "index",
-            "root._minorStep",
-            "root.linePixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "root.linePixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "Math.round",
-            "root._majorOffsetX",
-            "index",
-            "root._majorStep",
-            "root.linePixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root.majorGridColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "Math.round",
-            "root._majorOffsetY",
-            "index",
-            "root._majorStep",
-            "root.linePixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "root.minorPointPixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "root._minorOffsetY",
-            "index",
-            "root._minorStep",
-            "root.minorPointPixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "root._minorOffsetX",
-            "index",
-            "root._minorStep",
-            "root.minorPointPixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root.minorPointPixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius"
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "root.majorPointPixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "root._majorOffsetY",
-            "index",
-            "root._majorStep",
-            "root.majorPointPixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "root._majorOffsetX",
-            "index",
-            "root._majorStep",
-            "root.majorPointPixelSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root.majorPointPixelSize"
+            "shaders/grid.frag.qsb"
           ]
         }
       ],
       "local_component_refs": [],
       "symbol_anchors": [
         {
-          "anchor": "GraphCanvasGridTiledPropertyGridVisible",
-          "kind": "property",
-          "name": "gridVisible",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyGridStyle",
+          "anchor": "GraphCanvasGridShaderPropertyGridStyle",
           "kind": "property",
           "name": "gridStyle",
           "detail": "string"
         },
         {
-          "anchor": "GraphCanvasGridTiledPropertyMinorGridColor",
+          "anchor": "GraphCanvasGridShaderPropertyMinorGridColor",
           "kind": "property",
           "name": "minorGridColor",
           "detail": "color"
         },
         {
-          "anchor": "GraphCanvasGridTiledPropertyMajorGridColor",
+          "anchor": "GraphCanvasGridShaderPropertyMajorGridColor",
           "kind": "property",
           "name": "majorGridColor",
           "detail": "color"
         },
         {
-          "anchor": "GraphCanvasGridTiledPropertyMinorStep",
+          "anchor": "GraphCanvasGridShaderPropertyMinorStep",
           "kind": "property",
           "name": "minorStep",
           "detail": "real"
         },
         {
-          "anchor": "GraphCanvasGridTiledPropertyMajorStep",
+          "anchor": "GraphCanvasGridShaderPropertyMajorStep",
           "kind": "property",
           "name": "majorStep",
           "detail": "real"
         },
         {
-          "anchor": "GraphCanvasGridTiledPropertyMinorOffsetX",
+          "anchor": "GraphCanvasGridShaderPropertyMinorOffset",
           "kind": "property",
-          "name": "minorOffsetX",
-          "detail": "real"
+          "name": "minorOffset",
+          "detail": "vector2d"
         },
         {
-          "anchor": "GraphCanvasGridTiledPropertyMinorOffsetY",
+          "anchor": "GraphCanvasGridShaderPropertyMajorOffset",
           "kind": "property",
-          "name": "minorOffsetY",
-          "detail": "real"
+          "name": "majorOffset",
+          "detail": "vector2d"
         },
         {
-          "anchor": "GraphCanvasGridTiledPropertyMajorOffsetX",
-          "kind": "property",
-          "name": "majorOffsetX",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMajorOffsetY",
-          "kind": "property",
-          "name": "majorOffsetY",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMinorPointSize",
+          "anchor": "GraphCanvasGridShaderPropertyMinorPointSize",
           "kind": "property",
           "name": "minorPointSize",
           "detail": "real"
         },
         {
-          "anchor": "GraphCanvasGridTiledPropertyMajorPointSize",
+          "anchor": "GraphCanvasGridShaderPropertyMajorPointSize",
           "kind": "property",
           "name": "majorPointSize",
           "detail": "real"
         },
         {
-          "anchor": "GraphCanvasGridTiledPropertyDevicePixelRatio",
+          "anchor": "GraphCanvasGridShaderPropertyDevicePixelRatio",
           "kind": "property",
           "name": "devicePixelRatio",
           "detail": "real"
         },
         {
-          "anchor": "GraphCanvasGridTiledPropertyUpdateRevision",
+          "anchor": "GraphCanvasGridShaderPropertyViewportSize",
           "kind": "property",
-          "name": "updateRevision",
-          "detail": "int"
+          "name": "viewportSize",
+          "detail": "vector2d"
         },
         {
-          "anchor": "GraphCanvasGridTiledPropertyEffectiveDevicePixelRatio",
-          "kind": "property",
-          "name": "effectiveDevicePixelRatio",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyLinePixelSize",
-          "kind": "property",
-          "name": "linePixelSize",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMinorPointPixelSize",
-          "kind": "property",
-          "name": "minorPointPixelSize",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMajorPointPixelSize",
-          "kind": "property",
-          "name": "majorPointPixelSize",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMinorStep2",
-          "kind": "property",
-          "name": "_minorStep",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMajorStep2",
-          "kind": "property",
-          "name": "_majorStep",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMinorOffsetX2",
-          "kind": "property",
-          "name": "_minorOffsetX",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMinorOffsetY2",
-          "kind": "property",
-          "name": "_minorOffsetY",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMajorOffsetX2",
-          "kind": "property",
-          "name": "_majorOffsetX",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMajorOffsetY2",
-          "kind": "property",
-          "name": "_majorOffsetY",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyEffectiveGridVisible",
-          "kind": "property",
-          "name": "effectiveGridVisible",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyPointStyle",
+          "anchor": "GraphCanvasGridShaderPropertyPointStyle",
           "kind": "property",
           "name": "pointStyle",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMinorColumnCount",
-          "kind": "property",
-          "name": "minorColumnCount",
-          "detail": "int"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMinorRowCount",
-          "kind": "property",
-          "name": "minorRowCount",
-          "detail": "int"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMajorColumnCount",
-          "kind": "property",
-          "name": "majorColumnCount",
-          "detail": "int"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyMajorRowCount",
-          "kind": "property",
-          "name": "majorRowCount",
-          "detail": "int"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyProfileGridMinorItemCount",
-          "kind": "property",
-          "name": "profileGridMinorItemCount",
-          "detail": "int"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyProfileGridMajorItemCount",
-          "kind": "property",
-          "name": "profileGridMajorItemCount",
-          "detail": "int"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyProfileGridItemCount",
-          "kind": "property",
-          "name": "profileGridItemCount",
-          "detail": "int"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyProfileGridRowCount",
-          "kind": "property",
-          "name": "profileGridRowCount",
-          "detail": "int"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledPropertyProfileGridColumnCount",
-          "kind": "property",
-          "name": "profileGridColumnCount",
-          "detail": "int"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledFunctionPositiveNumber",
-          "kind": "function",
-          "name": "_positiveNumber"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledFunctionNormalizedOffset",
-          "kind": "function",
-          "name": "_normalizedOffset"
-        },
-        {
-          "anchor": "GraphCanvasGridTiledFunctionCountAlong",
-          "kind": "function",
-          "name": "_countAlong"
+          "detail": "real"
         }
       ]
     },
@@ -124359,9 +123855,6 @@
         },
         {
           "name": "libraryContextPopup"
-        },
-        {
-          "name": "workflowContextMenu"
         }
       ],
       "object_names": [],
@@ -124407,7 +123900,7 @@
       ],
       "instantiated_components": [
         {
-          "name": "Popup"
+          "name": "ShellContextPopup"
         }
       ],
       "dynamic_refs": [],
@@ -124429,65 +123922,6 @@
       "property_bindings": [
         {
           "kind": "binding",
-          "name": "parent",
-          "targets": [
-            "root"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "modal"
-        },
-        {
-          "kind": "binding",
-          "name": "focus"
-        },
-        {
-          "kind": "binding",
-          "name": "padding"
-        },
-        {
-          "kind": "binding",
-          "name": "closePolicy",
-          "targets": [
-            "Popup.CloseOnEscape",
-            "Popup.CloseOnPressOutside"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitWidth",
-          "targets": [
-            "workflowContextMenu.implicitWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "workflowContextMenu.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "z"
-        },
-        {
-          "kind": "binding",
-          "name": "background",
-          "targets": [
-            "Item"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "contentItem",
-          "targets": [
-            "ShellContextMenu"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "themeBridgeRef",
           "targets": [
             "root.themeBridgeRef"
@@ -124505,7 +123939,13 @@
           ]
         }
       ],
-      "local_component_refs": [],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "ShellContextPopup",
+          "detail": "ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml"
+        }
+      ],
       "symbol_anchors": [
         {
           "anchor": "LibraryWorkflowContextPopupPropertyShellLibraryBridgeRef",
@@ -124574,6 +124014,12 @@
           "anchor": "LibraryWorkflowContextPopupHandlerOnActionTriggered",
           "kind": "handler",
           "name": "onActionTriggered"
+        },
+        {
+          "anchor": "LibraryWorkflowContextPopupLocalComponentShellContextPopup",
+          "kind": "localComponent",
+          "name": "ShellContextPopup",
+          "detail": "ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml"
         }
       ]
     },
@@ -130338,7 +129784,7 @@
         "ea_node_editor/ui_qml/components/shell/ShellContextMenu.qml",
         "ea_node_editor\\ui_qml\\components\\shell\\ShellContextMenu.qml"
       ],
-      "root_component": "Item",
+      "root_component": "FocusScope",
       "imports": [
         "QtQuick 2.15",
         "\"../common\" as Common"
@@ -130348,10 +129794,19 @@
           "name": "root"
         },
         {
+          "name": "labelMetrics"
+        },
+        {
+          "name": "shortcutMetrics"
+        },
+        {
           "name": "menuPanel"
         },
         {
           "name": "contentColumn"
+        },
+        {
+          "name": "actionRow"
         },
         {
           "name": "actionBackground"
@@ -130361,6 +129816,9 @@
         },
         {
           "name": "actionLabel"
+        },
+        {
+          "name": "shortcutLabel"
         },
         {
           "name": "actionMouseArea"
@@ -130409,6 +129867,10 @@
           "name": "shadowDepth"
         },
         {
+          "kind": "int",
+          "name": "currentIndex"
+        },
+        {
           "kind": "var",
           "name": "visibleActions"
         },
@@ -130434,11 +129896,15 @@
         },
         {
           "kind": "bool",
-          "name": "actionChecked"
+          "name": "checked"
         },
         {
           "kind": "string",
-          "name": "actionText"
+          "name": "text"
+        },
+        {
+          "kind": "bool",
+          "name": "highlighted"
         },
         {
           "kind": "string",
@@ -130456,10 +129922,23 @@
       "signals": [
         {
           "name": "actionTriggered"
+        },
+        {
+          "name": "dismissRequested"
         }
       ],
-      "functions": [],
+      "functions": [
+        {
+          "name": "selectNext"
+        },
+        {
+          "name": "activateCurrent"
+        }
+      ],
       "instantiated_components": [
+        {
+          "name": "FontMetrics"
+        },
         {
           "name": "Rectangle"
         },
@@ -130499,11 +129978,46 @@
       "signal_handlers": [
         {
           "kind": "handler",
+          "name": "onVisibleActionsChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onVisibleChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "Accessible.onPressAction"
+        },
+        {
+          "kind": "handler",
+          "name": "onPositionChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onEntered"
+        },
+        {
+          "kind": "handler",
+          "name": "onExited"
+        },
+        {
+          "kind": "handler",
           "name": "onClicked"
         }
       ],
       "connections": [],
       "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "Accessible.role",
+          "targets": [
+            "Accessible.PopupMenu"
+          ]
+        },
         {
           "kind": "binding",
           "name": "implicitWidth",
@@ -130552,7 +130066,7 @@
           "kind": "binding",
           "name": "width",
           "targets": [
-            "root.panelWidth"
+            "root.width"
           ]
         },
         {
@@ -130670,6 +130184,42 @@
         },
         {
           "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "actionEnabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Accessible.role",
+          "targets": [
+            "Accessible.MenuItem"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Accessible.name",
+          "targets": [
+            "text"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Accessible.checkable",
+          "targets": [
+            "modelData",
+            "modelData.checkable"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Accessible.checked",
+          "targets": [
+            "checked"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "width",
           "targets": [
             "parent.width"
@@ -130690,16 +130240,14 @@
           "kind": "binding",
           "name": "color",
           "targets": [
-            "actionEnabled",
-            "actionMouseArea.containsMouse"
+            "actionRow.highlighted"
           ]
         },
         {
           "kind": "binding",
           "name": "visible",
           "targets": [
-            "actionEnabled",
-            "actionMouseArea.containsMouse"
+            "actionRow.highlighted"
           ]
         },
         {
@@ -130728,7 +130276,7 @@
           "kind": "binding",
           "name": "text",
           "targets": [
-            "actionChecked"
+            "actionRow.checked"
           ]
         },
         {
@@ -130748,13 +130296,17 @@
         },
         {
           "kind": "binding",
-          "name": "anchors.rightMargin"
+          "name": "anchors.rightMargin",
+          "targets": [
+            "shortcutLabel.text.length",
+            "shortcutLabel.implicitWidth"
+          ]
         },
         {
           "kind": "binding",
           "name": "text",
           "targets": [
-            "actionText"
+            "actionRow.text"
           ]
         },
         {
@@ -130768,8 +130320,7 @@
           "kind": "binding",
           "name": "font.bold",
           "targets": [
-            "actionEnabled",
-            "actionMouseArea.containsMouse"
+            "actionRow.highlighted"
           ]
         },
         {
@@ -130778,6 +130329,10 @@
           "targets": [
             "Text.ElideRight"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.rightMargin"
         },
         {
           "kind": "binding",
@@ -130945,6 +130500,12 @@
           "detail": "int"
         },
         {
+          "anchor": "ShellContextMenuPropertyCurrentIndex",
+          "kind": "property",
+          "name": "currentIndex",
+          "detail": "int"
+        },
+        {
           "anchor": "ShellContextMenuPropertyVisibleActions",
           "kind": "property",
           "name": "visibleActions",
@@ -130981,16 +130542,22 @@
           "detail": "bool"
         },
         {
-          "anchor": "ShellContextMenuPropertyActionChecked",
+          "anchor": "ShellContextMenuPropertyChecked",
           "kind": "property",
-          "name": "actionChecked",
+          "name": "checked",
           "detail": "bool"
         },
         {
-          "anchor": "ShellContextMenuPropertyActionText",
+          "anchor": "ShellContextMenuPropertyText",
           "kind": "property",
-          "name": "actionText",
+          "name": "text",
           "detail": "string"
+        },
+        {
+          "anchor": "ShellContextMenuPropertyHighlighted",
+          "kind": "property",
+          "name": "highlighted",
+          "detail": "bool"
         },
         {
           "anchor": "ShellContextMenuPropertyActionId",
@@ -131016,6 +130583,56 @@
           "name": "actionTriggered"
         },
         {
+          "anchor": "ShellContextMenuSignalDismissRequested",
+          "kind": "signal",
+          "name": "dismissRequested"
+        },
+        {
+          "anchor": "ShellContextMenuFunctionSelectNext",
+          "kind": "function",
+          "name": "selectNext"
+        },
+        {
+          "anchor": "ShellContextMenuFunctionActivateCurrent",
+          "kind": "function",
+          "name": "activateCurrent"
+        },
+        {
+          "anchor": "ShellContextMenuHandlerOnVisibleActionsChanged",
+          "kind": "handler",
+          "name": "onVisibleActionsChanged"
+        },
+        {
+          "anchor": "ShellContextMenuHandlerOnVisibleChanged",
+          "kind": "handler",
+          "name": "onVisibleChanged"
+        },
+        {
+          "anchor": "ShellContextMenuHandlerKeysOnPressed",
+          "kind": "handler",
+          "name": "Keys.onPressed"
+        },
+        {
+          "anchor": "ShellContextMenuHandlerAccessibleOnPressAction",
+          "kind": "handler",
+          "name": "Accessible.onPressAction"
+        },
+        {
+          "anchor": "ShellContextMenuHandlerOnPositionChanged",
+          "kind": "handler",
+          "name": "onPositionChanged"
+        },
+        {
+          "anchor": "ShellContextMenuHandlerOnEntered",
+          "kind": "handler",
+          "name": "onEntered"
+        },
+        {
+          "anchor": "ShellContextMenuHandlerOnExited",
+          "kind": "handler",
+          "name": "onExited"
+        },
+        {
           "anchor": "ShellContextMenuHandlerOnClicked",
           "kind": "handler",
           "name": "onClicked"
@@ -131025,6 +130642,330 @@
           "kind": "localComponent",
           "name": "Common.ManagedToolTip",
           "detail": "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml",
+      "component_name": "ShellContextPopup",
+      "aliases": [
+        "ShellContextPopup",
+        "ShellContextPopup.qml",
+        "ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\ShellContextPopup.qml"
+      ],
+      "root_component": "Popup",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Window 2.15"
+      ],
+      "ids": [
+        {
+          "name": "popup"
+        },
+        {
+          "name": "viewport"
+        },
+        {
+          "name": "menu"
+        }
+      ],
+      "object_names": [],
+      "properties": [
+        {
+          "kind": "alias",
+          "name": "actions"
+        },
+        {
+          "kind": "alias",
+          "name": "themeBridgeRef"
+        },
+        {
+          "kind": "alias",
+          "name": "tooltipPolicyBridge"
+        },
+        {
+          "kind": "alias",
+          "name": "minimumWidth"
+        },
+        {
+          "kind": "alias",
+          "name": "menuContent"
+        },
+        {
+          "kind": "Item",
+          "name": "previousFocusItem"
+        }
+      ],
+      "signals": [
+        {
+          "name": "actionTriggered"
+        }
+      ],
+      "functions": [
+        {
+          "name": "openAt"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "ShellContextMenu"
+        }
+      ],
+      "dynamic_refs": [],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onAboutToShow"
+        },
+        {
+          "kind": "handler",
+          "name": "onOpened"
+        },
+        {
+          "kind": "handler",
+          "name": "onClosed"
+        },
+        {
+          "kind": "handler",
+          "name": "onDismissRequested"
+        },
+        {
+          "kind": "handler",
+          "name": "onActionTriggered"
+        },
+        {
+          "kind": "handler",
+          "name": "onCurrentIndexChanged"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "parent",
+          "targets": [
+            "Overlay.overlay"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "modal"
+        },
+        {
+          "kind": "binding",
+          "name": "focus"
+        },
+        {
+          "kind": "binding",
+          "name": "padding"
+        },
+        {
+          "kind": "binding",
+          "name": "margins"
+        },
+        {
+          "kind": "binding",
+          "name": "z"
+        },
+        {
+          "kind": "binding",
+          "name": "closePolicy",
+          "targets": [
+            "Popup.CloseOnEscape",
+            "Popup.CloseOnPressOutside"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth",
+          "targets": [
+            "menu.implicitWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight",
+          "targets": [
+            "menu.implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.min",
+            "implicitWidth",
+            "parent",
+            "parent.Window.window",
+            "Math.max",
+            "parent.Window.window.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "Math.min",
+            "implicitHeight",
+            "parent",
+            "parent.Window.window",
+            "Math.max",
+            "parent.Window.window.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Item"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentItem",
+          "targets": [
+            "Flickable"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentWidth",
+          "targets": [
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentHeight",
+          "targets": [
+            "menu.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "clip"
+        },
+        {
+          "kind": "binding",
+          "name": "boundsBehavior",
+          "targets": [
+            "Flickable.StopAtBounds"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "interactive",
+          "targets": [
+            "contentHeight",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "ScrollBar.vertical",
+          "targets": [
+            "ScrollBar"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "viewport.width"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "ShellContextMenu",
+          "detail": "ea_node_editor/ui_qml/components/shell/ShellContextMenu.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "ShellContextPopupPropertyActions",
+          "kind": "property",
+          "name": "actions",
+          "detail": "alias"
+        },
+        {
+          "anchor": "ShellContextPopupPropertyThemeBridgeRef",
+          "kind": "property",
+          "name": "themeBridgeRef",
+          "detail": "alias"
+        },
+        {
+          "anchor": "ShellContextPopupPropertyTooltipPolicyBridge",
+          "kind": "property",
+          "name": "tooltipPolicyBridge",
+          "detail": "alias"
+        },
+        {
+          "anchor": "ShellContextPopupPropertyMinimumWidth",
+          "kind": "property",
+          "name": "minimumWidth",
+          "detail": "alias"
+        },
+        {
+          "anchor": "ShellContextPopupPropertyMenuContent",
+          "kind": "property",
+          "name": "menuContent",
+          "detail": "alias"
+        },
+        {
+          "anchor": "ShellContextPopupPropertyPreviousFocusItem",
+          "kind": "property",
+          "name": "previousFocusItem",
+          "detail": "Item"
+        },
+        {
+          "anchor": "ShellContextPopupSignalActionTriggered",
+          "kind": "signal",
+          "name": "actionTriggered"
+        },
+        {
+          "anchor": "ShellContextPopupFunctionOpenAt",
+          "kind": "function",
+          "name": "openAt"
+        },
+        {
+          "anchor": "ShellContextPopupHandlerOnAboutToShow",
+          "kind": "handler",
+          "name": "onAboutToShow"
+        },
+        {
+          "anchor": "ShellContextPopupHandlerOnOpened",
+          "kind": "handler",
+          "name": "onOpened"
+        },
+        {
+          "anchor": "ShellContextPopupHandlerOnClosed",
+          "kind": "handler",
+          "name": "onClosed"
+        },
+        {
+          "anchor": "ShellContextPopupHandlerOnDismissRequested",
+          "kind": "handler",
+          "name": "onDismissRequested"
+        },
+        {
+          "anchor": "ShellContextPopupHandlerOnActionTriggered",
+          "kind": "handler",
+          "name": "onActionTriggered"
+        },
+        {
+          "anchor": "ShellContextPopupHandlerOnCurrentIndexChanged",
+          "kind": "handler",
+          "name": "onCurrentIndexChanged"
+        },
+        {
+          "anchor": "ShellContextPopupLocalComponentShellContextMenu",
+          "kind": "localComponent",
+          "name": "ShellContextMenu",
+          "detail": "ea_node_editor/ui_qml/components/shell/ShellContextMenu.qml"
         }
       ]
     },
@@ -131596,9 +131537,6 @@
         },
         {
           "name": "contextActionPopup"
-        },
-        {
-          "name": "contextActionMenu"
         }
       ],
       "object_names": [
@@ -131716,10 +131654,6 @@
         {
           "kind": "bool",
           "name": "compactDensity"
-        },
-        {
-          "kind": "int",
-          "name": "contextMenuRowHeight"
         },
         {
           "kind": "int",
@@ -132037,7 +131971,7 @@
           "name": "GradientStop"
         },
         {
-          "name": "Popup"
+          "name": "ShellContextPopup"
         }
       ],
       "dynamic_refs": [
@@ -132858,61 +132792,6 @@
         },
         {
           "kind": "binding",
-          "name": "parent",
-          "targets": [
-            "root"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "modal"
-        },
-        {
-          "kind": "binding",
-          "name": "focus"
-        },
-        {
-          "kind": "binding",
-          "name": "padding"
-        },
-        {
-          "kind": "binding",
-          "name": "closePolicy",
-          "targets": [
-            "Popup.CloseOnEscape",
-            "Popup.CloseOnPressOutside"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitWidth",
-          "targets": [
-            "contextActionMenu.implicitWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "contextActionMenu.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "background",
-          "targets": [
-            "Item"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "contentItem",
-          "targets": [
-            "ShellContextMenu"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "minimumWidth"
         },
         {
@@ -132933,6 +132812,11 @@
           "kind": "localComponent",
           "name": "ShellCreateButton",
           "detail": "ea_node_editor/ui_qml/components/shell/ShellCreateButton.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ShellContextPopup",
+          "detail": "ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml"
         }
       ],
       "symbol_anchors": [
@@ -133073,12 +132957,6 @@
           "kind": "property",
           "name": "compactDensity",
           "detail": "bool"
-        },
-        {
-          "anchor": "ShellLabeledTabStripPropertyContextMenuRowHeight",
-          "kind": "property",
-          "name": "contextMenuRowHeight",
-          "detail": "int"
         },
         {
           "anchor": "ShellLabeledTabStripPropertyTitleFontSize",
@@ -133580,6 +133458,12 @@
           "kind": "localComponent",
           "name": "ShellCreateButton",
           "detail": "ea_node_editor/ui_qml/components/shell/ShellCreateButton.qml"
+        },
+        {
+          "anchor": "ShellLabeledTabStripLocalComponentShellContextPopup",
+          "kind": "localComponent",
+          "name": "ShellContextPopup",
+          "detail": "ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml"
         }
       ]
     },

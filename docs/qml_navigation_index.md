@@ -17,13 +17,13 @@ This compact index gives agents deterministic aliases for QML components, symbol
 
 | Metric | Count |
 | --- | ---: |
-| QML files | 175 |
-| Repeater constructs | 98 |
+| QML files | 176 |
+| Repeater constructs | 90 |
 | Loader constructs | 24 |
-| Signal handlers | 891 |
-| Connections targets | 47 |
-| Property bindings | 7644 |
-| Local component refs | 279 |
+| Signal handlers | 904 |
+| Connections targets | 48 |
+| Property bindings | 7625 |
+| Local component refs | 283 |
 
 ## Component Families
 
@@ -41,7 +41,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `components/graph/tabular` | 3 |
 | `components/graph/viewer` | 6 |
 | `components/graph_canvas` | 21 |
-| `components/shell` | 47 |
+| `components/shell` | 48 |
 | `components/web` | 7 |
 | `ea_node_editor/ui_qml` | 2 |
 
@@ -73,7 +73,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `GraphNodeHostRenderQuality.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeHostRenderQuality.qml` | `QtObject` | _None_ | _None_ |
 | `GraphNodeHostSceneAccess.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeHostSceneAccess.qml` | `QtObject` | _None_ | _None_ |
 | `GraphNodeHostTheme.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeHostTheme.qml` | `QtObject` | _None_ | _None_ |
-| `GraphNodePortContextMenu.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml` | `Menu` | `MenuItem`, `MenuSeparator` | _None_ |
+| `GraphNodePortContextMenu.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml` | `Shell.ShellContextPopup` | _None_ | _None_ |
 | `GraphNodePortRow.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml` | `Item` | `Image`, `Rectangle`, `MouseArea`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceButton`, `Text`, `SurfaceControls.GraphSurfaceTextField` | `source` |
 | `GraphNodePortsLayer.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml` | `Item` | `Connections`, `Repeater`, `Image`, `Rectangle`, `Canvas`, `GraphInlinePropertiesLayer`, `Common.ManagedToolTip`, `Loader`, ... +2 more | `Repeater`, `model`, `delegate`, `source`, `Loader`, `sourceComponent` |
 | `GraphNodeResizeHandle.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeResizeHandle.qml` | `Item` | `Canvas`, `MouseArea` | _None_ |
@@ -106,7 +106,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `GraphMediaVideoFullscreenRenderer.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoFullscreenRenderer.qml` | `FocusScope` | `GraphMediaVideoPlaybackCore`, `ColumnLayout`, `Rectangle`, `VideoOutput`, `Text`, `RowLayout`, `Slider`, `Repeater`, ... +3 more | `Repeater`, `model` |
 | `GraphMediaVideoPlaybackCore.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoPlaybackCore.qml` | `Item` | `AudioOutput`, `MediaPlayer`, `Timer` | `source` |
 | `GraphMediaVideoRenderer.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoRenderer.qml` | `GraphShared.GraphSurfaceBase` | `Connections`, `GraphMediaVideoPlaybackCore`, `Rectangle`, `ColumnLayout`, `VideoOutput`, `Text`, `RowLayout`, `Slider`, ... +2 more | `Repeater`, `model` |
-| `GraphNativeExplorerSurface.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphNativeExplorerSurface.qml` | `Item` | `ListModel`, `Menu`, `MenuItem`, `MenuSeparator`, `Rectangle`, `Canvas`, `Text`, `Row`, ... +4 more | `ListView`, `model`, `delegate`, `source` |
+| `GraphNativeExplorerSurface.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphNativeExplorerSurface.qml` | `Item` | `ListModel`, `Shell.ShellContextPopup`, `Rectangle`, `Canvas`, `Text`, `Row`, `HeaderCell`, `ListView`, ... +2 more | `ListView`, `model`, `delegate`, `source` |
 | `GraphNumberSliderSettingsPopover.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSettingsPopover.qml` | `FocusScope` | `Common.DialogSurface`, `ColumnLayout`, `Common.DialogTextField`, `RowLayout`, `Text`, `Common.DialogButton`, `Item` | _None_ |
 | `GraphNumberSliderSurface.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSurface.qml` | `GraphShared.GraphSurfaceBase` | `Item`, `Rectangle`, `Text`, `HoverHandler`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceSlider`, `Binding`, `SurfaceControls.GraphSurfaceDoubleClickTarget` | _None_ |
 | `GraphPanelEditorPopover.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphPanelEditorPopover.qml` | `FocusScope` | `Common.DialogSurface`, `ColumnLayout`, `RowLayout`, `Text`, `ToolButton`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceTextArea`, `CheckBox`, ... +2 more | `source` |
@@ -147,12 +147,12 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `ViewerSidePanel.qml` | `ea_node_editor/ui_qml/components/graph/viewer/ViewerSidePanel.qml` | `Rectangle` | `Connections`, `Text`, `ToolButton`, `Flickable`, `ColumnLayout`, `Repeater`, `RowLayout`, `ShellButton`, ... +6 more | `Repeater`, `model` |
 | `ViewerToolButton.qml` | `ea_node_editor/ui_qml/components/graph/viewer/ViewerToolButton.qml` | `Item` | `HoverHandler`, `Common.ManagedToolTip`, `ShellButton` | _None_ |
 | `GraphCanvasActionRouter.qml` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasActionRouter.qml` | `QtObject` | _None_ | _None_ |
-| `GraphCanvasBackground.qml` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasBackground.qml` | `Item` | `Rectangle`, `GradientStop`, `GraphCanvasGridTiled`, `Canvas` | _None_ |
+| `GraphCanvasBackground.qml` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasBackground.qml` | `Item` | `Rectangle`, `GradientStop`, `GraphCanvasGridShader`, `Connections`, `Canvas` | _None_ |
 | `GraphCanvasContextMenus.qml` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasContextMenus.qml` | `Item` | `GraphCanvasActionRouter`, `GraphCanvasOptionsMenu`, `ShellComponents.ShellContextMenu` | _None_ |
 | `GraphCanvasDropPreview.qml` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasDropPreview.qml` | `Rectangle` | `GraphPassiveComponents.FlowchartShapeCanvas`, `Item`, `Text`, `Repeater` | `Repeater`, `model`, `delegate` |
 | `GraphCanvasExecutionFacts.qml` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasExecutionFacts.qml` | `QtObject` | _None_ | _None_ |
 | `GraphCanvasFrameScheduler.qml` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasFrameScheduler.qml` | `Item` | `Timer` | _None_ |
-| `GraphCanvasGridTiled.qml` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridTiled.qml` | `Item` | `Repeater`, `Rectangle` | `Repeater`, `model` |
+| `GraphCanvasGridShader.qml` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridShader.qml` | `ShaderEffect` | _None_ | _None_ |
 | `GraphCanvasInputLayers.qml` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInputLayers.qml` | `Item` | `MouseArea`, `Rectangle`, `Canvas` | _None_ |
 | `GraphCanvasInteractionState.qml` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInteractionState.qml` | `QtObject` | _None_ | _None_ |
 | `GraphCanvasMinimapOverlay.qml` | `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasMinimapOverlay.qml` | `Rectangle` | `NumberAnimation`, `ColorAnimation`, `Text`, `Image`, `Common.ManagedToolTip`, `MouseArea`, `Item`, `Repeater` | `source`, `Repeater`, `model`, `delegate` |
@@ -201,7 +201,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `InspectorTextArea.qml` | `ea_node_editor/ui_qml/components/shell/InspectorTextArea.qml` | `TextArea` | _None_ | _None_ |
 | `InspectorTextField.qml` | `ea_node_editor/ui_qml/components/shell/InspectorTextField.qml` | `TextField` | _None_ | _None_ |
 | `LibraryNodeVisual.qml` | `ea_node_editor/ui_qml/components/shell/LibraryNodeVisual.qml` | `Item` | `GraphPassiveComponents.FlowchartShapeCanvas`, `Image`, `Rectangle`, `Text` | `source` |
-| `LibraryWorkflowContextPopup.qml` | `ea_node_editor/ui_qml/components/shell/LibraryWorkflowContextPopup.qml` | `Item` | `Popup` | _None_ |
+| `LibraryWorkflowContextPopup.qml` | `ea_node_editor/ui_qml/components/shell/LibraryWorkflowContextPopup.qml` | `Item` | `ShellContextPopup` | _None_ |
 | `NodeBrowserOverlay.qml` | `ea_node_editor/ui_qml/components/shell/NodeBrowserOverlay.qml` | `Item` | `Rectangle`, `MouseArea`, `Common.DialogSurface`, `RowLayout`, `ColumnLayout`, `Text`, `ListView`, `Repeater`, ... +7 more | `ListView`, `model`, `delegate`, `Repeater` |
 | `NodeLibraryPane.qml` | `ea_node_editor/ui_qml/components/shell/NodeLibraryPane.qml` | `ShellCollapsibleSidePane` | `TextField`, `ListView`, `Common.ManagedToolTip`, `Item`, `Row`, `Rectangle`, `LibraryNodeVisual`, `Text`, ... +4 more | `ListView`, `model`, `delegate`, `source`, `Repeater` |
 | `PythonScriptGuidePane.qml` | `ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml` | `Rectangle` | `ColumnLayout`, `RowLayout`, `Text`, `ShellButton`, `ScrollView`, `TextArea` | _None_ |
@@ -209,7 +209,8 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `ScriptEditorOverlay.qml` | `ea_node_editor/ui_qml/components/shell/ScriptEditorOverlay.qml` | `Rectangle` | `Connections`, `ColumnLayout`, `RowLayout`, `Text`, `Item`, `ShellButton`, `ScriptCodeEditorPane`, `MouseArea` | _None_ |
 | `ShellButton.qml` | `ea_node_editor/ui_qml/components/shell/ShellButton.qml` | `ToolButton` | `Common.ManagedToolTip`, `Row`, `Image`, `Text` | `source` |
 | `ShellCollapsibleSidePane.qml` | `ea_node_editor/ui_qml/components/shell/ShellCollapsibleSidePane.qml` | `Rectangle` | `Connections`, `NumberAnimation`, `Item`, `HoverHandler`, `Column`, `Text`, `Common.ManagedToolTip`, `TapHandler`, ... +5 more | _None_ |
-| `ShellContextMenu.qml` | `ea_node_editor/ui_qml/components/shell/ShellContextMenu.qml` | `Item` | `Rectangle`, `Column`, `Repeater`, `Text`, `MouseArea`, `Common.ManagedToolTip` | `Repeater`, `model`, `delegate` |
+| `ShellContextMenu.qml` | `ea_node_editor/ui_qml/components/shell/ShellContextMenu.qml` | `FocusScope` | `FontMetrics`, `Rectangle`, `Column`, `Repeater`, `Text`, `MouseArea`, `Common.ManagedToolTip` | `Repeater`, `model`, `delegate` |
+| `ShellContextPopup.qml` | `ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml` | `Popup` | `ShellContextMenu` | _None_ |
 | `ShellCreateButton.qml` | `ea_node_editor/ui_qml/components/shell/ShellCreateButton.qml` | `ToolButton` | `Common.ManagedToolTip`, `Row`, `Rectangle`, `Text` | _None_ |
 | `ShellLabeledTabStrip.qml` | `ea_node_editor/ui_qml/components/shell/ShellLabeledTabStrip.qml` | `RowLayout` | `Timer`, `Text`, `Rectangle`, `ShellButton`, `Item`, `Flickable`, `ListView`, `NumberAnimation`, ... +9 more | `model`, `ListView`, `delegate` |
 | `ShellRunToolbar.qml` | `ea_node_editor/ui_qml/components/shell/ShellRunToolbar.qml` | `Rectangle` | `RowLayout`, `ShellButton`, `Row`, `Text`, `Repeater`, `TextMetrics`, `Item`, `MouseArea` | `Repeater`, `model`, `delegate` |
@@ -662,19 +663,19 @@ This compact index gives agents deterministic aliases for QML components, symbol
 ### `GraphNodePortContextMenu.qml`
 
 - Path: `ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml`
-- Root component: `Menu`
+- Root component: `Shell.ShellContextPopup`
 - Agent route aliases: `GraphNodePortContextMenu`, `GraphNodePortContextMenu.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml`, `ea_node_editor\ui_qml\components\graph\GraphNodePortContextMenu.qml`
-- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`
+- Imports: `QtQuick 2.15`, `"../shell" as Shell`
 - IDs: `menu`
-- Object names: `graphNodePortContextMenu`, `graphNodePortAccessMetadata`, `graphNodePortModifierGraft`, `graphNodePortModifierFlatten`, `graphNodePortModifierSimplify`, `graphNodePortModifierReverse`, `graphNodePortModifierClean`, `graphNodePortPrincipal`, `graphNodeDynamicPortInsertBefore`, `graphNodeDynamicPortInsertAfter`, `graphNodeDynamicPortRename`, `graphNodeDynamicPortRemove`
+- Object names: `graphNodePortContextMenu`, `graphNodePortAccessMetadata`, `graphNodePortModifier`, `graphNodePortPrincipal`, `graphNodeDynamicPortInsertBefore`, `graphNodeDynamicPortInsertAfter`, `graphNodeDynamicPortRename`, `graphNodeDynamicPortRemove`
 - Properties: `portsLayer: Item`, `dynamicGroup: var`
 - Signals: _None_
 - Functions: _None_
-- Instantiates: `MenuItem`, `MenuSeparator`
+- Instantiates: _None_
 - Dynamic constructs: _None_
-- Signal handlers: `handler` `onTriggered`
+- Signal handlers: `handler` `onActionTriggered`
 - Connections: _None_
-- Property bindings: `binding` `modal`; `binding` `visible` -> `menu.portsLayer._isDataPort`, `menu.portsLayer.contextPortData`; `binding` `text` -> `menu.portsLayer._dataAccessLabel`; `binding` `enabled`; `binding` `text`; `binding` `checkable`; `binding` `checked` -> `menu.portsLayer._modifierChecked`; `binding` `enabled` -> `visible`, `menu.portsLayer.host`, `menu.portsLayer.host.graphReadOnly`; `binding` `visible` -> `Boolean`; `binding` `checked` -> `Boolean`; `binding` `enabled` -> `menu.portsLayer.host`, `menu.portsLayer.host.graphReadOnly`; `binding` `visible` -> `menu.portsLayer._dynamicPortGroupForPort`; `binding` `visible` -> `dynamicGroup`, `Boolean`, `dynamicGroup.can_insert`; `binding` `enabled` -> `visible`, `menu.portsLayer._dynamicPortAuthoringAllowed`; `binding` `visible` -> `dynamicGroup`
+- Property bindings: `binding` `text` -> `layer._dataAccessLabel`, `port`, `visible`, `dataPort`, `enabled`; `binding` `text` -> `modifiers`, `i`, `visible`, `dataPort`, `enabled`, `editable`; `binding` `checkable` -> `checked`, `layer._modifierChecked`, `modifier`; `binding` `visible` -> `Boolean`, `port`, `port.principal_eligible`, `enabled`, `editable`; `binding` `checkable` -> `checked`, `Boolean`, `port`, `port.principal`; `binding` `visible` -> `group`, `Boolean`, `group.can_insert`, `enabled`, `dynamicEditable`; `binding` `visible` -> `group`, `String`, `group.rename_mode`, `trim`, `toLowerCase`; `binding` `enabled` -> `dynamicEditable`; `binding` `visible` -> `group`, `layer._dynamicPortCanRemove`, `port`, `enabled`, `dynamicEditable`
 - Local component refs: _None_
 
 ### `GraphNodePortRow.qml`
@@ -1258,18 +1259,18 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Path: `ea_node_editor/ui_qml/components/graph/passive/GraphNativeExplorerSurface.qml`
 - Root component: `Item`
 - Agent route aliases: `GraphNativeExplorerSurface`, `GraphNativeExplorerSurface.qml`, `ea_node_editor/ui_qml/components/graph/passive/GraphNativeExplorerSurface.qml`, `ea_node_editor\ui_qml\components\graph\passive\GraphNativeExplorerSurface.qml`
-- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `"../surface_controls" as SurfaceControls`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `"../surface_controls" as SurfaceControls`, `"../../shell" as Shell`
 - IDs: `root`, `entryModel`, `rowContextMenu`, `explorerPanel`, `pathBar`, `homeIcon`, `pathText`, `headerRow`, `entryList`, `rowRoot`, `dragProxy`, `rowIcon`, `rowMouseArea`, `rowMouseAreaInteractiveRegion`, `headerMouseArea`, `headerMouseAreaInteractiveRegion`
 - Object names: `graphNativeExplorerSurface`, `graphFolderExplorerRowContextMenu`, `graphFolderExplorerRowOpenItem`, `graphFolderExplorerRowOpenWithItem`, `graphFolderExplorerRowCopyPathItem`, `graphFolderExplorerRowOpenNewWindowItem`, `graphFolderExplorerRowSendToCorexItem`, `graphFolderExplorerRowPropertiesItem`, `graphNodeViewerViewport`, `graphFolderExplorerPathBar`, `graphFolderExplorerPathText`, `graphFolderExplorerHeaderRow`, `graphFolderExplorerEntriesView`, `graphFolderExplorerNameColumn`, `graphFolderExplorerModifiedColumn`, `graphFolderExplorerTypeColumn`, `graphFolderExplorerSizeColumn`, `graphFolderExplorerRowMouseArea`, ... +4 more
 - Properties: `host: Item`, `listing: var`, `loading: bool`, `completed: bool`, `errorText: string`, `selectedPath: string`, `_menuPath: string`, `_menuIsFolder: bool`, `_menuIsParent: bool`, `_menuSceneX: real`, `_menuSceneY: real`, `currentPath: string`, `displayPath: string`, `sortKey: string`, `reverse: bool`, `panelLeft: real`, `panelRight: real`, `panelTop: real`, ... +47 more
 - Signals: `clicked`, `resizeStarted`, `resizeDragged`, `resizeFinished`
 - Functions: `_propertyString`, `_nodeId`, `_canvasItem`, `_actionRouter`, `_folderExplorerActionId`, `_prepareInteraction`, `_errorPayload`, `_requestAction`, `refresh`, `navigateTo`, `openPath`, `openPathWith`, `_runMenuAction`, `_createNodeFromMenu`, `_openRowContextMenu`, `setSort`, `_applyResult`, `_setErrorFromResult`, ... +25 more
-- Instantiates: `ListModel`, `Menu`, `MenuItem`, `MenuSeparator`, `Rectangle`, `Canvas`, `Text`, `Row`, `HeaderCell`, `ListView`, `MouseArea`, `SurfaceControls.GraphSurfaceInteractiveRegion`
+- Instantiates: `ListModel`, `Shell.ShellContextPopup`, `Rectangle`, `Canvas`, `Text`, `Row`, `HeaderCell`, `ListView`, `MouseArea`, `SurfaceControls.GraphSurfaceInteractiveRegion`
 - Dynamic constructs: `ListView`; `model` -> `entryModel`; `delegate` -> `Rectangle`; `source` -> `rowRoot`
-- Signal handlers: `handler` `onTriggered`; `handler` `onCurrentPathChanged`; `handler` `Component.onCompleted`; `handler` `onPersistedColumnWidthsChanged`; `handler` `onWidthChanged`; `handler` `onCompactColumnsChanged`; `handler` `onPaint`; `handler` `onClicked`; `handler` `onResizeStarted`; `handler` `onResizeDragged`; `handler` `onResizeFinished`; `handler` `onPressed`; `handler` `onPositionChanged`; `handler` `onDoubleClicked`; `handler` `onReleased`; `handler` `onCanceled`; `handler` `onResizeEdge`
+- Signal handlers: `handler` `onActionTriggered`; `handler` `onCurrentPathChanged`; `handler` `Component.onCompleted`; `handler` `onPersistedColumnWidthsChanged`; `handler` `onWidthChanged`; `handler` `onCompactColumnsChanged`; `handler` `onPaint`; `handler` `onClicked`; `handler` `onResizeStarted`; `handler` `onResizeDragged`; `handler` `onResizeFinished`; `handler` `onPressed`; `handler` `onPositionChanged`; `handler` `onDoubleClicked`; `handler` `onReleased`; `handler` `onCanceled`; `handler` `onResizeEdge`
 - Connections: _None_
-- Property bindings: `binding` `implicitHeight` -> `Math.max`, `height`; `binding` `clip`; `binding` `text`; `binding` `enabled` -> `root._menuPath.length`; `binding` `visible` -> `root._menuPath.length`, `root._menuIsFolder`, `root._menuIsParent`; `binding` `height` -> `visible`, `implicitHeight`; `binding` `enabled` -> `visible`; `binding` `visible` -> `root._menuPath.length`, `root._menuIsParent`; `binding` `x` -> `root.panelLeft`; `binding` `y` -> `root.panelTop`; `binding` `width` -> `Math.max`, `root.width`, `root.panelLeft`, `root.panelRight`; `binding` `height` -> `Math.max`, `root.height`, `root.panelTop`, `root.panelBottom`; `binding` `color`; `binding` `border.width`; `binding` `border.color`; `binding` `radius`; `binding` `anchors.left` -> `parent.left`; `binding` `anchors.right` -> `parent.right`; ... +71 more
-- Local component refs: `localComponent` `SurfaceControls.GraphSurfaceInteractiveRegion`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInteractiveRegion.qml`
+- Property bindings: `binding` `implicitHeight` -> `Math.max`, `height`; `binding` `clip`; `binding` `actions`; `binding` `enabled` -> `root._menuPath.length`; `binding` `visible` -> `root._menuPath.length`, `root._menuIsFolder`, `root._menuIsParent`; `binding` `text`; `binding` `text` -> `visible`, `root._menuPath.length`, `root._menuIsParent`; `binding` `x` -> `root.panelLeft`; `binding` `y` -> `root.panelTop`; `binding` `width` -> `Math.max`, `root.width`, `root.panelLeft`, `root.panelRight`; `binding` `height` -> `Math.max`, `root.height`, `root.panelTop`, `root.panelBottom`; `binding` `color`; `binding` `border.width`; `binding` `border.color`; `binding` `radius`; `binding` `anchors.left` -> `parent.left`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.top` -> `parent.top`; ... +70 more
+- Local component refs: `localComponent` `Shell.ShellContextPopup`: `ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml`; `localComponent` `SurfaceControls.GraphSurfaceInteractiveRegion`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInteractiveRegion.qml`
 
 ### `GraphNumberSliderSettingsPopover.qml`
 
@@ -1944,15 +1945,15 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Agent route aliases: `ViewerSidePanel`, `ViewerSidePanel.qml`, `ea_node_editor/ui_qml/components/graph/viewer/ViewerSidePanel.qml`, `ea_node_editor\ui_qml\components\graph\viewer\ViewerSidePanel.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"../../shell"`, `"../../common" as Common`, `"../../common/TooltipCopy.js" as TooltipCopy`
 - IDs: `sidePanel`, `panelField`, `panelCheck`, `panelTitle`, `collapseButton`, `panelHeaderSeparator`, `panelColumn`
-- Object names: `viewerSidePanel`, `contentFullscreenViewerSidePanelToggle`, `viewerSidePanelClipEnabledCheck`, `viewerSidePanelClipAxisCombo`, `viewerSidePanelClipOffsetField`, `viewerSidePanelColormapCombo`, `viewerSidePanelBackgroundCombo`, `viewerSidePanelPrimaryOpacityField`, `viewerSidePanelOverlayOpacityField`, `viewerSidePanelComponentCombo`, `viewerSidePanelRangeModeCombo`, `viewerSidePanelRangeMinField`, `viewerSidePanelRangeMaxField`, `viewerSidePanelDeformScaleField`, `viewerSidePanelPointsModeCheck`, `viewerSidePanelScalarBarCheck`, `viewerSidePanelProbeCheck`, `viewerSidePanelMarkersCheck`, ... +10 more
-- Properties: `themePalette: var`, `nodeId: string`, `bridgeRef: var`, `fullscreenBridgeRef: var`, `hostServiceRef: var`, `sessionState: var`, `detachedPresentation: bool`, `panelCollapsed: bool`, `savedSelections: var`, `engineeringToolMessage: string`, `sessionOptions: var`, `sessionSummary: var`, `capabilities: var`, `engineeringViewer: bool`, `supportsScalars: bool`, `supportsDeformation: bool`, `supportsProbe: bool`, `supportsMinmax: bool`, ... +15 more
+- Object names: `viewerSidePanel`, `contentFullscreenViewerSidePanelToggle`, `viewerSidePanelClipEnabledCheck`, `viewerSidePanelClipAxisCombo`, `viewerSidePanelClipOffsetField`, `viewerSidePanelColormapCombo`, `viewerSidePanelBackgroundCombo`, `viewerSidePanelSceneSelector`, `viewerSidePanelSceneOpacityField`, `viewerSidePanelSceneColorField`, `viewerSidePanelSceneColorAutoButton`, `viewerSidePanelComponentCombo`, `viewerSidePanelRangeModeCombo`, `viewerSidePanelRangeMinField`, `viewerSidePanelRangeMaxField`, `viewerSidePanelDeformScaleField`, `viewerSidePanelPointsModeCheck`, `viewerSidePanelScalarBarCheck`, ... +12 more
+- Properties: `themePalette: var`, `nodeId: string`, `bridgeRef: var`, `fullscreenBridgeRef: var`, `hostServiceRef: var`, `sessionState: var`, `detachedPresentation: bool`, `panelCollapsed: bool`, `savedSelections: var`, `engineeringToolMessage: string`, `selectedSceneId: string`, `sessionOptions: var`, `sessionSummary: var`, `sceneLayers: var`, `selectedSceneIndex: int`, `selectedScene: var`, `selectedSceneStyle: var`, `infoSummary: var`, ... +22 more
 - Signals: _None_
-- Functions: `refreshSelections`, `setViewerOption`, `renderModeSupported`, `modelTreeDepth`, `runEngineeringQuery`, `runEngineeringExport`, `onViewerControlChanged`, `onViewerQueryCompleted`, `_formatStat`
+- Functions: `refreshSelections`, `setViewerOption`, `setSceneStyle`, `renderModeSupported`, `modelTreeDepth`, `runEngineeringQuery`, `runEngineeringExport`, `onViewerControlChanged`, `onViewerQueryCompleted`, `_formatStat`
 - Instantiates: `Connections`, `Text`, `ToolButton`, `Flickable`, `ColumnLayout`, `Repeater`, `RowLayout`, `ShellButton`, `PanelCheck`, `ComboBox`, `PanelField`, `GridLayout`, `Common.ManagedToolTip`, `Item`
-- Dynamic constructs: `Repeater`; `model` -> `sidePanel.supportsModelTree`, `sidePanel.sessionSummary.model_tree`; `model` -> `sidePanel.supportsModelTree`, `sidePanel.sessionSummary.scene_layers`; `model`; `model` -> `sidePanel.colormapValues`; `model` -> `Boolean`, `sidePanel.capabilities.saved_selections`
+- Dynamic constructs: `Repeater`; `model` -> `sidePanel.supportsModelTree`, `sidePanel.sessionSummary.model_tree`; `model` -> `sidePanel.supportsModelTree`, `sidePanel.sessionSummary.scene_layers`; `model`; `model` -> `sidePanel.colormapValues`; `model` -> `sidePanel.sceneLayers`; `model` -> `Boolean`, `sidePanel.capabilities.saved_selections`
 - Signal handlers: `handler` `onNodeIdChanged`; `handler` `Component.onCompleted`; `handler` `onClicked`; `handler` `onToggled`; `handler` `onActivated`; `handler` `onEditingFinished`
 - Connections: `target` `sidePanel.bridgeRef`
-- Property bindings: `binding` `implicitWidth` -> `panelCollapsed`; `binding` `color` -> `themePalette.panel_bg`; `binding` `border.width`; `binding` `border.color` -> `themePalette.input_border`; `binding` `radius`; `binding` `clip`; `binding` `ignoreUnknownSignals`; `binding` `Layout.fillWidth`; `binding` `Layout.preferredHeight`; `binding` `font.pixelSize`; `binding` `color` -> `enabled`, `sidePanel.themePalette.tab_fg`, `sidePanel.themePalette.muted_fg`; `binding` `placeholderTextColor` -> `sidePanel.themePalette.muted_fg`; `binding` `selectionColor` -> `sidePanel.themePalette.accent`; `binding` `selectedTextColor` -> `sidePanel.themePalette.tab_selected_fg`; `binding` `background` -> `Rectangle`; `binding` `color` -> `sidePanel.themePalette.input_bg`; `binding` `border.color` -> `panelField.activeFocus`; `binding` `spacing`; ... +107 more
+- Property bindings: `binding` `implicitWidth` -> `panelCollapsed`; `binding` `color` -> `themePalette.panel_bg`; `binding` `border.width`; `binding` `border.color` -> `themePalette.input_border`; `binding` `radius`; `binding` `clip`; `binding` `ignoreUnknownSignals`; `binding` `Layout.fillWidth`; `binding` `Layout.preferredHeight`; `binding` `font.pixelSize`; `binding` `color` -> `enabled`, `sidePanel.themePalette.tab_fg`, `sidePanel.themePalette.muted_fg`; `binding` `placeholderTextColor` -> `sidePanel.themePalette.muted_fg`; `binding` `selectionColor` -> `sidePanel.themePalette.accent`; `binding` `selectedTextColor` -> `sidePanel.themePalette.tab_selected_fg`; `binding` `background` -> `Rectangle`; `binding` `color` -> `sidePanel.themePalette.input_bg`; `binding` `border.color` -> `panelField.activeFocus`; `binding` `spacing`; ... +113 more
 - Local component refs: `localComponent` `ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`; `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`
 
 ### `ViewerToolButton.qml`
@@ -1997,17 +1998,17 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Root component: `Item`
 - Agent route aliases: `GraphCanvasBackground`, `GraphCanvasBackground.qml`, `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasBackground.qml`, `ea_node_editor\ui_qml\components\graph_canvas\GraphCanvasBackground.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Window 2.15`, `QtQml 2.15`, `"GraphCanvasLogic.js" as GraphCanvasLogic`, `"CanvasBackgroundStyle.js" as CanvasBackgroundStyle`
-- IDs: `root`, `tiledGridRenderer`, `gridCanvas`
+- IDs: `root`, `shaderGridRenderer`, `gridCanvas`
 - Object names: `graphCanvasGridCanvasFallback`
-- Properties: `viewBridge: var`, `canvasBackgroundVariant: string`, `showGrid: bool`, `gridStyle: string`, `gridRendererPreference: string`, `_redrawRequestCount: int`, `_viewStateRedrawDirty: bool`, `_gridCacheBuildCount: int`, `profileGridUpdateCount: int`, `profileLastGridUpdateMs: real`, `profileLastGridPaintMs: real`, `profileGridItemCount: int`, `profileGridMinorItemCount: int`, `profileGridMajorItemCount: int`, `profileGridRowCount: int`, `profileGridColumnCount: int`, `_zoomBucketScaleLimit: real`, `_committedZoom: real`, ... +21 more
+- Properties: `viewBridge: var`, `canvasBackgroundVariant: string`, `showGrid: bool`, `gridStyle: string`, `gridRendererPreference: string`, `_redrawRequestCount: int`, `_viewStateRedrawDirty: bool`, `profileGridUpdateCount: int`, `profileLastGridUpdateMs: real`, `profileLastGridPaintMs: real`, `profileGridItemCount: int`, `profileGridMinorItemCount: int`, `profileGridMajorItemCount: int`, `profileGridRowCount: int`, `profileGridColumnCount: int`, `_zoom: real`, `_centerX: real`, `_centerY: real`, ... +16 more
 - Signals: _None_
-- Functions: `_normalizedZoom`, `_gridStepForZoom`, `_normalizedGridRendererPreference`, `_syncCommittedViewState`, `_resetGridCache`, `_ensureGridCache`, `requestGridRedraw`, `markViewStateRedrawDirty`, `flushViewStateRedraw`, `_currentGridStep`, `_currentGridPeriod`, `_gridAnchorX`, `_gridAnchorY`, `_gridOffsetX`, `_gridOffsetY`, `_recordGridUpdate`, `_estimatedCanvasGridItemCount`, `_syncGridItemMetrics`, ... +2 more
-- Instantiates: `Rectangle`, `GradientStop`, `GraphCanvasGridTiled`, `Canvas`
+- Functions: `_normalizedZoom`, `_gridStepForZoom`, `requestGridRedraw`, `markViewStateRedrawDirty`, `flushViewStateRedraw`, `_currentGridStep`, `_currentGridPeriod`, `_gridAnchorX`, `_gridAnchorY`, `_gridOffsetX`, `_gridOffsetY`, `_recordGridUpdate`, `onView_state_changed`, `drawLineGrid`, `drawPointGrid`
+- Instantiates: `Rectangle`, `GradientStop`, `GraphCanvasGridShader`, `Connections`, `Canvas`
 - Dynamic constructs: _None_
-- Signal handlers: `handler` `onShowGridChanged`; `handler` `onGridStyleChanged`; `handler` `onCanvasBackgroundVariantChanged`; `handler` `onGridRendererPreferenceChanged`; `handler` `onThemePaletteChanged`; `handler` `onWidthChanged`; `handler` `onHeightChanged`; `handler` `Component.onCompleted`; `handler` `onPaint`
-- Connections: _None_
-- Property bindings: `binding` `anchors.fill` -> `parent`; `binding` `gradient` -> `Gradient`; `binding` `color` -> `root.backgroundFillColor`; `binding` `visible` -> `root.effectiveShowGrid`, `root._useTiledGridRenderer`; `binding` `gridVisible` -> `root.effectiveShowGrid`, `root._useTiledGridRenderer`; `binding` `gridStyle` -> `root.effectiveGridStyle`; `binding` `minorGridColor` -> `root.minorGridColor`; `binding` `majorGridColor` -> `root.majorGridColor`; `binding` `minorStep` -> `root._currentGridStep`; `binding` `majorStep` -> `root._currentGridPeriod`; `binding` `minorOffsetX` -> `root._gridOffsetX`, `root._currentGridStep`; `binding` `minorOffsetY` -> `root._gridOffsetY`, `root._currentGridStep`; `binding` `majorOffsetX` -> `root._gridOffsetX`, `root._currentGridPeriod`; `binding` `majorOffsetY` -> `root._gridOffsetY`, `root._currentGridPeriod`; `binding` `minorPointSize` -> `root.minorGridPointSize`; `binding` `majorPointSize` -> `root.majorGridPointSize`; `binding` `devicePixelRatio` -> `root._devicePixelRatio`; `binding` `updateRevision` -> `root._redrawRequestCount`; ... +2 more
-- Local component refs: `localComponent` `GraphCanvasGridTiled`: `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridTiled.qml`
+- Signal handlers: `handler` `onEffectiveShowGridChanged`; `handler` `onGridStyleChanged`; `handler` `onCanvasBackgroundVariantChanged`; `handler` `onActiveGridRendererKindChanged`; `handler` `onThemePaletteChanged`; `handler` `onWidthChanged`; `handler` `onHeightChanged`; `handler` `Component.onCompleted`; `handler` `onPaint`
+- Connections: `target` `root.viewBridge`
+- Property bindings: `binding` `on_DevicePixelRatioChanged` -> `requestGridRedraw`; `binding` `anchors.fill` -> `parent`; `binding` `gradient` -> `Gradient`; `binding` `color` -> `root.backgroundFillColor`; `binding` `visible` -> `root.effectiveShowGrid`, `root._useShaderGridRenderer`; `binding` `gridStyle` -> `root.effectiveGridStyle`; `binding` `minorGridColor` -> `root.minorGridColor`; `binding` `majorGridColor` -> `root.majorGridColor`; `binding` `minorStep` -> `root._currentGridStep`; `binding` `majorStep` -> `root._currentGridPeriod`; `binding` `minorOffset` -> `Qt.vector2d`, `root._gridOffsetX`, `minorStep`, `root._gridOffsetY`; `binding` `majorOffset` -> `Qt.vector2d`, `root._gridOffsetX`, `majorStep`, `root._gridOffsetY`; `binding` `minorPointSize` -> `root.minorGridPointSize`; `binding` `majorPointSize` -> `root.majorGridPointSize`; `binding` `devicePixelRatio` -> `root._devicePixelRatio`; `binding` `visible` -> `root.effectiveShowGrid`, `root._useCanvasGridRenderer`; `binding` `antialiasing`
+- Local component refs: `localComponent` `GraphCanvasGridShader`: `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridShader.qml`
 
 ### `GraphCanvasContextMenus.qml`
 
@@ -2081,22 +2082,22 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Property bindings: `binding` `visible`; `binding` `width`; `binding` `height`; `binding` `interval` -> `Math.max`, `Number`, `root.frameBudgetMs`; `binding` `repeat`; `binding` `interval`; `binding` `running` -> `root._elapsedHosts.length`
 - Local component refs: _None_
 
-### `GraphCanvasGridTiled.qml`
+### `GraphCanvasGridShader.qml`
 
-- Path: `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridTiled.qml`
-- Root component: `Item`
-- Agent route aliases: `GraphCanvasGridTiled`, `GraphCanvasGridTiled.qml`, `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridTiled.qml`, `ea_node_editor\ui_qml\components\graph_canvas\GraphCanvasGridTiled.qml`
-- Imports: `QtQuick 2.15`, `QtQuick.Window 2.15`
-- IDs: `root`, `lineGrid`, `pointGrid`
-- Object names: `graphCanvasGridTiledRenderer`
-- Properties: `gridVisible: bool`, `gridStyle: string`, `minorGridColor: color`, `majorGridColor: color`, `minorStep: real`, `majorStep: real`, `minorOffsetX: real`, `minorOffsetY: real`, `majorOffsetX: real`, `majorOffsetY: real`, `minorPointSize: real`, `majorPointSize: real`, `devicePixelRatio: real`, `updateRevision: int`, `effectiveDevicePixelRatio: real`, `linePixelSize: real`, `minorPointPixelSize: real`, `majorPointPixelSize: real`, ... +17 more
+- Path: `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridShader.qml`
+- Root component: `ShaderEffect`
+- Agent route aliases: `GraphCanvasGridShader`, `GraphCanvasGridShader.qml`, `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridShader.qml`, `ea_node_editor\ui_qml\components\graph_canvas\GraphCanvasGridShader.qml`
+- Imports: `QtQuick 2.15`
+- IDs: `root`
+- Object names: `graphCanvasGridShaderRenderer`
+- Properties: `gridStyle: string`, `minorGridColor: color`, `majorGridColor: color`, `minorStep: real`, `majorStep: real`, `minorOffset: vector2d`, `majorOffset: vector2d`, `minorPointSize: real`, `majorPointSize: real`, `devicePixelRatio: real`, `viewportSize: vector2d`, `pointStyle: real`
 - Signals: _None_
-- Functions: `_positiveNumber`, `_normalizedOffset`, `_countAlong`
-- Instantiates: `Repeater`, `Rectangle`
-- Dynamic constructs: `Repeater`; `model` -> `lineGrid.visible`, `root.minorColumnCount`; `model` -> `lineGrid.visible`, `root.minorRowCount`; `model` -> `lineGrid.visible`, `root.majorColumnCount`; `model` -> `lineGrid.visible`, `root.majorRowCount`; `model` -> `pointGrid.visible`, `root.minorRowCount`; `model` -> `root.minorColumnCount`; `model` -> `pointGrid.visible`, `root.majorRowCount`; `model` -> `root.majorColumnCount`
+- Functions: _None_
+- Instantiates: _None_
+- Dynamic constructs: _None_
 - Signal handlers: _None_
 - Connections: _None_
-- Property bindings: `binding` `anchors.fill` -> `parent`; `binding` `visible` -> `root.effectiveGridVisible`, `root.pointStyle`; `binding` `x` -> `Math.round`, `root._minorOffsetX`, `index`, `root._minorStep`, `root.linePixelSize`; `binding` `y`; `binding` `width` -> `root.linePixelSize`; `binding` `height` -> `root.height`; `binding` `color` -> `root.minorGridColor`; `binding` `antialiasing`; `binding` `x`; `binding` `y` -> `Math.round`, `root._minorOffsetY`, `index`, `root._minorStep`, `root.linePixelSize`; `binding` `width` -> `root.width`; `binding` `height` -> `root.linePixelSize`; `binding` `x` -> `Math.round`, `root._majorOffsetX`, `index`, `root._majorStep`, `root.linePixelSize`; `binding` `color` -> `root.majorGridColor`; `binding` `y` -> `Math.round`, `root._majorOffsetY`, `index`, `root._majorStep`, `root.linePixelSize`; `binding` `height` -> `root.minorPointPixelSize`; `binding` `y` -> `root._minorOffsetY`, `index`, `root._minorStep`, `root.minorPointPixelSize`; `binding` `x` -> `root._minorOffsetX`, `index`, `root._minorStep`, `root.minorPointPixelSize`; ... +6 more
+- Property bindings: `binding` `fragmentShader` -> `shaders/grid.frag.qsb`
 - Local component refs: _None_
 
 ### `GraphCanvasInputLayers.qml`
@@ -2969,17 +2970,17 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Root component: `Item`
 - Agent route aliases: `LibraryWorkflowContextPopup`, `LibraryWorkflowContextPopup.qml`, `ea_node_editor/ui_qml/components/shell/LibraryWorkflowContextPopup.qml`, `ea_node_editor\ui_qml\components\shell\LibraryWorkflowContextPopup.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`
-- IDs: `root`, `libraryContextPopup`, `workflowContextMenu`
+- IDs: `root`, `libraryContextPopup`
 - Object names: _None_
 - Properties: `shellLibraryBridgeRef: var`, `libraryContextWorkflowId: string`, `libraryContextWorkflowScope: string`, `libraryContextWorkflowReadOnly: bool`, `editableContextMenuActions: var`, `contextMenuActions: var`, `themeBridgeRef: var`, `themePalette: var`
 - Signals: _None_
 - Functions: `openPopup`
-- Instantiates: `Popup`
+- Instantiates: `ShellContextPopup`
 - Dynamic constructs: _None_
 - Signal handlers: `handler` `onWidthChanged`; `handler` `onHeightChanged`; `handler` `onActionTriggered`
 - Connections: _None_
-- Property bindings: `binding` `parent` -> `root`; `binding` `modal`; `binding` `focus`; `binding` `padding`; `binding` `closePolicy` -> `Popup.CloseOnEscape`, `Popup.CloseOnPressOutside`; `binding` `implicitWidth` -> `workflowContextMenu.implicitWidth`; `binding` `implicitHeight` -> `workflowContextMenu.implicitHeight`; `binding` `z`; `binding` `background` -> `Item`; `binding` `contentItem` -> `ShellContextMenu`; `binding` `themeBridgeRef` -> `root.themeBridgeRef`; `binding` `minimumWidth`; `binding` `actions` -> `root.contextMenuActions`
-- Local component refs: _None_
+- Property bindings: `binding` `themeBridgeRef` -> `root.themeBridgeRef`; `binding` `minimumWidth`; `binding` `actions` -> `root.contextMenuActions`
+- Local component refs: `localComponent` `ShellContextPopup`: `ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml`
 
 ### `NodeBrowserOverlay.qml`
 
@@ -3110,20 +3111,38 @@ This compact index gives agents deterministic aliases for QML components, symbol
 ### `ShellContextMenu.qml`
 
 - Path: `ea_node_editor/ui_qml/components/shell/ShellContextMenu.qml`
-- Root component: `Item`
+- Root component: `FocusScope`
 - Agent route aliases: `ShellContextMenu`, `ShellContextMenu.qml`, `ea_node_editor/ui_qml/components/shell/ShellContextMenu.qml`, `ea_node_editor\ui_qml\components\shell\ShellContextMenu.qml`
 - Imports: `QtQuick 2.15`, `"../common" as Common`
-- IDs: `root`, `menuPanel`, `contentColumn`, `actionBackground`, `actionCheck`, `actionLabel`, `actionMouseArea`
+- IDs: `root`, `labelMetrics`, `shortcutMetrics`, `menuPanel`, `contentColumn`, `actionRow`, `actionBackground`, `actionCheck`, `actionLabel`, `shortcutLabel`, `actionMouseArea`
 - Object names: _None_
-- Properties: `actions: var`, `tooltipPolicyBridge: var`, `minimumWidth: int`, `rowHeight: int`, `contentPadding: int`, `cornerRadius: int`, `color: alias`, `themeBridgeRef: var`, `themePalette: var`, `shadowDepth: int`, `visibleActions: var`, `separatorCount: int`, `panelWidth: int`, `panelHeight: int`, `destructive: bool`, `actionEnabled: bool`, `actionChecked: bool`, `actionText: string`, ... +3 more
-- Signals: `actionTriggered`
-- Functions: _None_
-- Instantiates: `Rectangle`, `Column`, `Repeater`, `Text`, `MouseArea`, `Common.ManagedToolTip`
+- Properties: `actions: var`, `tooltipPolicyBridge: var`, `minimumWidth: int`, `rowHeight: int`, `contentPadding: int`, `cornerRadius: int`, `color: alias`, `themeBridgeRef: var`, `themePalette: var`, `shadowDepth: int`, `currentIndex: int`, `visibleActions: var`, `separatorCount: int`, `panelWidth: int`, `panelHeight: int`, `destructive: bool`, `actionEnabled: bool`, `checked: bool`, ... +5 more
+- Signals: `actionTriggered`, `dismissRequested`
+- Functions: `selectNext`, `activateCurrent`
+- Instantiates: `FontMetrics`, `Rectangle`, `Column`, `Repeater`, `Text`, `MouseArea`, `Common.ManagedToolTip`
 - Dynamic constructs: `Repeater`; `model` -> `root.visibleActions`; `delegate` -> `Item`
-- Signal handlers: `handler` `onClicked`
+- Signal handlers: `handler` `onVisibleActionsChanged`; `handler` `onVisibleChanged`; `handler` `Keys.onPressed`; `handler` `Accessible.onPressAction`; `handler` `onPositionChanged`; `handler` `onEntered`; `handler` `onExited`; `handler` `onClicked`
 - Connections: _None_
-- Property bindings: `binding` `implicitWidth` -> `root.panelWidth`; `binding` `implicitHeight` -> `root.panelHeight`, `root.shadowDepth`; `binding` `width` -> `implicitWidth`; `binding` `height` -> `implicitHeight`; `binding` `visible` -> `root.visibleActions.length`; `binding` `x`; `binding` `y`; `binding` `width` -> `root.panelWidth`; `binding` `height` -> `root.panelHeight`; `binding` `radius` -> `root.cornerRadius`; `binding` `color` -> `Qt.alpha`; `binding` `color` -> `root.themePalette.panel_bg`; `binding` `border.width`; `binding` `border.color` -> `Qt.alpha`, `root.themePalette.input_border`; `binding` `anchors.left` -> `parent.left`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.top` -> `parent.top`; `binding` `height`; ... +38 more
+- Property bindings: `binding` `Accessible.role` -> `Accessible.PopupMenu`; `binding` `implicitWidth` -> `root.panelWidth`; `binding` `implicitHeight` -> `root.panelHeight`, `root.shadowDepth`; `binding` `width` -> `implicitWidth`; `binding` `height` -> `implicitHeight`; `binding` `visible` -> `root.visibleActions.length`; `binding` `x`; `binding` `y`; `binding` `width` -> `root.width`; `binding` `height` -> `root.panelHeight`; `binding` `radius` -> `root.cornerRadius`; `binding` `color` -> `Qt.alpha`; `binding` `color` -> `root.themePalette.panel_bg`; `binding` `border.width`; `binding` `border.color` -> `Qt.alpha`, `root.themePalette.input_border`; `binding` `anchors.left` -> `parent.left`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.top` -> `parent.top`; ... +45 more
 - Local component refs: `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`
+
+### `ShellContextPopup.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml`
+- Root component: `Popup`
+- Agent route aliases: `ShellContextPopup`, `ShellContextPopup.qml`, `ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml`, `ea_node_editor\ui_qml\components\shell\ShellContextPopup.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Window 2.15`
+- IDs: `popup`, `viewport`, `menu`
+- Object names: _None_
+- Properties: `actions: alias`, `themeBridgeRef: alias`, `tooltipPolicyBridge: alias`, `minimumWidth: alias`, `menuContent: alias`, `previousFocusItem: Item`
+- Signals: `actionTriggered`
+- Functions: `openAt`
+- Instantiates: `ShellContextMenu`
+- Dynamic constructs: _None_
+- Signal handlers: `handler` `onAboutToShow`; `handler` `onOpened`; `handler` `onClosed`; `handler` `onDismissRequested`; `handler` `onActionTriggered`; `handler` `onCurrentIndexChanged`
+- Connections: _None_
+- Property bindings: `binding` `parent` -> `Overlay.overlay`; `binding` `modal`; `binding` `focus`; `binding` `padding`; `binding` `margins`; `binding` `z`; `binding` `closePolicy` -> `Popup.CloseOnEscape`, `Popup.CloseOnPressOutside`; `binding` `implicitWidth` -> `menu.implicitWidth`; `binding` `implicitHeight` -> `menu.implicitHeight`; `binding` `width` -> `Math.min`, `implicitWidth`, `parent`, `parent.Window.window`, `Math.max`, `parent.Window.window.width`; `binding` `height` -> `Math.min`, `implicitHeight`, `parent`, `parent.Window.window`, `Math.max`, `parent.Window.window.height`; `binding` `background` -> `Item`; `binding` `contentItem` -> `Flickable`; `binding` `contentWidth` -> `width`; `binding` `contentHeight` -> `menu.height`; `binding` `clip`; `binding` `boundsBehavior` -> `Flickable.StopAtBounds`; `binding` `interactive` -> `contentHeight`, `height`; ... +2 more
+- Local component refs: `localComponent` `ShellContextMenu`: `ea_node_editor/ui_qml/components/shell/ShellContextMenu.qml`
 
 ### `ShellCreateButton.qml`
 
@@ -3149,17 +3168,17 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Root component: `RowLayout`
 - Agent route aliases: `ShellLabeledTabStrip`, `ShellLabeledTabStrip.qml`, `ea_node_editor/ui_qml/components/shell/ShellLabeledTabStrip.qml`, `ea_node_editor\ui_qml\components\shell\ShellLabeledTabStrip.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `QtQml.Models 2.15`, `"../common/TooltipCopy.js" as TooltipCopy`
-- IDs: `root`, `activeTabRevealTimer`, `titleLabel`, `stripCard`, `stripChromeRow`, `scrollBackwardButton`, `tabsViewportHost`, `tabsViewport`, `tabsList`, `dragOverlay`, `scrollForwardButton`, `createButton`, `visualModel`, `tabSlot`, `tabLabelMetrics`, `activeTabLabelMetrics`, `tabButton`, `glassGradient`, ... +3 more
+- IDs: `root`, `activeTabRevealTimer`, `titleLabel`, `stripCard`, `stripChromeRow`, `scrollBackwardButton`, `tabsViewportHost`, `tabsViewport`, `tabsList`, `dragOverlay`, `scrollForwardButton`, `createButton`, `visualModel`, `tabSlot`, `tabLabelMetrics`, `activeTabLabelMetrics`, `tabButton`, `glassGradient`, ... +2 more
 - Object names: `tabStripScrollBackwardButton`, `tabStripViewportHost`, `tabStripViewport`, `tabStripListView`, `tabStripDragOverlay`, `tabStripScrollForwardButton`, `tabStripCreateButton`
-- Properties: `titleText: string`, `model: var`, `isTabActive: var`, `densityPreset: string`, `tabLabelKey: string`, `minTabWidth: int`, `maxTabWidth: int`, `tabHorizontalPadding: int`, `createButtonMinimumWidth: int`, `createButtonHorizontalPadding: int`, `contextMenuActions: var`, `createButtonText: string`, `createButtonAccentOutline: bool`, `contextMenuItemData: var`, `tabSlots: var`, `testWheelHorizontalDelta: int`, `testWheelVerticalDelta: int`, `testWheelShiftHeld: bool`, ... +45 more
+- Properties: `titleText: string`, `model: var`, `isTabActive: var`, `densityPreset: string`, `tabLabelKey: string`, `minTabWidth: int`, `maxTabWidth: int`, `tabHorizontalPadding: int`, `createButtonMinimumWidth: int`, `createButtonHorizontalPadding: int`, `contextMenuActions: var`, `createButtonText: string`, `createButtonAccentOutline: bool`, `contextMenuItemData: var`, `tabSlots: var`, `testWheelHorizontalDelta: int`, `testWheelVerticalDelta: int`, `testWheelShiftHeld: bool`, ... +44 more
 - Signals: `tabActivated`, `tabMoveRequested`, `contextMenuActionRequested`, `createActivated`
 - Functions: `tabLabelForItem`, `white`, `black`, `glassTrackBorderColor`, `glassTabFill`, `glassTabBorderColor`, `glassHighlightOpacity`, `orderedTabSlots`, `reorderTargetIndexForCenterX`, `updateTabReorderTarget`, `setTabSlotRegistration`, `registerTabSlot`, `unregisterTabSlot`, `dragMinimumXForSlot`, `dragMaximumXForSlot`, `resetDraggedTabPosition`, `finalizeTabDrag`, `openContextMenu`, ... +13 more
-- Instantiates: `Timer`, `Text`, `Rectangle`, `ShellButton`, `Item`, `Flickable`, `ListView`, `NumberAnimation`, `MouseArea`, `ShellCreateButton`, `DelegateModel`, `TextMetrics`, `ParentChange`, `PropertyChanges`, `Gradient`, `GradientStop`, `Popup`
+- Instantiates: `Timer`, `Text`, `Rectangle`, `ShellButton`, `Item`, `Flickable`, `ListView`, `NumberAnimation`, `MouseArea`, `ShellCreateButton`, `DelegateModel`, `TextMetrics`, `ParentChange`, `PropertyChanges`, `Gradient`, `GradientStop`, `ShellContextPopup`
 - Dynamic constructs: `model`; `ListView`; `model` -> `visualModel`; `model` -> `root.model`; `delegate` -> `Item`
 - Signal handlers: `handler` `onModelChanged`; `handler` `onWidthChanged`; `handler` `onHeightChanged`; `handler` `Component.onCompleted`; `handler` `onTriggered`; `handler` `onClicked`; `handler` `onContentWidthChanged`; `handler` `onWheel`; `handler` `Component.onDestruction`; `handler` `onXChanged`; `handler` `onDraggingChanged`; `handler` `onActiveChanged`; `handler` `onPressed`; `handler` `onReleased`; `handler` `onCanceled`; `handler` `onActionTriggered`
 - Connections: _None_
-- Property bindings: `binding` `implicitWidth` -> `titleLabel.implicitWidth`, `spacing`, `stripCard.implicitWidth`; `binding` `implicitHeight` -> `Math.max`, `titleLabel.implicitHeight`, `stripCard.implicitHeight`; `binding` `spacing` -> `root.compactDensity`; `binding` `interval`; `binding` `repeat`; `binding` `Layout.alignment` -> `Qt.AlignVCenter`; `binding` `text` -> `root.titleText`; `binding` `color` -> `root.themePalette.muted_fg`; `binding` `font.pixelSize` -> `root.titleFontSize`; `binding` `font.bold`; `binding` `font.letterSpacing` -> `root.titleLetterSpacing`; `binding` `Layout.fillWidth`; `binding` `Layout.minimumWidth`; `binding` `implicitWidth` -> `stripChromeRow.implicitWidth`, `root.cardHorizontalPadding`; `binding` `implicitHeight` -> `stripChromeRow.implicitHeight`, `root.cardVerticalPadding`; `binding` `radius` -> `root.tabHeight`; `binding` `color`; `binding` `border.width`; ... +102 more
-- Local component refs: `localComponent` `ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`; `localComponent` `ShellCreateButton`: `ea_node_editor/ui_qml/components/shell/ShellCreateButton.qml`
+- Property bindings: `binding` `implicitWidth` -> `titleLabel.implicitWidth`, `spacing`, `stripCard.implicitWidth`; `binding` `implicitHeight` -> `Math.max`, `titleLabel.implicitHeight`, `stripCard.implicitHeight`; `binding` `spacing` -> `root.compactDensity`; `binding` `interval`; `binding` `repeat`; `binding` `Layout.alignment` -> `Qt.AlignVCenter`; `binding` `text` -> `root.titleText`; `binding` `color` -> `root.themePalette.muted_fg`; `binding` `font.pixelSize` -> `root.titleFontSize`; `binding` `font.bold`; `binding` `font.letterSpacing` -> `root.titleLetterSpacing`; `binding` `Layout.fillWidth`; `binding` `Layout.minimumWidth`; `binding` `implicitWidth` -> `stripChromeRow.implicitWidth`, `root.cardHorizontalPadding`; `binding` `implicitHeight` -> `stripChromeRow.implicitHeight`, `root.cardVerticalPadding`; `binding` `radius` -> `root.tabHeight`; `binding` `color`; `binding` `border.width`; ... +93 more
+- Local component refs: `localComponent` `ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`; `localComponent` `ShellCreateButton`: `ea_node_editor/ui_qml/components/shell/ShellCreateButton.qml`; `localComponent` `ShellContextPopup`: `ea_node_editor/ui_qml/components/shell/ShellContextPopup.qml`
 
 ### `ShellRunToolbar.qml`
 

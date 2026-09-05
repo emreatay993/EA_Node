@@ -82,7 +82,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertIn('import "graph_canvas/GraphCanvasRootApi.js" as GraphCanvasRootApi', graph_canvas_text)
         self.assertIn("GraphCanvasComponents.GraphCanvasRootLayers {", graph_canvas_text)
         self.assertIn("readonly property var canvasStateBridgeRef: root.canvasStateBridge || null", graph_canvas_text)
-        self.assertIn("GraphCanvasGridTiled {", background_text)
+        self.assertIn("GraphCanvasGridShader {", background_text)
         self.assertIn("function snapToGridValue(canvasStateBridge, value) {", root_api_text)
 
     def test_graph_node_semantic_palette_replaces_execution_glows(self) -> None:
@@ -124,16 +124,17 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
     def test_graph_canvas_background_switches_between_line_point_and_fallback_renderer_modes(self) -> None:
         background = self.canvas.findChild(QObject, "graphCanvasBackground")
-        tiled_renderer = self.canvas.findChild(QObject, "graphCanvasGridTiledRenderer")
+        shader_renderer = self.canvas.findChild(QObject, "graphCanvasGridShaderRenderer")
         canvas_fallback = self.canvas.findChild(QObject, "graphCanvasGridCanvasFallback")
         self.assertIsNotNone(background)
-        self.assertIsNotNone(tiled_renderer)
+        self.assertIsNotNone(shader_renderer)
         self.assertIsNotNone(canvas_fallback)
         self.assertEqual(str(background.property("gridStyle")), "lines")
         self.assertEqual(str(background.property("effectiveGridStyle")), "lines")
-        self.assertEqual(str(background.property("profileGridRendererKind")), "tiled")
-        self.assertTrue(bool(tiled_renderer.property("visible")))
-        self.assertFalse(bool(canvas_fallback.property("visible")))
+        renderer_kind = str(background.property("profileGridRendererKind"))
+        self.assertIn(renderer_kind, ("shader", "canvas"))
+        self.assertEqual(bool(shader_renderer.property("visible")), renderer_kind == "shader")
+        self.assertEqual(bool(canvas_fallback.property("visible")), renderer_kind == "canvas")
 
         self.bridge.set_graphics_grid_style_value("points")
         self.app.processEvents()
@@ -141,14 +142,14 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertEqual(str(self.canvas.property("gridStyle")), "points")
         self.assertEqual(str(background.property("gridStyle")), "points")
         self.assertEqual(str(background.property("effectiveGridStyle")), "points")
-        self.assertEqual(str(tiled_renderer.property("gridStyle")), "points")
-        self.assertEqual(str(background.property("profileGridRendererKind")), "tiled")
+        self.assertEqual(str(shader_renderer.property("gridStyle")), "points")
+        self.assertEqual(str(background.property("profileGridRendererKind")), renderer_kind)
 
         background.setProperty("gridRendererPreference", "canvas")
         self.app.processEvents()
 
         self.assertEqual(str(background.property("profileGridRendererKind")), "canvas")
-        self.assertFalse(bool(tiled_renderer.property("visible")))
+        self.assertFalse(bool(shader_renderer.property("visible")))
         self.assertTrue(bool(canvas_fallback.property("visible")))
 
     def test_edge_layer_reports_retained_renderer_and_fallback_renderer_contract(self) -> None:
@@ -1239,7 +1240,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
     def test_canvas_qml_theme_surfaces_follow_runtime_theme_changes(self) -> None:
         background = self.canvas.findChild(QObject, "graphCanvasBackground")
-        tiled_renderer = self.canvas.findChild(QObject, "graphCanvasGridTiledRenderer")
+        shader_renderer = self.canvas.findChild(QObject, "graphCanvasGridShaderRenderer")
         minimap_overlay = self.canvas.findChild(QObject, "graphCanvasMinimapOverlay")
         minimap_toggle = self.canvas.findChild(QObject, "graphCanvasMinimapToggle")
         minimap_viewport_rect = self.canvas.findChild(QObject, "graphCanvasMinimapViewportRect")
@@ -1248,7 +1249,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         marquee_rect = self.canvas.findChild(QObject, "graphCanvasMarqueeRect")
 
         self.assertIsNotNone(background)
-        self.assertIsNotNone(tiled_renderer)
+        self.assertIsNotNone(shader_renderer)
         self.assertIsNotNone(minimap_overlay)
         self.assertIsNotNone(minimap_toggle)
         self.assertIsNotNone(minimap_viewport_rect)
@@ -1258,8 +1259,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
         self.assertEqual(_color_name(background.property("backgroundFillColor")), STITCH_DARK_V1.canvas_bg)
         self.assertEqual(_color_name(background.property("minorGridColor")), STITCH_DARK_V1.canvas_minor_grid)
-        self.assertEqual(_color_name(tiled_renderer.property("minorGridColor")), STITCH_DARK_V1.canvas_minor_grid)
-        self.assertEqual(_color_name(tiled_renderer.property("majorGridColor")), STITCH_DARK_V1.canvas_major_grid)
+        self.assertEqual(_color_name(shader_renderer.property("minorGridColor")), STITCH_DARK_V1.canvas_minor_grid)
+        self.assertEqual(_color_name(shader_renderer.property("majorGridColor")), STITCH_DARK_V1.canvas_major_grid)
         self.assertEqual(
             _color_name(minimap_overlay.property("color"), include_alpha=True),
             _alpha_color_name(STITCH_DARK_V1.panel_bg, 0.64),
@@ -1298,8 +1299,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
         self.assertEqual(_color_name(background.property("backgroundFillColor")), STITCH_LIGHT_V1.canvas_bg)
         self.assertEqual(_color_name(background.property("minorGridColor")), STITCH_LIGHT_V1.canvas_minor_grid)
-        self.assertEqual(_color_name(tiled_renderer.property("minorGridColor")), STITCH_LIGHT_V1.canvas_minor_grid)
-        self.assertEqual(_color_name(tiled_renderer.property("majorGridColor")), STITCH_LIGHT_V1.canvas_major_grid)
+        self.assertEqual(_color_name(shader_renderer.property("minorGridColor")), STITCH_LIGHT_V1.canvas_minor_grid)
+        self.assertEqual(_color_name(shader_renderer.property("majorGridColor")), STITCH_LIGHT_V1.canvas_major_grid)
         self.assertEqual(
             _color_name(minimap_overlay.property("color"), include_alpha=True),
             _alpha_color_name(STITCH_LIGHT_V1.panel_bg, 0.64),
@@ -1337,8 +1338,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
 
         self.assertEqual(_color_name(background.property("backgroundFillColor")), "#ffffff")
         self.assertEqual(_color_name(background.property("minorGridColor")), STITCH_LIGHT_V1.canvas_minor_grid)
-        self.assertEqual(_color_name(tiled_renderer.property("minorGridColor")), STITCH_LIGHT_V1.canvas_minor_grid)
-        self.assertEqual(_color_name(tiled_renderer.property("majorGridColor")), STITCH_LIGHT_V1.canvas_major_grid)
+        self.assertEqual(_color_name(shader_renderer.property("minorGridColor")), STITCH_LIGHT_V1.canvas_minor_grid)
+        self.assertEqual(_color_name(shader_renderer.property("majorGridColor")), STITCH_LIGHT_V1.canvas_major_grid)
 
     def test_graph_canvas_world_stacks_above_edge_layer(self) -> None:
         edge_layer = self.canvas.findChild(QObject, "graphCanvasEdgeLayer")

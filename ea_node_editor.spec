@@ -498,6 +498,7 @@ datas += collect_data_files(
         "**/*.json",
         "*.txt",
         "**/*.txt",
+        "**/*.qsb",
     ],
 )
 datas += collect_data_files(

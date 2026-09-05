@@ -42,6 +42,8 @@ implementation studies are intentionally excluded.
 
 ## Current ownership notes
 
+- Canvas grids are one procedural GPU quad under `GraphCanvasBackground.qml` / `GraphCanvasGridShader.qml`, aligned immediately with live viewport state. Software uses the single Canvas painter; the graph-canvas map owns rendering tests and the packaging map owns shader baking/distribution.
+
 - Context-menu chrome and keyboard selection are shared by `ShellContextMenu.qml`; `ShellContextPopup.qml` owns overlay placement, scrolling, dismissal, and focus restoration for port, Folder Explorer, tab, and workflow popups. Native standard editor/dialog menus share the `QMenu` stylesheet rules in `ui/theme/styles.py`.
 
 - Shell projection ownership is direct: `library_projection.py` owns Library rows, filters, category ancestors/options/tree, DPF/custom-workflow discoverability, and display projections from one cached combined item source; `inspector_projection.py` owns selected-node projection; `quick_insert_projection.py` owns canvas/connection search and ranking. `LibraryPresenter` caches one category tree, has no registry-category cache, and projects grouped/display rows lazily; `NodeRegistry` has no Library query API.

@@ -66,6 +66,8 @@ UI_QML_RUNTIME_ASSET_GLOBS = {
     "ui_qml/**/*.svg",
     "ui_qml/**/*.json",
     "ui_qml/**/*.txt",
+    "ui_qml/**/*.qsb",
+    "ui_qml/**/*.frag",
 }
 MOCKUP_RUNTIME_ASSET_GLOBS = {
     "mockups/**/*.qml",
@@ -307,7 +309,9 @@ def test_ui_qml_runtime_assets_are_packaged_for_pyinstaller_and_setuptools() -> 
     contract_asset = "ui_qml/components/graph/GraphNodeSurfaceMetricContract.json"
 
     assert UI_QML_RUNTIME_ASSET_GLOBS.issubset(package_data)
-    assert not _uncovered_asset_paths([contract_asset], package_data)
+    grid_shader = "ui_qml/components/graph_canvas/shaders/grid.frag.qsb"
+    assert (REPO_ROOT / "ea_node_editor" / grid_shader).stat().st_size > 0
+    assert not _uncovered_asset_paths([contract_asset, grid_shader], package_data)
     assert '"ea_node_editor.ui_qml"' in spec_source
     assert '"ea_node_editor.ui.tooltips"' in spec_source
     assert 'includes=["*.json"]' in spec_source
@@ -322,6 +326,7 @@ def test_ui_qml_runtime_assets_are_packaged_for_pyinstaller_and_setuptools() -> 
         '"**/*.json"',
         '"*.txt"',
         '"**/*.txt"',
+        '"**/*.qsb"',
     ):
         assert asset_glob in spec_source
 

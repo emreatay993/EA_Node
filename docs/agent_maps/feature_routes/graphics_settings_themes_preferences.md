@@ -15,7 +15,7 @@ Use this for graph themes, graphics settings, app preferences, theme editor dial
 - `ea_node_editor/ui_qml/graph_canvas_command/`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasOptionsMenu.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasBackground.qml`
-- `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridTiled.qml`
+- `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasGridShader.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphNativeExplorerSurface.qml`
 - `ea_node_editor/ui_qml/graph_theme_bridge.py`
