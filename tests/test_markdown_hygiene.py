@@ -44,17 +44,17 @@ class MarkdownHygieneTests(unittest.TestCase):
     def test_audit_repository_passes_for_current_repo(self) -> None:
         self.assertEqual([], self.checker.audit_repository(REPO_ROOT))
 
-    def test_agents_map_first_guidance_keeps_broad_search_gate(self) -> None:
+    def test_agents_guidance_keeps_bounded_evidence_first_navigation(self) -> None:
         agents_text = AGENTS_PATH.read_text(encoding="utf-8")
 
-        self.assertIn("Before any broad text or file search", agents_text)
+        self.assertIn("bounded source search", agents_text)
+        self.assertIn("docs/agent_maps/INDEX.md", agents_text)
         self.assertIn("docs/agent_route_index.md", agents_text)
+        self.assertIn("Verify ownership against current source before editing", agents_text)
+        self.assertIn("Before broad source or test searches", agents_text)
         self.assertIn("route index plus maps", agents_text)
-        self.assertIn("Parent threads should record a compact navigation audit", agents_text)
-        self.assertIn("Explorer prompts for broad or cross-layer discovery should set a search budget", agents_text)
-        self.assertIn("Route index entries checked", agents_text)
-        self.assertIn("ea_node_editor\\**", agents_text)
-        self.assertIn("tests\\**", agents_text)
+        self.assertIn("why narrower evidence is insufficient", agents_text)
+        self.assertIn("cap the results", agents_text)
 
     def test_spec_index_registers_architecture_residual_matrix_link(self) -> None:
         spec_index_text = (REPO_ROOT / "docs" / "specs" / "INDEX.md").read_text(

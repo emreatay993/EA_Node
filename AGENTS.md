@@ -8,15 +8,7 @@
 
 ## Coding Communication Style
 
-While coding, use plain running commentary instead of technical status language.
-
-- Prefer short first-person sentences: "Now checking X", "Let me read Y", "I found Z", "Wiring A into B".
-- Use concrete verbs like read, check, wire, launch, stop, render, fix, run, verify.
-- Avoid abstract phrases like "implementation surface", "integration boundary", "behavioral contract", "high-risk area", and "validation strategy" unless they are necessary.
-- Explain reasons briefly in practical terms: "to catch QML errors fast", "so the setting stays in sync", "before I edit the real files".
-- Use casual transitions such as "Got it", "I have the picture", "Next I'm...", and "That's enough context".
-- During longer coding work, narrate progress in the style of a pair programmer watching the task happen.
-- Keep final summaries concrete: what changed, what command passed, what is still worth checking.
+Use short, plain progress updates explaining what you are reading, checking, changing, or verifying and why. Finish with the concrete change, proving check, and material limitations.
 
 ## Repository Map and Authority
 
@@ -98,38 +90,17 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 
 ## Exploration and Editing
 
-- Use exploration subagents wherever practical for codebase discovery. Frame each task as one concrete question with explicit scope, expected output, and stopping point. Set `model` and `reasoning_effort` explicitly when spawning.
-- For narrow tasks with an exact file, symbol, UI label, error, setting, or test name, start from bounded source evidence with `rg`, inspect the first useful hits, then use `./venv/Scripts/python.exe scripts/nav.py source <path>` only when owner or focused-test context helps. Do not run a fuzzy `nav.py find` first as ceremony.
-- Treat `scripts/nav.py` as an advisory compression layer, not ownership authority. `find` labels exact alias/title/component matches separately; "No confident owner" results are candidates that must be verified against source before choosing an owner or insertion point. Use `route`, `qml`, or `source` when that index family is already known, and do not read the raw 0.6 MB/3.4 MB indexes unless the compact CLI under-resolves.
-- For broad or cross-layer codebase exploration, start with the committed navigation layer: `docs/agent_maps/INDEX.md`, `docs/agent_maps/COVERAGE.md`, `docs/agent_route_index.md`, and `docs/agent_route_index.json`. Open the relevant subsystem, feature-route, or testing map before reading source.
-- For broad or ambiguous QML-heavy exploration, use `nav.py qml <term>` before widening into `ea_node_editor\ui_qml`; exact component/property/signal names should start with a bounded source search.
-- For source/test ownership lookup, check `docs/source_test_file_index.md` after the route index identifies the likely area. Use it as a path inventory, not as ownership authority.
-- For docs/spec/process questions, start with `docs/specs/INDEX.md` for requirements/proof authority and `docs/agent_maps/` for navigation ownership. Keep agent maps outside the spec index unless they become formal proof/spec artifacts.
-- Before any broad text or file search such as `ea_node_editor\**`, `tests\**`, or `Get-ChildItem -Recurse`, record the map/index candidates already checked and why they are insufficient. Use one bounded exact-anchor search only inside the candidate subsystem, feature route, test family, or QML family when possible.
-- Parent threads should record a compact navigation audit before broad/cross-layer edits: route index or map entries checked, source/test/QML candidates used, maps consulted, any broad searches used, and why the opened files are now safe to inspect.
-- When spawning a broad or cross-layer explorer, include advisory map/index confirmation instructions. Exact narrow explorers should start from the named evidence and stop once the fact is supported. Explorer outputs should distinguish verified owners from weak or discarded navigation candidates and justify any broad searches.
-- Explorer prompts for broad or cross-layer discovery should set a search budget and require every broad `rg`, `Select-String`, or recursive file search to be justified in the navigation audit.
-- Explorer outputs should include a compact navigation audit with `Route index entries checked`, `Maps consulted`, `Source candidates`, `QML candidates`, `Test candidates`, `Searches run`, and `Fallback reason`. This keeps false starts visible without letting them drive implementation.
-- Read-only explorers should not run tests, verification commands, package builds, or long-running repro commands unless the parent prompt explicitly asks for execution. They should list focused verification commands in their output and return the requested answer before any optional follow-up work.
-- Exact-file, exact-symbol, UI-label, error-text, and setting-key lookups should start with a bounded exact-anchor search. Map consultation is optional unless ownership, architectural boundaries, or the proving test remain uncertain.
-- While exploration is active, do not edit and do not assign editing work until the active explorer(s) return or terminate with an explicit error. Do not interrupt or reprompt an active repository explorer.
-- For large or broad searches, split by focused scopes such as `core`, `ui`, `tests`, or `build/config`. Ignore duplicated/generated trees unless explicitly requested: `.claude/worktrees`, `build`, `artifacts`, `venv`, `__pycache__`, and `*.egg-info`.
-- Before adding new utility/helper modules, perform a duplicate-abstraction check. Search by exact names and semantic terms, inspect common/shared helper folders, and use `$spark-fast-lookup` for a narrow existing-helper lookup when the likely area is known. Prefer reusing or promoting an existing helper over creating subsystem-local parallel helpers. When a new helper is still warranted, state why existing helpers do not fit.
-- `ea_node_editor/common/` is the canonical home for dependency-light helpers shared by 2+ subsystems (`protocols.py`, `coercions.py`, `payload_tools.py`). Check there first; a utility used by two or more subsystems belongs there rather than as a subsystem-local copy. Keep `common/` a leaf — it must not import from `graph`, `ui`, `ui_qml`, `execution`, `persistence`, or `nodes`.
-- Significant source files carry a top-of-file banner so an agent can orient from the first ~30 lines instead of reading the whole file: `# Purpose:` (one line), `# Map: <feature_routes/...|subsystems/...>` (owning agent map), `# Tests: tests/...` (focused test), and for files >1000 lines `# Landmarks:` (key classes / entry points). Keep these accurate when ownership or tests move; `scripts/check_agent_maps.py` validates that every `# Map:`/`# Tests:` header resolves.
-- Explorer model defaults:
-  - Project agent `spark_lookup` (`gpt-5.3-codex-spark` with `xhigh`): one tiny lookup only after a known file family or route-index/map entry narrows the target to one crisp fact.
-  - `gpt-5.6-luna` with `xhigh`: optional high-volume exact lookups only when deterministic verification or automatic fallback is available; do not replace `spark_lookup` without a dedicated head-to-head benchmark.
-  - `gpt-5.6-terra` with `xhigh`: default for repository navigation, from small map-bounded synthesis through broad or cross-layer feature tracing, ownership, insertion-point decisions, and new-feature mapping.
-  - `gpt-5.6-sol` with `xhigh`: escalation when Terra leaves contradictory or insufficient evidence, or when navigation is part of high-risk architecture, implementation, security, performance, independent review, or genuinely long-context work.
-- Spark explorer responses must be compact: direct answer, relevant files/symbols, then uncertainties or an escalation note. Do not use Spark for ownership tracing, insertion-point choice, "find all uses", feature flow, context/action wiring, or cross-layer QML/Python work. Query/search first, sample snippets second, keep the working set tiny, return once supported, and stop/escalate to `gpt-5.6-terra` if the first result fans out. Escalate Terra to `gpt-5.6-sol` only under the Sol conditions above.
-- Use large wait windows for explorers, normally 180-300 seconds or longer for broad scopes.
-- For work packets run via `subagent-work-packet-executor`, avoid status-check chatter; do not check status until at least 45 minutes have elapsed unless the packet finishes or hits a real blocker.
-- Historical work-packet manifests and ledgers live only in git history. Use `docs/specs/INDEX.md` and `docs/specs/perf/` for retained QA evidence; use the work-packet runner scripts only with an explicitly supplied external packet set.
-- Default to plain `rg`/`rg --files` so `.rgignore` keeps generated, vendor, cache, and worktree noise out of searches. Use broad `rg` only after the route index plus maps identify a candidate subsystem or small path set; when searching broadly is still necessary, cap or narrow output before reading it into context. After the first few useful `rg` hits, stop searching and return to the relevant map or generated index with those exact anchors before opening broad source ranges. Use `--hidden`, `-u`, or `--no-ignore` only when the task explicitly needs ignored paths.
-- In this PowerShell environment, `rg` is acceptable only when `Get-Command rg.exe -All` shows a working non-Codex install earlier on `PATH` and `rg --version` succeeds. Otherwise use PowerShell-native `Get-ChildItem`/`Select-String`.
-- Do not bundle many large file additions into one patch.
-- Perform exact file moves/copies from the terminal with native commands such as `Move-Item` or `Copy-Item`, not by model rewrite.
+- Start exact file, symbol, UI-label, error, setting, and test lookups with a bounded source search. Use `scripts/nav.py source <path>` only when owner or focused-test context is needed; do not begin a known-target lookup with fuzzy `nav.py find`.
+- For broad or uncertain ownership, consult `docs/agent_maps/INDEX.md`, the relevant row in `docs/agent_maps/COVERAGE.md`, and one relevant subsystem, feature-route, or testing map. Query `docs/agent_route_index.md` and `docs/agent_route_index.json` through `scripts/nav.py` instead of reading large raw indexes when the compact query is sufficient.
+- Treat maps and navigation results as advisory. Verify ownership against current source before editing; a fuzzy candidate is not an established owner. Stop when the requested answer and necessary proving-test context are supported; widen only for ambiguity, contradictory evidence, or an explicitly broader trace.
+- Before broad source or test searches, identify the candidate subsystem using the route index plus maps, briefly explain why narrower evidence is insufficient, and cap the results. Report supporting source and remaining uncertainty without a mandatory audit form or field list.
+- For ambiguous QML work, use `scripts/nav.py qml <term>` before widening into `ea_node_editor/ui_qml`; exact component/property/signal names still start with a bounded search. Use `route`, `qml`, or `source` when the index family is known.
+- Use `docs/source_test_file_index.md` as a path inventory after identifying the relevant route, not as ownership authority. For requirements/proof questions, start with `docs/specs/INDEX.md`; agent maps remain navigation references unless formally registered as proof/spec artifacts.
+- Before adding a helper, search exact names and semantic equivalents and inspect `ea_node_editor/common/`. Reuse or promote an existing helper when suitable; explain any new helper's need. Helpers shared by two or more subsystems belong in `common/`, which must remain a leaf with no imports from graph, UI/QML, execution, persistence, or nodes.
+- Preserve source banners: `# Purpose:`, an owning `# Map:`, and focused `# Tests:` paths; files over 1000 lines also need `# Landmarks:`. Keep them accurate when ownership or tests move; `scripts/check_agent_maps.py` validates cited map/test paths.
+- Prefer plain `rg`/`rg --files` so `.rgignore` excludes generated, vendor, cache, and worktree noise. Bound searches to the candidate subsystem; ignore `.claude/worktrees`, `build`, `artifacts`, `venv`, `__pycache__`, and `*.egg-info` unless explicitly needed. Use `--hidden`, `-u`, or `--no-ignore` only for a task that requires ignored paths.
+- In PowerShell, use `rg` only when `Get-Command rg.exe -All` shows a working non-Codex installation first on `PATH` and `rg --version` succeeds. Otherwise use `Get-ChildItem`/`Select-String`.
+- Do not bundle many large file additions into one patch. Historical work-packet manifests/ledgers remain in Git history; use work-packet runners only with an explicitly supplied external packet set and its verification requirements.
 
 ## Third-party capability research
 
