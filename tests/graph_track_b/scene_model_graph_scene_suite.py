@@ -2095,7 +2095,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
             copied_ids,
         )
 
-    def test_propagate_passive_node_style_updates_workspace_passive_nodes_with_undo_redo(self) -> None:
+    def test_propagate_passive_node_style_flood_fills_connected_component_with_undo_redo(self) -> None:
         workspace = self.model.project.workspaces[self.workspace_id]
         node_ids = [
             self.scene.add_node_from_type("passive.flowchart.process", float(index * 24), 40.0)
@@ -2103,7 +2103,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         ]
         passthrough_id = self.scene.add_node_from_type("tests.track_b_flowchart_passthrough", 2500.0, 40.0)
         beyond_passthrough_id = self.scene.add_node_from_type("passive.flowchart.decision", 2720.0, 40.0)
-        unconnected_passive_id = self.scene.add_node_from_type("passive.flowchart.process", 3000.0, 240.0)
+        disconnected_planning_id = self.scene.add_node_from_type("passive.planning.task_card", 3000.0, 240.0)
         for left_id, right_id in zip(node_ids, node_ids[1:]):
             self.model.add_edge(self.workspace_id, left_id, "right", right_id, "left")
         self.model.add_edge(self.workspace_id, node_ids[-1], "bottom", node_ids[0], "top")
@@ -2118,13 +2118,13 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
             "border_width": 3.0,
         }
         old_target_style = {"fill_color": "#FFEAA7", "border_width": 1.0}
-        unconnected_passive_style = {"fill_color": "#FAB1A0"}
+        disconnected_planning_style = {"fill_color": "#FAB1A0"}
         workspace.nodes[node_ids[2]].visual_style = dict(source_style)
         workspace.nodes[node_ids[0]].visual_style = dict(old_target_style)
         workspace.nodes[node_ids[-1]].visual_style = dict(old_target_style)
         workspace.nodes[beyond_passthrough_id].visual_style = dict(old_target_style)
         workspace.nodes[passthrough_id].visual_style = {"fill_color": "#D63031"}
-        workspace.nodes[unconnected_passive_id].visual_style = dict(unconnected_passive_style)
+        workspace.nodes[disconnected_planning_id].visual_style = dict(disconnected_planning_style)
 
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
@@ -2139,7 +2139,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
             self.assertEqual(workspace.nodes[candidate_id].visual_style, source_style)
         self.assertEqual(workspace.nodes[beyond_passthrough_id].visual_style, source_style)
         self.assertEqual(workspace.nodes[passthrough_id].visual_style, {"fill_color": "#D63031"})
-        self.assertEqual(workspace.nodes[unconnected_passive_id].visual_style, source_style)
+        self.assertEqual(workspace.nodes[disconnected_planning_id].visual_style, disconnected_planning_style)
 
         undo_entry = history.undo_workspace(self.workspace_id, workspace)
         self.assertIsNotNone(undo_entry)
@@ -2150,7 +2150,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(workspace.nodes[node_ids[0]].visual_style, old_target_style)
         self.assertEqual(workspace.nodes[node_ids[-1]].visual_style, old_target_style)
         self.assertEqual(workspace.nodes[beyond_passthrough_id].visual_style, old_target_style)
-        self.assertEqual(workspace.nodes[unconnected_passive_id].visual_style, unconnected_passive_style)
+        self.assertEqual(workspace.nodes[disconnected_planning_id].visual_style, disconnected_planning_style)
 
         redo_entry = history.redo_workspace(self.workspace_id, workspace)
         self.assertIsNotNone(redo_entry)
@@ -2160,16 +2160,16 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(workspace.nodes[node_ids[0]].visual_style, source_style)
         self.assertEqual(workspace.nodes[node_ids[-1]].visual_style, source_style)
         self.assertEqual(workspace.nodes[beyond_passthrough_id].visual_style, source_style)
-        self.assertEqual(workspace.nodes[unconnected_passive_id].visual_style, source_style)
+        self.assertEqual(workspace.nodes[disconnected_planning_id].visual_style, disconnected_planning_style)
 
-    def test_propagate_passive_node_style_empty_source_clears_workspace_passive_targets(self) -> None:
+    def test_propagate_passive_node_style_empty_source_clears_connected_targets(self) -> None:
         workspace = self.model.project.workspaces[self.workspace_id]
         source_id = self.scene.add_node_from_type("passive.flowchart.process", 20.0, 40.0)
         target_id = self.scene.add_node_from_type("passive.flowchart.decision", 260.0, 40.0)
-        unconnected_passive_id = self.scene.add_node_from_type("passive.flowchart.process", 500.0, 40.0)
+        disconnected_planning_id = self.scene.add_node_from_type("passive.planning.task_card", 500.0, 40.0)
         self.scene.add_edge(source_id, "right", target_id, "left")
         workspace.nodes[target_id].visual_style = {"fill_color": "#FFEAA7", "border_width": 2.0}
-        workspace.nodes[unconnected_passive_id].visual_style = {"fill_color": "#FAB1A0"}
+        workspace.nodes[disconnected_planning_id].visual_style = {"fill_color": "#FAB1A0"}
 
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
@@ -2178,7 +2178,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertTrue(self.scene.propagate_passive_node_style(source_id))
         self.assertEqual(workspace.nodes[source_id].visual_style, {})
         self.assertEqual(workspace.nodes[target_id].visual_style, {})
-        self.assertEqual(workspace.nodes[unconnected_passive_id].visual_style, {})
+        self.assertEqual(workspace.nodes[disconnected_planning_id].visual_style, {"fill_color": "#FAB1A0"})
         self.assertEqual(history.undo_depth(self.workspace_id), 1)
 
     def test_flowchart_scene_payloads_publish_family_metrics_and_shape_aware_anchors(self) -> None:

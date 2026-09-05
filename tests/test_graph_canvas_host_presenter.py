@@ -293,7 +293,7 @@ def test_graph_canvas_host_presenter_owns_passive_style_clipboard_and_mutations(
         assert presenter.request_propagate_passive_node_style(source_id)
         assert workspace.nodes[source_id].visual_style == legacy_style
         assert workspace.nodes[target_id].visual_style == style
-        assert workspace.nodes[disconnected_id].visual_style == style
+        assert workspace.nodes[disconnected_id].visual_style == {"fill_color": "#FAB1A0"}
         assert workspace.nodes[standard_id].visual_style == {"fill_color": "#D63031"}
         assert not presenter.request_copy_passive_node_style(standard_id)
         assert not presenter.request_paste_passive_node_style(standard_id)

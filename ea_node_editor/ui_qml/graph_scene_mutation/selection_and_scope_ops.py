@@ -1352,15 +1352,28 @@ def _node_has_passive_runtime(registry: Any, node: NodeInstance) -> bool:
     )
 
 
-def _passive_workspace_node_ids(
-    registry: Any, workspace: Any, source_node_id: str
-) -> list[str]:
-    return [
-        candidate_id
-        for candidate_id, candidate in workspace.nodes.items()
-        if candidate_id != source_node_id
-        and _node_has_passive_runtime(registry, candidate)
-    ]
+def _connected_node_ids(workspace: Any, source_node_id: str) -> list[str]:
+    adjacency: dict[str, set[str]] = {}
+    for edge in workspace.edges.values():
+        source_id = str(edge.source_node_id or "").strip()
+        target_id = str(edge.target_node_id or "").strip()
+        if not source_id or not target_id:
+            continue
+        adjacency.setdefault(source_id, set()).add(target_id)
+        adjacency.setdefault(target_id, set()).add(source_id)
+
+    ordered: list[str] = []
+    visited = {source_node_id}
+    stack = [source_node_id]
+    while stack:
+        current_id = stack.pop()
+        ordered.append(current_id)
+        for neighbor_id in sorted(adjacency.get(current_id, ())):
+            if neighbor_id in visited or neighbor_id not in workspace.nodes:
+                continue
+            visited.add(neighbor_id)
+            stack.append(neighbor_id)
+    return ordered
 
 
 def propagate_passive_node_style(self, node_id: str) -> bool:
@@ -1381,8 +1394,10 @@ def propagate_passive_node_style(self, node_id: str) -> bool:
     style = normalize_passive_node_style_payload(source_node.visual_style)
     target_node_ids = [
         candidate_id
-        for candidate_id in _passive_workspace_node_ids(registry, workspace, source_id)
-        if workspace.nodes[candidate_id].visual_style != style
+        for candidate_id in _connected_node_ids(workspace, source_id)
+        if candidate_id != source_id
+        and _node_has_passive_runtime(registry, workspace.nodes[candidate_id])
+        and workspace.nodes[candidate_id].visual_style != style
     ]
     if not target_node_ids:
         return False

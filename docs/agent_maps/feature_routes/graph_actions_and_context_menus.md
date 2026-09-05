@@ -47,7 +47,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 ## Passive Style Context Menu
 - Passive node and flow-edge style actions are declared as graph action contracts, surfaced from graph context menus/toolbars, routed by `GraphCanvasActionRouter.qml`, and dispatched through `GraphActionController` directly to `GraphCanvasHostPresenter`. That presenter owns dialog/preset/clipboard/label policy and calls the graph scene mutation owner; `ShellHostPresenter` and `ShellWindow` are not on this route.
 - Bare Text annotations are excluded from the generic passive `visual_style` actions because their chrome-free surface owns whole-object typography and colors as node properties through `GraphRichTextBlock.qml` and its floating toolbar.
-- `Propagate Style` copies the right-clicked passive node's style to every other passive node in the active workspace from the scene mutation layer; keep its context-menu, graph-action contract, shell dispatch, and undo/redo tests together.
+- `Propagate Style` flood-fills the right-clicked passive node's style through its wire-connected component in the scene mutation layer, changing only passive nodes; keep its context-menu, graph-action contract, shell dispatch, and undo/redo tests together.
 
 ## Selection Envelope Actions
 - Multi-node selection actions are declared in `GraphCanvasActionRouter.selectionContextActionDescriptors`, rendered in `GraphCanvasContextMenus.qml` and `GraphSelectionEnvelopeOverlay.qml`, and dispatched through `handleSelectionContextAction`.
