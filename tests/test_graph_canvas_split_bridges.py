@@ -643,6 +643,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         host_source = _GraphCanvasShellHostStub()
         scene = _GraphCanvasSceneBridgeStub()
         scene._return_values["open_subnode_scope"] = True
+        scene._return_values["set_node_collapsed"] = True
         view = _GraphCanvasViewBridgeStub()
         bridge = GraphCanvasCommandBridge(
             host,
@@ -729,6 +730,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
         bridge.set_pending_surface_action("node-1")
         self.assertTrue(bridge.consume_pending_surface_action("node-1"))
         self.assertTrue(bridge.set_node_properties("node-1", {"message": "bridge"}))
+        self.assertTrue(bridge.set_node_collapsed("node-1", True))
         self.assertEqual(
             bridge.upsert_node_link(
                 "node-1",
@@ -827,6 +829,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
                 ("set_pending_surface_action", ("node-1",)),
                 ("consume_pending_surface_action", ("node-1",)),
                 ("set_node_properties", ("node-1", {"message": "bridge"})),
+                ("set_node_collapsed", ("node-1", True)),
                 (
                     "upsert_node_link",
                     ("node-1", "", "url", "Docs", "https://example.com/docs", "Reference"),

@@ -6,6 +6,8 @@ from typing import Sequence
 from ea_node_editor.graph.hierarchy import ScopePath
 
 GROUP_BACKDROP_WRAP_PADDING = 32.0
+# Keep a visible gap after active-node shadow overflow.
+GROUP_BACKDROP_WRAP_BOTTOM_PADDING = 56.0
 GROUP_BACKDROP_WRAP_TOP_PADDING = 96.0
 GROUP_BACKDROP_WRAP_MIN_WIDTH = 240.0
 GROUP_BACKDROP_WRAP_MIN_HEIGHT = 160.0
@@ -176,7 +178,7 @@ def build_group_backdrop_wrap_bounds(
     padded_x = float(left) - float(padding)
     padded_y = float(top) - float(top_padding)
     padded_width = (float(right) - float(left)) + (float(padding) * 2.0)
-    padded_height = (float(bottom) - float(top)) + float(top_padding) + float(padding)
+    padded_height = (float(bottom) - float(top)) + float(top_padding) + GROUP_BACKDROP_WRAP_BOTTOM_PADDING
 
     final_width = max(float(min_width), padded_width)
     final_height = max(float(min_height), padded_height)
@@ -235,6 +237,7 @@ def _strictly_contains(owner: GroupBackdropCandidate, candidate: GroupBackdropCa
 __all__ = [
     "GROUP_BACKDROP_WRAP_MIN_HEIGHT",
     "GROUP_BACKDROP_WRAP_MIN_WIDTH",
+    "GROUP_BACKDROP_WRAP_BOTTOM_PADDING",
     "GROUP_BACKDROP_WRAP_PADDING",
     "GROUP_BACKDROP_WRAP_TOP_PADDING",
     "GroupBackdropBounds",

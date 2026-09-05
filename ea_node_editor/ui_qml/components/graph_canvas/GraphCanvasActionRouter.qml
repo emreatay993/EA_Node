@@ -498,6 +498,12 @@ QtObject {
                 return false;
             return Boolean(sceneBridge.set_node_locked(String(nodeId || ""), !Boolean(nodeHost.authorLocked)));
         }
+        if (normalized === "toggle_node_collapsed") {
+            var collapseBridge = root._sceneCommandBridge();
+            if (!collapseBridge || !collapseBridge.set_node_collapsed || !nodeHost)
+                return false;
+            return Boolean(collapseBridge.set_node_collapsed(String(nodeId || ""), !Boolean(nodeHost.isCollapsed)));
+        }
         var descriptor = GraphActionPresentation.descriptorForActionId(root.nodeDelegateActionDescriptors, normalized);
         if (!descriptor) {
             if (nodeHost && nodeHost.dispatchSurfaceAction)

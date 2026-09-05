@@ -1296,7 +1296,9 @@ Item {
         "lockedPlaceholderActive": card.lockedPlaceholderActive,
         "lockedPlaceholderManagerAvailable": card.lockedPlaceholderManagerAvailable,
         "lockEligible": card.lockEligible,
-        "authorLocked": card.authorLocked
+        "authorLocked": card.authorLocked,
+        "collapsible": card.nodeData ? Boolean(card.nodeData.collapsible) : false,
+        "collapsed": card.isCollapsed
     })
     readonly property var availableActions: GraphActionPresentation.nodeAvailableActions({
         "contextActions": card.contextNodeActions,

@@ -82,6 +82,8 @@ class _GraphCanvasSceneCommandSource(Protocol):
 
     def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool: ...
 
+    def set_node_collapsed(self, node_id: str, collapsed: bool) -> bool: ...
+
     def set_node_settings_group_expanded(
         self,
         node_id: str,

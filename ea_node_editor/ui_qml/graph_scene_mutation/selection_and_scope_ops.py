@@ -769,19 +769,23 @@ def focus_node(self, node_id: str) -> QPointF | None:
     return item.sceneBoundingRect().center()
 
 
-def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
+def set_node_collapsed(self, node_id: str, collapsed: bool) -> bool:
     model = self._scene_context.model
-    if model is None:
-        return
+    registry = self._scene_context.registry
+    if model is None or registry is None:
+        return False
     workspace = model.project.workspaces.get(self._scene_context.workspace_id)
     if workspace is None:
-        return
+        return False
     node = workspace.nodes.get(node_id)
     if node is None:
-        return
+        return False
+    spec = registry.resolve_spec(node.type_id, node.properties)
+    if not spec.collapsible:
+        return False
     normalized_collapsed = bool(collapsed)
     if bool(node.collapsed) == normalized_collapsed:
-        return
+        return False
     collision_updates = {}
     if bool(node.collapsed) and not normalized_collapsed:
         collision_updates = expand_collision_avoidance_updates(self, node_id)
@@ -800,6 +804,7 @@ def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
         position_node_ids=set(collision_updates),
         publication_path="node_collapsed_geometry_delta",
     )
+    return True
 
 
 def set_node_settings_group_expanded(

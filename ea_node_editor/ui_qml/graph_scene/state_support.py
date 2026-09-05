@@ -1336,8 +1336,9 @@ class GraphSceneBridgeBase(QObject):
     def focus_node(self, node_id: str) -> QPointF | None:
         return self._command_bridge.focus_node(node_id)
 
-    def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
-        self._command_bridge.set_node_collapsed(node_id, collapsed)
+    @pyqtSlot(str, bool, result=bool)
+    def set_node_collapsed(self, node_id: str, collapsed: bool) -> bool:
+        return self._command_bridge.set_node_collapsed(node_id, collapsed)
 
     @pyqtSlot(str, str, bool, result=bool)
     def set_node_settings_group_expanded(

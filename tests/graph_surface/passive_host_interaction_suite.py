@@ -3,6 +3,38 @@ from __future__ import annotations
 from tests.graph_surface.environment import *  # noqa: F403
 
 class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
+    def test_collapsible_node_uses_shared_expand_collapse_action(self) -> None:
+        self._run_qml_probe(
+            "shared-expand-collapse-action",
+            """
+            payload = node_payload()
+            payload["collapsible"] = True
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+
+            actions = [variant_value(action) for action in variant_list(host.property("commonNodeActions"))]
+            toggle = next(action for action in actions if action["id"] == "toggle_node_collapsed")
+            assert toggle["label"] == "Collapse"
+            assert toggle["icon"] == "chevron-down"
+
+            requests = []
+            host.nodeActionRequested.connect(lambda node_id, action_id, action_payload: requests.append((node_id, action_id)))
+            host.dispatchNodeAction("toggle_node_collapsed", None)
+            assert requests == [("node_surface_host_test", "toggle_node_collapsed")]
+
+            payload["collapsed"] = True
+            host.setProperty("nodeData", payload)
+            settle_events(2)
+            actions = [variant_value(action) for action in variant_list(host.property("commonNodeActions"))]
+            toggle = next(action for action in actions if action["id"] == "toggle_node_collapsed")
+            assert toggle["label"] == "Expand"
+            assert toggle["icon"] == "chevron-up"
+
+            host.deleteLater()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_passive_lock_action_lowers_and_blocks_host_until_interaction_is_enabled(self) -> None:
         self._run_qml_probe(
             "passive-authored-lock-host",

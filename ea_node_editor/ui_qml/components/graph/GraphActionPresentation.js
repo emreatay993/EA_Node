@@ -211,6 +211,14 @@ function nodeCommonActions(facts) {
     }
     if (Boolean(source.authorLocked))
         return actions;
+    if (Boolean(source.collapsible)) {
+        var collapsed = Boolean(source.collapsed);
+        actions.push({
+            "id": "toggle_node_collapsed", "label": collapsed ? "Expand" : "Collapse",
+            "icon": collapsed ? "chevron-up" : "chevron-down",
+            "kind": "common", "enabled": true, "primary": false
+        });
+    }
     actions.push(
         {"id": "rename_node", "label": "Rename", "icon": "edit", "kind": "common", "enabled": true, "primary": false},
         {"id": "duplicate_node", "label": "Duplicate", "icon": "duplicate", "kind": "common", "enabled": true, "primary": false},

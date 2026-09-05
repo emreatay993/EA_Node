@@ -748,6 +748,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         for signature in (
             b"request_rewire_edges(QVariantList,QString,QString,QString,bool,bool)",
             b"set_hide_optional_ports(bool)",
+            b"set_node_collapsed(QString,bool)",
             b"set_node_settings_group_expanded(QString,QString,bool)",
         ):
             with self.subTest(signature=signature):
@@ -758,6 +759,22 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
                 meta.indexOfMethod(b"move_edge_endpoint(QString,QString,QString,QString,bool)"),
                 0,
             )
+
+    def test_split_command_surface_toggles_only_collapsible_nodes(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        scene = GraphSceneBridge()
+        scene.set_workspace(model, registry, workspace_id)
+
+        collapsible_id = scene.add_node_from_type("core.logger", 0.0, 0.0)
+        fixed_id = scene.add_node_from_type("core.trigger", 280.0, 0.0)
+        workspace = model.project.workspaces[workspace_id]
+
+        self.assertTrue(scene.command_bridge.set_node_collapsed(collapsible_id, True))
+        self.assertTrue(workspace.nodes[collapsible_id].collapsed)
+        self.assertFalse(scene.command_bridge.set_node_collapsed(fixed_id, True))
+        self.assertFalse(workspace.nodes[fixed_id].collapsed)
 
     def test_canvas_batch_rewire_request_forwards_all_arguments(self) -> None:
         source = _EdgeRewireCanvasSource()

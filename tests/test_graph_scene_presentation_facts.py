@@ -88,6 +88,21 @@ def test_library_preview_fallback_keeps_only_canonical_primary_type() -> None:
     assert spec.ports[0].accepted_data_types == (GRAPH_DATA_TYPE_ID,)
 
 
+def test_scene_payload_projects_shared_collapsible_capability() -> None:
+    registry = build_default_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    scene = GraphSceneBridge()
+    scene.set_workspace(model, registry, workspace.workspace_id)
+
+    collapsible_id = scene.add_node_from_type("core.logger", 0.0, 0.0)
+    fixed_id = scene.add_node_from_type("core.trigger", 280.0, 0.0)
+    payloads = {payload["node_id"]: payload for payload in scene.nodes_model}
+
+    assert payloads[collapsible_id]["collapsible"] is True
+    assert payloads[fixed_id]["collapsible"] is False
+
+
 class _SettingsGroupProjectionNode:
     def spec(self) -> NodeTypeSpec:
         return NodeTypeSpec(

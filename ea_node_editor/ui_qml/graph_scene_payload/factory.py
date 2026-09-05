@@ -1203,6 +1203,7 @@ class _GraphSceneNodePayloadFactory:
             "y": float(layout_node.y),
             "width": float(width),
             "height": float(height),
+            "collapsible": bool(spec.collapsible),
             "collapsed": bool(node.collapsed),
             "locked": bool(node.locked),
             "runtime_behavior": spec.runtime_behavior,

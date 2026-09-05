@@ -97,6 +97,18 @@ scene_bridge.command_bridge directly."""
             )
         )
 
+    @pyqtSlot(str, bool, result=bool)
+    def set_node_collapsed(self, node_id: str, collapsed: bool) -> bool:
+        return bool(
+            _invoke(
+                self._scene_command_source,
+                "set_node_collapsed",
+                node_id,
+                bool(collapsed),
+                default=False,
+            )
+        )
+
     @pyqtSlot(str, str, bool, result=bool)
     def set_node_settings_group_expanded(
         self,

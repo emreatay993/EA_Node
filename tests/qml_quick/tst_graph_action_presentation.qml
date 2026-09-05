@@ -146,10 +146,26 @@ TestCase {
             "runnable": true,
             "graphReadOnly": false,
             "lockEligible": true,
-            "authorLocked": false
+            "authorLocked": false,
+            "collapsible": true,
+            "collapsed": false
         })
-        compare(ids(common).join(","), "frame_node,run_selected,toggle_node_lock,rename_node,duplicate_node,remove_node")
+        compare(ids(common).join(","), "frame_node,run_selected,toggle_node_lock,toggle_node_collapsed,rename_node,duplicate_node,remove_node")
         compare(ids(Presentation.childActions(common[1], "menuActions")).join(","), "preview_selected_run,open_selected_run_settings")
+        compare(common[3].label, "Collapse")
+        compare(common[3].icon, "chevron-down")
+
+        var collapsed = Presentation.nodeCommonActions({
+            "runnable": false,
+            "graphReadOnly": false,
+            "lockEligible": false,
+            "authorLocked": false,
+            "collapsible": true,
+            "collapsed": true
+        })
+        compare(ids(collapsed).join(","), "frame_node,toggle_node_collapsed,rename_node,duplicate_node,remove_node")
+        compare(collapsed[1].label, "Expand")
+        compare(collapsed[1].icon, "chevron-up")
         var locked = Presentation.nodeCommonActions({
             "runnable": false,
             "graphReadOnly": false,

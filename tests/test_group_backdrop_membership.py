@@ -4,6 +4,7 @@ from collections.abc import Callable
 import unittest
 
 from ea_node_editor.graph.group_backdrop_geometry import (
+    GROUP_BACKDROP_WRAP_BOTTOM_PADDING,
     GroupBackdropCandidate,
     build_group_backdrop_wrap_bounds,
     compute_group_backdrop_membership,
@@ -55,7 +56,7 @@ class GroupBackdropGeometryTests(unittest.TestCase):
         self.assertIsNone(membership["other_scope_node"].owner_backdrop_id)
         self.assertEqual(membership["other_scope_node"].backdrop_depth, 0)
 
-    def test_wrap_bounds_enforce_minimum_size(self) -> None:
+    def test_wrap_bounds_enforce_minimum_width_and_bottom_padding(self) -> None:
         bounds = build_group_backdrop_wrap_bounds(
             [
                 GroupBackdropCandidate("node", (), False, 100.0, 200.0, 50.0, 30.0),
@@ -65,9 +66,10 @@ class GroupBackdropGeometryTests(unittest.TestCase):
         self.assertIsNotNone(bounds)
         assert bounds is not None
         self.assertEqual(bounds.x, 5.0)
-        self.assertEqual(bounds.y, 103.0)
+        self.assertEqual(bounds.y, 104.0)
         self.assertEqual(bounds.width, 240.0)
-        self.assertEqual(bounds.height, 160.0)
+        self.assertEqual(bounds.height, 182.0)
+        self.assertEqual(bounds.y + bounds.height - 230.0, GROUP_BACKDROP_WRAP_BOTTOM_PADDING)
 
     def test_wrap_bounds_preserve_padding_when_selection_exceeds_minimum(self) -> None:
         bounds = build_group_backdrop_wrap_bounds(
@@ -82,7 +84,8 @@ class GroupBackdropGeometryTests(unittest.TestCase):
         self.assertEqual(bounds.x, 68.0)
         self.assertEqual(bounds.y, 4.0)
         self.assertEqual(bounds.width, 554.0)
-        self.assertEqual(bounds.height, 410.0)
+        self.assertEqual(bounds.height, 434.0)
+        self.assertEqual(bounds.y + bounds.height - 382.0, GROUP_BACKDROP_WRAP_BOTTOM_PADDING)
 
 
 class GroupBackdropSceneIntegrationTests(unittest.TestCase):

@@ -1099,6 +1099,79 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
 
 
 class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
+    def test_collapsible_toolbar_action_reaches_scene_through_canvas_command_bridge(self) -> None:
+        self._run_qml_probe(
+            "collapsible-toolbar-canvas-command-route",
+            """
+            from PyQt6.QtCore import QObject, pyqtSlot
+            from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
+
+            class CollapseSceneSource(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.calls = []
+
+                @pyqtSlot(str, bool, result=bool)
+                def set_node_collapsed(self, node_id, collapsed):
+                    self.calls.append((str(node_id), bool(collapsed)))
+                    return True
+
+            scene_source = CollapseSceneSource()
+            canvas_command_bridge = GraphCanvasCommandBridge(scene_bridge=scene_source)
+            engine.rootContext().setContextProperty("canvasCommandBridgeProbe", canvas_command_bridge)
+            component = QQmlComponent(engine)
+            component.setData(
+                b'''
+                import QtQuick 2.15
+                import "ea_node_editor/ui_qml/components/graph_canvas" as GraphCanvasComponents
+
+                Item {
+                    id: probeRoot
+                    property var sceneCommandBridge: canvasCommandBridgeProbe
+                    property bool collapsed: false
+
+                    function toggleCollapsed() {
+                        return actionRouter.handleNodeDelegateAction(
+                            nodeHost,
+                            "node-1",
+                            "toggle_node_collapsed"
+                        );
+                    }
+
+                    QtObject {
+                        id: nodeHost
+                        property bool isCollapsed: probeRoot.collapsed
+                    }
+
+                    GraphCanvasComponents.GraphCanvasActionRouter {
+                        id: actionRouter
+                        canvasItem: probeRoot
+                    }
+                }
+                ''',
+                QUrl.fromLocalFile(str(repo_root) + "/"),
+            )
+            if component.status() != QQmlComponent.Status.Ready:
+                errors = "\\n".join(error.toString() for error in component.errors())
+                raise AssertionError("Failed to load collapse route probe:\\n" + errors)
+            probe = component.create()
+            if probe is None:
+                errors = "\\n".join(error.toString() for error in component.errors())
+                raise AssertionError("Failed to instantiate collapse route probe:\\n" + errors)
+
+            assert probe.toggleCollapsed() is True
+            probe.setProperty("collapsed", True)
+            assert probe.toggleCollapsed() is True
+            assert scene_source.calls == [("node-1", True), ("node-1", False)]
+
+            probe.deleteLater()
+            canvas_command_bridge.deleteLater()
+            scene_source.deleteLater()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_trigger_rename_falls_back_when_inline_editor_is_unavailable(self) -> None:
         self._run_qml_probe(
             "trigger-rename-fallback",
