@@ -110,11 +110,28 @@ class GraphCanvasGridTests(unittest.TestCase):
             image = self.window.grabWindow()
             dpr = image.width() / self.background.width()
             x, y = round(220 * dpr), round(150 * dpr)
+            radius = round(3 * dpr)
             coverage = sum(
                 (255 - image.pixelColor(px, py).red()) / 255.0
-                for px in range(x - 4, x + 5) for py in range(y - 4, y + 5)
+                for px in range(x - radius, x + radius + 1)
+                for py in range(y - radius, y + radius + 1)
             )
-            self.assertAlmostEqual(coverage, 1.75 ** 2, delta=0.08)
+            self.assertAlmostEqual(coverage, (2.0 * dpr) ** 2, delta=0.08)
+
+    def test_point_grid_is_legible_on_light_and_dark_backgrounds(self):
+        self.background.setProperty("gridStyle", "points")
+        for renderer in ("shader", "canvas"):
+            self.background.setProperty("gridRendererPreference", renderer)
+            for variant in ("white", "dark"):
+                with self.subTest(renderer=renderer, variant=variant):
+                    self.background.setProperty("canvasBackgroundVariant", variant)
+                    QTest.qWait(50)
+                    image = self.window.grabWindow()
+                    dpr = image.width() / self.background.width()
+                    # A minor point must itself be visible, not only the major marks.
+                    point = image.pixelColor(round(220 * dpr), round(150 * dpr))
+                    empty = image.pixelColor(round(227 * dpr), round(157 * dpr))
+                    self.assertGreaterEqual(abs(point.red() - empty.red()), 50)
 
 
 if __name__ == "__main__":

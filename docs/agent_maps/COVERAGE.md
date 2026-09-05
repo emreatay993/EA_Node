@@ -42,7 +42,7 @@ implementation studies are intentionally excluded.
 
 ## Current ownership notes
 
-- Canvas grids are one procedural GPU quad under `GraphCanvasBackground.qml` / `GraphCanvasGridShader.qml`, aligned immediately with live viewport state. Software uses the single Canvas painter; the graph-canvas map owns rendering tests and the packaging map owns shader baking/distribution.
+- Canvas grids are one procedural GPU quad under `GraphCanvasBackground.qml` / `GraphCanvasGridShader.qml`, aligned immediately with live viewport state. Point marks retain logical-pixel size and background-aware contrast at high DPI. Software uses the single Canvas painter; the graph-canvas map owns rendering tests and the packaging map owns shader baking/distribution.
 
 - Context-menu chrome and keyboard selection are shared by `ShellContextMenu.qml`; `ShellContextPopup.qml` owns overlay placement, scrolling, dismissal, and focus restoration for port, Folder Explorer, tab, and workflow popups. Native standard editor/dialog menus share the `QMenu` stylesheet rules in `ui/theme/styles.py`.
 

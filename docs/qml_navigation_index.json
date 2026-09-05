@@ -87215,6 +87215,18 @@
           "name": "majorGridPointSize"
         },
         {
+          "kind": "color",
+          "name": "_pointContrastTint"
+        },
+        {
+          "kind": "color",
+          "name": "pointMinorGridColor"
+        },
+        {
+          "kind": "color",
+          "name": "pointMajorGridColor"
+        },
+        {
           "kind": "string",
           "name": "activeGridRendererKind"
         },
@@ -87393,6 +87405,8 @@
           "kind": "binding",
           "name": "minorGridColor",
           "targets": [
+            "root.effectiveGridStyle",
+            "root.pointMinorGridColor",
             "root.minorGridColor"
           ]
         },
@@ -87400,6 +87414,8 @@
           "kind": "binding",
           "name": "majorGridColor",
           "targets": [
+            "root.effectiveGridStyle",
+            "root.pointMajorGridColor",
             "root.majorGridColor"
           ]
         },
@@ -87441,14 +87457,16 @@
           "kind": "binding",
           "name": "minorPointSize",
           "targets": [
-            "root.minorGridPointSize"
+            "root.minorGridPointSize",
+            "root._devicePixelRatio"
           ]
         },
         {
           "kind": "binding",
           "name": "majorPointSize",
           "targets": [
-            "root.majorGridPointSize"
+            "root.majorGridPointSize",
+            "root._devicePixelRatio"
           ]
         },
         {
@@ -87652,6 +87670,24 @@
           "kind": "property",
           "name": "majorGridPointSize",
           "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasBackgroundPropertyPointContrastTint",
+          "kind": "property",
+          "name": "_pointContrastTint",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphCanvasBackgroundPropertyPointMinorGridColor",
+          "kind": "property",
+          "name": "pointMinorGridColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphCanvasBackgroundPropertyPointMajorGridColor",
+          "kind": "property",
+          "name": "pointMajorGridColor",
+          "detail": "color"
         },
         {
           "anchor": "GraphCanvasBackgroundPropertyActiveGridRendererKind",

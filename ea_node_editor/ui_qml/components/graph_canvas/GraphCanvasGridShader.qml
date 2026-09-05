@@ -14,8 +14,9 @@ ShaderEffect {
     property real majorStep: 100.0
     property vector2d minorOffset: Qt.vector2d(0, 0)
     property vector2d majorOffset: Qt.vector2d(0, 0)
-    property real minorPointSize: 1.75
-    property real majorPointSize: 2.75
+    // The shader consumes physical pixels; defaults correspond to 2/3 logical pixels.
+    property real minorPointSize: 2.0 * devicePixelRatio
+    property real majorPointSize: 3.0 * devicePixelRatio
     property real devicePixelRatio: 1.0
     readonly property vector2d viewportSize: Qt.vector2d(width, height)
     readonly property real pointStyle: gridStyle === "points" ? 1.0 : 0.0

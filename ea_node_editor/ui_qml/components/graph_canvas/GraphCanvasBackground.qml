@@ -55,8 +55,15 @@ Item {
     }
     readonly property bool effectiveShowGrid: root.showGrid
     readonly property string effectiveGridStyle: root.gridStyle === "points" ? "points" : "lines"
-    readonly property real minorGridPointSize: 1.75
-    readonly property real majorGridPointSize: 2.75
+    // Point sizes are logical pixels, so dots remain legible on high-DPI screens.
+    readonly property real minorGridPointSize: 2.0
+    readonly property real majorGridPointSize: 3.0
+    readonly property color _pointContrastTint: (
+        backgroundFillColor.r * 0.2126 + backgroundFillColor.g * 0.7152
+        + backgroundFillColor.b * 0.0722) > 0.5
+        ? Qt.rgba(0, 0, 0, 0.28) : Qt.rgba(1, 1, 1, 0.24)
+    readonly property color pointMinorGridColor: Qt.tint(minorGridColor, _pointContrastTint)
+    readonly property color pointMajorGridColor: Qt.tint(majorGridColor, _pointContrastTint)
     readonly property string activeGridRendererKind: root.gridRendererPreference === "canvas"
         || GraphicsInfo.api === GraphicsInfo.Software
         || shaderGridRenderer.status === ShaderEffect.Error ? "canvas" : "shader"
@@ -173,14 +180,14 @@ Item {
         anchors.fill: parent
         visible: root.effectiveShowGrid && root._useShaderGridRenderer
         gridStyle: root.effectiveGridStyle
-        minorGridColor: root.minorGridColor
-        majorGridColor: root.majorGridColor
+        minorGridColor: root.effectiveGridStyle === "points" ? root.pointMinorGridColor : root.minorGridColor
+        majorGridColor: root.effectiveGridStyle === "points" ? root.pointMajorGridColor : root.majorGridColor
         minorStep: root._currentGridStep()
         majorStep: root._currentGridPeriod()
         minorOffset: Qt.vector2d(root._gridOffsetX(minorStep), root._gridOffsetY(minorStep))
         majorOffset: Qt.vector2d(root._gridOffsetX(majorStep), root._gridOffsetY(majorStep))
-        minorPointSize: root.minorGridPointSize
-        majorPointSize: root.majorGridPointSize
+        minorPointSize: root.minorGridPointSize * root._devicePixelRatio
+        majorPointSize: root.majorGridPointSize * root._devicePixelRatio
         devicePixelRatio: root._devicePixelRatio
     }
 
@@ -226,18 +233,18 @@ Item {
             var minorY = root._gridOffsetY(minorStep);
             var majorX = root._gridOffsetX(majorStep);
             var majorY = root._gridOffsetY(majorStep);
-            var minorSize = root.minorGridPointSize / root._devicePixelRatio;
-            var majorSize = root.majorGridPointSize / root._devicePixelRatio;
+            var minorSize = root.minorGridPointSize;
+            var majorSize = root.majorGridPointSize;
             var minorHalf = minorSize * 0.5;
             var majorHalf = majorSize * 0.5;
 
-            ctx.fillStyle = root.minorGridColor;
+            ctx.fillStyle = root.pointMinorGridColor;
             for (var y = minorY; y <= height; y += minorStep) {
                 for (var x = minorX; x <= width; x += minorStep)
                     ctx.fillRect(x - minorHalf, y - minorHalf, minorSize, minorSize);
             }
 
-            ctx.fillStyle = root.majorGridColor;
+            ctx.fillStyle = root.pointMajorGridColor;
             for (var majorRow = majorY; majorRow <= height; majorRow += majorStep) {
                 for (var majorColumn = majorX; majorColumn <= width; majorColumn += majorStep) {
                     ctx.fillRect(
