@@ -30,6 +30,7 @@ from ea_node_editor.addons.tabular_data.input_node import execute_tabular_input
     label="Path",
     file_filter="Tabular Data (*.csv *.tsv *.txt *.xlsx *.xlsm *.parquet *.h5 *.hdf *.hdf5 *.npy *.npz);;All Files (*)",
     port=True,
+    _inline_editor="",
     _inspector_editor="path",
     _port_accepted_data_types=(),
     _port_description="Path to a CSV, spreadsheet, or supported array source.",

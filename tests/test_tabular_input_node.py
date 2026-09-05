@@ -103,7 +103,7 @@ def test_tabular_data_input_descriptor_publishes_one_ref_only_source_node() -> N
 
     properties_by_key = {prop.key: prop for prop in spec.properties}
     assert properties_by_key["path"].type == "path"
-    assert properties_by_key["path"].inline_editor == "path"
+    assert properties_by_key["path"].inline_editor == ""
     assert properties_by_key["path"].inspector_editor == "path"
     assert properties_by_key["selected_object"].default == ""
     assert properties_by_key["cache_policy"].default == TABULAR_DATA_INPUT_CACHE_POLICY_APP_MANAGED_PARQUET

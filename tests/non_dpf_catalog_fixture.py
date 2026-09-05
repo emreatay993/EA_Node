@@ -372,6 +372,9 @@ def load_effective_non_dpf_catalog(
                 f"Solution reuse classification already applied for {type_id}"
             )
         spec["solution_reuse_scope"] = scope
+        if type_id == "tabular.input":
+            # Source selection stays in the inspector and surface toolbar.
+            next(prop for prop in spec["properties"] if prop["key"] == "path")["inline_editor"] = ""
         spec["solution_provenance_inputs"] = (
             [
                 {
