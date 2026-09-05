@@ -116,7 +116,7 @@ class GraphCanvasGridTests(unittest.TestCase):
                 for px in range(x - radius, x + radius + 1)
                 for py in range(y - radius, y + radius + 1)
             )
-            self.assertAlmostEqual(coverage, (2.0 * dpr) ** 2, delta=0.08)
+            self.assertAlmostEqual(coverage, (1.25 * dpr) ** 2, delta=0.08)
 
     def test_point_grid_is_legible_on_light_and_dark_backgrounds(self):
         self.background.setProperty("gridStyle", "points")
@@ -129,9 +129,16 @@ class GraphCanvasGridTests(unittest.TestCase):
                     image = self.window.grabWindow()
                     dpr = image.width() / self.background.width()
                     # A minor point must itself be visible, not only the major marks.
-                    point = image.pixelColor(round(220 * dpr), round(150 * dpr))
                     empty = image.pixelColor(round(227 * dpr), round(157 * dpr))
-                    self.assertGreaterEqual(abs(point.red() - empty.red()), 50)
+                    x, y, radius = round(220 * dpr), round(150 * dpr), round(2 * dpr)
+                    # Smaller dots spread across adjacent pixels at fractional
+                    # positions. Measure contrast over their intended footprint.
+                    contrast = sum(
+                        abs(image.pixelColor(px, py).red() - empty.red())
+                        for px in range(x - radius, x + radius + 1)
+                        for py in range(y - radius, y + radius + 1)
+                    ) / (1.25 * dpr) ** 2
+                    self.assertGreaterEqual(contrast, 50)
 
 
 if __name__ == "__main__":

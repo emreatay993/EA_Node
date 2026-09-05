@@ -56,8 +56,8 @@ Item {
     readonly property bool effectiveShowGrid: root.showGrid
     readonly property string effectiveGridStyle: root.gridStyle === "points" ? "points" : "lines"
     // Point sizes are logical pixels, so dots remain legible on high-DPI screens.
-    readonly property real minorGridPointSize: 2.0
-    readonly property real majorGridPointSize: 3.0
+    readonly property real minorGridPointSize: 1.25
+    readonly property real majorGridPointSize: 2.0
     readonly property color _pointContrastTint: (
         backgroundFillColor.r * 0.2126 + backgroundFillColor.g * 0.7152
         + backgroundFillColor.b * 0.0722) > 0.5
