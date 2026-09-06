@@ -636,10 +636,10 @@ def _standard_visible_label_widths(
         group_ports = group.ports_resolver(node.properties)
         if len(group_ports) > group.minimum:
             removable_keys.update(port.key for port in group_ports)
-    # Columns include the remove target and label gap, measured from the gutter.
+    # Columns include the remove target, measured from the gutter.
     remove_reserve = (
         _DYNAMIC_PORT_REMOVE_CENTER_INTERVAL
-        + _DYNAMIC_PORT_REMOVE_TARGET_WIDTH * 0.5 + 4.0 - STANDARD_PORT_GUTTER
+        + _DYNAMIC_PORT_REMOVE_TARGET_WIDTH * 0.5 - STANDARD_PORT_GUTTER
     )
     left_label_width = max(
         (

@@ -651,10 +651,10 @@ Item {
             ? row.host._usesStandardPortLabelColumns
             : false
         readonly property real inputLabelX: removeButton.visible
-            ? removeButton.x + removeButton.width + 2
+            ? removeButton.x + removeButton.width
             : Math.max(0, portDot.x + portDot.width + (row.host ? row.host._portLabelGap : 6))
         readonly property real outputLabelRightEdge: removeButton.visible
-            ? removeButton.x - 2
+            ? removeButton.x
             : portDot.x - (row.host ? row.host._portLabelGap : 6)
         readonly property real rawAvailableWidth: row.isInput
             ? Math.max(0, (row.host ? row.host.width : 0) - inputLabelX - 4)

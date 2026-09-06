@@ -1222,7 +1222,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                                 if direction == "Input"
                                 else remove.x() - (label.x() + label.width())
                             )
-                            assert abs(label_gap - 2.0) < 0.1, label_gap
+                            assert abs(label_gap) < 0.1, label_gap
                 projected = variant_value(current.property("nodeData"))["surface_metrics"]
                 rendered = variant_value(current.property("surfaceMetrics"))
                 assert abs(projected["body_bottom_margin"] - rendered["body_bottom_margin"]) < 0.1

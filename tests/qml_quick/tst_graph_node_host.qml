@@ -721,11 +721,11 @@ TestCase {
         var outputLabel = findNamedItems(host, "graphNodeOutputPortLabel")[0]
         compare(
             t21Rounded(inputLabel.parent.x - (inputRemove.x + inputRemove.width)),
-            t21Rounded(2)
+            t21Rounded(0)
         )
         compare(
             t21Rounded(outputRemove.x - (outputLabel.parent.x + outputLabel.parent.width)),
-            t21Rounded(2)
+            t21Rounded(0)
         )
         compare(inputRemove.tooltipText, "Remove input")
         compare(outputRemove.tooltipText, "Remove output")
