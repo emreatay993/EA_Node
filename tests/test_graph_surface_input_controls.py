@@ -1235,6 +1235,23 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 for item in named_child_items(host(), "graphNodeDynamicPortAdd_inputs")
                 + named_child_items(host(), "graphNodeDynamicPortAdd_outputs")
             )
+            host().setProperty("hoveredPort", {
+                "node_id": node_id,
+                "port_key": "payload",
+                "direction": "in",
+            })
+            settle_events(2)
+            input_add = named_item(host(), "graphNodeDynamicPortAdd_inputs")
+            input_mouse = named_item(
+                host(),
+                "graphNodeInputPortMouseArea",
+                "payload",
+            )
+            handoff_overlap = input_mouse.mapToItem(
+                input_add,
+                QPointF(input_mouse.width() * 0.5, input_mouse.height()),
+            ).y()
+            assert 1.0 <= handoff_overlap <= 3.0, handoff_overlap
             click("graphNodeDynamicPortAdd_inputs", "payload")
             assert '@corex.input("input1", value_type=corex.Any)' in node.properties["script"], node.properties["script"]
             assert 'def run(ctx, payload, input1)' in node.properties["script"], node.properties["script"]
@@ -4152,7 +4169,7 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
                     QPointF(port_mouse.width() if direction == "in" else 0, 0)).x()
                 clear_gap = -mouse_edge if direction == "in" else mouse_edge - remove.width()
                 assert abs(center_gap - 9.0) < 0.1, center_gap
-                assert 1.0 <= clear_gap <= 3.0, clear_gap
+                assert 1.0 <= -clear_gap <= 3.0, clear_gap
                 return remove
 
             gate_layer = layer_for(gate_id)

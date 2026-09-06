@@ -42,12 +42,7 @@ Item {
         GraphNodeSurfaceMetrics.DYNAMIC_PORT_REMOVE_CENTER_INTERVAL
     readonly property real dynamicPortRemoveTargetWidth:
         GraphNodeSurfaceMetrics.DYNAMIC_PORT_REMOVE_TARGET_WIDTH
-    readonly property real dynamicPortControlClearance: 1
-    readonly property real dynamicPortMouseTrailingExtension: Math.max(
-        0,
-        dynamicPortControlCenterInterval - dynamicPortTargetDiameter * 0.5
-            + dynamicPortControlClearance
-    )
+    readonly property real dynamicPortHoverHandoffOverlap: 2
     readonly property real notchDiameter: 18
     // Fixed 6x raster for zoom/HiDPI; keep the shared image cache independent of zoom.
     readonly property size notchSourceSize: Qt.size(54, 108)
@@ -421,6 +416,13 @@ Item {
             break;
         }
         return root.host.isHoveredPort(direction, portKey);
+    }
+
+    function _dynamicPortIsGroupTerminus(portData) {
+        var group = root._dynamicPortGroupForPort(portData);
+        var keys = group && group.port_keys ? group.port_keys : [];
+        return keys.length > 0
+            && String(keys[keys.length - 1] || "") === root._portKey(portData);
     }
 
     function _anyDynamicPortControlRevealActive() {

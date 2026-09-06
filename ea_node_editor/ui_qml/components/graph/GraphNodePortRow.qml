@@ -318,19 +318,26 @@ Item {
             property real pressStartY: 0
             property bool movedState: false
             property bool hoverActive: false
-            // Keep the generous outer hit area without covering authoring controls.
+            // Slight overlap hands hover from the port to its authoring controls.
             x: !row.isInput && removeButton.visible
                 ? removeButton.x + removeButton.width
-                    + row.portsLayer.dynamicPortControlClearance - portDot.x
+                    - row.portsLayer.dynamicPortHoverHandoffOverlap - portDot.x
                 : -9
             y: -9
             width: removeButton.visible && row.isInput
-                ? removeButton.x - row.portsLayer.dynamicPortControlClearance
+                ? removeButton.x + row.portsLayer.dynamicPortHoverHandoffOverlap
                     - portDot.x - portMouse.x
                 : parent.width + (removeButton.visible ? 9 : 18)
             height: parent.height + (row.portsLayer._dynamicPortInlineControlsVisible()
-                && row.portsLayer._dynamicPortGroupForPort(row.portData)
-                ? row.portsLayer.dynamicPortMouseTrailingExtension
+                    && row.portsLayer._dynamicPortIsGroupTerminus(row.portData)
+                ? Math.max(
+                    0,
+                    row.portPoint.y - row.y
+                        + row.portsLayer.dynamicPortControlCenterInterval
+                        - row.portsLayer.dynamicPortTargetDiameter * 0.5
+                        + row.portsLayer.dynamicPortHoverHandoffOverlap
+                        - portDot.y - portMouse.y - parent.height
+                )
                 : 18)
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             hoverEnabled: true
