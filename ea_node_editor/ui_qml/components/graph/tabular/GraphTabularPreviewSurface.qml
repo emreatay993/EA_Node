@@ -440,7 +440,8 @@ Item {
 
                 Text {
                     objectName: "graphNodeTabularWindowSummary"
-                    width: parent.width
+                    x: 8
+                    width: Math.max(0, parent.width - 8)
                     text: surface.previewReady
                         ? TabularUtils.visibleSummary(surface.previewPayload)
                         : surface.statusDetail

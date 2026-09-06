@@ -1648,6 +1648,7 @@ class TabularGraphSurfaceQmlTests(PassiveGraphSurfaceHostTestBase):
                 assert str(surface.property("previewKind")) == "table"
                 assert bool(status_summary.property("visible"))
                 assert bool(window_summary.property("visible"))
+                assert float(window_summary.property("x")) == 8.0
                 assert bool(grid.property("visible"))
                 assert int(grid.property("rowCount")) == 2
                 assert int(grid.property("columnCount")) == 3
