@@ -1457,9 +1457,9 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             """,
         )
 
-    def test_graph_viewer_surface_footer_meta_and_camera_dispatch(self) -> None:
+    def test_graph_viewer_surface_has_no_footer_meta_and_dispatches_camera(self) -> None:
         self._run_qml_probe(
-            "viewer-footer-meta-camera-dispatch",
+            "viewer-no-footer-meta-camera-dispatch",
             """
             from PyQt6.QtCore import QMetaObject, Q_ARG, pyqtSignal, pyqtSlot
 
@@ -1547,19 +1547,18 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             surface = host.findChild(QObject, "graphNodeViewerSurface")
             assert surface is not None
 
-            footer_meta = variant_list(surface.property("viewerFooterMetaModel"))
-            labels = {str(item["label"]): str(item["value"]) for item in footer_meta}
-            assert labels["Result"] == "Displacement", labels
-            assert labels["Selection"] == "Set 2", labels
-            assert labels["Step"] == "1", labels
-            assert labels["Min"] == "0.001 mm", labels
-            assert labels["Max"] == "0.042155 mm", labels
-            assert labels["Time"] == "2.5", labels
-
-            bridge.source_kind = "cad"
-            bridge.sessions_changed.emit()
-            app.processEvents()
-            assert variant_list(surface.property("viewerFooterMetaModel")) == []
+            assert surface.property("viewerFooterMetaModel") is None
+            for object_name in (
+                "graphNodeViewerSceneCountMeta",
+                "graphNodeViewerResultMeta",
+                "graphNodeViewerSelectionMeta",
+                "graphNodeViewerStepMeta",
+                "graphNodeViewerMinMeta",
+                "graphNodeViewerMaxMeta",
+                "graphNodeViewerTimeMeta",
+                "graphNodeViewerStatusMeta",
+            ):
+                assert host.findChild(QObject, object_name) is None
 
             QMetaObject.invokeMethod(surface, "dispatchSurfaceAction", Q_ARG("QVariant", "cameraIso"))
             QMetaObject.invokeMethod(surface, "dispatchSurfaceAction", Q_ARG("QVariant", "cameraFit"))

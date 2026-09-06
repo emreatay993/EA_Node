@@ -33,57 +33,6 @@ Item {
     readonly property var viewerSessionModel: viewerSessionState
     readonly property var viewerSummary: viewerSessionModel.summary ? viewerSessionModel.summary : ({})
     readonly property var viewerOptions: viewerSessionModel.options ? viewerSessionModel.options : ({})
-    readonly property var viewerRenderStats: {
-        var overlayRevision = surface.viewerHostServiceRef
-            && surface.viewerHostServiceRef.viewer_overlay_revision !== undefined
-            ? surface.viewerHostServiceRef.viewer_overlay_revision
-            : 0;
-        void(overlayRevision);
-        if (!surface.viewerHostServiceRef
-                || !surface.viewerHostServiceRef.viewer_render_stats
-                || surface.viewerNodeId.length === 0)
-            return ({});
-        return surface.viewerHostServiceRef.viewer_render_stats(surface.viewerNodeId);
-    }
-    readonly property var viewerRangeFallback: {
-        var ranges = surface.viewerSummary.value_ranges;
-        if (!ranges || ranges.length === undefined || ranges.length === 0)
-            return ({});
-        var index = Math.max(0, Math.min(surface.viewerStepIndex, ranges.length - 1));
-        var entry = ranges[index];
-        if (!entry)
-            return ({});
-        var component = String(
-            surface.viewerOptions.result_component || "magnitude"
-        ).toLowerCase();
-        var componentIndex = ({ "x": 0, "y": 1, "z": 2 })[component];
-        if (componentIndex !== undefined
-                && entry.component_min
-                && entry.component_min.length > 1
-                && entry.component_min.length > componentIndex
-                && entry.component_max
-                && entry.component_max.length > componentIndex) {
-            return {
-                "min": entry.component_min[componentIndex],
-                "max": entry.component_max[componentIndex]
-            };
-        }
-        return { "min": entry.min, "max": entry.max };
-    }
-    readonly property string viewerStatsUnit: String(
-        surface.viewerRenderStats.unit || surface.viewerSummary.unit || ""
-    )
-    readonly property real viewerCurrentTimeValue: {
-        var times = surface.viewerSummary.time_values;
-        if (times && times.length !== undefined && times.length > 0) {
-            var index = Math.max(0, Math.min(surface.viewerStepIndex, times.length - 1));
-            var numeric = Number(times[index]);
-            if (isFinite(numeric))
-                return numeric;
-        }
-        var single = Number(surface.viewerSummary.time_value);
-        return isFinite(single) ? single : NaN;
-    }
     readonly property bool hostSelected: host ? Boolean(host.isSelected) : false
     readonly property bool transientInteractionPreviewActive: host
         ? Boolean(
@@ -177,16 +126,6 @@ Item {
         }
         return "";
     }
-    readonly property string viewerResultLabel: String(
-        (viewerSummary.scene_layers && viewerSummary.scene_layers.length > 1
-            ? viewerSummary.scene_layers.length + " scenes" : "")
-        || viewerSummary.result_name
-        || viewerSummary.result_label
-        || (host && host.nodeData ? host.nodeData.title || "" : "")
-    )
-    readonly property string viewerSourceKind: String(viewerSummary.source_kind || "").toLowerCase()
-    readonly property string viewerSetLabel: viewerSummary.scene_layers && viewerSummary.scene_layers.length > 1
-        ? "" : String(viewerSummary.set_label || viewerSummary.time_label || "")
     readonly property string viewerInvalidatedReason: String(
         viewerSessionModel.invalidated_reason
         || viewerSummary.invalidated_reason
@@ -535,7 +474,6 @@ Item {
         "interactive_rects": _rectListPayload(viewerInteractiveRects),
         "bridge_binding": viewerBridgeBinding
     })
-    readonly property var viewerFooterMetaModel: _buildFooterMetaModel()
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
     readonly property bool inlineLiveRequested: _inlineLiveRequested
     property string _activeInteractionNodeId: ""
@@ -853,67 +791,6 @@ Item {
         if (typeof uiIcons === "undefined" || !uiIcons || !uiIcons.has(name))
             return "";
         return uiIcons.sourceSized(name, size, color);
-    }
-
-    function _appendFooterMeta(items, objectName, label, value) {
-        var text = String(value || "");
-        if (!text.length)
-            return;
-        items.push({
-            "object_name": objectName,
-            "label": label,
-            "value": text
-        });
-    }
-
-    function _formatStatValue(value) {
-        var numeric = Number(value);
-        if (!isFinite(numeric))
-            return "";
-        var magnitude = Math.abs(numeric);
-        var text = (magnitude >= 1e5 || (magnitude > 0 && magnitude < 1e-3))
-            ? numeric.toExponential(3)
-            : String(Number(numeric.toPrecision(5)));
-        return surface.viewerStatsUnit.length > 0
-            ? text + " " + surface.viewerStatsUnit
-            : text;
-    }
-
-    function _buildFooterMetaModel() {
-        var items = [];
-        if (surface.viewerSummary.scene_layers && surface.viewerSummary.scene_layers.length > 1) {
-            _appendFooterMeta(items, "graphNodeViewerSceneCountMeta", "Scenes",
-                String(surface.viewerSummary.scene_layers.length));
-            if (surface.viewerRunRequired)
-                _appendFooterMeta(items, "graphNodeViewerStatusMeta", "Status", "Rerun required");
-            return items;
-        }
-        if (surface.viewerSourceKind === "cad")
-            return items;
-        if (surface.viewerSessionOpen || surface.viewerRunRequired) {
-            _appendFooterMeta(items, "graphNodeViewerResultMeta", "Result", surface.viewerResultLabel);
-            _appendFooterMeta(items, "graphNodeViewerSelectionMeta", "Selection", surface.viewerSetLabel);
-            _appendFooterMeta(items, "graphNodeViewerStepMeta", "Step", String(surface.viewerStepIndex));
-            var minValue = surface.viewerRenderStats.min !== undefined
-                ? surface.viewerRenderStats.min
-                : surface.viewerRangeFallback.min;
-            var maxValue = surface.viewerRenderStats.max !== undefined
-                ? surface.viewerRenderStats.max
-                : surface.viewerRangeFallback.max;
-            _appendFooterMeta(items, "graphNodeViewerMinMeta", "Min", surface._formatStatValue(minValue));
-            _appendFooterMeta(items, "graphNodeViewerMaxMeta", "Max", surface._formatStatValue(maxValue));
-            if (isFinite(surface.viewerCurrentTimeValue)) {
-                _appendFooterMeta(
-                    items,
-                    "graphNodeViewerTimeMeta",
-                    "Time",
-                    String(Number(surface.viewerCurrentTimeValue.toPrecision(6)))
-                );
-            }
-        }
-        if (surface.viewerRunRequired)
-            _appendFooterMeta(items, "graphNodeViewerStatusMeta", "Status", "Rerun required");
-        return items;
     }
 
     function requestSessionToggle() {
@@ -1275,69 +1152,6 @@ Item {
                         }
                     }
 
-                    Rectangle {
-                        id: footerFrame
-                        visible: surface.viewerFooterMetaModel.length > 0
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        anchors.margins: 8
-                        radius: 5
-                        color: host ? Qt.alpha(host.inlineInputBackgroundColor, 0.72) : "#19202d"
-                        border.width: 1
-                        border.color: host ? Qt.alpha(host.inlineInputBorderColor, 0.34) : "#465066"
-                        height: footerFlow.implicitHeight + 8
-
-                        Flow {
-                            id: footerFlow
-                            anchors.fill: parent
-                            anchors.leftMargin: 8
-                            anchors.rightMargin: 8
-                            anchors.topMargin: 4
-                            anchors.bottomMargin: 4
-                            spacing: 6
-
-                            Repeater {
-                                model: surface.viewerFooterMetaModel
-
-                                Rectangle {
-                                    objectName: modelData.object_name
-                                    readonly property real maxChipWidth: Math.max(72, footerFlow.width * 0.52)
-                                    radius: 9
-                                    color: Qt.alpha(surface.viewerAccentColor, 0.1)
-                                    border.width: 1
-                                    border.color: Qt.alpha(surface.viewerAccentColor, 0.22)
-                                    height: footerMetaRow.implicitHeight + 6
-                                    width: Math.min(maxChipWidth, footerMetaRow.implicitWidth + 10)
-
-                                    Row {
-                                        id: footerMetaRow
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 5
-                                        anchors.rightMargin: 5
-                                        spacing: 4
-
-                                        Text {
-                                            text: modelData.label
-                                            color: host ? host.inlineDrivenTextColor : "#8ea0bd"
-                                            font.pixelSize: 9
-                                            font.bold: true
-                                            renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                                        }
-
-                                        Text {
-                                            width: Math.max(20, parent.width - x - 2)
-                                            text: modelData.value
-                                            color: host ? host.inlineLabelColor : "#d5dbea"
-                                            font.pixelSize: 9
-                                            elide: Text.ElideRight
-                                            renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
