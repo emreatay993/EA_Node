@@ -42,6 +42,12 @@ Item {
         GraphNodeSurfaceMetrics.DYNAMIC_PORT_REMOVE_CENTER_INTERVAL
     readonly property real dynamicPortRemoveTargetWidth:
         GraphNodeSurfaceMetrics.DYNAMIC_PORT_REMOVE_TARGET_WIDTH
+    readonly property real dynamicPortControlClearance: 1
+    readonly property real dynamicPortMouseTrailingExtension: Math.max(
+        0,
+        dynamicPortControlCenterInterval - dynamicPortTargetDiameter * 0.5
+            + dynamicPortControlClearance
+    )
     readonly property real notchDiameter: 18
     // Fixed 6x raster for zoom/HiDPI; keep the shared image cache independent of zoom.
     readonly property size notchSourceSize: Qt.size(54, 108)
@@ -398,6 +404,50 @@ Item {
             && root.host
             && !Boolean(root.host.nodeData.collapsed)
             && Number(root.host.floatingToolbarZoom || 1.0) >= 0.95;
+    }
+
+    function _dynamicPortControlRevealActive(portData) {
+        if (!root._dynamicPortInlineControlsVisible() || !root.host)
+            return false;
+        var direction = root._interactionDirection(portData, "");
+        var portKey = root._portKey(portData);
+        var repeater = direction === "in" ? inputPortsRepeater : outputPortsRepeater;
+        for (var index = 0; index < repeater.count; ++index) {
+            var row = repeater.itemAt(index);
+            if (!row || String(row.propertyKey || "") !== portKey)
+                continue;
+            if (row.portMouseAreaItem && row.portMouseAreaItem.containsMouse)
+                return true;
+            break;
+        }
+        return root.host.isHoveredPort(direction, portKey);
+    }
+
+    function _anyDynamicPortControlRevealActive() {
+        var repeaters = [inputPortsRepeater, outputPortsRepeater];
+        for (var repeaterIndex = 0; repeaterIndex < repeaters.length; ++repeaterIndex) {
+            var repeater = repeaters[repeaterIndex];
+            for (var index = 0; index < repeater.count; ++index) {
+                var row = repeater.itemAt(index);
+                if (row && root._dynamicPortControlRevealActive(row.portData))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    function _dynamicGroupControlRevealActive(group) {
+        if (!root._dynamicPortInlineControlsVisible() || !root.host)
+            return false;
+        var keys = group && group.port_keys ? group.port_keys : [];
+        if (keys.length === 0)
+            return Boolean(root.host.hoveredPort)
+                || root._anyDynamicPortControlRevealActive()
+                || Boolean(root.host.hoverActive);
+        return root._dynamicPortControlRevealActive({
+            "direction": String(group.direction || "").trim().toLowerCase(),
+            "key": String(keys[keys.length - 1] || "")
+        });
     }
 
     function _isEditablePort(portData) {
@@ -1102,10 +1152,12 @@ Item {
             readonly property var terminusPoint: root._dynamicGroupTerminusPoint(modelData)
             readonly property var portKeys: modelData && modelData.port_keys ? modelData.port_keys : []
             readonly property bool actionActive: hovered || activeFocus || down
+            readonly property bool revealActive: root._dynamicGroupControlRevealActive(modelData)
             visible: root._dynamicPortInlineControlsVisible()
                 && Boolean(modelData && modelData.can_insert)
                 && (direction === "in" || direction === "out")
                 && groupId.length > 0
+                && (revealActive || actionActive)
             x: Number(terminusPoint.x || 0) - width * 0.5
             y: Number(terminusPoint.y || 0) - height * 0.5
             width: root.dynamicPortTargetDiameter
@@ -1122,7 +1174,7 @@ Item {
                 Rectangle {
                     objectName: "graphNodeDynamicPortAddCircle"
                     anchors.centerIn: parent
-                    width: dynamicPortAddButton.actionActive ? 20 : 8
+                    width: dynamicPortAddButton.actionActive ? 14 : 6
                     height: width
                     radius: width * 0.5
                     color: dynamicPortAddButton.down
@@ -1143,9 +1195,10 @@ Item {
                         )
                     Text {
                         anchors.centerIn: parent
+                        anchors.verticalCenterOffset: -1
                         text: "+"
                         color: "#FFFFFF"
-                        font.pixelSize: 16
+                        font.pixelSize: 12
                         opacity: dynamicPortAddButton.actionActive ? 1.0 : 0.0
                     }
                 }

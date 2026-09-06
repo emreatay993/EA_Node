@@ -319,11 +319,19 @@ Item {
             property bool movedState: false
             property bool hoverActive: false
             // Keep the generous outer hit area without covering authoring controls.
-            x: !row.isInput && removeButton.visible ? 0 : -9
+            x: !row.isInput && removeButton.visible
+                ? removeButton.x + removeButton.width
+                    + row.portsLayer.dynamicPortControlClearance - portDot.x
+                : -9
             y: -9
-            width: parent.width + (removeButton.visible ? 9 : 18)
+            width: removeButton.visible && row.isInput
+                ? removeButton.x - row.portsLayer.dynamicPortControlClearance
+                    - portDot.x - portMouse.x
+                : parent.width + (removeButton.visible ? 9 : 18)
             height: parent.height + (row.portsLayer._dynamicPortInlineControlsVisible()
-                && row.portsLayer._dynamicPortGroupForPort(row.portData) ? 9 : 18)
+                && row.portsLayer._dynamicPortGroupForPort(row.portData)
+                ? row.portsLayer.dynamicPortMouseTrailingExtension
+                : 18)
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             hoverEnabled: true
             preventStealing: true
@@ -562,8 +570,10 @@ Item {
         property color actionFillColor: "#FF5449"
         readonly property bool actionActive: hovered || activeFocus || down
         readonly property var dynamicGroup: row.portsLayer._dynamicPortGroupForPort(row.portData)
+        readonly property bool revealActive: row.portsLayer._dynamicPortControlRevealActive(row.portData)
         visible: row.portsLayer._dynamicPortInlineControlsVisible()
             && row.portsLayer._dynamicPortCanRemove(row.portData)
+            && (revealActive || actionActive)
         x: Number(row.portPoint.x || 0)
             + (row.isInput ? 1 : -1) * row.portsLayer.dynamicPortRemoveCenterInterval
             - width * 0.5
@@ -574,15 +584,14 @@ Item {
         text: ""
         foregroundColor: "#FFFFFF"
         accentColor: "#FFFFFF"
-        tooltipText: "Remove " + row.direction + "put "
-            + row.portsLayer._portLabelText(row.portData)
+        tooltipText: "Remove " + row.direction + "put"
         focusPolicy: Qt.TabFocus
         Accessible.name: tooltipText
         background: Item {
             Rectangle {
                 objectName: "graphNodeDynamicPortRemoveCircle"
                 anchors.centerIn: parent
-                width: removeButton.actionActive ? 20 : 8
+                width: removeButton.actionActive ? 14 : 6
                 height: width
                 radius: width * 0.5
                 color: removeButton.down
@@ -598,9 +607,10 @@ Item {
                     : Qt.rgba(1.0, 1.0, 1.0, removeButton.hovered ? 0.82 : 0.34)
                 Text {
                     anchors.centerIn: parent
+                    anchors.verticalCenterOffset: -1
                     text: "\u2212"
                     color: "#FFFFFF"
-                    font.pixelSize: 16
+                    font.pixelSize: 12
                     opacity: removeButton.actionActive ? 1.0 : 0.0
                 }
             }
@@ -634,10 +644,10 @@ Item {
             ? row.host._usesStandardPortLabelColumns
             : false
         readonly property real inputLabelX: removeButton.visible
-            ? removeButton.x + removeButton.width + 4
+            ? removeButton.x + removeButton.width + 2
             : Math.max(0, portDot.x + portDot.width + (row.host ? row.host._portLabelGap : 6))
         readonly property real outputLabelRightEdge: removeButton.visible
-            ? removeButton.x - 4
+            ? removeButton.x - 2
             : portDot.x - (row.host ? row.host._portLabelGap : 6)
         readonly property real rawAvailableWidth: row.isInput
             ? Math.max(0, (row.host ? row.host.width : 0) - inputLabelX - 4)

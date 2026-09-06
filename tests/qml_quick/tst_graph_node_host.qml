@@ -694,26 +694,41 @@ TestCase {
         ]
         var host = createHost(payload)
         verify(host !== null)
+        var inputRow = findNamedItems(host, "graphNodeInputPortRow")[0]
+        var outputRow = findNamedItems(host, "graphNodeOutputPortRow")[0]
+        mouseMove(inputRow, inputRow.portPoint.x, inputRow.height * 0.5)
         tryVerify(function() {
             return findNamedItems(host, "graphNodeDynamicPortRemove_payload").length === 1
                 && findNamedItems(host, "graphNodeDynamicPortRemove_result").length === 1
         })
-        var inputRow = findNamedItems(host, "graphNodeInputPortRow")[0]
-        var outputRow = findNamedItems(host, "graphNodeOutputPortRow")[0]
         var inputRemove = findNamedItems(host, "graphNodeDynamicPortRemove_payload")[0]
+        mouseMove(outputRow, outputRow.portPoint.x, outputRow.height * 0.5)
+        tryVerify(function() {
+            return findNamedItems(host, "graphNodeDynamicPortRemove_result")[0].visible
+        })
         var outputRemove = findNamedItems(host, "graphNodeDynamicPortRemove_result")[0]
         compare(
             t21Rounded(inputRemove.x + inputRemove.width * 0.5 - inputRow.portPoint.x),
-            t21Rounded(18)
+            t21Rounded(9)
         )
         compare(
             t21Rounded(outputRow.portPoint.x - (outputRemove.x + outputRemove.width * 0.5)),
-            t21Rounded(18)
+            t21Rounded(9)
         )
         compare(inputRemove.propertyKey, "payload")
         compare(outputRemove.propertyKey, "result")
-        compare(inputRemove.tooltipText, "Remove input Payload")
-        compare(outputRemove.tooltipText, "Remove output Result")
+        var inputLabel = findNamedItems(host, "graphNodeInputPortLabel")[0]
+        var outputLabel = findNamedItems(host, "graphNodeOutputPortLabel")[0]
+        compare(
+            t21Rounded(inputLabel.parent.x - (inputRemove.x + inputRemove.width)),
+            t21Rounded(2)
+        )
+        compare(
+            t21Rounded(outputRemove.x - (outputLabel.parent.x + outputLabel.parent.width)),
+            t21Rounded(2)
+        )
+        compare(inputRemove.tooltipText, "Remove input")
+        compare(outputRemove.tooltipText, "Remove output")
 
         var portsLayer = findNamedItems(host, "graphNodePortsLayer")[0]
         portsLayer.beginPortLabelEdit("payload", "in")

@@ -111,7 +111,10 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
         self.assertEqual([group.group_id for group in spec.dynamic_port_groups], ["inputs", "outputs"])
         self.assertAlmostEqual(
             metrics.body_bottom_margin,
-            metrics.port_center_offset + 19.0 + 4.0 + 4.0 - metrics.port_height,
+            max(
+                STANDARD_BOTTOM_PADDING,
+                metrics.port_center_offset + 9.0 + 3.0 + 4.0 - metrics.port_height,
+            ),
         )
 
         static_spec = NodeTypeSpec(
@@ -1180,7 +1183,20 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                 return next(item for item in named_child_items(canvas, "graphNodeCard")
                     if variant_value(item.property("nodeData"))["node_id"] == node_id)
 
-            def click(name):
+            def click(name, port_key=None, direction="Input"):
+                if port_key is None:
+                    QTest.mouseMove(window, QPoint(960, 650))
+                    settle_events(1)
+                    QTest.mouseMove(window, item_scene_point(host()))
+                else:
+                    QTest.mouseMove(window, QPoint(960, 650))
+                    settle_events(1)
+                    host().setProperty("hoveredPort", {
+                        "node_id": node_id,
+                        "port_key": port_key,
+                        "direction": "in" if direction == "Input" else "out",
+                    })
+                settle_events(2)
                 item = named_item(host(), name)
                 assert item is not None and item.property("visible"), name
                 QTest.mouseMove(window, item_scene_point(item))
@@ -1199,31 +1215,45 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                         remove = row.property("removeButtonItem")
                         if remove is not None and remove.property("visible"):
                             point = variant_value(row.property("portPoint"))
-                            assert abs(abs(remove.x() + remove.width() / 2 - point["x"]) - 18) < 0.1
+                            assert abs(abs(remove.x() + remove.width() / 2 - point["x"]) - 9) < 0.1
+                            label = row.property("labelContainerItem")
+                            label_gap = (
+                                label.x() - (remove.x() + remove.width())
+                                if direction == "Input"
+                                else remove.x() - (label.x() + label.width())
+                            )
+                            assert abs(label_gap - 2.0) < 0.1, label_gap
                 projected = variant_value(current.property("nodeData"))["surface_metrics"]
                 rendered = variant_value(current.property("surfaceMetrics"))
                 assert abs(projected["body_bottom_margin"] - rendered["body_bottom_margin"]) < 0.1
 
             assert_compact_geometry()
-            click("graphNodeDynamicPortAdd_inputs")
+            QTest.mouseMove(window, QPoint(960, 650))
+            settle_events(2)
+            assert all(
+                not item.property("visible")
+                for item in named_child_items(host(), "graphNodeDynamicPortAdd_inputs")
+                + named_child_items(host(), "graphNodeDynamicPortAdd_outputs")
+            )
+            click("graphNodeDynamicPortAdd_inputs", "payload")
             assert '@corex.input("input1", value_type=corex.Any)' in node.properties["script"], node.properties["script"]
             assert 'def run(ctx, payload, input1)' in node.properties["script"], node.properties["script"]
-            click("graphNodeDynamicPortAdd_outputs")
+            click("graphNodeDynamicPortAdd_outputs", "result", "Output")
             assert '@corex.output("output1", value_type=corex.Any)' in node.properties["script"], node.properties["script"]
             assert_compact_geometry()
-            click("graphNodeDynamicPortRemove_input1")
-            click("graphNodeDynamicPortRemove_output1")
+            click("graphNodeDynamicPortRemove_input1", "input1")
+            click("graphNodeDynamicPortRemove_output1", "output1", "Output")
             assert "input1" not in node.properties["script"]
             assert "output1" not in node.properties["script"]
             assert original.split("def run", 1)[1].split(":", 1)[1] == node.properties["script"].split("def run", 1)[1].split(":", 1)[1]
 
             # The zero-port sides must still expose clickable green handles.
-            click("graphNodeDynamicPortRemove_payload")
-            click("graphNodeDynamicPortRemove_result")
+            click("graphNodeDynamicPortRemove_payload", "payload")
+            click("graphNodeDynamicPortRemove_result", "result", "Output")
             spec = registry.resolve_spec(node.type_id, node.properties)
             assert not spec.ports
             click("graphNodeDynamicPortAdd_inputs")
-            click("graphNodeDynamicPortAdd_outputs")
+            click("graphNodeDynamicPortAdd_outputs", "input1")
             assert {p.key for p in registry.resolve_spec(node.type_id, node.properties).ports} == {"input1", "output1"}
             scene.rename_dynamic_port(node_id, "inputs", "input1", "long_input_parameter_name")
             scene.rename_dynamic_port(node_id, "outputs", "output1", "long_output_parameter_name")
@@ -3801,6 +3831,7 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
         )
         self.assertIn('text: "+"', ports_source)
         self.assertEqual(row_source.count('text: "\\u2212"'), 1)
+        self.assertEqual(port_ui_source.count("anchors.verticalCenterOffset: -1"), 2)
         self.assertIn('objectName: "graphNodeDynamicPortAddCircle"', ports_source)
         self.assertEqual(
             row_source.count('objectName: "graphNodeDynamicPortRemoveCircle"'),
@@ -3815,7 +3846,7 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             "dynamicPortAddButton",
         ):
             self.assertIn(
-                f"width: {control_id}.actionActive ? 20 : 8",
+                f"width: {control_id}.actionActive ? 14 : 6",
                 port_ui_source,
             )
             self.assertIn(
@@ -4080,11 +4111,6 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             assert gate_edge_id in model.active_workspace.edges
 
             def assert_remove_target_clearance(node_id, direction, port_key):
-                layer = layer_for(node_id)
-                remove = named_item(
-                    layer,
-                    f"graphNodeDynamicPortRemove_{port_key}",
-                )
                 mouse_name = (
                     "graphNodeInputPortMouseArea"
                     if direction == "in"
@@ -4100,15 +4126,32 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
                     dot_name,
                     port_key,
                 )
+                host_for(node_id).setProperty("hoveredPort", {
+                    "node_id": node_id,
+                    "port_key": port_key,
+                    "direction": direction,
+                })
+                settle_events(2)
+                layer = layer_for(node_id)
+                remove = named_item(
+                    layer,
+                    f"graphNodeDynamicPortRemove_{port_key}",
+                )
                 port_mouse = named_item(connector_dot, mouse_name)
-                assert bool(remove.property("visible")) is True
+                assert bool(remove.property("visible")) is True, (
+                    "remove action did not reveal",
+                    node_id,
+                    direction,
+                    port_key,
+                    bool(remove.property("revealActive")),
+                )
                 remove_center = item_scene_point(remove)
                 connector_center = item_scene_point(connector_dot)
                 center_gap = abs(remove_center.x() - connector_center.x())
                 mouse_edge = port_mouse.mapToItem(remove,
                     QPointF(port_mouse.width() if direction == "in" else 0, 0)).x()
                 clear_gap = -mouse_edge if direction == "in" else mouse_edge - remove.width()
-                assert abs(center_gap - 18.0) < 0.1, center_gap
+                assert abs(center_gap - 9.0) < 0.1, center_gap
                 assert 1.0 <= clear_gap <= 3.0, clear_gap
                 return remove
 
@@ -4128,9 +4171,9 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
                 for child in gate_remove_circle.findChildren(QObject)
                 if str(child.property("text")) == "\u2212"
             )
-            assert int(gate_remove_circle.property("width")) == 8
-            assert int(gate_remove_circle.property("height")) == 8
-            assert float(gate_remove_circle.property("radius")) == 4.0
+            assert int(gate_remove_circle.property("width")) == 6
+            assert int(gate_remove_circle.property("height")) == 6
+            assert float(gate_remove_circle.property("radius")) == 3.0
             assert gate_remove_circle.property("color").name().lower() == "#ff5449"
             assert float(gate_remove_glyph.property("opacity")) == 0.0
             gate_remove_rest_x = float(gate_remove.property("x"))
@@ -4138,24 +4181,24 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
             gate_remove.forceActiveFocus()
             settle_events(2)
             assert bool(gate_remove.property("activeFocus")) is True
-            assert int(gate_remove_circle.property("width")) == 20
-            assert int(gate_remove_circle.property("height")) == 20
-            assert float(gate_remove_circle.property("radius")) == 10.0
+            assert int(gate_remove_circle.property("width")) == 14
+            assert int(gate_remove_circle.property("height")) == 14
+            assert float(gate_remove_circle.property("radius")) == 7.0
             assert float(gate_remove_glyph.property("opacity")) == 1.0
             assert float(gate_remove.property("x")) == gate_remove_rest_x
             assert float(gate_remove.property("y")) == gate_remove_rest_y
-            assert int(gate_remove.property("width")) == 20
-            assert int(gate_remove.property("height")) == 24
+            assert int(gate_remove.property("width")) == 14
+            assert int(gate_remove.property("height")) == 14
             remove_rect = variant_value(gate_remove.property("interactiveRect")) or {}
-            assert float(remove_rect["width"]) == 20.0
-            assert float(remove_rect["height"]) == 24.0
+            assert float(remove_rect["width"]) == 14.0
+            assert float(remove_rect["height"]) == 14.0
             embedded_rects = [
                 variant_value(rect)
                 for rect in variant_list(gate_layer.property("embeddedInteractiveRects"))
             ]
             assert any(
-                float(rect.get("width", 0)) == 20.0
-                and float(rect.get("height", 0)) == 24.0
+                float(rect.get("width", 0)) == 14.0
+                and float(rect.get("height", 0)) == 14.0
                 for rect in embedded_rects
             ), embedded_rects
 
