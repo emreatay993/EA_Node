@@ -1,29 +1,14 @@
+# Purpose: Paint the native COREX splash and expose its existing startup handoff.
+# Map: docs/agent_maps/feature_routes/shell_startup_qml_context_splash.md
+# Tests: tests/test_main_bootstrap.py
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
 
-from PyQt6.QtCore import (
-    QEasingCurve,
-    QElapsedTimer,
-    QPointF,
-    QRect,
-    QRectF,
-    QSize,
-    Qt,
-    QTimer,
-    QVariantAnimation,
-    pyqtSignal,
-)
+from PyQt6.QtCore import QEasingCurve, QElapsedTimer, QPointF, QRectF, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
-    QBrush,
-    QColor,
-    QFont,
-    QFontMetricsF,
-    QLinearGradient,
-    QPainter,
-    QPainterPath,
-    QPen,
-    QRadialGradient,
+    QBrush, QColor, QCloseEvent, QFont, QFontMetricsF, QLinearGradient,
+    QPainter, QPainterPath, QPen, QRadialGradient,
 )
 from PyQt6.QtWidgets import QApplication, QWidget
 
@@ -31,11 +16,13 @@ from PyQt6.QtWidgets import QApplication, QWidget
 SPLASH_W = 720
 SPLASH_H = 440
 
-# Mark geometry: design uses a 260-unit canvas; scale k = size/260.
-MARK_SIZE = 188
-BREATHE_MS = 2000
+# Scale only the emblem around the reference center; text uses the original box.
+REFERENCE_MARK_SIZE = 172
+MARK_SIZE = REFERENCE_MARK_SIZE * 1.15
+MARK_CENTER = QPointF(SPLASH_W / 2, SPLASH_H * 0.08 + REFERENCE_MARK_SIZE / 2)
+WORDMARK_TOP = SPLASH_H * 0.08 + REFERENCE_MARK_SIZE + 14
+BREATHE_MS = 6912
 
-# Boot sequence mirrors the React design (splash/monolith_variants.jsx · M1).
 BOOT_STEPS: tuple[str, ...] = (
     "Initialising runtime…",
     "Loading registry",
@@ -53,44 +40,11 @@ BOOT_STEP_DETAILS: tuple[str, ...] = (
 STEP_MS = 720
 
 
-@dataclass(frozen=True)
-class _Palette:
-    bg_deep: QColor
-    bg_card: QColor
-    bg_node: QColor
-    border: QColor
-    border_soft: QColor
-    fg: QColor
-    fg_muted: QColor
-    fg_dim: QColor
-    blue: QColor
-    cyan: QColor
-    soft_blue: QColor
-
-
-COREX = _Palette(
-    bg_deep=QColor("#05080F"),
-    bg_card=QColor("#0B0F1A"),
-    bg_node=QColor("#1A2130"),
-    border=QColor("#1F2A40"),
-    border_soft=QColor("#182138"),
-    fg=QColor("#E6EEFB"),
-    fg_muted=QColor("#8895B2"),
-    fg_dim=QColor("#4A566F"),
-    blue=QColor("#2F6BFF"),
-    cyan=QColor("#00D1FF"),
-    soft_blue=QColor("#6FA8FF"),
-)
-
-
 class OpeningSplash(QWidget):
-    """
-    COREX opening screen · M1 Breathe.
+    """Frameless 720 × 440 splash with a layered blue background and COREX mark.
 
-    Frameless 720x440 card: radial glow, breathing COREX mark, wordmark,
-    version string, and a 2px progress bar that advances through the
-    boot sequence. Use `mark_ready()` then `finish(next_widget)` to dismiss once
-    the app is ready.
+    Entrance and ambient motion are cosmetic. The boot timer and app coordinator
+    still determine when registry loading can hand off to the workspace shell.
     """
 
     boot_completed = pyqtSignal()
@@ -99,44 +53,26 @@ class OpeningSplash(QWidget):
         self,
         *,
         version: str = "v0.9.3",
-        mark_size: int = MARK_SIZE,
+        mark_size: float = MARK_SIZE,
         breathe_ms: int = BREATHE_MS,
         parent: QWidget | None = None,
     ) -> None:
-        super().__init__(
-            parent,
-            Qt.WindowType.SplashScreen | Qt.WindowType.FramelessWindowHint,
-        )
+        super().__init__(parent, Qt.WindowType.SplashScreen | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setFixedSize(QSize(SPLASH_W, SPLASH_H))
-
         self._version = str(version)
-        self._mark_size = int(mark_size)
-        self._breathe_ms = int(breathe_ms)
+        self._mark_size = float(mark_size)
+        self._breathe_ms = max(1, int(breathe_ms))
+        self.setAccessibleName(f"COREX Node Editor {self._version}")
 
-        # Breathing animation drives the core radius between 18k..22k.
-        # We store a 0..1 phase; paintEvent maps it to an eased radius.
-        self._breathe_phase = 0.0
-        self._breathe_anim = QVariantAnimation(self)
-        self._breathe_anim.setStartValue(0.0)
-        self._breathe_anim.setEndValue(1.0)
-        self._breathe_anim.setDuration(self._breathe_ms)
-        self._breathe_anim.setLoopCount(-1)
-        self._breathe_anim.setEasingCurve(QEasingCurve.Type.Linear)
-        self._breathe_anim.valueChanged.connect(self._on_breathe)
+        self._shown_timer = QElapsedTimer()
+        self._animation_ms = 0
+        self._entrance_curve = QEasingCurve(QEasingCurve.Type.OutCubic)
+        self._animation_timer = QTimer(self)
+        self._animation_timer.setInterval(33)
+        self._animation_timer.timeout.connect(self._advance_animation)
 
-        # Sheen slides across the progress fill on a 1.6s linear loop.
-        self._sheen_phase = 0.0
-        self._sheen_anim = QVariantAnimation(self)
-        self._sheen_anim.setStartValue(0.0)
-        self._sheen_anim.setEndValue(1.0)
-        self._sheen_anim.setDuration(1600)
-        self._sheen_anim.setLoopCount(-1)
-        self._sheen_anim.setEasingCurve(QEasingCurve.Type.Linear)
-        self._sheen_anim.valueChanged.connect(self._on_sheen)
-
-        # Boot sequence driver.
         self._step_index = 0
         self._boot_completed_emitted = False
         self._status_label_override: str | None = None
@@ -144,26 +80,17 @@ class OpeningSplash(QWidget):
         self._boot_timer = QTimer(self)
         self._boot_timer.setInterval(STEP_MS)
         self._boot_timer.timeout.connect(self._advance_step)
-
-        # Tracks how long the splash has actually been visible, so we can
-        # keep it on screen for a minimum duration even if the shell is
-        # ready instantly (cold-start "flash" is jarring otherwise).
-        self._shown_timer = QElapsedTimer()
-
-    # ------------------------------------------------------------------ api
+        self._refresh_status()
 
     def show_centered(self, screen=None) -> None:
         target = screen or QApplication.primaryScreen()
         if target is not None:
             geometry = target.availableGeometry()
-            self.move(
-                geometry.center().x() - SPLASH_W // 2,
-                geometry.center().y() - SPLASH_H // 2,
-            )
-        self.show()
+            self.move(geometry.center().x() - SPLASH_W // 2, geometry.center().y() - SPLASH_H // 2)
+        self._animation_ms = 0
         self._shown_timer.start()
-        self._breathe_anim.start()
-        self._sheen_anim.start()
+        self.show()
+        self._animation_timer.start()
         self._boot_timer.start()
 
     def finish(self, next_widget: QWidget | None = None, *, min_visible_ms: int = 1200) -> None:
@@ -173,8 +100,7 @@ class OpeningSplash(QWidget):
 
         def _close() -> None:
             self._boot_timer.stop()
-            self._breathe_anim.stop()
-            self._sheen_anim.stop()
+            self._animation_timer.stop()
             if next_widget is not None:
                 next_widget.show()
                 next_widget.raise_()
@@ -188,319 +114,242 @@ class OpeningSplash(QWidget):
 
     def mark_ready(self) -> None:
         """Paint the final handoff state once the shell is ready to show."""
-        ready_step_index = len(BOOT_STEPS) - 1
         self._status_label_override = None
         self._status_detail_override = None
-        if self._step_index != ready_step_index:
-            self._step_index = ready_step_index
-            self.update()
+        self._step_index = len(BOOT_STEPS) - 1
+        self._refresh_status()
 
     def set_busy_message(self, label: str, detail: str | None = None) -> None:
         """Show a concrete startup task while the main thread does handoff work."""
         self._status_label_override = str(label)
         self._status_detail_override = str(detail) if detail else None
+        self._refresh_status()
+
+    def _refresh_status(self) -> None:
+        label = self._status_label_override or BOOT_STEPS[self._step_index]
+        detail = self._status_detail_override or BOOT_STEP_DETAILS[self._step_index]
+        self.setAccessibleDescription(f"{label}. {detail}")
+        self.setToolTip(detail)
         self.update()
 
-    # ------------------------------------------------------------ animation
-
-    def _on_breathe(self, value: float) -> None:
-        self._breathe_phase = float(value)
+    def _advance_animation(self) -> None:
+        self._animation_ms = self._shown_timer.elapsed()
         self.update()
 
-    def _on_sheen(self, value: float) -> None:
-        self._sheen_phase = float(value)
-        self.update()
+    def _entrance(self, delay_ms: int, duration_ms: int) -> float:
+        progress = max(0.0, min(1.0, (self._animation_ms - delay_ms) / duration_ms))
+        return self._entrance_curve.valueForProgress(progress)
 
     def _advance_step(self) -> None:
         if self._boot_completed_emitted:
             return
-
-        ready_step_index = len(BOOT_STEPS) - 1
-        handoff_wait_step_index = max(0, ready_step_index - 1)
+        handoff_wait_step_index = max(0, len(BOOT_STEPS) - 2)
         if self._step_index < handoff_wait_step_index:
             self._step_index += 1
-            self.update()
+            self._refresh_status()
             return
-
         self._boot_timer.stop()
         self._boot_completed_emitted = True
         QTimer.singleShot(0, self.boot_completed.emit)
 
-    # --------------------------------------------------------------- paint
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self._animation_timer.stop()
+        self._boot_timer.stop()
+        super().closeEvent(event)
 
     def paintEvent(self, _event) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-
-        self._paint_frame(painter)
-        self._paint_glow(painter)
-        self._paint_mark(painter)
-        self._paint_wordmark(painter)
-        self._paint_progress(painter)
-
-    # --- frame -------------------------------------------------------------
-
-    def _paint_frame(self, p: QPainter) -> None:
-        rect = QRectF(0.5, 0.5, SPLASH_W - 1, SPLASH_H - 1)
-        path = QPainterPath()
-        path.addRoundedRect(rect, 8, 8)
-
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(COREX.bg_card)
-        p.drawPath(path)
-
-        p.setClipPath(path)  # keep glow + traces inside the rounded card
-        p.setPen(QPen(COREX.border, 1.0))
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        frame = QPainterPath()
+        frame.addRoundedRect(QRectF(0.5, 0.5, SPLASH_W - 1, SPLASH_H - 1), 8, 8)
+        p.setClipPath(frame)
+        self._paint_background(p)
+        self._paint_mark(p)
+        self._paint_wordmark(p)
+        self._paint_progress(p)
+        p.setClipping(False)
         p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawRoundedRect(rect, 8, 8)
+        p.setPen(QPen(QColor("#27456C"), 1))
+        p.drawPath(frame)
+        p.end()
 
-    # --- background glow ---------------------------------------------------
+    def _paint_background(self, p: QPainter) -> None:
+        w, h, t = SPLASH_W, SPLASH_H, self._animation_ms
+        background = QRadialGradient(QPointF(w * 0.5 + math.sin(t / 2300) * 15, h * 0.28), max(w * 0.7, h))
+        background.setColorAt(0, QColor("#0C4769"))
+        background.setColorAt(1, QColor("#070F22"))
+        p.fillRect(self.rect(), background)
+        radiance = QRadialGradient(QPointF(w * 0.5, h * 0.3), h * 0.52)
+        radiance.setColorAt(0, QColor(33, 134, 223, 53))
+        radiance.setColorAt(1, QColor(33, 134, 223, 0))
+        p.fillRect(self.rect(), radiance)
 
-    def _paint_glow(self, p: QPainter) -> None:
-        # Matches the React node: radial-gradient(ellipse 55% 55% at 50% 45%,
-        #   rgba(47,107,255,0.16), transparent 60%)
-        cx = SPLASH_W / 2
-        cy = SPLASH_H * 0.45
-        radius = SPLASH_W * 0.55 / 2
+        # Repeating bands wrap seamlessly if registry loading takes a long time.
+        drift = (t * 0.002) % (w * 0.25)
+        for i in range(-3, 7):
+            x = i * w * 0.25 + drift
+            band = QPainterPath(QPointF(x, 0))
+            band.lineTo(x + w * 0.2, 0)
+            band.lineTo(x - w * 0.25, h)
+            band.lineTo(x - w * 0.45, h)
+            band.closeSubpath()
+            p.fillPath(band, QColor(156, 202, 255, 4))
+            p.setPen(QPen(QColor(174, 218, 255, 10), 0.8))
+            p.drawLine(QPointF(x, 0), QPointF(x - w * 0.45, h))
 
-        grad = QRadialGradient(QPointF(cx, cy), radius)
-        inner = QColor(COREX.blue)
-        inner.setAlphaF(0.16)
-        grad.setColorAt(0.0, inner)
-        grad.setColorAt(0.6, QColor(0, 0, 0, 0))
-        grad.setColorAt(1.0, QColor(0, 0, 0, 0))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        for side in (-1, 1):
+            start, direction = (0 if side < 0 else w), -side
+            for i in range(4):
+                y = h * (0.15 + i * 0.15)
+                inset = w * (0.09 + (i % 2) * 0.085)
+                end_y = y + (1 if i % 2 else -1) * h * 0.06
+                end_x = start + direction * (inset + w * 0.09)
+                trace = QPainterPath(QPointF(start, y))
+                trace.lineTo(start + direction * inset, y)
+                trace.lineTo(start + direction * (inset + w * 0.045), end_y)
+                trace.lineTo(end_x, end_y)
+                p.setPen(QPen(QColor(101, 193, 250, 72), 0.9))
+                p.drawPath(trace)
+                p.setPen(QPen(QColor(100, 189, 237, 136), 1))
+                p.drawEllipse(QPointF(end_x, end_y), 3.2, 3.2)
 
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QBrush(grad))
-        p.drawRect(0, 0, SPLASH_W, SPLASH_H)
-
-    # --- mark --------------------------------------------------------------
+        p.setPen(QPen(QColor(140, 189, 227, 19), 0.7))
+        for i in range(11):
+            p.drawLine(QPointF(w * 0.5, h * 0.67), QPointF(w * i / 10, h))
+        for i in range(6):
+            y = h * (0.69 + 0.012 * i * i)
+            p.drawLine(QPointF(0, y), QPointF(w, y))
+        floor = QLinearGradient(0, h * 0.7, 0, h)
+        floor.setColorAt(0, QColor(8, 18, 37, 0))
+        floor.setColorAt(1, QColor("#081225"))
+        p.fillRect(QRectF(0, h * 0.7, w, h * 0.3), floor)
 
     def _paint_mark(self, p: QPainter) -> None:
-        """
-        Renders the COREX mark (mirrors the React `Mark` component in
-        splash/v1_variations.jsx). All geometry is scaled against a 260-unit
-        canvas, identical to the design source, so the proportions match
-        pixel-for-pixel at any `size`.
-        """
-        size = self._mark_size
-        k = size / 260.0
+        p.save()
+        p.translate(MARK_CENTER)
+        scale = self._mark_size / REFERENCE_MARK_SIZE
+        p.scale(scale, scale)
+        offset = REFERENCE_MARK_SIZE * 0.285
+        corners = ((-offset, -offset), (offset, -offset), (-offset, offset), (offset, offset))
+        connection = self._entrance(200, 450)
+        for x, y in corners:
+            end = QPointF(x * connection, y * connection)
+            for width, alpha in ((9, 12), (5.5, 26)):
+                p.setPen(QPen(QColor(44, 129, 255, alpha), width, cap=Qt.PenCapStyle.FlatCap))
+                p.drawLine(QPointF(), end)
+            gradient = QLinearGradient(QPointF(), QPointF(x, y))
+            gradient.setColorAt(0, QColor("#39DCFF"))
+            gradient.setColorAt(1, QColor("#4386FF"))
+            p.setPen(QPen(QBrush(gradient), 3, cap=Qt.PenCapStyle.FlatCap))
+            p.drawLine(QPointF(), end)
 
-        # The mark sits above center; wordmark + subtitle stack below it.
-        # Vertical layout: [mark][28px gap][wordmark][8px gap][subtitle].
-        wordmark_size = 36
-        subtitle_size = 11
-        gap_1 = 28
-        gap_2 = 8
-        block_h = size + gap_1 + wordmark_size + gap_2 + subtitle_size
-        top = (SPLASH_H - block_h) / 2
-        left = (SPLASH_W - size) / 2
+        for i, (x, y) in enumerate(corners):
+            entrance = self._entrance(40 + i * 45, 440)
+            p.setOpacity(entrance)
+            center = QPointF(
+                x + math.copysign(10 * (1 - entrance), x),
+                y + math.copysign(10 * (1 - entrance), y),
+            )
+            radius = REFERENCE_MARK_SIZE * 0.105 / 2
+            glow = QRadialGradient(center, radius + 10)
+            glow.setColorAt(0, QColor(52, 127, 245, 35))
+            glow.setColorAt(1, QColor(52, 127, 245, 0))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(glow)
+            p.drawEllipse(center, radius + 10, radius + 10)
+            p.setBrush(QColor("#112747"))
+            p.setPen(QPen(QColor("#5197FF"), 2))
+            p.drawEllipse(center, radius - 1, radius - 1)
 
-        cx = left + size / 2
-        cy = top + size / 2
-
-        # Corner nodes (4), inner-X endpoints, core.
-        corners = [
-            (left + 56 * k, top + 56 * k),
-            (left + 204 * k, top + 56 * k),
-            (left + 56 * k, top + 204 * k),
-            (left + 204 * k, top + 204 * k),
-        ]
-
-        # Halo discs behind the core.
-        halo_big = QColor(COREX.soft_blue)
-        halo_big.setAlphaF(0.10)
-        halo_small = QColor(COREX.soft_blue)
-        halo_small.setAlphaF(0.22)
+        p.setOpacity(self._entrance(300, 700))
+        breathe = 1 + 0.035 * math.sin(self._animation_ms * 2 * math.pi / self._breathe_ms)
+        p.scale(breathe, breathe)
+        radius = REFERENCE_MARK_SIZE * 0.08
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(halo_big)
-        p.drawEllipse(QPointF(cx, cy), 36 * k, 36 * k)
-        p.setBrush(halo_small)
-        p.drawEllipse(QPointF(cx, cy), 26 * k, 26 * k)
-
-        # Diagonal connection lines (gradient blue → cyan, round caps).
-        for ox, oy in corners:
-            grad = QLinearGradient(QPointF(ox, oy), QPointF(cx, cy))
-            grad.setColorAt(0.0, COREX.blue)
-            grad.setColorAt(1.0, COREX.cyan)
-            pen = QPen(QBrush(grad), 7 * k)
-            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-            p.setPen(pen)
-            p.drawLine(QPointF(ox, oy), QPointF(cx, cy))
-
-        # Inner "X" crossing through the core.
-        soft = QColor(COREX.soft_blue)
-        soft.setAlphaF(0.92)
-        pen = QPen(soft, 3 * k)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        p.setPen(pen)
-        p.drawLine(QPointF(left + 92 * k, top + 92 * k), QPointF(left + 168 * k, top + 168 * k))
-        p.drawLine(QPointF(left + 168 * k, top + 92 * k), QPointF(left + 92 * k, top + 168 * k))
-
-        # Corner rings — filled node body over outer blue stroke.
-        for ox, oy in corners:
-            p.setBrush(COREX.bg_node)
-            p.setPen(QPen(COREX.blue, 4 * k))
-            p.drawEllipse(QPointF(ox, oy), 12 * k, 12 * k)
-
-        # Breathing core — r cycles 18k..22k on a sin wave.
-        import math
-
-        breathe_t = 0.5 - 0.5 * math.cos(self._breathe_phase * 2 * math.pi)
-        core_r = (18 + 4 * breathe_t) * k
-
-        core_grad = QRadialGradient(QPointF(cx, cy), core_r)
-        core_grad.setColorAt(0.0, COREX.cyan)
-        core_grad.setColorAt(1.0, COREX.blue)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QBrush(core_grad))
-        p.drawEllipse(QPointF(cx, cy), core_r, core_r)
-
-        # Faint outer ring.
-        faint = QColor(COREX.soft_blue)
-        faint.setAlphaF(0.35)
-        pen = QPen(faint, 2.7 * k)
-        p.setPen(pen)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawEllipse(QPointF(cx, cy), 28 * k, 28 * k)
-
-        # Stash layout for the wordmark block.
-        self._wordmark_top = top + size + gap_1
-        self._wordmark_size = wordmark_size
-        self._subtitle_top = self._wordmark_top + wordmark_size + gap_2
-        self._subtitle_size = subtitle_size
-
-    # --- wordmark ----------------------------------------------------------
+        glow = QRadialGradient(QPointF(), radius + 25)
+        glow.setColorAt(0, QColor(71, 180, 255, 102))
+        glow.setColorAt(1, QColor(71, 180, 255, 0))
+        p.setBrush(glow)
+        p.drawEllipse(QPointF(), radius + 25, radius + 25)
+        for spread, color in ((18, QColor(69, 144, 255, 12)), (8, QColor(76, 154, 255, 24))):
+            p.setBrush(color)
+            p.drawEllipse(QPointF(), radius + spread, radius + spread)
+        core = QRadialGradient(QPointF(-0.32 * radius, -0.5 * radius), radius * 2)
+        core.setColorAt(0, QColor("#B8F7FF"))
+        core.setColorAt(0.4, QColor("#1CCCF0"))
+        core.setColorAt(0.95, QColor("#3272FF"))
+        core.setColorAt(1, QColor("#3272FF"))
+        p.setBrush(core)
+        p.drawEllipse(QPointF(), radius, radius)
+        p.restore()
 
     def _paint_wordmark(self, p: QPainter) -> None:
-        wordmark_size = self._wordmark_size
+        entrance = self._entrance(350, 600)
+        p.save()
+        p.setOpacity(entrance)
+        p.translate(0, (1 - entrance) * 4)
+        font = QFont("Segoe UI Variable", -1, QFont.Weight.Medium)
+        font.setPixelSize(45)
+        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 45 * 0.09)
+        metrics = QFontMetricsF(font)
+        left = (SPLASH_W - metrics.horizontalAdvance("COREX")) / 2
+        baseline = WORDMARK_TOP + (45 * 1.15 - metrics.height()) / 2 + metrics.ascent()
+        p.setFont(font)
+        p.setPen(QColor("#F2F6FF"))
+        p.drawText(QPointF(left, baseline), "CORE")
+        x_left = left + metrics.horizontalAdvance("CORE")
+        x_color = QLinearGradient(x_left, WORDMARK_TOP, x_left + metrics.horizontalAdvance("X"), baseline)
+        x_color.setColorAt(0, QColor("#6AA4FF"))
+        x_color.setColorAt(1, QColor("#58E8FF"))
+        p.setPen(QPen(QBrush(x_color), 1))
+        p.drawText(QPointF(x_left, baseline), "X")
 
-        base_font = QFont("Segoe UI Variable", -1, QFont.Weight.DemiBold)
-        base_font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
-        base_font.setPixelSize(wordmark_size)
-        # Design sets letterSpacing: size * 0.08 → ~2.88px at 36px.
-        base_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, wordmark_size * 0.08)
-
-        metrics = QFontMetricsF(base_font)
-        core_text = "CORE"
-        x_text = "X"
-        core_w = metrics.horizontalAdvance(core_text)
-        x_w = metrics.horizontalAdvance(x_text)
-        total_w = core_w + x_w
-
-        # The font's letter-spacing pads trailing advance equally for CORE
-        # and X; to keep "COREX" feeling continuous we let them touch.
-        baseline = self._wordmark_top + metrics.ascent()
-        left = (SPLASH_W - total_w) / 2
-
-        p.setFont(base_font)
-        p.setPen(COREX.fg)
-        p.drawText(QPointF(left, baseline), core_text)
-
-        x_left = left + core_w
-        x_rect = QRectF(x_left, self._wordmark_top, x_w, metrics.height())
-        grad = QLinearGradient(x_rect.topLeft(), x_rect.bottomRight())
-        grad.setColorAt(0.0, COREX.blue)
-        grad.setColorAt(1.0, COREX.cyan)
-        p.setPen(QPen(QBrush(grad), 1))
-        p.drawText(QPointF(x_left, baseline), x_text)
-
-        # Subtitle: "Node Editor · v<version>" — uppercase, tracked.
-        subtitle_font = QFont("Segoe UI", -1, QFont.Weight.Medium)
-        subtitle_font.setPixelSize(self._subtitle_size)
-        subtitle_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 2.0)
-        subtitle_font.setCapitalization(QFont.Capitalization.AllUppercase)
+        subtitle_font = QFont("Segoe UI", -1, QFont.Weight.Normal)
+        subtitle_font.setPixelSize(12)
+        subtitle_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 12 * 0.11)
         p.setFont(subtitle_font)
-        p.setPen(COREX.fg_dim)
-        sub_metrics = QFontMetricsF(subtitle_font)
-        subtitle = f"Node Editor · {self._version}"
-        sub_w = sub_metrics.horizontalAdvance(subtitle)
+        p.setPen(QColor("#BDD0ED"))
+        metrics = QFontMetricsF(subtitle_font)
+        top = WORDMARK_TOP + 45 * 1.15 + 8
         p.drawText(
-            QPointF((SPLASH_W - sub_w) / 2, self._subtitle_top + sub_metrics.ascent()),
-            subtitle,
+            QPointF((SPLASH_W - metrics.horizontalAdvance("NODE EDITOR")) / 2,
+                    top + (18 - metrics.height()) / 2 + metrics.ascent()),
+            "NODE EDITOR",
         )
-
-    # --- progress ----------------------------------------------------------
+        p.restore()
 
     def _paint_progress(self, p: QPainter) -> None:
-        margin = 32
-        bar_y = SPLASH_H - 22 - 2
-        bar_w = SPLASH_W - margin * 2
+        margin = SPLASH_W * 0.07
+        width = SPLASH_W - margin * 2
+        bar_y = SPLASH_H * 0.93 - 3
+        row_top = bar_y - 13 - 16.5
+        p.setPen(QPen(QColor(152, 192, 255, 34), 1))
+        p.drawLine(QPointF(margin, row_top - 15), QPointF(SPLASH_W - margin, row_top - 15))
 
-        progress = (
-            self._step_index / (len(BOOT_STEPS) - 1) if len(BOOT_STEPS) > 1 else 1.0
-        )
-
-        sub_font = QFont("Cascadia Mono", -1, QFont.Weight.Medium)
-        sub_font.setPixelSize(11)
-        p.setFont(sub_font)
-        p.setPen(COREX.fg_dim)
-        sub_metrics = QFontMetricsF(sub_font)
-        sub_text = f"{int(round(progress * 100))}%"
-        sub_w = sub_metrics.horizontalAdvance(sub_text)
-
-        # Label row above the bar.
-        label_font = QFont("Segoe UI", -1, QFont.Weight.Medium)
+        tag_font = QFont("Cascadia Mono", -1, QFont.Weight.Normal)
+        tag_font.setPixelSize(11)
+        tag_width = QFontMetricsF(tag_font).horizontalAdvance("COREX")
+        label_font = QFont("Segoe UI", -1, QFont.Weight.Normal)
         label_font.setPixelSize(11)
-        label_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.5)
-        label_font.setCapitalization(QFont.Capitalization.AllUppercase)
+        metrics = QFontMetricsF(label_font)
+        label = self._status_label_override or BOOT_STEPS[self._step_index]
+        label = metrics.elidedText(label, Qt.TextElideMode.ElideRight, int(width - tag_width - 24))
+        baseline = row_top + (16.5 - metrics.height()) / 2 + metrics.ascent()
         p.setFont(label_font)
-        p.setPen(COREX.fg_muted)
-        label_metrics = QFontMetricsF(label_font)
-        label_baseline = bar_y - 8 - (label_metrics.descent() - label_metrics.leading())
+        p.setPen(QColor("#BDD0ED"))
+        p.drawText(QPointF(margin, baseline), label)
+        p.setFont(tag_font)
+        p.drawText(QPointF(SPLASH_W - margin - tag_width, baseline), "COREX")
 
-        detail_index = min(self._step_index, len(BOOT_STEP_DETAILS) - 1)
-        step_label = self._status_label_override or BOOT_STEPS[self._step_index]
-        step_detail = self._status_detail_override or BOOT_STEP_DETAILS[detail_index]
-        status_text = f"{step_label} - {step_detail}" if step_detail else step_label
-        label_w = max(48, int(bar_w - sub_w - 24))
-        elided_status = label_metrics.elidedText(
-            status_text,
-            Qt.TextElideMode.ElideRight,
-            label_w,
-        )
-        p.drawText(QPointF(margin, label_baseline - label_metrics.descent()), elided_status)
-
-        p.setFont(sub_font)
-        p.setPen(COREX.fg_dim)
-        p.drawText(
-            QPointF(SPLASH_W - margin - sub_w, label_baseline - sub_metrics.descent()),
-            sub_text,
-        )
-
-        # Track background.
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(COREX.border_soft)
-        p.drawRect(QRect(margin, bar_y, bar_w, 2))
-
-        # Progress fill (blue→cyan gradient, cyan glow) — clipped to bar rect.
-        fill_w = int(bar_w * progress)
-        if fill_w > 0:
-            fill_rect = QRectF(margin, bar_y, fill_w, 2)
-            grad = QLinearGradient(fill_rect.topLeft(), fill_rect.topRight())
-            grad.setColorAt(0.0, COREX.blue)
-            grad.setColorAt(1.0, COREX.cyan)
-            p.setBrush(QBrush(grad))
-            p.drawRect(fill_rect)
-
-            # Sheen: 80px-wide soft highlight sliding across the fill only.
-            p.save()
-            p.setClipRect(fill_rect)
-            sheen_w = 80.0
-            # Animate from -120% → +340% of fill width (matches React keyframe).
-            travel = fill_w + sheen_w * 2
-            sheen_x = margin - sheen_w + self._sheen_phase * travel
-            sheen_rect = QRectF(sheen_x, bar_y, sheen_w, 2)
-            sheen_grad = QLinearGradient(sheen_rect.topLeft(), sheen_rect.topRight())
-            transparent = QColor(255, 255, 255, 0)
-            highlight = QColor(255, 255, 255, 140)
-            sheen_grad.setColorAt(0.0, transparent)
-            sheen_grad.setColorAt(0.5, highlight)
-            sheen_grad.setColorAt(1.0, transparent)
-            p.setBrush(QBrush(sheen_grad))
-            p.drawRect(sheen_rect)
-            p.restore()
+        p.fillRect(QRectF(margin, bar_y, width, 3), QColor(168, 205, 255, 34))
+        progress = self._step_index / (len(BOOT_STEPS) - 1)
+        if progress > 0:
+            fill = QRectF(margin, bar_y, width * progress, 3)
+            gradient = QLinearGradient(fill.topLeft(), fill.topRight())
+            gradient.setColorAt(0, QColor("#3675FF"))
+            gradient.setColorAt(1, QColor("#60CEFF"))
+            p.fillRect(fill, gradient)
 
 
 __all__ = ["OpeningSplash", "BOOT_STEPS", "BOOT_STEP_DETAILS"]

@@ -10,6 +10,7 @@ Use this for startup handoff, QML context bootstrap, shell root loading, splash 
 - `ea_node_editor/ui_qml/qml_host_factory.py`
 - `ea_node_editor/ui_qml/MainShell.qml`
 - `ea_node_editor/ui/splash/opening_screen.py`
+- `scripts/render_splash_preview.py`
 
 ## Focused Verification
 ```powershell
@@ -19,6 +20,16 @@ Use this for startup handoff, QML context bootstrap, shell root loading, splash 
 ## Breadcrumbs
 - [Startup, Bootstrap, And App Lifecycle](../subsystems/startup_and_bootstrap.md)
 - [QML Shell And Bridge Layer](../subsystems/qml_shell_and_bridges.md)
+
+## Native Splash Rendering
+
+- `OpeningSplash` owns the dark blue surface, original circular-node emblem, and a 15% emblem-only scale increase; text and progress anchors remain fixed.
+- Its presentation timer drives only entrance/core motion. Boot state and app handoff remain on their existing independent path.
+- `scripts/render_splash_preview.py` captures entrance, waiting, workspace-building, and Ready states at explicit device-pixel ratios and checks handoff.
+
+```powershell
+.\venv\Scripts\python.exe scripts\render_splash_preview.py --scale 1.5
+```
 
 ## Update Triggers
 Update when launch path, shell context, splash handoff, or QML root loading changes.

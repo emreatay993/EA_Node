@@ -320,6 +320,67 @@ class AppBootstrapTests(unittest.TestCase):
             self.app.sendPostedEvents()
             self.app.processEvents()
 
+    def test_opening_splash_enlarges_only_the_emblem_about_its_center(self) -> None:
+        def render(splash):
+            image = QtGui.QImage(720, 440, QtGui.QImage.Format.Format_RGBA8888)
+            image.fill(Qt.GlobalColor.transparent)
+            splash._animation_ms = 1000
+            splash.render(image)
+            return image
+
+        def mark_bounds(splash):
+            image = QtGui.QImage(720, 440, QtGui.QImage.Format.Format_RGBA8888)
+            image.fill(Qt.GlobalColor.transparent)
+            painter = QtGui.QPainter(image)
+            painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+            splash._paint_mark(painter)
+            painter.end()
+            pixels = image.constBits().asstring(image.sizeInBytes())
+            positions = [i for i, alpha in enumerate(pixels[3::4]) if alpha >= 128]
+            xs, ys = [i % 720 for i in positions], [i // 720 for i in positions]
+            return QtCore.QRect(min(xs), min(ys), max(xs) - min(xs) + 1, max(ys) - min(ys) + 1)
+
+        reference = opening_screen_module.OpeningSplash(mark_size=172)
+        enlarged = opening_screen_module.OpeningSplash()
+        try:
+            reference_frame, enlarged_frame = render(reference), render(enlarged)
+            # Everything below the emblem, including the wordmark, stays fixed.
+            self.assertEqual(reference_frame.copy(0, 210, 720, 230), enlarged_frame.copy(0, 210, 720, 230))
+            before, after = mark_bounds(reference), mark_bounds(enlarged)
+            self.assertAlmostEqual(after.width() / before.width(), 1.15, delta=0.02)
+            self.assertAlmostEqual(after.height() / before.height(), 1.15, delta=0.02)
+            self.assertLessEqual((before.center() - after.center()).manhattanLength(), 1)
+        finally:
+            reference.close()
+            enlarged.close()
+
+    def test_opening_splash_ambient_motion_does_not_advance_boot_and_stops_on_finish(self) -> None:
+        splash = opening_screen_module.OpeningSplash()
+        window = QtWidgets.QWidget()
+        for widget in (splash, window):
+            widget.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
+        completed = Mock()
+        splash.boot_completed.connect(completed)
+        try:
+            splash.show_centered()
+            splash._shown_timer = Mock(elapsed=Mock(return_value=12000), isValid=Mock(return_value=True))
+            splash._advance_animation()
+            self.assertEqual(splash._step_index, 0)
+            completed.assert_not_called()
+            self.assertTrue(splash._animation_timer.isActive())
+            splash.set_busy_message("Building workspace", "Restoring interface state.")
+            self.assertIn("Restoring interface state.", splash.accessibleDescription())
+            splash.mark_ready()
+            self.assertTrue(splash.accessibleDescription().startswith("Ready."))
+            splash.finish(window, min_visible_ms=0)
+            self.assertTrue(window.isVisible())
+            self.assertFalse(splash.isVisible())
+            self.assertFalse(splash._animation_timer.isActive())
+            self.assertFalse(splash._boot_timer.isActive())
+        finally:
+            window.close()
+            splash.close()
+
     def test_build_shell_window_composition_returns_typed_contract(self) -> None:
         window = shell_window_module.ShellWindow(_defer_bootstrap=True)
 
