@@ -26,6 +26,12 @@ _RETIRED_GUARDRAIL_PRESENT_NAMES = {
 }
 _EXPECTED_RUNTIME_CONTRACT_EXPORTS = frozenset(
     {
+        "ArrayValue",
+        "TableValue",
+        "ColumnValue",
+        "ARRAY_VALUE_TYPE_ID",
+        "TABLE_VALUE_TYPE_ID",
+        "SERIES_VALUE_TYPE_ID",
         "DATA_TREE_MODIFIER_ORDER",
         "ARRAY_DATA_REF_TYPE_ID",
         "ARRAY_SLICE_2D_REF_TYPE_ID",
@@ -1465,6 +1471,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
 
         from ea_node_editor.runtime_contracts import (
             ArrayDataRef,
+            ArrayValue,
             ArraySlice2DRef,
             ImageValue,
             RuntimeArtifactRef,
@@ -1472,11 +1479,14 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             RuntimeValueRef,
             TabularDataRef,
             TabularWindowRef,
+            TableValue,
             TypedInlineValue,
         )
         from ea_node_editor.runtime_contracts import image_value, value_refs
 
         expected_modules = {
+            ArrayValue: "ea_node_editor.runtime_contracts.scientific_values",
+            TableValue: "ea_node_editor.runtime_contracts.scientific_values",
             TypedInlineValue: "ea_node_editor.runtime_contracts.value_refs",
             ImageValue: "ea_node_editor.runtime_contracts.image_value",
             RuntimeArtifactRef: "ea_node_editor.runtime_contracts.value_refs",

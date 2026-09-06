@@ -64,7 +64,14 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
 - Tabular's seven executable declarations are owned by `addons/tabular_data/function_nodes.py`; its Path inline editor is disabled, retaining the port and inspector/surface source selection. Dependency gating and bundle publication stay under the add-on catalog, while refs, preview, property editing, native preload, and execution helpers remain in their existing Tabular owners.
 - MARS's three executable declarations are owned by `addons/mars/function_nodes.py`; its catalog owns dependency gating, package provenance, and bundle publication while `nodes.py` and `runtime.py` retain job construction, JSONL execution, cancellation, and artifact publication.
 - Signal Plot declaration/execution is owned by `nodes/builtin_functions/plot_signal.py`,
-  rendering by `execution/signal_plot_renderer.py`, and navigation by the plotter route.
+  normalization/rendering by `execution/signal_plot_inputs.py` and `execution/signal_plot_renderer.py`,
+  metadata-only selectors by `nodes/builtins/plot/signal_schema.py`, and navigation by the plotter route.
+- Immutable scientific ArrayValue/TableValue/SeriesValue contracts and the bounded codec live in
+  `runtime_contracts/scientific_values.py` and `scientific_codec.py`; native script/plugin boundaries
+  preserve isolation without copying for each built-in reader. T04 pipeline/budget proof is owned by
+  `tests/test_signal_plot_scientific_integration.py` and `scripts/benchmark_signal_plot.py`.
+- Scientific process/external worker transport follows the existing manifest-owned
+  `fast.serial.pytest` route; native Signal Plot integration remains in its focused/fast route.
 - Declarative node controls are shared metadata-to-QML behavior owned by the
   node registry, graph-scene projection, and shared graph controls. Rendered
   list/group/control geometry belongs to Surface Input; payload and settings-band

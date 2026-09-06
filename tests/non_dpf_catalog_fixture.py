@@ -367,6 +367,9 @@ def load_effective_non_dpf_catalog(
                 f"Missing solution reuse classification for {type_id}"
             ) from exc
         spec = row["spec"]
+        # Historical groups predate this optional declaration field.
+        for group in spec["dynamic_port_groups"]:
+            group.setdefault("property_editor", None)
         if "solution_reuse_scope" in spec:
             raise ValueError(
                 f"Solution reuse classification already applied for {type_id}"

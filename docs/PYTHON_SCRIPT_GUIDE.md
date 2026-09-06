@@ -133,6 +133,21 @@ runtime-checked matches appear after a search, labeled `Broad data match` or
 Use `required=True` for an input that must be wired before the node can run.
 Inputs are optional by default.
 
+## NumPy and pandas values
+
+Return an exact ndarray, DataFrame or Series as one graph item. Use
+`value_type="COREX.DataTypes.ArrayValue"`, `"COREX.DataTypes.TableValue"`, or
+`"COREX.DataTypes.SeriesValue"`, respectively; intentional `corex.Any` also
+works. Keep the default `structure="item"` for the whole scientific container.
+These values can connect directly to Signal Plot's Values input.
+
+COREX stores immutable snapshots internally and automatically supplies isolated
+native NumPy/pandas objects to script inputs. Input mutation affects only that
+script; returning a result publishes a fresh snapshot. Scientific results are
+not durable project values, and Python Script retains its existing never-reuse
+policy. The [Signal Plot guide](SIGNAL_PLOT_GUIDE.md#native-numpy-and-pandas-in-scripts)
+contains a complete DataFrame example, dtype support and memory limits.
+
 ## Add a control
 
 A control decorator creates a project-local saved setting and a direct `run`

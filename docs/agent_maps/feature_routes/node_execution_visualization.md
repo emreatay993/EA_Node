@@ -50,6 +50,7 @@ The order is `generation callback` -> `CorexRuntime` store handling/enrichment -
 Stale records are ignored for current grip flow. Typed EMPTY remains distinct from a value containing explicit `None`; incoming edge `data_type_warning` is the only red invalidity fact. A separate `availability_warning` also blocks settlement without becoming a type warning or moving its edge-owned reason into port text.
 
 ## Common Changes
+- `solution_output_cache.current_output_value(...)` exposes only the current accepted, available output for schema projection. Signal Plot's inspector and inline selectors consume this callback and refresh on accepted-output/freshness changes; stale/missing records do not trigger IO or script execution.
 - Exact catalog-validated ImageValue outputs project a bounded `thumbnail` rich-preview DTO. SHA-keyed entries reuse the existing `viewer-preview-cache` image provider under the reserved `image-value` workspace key; runtime solution reset clears those entries and bytes never enter QML payloads.
 - `ExecutionStateProps.media_panel_source_lookup` uses the injected read-only project source plus existing run-state/output caches. It publishes only the bounded source-resolution DTO; raw Path/String/Image values stay Python-only. Node, edge, execution, workspace, and exposure changes reuse the existing `port_flow_state_changed` notification path.
 

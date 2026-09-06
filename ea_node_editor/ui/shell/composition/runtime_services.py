@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.ui.shell.media_panel_action_service import MediaPanelActionService
+from ea_node_editor.ui.support.solution_output_cache import current_output_value
 from ea_node_editor.ui_qml.content_fullscreen_bridge import ContentFullscreenBridge
 from ea_node_editor.ui_qml.jupyter_server_bridge import JupyterServerBridge
 from ea_node_editor.ui_qml.native_folder_explorer_host_service import NativeFolderExplorerHostService
@@ -130,6 +131,10 @@ def create_viewer_service_dependencies(
         )
 
     project_session = controllers.project_session_controller
+    primitives.scene.set_current_output_provider(
+        lambda workspace_id, node_id, port_key: current_output_value(state.run_state, workspace_id, node_id, port_key)
+    )
+    host.node_execution_state_changed.connect(primitives.scene.refresh_current_output_properties)
 
     def update_notification_counters() -> None:
         host.update_notification_counters(

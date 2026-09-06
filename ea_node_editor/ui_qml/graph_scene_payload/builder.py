@@ -53,10 +53,10 @@ from ea_node_editor.ui_qml.graph_scene_payload.theme_inputs import (
 
 
 class GraphScenePayloadBuilder:
-    def __init__(self, boundary_adapters: GraphBoundaryAdapters | None = None) -> None:
+    def __init__(self, boundary_adapters: GraphBoundaryAdapters | None = None, *, current_input_provider: Any = None) -> None:
         self.boundary_adapters = boundary_adapters or fallback_graph_boundary_adapters()
         self._theme_resolver = _GraphSceneThemeResolver()
-        self._node_payload_factory = _GraphSceneNodePayloadFactory(self.boundary_adapters)
+        self._node_payload_factory = _GraphSceneNodePayloadFactory(self.boundary_adapters, current_input_provider)
         self._backdrop_partitioner = _GraphSceneBackdropPartitioner(self._node_payload_factory)
         self._mutation_timing_enabled = False
         self._last_mutation_phase_timings_ms: dict[str, float] = {}

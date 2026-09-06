@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import traceback
+from dataclasses import replace
 from collections.abc import Mapping
 
 from ea_node_editor.graph.boundary_adapters import register_node_type_size_resolver
@@ -24,6 +25,9 @@ from ea_node_editor.nodes.python_script_declaration import (
     resolve_python_script_spec,
 )
 from ea_node_editor.runtime_contracts import DataTree
+from ea_node_editor.runtime_contracts.scientific_values import (
+    materialize_script_values, snapshot_scientific_values,
+)
 
 
 PYTHON_SCRIPT_DEFAULT_SOURCE = """# Decorator templates: uncomment a line, then add its name to run(ctx, ...).
@@ -135,6 +139,7 @@ class PythonScriptNodePlugin:
             entrypoint = scope.get("run")
             if not callable(entrypoint):
                 raise TypeError("Python Script run entrypoint is not callable")
+            ctx = replace(ctx, inputs=materialize_script_values(ctx.inputs))
             value = entrypoint(
                 ctx,
                 **{
@@ -158,6 +163,7 @@ class PythonScriptNodePlugin:
                     "Python Script returned undeclared outputs: "
                     + ", ".join(unknown_outputs)
                 )
+            result = replace(result, outputs=snapshot_scientific_values(result.outputs))
         except BaseException as exc:  # noqa: BLE001
             user_traceback = _sanitize_user_script_traceback(exc)
             ctx.log_error(traceback.format_exc() if ctx.developer_mode else user_traceback)

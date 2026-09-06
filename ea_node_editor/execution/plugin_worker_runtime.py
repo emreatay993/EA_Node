@@ -276,7 +276,10 @@ class WorkerPluginRuntime:
                 if inspect.iscoroutinefunction(function) != function_ref.is_async:
                     raise RuntimeError("Public plugin function async state changed")
                 self._functions[function_ref] = function
-            return PythonFunctionAdapter(spec, function)
+            return PythonFunctionAdapter(
+                spec, function,
+                native_inputs=function_ref.bundle_id != INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+            )
 
     def clear(self) -> None:
         with self._lock:

@@ -16,6 +16,18 @@ from ea_node_editor.nodes.node_specs import property_has_inline_editor
 from ea_node_editor.runtime_contracts import Interval1D
 
 
+def has_focused_selector(*object_names: str) -> bool:
+    """Protect an active selector draft while runtime metadata is refreshed."""
+    from PyQt6.QtGui import QGuiApplication
+
+    focused = QGuiApplication.focusObject() if isinstance(QGuiApplication.instance(), QGuiApplication) else None
+    while focused is not None:
+        if focused.objectName() in object_names:
+            return True
+        focused = focused.parent()
+    return False
+
+
 _UPSTREAM_TEXT_LIMIT = 4096
 _QML_SAFE_INTEGER_LIMIT = (1 << 53) - 1
 _DATA_TYPE_LABEL_LIMIT = 160

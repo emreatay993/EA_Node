@@ -17,6 +17,10 @@ from ea_node_editor.common.scene_protocol import (
     COREX_SCENE_HANDLE_KIND,
     ENGINEERING_SELECTION_SCHEMA,
 )
+from ea_node_editor.runtime_contracts.scientific_values import (
+    ARRAY_VALUE_TYPE_ID, TABLE_VALUE_TYPE_ID, SERIES_VALUE_TYPE_ID,
+    ArrayValue, TableValue,
+)
 from ea_node_editor.runtime_contracts import (
     ARRAY_DATA_REF_TYPE_ID,
     ARRAY_SLICE_2D_REF_TYPE_ID,
@@ -359,6 +363,21 @@ CORE_DATA_TYPES = (
         lambda value: isinstance(value, ArrayDataRef),
         parents=_GRAPH_PARENT,
         carriers=frozenset({"handle"}),
+    ),
+    DataTypeSpec(
+        ARRAY_VALUE_TYPE_ID, "Scientific Array", "container",
+        lambda value: type(value) is ArrayValue,
+        parents=_GRAPH_PARENT,
+    ),
+    DataTypeSpec(
+        TABLE_VALUE_TYPE_ID, "Scientific Table", "container",
+        lambda value: type(value) is TableValue and value.kind == "frame",
+        parents=_GRAPH_PARENT,
+    ),
+    DataTypeSpec(
+        SERIES_VALUE_TYPE_ID, "Scientific Series", "container",
+        lambda value: type(value) is TableValue and value.kind == "series",
+        parents=_GRAPH_PARENT,
     ),
     DataTypeSpec(
         ARRAY_SLICE_2D_REF_TYPE_ID,

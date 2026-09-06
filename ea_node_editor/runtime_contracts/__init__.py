@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from ea_node_editor.runtime_contracts.scientific_values import (
+    ARRAY_VALUE_TYPE_ID, TABLE_VALUE_TYPE_ID, SERIES_VALUE_TYPE_ID,
+    ArrayValue, ColumnValue, TableValue,
+)
+
 from ea_node_editor.runtime_contracts.data_tree import (
     DATA_TREE_MODIFIER_ORDER,
     DataAccess,
@@ -101,6 +106,12 @@ from ea_node_editor.runtime_contracts.tabular_data import (
 from ea_node_editor.runtime_contracts.viewer_session import default_viewer_session_id
 
 __all__ = [
+    "ARRAY_VALUE_TYPE_ID",
+    "TABLE_VALUE_TYPE_ID",
+    "SERIES_VALUE_TYPE_ID",
+    "ArrayValue",
+    "ColumnValue",
+    "TableValue",
     "DATA_TREE_MODIFIER_ORDER",
     "ARRAY_DATA_REF_TYPE_ID",
     "ARRAY_SLICE_2D_REF_TYPE_ID",

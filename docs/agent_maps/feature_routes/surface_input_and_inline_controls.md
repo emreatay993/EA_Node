@@ -55,6 +55,7 @@ Use this for inline editors, surface controls, editable passive surfaces, text/p
 - `tests/test_graph_surface_input_inline.py`
 - `tests/graph_surface/inline_editor_suite.py`
 - `tests/qml_quick/tst_graph_surface_controls.qml`
+- `tests/qml_quick/tst_signal_selectors.qml`
 - `tests/test_select_surface.py`
 - `tests/test_panel_surface.py`
 - `tests/qml_quick/tst_secret_editor.qml`
@@ -64,6 +65,7 @@ Use this for inline editors, surface controls, editable passive surfaces, text/p
 - `ea_node_editor/ui/dialogs/input_reference_dialog.py` documents user-facing inline editor, textarea, port-label, and focused editor controls. Update it when commit/cancel keys or surface-control mouse behavior change.
 
 ## Routing Notes
+- Shared searchable combos and list editors preserve exact string/int selector codes, authored unknown names, case and whitespace. Labels remain display-only; one-based positional labels never become stored names. Scalar selector text drafts survive inspector/model refresh and commit through the existing property route; programmatic refresh and read-only disablement do not commit drafts.
 - `GraphSurfaceListEditor.qml` is the shared bounded ListView editor for string, integer, float, integer-backed enum, and color lists; numeric items may use declared slider bounds and every edit commits the complete ordered array.
 - `GraphSurfaceIntervalFields.qml` is the shared nullable unbounded Interval1D editor with finite increasing endpoint fields and an explicit Auto action. Both controls inherit the existing connected-input disabling, accessibility, and embedded-interaction routing through `GraphInlinePropertiesLayer.qml`.
 - Surface-owned embedded interactive rects claim host body input through `GraphNodeHostInteractionState.surfaceClaimsBodyInteractionAt(...)`. Keep `GraphNodeHostGestureLayer` cursor suppression aligned with that same predicate so live previews and inline controls do not inherit the host open-hand drag cursor.

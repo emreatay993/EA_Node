@@ -29,6 +29,7 @@ from ea_node_editor.nodes.builtins.plot.generic import (
     PLOT_TYPE_STREAMLINES,
     PLOT_TYPE_SURFACE,
 )
+from ea_node_editor.nodes.builtins.plot.signal_schema import connected_signal_value, enrich_signal_property_items
 
 _PLOT_JSON_PROPERTY_KEYS = {
     "axis_limits",
@@ -788,6 +789,16 @@ class PlotPropertyEditAdapter:
         key: str,
         value: Any,
     ) -> PropertyEditRewrite | None:
+        if getattr(context.node, "type_id", "") == "plot.signal":
+            if key == "x_column":
+                if type(value) not in {str, int} or type(value) is int and value < 0:
+                    raise ValueError("X column must be an exact name or zero-based position")
+                return PropertyEditRewrite(key, value)
+            if key == "y_columns":
+                if not isinstance(value, (list, tuple)) or any(type(item) not in {str, int} or type(item) is int and item < 0 for item in value):
+                    raise ValueError("Y columns must be an ordered list of exact names or zero-based positions")
+                return PropertyEditRewrite(key, list(dict.fromkeys(value)))
+            return None
         if not _is_plot(context):
             return None
         normalized_key = str(key or "").strip()
@@ -809,6 +820,10 @@ class PlotPropertyEditAdapter:
         context: PropertyEditAdapterContext,
         items: Iterable[Mapping[str, Any]],
     ) -> list[dict[str, Any]]:
+        if getattr(context.node, "type_id", "") == "plot.signal":
+            return enrich_signal_property_items(items, connected_signal_value(
+                context.node.node_id, context.workspace_edges, context.current_output_provider,
+            ))
         if not _is_plot(context):
             return [dict(item) for item in items]
 

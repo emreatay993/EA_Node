@@ -10,7 +10,7 @@ import json
 import keyword
 import re
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from enum import Enum
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
@@ -18,6 +18,9 @@ from typing import Any
 from corex import _Settings
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
+from ea_node_editor.runtime_contracts.scientific_values import (
+    materialize_script_values, snapshot_scientific_values,
+)
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 INTERNAL_BUILTIN_FUNCTION_OWNER_ID = "corex:builtin:functions"
@@ -220,10 +223,11 @@ class PythonFunctionAdapter:
         "_input_keys",
         "_output_keys",
         "_override_keys",
+        "_native_inputs",
         "_spec",
     )
 
-    def __init__(self, spec: NodeTypeSpec, function: Callable[..., object]) -> None:
+    def __init__(self, spec: NodeTypeSpec, function: Callable[..., object], *, native_inputs: bool = True) -> None:
         if not isinstance(spec, NodeTypeSpec):
             raise TypeError("spec must be a NodeTypeSpec")
         if not callable(function):
@@ -231,6 +235,7 @@ class PythonFunctionAdapter:
         if inspect.iscoroutinefunction(function) != spec.is_async:
             raise TypeError("function async state must match NodeTypeSpec.is_async")
         self._spec = spec
+        self._native_inputs = native_inputs
         self._function = function
         self._control_keys = tuple(prop.key for prop in spec.properties)
         self._override_keys = frozenset(
@@ -284,7 +289,7 @@ class PythonFunctionAdapter:
             )
         plugin_warnings = ctx._plugin_warnings_since(warning_cursor)
         return NodeResult(
-            outputs=outputs,
+            outputs=snapshot_scientific_values(outputs),
             warnings=tuple(warning.message for warning in plugin_warnings),
             plugin_warnings=plugin_warnings,
         )
@@ -293,6 +298,8 @@ class PythonFunctionAdapter:
         if self._spec.is_async:
             raise TypeError("Async public node functions require async_execute")
         warning_cursor = ctx._plugin_warning_cursor()
+        if self._native_inputs:
+            ctx = replace(ctx, inputs=materialize_script_values(ctx.inputs))
         value = self._function(*self._arguments(ctx))
         if inspect.isawaitable(value):
             close = getattr(value, "close", None)
@@ -305,6 +312,8 @@ class PythonFunctionAdapter:
         if not self._spec.is_async:
             return self.execute(ctx)
         warning_cursor = ctx._plugin_warning_cursor()
+        if self._native_inputs:
+            ctx = replace(ctx, inputs=materialize_script_values(ctx.inputs))
         value = self._function(*self._arguments(ctx))
         if not inspect.isawaitable(value):
             raise TypeError("Async public node functions must return an awaitable")

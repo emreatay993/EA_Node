@@ -8,6 +8,51 @@ from ea_node_editor.nodes.builtins.plot.property_edit_adapter import PlotPropert
 from ea_node_editor.ui.shell.inspector_projection import build_selected_node_property_items
 
 
+def test_signal_schema_is_metadata_only_exact_and_separate_from_generic_controls(monkeypatch) -> None:
+    import pandas as pd
+    from ea_node_editor.runtime_contracts import DataTree
+    from ea_node_editor.runtime_contracts.scientific_values import TableValue, snapshot_scientific_value
+
+    frame = pd.DataFrame([[1., 2., 3., 4., 5., True, "text"]], columns=["", "Column 1", "same", "same", " Case ", "flag", "text"])
+    table = snapshot_scientific_value(frame)
+    monkeypatch.setattr(TableValue, "column_values", lambda *args: (_ for _ in ()).throw(AssertionError("UI materialized data")))
+    node = SimpleNamespace(node_id="signal", type_id="plot.signal", properties={"x_column": 0, "y_columns": [" Case ", 2]}, exposed_ports={}, port_labels={}, parent_node_id=None)
+    edge = SimpleNamespace(target_node_id="signal", target_port_key="values", source_node_id="python", source_port_key="custom_result", enabled=True)
+    calls = []
+
+    def current(node_id, port_key):
+        calls.append((node_id, port_key))
+        return DataTree.from_item(table)
+
+    items = build_selected_node_property_items(node=node, spec=build_default_registry().get_spec("plot.signal"), subnode_pin_type_ids=set(), workspace_edges=[edge], current_output_provider=current)
+    by_key = {item["key"]: item for item in items}
+    assert calls == [("python", "custom_result")]
+    assert by_key["x_column"]["enum_codes"] == [0, "Column 1", 2, 3, " Case "]
+    assert len(set(by_key["x_column"]["enum_values"])) == 5
+    assert by_key["y_columns"]["value"] == [" Case ", 2]
+    assert not any(key.startswith(("plot_axis_", "plot_option_", "tabular_mapping_")) for key in by_key)
+    edge.enabled = False
+    empty = build_selected_node_property_items(node=node, spec=build_default_registry().get_spec("plot.signal"), subnode_pin_type_ids=set(), workspace_edges=[edge], current_output_provider=current)
+    assert next(item for item in empty if item["key"] == "x_column")["enum_codes"] == []
+    assert calls == [("python", "custom_result")]
+
+
+def test_signal_cached_ref_schema_matches_explicit_window_and_slice_selections() -> None:
+    from ea_node_editor.runtime_contracts import ArrayDataRef, ArraySlice2DRef, TabularDataRef, TabularWindowRef
+    from ea_node_editor.nodes.builtins.plot.signal_schema import enrich_signal_property_items
+
+    base = TabularDataRef(ref_id="table", resolver_id="cached", source_uri="missing.csv", metadata={"column_schema": [{"name": "time", "dtype": "timestamp[us]"}, {"name": "a", "dtype": "float64"}, {"name": "b", "dtype": "float64"}], "node_options": {"selected_columns": ["a"]}})
+    items = [{"key": "x_column"}, {"key": "y_columns"}]
+    assert enrich_signal_property_items(items, base)[0]["enum_codes"] == ["a"]
+    window = TabularWindowRef(ref_id="window", table_data=base, columns=("time", "b"))
+    assert enrich_signal_property_items(items, window)[0]["enum_codes"] == ["time", "b"]
+    assert enrich_signal_property_items(items, window)[1]["enum_codes"] == ["b"]
+    array = ArrayDataRef(ref_id="array", resolver_id="cached", source_uri="missing.npy", shape=(10, 4), dtype="float64", metadata={"array_slice_2d": {"column_offset": 2, "column_limit": 1}})
+    sliced = ArraySlice2DRef(ref_id="slice", array_data=array, column_offset=0, column_limit=3)
+    assert enrich_signal_property_items(items, array)[0]["enum_codes"] == [0]
+    assert enrich_signal_property_items(items, sliced)[0]["enum_codes"] == [0, 1, 2]
+
+
 def _items_by_key(type_id: str, properties: dict[str, object] | None = None) -> dict[str, dict[str, object]]:
     registry = build_default_registry()
     spec = registry.get_spec(type_id)

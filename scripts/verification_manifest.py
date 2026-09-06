@@ -682,6 +682,7 @@ FAST_SERIAL_PYTEST_TARGETS = (
     ),
     "tests/test_runtime_cli.py::test_runtime_cli_module_help",
     "tests/test_process_client.py::ProcessClientTests",
+    "tests/test_scientific_worker_transport.py",
     (
         "tests/test_managed_runtime.py::ManagedRuntimeTests::"
         "test_run_command_streams_output_before_process_finishes"

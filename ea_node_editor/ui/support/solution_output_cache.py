@@ -7,13 +7,22 @@ from collections.abc import Mapping
 import json
 from typing import Any
 
-from ea_node_editor.runtime_contracts.settled_results import settled_outputs_to_payload
+from ea_node_editor.runtime_contracts.settled_results import SettledPortResult, settled_outputs_to_payload
 
 MAX_RECORDS_PER_NODE = 2
 MAX_RECORDS_PER_WORKSPACE = 4_096
 MAX_PAYLOAD_BYTES_PER_WORKSPACE = 536_870_912
 MAX_RECORDS_GLOBAL = 16_384
 MAX_PAYLOAD_BYTES_GLOBAL = 2_147_483_648
+
+
+def current_output_value(run_state: object, workspace_id: str, node_id: str, port_key: str) -> Any:
+    """Read only the current accepted, available value for one output port."""
+    record = retained_output_record(run_state, workspace_id, node_id, current_only=True)
+    if record is None or not record.get("outputs_available", False):
+        return None
+    result = record.get("outputs", {}).get(port_key)
+    return result.value if isinstance(result, SettledPortResult) and result.status == "value" else None
 
 
 def retained_output_record(

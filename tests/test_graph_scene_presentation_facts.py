@@ -36,6 +36,82 @@ from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_scene_payload.builder import GraphScenePayloadBuilder
 
 
+def test_scene_runtime_schema_focus_hook_allows_qcore_only_application() -> None:
+    from tests.test_startup_import_profile import StartupImportProfileTests
+
+    probe = StartupImportProfileTests()._run_python(
+        "from PyQt6.QtCore import QCoreApplication; from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge; from ea_node_editor.ui.support.node_presentation import has_focused_selector; app=QCoreApplication([]); GraphSceneBridge(); assert not has_focused_selector('inspectorPropertyEditor')",
+    )
+    assert probe.returncode == 0, probe.stderr
+
+
+def test_signal_inline_schema_refresh_uses_only_current_accepted_output_and_preserves_authored_values() -> None:
+    from types import SimpleNamespace
+    import numpy as np
+    from ea_node_editor.runtime_contracts.scientific_values import snapshot_scientific_value
+    from ea_node_editor.ui.support.solution_output_cache import current_output_value
+
+    registry = build_default_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    scene = GraphSceneBridge()
+    scene.set_workspace(model, registry, workspace.workspace_id)
+    source_id = scene.add_node_from_type("core.python_script", 0., 0.)
+    signal_id = scene.add_node_from_type("plot.signal", 280., 0.)
+    model.add_edge(workspace.workspace_id, source_id, "result", signal_id, "values")
+    scene.set_node_property(signal_id, "x_column", 0)
+    value = DataTree.from_item(snapshot_scientific_value(np.ones((3, 2))))
+    record = {"record_id": "accepted", "outputs_available": True, "outputs": {"result": SettledPortResult(status="value", value=value)}}
+    fact = SimpleNamespace(retained_record_id="accepted", freshness=SimpleNamespace(value="current"))
+    state = SimpleNamespace(node_solution_facts_by_workspace_id={workspace.workspace_id: {source_id: fact}}, cached_node_output_records_by_workspace_id={workspace.workspace_id: {source_id: {"accepted": record}}})
+    scene.set_current_output_provider(lambda ws, node, port: current_output_value(state, ws, node, port))
+
+    def choices():
+        scene.refresh_current_output_properties()
+        payload = next(item for item in scene.nodes_model if item["node_id"] == signal_id)
+        items = {port["key"]: port["default_property"] for port in payload["ports"] if "default_property" in port}
+        return items["x_column"]
+
+    assert choices()["enum_codes"] == [0, 1]
+    record["outputs"]["result"] = SettledPortResult(status="value", value=DataTree.from_item(snapshot_scientific_value(np.ones((3, 3)))))
+    assert choices()["enum_codes"] == [0, 1, 2]
+    for unavailable in ("expired", "missing", "evicted"):
+        fact.freshness.value = "expired" if unavailable == "expired" else "current"
+        record["outputs_available"] = unavailable != "missing"
+        if unavailable == "evicted":
+            state.cached_node_output_records_by_workspace_id.clear()
+        assert choices()["enum_codes"] == []
+        assert choices()["value"] == 0
+
+
+def test_signal_selectors_survive_inspector_edits_undo_redo_and_project_roundtrip() -> None:
+    from types import SimpleNamespace
+    from ea_node_editor.persistence.project_codec import JsonProjectCodec
+    from ea_node_editor.ui.shell.controllers.workspace_edit_controller import WorkspaceEditController
+
+    registry = build_default_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    scene = GraphSceneBridge()
+    scene.set_workspace(model, registry, workspace.workspace_id)
+    node_id = scene.add_node_from_type("plot.signal", 0., 0.)
+    history = RuntimeGraphHistory()
+    scene.bind_runtime_history(history)
+    selected = SimpleNamespace(active_workspace=lambda: workspace, selected_node_context=lambda: (workspace.nodes[node_id], registry.get_spec("plot.signal")))
+    effects = SimpleNamespace(after_selected_node_property_changed=lambda *args, **kwargs: None)
+    controller = WorkspaceEditController(SimpleNamespace(model=model, scene=scene), selection_context=selected, effects=effects)
+    controller.set_selected_node_property("x_column", " Column 1 ")
+    controller.set_selected_node_property("y_columns", [0, " Signal ", "signal"])
+    assert workspace.nodes[node_id].properties["x_column"] == " Column 1 "
+    assert workspace.nodes[node_id].properties["y_columns"] == [0, " Signal ", "signal"]
+    assert history.undo_workspace(workspace.workspace_id, workspace) is not None
+    assert workspace.nodes[node_id].properties["y_columns"] == []
+    assert history.redo_workspace(workspace.workspace_id, workspace) is not None
+    codec = JsonProjectCodec(registry)
+    restored = codec.from_document(codec.to_document(model.project))
+    assert restored.workspaces[workspace.workspace_id].nodes[node_id].properties["y_columns"] == [0, " Signal ", "signal"]
+
+
 def _chain_scene():
     registry = build_default_registry()
     model = GraphModel()

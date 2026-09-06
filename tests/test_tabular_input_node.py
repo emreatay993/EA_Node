@@ -305,6 +305,25 @@ def test_tabular_data_input_executes_csv_as_table_data_only(tmp_path: Path) -> N
     assert ref.metadata["node_options"]["cache_policy"] == TABULAR_DATA_INPUT_CACHE_POLICY_APP_MANAGED_PARQUET
     assert ref.metadata["node_options"]["selected_columns"] == []
     assert "cache_path" not in ref.metadata["node_options"]
+    assert ref.metadata["column_schema"] == [{"name": "station", "dtype": ""}, {"name": "temp", "dtype": ""}]
+
+
+def test_column_schema_omitted_when_final_input_metadata_would_exceed_budget(tmp_path: Path) -> None:
+    from ea_node_editor.addons.tabular_data.loader_cache_service import TabularLoaderCacheService
+    name = "n" * 33_000
+    source = tmp_path / "wide.csv"
+    source.write_text(name + "\n1\n", encoding="utf-8")
+    service = TabularLoaderCacheService(cache_dir=tmp_path / "cache")
+    assert "column_schema" in service.open_source(source).metadata
+    result = execute_tabular_input(_context(properties={"path": str(source), TABULAR_SELECTED_COLUMNS_PROPERTY: [name]}))
+    metadata = result.outputs["table_data"].metadata
+    assert "column_schema" not in metadata
+    assert metadata["node_options"]["selected_columns"] == [name]
+    source = tmp_path / "wider.csv"
+    source.write_text("n" * 66_000 + "\n1\n", encoding="utf-8")
+    metadata = service.open_source(source).metadata
+    assert "column_schema" not in metadata
+    assert metadata["format_id"] == "csv"
 
 
 def test_tabular_data_input_embeds_selected_columns_in_ref_metadata(tmp_path: Path) -> None:

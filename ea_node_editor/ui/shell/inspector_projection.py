@@ -403,6 +403,7 @@ def build_selected_node_property_items(
     project_path: str | None = None,
     project_metadata: Mapping[str, Any] | None = None,
     property_edit_adapters: Iterable[AddOnPropertyEditAdapter] | None = None,
+    current_output_provider: Any = None,
 ) -> list[dict[str, Any]]:
     if node.type_id in subnode_pin_type_ids:
         ordered_keys = ("label", "kind", "data_type")
@@ -433,6 +434,7 @@ def build_selected_node_property_items(
         workspace_edges=workspace_edges,
         project_path=project_path,
         project_metadata=project_metadata,
+        current_output_provider=current_output_provider,
         source_path_resolver=lambda source_node, property_key: (
             _source_path_for_node_property(
                 node=source_node,

@@ -17,6 +17,11 @@ Use this for plotter node planning, backend registry/static export work, generic
 - `ea_node_editor/execution/plot_series_decimation.py` — min-max envelope / stride sampling contract
 - `ea_node_editor/nodes/builtin_functions/plot_signal.py` — inert decorated Signal Plot declaration and worker function
 - `ea_node_editor/execution/signal_plot_renderer.py` — Signal Plot validation and ImageValue rendering
+- `ea_node_editor/execution/signal_plot_inputs.py` — aligned read-only scientific/ref X/Y normalization
+- `ea_node_editor/nodes/builtins/plot/signal_schema.py` — zero-I/O schema suggestions for shared property editors
+- `scripts/generate_signal_plot_scientific_example.py`
+- `scripts/benchmark_signal_plot.py`
+- `docs/SIGNAL_PLOT_GUIDE.md`
 - `ea_node_editor/ui_qml/plot_widget_binder.py`
 - `ea_node_editor/ui_qml/components/graph/plot/GraphPlotSurface.qml`
 - `ea_node_editor/ui_qml/components/graph/plot/GraphPlotSurfaceBody.qml`
@@ -58,7 +63,9 @@ $env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test
 ## Surface Ownership Notes
 - Signal Plot is the sole function-SDK plot conversion: its full grouped-control contract is statically parsed from the internal inert source and executed through the verified function bundle, while rendering remains execution-owned. The eight generated generic plots remain trusted descriptors and all `dpf.plot.*` nodes remain excluded.
 - The generic family contains eight retained nodes; `plot.line` is removed without alias or migration. `dpf.plot.line` remains independent and unchanged. Retained generic line-oriented fixtures use `plot.scatter`.
-- `scripts/benchmark_signal_plot.py` owns the Matplotlib-versus-XY acceptance workload and records render-to-ImageValue p95/RSS evidence.
+- `scripts/benchmark_signal_plot.py` owns full-resolution Matplotlib-versus-XY rendering and the separate scientific process/CorexRuntime workload. `--scientific --rows 2000000` records initial/repeated elapsed time, combined process RSS, all source samples, reduction counts and actual recomputation reasons. The trusted-fixture 64 MiB reuse gate is in `tests/test_signal_plot_scientific_integration.py`; retained measurements live in `docs/specs/perf/SIGNAL_PLOT_SCIENTIFIC_INPUTS_QA.md`.
+- Signal Plot consumes immutable scientific values, numeric trees/matrices and table/array/window/slice refs through `signal_plot_inputs.py`. Shared column IO remains tabular-owned. The default 4000-point reduction is per rendered trace; zero is full resolution, gaps remain gaps, and source values are never reduced. Generic plot defaults remain independent.
+- Signal data controls enter the early Signal branch of `PlotPropertyEditAdapter`. `signal_schema.py` enriches inspector and inline selectors from cached metadata/current accepted outputs only; it never opens a source or executes a script. Exact string names and integer positions retain their types through shared enum/list label-code fields.
 - DPF plot series X values come from the field's scoping ids unless the series handle metadata carries `x_axis: "time"` plus a `time_values` list whose length matches the frame's values — then the plot uses the real time/frequency values (`_field_x_values` in `plot/dpf.py`). The `DPF Time History Probe` workflow node emits this metadata; series labels append `entity <id>` when the frame label space carries an `entity` key.
 - `PlotHostService` retargets native live widgets between embedded overlays, fullscreen, and detached windows. Inline live previews should remain available on hover/selection.
 - Plot overlays use the overlay manager's `plot_host` owner; do not clear the default viewer overlay owner when synchronizing plot previews.

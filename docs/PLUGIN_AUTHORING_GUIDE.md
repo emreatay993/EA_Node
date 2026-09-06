@@ -95,6 +95,16 @@ legal broad and runtime-checked matches require a search and are labeled
 `Broad data match` or `Checked at runtime`. This recommendation policy does not
 prohibit an otherwise graph-legal manual connection.
 
+## Scientific array and table values
+
+Public plugins can declare `COREX.DataTypes.ArrayValue`,
+`COREX.DataTypes.TableValue`, and `COREX.DataTypes.SeriesValue` canonical type-ID
+strings for ndarray, DataFrame and Series. Keep item access for the whole
+container, or use intentional `corex.Any`. COREX snapshots native outputs into
+immutable owned values and supplies isolated native NumPy/pandas objects at
+public plugin inputs. Built-in readers share the immutable internal values.
+See [scientific values and limits](SIGNAL_PLOT_GUIDE.md#native-numpy-and-pandas-in-scripts).
+
 ## Add controls
 
 Controls create saved settings. Every control accepts `name`, `default`,

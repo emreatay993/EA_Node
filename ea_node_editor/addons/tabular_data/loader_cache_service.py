@@ -18,6 +18,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from ea_node_editor.common.payload_tools import REF_METADATA_MAX_BYTES
 from ea_node_editor.addons.tabular_data.policy import DEFAULT_TABULAR_BACKEND_POLICY, TabularBackendPolicy
 from ea_node_editor.addons.tabular_data.preview_query import (
     NormalizedPreviewQuery,
@@ -241,6 +242,12 @@ class TabularLoaderCacheService(SourceBackendMethods):
                 if existing is not None and existing.row_count is not None and record.row_count is None:
                     record = existing
                 self._table_records[ref_id] = record
+            metadata = self._record_metadata(
+                record.format_id, record.size_bytes, record.warnings, options=record.options,
+            )
+            metadata["column_schema"] = [{"name": column.name, "dtype": column.dtype} for column in record.columns]
+            if len(json.dumps(metadata, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) > REF_METADATA_MAX_BYTES:
+                del metadata["column_schema"]
             return TabularDataRef(
                 ref_id=ref_id,
                 resolver_id=self.resolver_id,
@@ -249,12 +256,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
                 object_id=record.object_id,
                 row_count=record.row_count,
                 column_count=len(record.columns),
-                metadata=self._record_metadata(
-                    record.format_id,
-                    record.size_bytes,
-                    record.warnings,
-                    options=record.options,
-                ),
+                metadata=metadata,
             )
         record = self._build_array_record(scan, selected, options_with_selection)
         ref_id = self._ref_id("array", record)
@@ -333,6 +335,71 @@ class TabularLoaderCacheService(SourceBackendMethods):
                 options=record.options,
             ),
         )
+
+    def column_schema(self, ref: TabularDataRef) -> TabularSchema:
+        """Prepare typed execution metadata, including managed-cache inference.
+
+        This may perform source IO/conversion; UI projections must use cached
+        metadata instead. Direct-source columns may still have unknown dtypes.
+        """
+        self.ensure_table_ref(ref)
+        record = self._table_record(ref)
+        if (
+            any(not column.dtype for column in record.columns)
+            and record.format_id in TEXT_FORMAT_IDS | EXCEL_FORMAT_IDS
+            and record.options.uses_managed_cache
+        ):
+            self._ensure_record_parquet_cache(ref, record)
+        return self.schema(ref)
+
+    def column_arrays(
+        self,
+        ref: TabularDataRef,
+        *,
+        columns: Sequence[str | int],
+        row_offset: int = 0,
+        row_limit: int | None = None,
+    ) -> dict[str | int, Any]:
+        """Load selected, aligned columns without row dictionaries on Arrow paths."""
+        np = _import_optional("numpy", format_id="numpy", purpose="column materialization")
+        chunks: dict[str | int, list[Any]] = {key: [] for key in columns}
+        if not chunks:
+            return {}
+        schema_names = tuple(column.name for column in self.schema(ref).columns)
+        requested = {}
+        for key in columns:
+            if type(key) is int:
+                if not 0 <= key < len(schema_names):
+                    raise ValueError("Column position is outside the table schema")
+                name = schema_names[key]
+                requested[key] = (name, schema_names[:key].count(name))
+            else:
+                requested[key] = (key, -1)
+        options = TabularArrowBatchOptions(
+            row_limit=row_limit if row_limit and row_limit > 0 else 2_147_483_647,
+            batch_size=65_536,
+            row_offset=row_offset,
+            columns=tuple(dict.fromkeys(name for name, _ in requested.values())),
+        )
+        for batch in self.arrow_batches(ref, options):
+            if isinstance(batch, list):
+                for key, (name, _) in requested.items():
+                    chunks[key].append(np.array([row.get(name) for row in batch], dtype=object))
+                continue
+            name_to_indexes: dict[str, list[int]] = {}
+            for index, name in enumerate(batch.schema.names):
+                name_to_indexes.setdefault(name, []).append(index)
+            for key, (name, occurrence) in requested.items():
+                indexes = name_to_indexes.get(name, [])
+                index = indexes[occurrence] if indexes else None
+                chunks[key].append(
+                    np.full(batch.num_rows, None, dtype=object)
+                    if index is None else batch.column(index).to_numpy(zero_copy_only=False)
+                )
+        return {
+            name: np.array([], dtype=object) if not parts else parts[0] if len(parts) == 1 else np.concatenate(parts)
+            for name, parts in chunks.items()
+        }
 
     def metadata(self, ref: TabularDataRef | ArrayDataRef) -> Mapping[str, Any]:
         if isinstance(ref, TabularDataRef):

@@ -450,6 +450,7 @@ class _InspectorController:
 class _InspectorHost(QObject):
     selected_node_changed = pyqtSignal()
     workspace_state_changed = pyqtSignal()
+    node_execution_state_changed = pyqtSignal()
 
     def __init__(self, node, spec):  # noqa: ANN001
         super().__init__()

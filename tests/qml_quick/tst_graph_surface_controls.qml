@@ -707,6 +707,25 @@ TestCase {
         return createTemporaryObject(probeComponent, stage, properties || {})
     }
 
+    function test_inline_column_selection_commits_canonical_position() {
+        var root = createProbe();
+        root.inlineProperties = [{"key": "x_column", "label": "X column", "type": "json", "value": 0,
+            "display_value": 0, "display_value_available": true, "inline_editor": "enum", "searchable": true,
+            "exact_selectors": true, "enum_values": ["Column 1", "Column 2"], "enum_codes": [0, 1], "editor_enabled": true}];
+        var commits = [];
+        root.probeInlineHost.inlinePropertyCommitted.connect(function(node, key, value) { commits.push(value); });
+        wait(0);
+        var selector = findChild(root.probeInlineLayer, "graphNodeInlineSearchableEnumEditor");
+        verify(selector !== null);
+        compare(selector.selectedValue, 0);
+        mouseClick(selector, 20, selector.height / 2);
+        selector.editText = "Column 2";
+        keyClick(Qt.Key_Down);
+        wait(0);
+        keyClick(Qt.Key_Return);
+        compare(commits[commits.length - 1], 1);
+    }
+
     function near(actual, expected) {
         return Math.abs(Number(actual) - Number(expected)) < 0.5
     }

@@ -16,6 +16,9 @@ Use this for verification modes, pytest defaults, xdist behavior, summarized out
 - Use narrow route-owned tests before full verification.
 - Keep xdist-sensitive fast targets in the manifest-owned `fast.serial.pytest`
   phase instead of letting them run in the `fast.pytest` xdist phase.
+- Real scientific process/external transport lives in `tests/test_scientific_worker_transport.py`
+  and runs in the same `fast.serial.pytest` phase as the existing ProcessClientTests;
+  it remains part of fast/full coverage, with unchanged success and timeout assertions.
 - Keep the outer shell-isolation phase capped by its manifest-owned `worker_cap`
   (currently four); each isolated child remains serial.
 - Keep native/backend benchmark workbenches such as `tests/test_tabular_benchmark_workbench.py` in slow or direct serial proof lanes rather than the fast xdist slice.

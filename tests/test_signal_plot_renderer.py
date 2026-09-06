@@ -35,6 +35,80 @@ from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
 
 
 SIGNAL_PLOT_TYPE_ID = "plot.signal"
+
+
+def test_scientific_render_uses_explicit_x_labels_and_bounded_gaps(monkeypatch) -> None:
+    import numpy as np
+    import pandas as pd
+    import ea_node_editor.execution.signal_plot_renderer as renderer
+
+    captured = []
+    original = renderer.xy.line
+
+    def line(x, y, **options):
+        captured.append((np.asarray(x), np.asarray(y), options))
+        return original(x, y, **options)
+
+    monkeypatch.setattr(renderer.xy, "line", line)
+    frame = pd.DataFrame({"time": np.arange(10000) * 0.2, "signal": np.sin(np.arange(10000))})
+    frame.loc[5000:5100, "time"] = np.nan
+    image, warnings = render_signal_plot({"values": frame, "max_points": 100, "marker_shapes": [0]})
+    assert isinstance(image, ImageValue)
+    x, y, options = captured[-1]
+    assert len(x) <= 100 and options["name"] == "signal"
+    assert x[-1] == frame.time.iloc[-1]
+    assert np.isnan(y).any()
+    assert any("reduced" in warning for warning in warnings)
+    render_signal_plot({"values": frame, "max_points": 0, "marker_shapes": [0], "labels": ["override"]})
+    assert len(captured[-1][0]) == len(frame)
+    assert captured[-1][2]["name"] == "override"
+    assert len(frame) == 10000 and np.isfinite(frame.signal).all()
+
+
+def test_datetime_render_uses_utc_axis_iso_bounds_and_rejects_mixed_axes(monkeypatch) -> None:
+    import numpy as np
+    import pandas as pd
+    import ea_node_editor.execution.signal_plot_renderer as renderer
+
+    captured = {}
+    original = renderer.xy.x_axis
+
+    def axis(**options):
+        captured.update(options)
+        return original(**options)
+
+    monkeypatch.setattr(renderer.xy, "x_axis", axis)
+    frame = pd.DataFrame({"time": pd.date_range("2024-01-01", periods=4, freq="h", tz="Europe/Istanbul"), "y": [1., 2., 3., 4.]})
+    image, _ = render_signal_plot({"values": frame, "x_datetime_start": "2023-12-31T21:00:00Z", "x_datetime_end": "2024-01-01T00:00:00Z"})
+    assert isinstance(image, ImageValue)
+    assert captured["type_"] == "time" and captured["label"] == "UTC"
+    assert captured["bounds"] == (1704056400000., 1704067200000.)
+    with pytest.raises(ValueError, match="cannot mix"):
+        render_signal_plot({"values": DataTree((((0,), (frame,)), ((1,), (np.array([1., 2.]),))))})
+    with pytest.raises(ValueError, match="ISO-8601"):
+        render_signal_plot({"values": frame, "x_datetime_start": "yesterday"})
+
+
+@pytest.mark.parametrize("start, step, unit", [("2024-01-01", 100, "us"), ("3000-01-01", 1, "s")])
+def test_datetime_x_preserves_fractional_milliseconds_and_distant_dates(monkeypatch, start, step, unit) -> None:
+    import numpy as np
+    import pandas as pd
+    import ea_node_editor.execution.signal_plot_renderer as renderer
+
+    original = renderer.xy.line
+    captured = []
+
+    def line(x, y, **options):
+        captured.extend(np.asarray(x))
+        return original(x, y, **options)
+
+    monkeypatch.setattr(renderer.xy, "line", line)
+    x = np.datetime64(start, unit) + np.arange(4) * np.timedelta64(step, unit)
+    frame = pd.DataFrame({"time": x, "y": [1., 2., 3., 4.]})
+    render_signal_plot({"values": frame, "marker_shapes": [0]})
+    expected_step = 0.1 if unit == "us" else 1000.
+    np.testing.assert_allclose(np.diff(captured), expected_step, atol=0.001)
+    assert captured[0] == float(x[0].astype("datetime64[ms]").astype(np.int64))
 INPUT_KEYS = (
     "width",
     "height",
@@ -56,6 +130,7 @@ INPUT_KEYS = (
     "logarithmic_y_axis",
     "image_background_color",
     "data_background_color",
+    "x_mode", "x_column", "y_columns", "max_points", "x_datetime_start", "x_datetime_end",
 )
 
 
@@ -93,6 +168,7 @@ def test_signal_plot_contract_is_exact_and_generic_siblings_remain(
         "Colors", "Line styles", "Line widths", "Marker shapes", "Marker sizes",
         "X axis label", "Y axis label", "Logarithmic Y axis",
         "Image background color", "Data background color",
+        "X mode", "X column", "Y columns", "Maximum rendered points", "Datetime X start", "Datetime X end",
     )
     defaults = {prop.key: prop.default for prop in spec.properties}
     assert defaults == {
@@ -115,6 +191,8 @@ def test_signal_plot_contract_is_exact_and_generic_siblings_remain(
         "logarithmic_y_axis": False,
         "image_background_color": "#ffffff",
         "data_background_color": "#ffffff",
+        "x_mode": "auto", "x_column": "", "y_columns": [], "max_points": 4000,
+        "x_datetime_start": "", "x_datetime_end": "",
     }
     assert registry.spec_or_none("plot.line") is None
     assert all(registry.spec_or_none(type_id) is not None for type_id in (
@@ -136,6 +214,7 @@ def test_signal_plot_static_ui_metadata_is_exact() -> None:
     assert tuple(group.label for group in spec.settings_groups) == (
         "General options",
         "Signal plot options",
+        "Data",
     )
     assert tuple(item.property_key for item in spec.settings_groups[0].items) == (
         "width", "height", "title", "font_size", "labels", "show_legend",

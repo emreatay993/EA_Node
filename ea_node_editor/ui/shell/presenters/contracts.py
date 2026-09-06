@@ -59,6 +59,8 @@ class _ShellWorkspacePresenterHostProtocol(Protocol):
 class _ShellInspectorPresenterHostProtocol(Protocol):
     selected_node_changed: _SignalLike
     workspace_state_changed: _SignalLike
+    node_execution_state_changed: _SignalLike
+    run_state: Any
     workspace_selection_context: Any
     workspace_edit_controller: Any
     workspace_navigation_controller: Any

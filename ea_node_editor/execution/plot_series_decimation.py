@@ -31,6 +31,8 @@ def decimate_xy(
     x: Sequence[float] | Any,
     y: Sequence[float] | Any,
     max_points: int,
+    *,
+    preserve_gaps: bool = False,
 ) -> tuple[list[float], list[float], dict[str, Any]]:
     """Bound an x/y series to ``max_points`` via a per-bucket min-max envelope.
 
@@ -49,6 +51,8 @@ def decimate_xy(
     if x_values.shape != y_values.shape:
         raise ValueError("decimate_xy requires x and y of equal length")
     original_rows = int(y_values.shape[0])
+    if preserve_gaps:
+        return _decimate_with_gaps(x_values, y_values, int(max_points))
     budget = max(2, int(max_points))
 
     finite = np.isfinite(x_values) & np.isfinite(y_values)
@@ -69,16 +73,7 @@ def decimate_xy(
         )
 
     buckets = max(1, (budget - 2) // 2)
-    bucket_ids = (np.arange(count, dtype=np.int64) * buckets) // count
-
-    def _first_per_bucket(order: Any) -> Any:
-        sorted_ids = bucket_ids[order]
-        _unique_ids, first_positions = np.unique(sorted_ids, return_index=True)
-        return order[first_positions]
-
-    min_indices = _first_per_bucket(np.lexsort((y_values, bucket_ids)))
-    max_indices = _first_per_bucket(np.lexsort((-y_values, bucket_ids)))
-    selected = np.union1d(min_indices, max_indices)
+    selected = _bucket_extrema_indices(y_values, buckets)
     selected = np.union1d(selected, np.array([0, count - 1], dtype=selected.dtype))
 
     return (
@@ -87,6 +82,62 @@ def decimate_xy(
         {
             "method": DECIMATION_METHOD_MINMAX,
             "original_rows": original_rows,
+            "points": int(selected.shape[0]),
+        },
+    )
+
+
+def _bucket_extrema_indices(y_values: Any, buckets: int) -> Any:
+    np = _import_numpy()
+    bucket_ids = (np.arange(len(y_values), dtype=np.int64) * buckets) // len(y_values)
+
+    def _first_per_bucket(order: Any) -> Any:
+        sorted_ids = bucket_ids[order]
+        _unique_ids, first_positions = np.unique(sorted_ids, return_index=True)
+        return order[first_positions]
+
+    min_indices = _first_per_bucket(np.lexsort((y_values, bucket_ids)))
+    max_indices = _first_per_bucket(np.lexsort((-y_values, bucket_ids)))
+    return np.union1d(min_indices, max_indices)
+
+
+def _decimate_with_gaps(x_values: Any, y_values: Any, budget: int) -> tuple[list[float], list[float], dict[str, Any]]:
+    """Keep finite-run endpoints/extrema and every gap, in source row order."""
+    np = _import_numpy()
+    if x_values.ndim != 1:
+        raise ValueError("decimate_xy requires one-dimensional samples")
+    count = len(y_values)
+    if budget < 0:
+        raise ValueError("Maximum rendered points must be non-negative")
+    if not budget or count <= budget:
+        selected = np.arange(count)
+    else:
+        finite = np.isfinite(x_values) & np.isfinite(y_values)
+        boundaries = np.r_[0, np.flatnonzero(finite[1:] != finite[:-1]) + 1, count]
+        required = {0, count - 1}
+        for start, stop in zip(boundaries[:-1], boundaries[1:]):
+            required.add(int(start))
+            if finite[start]:
+                values = y_values[start:stop]
+                required.update((int(stop - 1), int(start + values.argmin()), int(start + values.argmax())))
+            if len(required) > budget:
+                raise ValueError(
+                    f"Maximum rendered points ({budget}) cannot preserve gap topology and extrema; "
+                    f"at least {len(required)} points are needed; increase the budget or use 0 for full resolution."
+                )
+        selected = np.asarray(sorted(required), dtype=np.int64)
+        buckets = (budget - len(required)) // 2
+        finite_indices = np.flatnonzero(finite)
+        if buckets and len(finite_indices):
+            extrema = _bucket_extrema_indices(y_values[finite_indices], buckets)
+            selected = np.union1d(selected, finite_indices[extrema])
+
+    return (
+        x_values[selected].tolist(),
+        y_values[selected].tolist(),
+        {
+            "method": DECIMATION_METHOD_MINMAX if len(selected) < count else DECIMATION_METHOD_NONE,
+            "original_rows": count,
             "points": int(selected.shape[0]),
         },
     )

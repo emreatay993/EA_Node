@@ -43,6 +43,7 @@ class _LibraryHostStub(QObject):
 class _InspectorHostStub(QObject):
     selected_node_changed = pyqtSignal()
     workspace_state_changed = pyqtSignal()
+    node_execution_state_changed = pyqtSignal()
 
     def __init__(self) -> None:
         super().__init__()

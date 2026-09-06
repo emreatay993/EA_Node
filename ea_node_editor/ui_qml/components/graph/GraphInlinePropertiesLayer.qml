@@ -514,6 +514,7 @@ Item {
                         itemType: String(inlineRow.propertyData.list_item_type || "str")
                         enumValues: inlineRow.propertyData.list_item_enum_values || []
                         enumCodes: inlineRow.propertyData.list_item_enum_codes || []
+                        exactSelectors: Boolean(inlineRow.propertyData.exact_selectors)
                         minimum: inlineRow.propertyData.list_item_minimum
                         maximum: inlineRow.propertyData.list_item_maximum
                         stepSize: Number(inlineRow.propertyData.list_item_step || 0)
@@ -535,8 +536,10 @@ Item {
                         enabled: inlineRow.editorEnabled
                         host: root.host
                         model: inlineRow.propertyData.enum_values || []
+                        optionCodes: inlineRow.propertyData.enum_codes || []
+                        exactSelectors: Boolean(inlineRow.propertyData.exact_selectors)
                         selectedValue: inlineRow.displayValueAvailable
-                            ? root._displayText(inlineRow.propertyData)
+                            ? root._displayValue(inlineRow.propertyData)
                             : ""
                         placeholderText: "\u2014"
                         Accessible.name: inlineLabel.text
@@ -544,7 +547,7 @@ Item {
                         onControlStarted: root._beginInteraction()
                         onValueActivated: function(value) {
                             var values = inlineRow.propertyData.enum_values || [];
-                            if (values.indexOf(value) < 0)
+                            if (!Boolean(inlineRow.propertyData.exact_selectors) && values.indexOf(value) < 0)
                                 return;
                             root._commitInlineProperty(inlineRow.propertyData.key, value);
                         }

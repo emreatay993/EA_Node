@@ -16,6 +16,7 @@ from ea_node_editor.addons.tabular_data.loader_cache_service import (
     shared_tabular_loader_cache_service,
 )
 from ea_node_editor.nodes.builtins.integrations_common import pick_path, require_existing_file
+from ea_node_editor.common.payload_tools import REF_METADATA_MAX_BYTES
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.file_dialog_filters import TABULAR_DATA_FILES_FILTER
 from ea_node_editor.runtime_contracts import (
@@ -360,6 +361,8 @@ def _ref_with_node_metadata(
     if warning_facts:
         metadata["warning_facts"] = [dict(fact) for fact in warning_facts]
     metadata["node_options"] = _node_options_metadata(properties)
+    if "column_schema" in metadata and len(json.dumps(metadata, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) > REF_METADATA_MAX_BYTES:
+        del metadata["column_schema"]
     return replace(ref, metadata=metadata), warning_codes
 
 

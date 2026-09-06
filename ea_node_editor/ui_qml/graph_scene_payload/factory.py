@@ -30,6 +30,7 @@ from ea_node_editor.graph.workspace_state import WorkspaceData
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.plugin_contracts import PluginProvenance
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
+from ea_node_editor.nodes.builtins.plot.signal_schema import enrich_signal_property_items
 from ea_node_editor.settings import (
     DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
 )
@@ -229,8 +230,9 @@ class _NodePresentationFacts:
 
 
 class _GraphSceneNodePayloadFactory:
-    def __init__(self, boundary_adapters: GraphBoundaryAdapters) -> None:
+    def __init__(self, boundary_adapters: GraphBoundaryAdapters, current_input_provider: Any = None) -> None:
         self._boundary_adapters = boundary_adapters
+        self._current_input_provider = current_input_provider
 
     @staticmethod
     def _surface_metrics(
@@ -523,8 +525,8 @@ class _GraphSceneNodePayloadFactory:
             grouped_property_keys=grouped_property_keys,
         )
 
-    @staticmethod
     def build_inline_properties_payload(
+        self,
         *,
         node,
         spec: NodeTypeSpec,
@@ -534,13 +536,17 @@ class _GraphSceneNodePayloadFactory:
     ) -> list[dict[str, Any]]:
         if not spec.properties:
             return []
-        return build_inline_property_items(
+        items = build_inline_property_items(
             node=node,
             spec=spec,
             workspace_nodes=workspace_nodes,
             enabled_input_port_keys=enabled_input_port_keys,
             port_connection_counts=port_connection_counts,
         )
+        if spec.type_id == "plot.signal":
+            source = self._current_input_provider(node.node_id, "values") if self._current_input_provider else None
+            return enrich_signal_property_items(items, source)
+        return items
 
     @classmethod
     def view_visible_ports(

@@ -856,50 +856,6 @@ def _named_or_numeric_columns(
     return tuple(numeric_columns[: len(names)])
 
 
-def _tabular_plot_columns_data(
-    service: Any,
-    ref: TabularDataRef,
-    *,
-    columns: Sequence[str],
-    row_offset: int = 0,
-    row_limit: int | None = None,
-) -> dict[str, Any]:
-    """Materialize only the needed columns as numpy arrays — no per-row dicts."""
-
-    np = _import_numpy()
-    from ea_node_editor.runtime_contracts import TabularArrowBatchOptions
-
-    chunks: dict[str, list[Any]] = {name: [] for name in columns}
-    options = TabularArrowBatchOptions(
-        row_limit=row_limit if row_limit and row_limit > 0 else 2_147_483_647,
-        batch_size=65_536,
-        row_offset=row_offset,
-        columns=tuple(columns),
-    )
-    for batch in service.arrow_batches(ref, options):
-        if isinstance(batch, list):
-            # Non-arrow fallback (source_direct / HDF5) yields row mappings.
-            for name in columns:
-                chunks[name].append(np.array([row.get(name) for row in batch], dtype=object))
-            continue
-        name_to_index = {field_name: index for index, field_name in enumerate(batch.schema.names)}
-        for name in columns:
-            index = name_to_index.get(name)
-            if index is None:
-                chunks[name].append(np.full(batch.num_rows, None, dtype=object))
-                continue
-            chunks[name].append(batch.column(index).to_numpy(zero_copy_only=False))
-    data: dict[str, Any] = {}
-    for name, parts in chunks.items():
-        if not parts:
-            data[name] = np.array([], dtype=object)
-        elif len(parts) == 1:
-            data[name] = parts[0]
-        else:
-            data[name] = np.concatenate(parts)
-    return data
-
-
 def _series_from_tabular_ref(
     ref: TabularDataRef,
     *,
@@ -939,7 +895,7 @@ def _series_from_tabular_ref(
             f"{_tabular_column_details(available, all_columns)} {TABULAR_PLOT_DIAGNOSTIC_HINT}"
         )
     row_limit = _positive_int_or_none(mapping.get("row_limit"))
-    columns_data = _tabular_plot_columns_data(service, ref, columns=available, row_limit=row_limit)
+    columns_data = service.column_arrays(ref, columns=available, row_limit=row_limit)
     series, warnings = _series_from_tabular_columns(
         columns_data=columns_data,
         schema_columns=schema.columns,
@@ -990,8 +946,7 @@ def _series_from_tabular_window_ref(
     window_limit = window_request.row_limit if window_request.row_limit > 0 else None
     limits = [limit for limit in (mapping_limit, window_limit) if limit is not None]
     effective_limit = min(limits) if limits else None
-    columns_data = _tabular_plot_columns_data(
-        service,
+    columns_data = service.column_arrays(
         ref.table_data,
         columns=available,
         row_offset=window_request.row_offset,

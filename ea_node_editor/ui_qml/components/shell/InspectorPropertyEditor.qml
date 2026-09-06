@@ -7,6 +7,7 @@ import "../graph/surface_controls" as SurfaceControls
 
 Column {
     id: propertyEditor
+    objectName: "inspectorPropertyEditor"
     property var pane
     property var propertyItem: ({})
     readonly property string propertyKey: String(propertyItem ? propertyItem.key || "" : "")
@@ -42,6 +43,7 @@ Column {
                 : "")
     )
     readonly property bool searchableEnum: !!(propertyItem && propertyItem.searchable)
+    readonly property bool exactSelectors: !!(propertyItem && propertyItem.exact_selectors)
     readonly property bool attentionRequired: !!(propertyItem && propertyItem.attention_required)
     readonly property string metadataState: String(
         propertyItem && propertyItem.metadata_state ? propertyItem.metadata_state : ""
@@ -273,7 +275,9 @@ Column {
             if (!propertyEditor.displayValueAvailable)
                 return -1
             var value = propertyEditor.propertyValueText
-            var index = values.indexOf(value)
+            var codes = propertyEditor.propertyItem.enum_codes || []
+            var index = codes.length === values.length && codes.length > 0
+                ? codes.indexOf(propertyEditor.displayValue) : values.indexOf(value)
             return index >= 0 ? index : 0
         }
         onActivated: {
@@ -284,7 +288,8 @@ Column {
                 return
             propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
                 propertyEditor.propertyKey,
-                String(values[currentIndex])
+                (propertyEditor.propertyItem.enum_codes || []).length === values.length
+                    ? propertyEditor.propertyItem.enum_codes[currentIndex] : String(values[currentIndex])
             )
         }
     }
@@ -395,6 +400,8 @@ Column {
 
     InspectorEditableComboBox {
         id: editableComboEditor
+        objectName: "inspectorEditableComboEditor"
+        property string propertyKey: propertyEditor.propertyKey
         pane: propertyEditor.pane
         width: parent.width
         visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "editable_combo"
@@ -407,27 +414,29 @@ Column {
         model: propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
             ? propertyEditor.propertyItem.enum_values
             : []
-        selectedValue: propertyEditor.propertyValueText
+        optionCodes: propertyEditor.propertyItem.enum_codes || []
+        exactSelectors: propertyEditor.exactSelectors
+        selectedValue: propertyEditor.exactSelectors ? propertyEditor.displayValue : propertyEditor.propertyValueText
         onValueActivated: function(value) {
             if (!propertyEditor.pane.inspectorBridgeRef)
                 return
             propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
                 propertyEditor.propertyKey,
-                String(value || "")
+                propertyEditor.exactSelectors ? value : String(value || "")
             )
         }
         onAccepted: {
             if (propertyEditor.pane.inspectorBridgeRef)
-                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, editText)
+                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, valueForText(editText))
         }
         onActiveFocusChanged: {
-            if (!activeFocus && propertyEditor.pane.inspectorBridgeRef)
-                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, editText)
+            if (!activeFocus && !popupInteractionActive && propertyEditor.pane.inspectorBridgeRef)
+                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, valueForText(editText))
         }
-        Component.onCompleted: editText = propertyEditor.propertyValueText
+        Component.onCompleted: _syncSelectionFromValue()
         onVisibleChanged: {
             if (visible && !activeFocus)
-                editText = propertyEditor.propertyValueText
+                _syncSelectionFromValue()
         }
     }
 
@@ -699,18 +708,22 @@ Column {
     Column {
         width: parent.width
         visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "chip_list"
+        id: chipListContainer
+        objectName: "inspectorChipListContainer"
         spacing: 6
-        property var chipValues: propertyEditor.propertyItem && propertyEditor.propertyItem.value
+        property var chipValues: propertyEditor.exactSelectors
+            ? (propertyEditor.displayValueAvailable ? propertyEditor.displayValue || [] : [])
+            : propertyEditor.propertyItem && propertyEditor.propertyItem.value
             ? propertyEditor.propertyItem.value
             : []
 
         Flow {
             width: parent.width
             spacing: 6
-            visible: chipValues.length > 0
+            visible: chipListContainer.chipValues.length > 0
 
             Repeater {
-                model: chipValues
+                model: chipListContainer.chipValues
 
                 Rectangle {
                     property int chipIndex: index
@@ -727,7 +740,8 @@ Column {
                         spacing: 4
 
                         Text {
-                            text: String(modelData || "")
+                            text: propertyEditor.exactSelectors
+                                ? chipListEditor.labelForValue(modelData) : String(modelData || "")
                             color: propertyEditor.pane.themePalette.input_fg
                             font.pixelSize: 10
                         }
@@ -741,9 +755,9 @@ Column {
                                 if (!propertyEditor.pane.inspectorBridgeRef)
                                     return
                                 var values = []
-                                for (var row = 0; row < chipValues.length; ++row) {
+                                for (var row = 0; row < chipListContainer.chipValues.length; ++row) {
                                     if (row !== chipIndex)
-                                        values.push(String(chipValues[row] || ""))
+                                        values.push(propertyEditor.exactSelectors ? chipListContainer.chipValues[row] : String(chipListContainer.chipValues[row] || ""))
                                 }
                                 propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
                                     propertyEditor.propertyKey,
@@ -758,6 +772,8 @@ Column {
 
         InspectorEditableComboBox {
             id: chipListEditor
+            objectName: "inspectorChipListEditor"
+            property string propertyKey: propertyEditor.propertyKey
             pane: propertyEditor.pane
             width: parent.width
             enabled: propertyEditor.editorEnabled
@@ -770,20 +786,22 @@ Column {
                 ? propertyEditor.propertyItem.enum_values
                 : []
             selectedValue: ""
+            optionCodes: propertyEditor.propertyItem.enum_codes || []
+            exactSelectors: propertyEditor.exactSelectors
 
             function commitChip(value) {
                 if (!propertyEditor.pane.inspectorBridgeRef)
                     return
-                var text = String(value || "").trim()
-                if (!text.length)
+                var text = propertyEditor.exactSelectors ? value : String(value || "").trim()
+                if (text === "")
                     return
                 var values = []
-                var normalized = text.toLowerCase()
+                var normalized = propertyEditor.exactSelectors ? text : text.toLowerCase()
                 var seen = false
-                for (var index = 0; index < chipValues.length; ++index) {
-                    var existing = String(chipValues[index] || "")
+                for (var index = 0; index < chipListContainer.chipValues.length; ++index) {
+                    var existing = propertyEditor.exactSelectors ? chipListContainer.chipValues[index] : String(chipListContainer.chipValues[index] || "")
                     values.push(existing)
-                    if (existing.toLowerCase() === normalized)
+                    if ((propertyEditor.exactSelectors ? existing : existing.toLowerCase()) === normalized)
                         seen = true
                 }
                 if (!seen)
@@ -798,7 +816,7 @@ Column {
             onValueActivated: function(value) {
                 commitChip(value)
             }
-            onAccepted: commitChip(editText)
+            onAccepted: commitChip(valueForText(editText))
         }
     }
 

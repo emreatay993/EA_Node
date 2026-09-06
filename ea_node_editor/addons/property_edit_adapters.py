@@ -18,6 +18,7 @@ class PropertyEditAdapterContext:
     project_path: str | None = None
     project_metadata: Mapping[str, Any] | None = None
     source_path_resolver: PropertySourcePathResolver | None = None
+    current_output_provider: Callable[[str, str], Any] | None = None
 
     def source_path_for_property(self, property_key: str = "path", *, node: Any | None = None) -> str:
         if self.source_path_resolver is None:

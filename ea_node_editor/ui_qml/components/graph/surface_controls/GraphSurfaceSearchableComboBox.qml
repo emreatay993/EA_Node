@@ -7,8 +7,12 @@ FocusScope {
     property Item host: null
     property Item rectItem: control
     property var model: []
+    property var optionCodes: []
+    property bool exactSelectors: false
+    property var _syncedValue: ""
+    property string _syncedText: ""
     property string placeholderText: ""
-    property string selectedValue: ""
+    property var selectedValue: ""
     property alias editText: editor.text
     property int currentIndex: -1
     property bool suppressTextHandling: false
@@ -84,7 +88,7 @@ FocusScope {
 
     signal accepted()
     signal activated(int index)
-    signal valueActivated(string value)
+    signal valueActivated(var value)
     signal controlStarted()
 
     function _optionValues() {
@@ -102,12 +106,23 @@ FocusScope {
     }
 
     function _optionIndex(value) {
+        if (control.exactSelectors && control.optionCodes.length === control.optionValues.length)
+            return control.optionCodes.indexOf(value);
         var normalizedValue = String(value || "");
         for (var index = 0; index < control.optionValues.length; ++index) {
             if (control.optionValues[index] === normalizedValue)
                 return index;
         }
         return -1;
+    }
+
+    function labelForValue(value) {
+        var index = control._optionIndex(value);
+        if (control.exactSelectors && index >= 0)
+            return control.optionValues[index];
+        if (control.exactSelectors && typeof value === "number")
+            return "Column " + String(value + 1);
+        return value === undefined || value === null ? "" : String(value);
     }
 
     function _filteredOptionsFor(filterText) {
@@ -154,12 +169,15 @@ FocusScope {
         var nextIndex = control._optionIndex(control.selectedValue);
         if (control.currentIndex !== nextIndex)
             control.currentIndex = nextIndex;
-        if (!editor.activeFocus)
-            control._setEditTextSilently(control.selectedValue);
+        if (!editor.activeFocus) {
+            control._syncedValue = control.selectedValue;
+            control._syncedText = control.labelForValue(control.selectedValue);
+            control._setEditTextSilently(control._syncedText);
+        }
     }
 
     function _syncCurrentIndexFromEditText() {
-        var nextIndex = control._optionIndex(editor.text);
+        var nextIndex = control.optionValues.indexOf(editor.text);
         if (control.currentIndex !== nextIndex)
             control.currentIndex = nextIndex;
     }
@@ -182,24 +200,29 @@ FocusScope {
             return;
         var nextIndex = Number(option.sourceIndex);
         var nextValue = String(option.value || "");
+        control._syncedText = nextValue;
+        control._syncedValue = control.exactSelectors && control.optionCodes.length === control.optionValues.length
+            ? control.optionCodes[nextIndex] : nextValue;
         control.currentIndex = nextIndex;
         control._setEditTextSilently(nextValue);
         popup.close();
         control.activated(nextIndex);
-        control.valueActivated(nextValue);
+        control.valueActivated(control.exactSelectors && control.optionCodes.length === control.optionValues.length
+            ? control.optionCodes[nextIndex] : nextValue);
         editor.forceActiveFocus();
         editor.selectAll();
     }
 
     Component.onCompleted: control._syncSelectionFromValue()
     onSelectedValueChanged: control._syncSelectionFromValue()
+    onOptionCodesChanged: control._syncSelectionFromValue()
     onOptionValuesChanged: {
         control._syncSelectionFromValue();
         if (editor.activeFocus)
             control._refreshPopup();
     }
     onActiveFocusChanged: {
-        if (!activeFocus)
+        if (!activeFocus && !popup.containsPress)
             popup.close();
     }
 
@@ -207,7 +230,7 @@ FocusScope {
         id: selectedTextMetrics
         font.pixelSize: control.inlineFontPixelSize
         font.weight: control.inlineFontWeight
-        text: String(control.selectedValue || control.placeholderText || "")
+        text: control.labelForValue(control.selectedValue) || control.placeholderText
     }
 
     HoverHandler {
@@ -273,8 +296,14 @@ FocusScope {
         }
 
         onAccepted: {
+            if (control.exactSelectors) {
+                control.valueActivated(editor.text === control._syncedText ? control._syncedValue : editor.text);
+                control.accepted();
+                popup.close();
+                return;
+            }
             var nextOption = null;
-            var exactIndex = control._optionIndex(editor.text);
+            var exactIndex = control.optionValues.indexOf(editor.text);
             if (exactIndex >= 0) {
                 nextOption = {
                     "sourceIndex": exactIndex,
@@ -287,7 +316,7 @@ FocusScope {
                 control._commitOption(nextOption);
                 control.accepted();
             } else {
-                control._setEditTextSilently(control.selectedValue);
+                control._setEditTextSilently(control.labelForValue(control.selectedValue));
                 popup.close();
             }
         }
@@ -296,6 +325,8 @@ FocusScope {
             if (event.key === Qt.Key_Down) {
                 control._refreshPopup();
                 if (popup.visible) {
+                    popup.containsPress = true;
+                    popup.focus = true;
                     optionsView.forceActiveFocus();
                     if (optionsView.currentIndex < 0 && control.filteredOptions.length > 0)
                         optionsView.currentIndex = 0;
@@ -368,7 +399,7 @@ FocusScope {
         padding: 2
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
-        onClosed: containsPress = false
+        onClosed: { containsPress = false; focus = false; }
 
         background: Rectangle {
             radius: 4
@@ -379,6 +410,7 @@ FocusScope {
 
         contentItem: ListView {
             id: optionsView
+            objectName: "graphSelectorOptions"
             clip: true
             implicitHeight: Math.min(contentHeight, control.popupMaxHeight)
             implicitWidth: control.popupWidth

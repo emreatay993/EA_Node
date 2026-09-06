@@ -4,11 +4,14 @@ import copy
 from collections.abc import Mapping
 from typing import Any
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, QTimer
+from PyQt6.QtGui import QGuiApplication
 
 from ea_node_editor.graph.boundary_adapters import build_graph_boundary_adapters
 from ea_node_editor.graph.registry_normalization import normalize_project_for_registry
 from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.builtins.plot.signal_schema import connected_signal_value, enrich_signal_property_items
+from ea_node_editor.ui.support.node_presentation import has_focused_selector
 from ea_node_editor.ui_qml.edge_routing import node_size
 from ea_node_editor.ui_qml.graph_scene import (
     GraphSceneBridgeBase,
@@ -36,7 +39,16 @@ class GraphSceneBridge(GraphSceneBridgeBase):
         self._model = None
         self._registry = None
         self._history = None
-        self._payload_builder = GraphScenePayloadBuilder(boundary_adapters=self._boundary_adapters)
+        self._current_output_provider = None
+        self._signal_schema_signatures = {}
+        self._runtime_schema_pending = False
+        app = QGuiApplication.instance()
+        if isinstance(app, QGuiApplication):
+            app.focusObjectChanged.connect(self._on_editor_focus_changed)
+        self._payload_builder = GraphScenePayloadBuilder(
+            boundary_adapters=self._boundary_adapters,
+            current_input_provider=self._current_input_value,
+        )
         self._scene_context = _GraphSceneContext(self, payload_builder=self._payload_builder)
         self._scope_selection = GraphSceneScopeSelection(self._scene_context)
         self._authoring_boundary = GraphSceneMutationHistory(
@@ -60,6 +72,38 @@ class GraphSceneBridge(GraphSceneBridgeBase):
             pending_surface_action=self._pending_surface_action,
         )
         self._policy_bridge = GraphScenePolicyBridge(self, self._policy_boundary)
+
+    def set_current_output_provider(self, provider: Any) -> None:
+        self._current_output_provider = provider
+
+    def _current_input_value(self, node_id: str, port_key: str) -> Any:
+        if self._model is None or self._current_output_provider is None or port_key != "values":
+            return None
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        return connected_signal_value(
+            node_id, workspace.edges if workspace else (),
+            lambda source_node, source_port: self._current_output_provider(self._workspace_id, source_node, source_port),
+        )
+
+    def refresh_current_output_properties(self) -> None:
+        if self._model is None:
+            return
+        if has_focused_selector("graphInlinePropertiesLayer", "graphSelectorOptions"):
+            self._runtime_schema_pending = True
+            return
+        self._runtime_schema_pending = False
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        for node in workspace.nodes.values() if workspace else ():
+            if node.type_id == "plot.signal":
+                key = (self._workspace_id, node.node_id)
+                schema = enrich_signal_property_items([{"key": "x_column"}, {"key": "y_columns"}], self._current_input_value(node.node_id, "values"))
+                if self._signal_schema_signatures.get(key) != schema:
+                    self._signal_schema_signatures[key] = schema
+                    self._scene_context.publish_node_payload_update(node.node_id, publication_path="current_output_schema")
+
+    def _on_editor_focus_changed(self, _focused: QObject | None) -> None:
+        if self._runtime_schema_pending:
+            QTimer.singleShot(0, self.refresh_current_output_properties)
 
     def rebuild_registry(self, registry: NodeRegistry) -> None:
         previous_registry = self._registry

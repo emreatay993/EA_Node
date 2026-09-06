@@ -9,11 +9,13 @@ Item {
     property string itemType: "str"
     property var enumValues: []
     property var enumCodes: []
+    property bool exactSelectors: false
     property var minimum: null
     property var maximum: null
     property real stepSize: 0
     property bool editorEnabled: true
     property bool _syncing: false
+    property bool _ready: false
     readonly property int itemCount: itemModel.count
     signal controlStarted()
     signal commitRequested(var value)
@@ -23,6 +25,7 @@ Item {
             return;
         _syncing = true;
         itemModel.clear();
+        itemModel.dynamicRoles = root.exactSelectors;
         var source = [];
         try {
             var normalized = JSON.parse(JSON.stringify(values || []));
@@ -49,6 +52,8 @@ Item {
     }
 
     function defaultItem() {
+        if (exactSelectors)
+            return enumCodes.length > 0 ? enumCodes[0] : "";
         if (itemType === "enum")
             return enumCodes.length > 0 ? enumCodes[0] : 0;
         if (itemType === "int" || itemType === "float")
@@ -58,8 +63,9 @@ Item {
         return "";
     }
 
-    onValuesChanged: syncModel()
-    Component.onCompleted: syncModel()
+    onValuesChanged: if (_ready) syncModel()
+    onExactSelectorsChanged: if (_ready) syncModel()
+    Component.onCompleted: { _ready = true; syncModel(); }
 
     ListModel { id: itemModel }
 
@@ -86,7 +92,7 @@ Item {
                 width: Math.max(20, parent.width - removeButton.width - parent.spacing)
                 height: parent.height
                 visible: root.itemType !== "color"
-                sourceComponent: root.itemType === "enum"
+                sourceComponent: root.exactSelectors ? searchableComponent : root.itemType === "enum"
                     ? enumComponent
                     : ((root.itemType === "int" || root.itemType === "float")
                         && root.minimum !== null && root.maximum !== null
@@ -128,6 +134,24 @@ Item {
                 onClicked: {
                     itemModel.remove(index);
                     root.commitRequested(root.snapshot());
+                }
+            }
+
+            Component {
+                id: searchableComponent
+                GraphSurfaceSearchableComboBox {
+                    objectName: "graphSurfaceListSearchableEditor"
+                    width: parent ? parent.width : 100
+                    height: parent ? parent.height : 28
+                    enabled: root.editorEnabled
+                    host: root.host
+                    model: root.enumValues
+                    optionCodes: root.enumCodes
+                    exactSelectors: true
+                    selectedValue: itemValue
+                    Accessible.name: "List item " + String(index + 1)
+                    onControlStarted: root.controlStarted()
+                    onValueActivated: function(value) { root.setItem(index, value); }
                 }
             }
 

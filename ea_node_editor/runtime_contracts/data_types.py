@@ -469,6 +469,7 @@ class DataTypeCatalog:
         """Validate semantic identity, carrier, schema, relation, and payload."""
 
         from ea_node_editor.runtime_contracts.data_tree import DataTree
+        from ea_node_editor.runtime_contracts.scientific_values import ArrayValue, TableValue
         from ea_node_editor.runtime_contracts.interval_1d import Interval1D
         from ea_node_editor.runtime_contracts.image_value import ImageValue
         from ea_node_editor.runtime_contracts.value_refs import (
@@ -498,7 +499,11 @@ class DataTypeCatalog:
         validated_value = value
         explicit_semantic_identity = False
 
-        if isinstance(value, TypedInlineValue):
+        if isinstance(value, (ArrayValue, TableValue)):
+            explicit_semantic_identity = True
+            actual_type_id = value.data_type_id
+            schema_version = 1
+        elif isinstance(value, TypedInlineValue):
             explicit_semantic_identity = True
             actual_type_id = value.data_type_id
             carrier = "inline"

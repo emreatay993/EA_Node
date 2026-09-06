@@ -13,6 +13,13 @@ from ea_node_editor.common.payload_tools import (
     validate_payload_fields,
 )
 from ea_node_editor.runtime_contracts.data_tree import DataTree
+from ea_node_editor.runtime_contracts.scientific_values import (
+    ArrayValue, TableValue, snapshot_scientific_values,
+)
+from ea_node_editor.runtime_contracts.scientific_codec import (
+    SCIENTIFIC_MARKER, check_scientific_budget,
+    scientific_from_payload, scientific_to_payload,
+)
 from ea_node_editor.runtime_contracts.data_types import (
     ARRAY_DATA_REF_TYPE_ID,
     ARRAY_SLICE_2D_REF_TYPE_ID,
@@ -69,7 +76,9 @@ _RUNTIME_DATA_TREE_MARKER_VALUE = "data_tree"
 _RUNTIME_INTERVAL_1D_MARKER_VALUE = INTERVAL_1D_DATA_TYPE
 
 RuntimeValueRef: TypeAlias = (
-    TypedInlineValue
+    ArrayValue
+    | TableValue
+    | TypedInlineValue
     | ImageValue
     | RuntimeArtifactRef
     | RuntimeHandleRef
@@ -100,6 +109,8 @@ def _coerce_runtime_value_ref(
     marker = _extract_runtime_marker(payload)
     if marker is None:
         return None
+    if marker == SCIENTIFIC_MARKER:
+        return scientific_from_payload(payload)
     if marker == _RUNTIME_TYPED_INLINE_MARKER_VALUE:
         runtime_value = TypedInlineValue.from_payload(payload, catalog=catalog)
         if runtime_value is None:
@@ -243,6 +254,8 @@ def _deserialize_interval_1d(payload: Mapping[str, Any]) -> Interval1D:
 
 
 def _runtime_semantic_type_id(value: object) -> str:
+    if isinstance(value, (ArrayValue, TableValue)):
+        return value.data_type_id
     if isinstance(value, ImageValue):
         return IMAGE_VALUE_DATA_TYPE_ID
     if isinstance(value, TypedInlineValue):
@@ -267,7 +280,7 @@ def _runtime_semantic_type_id(value: object) -> str:
 def _requires_active_catalog(value: object) -> bool:
     if isinstance(
         value,
-        (TypedInlineValue, ImageValue, RuntimeArtifactRef, RuntimeHandleRef),
+        (ArrayValue, TableValue, TypedInlineValue, ImageValue, RuntimeArtifactRef, RuntimeHandleRef),
     ):
         return True
     if isinstance(value, DataTree):
@@ -279,6 +292,7 @@ def _requires_active_catalog(value: object) -> bool:
     if isinstance(value, Mapping):
         marker = _extract_runtime_marker(value)
         if marker in {
+            SCIENTIFIC_MARKER,
             _RUNTIME_TYPED_INLINE_MARKER_VALUE,
             _RUNTIME_IMAGE_MARKER_VALUE,
             _RUNTIME_ARTIFACT_MARKER_VALUE,
@@ -338,6 +352,8 @@ def _serialize_runtime_value(
 ) -> Any:
     if depth > JSON_MAX_DEPTH:
         raise ValueError(f"runtime value exceeds maximum JSON depth {JSON_MAX_DEPTH}")
+    if isinstance(value, (ArrayValue, TableValue)):
+        return scientific_to_payload(value)
     if isinstance(value, DataTree):
         return _serialize_data_tree(
             value,
@@ -385,6 +401,8 @@ def _serialize_runtime_value(
             else _coerce_runtime_value_ref(value, catalog=catalog)
         )
         if payload_ref is not None:
+            if isinstance(payload_ref, (ArrayValue, TableValue)):
+                return scientific_to_payload(payload_ref)
             if isinstance(
                 payload_ref,
                 (TypedInlineValue, ImageValue, RuntimeArtifactRef, RuntimeHandleRef),
@@ -419,6 +437,8 @@ def serialize_runtime_value(
     catalog: DataTypeCatalog | None = None,
     declared_type_id: str = "",
 ) -> Any:
+    value = snapshot_scientific_values(value)
+    check_scientific_budget(value)
     if catalog is None and (declared_type_id or _requires_active_catalog(value)):
         raise DataTypeCatalogError(
             "an active data-type catalog is required for semantic runtime carriers"
@@ -506,6 +526,7 @@ def deserialize_runtime_value(
     catalog: DataTypeCatalog | None = None,
     declared_type_id: str = "",
 ) -> Any:
+    check_scientific_budget(value)
     safe_value = copy_json_safe(
         value,
         field_name="runtime value",

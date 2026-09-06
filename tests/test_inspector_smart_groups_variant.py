@@ -191,6 +191,111 @@ class InspectorSmartGroupsBodyQmlTests(unittest.TestCase):
         self._app.processEvents()
         return obj, engine, pane, theme_bridge, ui_icons
 
+    def test_runtime_schema_refresh_preserves_focused_draft_and_selection_changes_immediately(self) -> None:
+        from types import SimpleNamespace
+        import numpy as np
+        from PyQt6.QtCore import QPoint, QPointF, Qt
+        from PyQt6.QtQuick import QQuickItem, QQuickWindow
+        from PyQt6.QtTest import QTest
+        from ea_node_editor.graph.model import GraphModel
+        from ea_node_editor.nodes.bootstrap import build_default_registry
+        from ea_node_editor.runtime_contracts import DataTree, SettledPortResult
+        from ea_node_editor.runtime_contracts.scientific_values import snapshot_scientific_value
+        from ea_node_editor.ui.shell.presenters.inspector_presenter import ShellInspectorPresenter
+
+        class Host(QObject):
+            selected_node_changed = pyqtSignal()
+            workspace_state_changed = pyqtSignal()
+            node_execution_state_changed = pyqtSignal()
+
+        host = Host()
+        host.registry = build_default_registry()
+        host.model = GraphModel()
+        workspace = host.model.active_workspace
+        source = host.model.add_node(workspace.workspace_id, "core.python_script", "Source", 0., 0.)
+        node = host.model.add_node(workspace.workspace_id, "plot.signal", "Signal", 200., 0.)
+        host.model.add_edge(workspace.workspace_id, source.node_id, "result", node.node_id, "values")
+        selected = [node]
+        host.workspace_selection_context = SimpleNamespace(selected_node_context=lambda: (selected[0], host.registry.get_spec(selected[0].type_id)))
+        host.workspace_manager = SimpleNamespace(active_workspace_id=lambda: workspace.workspace_id)
+        host._SUBNODE_PIN_TYPE_IDS = set()
+        host.project_path = ""
+        record = {"record_id": "current", "outputs_available": True, "outputs": {}}
+        fact = SimpleNamespace(retained_record_id="current", freshness=SimpleNamespace(value="current"))
+        host.run_state = SimpleNamespace(node_solution_facts_by_workspace_id={workspace.workspace_id: {source.node_id: fact}}, cached_node_output_records_by_workspace_id={workspace.workspace_id: {source.node_id: {"current": record}}})
+
+        def set_width(width):
+            record["outputs"]["result"] = SettledPortResult(status="value", value=DataTree.from_item(snapshot_scientific_value(np.ones((3, width)))))
+
+        set_width(2)
+        presenter = ShellInspectorPresenter(host)
+
+        def items():
+            return [dict(item, group_default_open=True) for item in presenter.selected_node_property_items if item["key"] == "x_column"]
+
+        body, engine, pane, theme_bridge, ui_icons = self._load_component(items())
+        window = QQuickWindow()
+        window.resize(440, 500)
+        blur_target = QQuickItem(window.contentItem())
+        body.setParentItem(window.contentItem())
+        body.setWidth(420)
+        refreshes = []
+
+        def refresh():
+            refreshes.append(True)
+            body.setProperty("propertyItems", items())
+
+        presenter.inspector_state_changed.connect(refresh)
+        try:
+            window.show()
+            window.requestActivate()
+            QTest.qWait(30)
+            self._app.processEvents()
+            selector = next(item for item in self._find_all_by_name(body, "inspectorEditableComboEditor") if item.isVisible())
+            point = selector.mapToScene(QPointF(selector.width() / 2, selector.height() / 2))
+            QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=QPoint(round(point.x()), round(point.y())))
+            selector.setProperty("editText", "unfinished exact name")
+            self.assertTrue(selector.property("activeFocus"))
+            set_width(4)
+            host.node_execution_state_changed.emit()
+            self._app.processEvents()
+            self.assertTrue(presenter._runtime_schema_pending)
+            self.assertEqual(refreshes, [])
+            self.assertEqual(selector.property("editText"), "unfinished exact name")
+            self.assertTrue(selector.property("activeFocus"))
+            QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=QPoint(435, 490))
+            blur_target.forceActiveFocus()
+            QTest.qWait(10)
+            self._app.processEvents()
+            self.assertEqual(len(refreshes), 1)
+            self.assertEqual(items()[0]["enum_codes"], [0, 1, 2, 3])
+            host.node_execution_state_changed.emit()
+            self.assertEqual(len(refreshes), 1)
+            selector = next(item for item in self._find_all_by_name(body, "inspectorEditableComboEditor") if item.isVisible())
+            point = selector.mapToScene(QPointF(selector.width() / 2, selector.height() / 2))
+            QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=QPoint(round(point.x()), round(point.y())))
+            set_width(5)
+            host.node_execution_state_changed.emit()
+            self.assertTrue(presenter._runtime_schema_pending)
+            host.model.add_edge(workspace.workspace_id, source.node_id, "result", node.node_id, "x_column")
+            host.workspace_state_changed.emit()
+            self.assertFalse(presenter._runtime_schema_pending)
+            self.assertFalse(items()[0]["editor_enabled"])
+            presenter._runtime_schema_pending = True
+            selected[0] = source
+            host.selected_node_changed.emit()
+            self.assertFalse(presenter._runtime_schema_pending)
+            self.assertEqual(body.property("propertyItems"), [])
+        finally:
+            presenter.shutdown()
+            window.close()
+            body.deleteLater()
+            engine.deleteLater()
+            pane.deleteLater()
+            theme_bridge.deleteLater()
+            ui_icons.deleteLater()
+            self._app.processEvents()
+
     def test_component_loads_and_exposes_static_groups(self) -> None:
         items = [
             {"key": "source_path", "label": "Source Path", "group": "Source", "editor_mode": "text", "value": ""},
