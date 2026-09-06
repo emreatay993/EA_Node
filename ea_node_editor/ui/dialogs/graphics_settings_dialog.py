@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ea_node_editor.settings import (
+    CANVAS_IMPORT_MODE_CHOICES,
     DEFAULT_GRAPHICS_SETTINGS,
     EDGE_CROSSING_STYLE_CHOICES,
     EXPAND_COLLISION_AVOIDANCE_GAP_PRESET_CHOICES,
@@ -516,6 +517,23 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         outer.setContentsMargins(4, 4, 4, 4)
         outer.setSpacing(12)
 
+        outer.addWidget(self._make_section_title("Paste and Drop", page))
+        import_card, import_layout = self._make_section_card(page)
+        import_form = QFormLayout()
+        self.canvas_import_mode_combo = QComboBox(import_card)
+        self.canvas_import_mode_combo.setObjectName("graphicsSettingsCanvasImportModeCombo")
+        for mode, label in CANVAS_IMPORT_MODE_CHOICES:
+            self.canvas_import_mode_combo.addItem(label, mode)
+        self.canvas_import_mode_combo.setToolTip(
+            (
+                "Automatic chooses node types for pasted or dropped content. "
+                "Ask every time opens Add to Canvas so you can choose each node type."
+            ) if self._tooltips_enabled else ""
+        )
+        import_form.addRow("Paste and drop behaviour", self.canvas_import_mode_combo)
+        import_layout.addLayout(import_form)
+        outer.addWidget(import_card)
+
         outer.addWidget(self._make_section_title("Snapping", page))
         card, card_lay = self._make_section_card(page)
         self.snap_to_grid_check = QCheckBox("Snap nodes to grid during edits", card)
@@ -966,6 +984,10 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.plot_lightweight_canvas_check.setChecked(settings["plot"]["lightweight_canvas"])
         self._plot_default_backend_per_type = copy.deepcopy(settings["plot"]["plot_default_backend_per_type"])
         self.snap_to_grid_check.setChecked(settings["interaction"]["snap_to_grid"])
+        self._set_combo_current_data(
+            self.canvas_import_mode_combo,
+            settings["interaction"]["canvas_import_mode"],
+        )
         expand_collision_avoidance = settings["interaction"]["expand_collision_avoidance"]
         self.expand_collision_enabled_check.setChecked(expand_collision_avoidance["enabled"])
         self._set_combo_current_data(
@@ -1101,6 +1123,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 },
                 "interaction": {
                     "snap_to_grid": self.snap_to_grid_check.isChecked(),
+                    "canvas_import_mode": self.canvas_import_mode_combo.currentData(),
                     "expand_collision_avoidance": {
                         "enabled": self.expand_collision_enabled_check.isChecked(),
                         "strategy": str(

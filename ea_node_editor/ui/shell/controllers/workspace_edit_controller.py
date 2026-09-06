@@ -22,7 +22,6 @@ from ea_node_editor.graph.effective_ports import (
 )
 from ea_node_editor.graph.hierarchy import scope_parent_id
 from ea_node_editor.graph.records import NodeInstance
-from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_INPUT_TYPE_ID,
     SUBNODE_OUTPUT_TYPE_ID,
@@ -39,13 +38,6 @@ from ea_node_editor.ui.shell.controllers.workspace_drop_connect_controller impor
 )
 from ea_node_editor.ui.shell.controllers.workspace_selection_context import (
     WorkspaceSelectionContext,
-)
-from ea_node_editor.ui.shell.clipboard_paste_nodes import (
-    ClipboardPasteItem,
-    ClipboardTablePasteItems,
-    classify_clipboard_paste_items,
-    clipboard_paste_items_signature,
-    clipboard_table_paste_items,
 )
 from ea_node_editor.ui.shell.inspector_flow import coerce_editor_input_value
 from ea_node_editor.ui.shell.runtime_clipboard import (
@@ -691,7 +683,7 @@ class WorkspaceEditController:
             return self._paste_graph_fragment_payload(fragment_payload)
         if has_graph_fragment_mime:
             return False
-        return self._paste_clipboard_node_items(mime_data)
+        return self._host.canvas_import_controller.paste(mime_data)
 
     def _paste_graph_fragment_payload(self, fragment_payload: dict[str, Any]) -> bool:
         fragment_signature = serialize_graph_fragment_payload(fragment_payload)
@@ -726,174 +718,6 @@ class WorkspaceEditController:
         self._effects.after_fragment_pasted()
         return True
 
-    def _paste_clipboard_node_items(self, mime_data: QMimeData | None) -> bool:
-        table_items = clipboard_table_paste_items(mime_data)
-        if table_items is not None:
-            chosen_table_item = self._choose_clipboard_table_paste_item(table_items)
-            if chosen_table_item is None:
-                return False
-            items = (chosen_table_item,)
-        else:
-            items = classify_clipboard_paste_items(mime_data)
-        if not items:
-            return False
-        item_signature = (
-            f"clipboard-paste-items:{clipboard_paste_items_signature(items)}"
-        )
-        if item_signature != self.clipboard_fragment_signature():
-            self.set_clipboard_fragment_signature(item_signature)
-            self.set_clipboard_paste_count(0)
-
-        center_x, center_y = self._viewport_scene_center()
-        paste_index = self.clipboard_paste_count()
-        base_cascade_x = float(paste_index) * _PASTE_CASCADE_OFFSET_X
-        base_cascade_y = float(paste_index) * _PASTE_CASCADE_OFFSET_Y
-        parent_node_id = scope_parent_id(
-            getattr(self._host.scene, "active_scope_path", ())
-        )
-
-        created_node_ids: list[str] = []
-        for item_index, item in enumerate(items):
-            cascade_x = base_cascade_x + (float(item_index) * _PASTE_CASCADE_OFFSET_X)
-            cascade_y = base_cascade_y + (float(item_index) * _PASTE_CASCADE_OFFSET_Y)
-            node_id = self._create_clipboard_paste_node(
-                item,
-                x=center_x + cascade_x,
-                y=center_y + cascade_y,
-                parent_node_id=parent_node_id,
-            )
-            if node_id:
-                created_node_ids.append(node_id)
-
-        if not created_node_ids:
-            return False
-
-        self._select_created_clipboard_nodes(created_node_ids)
-        self.set_clipboard_paste_count(self.clipboard_paste_count() + 1)
-        self._effects.after_fragment_pasted()
-        return True
-
-    def _choose_clipboard_table_paste_item(
-        self, items: ClipboardTablePasteItems
-    ) -> ClipboardPasteItem | None:
-        from PyQt6.QtWidgets import QMessageBox
-
-        dialog = QMessageBox(resolve_dialog_parent(self._host))
-        dialog.setWindowTitle("Paste Table")
-        dialog.setIcon(QMessageBox.Icon.Question)
-        dialog.setText("Paste copied table as:")
-        dialog.setInformativeText(
-            "Choose a data input for workflows or a rendered markdown table for notes."
-        )
-        tabular_button = dialog.addButton(
-            "Tabular Data Input", QMessageBox.ButtonRole.AcceptRole
-        )
-        markdown_button = dialog.addButton(
-            "Markdown Table", QMessageBox.ButtonRole.AcceptRole
-        )
-        dialog.addButton(QMessageBox.StandardButton.Cancel)
-        dialog.setDefaultButton(tabular_button)
-        dialog.exec()
-        clicked_button = dialog.clickedButton()
-        if clicked_button is tabular_button:
-            return items.tabular
-        if clicked_button is markdown_button:
-            return items.markdown
-        return None
-
-    def _viewport_scene_center(self) -> tuple[float, float]:
-        view = getattr(self._host, "view", None)
-        viewport = (
-            view.viewport()
-            if view is not None and callable(getattr(view, "viewport", None))
-            else None
-        )
-        if (
-            view is None
-            or viewport is None
-            or not callable(getattr(view, "mapToScene", None))
-        ):
-            return (0.0, 0.0)
-        center = view.mapToScene(viewport.rect().center())
-        return (float(center.x()), float(center.y()))
-
-    def _create_clipboard_paste_node(
-        self,
-        item: ClipboardPasteItem,
-        *,
-        x: float,
-        y: float,
-        parent_node_id: str | None,
-    ) -> str:
-        properties = dict(item.properties)
-        after_create = None
-        if item.artifact is not None:
-
-            def _after_create(node: NodeInstance, mutations) -> bool:  # noqa: ANN001
-                staged_ref = self._stage_clipboard_artifact(item, node)
-                if not staged_ref:
-                    return False
-                updates = dict(properties)
-                updates[item.artifact.property_key] = staged_ref
-                mutations.set_node_properties(node.node_id, updates)
-                return True
-
-            after_create = _after_create
-            properties = {}
-
-        try:
-            return str(
-                self._host.scene.create_node_from_type(
-                    type_id=item.type_id,
-                    x=float(x),
-                    y=float(y),
-                    parent_node_id=parent_node_id,
-                    select_node=False,
-                    property_overrides=properties,
-                    exposed_port_overrides=(
-                        {"source": False}
-                        if item.type_id == MEDIA_PANEL_TYPE_ID
-                        else None
-                    ),
-                    after_create=after_create,
-                )
-                or ""
-            )
-        except (KeyError, RuntimeError, TypeError, ValueError):
-            return ""
-
-    def _stage_clipboard_artifact(
-        self, item: ClipboardPasteItem, node: NodeInstance
-    ) -> str:
-        artifact = item.artifact
-        if artifact is None:
-            return ""
-        controller = getattr(self._host, "project_session_controller", None)
-        stage = getattr(controller, "stage_node_artifact_bytes", None)
-        if not callable(stage):
-            return ""
-        try:
-            return str(
-                stage(
-                    data=artifact.data,
-                    filename=artifact.filename,
-                    mime_type=artifact.mime_type,
-                    artifact_prefix=artifact.artifact_prefix,
-                    subdirectory=artifact.subdirectory,
-                    artifact_kind=artifact.artifact_kind,
-                    node_id=node.node_id,
-                )
-                or ""
-            )
-        except (OSError, RuntimeError, TypeError, ValueError):
-            return ""
-
-    def _select_created_clipboard_nodes(self, node_ids: list[str]) -> None:
-        if not node_ids:
-            return
-        self._host.scene.clearSelection()
-        for index, node_id in enumerate(node_ids):
-            self._host.scene.select_node(node_id, additive=index > 0)
 
     def undo(self) -> bool:
         workspace_id = self._host.workspace_manager.active_workspace_id()

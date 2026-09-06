@@ -282,7 +282,15 @@ def add_node_from_type(self, type_id: str, x: float = 0.0, y: float = 0.0) -> st
     )
 
 
-def create_node_from_type(
+def create_node_from_type(self, **kwargs) -> str:
+    history_before = self._capture_history_snapshot()
+    node_id = _create_node_from_type(self, **kwargs)
+    if node_id:
+        self._record_history(ACTION_ADD_NODE, history_before)
+    return node_id
+
+
+def _create_node_from_type(
     self,
     *,
     type_id: str,
@@ -304,7 +312,6 @@ def create_node_from_type(
         return ""
     dirty_before = bool(workspace.dirty)
     mutation_revision_before = int(workspace.mutation_revision)
-    history_before = self._capture_history_snapshot()
     spec = registry.get_spec(type_id)
     mutations = self._validated_mutations()
     properties = registry.default_properties(type_id)
@@ -353,36 +360,40 @@ def create_node_from_type(
         custom_width=custom_width,
         custom_height=custom_height,
     )
-    if after_create is not None:
-        def _rollback_created_node() -> None:
-            self._record_mutations().remove_node(node.node_id)
-            workspace.dirty = dirty_before
-            workspace.mutation_revision = mutation_revision_before
+    selected_before = list(self._scope_selection.selected_node_ids)
 
-        try:
-            keep_node = after_create(node, mutations)
-        except Exception:
-            _rollback_created_node()
-            raise
-        if keep_node is False:
-            _rollback_created_node()
+    def rollback_created_node() -> None:
+        self._record_mutations().remove_node(node.node_id)
+        workspace.dirty = dirty_before
+        workspace.mutation_revision = mutation_revision_before
+        if select_node:
+            self._scope_selection.set_selected_node_ids(selected_before, workspace=workspace)
+
+    try:
+        if after_create is not None and after_create(node, mutations) is False:
+            rollback_created_node()
             return ""
-    self._scene_context.sync_surface_title(node, spec)
-    selection_changed = False
-    if select_node:
-        selection_changed = self._scope_selection.set_selected_node_ids(
-            [node.node_id],
-            workspace=workspace,
-            emit_signals=after_create is not None,
-        )
-    if after_create is None:
-        if not self._scene_context.publish_node_addition_delta(node.node_id):
+        self._scene_context.sync_surface_title(node, spec)
+        selection_changed = False
+        if select_node:
+            selection_changed = self._scope_selection.set_selected_node_ids(
+                [node.node_id],
+                workspace=workspace,
+                emit_signals=after_create is not None,
+            )
+        if after_create is None:
+            if not self._scene_context.publish_node_addition_delta(node.node_id):
+                self._scene_context.rebuild_models()
+            if selection_changed:
+                self._scene_context.emit_selection_changed(node.node_id)
+        else:
             self._scene_context.rebuild_models()
-        if selection_changed:
-            self._scene_context.emit_selection_changed(node.node_id)
-    else:
+    except Exception:
+        rollback_created_node()
+        # A publication can fail after exposing the new node. Rebuild from the
+        # rolled-back graph before reporting the import failure.
         self._scene_context.rebuild_models()
-    self._record_history(ACTION_ADD_NODE, history_before)
+        raise
     return node.node_id
 
 

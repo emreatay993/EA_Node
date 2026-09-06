@@ -12,6 +12,7 @@ import ea_node_editor.ui_qml.graph_scene_mutation.group_backdrop_ops as _group_b
 import ea_node_editor.ui_qml.graph_scene_mutation.grouping_and_subnode_ops as _grouping_ops
 import ea_node_editor.ui_qml.graph_scene_mutation.policy as _policy
 import ea_node_editor.ui_qml.graph_scene_mutation.selection_and_scope_ops as _selection_ops
+from ea_node_editor.ui_qml.graph_scene_mutation.node_creation_batch import create_nodes_batch
 from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters
 from ea_node_editor.graph.fragment_payloads import (
     fragment_node_from_payload,
@@ -777,6 +778,7 @@ GraphSceneMutationPolicy.compatible_rewire_endpoint_snapshot = (
 GraphSceneMutationHistory.add_node_from_type = _selection_ops.add_node_from_type
 GraphSceneMutationHistory.add_subnode_shell_pin = _grouping_ops.add_subnode_shell_pin
 GraphSceneMutationHistory.create_node_from_type = _selection_ops.create_node_from_type
+GraphSceneMutationHistory.create_nodes_batch = create_nodes_batch
 GraphSceneMutationHistory.add_edge = _selection_ops.add_edge
 GraphSceneMutationHistory.request_rewire_edges = _selection_ops.request_rewire_edges
 GraphSceneMutationHistory.move_edge_endpoint = _selection_ops.move_edge_endpoint

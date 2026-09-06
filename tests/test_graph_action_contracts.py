@@ -1501,60 +1501,28 @@ def test_graph_canvas_command_bridge_rejects_invalid_path_pointer_updates_withou
     assert rejected_scene.properties == []
 
 
-def test_graph_canvas_command_bridge_creates_mail_panel_from_mail_file_drop_url() -> None:
-    with TemporaryDirectory() as temporary_directory:
-        root = Path(temporary_directory)
-        target_file = root / "message.eml"
-        target_file.write_text("Subject: Hello\n\nBody", encoding="utf-8")
-        scene = _FolderExplorerSceneCommandProbe()
-        bridge = GraphCanvasCommandBridge(scene_bridge=scene)
-
-        result = bridge.request_create_file_drop_node(
-            target_file.resolve().as_uri(),
-            False,
-            64,
-            128,
-        )
-
-        assert result["success"] is True
-        assert result["created_type_id"] == "passive.media.mail_panel"
-        assert result["mode"] == "file"
-        assert scene.added_nodes == [("passive.media.mail_panel", 64.0, 128.0, "node-1")]
-        assert scene.create_kwargs[0]["property_overrides"] == {
-            "source_path": str(target_file.resolve())
-        }
-        assert scene.create_kwargs[0]["exposed_port_overrides"] is None
+def test_graph_canvas_command_bridge_routes_all_drop_formats_to_import_controller() -> None:
+    calls = []
+    controller = SimpleNamespace(
+        drop=lambda *args: calls.append(args) or True,
+        drop_local_path=lambda *args: calls.append(args) or True,
+    )
+    bridge = GraphCanvasCommandBridge(canvas_import_controller=controller)
+    urls = ["file:///C:/a.png", "https://example.test/page?x=1#part"]
+    assert bridge.request_canvas_import_drop(urls, "literal text", "<b>HTML</b>", 64, 128)
+    assert calls == [(urls, "literal text", "<b>HTML</b>", 64, 128)]
+    assert bridge.request_canvas_import_local_path("C:/folder", True, 8, 16)
+    assert calls[-1] == ("C:/folder", True, 8, 16)
+    assert not GraphCanvasCommandBridge().request_canvas_import_drop(urls, "", "", 0, 0)
 
 
-def test_graph_canvas_command_bridge_creates_input_hidden_media_panel_from_media_file_drop_url() -> None:
-    with TemporaryDirectory() as temporary_directory:
-        target_file = Path(temporary_directory) / "image.png"
-        target_file.write_bytes(b"not-decoded-by-file-drop")
-        scene = _FolderExplorerSceneCommandProbe()
-        bridge = GraphCanvasCommandBridge(scene_bridge=scene)
-
-        result = bridge.request_create_file_drop_node(
-            target_file.resolve().as_uri(),
-            False,
-            64,
-            128,
-        )
-
-        assert result["success"] is True
-        assert result["created_type_id"] == "media.panel"
-        assert scene.create_kwargs[0]["property_overrides"] == {
-            "source": str(target_file.resolve())
-        }
-        assert scene.create_kwargs[0]["exposed_port_overrides"] == {"source": False}
-
-
-def test_graph_canvas_qml_routes_mail_file_drops_to_file_drop_command() -> None:
+def test_graph_canvas_qml_delegates_classification_and_preserves_targeted_path_replacement() -> None:
     canvas_source = _source(REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "GraphCanvas.qml")
-
-    assert "function _mailFileDropPayload(path)" in canvas_source
-    assert '"passive.media.mail_panel"' in canvas_source
-    assert '"source_path": normalizedPath' in canvas_source
-    assert "request_create_file_drop_node" in canvas_source
+    assert "function _mailFileDropPayload" not in canvas_source
+    assert "function _fileDropPayload" not in canvas_source
+    assert "request_create_file_drop_node" not in canvas_source
+    assert "bridge.request_canvas_import_drop(urls, text, html," in canvas_source
+    assert "return root.performPathPointerNodeDrop(targetHost.nodeId, path, isFolder)" in canvas_source
 
 
 def test_mail_panel_surface_declares_source_open_and_safe_webengine_actions() -> None:

@@ -1544,7 +1544,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
 
             executor._settle = settle
             observed: list[dict[str, object]] = []
-            original_materialize = service.materialize_persisted_value
+            original_materialize = service.materialize_authored_properties
 
             def record_materialized(value):  # noqa: ANN001, ANN202
                 result = original_materialize(value)
@@ -1554,7 +1554,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
 
             with patch.object(
                 service,
-                "materialize_persisted_value",
+                "materialize_authored_properties",
                 side_effect=record_materialized,
             ):
                 status = executor._execute_trigger(node_id)

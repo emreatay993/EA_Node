@@ -589,71 +589,41 @@ Item {
     function _pathFromDropEvent(eventObj) {
         return String(_pathPointerDataFromDropEvent(eventObj).path || "");
     }
-    function _mailFileDropPayload(path) {
-        var normalizedPath = String(path || "").trim();
-        var lower = normalizedPath.toLowerCase();
-        try {
-            lower = decodeURIComponent(normalizedPath).toLowerCase();
-        } catch (error) {
-        }
-        if (!(lower.endsWith(".eml") || lower.endsWith(".msg") || lower.endsWith(".oft")))
-            return ({});
-        return {
-            "type_id": "passive.media.mail_panel",
-            "properties": {
-                "source_path": normalizedPath
-            }
-        };
-    }
-    function _fileDropPayload(path, isFolder) {
-        if (!Boolean(isFolder)) {
-            var mailPayload = _mailFileDropPayload(path);
-            if (mailPayload && mailPayload.type_id)
-                return mailPayload;
-        }
-        return _pathPointerPayload(path, isFolder);
-    }
     function updatePathPointerDropPreview(screenX, screenY, path, isFolder) {
-        var preferFileDrop = arguments.length > 4 ? Boolean(arguments[4]) : false;
-        if (root._pathPointerDropHostAt(screenX, screenY)) {
-            root.clearLibraryDropPreview();
-            return;
-        }
-        var payload = preferFileDrop
-            ? _fileDropPayload(path, isFolder)
-            : _pathPointerPayload(path, isFolder);
-        if (!payload || !payload.type_id) {
-            clearLibraryDropPreview();
-            return;
-        }
-        updateLibraryDropPreview(screenX, screenY, payload);
+        // The import controller chooses the representation after release.
+        // Keep Folder Explorer feedback neutral, just like external drops.
+        root.clearLibraryDropPreview();
     }
     function performPathPointerDrop(screenX, screenY, path, isFolder) {
-        var preferFileDrop = arguments.length > 4 ? Boolean(arguments[4]) : false;
         var targetHost = root._pathPointerDropHostAt(screenX, screenY);
         if (targetHost)
             return root.performPathPointerNodeDrop(targetHost.nodeId, path, isFolder);
         var bridge = root.canvasCommandBridgeRef;
-        if (!bridge || !bridge.request_create_path_pointer_node) {
-            clearLibraryDropPreview();
-            return false;
-        }
-        var normalizedPath = String(path || "").trim();
-        if (!normalizedPath.length) {
-            clearLibraryDropPreview();
-            return false;
-        }
-        root.forceActiveFocus();
-        root._closeContextMenus();
-        root.clearPendingConnection();
-        var sceneX = root.screenToSceneX(screenX);
-        var sceneY = root.screenToSceneY(screenY);
-        var result = preferFileDrop && bridge.request_create_file_drop_node
-            ? bridge.request_create_file_drop_node(normalizedPath, Boolean(isFolder), sceneX, sceneY)
-            : bridge.request_create_path_pointer_node(normalizedPath, Boolean(isFolder), sceneX, sceneY);
-        root.clearEdgeSelection();
         root.clearLibraryDropPreview();
-        return !!result && Boolean(result.success);
+        if (!bridge || !bridge.request_canvas_import_local_path || !String(path || "").length)
+            return false;
+        return bridge.request_canvas_import_local_path(String(path), Boolean(isFolder),
+            root.screenToSceneX(screenX), root.screenToSceneY(screenY));
+    }
+    function _acceptExternalCanvasDrop(eventObj) {
+        // Internal library/node drags keep their existing gesture owner.
+        return !eventObj.source || root._pathPointerDataFromDragSource(eventObj.source).path.length > 0;
+    }
+    function performExternalCanvasDrop(drop) {
+        var bridge = root.canvasCommandBridgeRef;
+        root.clearLibraryDropPreview();
+        if (!bridge || !bridge.request_canvas_import_drop)
+            return false;
+        var pointer = root._pathPointerDataFromDragSource(drop.source);
+        if (pointer.path.length)
+            return root.performPathPointerDrop(drop.x, drop.y, pointer.path, pointer.isFolder);
+        var urls = [];
+        for (var i = 0; drop.urls && i < drop.urls.length; i++)
+            urls.push(String(drop.urls[i]));
+        var text = drop.text !== undefined ? String(drop.text || "") : "";
+        var html = drop.html !== undefined ? String(drop.html || "") : "";
+        return bridge.request_canvas_import_drop(urls, text, html,
+            root.screenToSceneX(drop.x), root.screenToSceneY(drop.y));
     }
     function _pathPointerDropHostAt(screenX, screenY) {
         var hosts = rootLayers && rootLayers._allVisibleNodeHosts
@@ -778,39 +748,28 @@ Item {
             id: osPathDropArea
             objectName: "graphCanvasOsPathDropArea"
             anchors.fill: parent
-            keys: ["text/uri-list", "text/plain", "application/x-corex-path-pointer"]
+            keys: ["text/uri-list", "text/plain", "text/html", "image/*", "video/*",
+                "application/pdf", "application/x-qt-image", "application/x-corex-path-pointer"]
 
             onEntered: function(drag) {
-                var pointerData = root._pathPointerDataFromDropEvent(drag);
-                var path = String(pointerData.path || "");
-                if (!path.length)
-                    return;
-                drag.accept(Qt.CopyAction);
-                root.updatePathPointerDropPreview(drag.x, drag.y, path, Boolean(pointerData.isFolder), Boolean(pointerData.preferFileDrop));
+                drag.accepted = root._acceptExternalCanvasDrop(drag);
+                if (drag.accepted)
+                    drag.accept(Qt.CopyAction);
             }
 
             onPositionChanged: function(drag) {
-                var pointerData = root._pathPointerDataFromDropEvent(drag);
-                var path = String(pointerData.path || "");
-                if (!path.length) {
-                    root.clearLibraryDropPreview();
-                    return;
-                }
-                drag.accept(Qt.CopyAction);
-                root.updatePathPointerDropPreview(drag.x, drag.y, path, Boolean(pointerData.isFolder), Boolean(pointerData.preferFileDrop));
+                drag.accepted = root._acceptExternalCanvasDrop(drag);
+                if (drag.accepted)
+                    drag.accept(Qt.CopyAction);
             }
 
             onExited: root.clearLibraryDropPreview()
 
             onDropped: function(drop) {
-                var pointerData = root._pathPointerDataFromDropEvent(drop);
-                var path = String(pointerData.path || "");
-                if (!path.length) {
-                    root.clearLibraryDropPreview();
+                if (!root._acceptExternalCanvasDrop(drop))
                     return;
-                }
-                drop.accept(Qt.CopyAction);
-                root.performPathPointerDrop(drop.x, drop.y, path, Boolean(pointerData.isFolder), Boolean(pointerData.preferFileDrop));
+                if (root.performExternalCanvasDrop(drop))
+                    drop.accept(Qt.CopyAction);
             }
         }
     }

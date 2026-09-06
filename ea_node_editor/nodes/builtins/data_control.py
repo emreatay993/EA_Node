@@ -1,6 +1,6 @@
 # Purpose: Keep trusted control-node execution helpers, normalization, and size resolvers.
 # Map: feature_routes/surface_input_and_inline_controls.md
-# Tests: tests/test_boolean_toggle_node.py
+# Tests: tests/test_boolean_toggle_node.py, tests/test_panel_node.py, tests/test_canvas_import_runtime.py
 from __future__ import annotations
 
 import math
@@ -9,7 +9,7 @@ from typing import Any
 
 from ea_node_editor.graph.boundary_adapters import register_node_type_size_resolver
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
-from ea_node_editor.runtime_contracts import DataTree
+from ea_node_editor.runtime_contracts import DataTree, RuntimeArtifactRef
 
 BOOLEAN_TOGGLE_TYPE_ID = "data.boolean_toggle"
 BOOLEAN_TOGGLE_SURFACE_VARIANT = "boolean_toggle"
@@ -160,7 +160,10 @@ def parse_panel_data(value: str, *, parse_numbers: bool = False) -> DataTree:
 def execute_panel(ctx: ExecutionContext) -> NodeResult:
     if "input" in ctx.inputs:
         return NodeResult(outputs={"output": ctx.inputs["input"]})
-    value = str(ctx.properties.get("value", "") or "")
+    value = ctx.properties.get("value", "")
+    if isinstance(value, RuntimeArtifactRef):
+        return NodeResult(outputs={"output": DataTree.from_item(value)})
+    value = str(value or "")
     if ctx.properties.get("mode", PANEL_MODE_TEXT) == PANEL_MODE_DATA:
         output = parse_panel_data(
             value,

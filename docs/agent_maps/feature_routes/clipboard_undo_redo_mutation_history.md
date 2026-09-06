@@ -12,12 +12,18 @@ Use this for graph mutation history, undo/redo, clipboard fragments, runtime cli
 - `ea_node_editor/graph/transforms.py`
 - `ea_node_editor/ui/shell/runtime_clipboard.py`
 - `ea_node_editor/ui/shell/clipboard_paste_nodes.py`
+- `ea_node_editor/ui/shell/controllers/canvas_import_controller.py`
+- `ea_node_editor/ui/shell/canvas_import_dialog.py`
+- `ea_node_editor/ui/shell/canvas_drop_capture.py`
+- `ea_node_editor/ui_qml/graph_scene_mutation/node_creation_batch.py`
+- `tests/test_canvas_import_runtime.py`
 - `ea_node_editor/ui/shell/runtime_history.py`
 - `ea_node_editor/ui/shell/controllers/workspace_edit_controller.py`
 - `ea_node_editor/ui_qml/graph_scene_mutation/selection_and_scope_ops.py`
 
 ## Focused Verification
 ```powershell
+.\venv\Scripts\python.exe -m pytest tests/test_canvas_import_inputs.py tests/test_canvas_import_controller.py tests/test_canvas_import_preferences.py --ignore=venv -q -n 0
 .\venv\Scripts\python.exe -m pytest tests/test_group_backdrop_clipboard.py tests/graph_track_b/scene_model_graph_scene_suite.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/main_window_shell/edit_clipboard_history.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_workspace_edit_controller.py --ignore=venv -q
@@ -26,8 +32,12 @@ Use this for graph mutation history, undo/redo, clipboard fragments, runtime cli
 
 ## Mutation Routing Notes
 - Fragment insertion is called directly through `ea_node_editor.graph.transform_fragment_ops.insert_graph_fragment`.
-- `WorkspaceEditController.paste_nodes_from_clipboard()` gives `GRAPH_FRAGMENT_MIME_TYPE` priority. Only when that MIME is absent does it classify OS clipboard files, URLs, raw media bytes, HTML, or text through `clipboard_paste_nodes.py`. Image/PDF/video creates one populated `media.panel` with `source` authored and Source input hidden; Excel-style table and annotation routing is unchanged.
-- Local clipboard file URLs with `.eml`, `.msg`, or `.oft` suffixes create `passive.media.mail_panel` nodes by setting `source_path`; OS file drops use the same type only through the explicit file-drop command path so folder-explorer path-pointer drags keep their old behavior.
+- `WorkspaceEditController.paste_nodes_from_clipboard()` owns graph-fragment MIME priority and validation; only external clipboard content delegates to the explicitly composed `CanvasImportController`.
+- `clipboard_paste_nodes.py` captures owned MIME snapshots and classifies both clipboard and drop sources. It preserves every file/URL item, URL spelling, selected browser content and alternate formats. Automatic maps media to input-hidden Media Panel, local mail to Mail Panel, HTML/ordinary HTTP(S) to Web Viewer, folders/other files to Path Pointer, tables to Tabular Data Input, and plain/formatted text to Text Annotation.
+- `CanvasImportController` owns Automatic/Ask selection, destination identity and scope revalidation, cascade/drop placement, unavailable-type errors, and project-staged byte recipes. `CanvasImportDialog` owns per-row and common bulk choices without remembering decisions. Text/Panel use literal values or exact managed refs for pathless media; cancellation stages nothing.
+- `CanvasDropCapture` observes native Qt drops without consuming them; the canvas background retains insertion routing, while editors and explicit Path Pointer replacement keep priority. The controller consumes captured MIME before deferred import and expires unconsumed snapshots. Folder Explorer new-node releases use the same import route.
+- `node_creation_batch.py` owns per-item creation results and one grouped history/invalidation boundary. A failed node removes only its owned creation/artifact work; successful items remain and failures are reported together.
+- Imported artifacts include Path runtime descriptors. Execution admits registered canonical authored refs through `RuntimeArtifactService.materialize_authored_properties`, while Panel preserves the resulting carrier and Annotation remains passive/literal. Real process proof covers staged, reopened, and Save As inputs; untyped runtime/output refs remain rejected.
 - Graph-fragment paste retargets fragment root nodes to `scope_parent_id(scene.active_scope_path)` before scene insertion, so copy/paste into and out of `core.subnode` scopes follows the visible canvas. Internal parent links inside the copied fragment stay unchanged.
 - Fragment validation rejects internal self-parent and parent-cycle payloads. Direct fragment insertion still sanitizes remapped parent links before writing, dropping malformed parents to root while preserving valid internal and external parent links.
 - Scene history uses focused validated and record mutation boundaries rather than the retired `WorkspaceMutationService`.
@@ -44,4 +54,4 @@ Use this for graph mutation history, undo/redo, clipboard fragments, runtime cli
 - [Graph Scene Payload And Projection](graph_scene_payload_and_projection.md)
 
 ## Update Triggers
-Update when clipboard payload normalization/validation, dynamic-port history actions, undo/redo behavior, mutation history, or transform tests change.
+Update when shared import classification, MIME capture/lifecycle, chooser policy, import-mode routing, staged-reference handling, batch rollback/history, graph clipboard validation, or transform tests change.

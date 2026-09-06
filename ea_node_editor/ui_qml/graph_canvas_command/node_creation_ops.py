@@ -5,13 +5,6 @@ from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import pyqtSlot
 
-from ea_node_editor.graph.hierarchy import scope_parent_id
-from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
-from ea_node_editor.nodes.builtins.passive_mail import PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID
-from ea_node_editor.nodes.file_dialog_filters import (
-    MAIL_FILE_SUFFIXES,
-    media_kind_from_source,
-)
 from ea_node_editor.ui_qml.bridge_runtime import (
     invoke as _invoke,
 )
@@ -85,72 +78,15 @@ class NodeCreationOps:
             "error": {},
         }
 
-    @pyqtSlot(str, bool, float, float, result="QVariantMap")
-    def request_create_file_drop_node(
-        self,
-        path_or_url: str,
-        is_folder: bool,
-        scene_x: float,
-        scene_y: float,
-    ) -> dict[str, Any]:
-        path = self._path_from_url_or_path(path_or_url)
-        if path and not bool(is_folder) and media_kind_from_source(path):
-            node_id = self._add_source_node(
-                MEDIA_PANEL_TYPE_ID,
-                "source",
-                path,
-                float(scene_x),
-                float(scene_y),
-                exposed_port_overrides={"source": False},
-            )
-            if node_id:
-                return {
-                    "success": True,
-                    "path": path,
-                    "created_node_id": node_id,
-                    "created_type_id": MEDIA_PANEL_TYPE_ID,
-                    "mode": "file",
-                    "error": {},
-                }
-            return {
-                "success": False,
-                "path": path,
-                "created_node_id": "",
-                "created_type_id": MEDIA_PANEL_TYPE_ID,
-                "mode": "file",
-                "error": {
-                    "code": "mutation_unavailable",
-                    "message": "Graph scene command bridge cannot create a Media Panel node.",
-                },
-            }
-        if path and not bool(is_folder) and Path(path).suffix.lower() in MAIL_FILE_SUFFIXES:
-            node_id = self._add_source_path_node(
-                PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID,
-                path,
-                float(scene_x),
-                float(scene_y),
-            )
-            if node_id:
-                return {
-                    "success": True,
-                    "path": path,
-                    "created_node_id": node_id,
-                    "created_type_id": PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID,
-                    "mode": "file",
-                    "error": {},
-                }
-            return {
-                "success": False,
-                "path": path,
-                "created_node_id": "",
-                "created_type_id": PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID,
-                "mode": "file",
-                "error": {
-                    "code": "mutation_unavailable",
-                    "message": "Graph scene command bridge cannot create a passive.media.mail_panel node.",
-                },
-            }
-        return self.request_create_path_pointer_node(path_or_url, is_folder, scene_x, scene_y)
+    @pyqtSlot("QVariantList", str, str, float, float, result=bool)
+    def request_canvas_import_drop(self, urls, text: str, html: str, scene_x: float, scene_y: float) -> bool:
+        controller = self._canvas_import_controller
+        return bool(controller and controller.drop(urls, text, html, scene_x, scene_y))
+
+    @pyqtSlot(str, bool, float, float, result=bool)
+    def request_canvas_import_local_path(self, path: str, is_folder: bool, scene_x: float, scene_y: float) -> bool:
+        controller = self._canvas_import_controller
+        return bool(controller and controller.drop_local_path(path, is_folder, scene_x, scene_y))
 
     @pyqtSlot(
         str,
@@ -316,53 +252,6 @@ class NodeCreationOps:
         self._set_node_properties(node_id, {"path": path, "mode": mode})
         return node_id
 
-    def _add_source_path_node(self, type_id: str, source_path: str, x: float, y: float) -> str:
-        return self._add_source_node(type_id, "source_path", source_path, x, y)
-
-    def _add_source_node(
-        self,
-        type_id: str,
-        property_key: str,
-        source_value: str,
-        x: float,
-        y: float,
-        *,
-        exposed_port_overrides: dict[str, bool] | None = None,
-    ) -> str:
-        command_source = self._scene_command_source
-        create = (
-            getattr(command_source, "create_node_from_type", None)
-            if command_source is not None
-            else None
-        )
-        if callable(create):
-            scene_bridge = getattr(command_source, "_scene_bridge", None)
-            return str(
-                create(
-                    type_id=type_id,
-                    x=float(x),
-                    y=float(y),
-                    parent_node_id=scope_parent_id(
-                        getattr(scene_bridge, "_scope_path", ())
-                    ),
-                    select_node=True,
-                    property_overrides={property_key: source_value},
-                    exposed_port_overrides=exposed_port_overrides,
-                )
-                or ""
-            )
-        if not self._can_set_node_properties():
-            return ""
-        node_id = self._add_node_from_type(type_id, x, y)
-        if not node_id:
-            return ""
-        self._set_node_properties(node_id, {property_key: source_value})
-        if exposed_port_overrides:
-            setter = getattr(command_source, "set_exposed_port", None)
-            if callable(setter):
-                for key, exposed in exposed_port_overrides.items():
-                    setter(node_id, key, exposed)
-        return node_id
 
     def _add_folder_explorer_node(self, current_path: str, x: float, y: float) -> str:
         command_source = self._scene_command_source

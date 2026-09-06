@@ -44,6 +44,10 @@ class GraphicsSettingsOps:
     def set_graphics_grid_style(self, style: str) -> None:
         _invoke(self._graphics_source, "set_graphics_grid_style", style)
 
+    @pyqtSlot(str)
+    def set_graphics_canvas_import_mode(self, mode: str) -> None:
+        _invoke(self._graphics_source, "set_graphics_canvas_import_mode", mode)
+
     @pyqtSlot(bool)
     def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
         _invoke(self._graphics_source, "set_graphics_show_port_labels", bool(show_port_labels))

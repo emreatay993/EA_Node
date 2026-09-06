@@ -10,6 +10,7 @@ from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.platform_open import open_path_with_default_handler
 from ea_node_editor.ui.media_panel_source import resolve_media_panel_source
 from ea_node_editor.ui_qml.graph_scene_mutation_history import GraphSceneMutationHistory
+from ea_node_editor.ui_qml.graph_scene_mutation.node_creation_batch import NodeCreationRequest, NodeCreationResult
 
 if TYPE_CHECKING:
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -108,6 +109,9 @@ class GraphSceneCommandBridge(QObject):
         return self._timed_authoring_call(
             self._authoring_boundary.add_node_from_type, type_id, x, y
         )
+
+    def create_nodes_batch(self, requests: tuple[NodeCreationRequest, ...]) -> tuple[NodeCreationResult, ...]:
+        return self._timed_authoring_call(self._authoring_boundary.create_nodes_batch, requests)
 
     def create_node_from_type(
         self,

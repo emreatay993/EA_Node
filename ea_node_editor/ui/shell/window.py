@@ -684,6 +684,9 @@ class ShellWindow(
         self._application_state_signal_connected = False
 
     def _teardown_qml_surface(self) -> None:
+        canvas_import = getattr(self, "canvas_import_controller", None)
+        if canvas_import is not None:
+            canvas_import.shutdown()
         host_service = getattr(self, "viewer_host_service", None)
         shutdown = getattr(host_service, "shutdown", None)
         if callable(shutdown):

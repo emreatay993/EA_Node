@@ -828,14 +828,14 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(host_presenter_forbidden=forbidden):
                 self.assertNotIn(forbidden, host_presenter_source)
 
-        workspace_edit_tree = parse_module(
-            "ea_node_editor/ui/shell/controllers/workspace_edit_controller.py"
+        canvas_import_tree = parse_module(
+            "ea_node_editor/ui/shell/controllers/canvas_import_controller.py"
         )
         clipboard_stage = ast.unparse(
             method_node(
-                workspace_edit_tree,
-                "WorkspaceEditController",
-                "_stage_clipboard_artifact",
+                canvas_import_tree,
+                "CanvasImportController",
+                "_creation_request",
             )
         )
         self.assertIn("project_session_controller", clipboard_stage)
@@ -2751,7 +2751,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                 name: declaration_count(combined, name)
                 for name in ("Item", "QtObject", "Timer", "Loader")
             },
-            {"Item": 14, "QtObject": 2, "Timer": 0, "Loader": 7},
+            {"Item": 14, "QtObject": 2, "Timer": 0, "Loader": 8},
         )
 
     def test_graph_node_toolbar_popover_host_directly_replaces_inline_owner(self) -> None:

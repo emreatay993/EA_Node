@@ -18,6 +18,7 @@ from ea_node_editor.settings import (
     DEFAULT_APP_PREFERENCES,
     DEFAULT_ANSYS_DPF_PLUGIN_SETTINGS,
     DEFAULT_CANVAS_BACKGROUND_VARIANT,
+    DEFAULT_CANVAS_IMPORT_MODE,
     DEFAULT_EDGE_CROSSING_STYLE,
     DEFAULT_ENGINEERING_VIEWER_SETTINGS,
     DEFAULT_EXPAND_COLLISION_AVOIDANCE_GAP_PRESET,
@@ -68,6 +69,7 @@ from ea_node_editor.settings import (
     STATUS_BAR_LAYOUT_CHOICES,
     GRID_OVERLAY_STYLE_CHOICES,
     CANVAS_BACKGROUND_VARIANT_CHOICES,
+    CANVAS_IMPORT_MODE_CHOICES,
     PASSIVE_NODE_LIBRARY_DISPLAY_MODE_CHOICES,
     PROPERTY_PANE_VARIANT_CHOICES,
     SELECTION_TOOLBAR_MINIMAL_MENU_TRIGGER_CHOICES,
@@ -511,6 +513,9 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
             defaults["canvas"]["node_comment_editor_default"],
         )
     if isinstance(interaction_payload, Mapping):
+        normalized["interaction"]["canvas_import_mode"] = normalize_canvas_import_mode(
+            interaction_payload.get("canvas_import_mode")
+        )
         normalized["interaction"]["snap_to_grid"] = _normalize_bool(
             interaction_payload.get("snap_to_grid"),
             defaults["interaction"]["snap_to_grid"],
@@ -1035,6 +1040,15 @@ def normalize_node_elapsed_time_visibility(
     return DEFAULT_NODE_ELAPSED_TIME_VISIBILITY
 
 
+def normalize_canvas_import_mode(value: Any) -> str:
+    normalized = str(value).strip().lower()
+    return (
+        normalized
+        if normalized in {choice[0] for choice in CANVAS_IMPORT_MODE_CHOICES}
+        else DEFAULT_CANVAS_IMPORT_MODE
+    )
+
+
 def normalize_node_comment_editor_default(
     value: Any,
     default: str = DEFAULT_NODE_COMMENT_EDITOR_DEFAULT,
@@ -1102,6 +1116,7 @@ def normalize_source_import_mode(value: Any, default: str = DEFAULT_SOURCE_IMPOR
 
 
 __all__ = [
+    "normalize_canvas_import_mode",
     "AppPreferencesStore",
     "addon_state",
     "ansys_dpf_plugin_state",

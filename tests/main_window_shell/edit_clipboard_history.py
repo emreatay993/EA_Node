@@ -12,7 +12,8 @@ from PyQt6.QtTest import QSignalSpy
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
-from ea_node_editor.ui.shell.clipboard_paste_nodes import classify_clipboard_paste_items
+from ea_node_editor.ui.shell.clipboard_paste_nodes import capture_canvas_mime_data, classify_canvas_import
+from ea_node_editor.ui.shell.controllers.canvas_import_controller import CanvasImportController
 from ea_node_editor.ui.shell.controllers.workspace_edit_controller import (
     WorkspaceEditController,
 )
@@ -663,7 +664,8 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         mime_data = QMimeData()
         mime_data.setUrls([QUrl.fromLocalFile(str(mail_path))])
 
-        items = classify_clipboard_paste_items(mime_data)
+        sources = classify_canvas_import(capture_canvas_mime_data(mime_data))
+        items = [source.choice(source.detected_choice).item for source in sources]
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0].type_id, "passive.media.mail_panel")
         self.assertEqual(
@@ -830,11 +832,12 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
                     self.window.project_session_controller,
                     "stage_node_artifact_bytes",
                     return_value="",
-                ):
+                ), patch.object(CanvasImportController, "_report_failures") as reporter:
                     pasted = self.window.request_paste_selected_nodes()
                 self.app.processEvents()
 
                 self.assertFalse(pasted)
+                reporter.assert_called_once()
                 self.assertEqual(set(workspace.nodes), before_node_ids)
                 self.assertEqual(workspace.edges, before_edges)
                 self.assertEqual(_selected_node_ids(self.window), before_selection)
@@ -879,14 +882,13 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         before_node_ids = set(workspace.nodes)
 
         with patch.object(
-            WorkspaceEditController,
-            "_choose_clipboard_table_paste_item",
-            side_effect=lambda items: items.tabular,
+            CanvasImportController,
+            "_choose",
         ) as chooser:
             self.assertTrue(self.window.request_paste_selected_nodes())
         self.app.processEvents()
 
-        chooser.assert_called_once()
+        chooser.assert_not_called()
         table_node = _new_workspace_nodes(self.window, before_node_ids)[0]
         self.assertEqual(table_node.type_id, "tabular.input")
         source_ref = str(table_node.properties["path"])
@@ -898,6 +900,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.assertEqual(staged_path.read_text(encoding="utf-8"), "Name\tValue\nAlpha\t10\nBeta\t20\n")
 
     def test_qml_request_paste_selected_nodes_creates_markdown_annotation_for_table_choice(self) -> None:
+        self.window.app_preferences_controller.set_graphics_canvas_import_mode("ask")
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]
         mime_data = QMimeData()
@@ -909,9 +912,9 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         before_node_ids = set(workspace.nodes)
 
         with patch.object(
-            WorkspaceEditController,
-            "_choose_clipboard_table_paste_item",
-            side_effect=lambda items: items.markdown,
+            CanvasImportController,
+            "_choose",
+            return_value=("markdown_table",),
         ) as chooser:
             self.assertTrue(self.window.request_paste_selected_nodes())
         self.app.processEvents()
@@ -926,6 +929,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         )
 
     def test_qml_request_paste_selected_nodes_cancels_table_choice_without_creating_node(self) -> None:
+        self.window.app_preferences_controller.set_graphics_canvas_import_mode("ask")
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]
         mime_data = QMimeData()
@@ -934,8 +938,8 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         before_node_ids = set(workspace.nodes)
 
         with patch.object(
-            WorkspaceEditController,
-            "_choose_clipboard_table_paste_item",
+            CanvasImportController,
+            "_choose",
             return_value=None,
         ) as chooser:
             self.assertFalse(self.window.request_paste_selected_nodes())

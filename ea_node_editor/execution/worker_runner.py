@@ -689,7 +689,7 @@ class NodeExecutor:
                 node_type_id,
                 dict(node.properties),
             )
-            properties = self._artifact_service.materialize_persisted_value(properties)
+            properties = self._artifact_service.materialize_authored_properties(properties)
             input_results = self._input_results(node_id, properties)
             errors = self._errors_from_results(input_results.values())
             if errors:
@@ -860,7 +860,7 @@ class NodeExecutor:
                     self._plan.nodes[node_id].type_id,
                     dict(self._plan.nodes[node_id].properties),
                 )
-                properties = self._artifact_service.materialize_persisted_value(
+                properties = self._artifact_service.materialize_authored_properties(
                     properties
                 )
                 edges = self._plan.incoming_edges_for(node_id, "input")
@@ -926,7 +926,7 @@ class NodeExecutor:
                     self._plan.nodes[node_id].type_id,
                     dict(self._plan.nodes[node_id].properties),
                 )
-                properties = self._artifact_service.materialize_persisted_value(
+                properties = self._artifact_service.materialize_authored_properties(
                     properties
                 )
                 port = self._plan.ports_by_key[node_id]["input"]

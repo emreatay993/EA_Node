@@ -1,3 +1,6 @@
+# Purpose: Capture external canvas input and classify shared paste/drop insertion choices.
+# Map: feature_routes/clipboard_undo_redo_mutation_history.md
+# Tests: tests/test_canvas_import_inputs.py
 from __future__ import annotations
 
 import csv
@@ -5,18 +8,20 @@ import hashlib
 import html
 import json
 import re
-from dataclasses import dataclass
+from collections.abc import Iterable
+from dataclasses import dataclass, replace
 from html.parser import HTMLParser
 from io import StringIO
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import urlsplit
 
 from PyQt6.QtCore import QBuffer, QByteArray, QIODevice, QMimeData, QUrl
 from PyQt6.QtGui import QImage
 
 from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_TEXT_TYPE_ID
 from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
+from ea_node_editor.nodes.builtins.data_control import PANEL_MODE_TEXT
 from ea_node_editor.nodes.builtins.passive_mail import (
     PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID,
 )
@@ -28,7 +33,7 @@ from ea_node_editor.nodes.builtins.web_viewer import (
     WEB_PAGE_VIEWER_START_LOCATION_PROPERTY,
     WEB_PAGE_VIEWER_TYPE_ID,
 )
-from ea_node_editor.ui.shell.runtime_clipboard import parse_graph_fragment_payload
+from ea_node_editor.ui.shell.runtime_clipboard import GRAPH_FRAGMENT_MIME_TYPE, parse_graph_fragment_payload
 
 _MEDIA_SOURCE_PROPERTY = "source"
 _SOURCE_PATH_PROPERTY = "source_path"
@@ -104,65 +109,186 @@ class ClipboardTablePasteItems:
     markdown: ClipboardPasteItem
 
 
-def classify_clipboard_paste_items(mime_data: QMimeData | None) -> tuple[ClipboardPasteItem, ...]:
+@dataclass(frozen=True, slots=True)
+class CanvasImportLocation:
+    """A copied location with URL spelling and filesystem identity kept separate."""
+
+    value: str
+    local_path: str = ""
+    is_folder: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CanvasImportSnapshot:
+    """Owned values only: no clipboard, QMimeData, QImage, or staging lifetime."""
+
+    locations: tuple[CanvasImportLocation, ...] = ()
+    text: str = ""
+    html: str = ""
+    media: tuple[ClipboardBytePayload, ...] = ()
+    graph_fragment: bytes | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CanvasImportChoice:
+    key: str
+    label: str
+    item: ClipboardPasteItem | None
+    explanation: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class CanvasImportSource:
+    label: str
+    detected_choice: str
+    choices: tuple[CanvasImportChoice, ...]
+
+    def choice(self, key: str) -> CanvasImportChoice:
+        for choice in self.choices:
+            if choice.key == key:
+                return choice
+        raise KeyError(key)
+
+
+def capture_canvas_mime_data(mime_data: QMimeData | None) -> CanvasImportSnapshot:
+    """Snapshot every useful MIME representation before a modal chooser can open."""
     if mime_data is None:
-        return ()
-
-    url_items = _items_from_urls(mime_data.urls()) if mime_data.hasUrls() else ()
-    if url_items and (_has_local_file_url(mime_data.urls()) or not _has_html_fragment(mime_data)):
-        return url_items
-
+        return CanvasImportSnapshot()
     image_item = _image_item_from_qimage(mime_data)
-    if image_item is not None:
-        return (image_item,)
+    media = list(_byte_payloads_from_mime_data(mime_data))
+    if image_item is not None and image_item.artifact is not None:
+        media.insert(0, image_item.artifact)
+    # Qt synthesizes decoded text for URI lists even without a plain-text MIME
+    # representation. Keep the captured URL for those cases, not this fallback.
+    has_plain_text = any(
+        str(mime_type).split(";", 1)[0].lower() == "text/plain"
+        for mime_type in mime_data.formats()
+    )
+    locations = tuple(_capture_location(url) for url in mime_data.urls())
+    if not locations and mime_data.hasFormat("application/x-corex-path-pointer"):
+        try:
+            payload = json.loads(bytes(mime_data.data("application/x-corex-path-pointer")))
+            properties = payload.get("properties") if isinstance(payload, dict) else None
+            if (payload.get("type_id") == "io.path_pointer" and isinstance(properties, dict)
+                    and isinstance(properties.get("path"), str)):
+                locations = (_capture_location(properties["path"], is_folder=properties.get("mode") == "folder"),)
+        except (ValueError, TypeError, AttributeError):
+            pass
+    return CanvasImportSnapshot(
+        locations=locations,
+        text=(
+            str(mime_data.text() or "")
+            if mime_data.hasText() and (has_plain_text or not mime_data.hasUrls()) else ""
+        ),
+        html=str(mime_data.html() or "") if mime_data.hasHtml() else "",
+        media=tuple(media),
+        graph_fragment=(
+            bytes(mime_data.data(GRAPH_FRAGMENT_MIME_TYPE))
+            if mime_data.hasFormat(GRAPH_FRAGMENT_MIME_TYPE) else None
+        ),
+    )
 
-    byte_item = _byte_item_from_mime_data(mime_data)
-    if byte_item is not None:
-        return (byte_item,)
 
-    text = ""
-    if mime_data.hasText():
-        text = str(mime_data.text() or "")
-        if parse_graph_fragment_payload(text) is not None:
-            return ()
-        url_item = _item_from_plain_text_url(text)
-        if url_item is not None:
-            return (url_item,)
+def capture_canvas_drop(
+    urls: Iterable[str | QUrl] = (),
+    *,
+    text: str = "",
+    html: str = "",
+    folder_hints: Iterable[bool] = (),
+) -> CanvasImportSnapshot:
+    """Capture a QML drop's full URL/path list without converting HTTP to paths.
 
-    if _has_html_fragment(mime_data):
-        html_url_item = _single_remote_href_item_from_html(mime_data.html())
-        if html_url_item is not None:
-            return (html_url_item,)
-        markdown_text = html_to_markdownish(mime_data.html())
-        if markdown_text:
-            return (
-                ClipboardPasteItem(
-                    type_id=PASSIVE_ANNOTATION_TEXT_TYPE_ID,
-                    properties={
-                        _TEXT_PROPERTY: markdown_text,
-                        _TEXT_FORMAT_PROPERTY: "markdown",
-                    },
-                ),
-            )
+    ``folder_hints`` aligns with ``urls`` for Folder Explorer entries; real local
+    directories are also detected. Native MIME drops use capture_canvas_mime_data.
+    """
+    hints = tuple(folder_hints)
+    return CanvasImportSnapshot(
+        locations=tuple(
+            _capture_location(value, is_folder=hints[index] if index < len(hints) else False)
+            for index, value in enumerate(urls)
+        ),
+        text=str(text),
+        html=str(html),
+    )
 
-    if text.strip():
-        return (
-            ClipboardPasteItem(
-                type_id=PASSIVE_ANNOTATION_TEXT_TYPE_ID,
-                properties={
-                    _TEXT_PROPERTY: text,
-                    _TEXT_FORMAT_PROPERTY: "plain",
-                },
-            ),
+
+def classify_canvas_import(snapshot: CanvasImportSnapshot) -> tuple[CanvasImportSource, ...]:
+    """Apply one automatic mapping and keep chooser alternatives on each source."""
+    if snapshot.graph_fragment is not None or parse_graph_fragment_payload(snapshot.text) is not None:
+        return ()
+    locations = tuple(location for location in snapshot.locations if location.value)
+    if any(location.local_path for location in locations):
+        return tuple(_source_from_location(location) for location in locations)
+
+    rows = _table_rows_from_content(snapshot.text, snapshot.html)
+    if rows:
+        table = _table_paste_items(rows)
+        literal = snapshot.text or _rows_to_tsv_bytes(rows).decode("utf-8")
+        source = _source_with_text_choices(
+            "Copied table", "tabular", [
+                CanvasImportChoice("tabular", "Tabular Data Input", table.tabular),
+                CanvasImportChoice("markdown_table", "Markdown Table", table.markdown),
+            ], literal,
         )
+        return (_with_location_choices(source, locations),)
 
-    return url_items
+    # A browser source URL can accompany selected HTML/image content. Treat that
+    # URL as an alternative; direct URL drops and URL batches remain locations.
+    if locations and (len(locations) > 1 or not snapshot.html.strip()):
+        return tuple(
+            _source_from_location(
+                location,
+                literal=snapshot.text if len(locations) == 1 and snapshot.html and snapshot.text else None,
+                raw_html=snapshot.html if len(locations) == 1 else "",
+            )
+            for location in locations
+        )
+    if snapshot.media:
+        artifact = snapshot.media[0]
+        item = ClipboardPasteItem(MEDIA_PANEL_TYPE_ID, {}, artifact)
+        choices = [CanvasImportChoice("media", "Media Panel", item)]
+        markdown = html_to_markdownish(snapshot.html) if snapshot.html else ""
+        if markdown:
+            choices.append(_formatted_text_choice(markdown))
+        literal = snapshot.text or markdown or (locations[0].value if locations else "")
+        source = _source_with_text_choices(
+            artifact.filename, "media", choices, literal,
+            artifact=None if literal else artifact,
+        )
+        return (_with_location_choices(source, locations),)
+
+    text_location = _location_from_text(snapshot.text)
+    if text_location is not None:
+        source = _source_from_location(text_location, literal=snapshot.text, raw_html=snapshot.html)
+        return (_with_location_choices(source, locations),)
+
+    if snapshot.html.strip():
+        href = _single_remote_href_from_html(snapshot.html)
+        if href is not None:
+            source = _source_from_location(
+                CanvasImportLocation(href),
+                literal=snapshot.text or html_to_markdownish(snapshot.html),
+                raw_html=snapshot.html,
+            )
+            return (_with_location_choices(source, locations),)
+        markdown = html_to_markdownish(snapshot.html)
+        if markdown:
+            source = _source_with_text_choices(
+                _text_label(snapshot.text or markdown), "formatted_text",
+                [_formatted_text_choice(markdown)], snapshot.text or markdown,
+            )
+            return (_with_location_choices(source, locations),)
+    if snapshot.text.strip():
+        source = _source_with_text_choices(_text_label(snapshot.text), "text", [], snapshot.text)
+        return (_with_location_choices(source, locations),)
+    if locations:
+        return tuple(_source_from_location(location) for location in locations)
+    return ()
 
 
-def clipboard_table_paste_items(mime_data: QMimeData | None) -> ClipboardTablePasteItems | None:
-    rows = _table_rows_from_clipboard(mime_data)
-    if not rows:
-        return None
+
+
+def _table_paste_items(rows: tuple[tuple[str, ...], ...]) -> ClipboardTablePasteItems:
     return ClipboardTablePasteItems(
         tabular=ClipboardPasteItem(
             type_id=_TABULAR_INPUT_NODE_TYPE_ID,
@@ -208,17 +334,14 @@ def html_to_markdownish(raw_html: str) -> str:
     return _normalize_markdownish_text(parser.text())
 
 
-def _table_rows_from_clipboard(mime_data: QMimeData | None) -> tuple[tuple[str, ...], ...]:
-    if mime_data is None:
-        return ()
-    text = str(mime_data.text() or "") if mime_data.hasText() else ""
+def _table_rows_from_content(text: str, raw_html: str) -> tuple[tuple[str, ...], ...]:
     if "\t" in text:
         normalized_text = text.replace("\r\n", "\n").replace("\r", "\n")
         rows = _normalize_table_rows(csv.reader(StringIO(normalized_text), delimiter="\t"))
         if rows:
             return rows
-    if _has_html_fragment(mime_data):
-        return _table_rows_from_html(mime_data.html())
+    if raw_html.strip():
+        return _table_rows_from_html(raw_html)
     return ()
 
 
@@ -273,7 +396,7 @@ def _markdown_cell(value: Any) -> str:
     return str(value).replace("|", r"\|").replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
 
 
-def _single_remote_href_item_from_html(raw_html: str) -> ClipboardPasteItem | None:
+def _single_remote_href_from_html(raw_html: str) -> str | None:
     parser = _HrefHTMLParser()
     try:
         parser.feed(str(raw_html or ""))
@@ -288,83 +411,144 @@ def _single_remote_href_item_from_html(raw_html: str) -> ClipboardPasteItem | No
             continue
         seen.add(normalized)
         urls.append(normalized)
-    return _item_from_remote_url(urls[0]) if len(urls) == 1 else None
+    return urls[0] if len(urls) == 1 else None
 
 
-def _has_html_fragment(mime_data: QMimeData) -> bool:
-    return bool(mime_data.hasHtml() and str(mime_data.html() or "").strip())
-
-
-def _has_local_file_url(urls: list[QUrl]) -> bool:
-    return any(url.isLocalFile() for url in urls)
-
-
-def _items_from_urls(urls: list[QUrl]) -> tuple[ClipboardPasteItem, ...]:
-    items: list[ClipboardPasteItem] = []
-    for url in urls:
-        item = _item_from_url(url)
-        if item is not None:
-            items.append(item)
-    return tuple(items)
-
-
-def _item_from_url(url: QUrl) -> ClipboardPasteItem | None:
+def _capture_location(value: str | QUrl, *, is_folder: bool = False) -> CanvasImportLocation:
+    url = value if isinstance(value, QUrl) else QUrl(str(value))
+    literal = (
+        str(url.toString(QUrl.ComponentFormattingOption.FullyEncoded))
+        if isinstance(value, QUrl) else str(value)
+    )
     if url.isLocalFile():
-        path = str(url.toLocalFile() or "").strip()
-        if not path:
-            return None
-        return _item_from_path(path)
-
-    normalized = str(url.toString() or "").strip()
-    if not _is_remote_url(normalized):
-        return None
-    return _item_from_remote_url(normalized)
+        path = str(url.toLocalFile() or "")
+        return CanvasImportLocation(literal, path, bool(is_folder) or _is_directory(path))
+    # QML Folder Explorer sends raw filesystem paths, including Windows drives.
+    if literal and (not url.scheme() or re.match(r"^[A-Za-z]:[\\/]", literal)):
+        return CanvasImportLocation(literal, literal, bool(is_folder) or _is_directory(literal))
+    return CanvasImportLocation(literal)
 
 
-def _item_from_path(path: str) -> ClipboardPasteItem | None:
-    suffix = Path(path).suffix.lower()
-    target = _target_for_suffix(suffix)
-    if target is None:
-        return None
-    type_id, property_key = target
-    return ClipboardPasteItem(type_id=type_id, properties={property_key: path})
+def _is_directory(path: str) -> bool:
+    try:
+        return Path(path).is_dir()
+    except (OSError, ValueError):
+        return False
 
 
-def _item_from_remote_url(url: str) -> ClipboardPasteItem:
-    suffix = PurePosixPath(unquote(urlparse(url).path or "")).suffix.lower()
-    target = _target_for_suffix(suffix)
-    if target is None:
-        target = (WEB_PAGE_VIEWER_TYPE_ID, WEB_PAGE_VIEWER_START_LOCATION_PROPERTY)
-    type_id, property_key = target
-    return ClipboardPasteItem(type_id=type_id, properties={property_key: url})
-
-
-def _item_from_plain_text_url(text: str) -> ClipboardPasteItem | None:
-    normalized = str(text or "").strip()
-    if not normalized or any(character.isspace() for character in normalized):
+def _location_from_text(text: str) -> CanvasImportLocation | None:
+    normalized = text.strip()
+    if not normalized:
         return None
     url = QUrl(normalized)
     if url.isLocalFile():
-        local_path = str(url.toLocalFile() or "").strip()
-        return _item_from_path(local_path) if local_path else None
-    if not _is_remote_url(normalized):
-        return None
-    return _item_from_remote_url(normalized)
+        return _capture_location(normalized)
+    return CanvasImportLocation(normalized) if _is_remote_url(normalized) else None
 
 
 def _is_remote_url(value: str) -> bool:
-    parsed = urlparse(str(value or "").strip())
-    return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
+    if any(character.isspace() for character in value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        parsed.port
+        return parsed.scheme.lower() in {"http", "https"} and bool(parsed.hostname)
+    except ValueError:
+        return False
 
 
-def _target_for_suffix(suffix: str) -> tuple[str, str] | None:
-    if media_kind_from_source(f"source{suffix}"):
-        return MEDIA_PANEL_TYPE_ID, _MEDIA_SOURCE_PROPERTY
-    if suffix in _MAIL_SUFFIXES:
-        return PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID, _SOURCE_PATH_PROPERTY
-    if suffix in _HTML_SUFFIXES:
-        return WEB_PAGE_VIEWER_TYPE_ID, WEB_PAGE_VIEWER_START_LOCATION_PROPERTY
-    return None
+def _source_from_location(
+    location: CanvasImportLocation, *, literal: str | None = None, raw_html: str = "",
+) -> CanvasImportSource:
+    value = location.local_path or location.value
+    path_choice = CanvasImportChoice(
+        "path", "Path Pointer", ClipboardPasteItem(
+            "io.path_pointer", {"path": value, "mode": "folder" if location.is_folder else "file"},
+        ),
+    ) if location.local_path else None
+    if location.is_folder:
+        detected = path_choice
+    elif media_kind_from_source(value):
+        detected = CanvasImportChoice("media", "Media Panel", ClipboardPasteItem(
+            MEDIA_PANEL_TYPE_ID, {_MEDIA_SOURCE_PROPERTY: value},
+        ))
+    elif location.local_path and Path(value).suffix.lower() in _MAIL_SUFFIXES:
+        detected = CanvasImportChoice("mail", "Mail Panel", ClipboardPasteItem(
+            PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID, {_SOURCE_PATH_PROPERTY: value},
+        ))
+    elif _is_remote_url(value) or (location.local_path and Path(value).suffix.lower() in _HTML_SUFFIXES):
+        detected = CanvasImportChoice("web", "Web Viewer", ClipboardPasteItem(
+            WEB_PAGE_VIEWER_TYPE_ID, {WEB_PAGE_VIEWER_START_LOCATION_PROPERTY: value},
+        ))
+    else:
+        detected = path_choice
+    choices = [detected] if detected is not None else []
+    if path_choice is not None and detected is not path_choice:
+        choices.append(path_choice)
+    markdown = html_to_markdownish(raw_html) if raw_html else ""
+    if markdown:
+        choices.append(_formatted_text_choice(markdown))
+    return _source_with_text_choices(
+        value, detected.key if detected is not None else "text", choices,
+        value if literal is None else literal,
+    )
+
+
+def _text_label(text: str) -> str:
+    preview = " ".join(text.split())
+    return preview if len(preview) <= 100 else preview[:97] + "..."
+
+
+def _with_location_choices(
+    source: CanvasImportSource, locations: tuple[CanvasImportLocation, ...],
+) -> CanvasImportSource:
+    """Keep browser source URLs selectable even when copied content wins."""
+    choices = list(source.choices)
+    for index, location in enumerate(locations):
+        location_source = _source_from_location(location)
+        choice = location_source.choice(location_source.detected_choice)
+        if any(existing.item == choice.item for existing in choices):
+            continue
+        if any(existing.key == choice.key for existing in choices):
+            choice = replace(
+                choice, key=f"source_url_{index}", label=f"{choice.label} (source URL)",
+                explanation=location.value,
+            )
+        choices.insert(-1, choice)
+    return replace(source, choices=tuple(choices))
+
+
+def _formatted_text_choice(markdown: str) -> CanvasImportChoice:
+    return CanvasImportChoice("formatted_text", "Text Annotation (formatted)", ClipboardPasteItem(
+        PASSIVE_ANNOTATION_TEXT_TYPE_ID, {_TEXT_PROPERTY: markdown, _TEXT_FORMAT_PROPERTY: "markdown"},
+    ))
+
+
+def _source_with_text_choices(
+    label: str,
+    detected_choice: str,
+    choices: list[CanvasImportChoice],
+    literal: str,
+    *,
+    artifact: ClipboardBytePayload | None = None,
+) -> CanvasImportSource:
+    explanation = (
+        "Saves an internal project copy and inserts its managed reference."
+        if artifact is not None else ""
+    )
+    choices.extend((
+        CanvasImportChoice("text", "Plain Text Annotation", ClipboardPasteItem(
+            PASSIVE_ANNOTATION_TEXT_TYPE_ID,
+            {_TEXT_PROPERTY: literal, _TEXT_FORMAT_PROPERTY: "plain"},
+            replace(artifact, property_key=_TEXT_PROPERTY) if artifact is not None else None,
+        ), explanation),
+        CanvasImportChoice("panel", "Panel", ClipboardPasteItem(
+            "data.panel", {"value": literal, "mode": PANEL_MODE_TEXT, "parse_numbers": False},
+            replace(artifact, property_key="value") if artifact is not None else None,
+        ), explanation),
+        CanvasImportChoice("skip", "Skip", None),
+    ))
+    return CanvasImportSource(label, detected_choice, tuple(choices))
 
 
 def _image_item_from_qimage(mime_data: QMimeData) -> ClipboardPasteItem | None:
@@ -411,7 +595,8 @@ def _qimage_to_png_bytes(image: QImage) -> bytes:
         buffer.close()
 
 
-def _byte_item_from_mime_data(mime_data: QMimeData) -> ClipboardPasteItem | None:
+def _byte_payloads_from_mime_data(mime_data: QMimeData) -> tuple[ClipboardBytePayload, ...]:
+    payloads: list[ClipboardBytePayload] = []
     for mime_type in mime_data.formats():
         normalized_mime = str(mime_type or "").strip().lower()
         target = _target_for_mime_type(normalized_mime)
@@ -420,21 +605,17 @@ def _byte_item_from_mime_data(mime_data: QMimeData) -> ClipboardPasteItem | None
         raw_data = bytes(mime_data.data(mime_type))
         if not raw_data:
             continue
-        type_id, property_key, filename, artifact_prefix, subdirectory, artifact_kind = target
-        return ClipboardPasteItem(
-            type_id=type_id,
-            properties={},
-            artifact=ClipboardBytePayload(
-                property_key=property_key,
-                data=raw_data,
-                filename=filename,
-                mime_type=normalized_mime,
-                artifact_prefix=artifact_prefix,
-                subdirectory=subdirectory,
-                artifact_kind=artifact_kind,
-            ),
-        )
-    return None
+        _type_id, property_key, filename, artifact_prefix, subdirectory, artifact_kind = target
+        payloads.append(ClipboardBytePayload(
+            property_key=property_key,
+            data=raw_data,
+            filename=filename,
+            mime_type=normalized_mime,
+            artifact_prefix=artifact_prefix,
+            subdirectory=subdirectory,
+            artifact_kind=artifact_kind,
+        ))
+    return tuple(payloads)
 
 
 def _target_for_mime_type(mime_type: str) -> tuple[str, str, str, str, str, str] | None:
@@ -625,11 +806,16 @@ def _normalize_markdownish_text(text: str) -> str:
 
 
 __all__ = [
+    "CanvasImportChoice",
+    "CanvasImportLocation",
+    "CanvasImportSnapshot",
+    "CanvasImportSource",
     "ClipboardBytePayload",
     "ClipboardPasteItem",
     "ClipboardTablePasteItems",
-    "classify_clipboard_paste_items",
+    "capture_canvas_drop",
+    "capture_canvas_mime_data",
+    "classify_canvas_import",
     "clipboard_paste_items_signature",
-    "clipboard_table_paste_items",
     "html_to_markdownish",
 ]

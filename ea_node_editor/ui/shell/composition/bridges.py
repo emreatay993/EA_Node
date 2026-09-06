@@ -122,6 +122,7 @@ def create_context_bridge_dependencies(
         inspector_source=presenters.shell_inspector_presenter,
         library_source=presenters.shell_library_presenter,
         workspace_edit_controller=library_workspace.workspace_edit_controller,
+        canvas_import_controller=library_workspace.canvas_import_controller,
         workspace_drop_connect_controller=(
             library_workspace.workspace_drop_connect_controller
         ),

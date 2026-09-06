@@ -18,6 +18,7 @@ class _GraphCanvasGraphicsSource(Protocol):
     graphics_preferences_changed: _SignalLike
     graphics_show_grid: bool
     graphics_canvas_background_variant: str
+    graphics_canvas_import_mode: str
     graphics_grid_style: str
     graphics_edge_crossing_style: str
     graphics_graph_label_pixel_size: int

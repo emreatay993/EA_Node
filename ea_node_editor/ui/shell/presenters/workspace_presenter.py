@@ -17,6 +17,7 @@ from ea_node_editor.app_preferences import (
     normalize_graph_node_icon_pixel_size_override,
     normalize_status_bar_layout,
     normalize_canvas_background_variant,
+    normalize_canvas_import_mode,
     normalize_grid_overlay_style,
     normalize_media_panel_settings,
     normalize_node_comment_editor_default,
@@ -210,6 +211,10 @@ class ShellWorkspacePresenter(QObject):
     def graphics_shadow_offset(self) -> int: return int(self._ui_state.shadow_offset)
 
     @property
+    def graphics_canvas_import_mode(self) -> str:
+        return self._ui_state.canvas_import_mode
+
+    @property
     def graphics_expand_collision_avoidance(self) -> dict[str, Any]:
         return copy.deepcopy(self._expand_collision_avoidance)
 
@@ -379,6 +384,12 @@ class ShellWorkspacePresenter(QObject):
     def _update_graphics_settings(self, updates: dict[str, Any]) -> None:
         self._host.app_preferences_controller.update_graphics_settings(
             updates,
+            host=self._host,
+        )
+
+    def set_graphics_canvas_import_mode(self, mode: str) -> None:
+        self._host.app_preferences_controller.set_graphics_canvas_import_mode(
+            mode,
             host=self._host,
         )
 
@@ -563,6 +574,9 @@ class ShellWorkspacePresenter(QObject):
         )
 
         changed = False
+        canvas_import_mode = normalize_canvas_import_mode(
+            interaction.get("canvas_import_mode", self._ui_state.canvas_import_mode)
+        )
         show_grid = bool(canvas.get("show_grid", self._ui_state.show_grid))
         canvas_background_variant = normalize_canvas_background_variant(
             canvas.get("background_variant", self._ui_state.canvas_background_variant),
@@ -714,6 +728,9 @@ class ShellWorkspacePresenter(QObject):
         }
         previous_graph_theme_id = self._host.graph_theme_bridge.theme_id
 
+        if self._ui_state.canvas_import_mode != canvas_import_mode:
+            self._ui_state.canvas_import_mode = canvas_import_mode
+            changed = True
         if self._ui_state.show_grid != show_grid:
             self._ui_state.show_grid = show_grid
             changed = True
@@ -917,6 +934,7 @@ class ShellWorkspacePresenter(QObject):
             },
             "interaction": {
                 "snap_to_grid": bool(self._host.search_scope_state.snap_to_grid_enabled),
+                "canvas_import_mode": self._ui_state.canvas_import_mode,
                 "expand_collision_avoidance": copy.deepcopy(self._expand_collision_avoidance),
             },
             "shell": {

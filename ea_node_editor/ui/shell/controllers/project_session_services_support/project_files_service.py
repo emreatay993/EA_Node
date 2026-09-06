@@ -1,6 +1,6 @@
 # Purpose: Own project-file inspection, synchronous staged payload writes, and metadata publication.
 # Map: feature_routes/project_session_files_managed_artifacts.md
-# Tests: tests/test_project_file_staging.py, tests/test_project_session_controller_unit.py
+# Tests: tests/test_project_file_staging.py, tests/test_project_session_controller_unit.py, tests/test_canvas_import_runtime.py
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ from uuid import uuid4
 from ea_node_editor.graph.file_issue_state import collect_workspace_file_issue_map
 from ea_node_editor.graph.project_state import ProjectData
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
+from ea_node_editor.nodes.output_artifacts import register_staged_artifact
+from ea_node_editor.runtime_contracts import PATH_DATA_TYPE_ID
 from ea_node_editor.settings import (
     PROJECT_ARTIFACT_STORE_METADATA_KEY,
     PROJECT_MANAGED_WORKSPACES_DIRNAME,
@@ -217,10 +219,18 @@ class ProjectFilesService:
         try:
             destination.parent.mkdir(parents=True, exist_ok=True)
             writer(destination)
-            store.register_staged_entry(
-                artifact_id,
+            path_type = self._host.registry.data_types.require(PATH_DATA_TYPE_ID)
+            register_staged_artifact(
+                store=store,
+                artifact_id=artifact_id,
+                payload_path=destination,
                 relative_path=paths.staged_relative_path,
-                extra={**dict(entry_metadata or {}), **paths.metadata},
+                slot=None,
+                data_type_id=PATH_DATA_TYPE_ID,
+                schema_version=path_type.payload_schema_version,
+                format=destination.suffix.lstrip(".") or "bin",
+                provenance="corex.project.import",
+                entry_metadata={**dict(entry_metadata or {}), **paths.metadata},
             )
             if not self.replace_project_artifact_store(store):
                 self._host.model.project.touch_metadata()

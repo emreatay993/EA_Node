@@ -61,6 +61,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 
 ## Creation And Persistence Rules
 - Blank insertion reads app preference `graphics.media_panel.source_input_exposed` from the `ShellWorkspacePresenter` explicitly bound to `GraphSceneBridge`; explicit connect forces Source exposed; OS paste/drop, frame capture, and trim Copy force it hidden. Media actions remain solely in `MediaPanelActionService`; no canvas aggregate exists.
+- External paste and drop share `CanvasImportController` and `clipboard_paste_nodes.py`. Automatic selects Media Panel for supported media; Ask also offers applicable literal Text/Panel/path alternatives. Raw media chosen as Text or Panel stages a project copy and stores its exact managed reference. Native drop capture never transports image bytes through QML or bypasses existing drop targets.
 - Project load, fragment paste, custom workflows, undo, and redo preserve serialized exposure exactly. Property overrides never imply exposure.
 - The three pre-cutover media identities have no aliases or project migration. The frozen 133-row catalogue is historical; the structural overlay yields the 131-row current catalogue.
 

@@ -110,8 +110,17 @@ def _run_shell_startup_sequence(host: "ShellWindow") -> None:
 
 
 def _build_shell_qml_host(host: "ShellWindow") -> ShellQmlHost:
+    from ea_node_editor.ui.shell.canvas_drop_capture import CanvasDropCapture
+    from ea_node_editor.ui_qml.qml_host_factory import QML_HOST_QQUICKVIEW_CONTAINER
+
     qml_host = create_shell_qml_host(host)
     host.qml_host = qml_host
+    drop_surface = (
+        qml_host.quick_window()
+        if qml_host.host_kind == QML_HOST_QQUICKVIEW_CONTAINER
+        else qml_host.event_filter_widget
+    )
+    host.canvas_drop_capture = CanvasDropCapture(drop_surface, host.canvas_import_controller)
     qml_context = host.shell_services.qml_context
     host_bindings = qml_context.qml_host_bindings
     context_property_bindings = qml_context.qml_context_property_bindings

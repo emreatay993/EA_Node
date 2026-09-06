@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Controls 2.15
 import "../common" as Common
 import "../graph/GraphActionPresentation.js" as GraphActionPresentation
 
@@ -29,7 +30,13 @@ Item {
     readonly property real resolvedX: root.submenuOpensLeft
         ? Math.max(root.viewportPadding, root.anchorX - root.menuGap - root.submenuW)
         : root.anchorX
-    readonly property real resolvedY: root.anchorY
+    readonly property real availablePanelHeight: root.canvasItem
+        ? Math.max(0, root.canvasItem.height - root.viewportPadding * 2 - root.shadowDepth)
+        : mainColumn.implicitHeight + root.contentPad * 2
+    readonly property real resolvedY: root.canvasItem
+        ? Math.max(root.viewportPadding,
+                   Math.min(root.anchorY, root.canvasItem.height - root.height - root.viewportPadding))
+        : root.anchorY
     readonly property real mainPanelOffsetX: root.submenuOpensLeft ? root.submenuW + root.menuGap : 0
     readonly property real submenuOffsetX: root.submenuOpensLeft ? 0 : root.panelW + root.menuGap
 
@@ -72,6 +79,10 @@ Item {
         return "Dark";
     }
     readonly property string gridStyleLabel: root.gridStyleValue === "points" ? "Points" : "Lines"
+    readonly property string canvasImportModeValue: root.canvasPrefs
+        ? root.canvasPrefs.canvasImportMode : "automatic"
+    readonly property string canvasImportModeLabel: root.canvasImportModeValue === "ask"
+        ? "Ask every time" : "Automatic"
     readonly property string nodeElapsedTimeUnitValue: {
         // executionFacts.nodeElapsedTimeUnit is already normalized (single
         // normalization point); only the milliseconds/seconds collapse stays.
@@ -103,6 +114,8 @@ Item {
     height: Math.max(mainPanel.height, activeSubmenuHeight())
 
     onVisibleChanged: {
+        if (mainScroll.contentItem)
+            mainScroll.contentItem.contentY = 0;
         if (!visible)
             root.activeSubmenu = "";
     }
@@ -118,6 +131,8 @@ Item {
     }
 
     function activeSubmenuHeight() {
+        if (canvasImportSubmenuLoader.active && canvasImportSubmenuLoader.item)
+            return canvasImportSubmenuLoader.item.height;
         if (canvasSubmenuLoader.active && canvasSubmenuLoader.item)
             return canvasSubmenuLoader.item.height;
         if (gridSubmenuLoader.active && gridSubmenuLoader.item)
@@ -190,6 +205,11 @@ Item {
             root.commandBridge.set_snap_to_grid_enabled(Boolean(value));
     }
 
+    function setCanvasImportMode(value) {
+        if (root.commandBridge && root.commandBridge.set_graphics_canvas_import_mode)
+            root.commandBridge.set_graphics_canvas_import_mode(value);
+    }
+
     function setNodeShadows(value) {
         if (root.commandBridge && root.commandBridge.set_graphics_node_shadow)
             root.commandBridge.set_graphics_node_shadow(Boolean(value));
@@ -240,132 +260,178 @@ Item {
         id: mainPanel
         x: root.mainPanelOffsetX
         panelWidth: root.panelW
-        panelHeight: mainColumn.implicitHeight + (root.contentPad * 2)
+        panelHeight: Math.min(mainColumn.implicitHeight + root.contentPad * 2,
+                              root.availablePanelHeight)
 
-        Column {
-            id: mainColumn
+        ScrollView {
+            id: mainScroll
+            objectName: "canvasOptionsMainScroll"
             x: root.contentPad
             y: root.contentPad
-            width: root.panelW - (root.contentPad * 2)
-            spacing: 0
+            width: mainPanel.panelWidth - root.contentPad * 2
+            height: Math.max(0, mainPanel.panelHeight - root.contentPad * 2)
+            contentWidth: availableWidth
+            contentHeight: mainColumn.implicitHeight
+            clip: true
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-            SectionHeader {
-                label: "SELECTED WIRES"
-                visible: root.selectedWireEdgeIds.length > 0
-                height: visible ? 22 : 0
-            }
-            SubmenuRow {
-                label: "Selected Wires Display Mode"
-                value: root.selectedWireDisplayModeLabel
-                visible: root.selectedWireEdgeIds.length > 0
-                height: visible ? root.rowH : 0
-                isOpen: root.activeSubmenu === "selectedWireDisplayMode"
-                onClicked: root.activeSubmenu = root.activeSubmenu === "selectedWireDisplayMode"
-                    ? ""
-                    : "selectedWireDisplayMode"
-            }
-            Divider {
-                visible: root.selectedWireEdgeIds.length > 0
-                height: visible ? 1 : 0
-            }
+            Column {
+                id: mainColumn
+                width: parent.width
+                spacing: 0
 
-            SectionHeader { label: "BACKGROUND" }
-            SubmenuRow {
-                label: "Canvas color"
-                value: root.canvasColorLabel
-                isOpen: root.activeSubmenu === "canvas"
-                onClicked: root.activeSubmenu = root.activeSubmenu === "canvas" ? "" : "canvas"
-            }
+                SectionHeader {
+                    label: "SELECTED WIRES"
+                    visible: root.selectedWireEdgeIds.length > 0
+                    height: visible ? 22 : 0
+                }
+                SubmenuRow {
+                    label: "Selected Wires Display Mode"
+                    value: root.selectedWireDisplayModeLabel
+                    visible: root.selectedWireEdgeIds.length > 0
+                    height: visible ? root.rowH : 0
+                    isOpen: root.activeSubmenu === "selectedWireDisplayMode"
+                    onClicked: root.activeSubmenu = root.activeSubmenu === "selectedWireDisplayMode"
+                        ? ""
+                        : "selectedWireDisplayMode"
+                }
+                Divider {
+                    visible: root.selectedWireEdgeIds.length > 0
+                    height: visible ? 1 : 0
+                }
 
-            Divider {}
+                SectionHeader { label: "BACKGROUND" }
+                SubmenuRow {
+                    label: "Canvas color"
+                    value: root.canvasColorLabel
+                    isOpen: root.activeSubmenu === "canvas"
+                    onClicked: root.activeSubmenu = root.activeSubmenu === "canvas" ? "" : "canvas"
+                }
 
-            SectionHeader { label: "GRID" }
-            ToggleRow {
-                label: "Show grid"
-                checked: root.showGrid
-                onToggled: root.setShowGrid(!root.showGrid)
-            }
-            SubmenuRow {
-                label: "Grid style"
-                value: root.gridStyleLabel
-                dim: !root.showGrid
-                isOpen: root.activeSubmenu === "grid"
-                onClicked: {
-                    if (!root.showGrid)
-                        return;
-                    root.activeSubmenu = root.activeSubmenu === "grid" ? "" : "grid";
+                Divider {}
+
+                SectionHeader { label: "GRID" }
+                ToggleRow {
+                    label: "Show grid"
+                    checked: root.showGrid
+                    onToggled: root.setShowGrid(!root.showGrid)
+                }
+                SubmenuRow {
+                    label: "Grid style"
+                    value: root.gridStyleLabel
+                    dim: !root.showGrid
+                    isOpen: root.activeSubmenu === "grid"
+                    onClicked: {
+                        if (!root.showGrid)
+                            return;
+                        root.activeSubmenu = root.activeSubmenu === "grid" ? "" : "grid";
+                    }
+                }
+                ToggleRow {
+                    label: "Snap to grid"
+                    checked: root.snapToGrid
+                    dim: !root.showGrid
+                    onToggled: {
+                        if (root.showGrid)
+                            root.setSnapToGrid(!root.snapToGrid);
+                    }
+                }
+
+                Divider {}
+
+                SectionHeader { label: "NODES" }
+                SubmenuRow {
+                    label: "Elapsed time"
+                    value: root.nodeElapsedTimeVisibilityLabel
+                    isOpen: root.activeSubmenu === "elapsedTimeVisibility"
+                    onClicked: root.activeSubmenu = root.activeSubmenu === "elapsedTimeVisibility" ? "" : "elapsedTimeVisibility"
+                }
+                SubmenuRow {
+                    label: "Elapsed unit"
+                    value: root.nodeElapsedTimeUnitLabel
+                    isOpen: root.activeSubmenu === "elapsedTimeUnit"
+                    onClicked: root.activeSubmenu = root.activeSubmenu === "elapsedTimeUnit" ? "" : "elapsedTimeUnit"
+                }
+                SubmenuRow {
+                    label: "Comments"
+                    value: root.nodeCommentEditorDefaultLabel
+                    isOpen: root.activeSubmenu === "commentEditor"
+                    onClicked: root.activeSubmenu = root.activeSubmenu === "commentEditor" ? "" : "commentEditor"
+                }
+
+                Divider {}
+
+                SectionHeader { label: "RUN" }
+                ToggleRow {
+                    label: "Preview before run"
+                    checked: root.selectedRunPreviewBeforeRun
+                    onToggled: root.setSelectedRunPreviewBeforeRun(!root.selectedRunPreviewBeforeRun)
+                }
+
+                Divider {}
+
+                SectionHeader { label: "INTERACTION" }
+                SubmenuRow {
+                    objectName: "canvasOptionsPasteAndDropRow"
+                    label: "Paste and drop"
+                    value: root.canvasImportModeLabel
+                    tooltipText: "Choose node types automatically, or ask how to add each pasted or dropped item."
+                    isOpen: root.activeSubmenu === "canvasImport"
+                    onClicked: root.activeSubmenu = root.activeSubmenu === "canvasImport" ? "" : "canvasImport"
+                }
+
+                Divider {}
+
+                SectionHeader { label: "EFFECTS" }
+                ToggleRow {
+                    label: "Node shadows"
+                    checked: root.nodeShadows
+                    onToggled: root.setNodeShadows(!root.nodeShadows)
+                }
+
+                Divider {}
+
+                SectionHeader { label: "THEME" }
+                SubmenuRow {
+                    label: "Shell theme"
+                    value: root.shellThemeLabel
+                    isOpen: root.activeSubmenu === "shell"
+                    onClicked: root.activeSubmenu = root.activeSubmenu === "shell" ? "" : "shell"
+                }
+                ToggleRow {
+                    label: "Graphs follow shell"
+                    checked: root.graphsFollowShell
+                    onToggled: root.setGraphsFollowShell(!root.graphsFollowShell)
+                }
+
+                Divider {}
+
+                ActionRow {
+                    objectName: "canvasOptionsOpenGraphicsSettingsRow"
+                    label: "Open full Graphics Settings..."
+                    onClicked: root.openGraphicsSettings()
                 }
             }
-            ToggleRow {
-                label: "Snap to grid"
-                checked: root.snapToGrid
-                dim: !root.showGrid
-                onToggled: {
-                    if (root.showGrid)
-                        root.setSnapToGrid(!root.snapToGrid);
-                }
-            }
+        }
+    }
 
-            Divider {}
-
-            SectionHeader { label: "NODES" }
-            SubmenuRow {
-                label: "Elapsed time"
-                value: root.nodeElapsedTimeVisibilityLabel
-                isOpen: root.activeSubmenu === "elapsedTimeVisibility"
-                onClicked: root.activeSubmenu = root.activeSubmenu === "elapsedTimeVisibility" ? "" : "elapsedTimeVisibility"
-            }
-            SubmenuRow {
-                label: "Elapsed unit"
-                value: root.nodeElapsedTimeUnitLabel
-                isOpen: root.activeSubmenu === "elapsedTimeUnit"
-                onClicked: root.activeSubmenu = root.activeSubmenu === "elapsedTimeUnit" ? "" : "elapsedTimeUnit"
-            }
-            SubmenuRow {
-                label: "Comments"
-                value: root.nodeCommentEditorDefaultLabel
-                isOpen: root.activeSubmenu === "commentEditor"
-                onClicked: root.activeSubmenu = root.activeSubmenu === "commentEditor" ? "" : "commentEditor"
-            }
-
-            Divider {}
-
-            SectionHeader { label: "RUN" }
-            ToggleRow {
-                label: "Preview before run"
-                checked: root.selectedRunPreviewBeforeRun
-                onToggled: root.setSelectedRunPreviewBeforeRun(!root.selectedRunPreviewBeforeRun)
-            }
-
-            Divider {}
-
-            SectionHeader { label: "EFFECTS" }
-            ToggleRow {
-                label: "Node shadows"
-                checked: root.nodeShadows
-                onToggled: root.setNodeShadows(!root.nodeShadows)
-            }
-
-            Divider {}
-
-            SectionHeader { label: "THEME" }
-            SubmenuRow {
-                label: "Shell theme"
-                value: root.shellThemeLabel
-                isOpen: root.activeSubmenu === "shell"
-                onClicked: root.activeSubmenu = root.activeSubmenu === "shell" ? "" : "shell"
-            }
-            ToggleRow {
-                label: "Graphs follow shell"
-                checked: root.graphsFollowShell
-                onToggled: root.setGraphsFollowShell(!root.graphsFollowShell)
-            }
-
-            Divider {}
-
-            ActionRow {
-                label: "Open full Graphics Settings..."
-                onClicked: root.openGraphicsSettings()
+    Loader {
+        id: canvasImportSubmenuLoader
+        active: root.activeSubmenu === "canvasImport"
+        x: root.submenuOffsetX
+        y: 0
+        sourceComponent: SubmenuPanel {
+            objectName: "canvasOptionsPasteAndDropSubmenu"
+            title: "Paste and drop"
+            options: [
+                { "label": "Automatic", "value": "automatic" },
+                { "label": "Ask every time", "value": "ask" }
+            ]
+            currentValue: root.canvasImportModeValue
+            onPicked: function(value) {
+                root.setCanvasImportMode(value);
+                root.activeSubmenu = "";
             }
         }
     }
@@ -780,69 +846,82 @@ Item {
         MenuPanel {
             id: submenuPanel
             panelWidth: root.submenuW
-            panelHeight: submenuColumn.implicitHeight + (root.contentPad * 2)
+            panelHeight: Math.min(submenuColumn.implicitHeight + root.contentPad * 2,
+                                  root.availablePanelHeight)
 
-            Column {
-                id: submenuColumn
+            ScrollView {
+                id: submenuScroll
+                objectName: "canvasOptionsSubmenuScroll"
                 x: root.contentPad
                 y: root.contentPad
-                width: root.submenuW - (root.contentPad * 2)
-                spacing: 0
+                width: submenuPanel.panelWidth - root.contentPad * 2
+                height: Math.max(0, submenuPanel.panelHeight - root.contentPad * 2)
+                contentWidth: availableWidth
+                contentHeight: submenuColumn.implicitHeight
+                clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-                SectionHeader { label: submenuRoot.title.toUpperCase() }
+                Column {
+                    id: submenuColumn
+                    width: parent.width
+                    spacing: 0
 
-                Repeater {
-                    model: submenuRoot.options
+                    SectionHeader { label: submenuRoot.title.toUpperCase() }
 
-                    delegate: Item {
-                        readonly property string optionLabel: String(modelData && modelData.label !== undefined ? modelData.label : "")
-                        readonly property string optionValue: String(modelData && modelData.value !== undefined ? modelData.value : optionLabel)
-                        readonly property bool isActive: optionValue === submenuRoot.currentValue
+                    Repeater {
+                        model: submenuRoot.options
 
-                        width: submenuColumn.width
-                        height: root.rowH
+                        delegate: Item {
+                            readonly property string optionLabel: String(modelData && modelData.label !== undefined ? modelData.label : "")
+                            readonly property string optionValue: String(modelData && modelData.value !== undefined ? modelData.value : optionLabel)
+                            readonly property bool isActive: optionValue === submenuRoot.currentValue
 
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.margins: 2
-                            radius: 6
-                            color: submenuOptionMouseArea.containsMouse || parent.isActive
-                                ? Qt.alpha(root.accentColor, 0.14)
-                                : "transparent"
-                        }
+                            width: submenuColumn.width
+                            height: root.rowH
 
-                        Text {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 18
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 14
-                            text: parent.isActive ? "\u2713" : ""
-                            color: root.accentColor
-                            font.pixelSize: 12
-                            font.bold: true
-                            renderType: Text.CurveRendering
-                        }
+                            Rectangle {
+                                anchors.fill: parent
+                                anchors.margins: 2
+                                radius: 6
+                                color: submenuOptionMouseArea.containsMouse || parent.isActive
+                                    ? Qt.alpha(root.accentColor, 0.14)
+                                    : "transparent"
+                            }
 
-                        Text {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 34
-                            anchors.right: parent.right
-                            anchors.rightMargin: 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: parent.optionLabel
-                            color: root.titleFg
-                            font.pixelSize: 12
-                            font.bold: submenuOptionMouseArea.containsMouse || parent.isActive
-                            elide: Text.ElideRight
-                            renderType: Text.CurveRendering
-                        }
+                            Text {
+                                anchors.left: parent.left
+                                anchors.leftMargin: 18
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 14
+                                text: parent.isActive ? "\u2713" : ""
+                                color: root.accentColor
+                                font.pixelSize: 12
+                                font.bold: true
+                                renderType: Text.CurveRendering
+                            }
 
-                        MouseArea {
-                            id: submenuOptionMouseArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: submenuRoot.picked(parent.optionValue)
+                            Text {
+                                anchors.left: parent.left
+                                anchors.leftMargin: 34
+                                anchors.right: parent.right
+                                anchors.rightMargin: 12
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: parent.optionLabel
+                                color: root.titleFg
+                                font.pixelSize: 12
+                                font.bold: submenuOptionMouseArea.containsMouse || parent.isActive
+                                elide: Text.ElideRight
+                                renderType: Text.CurveRendering
+                            }
+
+                            MouseArea {
+                                id: submenuOptionMouseArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: submenuRoot.picked(parent.optionValue)
+                            }
                         }
                     }
                 }

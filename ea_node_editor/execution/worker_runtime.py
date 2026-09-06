@@ -124,11 +124,22 @@ class RuntimeArtifactService:
             _runtime_markers_decoded=False,
         )
 
+    def materialize_authored_properties(self, properties: Mapping[str, Any]) -> dict[str, Any]:
+        """Admit registered project-import refs only at the authored-property boundary.
+
+        Runtime values, outputs, and path resolution still require typed carriers.
+        Authored temp refs become carriers only after store/descriptor/content checks.
+        """
+        return self._materialize_persisted_value(
+            properties, _runtime_markers_decoded=False, _authored_staged_refs=True,
+        )
+
     def _materialize_persisted_value(
         self,
         value: Any,
         *,
         _runtime_markers_decoded: bool,
+        _authored_staged_refs: bool = False,
     ) -> Any:
         if isinstance(value, RuntimeArtifactRef):
             self._verify_runtime_artifact(value)
@@ -156,6 +167,7 @@ class RuntimeArtifactService:
                         self._materialize_persisted_value(
                             item,
                             _runtime_markers_decoded=_runtime_markers_decoded,
+                            _authored_staged_refs=_authored_staged_refs,
                         )
                         for item in items
                     ),
@@ -178,6 +190,7 @@ class RuntimeArtifactService:
                     return self._materialize_persisted_value(
                         decoded,
                         _runtime_markers_decoded=True,
+                        _authored_staged_refs=_authored_staged_refs,
                     )
                 value = decoded
                 _runtime_markers_decoded = True
@@ -190,6 +203,7 @@ class RuntimeArtifactService:
                 copied[key] = self._materialize_persisted_value(
                     item,
                     _runtime_markers_decoded=_runtime_markers_decoded,
+                    _authored_staged_refs=_authored_staged_refs,
                 )
             return copied
         if isinstance(value, list):
@@ -197,6 +211,7 @@ class RuntimeArtifactService:
                 self._materialize_persisted_value(
                     item,
                     _runtime_markers_decoded=_runtime_markers_decoded,
+                    _authored_staged_refs=_authored_staged_refs,
                 )
                 for item in value
             ]
@@ -205,6 +220,7 @@ class RuntimeArtifactService:
                 self._materialize_persisted_value(
                     item,
                     _runtime_markers_decoded=_runtime_markers_decoded,
+                    _authored_staged_refs=_authored_staged_refs,
                 )
                 for item in value
             )
@@ -217,17 +233,19 @@ class RuntimeArtifactService:
         text = value.strip()
         saved_prefix = f"{ARTIFACT_REF_SCHEME}://"
         staged_prefix = f"{STAGED_ARTIFACT_REF_SCHEME}://"
-        if text.casefold().startswith(staged_prefix):
+        staged = text.casefold().startswith(staged_prefix)
+        if staged and not _authored_staged_refs:
             raise TypeError(
                 "artifact references must use RuntimeArtifactRef"
             )
-        if not text.startswith(saved_prefix):
+        prefix = staged_prefix if staged else saved_prefix
+        if not text.startswith(prefix) or (_authored_staged_refs and text != value):
             raise ValueError("persisted artifact reference is malformed")
-        artifact_id = normalize_artifact_id(text[len(saved_prefix) :])
-        if not artifact_id or text != f"{saved_prefix}{artifact_id}":
+        artifact_id = normalize_artifact_id(text[len(prefix) :])
+        if not artifact_id or text != f"{prefix}{artifact_id}":
             raise ValueError("persisted artifact reference is malformed")
 
-        entry = self.store.managed_entry(artifact_id)
+        entry = self.store.staged_entry(artifact_id) if staged else self.store.managed_entry(artifact_id)
         if entry is None:
             raise FileNotFoundError(
                 f"artifact {artifact_id!r} is not registered in the active store"
@@ -242,8 +260,8 @@ class RuntimeArtifactService:
                 f"artifact {artifact_id!r} descriptor is invalid"
             )
         try:
-            runtime_ref = RuntimeArtifactRef.managed(
-                artifact_id,
+            runtime_ref = RuntimeArtifactRef.from_artifact_ref(
+                text,
                 data_type_id=descriptor["data_type_id"],
                 schema_version=descriptor["schema_version"],
                 format=descriptor["format"],
@@ -262,7 +280,7 @@ class RuntimeArtifactService:
                 f"artifact {artifact_id!r} descriptor is invalid"
             ) from None
         if (
-            runtime_ref.scope != "managed"
+            runtime_ref.scope != ("staged" if staged else "managed")
             or runtime_ref.artifact_id != artifact_id
         ):
             raise ValueError(

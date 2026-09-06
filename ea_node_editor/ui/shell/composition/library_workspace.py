@@ -5,6 +5,7 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from ea_node_editor.ui.shell.controllers.mutation_ui_effects import MutationUiEffects
+from ea_node_editor.ui.shell.controllers.canvas_import_controller import CanvasImportController
 from ea_node_editor.ui.shell.controllers.workflow_library_controller import (
     WorkflowLibraryController,
 )
@@ -36,6 +37,7 @@ class ShellLibraryWorkspaceDependencies:
     workspace_navigation_controller: WorkspaceNavigationController
     mutation_ui_effects: MutationUiEffects
     workspace_edit_controller: WorkspaceEditController
+    canvas_import_controller: CanvasImportController
     workspace_drop_connect_controller: WorkspaceDropConnectController
     workspace_package_io_controller: WorkspacePackageIOController
 
@@ -44,6 +46,7 @@ class ShellLibraryWorkspaceDependencies:
         host.workflow_library_controller = self.workflow_library_controller
         host.workspace_navigation_controller = self.workspace_navigation_controller
         host.workspace_edit_controller = self.workspace_edit_controller
+        host.canvas_import_controller = self.canvas_import_controller
         host.workspace_drop_connect_controller = self.workspace_drop_connect_controller
         host.workspace_package_io_controller = self.workspace_package_io_controller
 
@@ -86,6 +89,7 @@ def create_library_workspace_dependencies(
         workspace_navigation_controller=navigation_controller,
         mutation_ui_effects=effects,
         workspace_edit_controller=edit_controller,
+        canvas_import_controller=CanvasImportController(host, effects=effects),
         workspace_drop_connect_controller=drop_connect_controller,
         workspace_package_io_controller=package_io_controller,
     )

@@ -41,6 +41,10 @@ These rows summarize whole-capability status. `PARTIAL` means accepted backend a
 
 - [COREX Runtime, Registry, and Presentation Ownership Refactor](../PLAN_COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR.md) — `COMPLETED — T00–T26 ACCEPTED`; [QA ledger](perf/COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR_QA_MATRIX.md)
 
+### Implemented Features With Remaining Acceptance Checks
+
+- [Unified Canvas Paste and Drop](../PLAN_COREX_CANVAS_IMPORT.md) — `IMPLEMENTATION COMPLETE; NATIVE DRAG ACCEPTANCE PENDING`; shared mapping, chooser and persistent preference implemented; focused, integration and desktop evidence recorded with remaining limitations.
+
 ### Completed Semantic-Type Architecture and Evidence
 
 T01–T17 are complete, and the locked 176-type snapshot is fully classified.

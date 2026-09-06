@@ -13,6 +13,7 @@ from ea_node_editor.app_preferences import (
     normalize_graph_node_icon_pixel_size_override,
     normalize_status_bar_layout,
     normalize_canvas_background_variant,
+    normalize_canvas_import_mode,
     normalize_grid_overlay_style,
     normalize_media_panel_settings,
     normalize_node_comment_editor_default,
@@ -40,6 +41,7 @@ UNSET = object()
 @dataclass(slots=True)
 class ShellWorkspaceUiState:
     canvas_background_variant: str
+    canvas_import_mode: str
     show_grid: bool
     grid_style: str
     edge_crossing_style: str
@@ -84,6 +86,7 @@ def build_default_shell_workspace_ui_state(
     graphics_settings: Any = DEFAULT_GRAPHICS_SETTINGS,
 ) -> ShellWorkspaceUiState:
     canvas = graphics_settings.get("canvas", {}) if isinstance(graphics_settings, dict) else {}
+    interaction = graphics_settings.get("interaction", {}) if isinstance(graphics_settings, dict) else {}
     shell = graphics_settings.get("shell", {}) if isinstance(graphics_settings, dict) else {}
     theme = graphics_settings.get("theme", {}) if isinstance(graphics_settings, dict) else {}
     typography = graphics_settings.get("typography", {}) if isinstance(graphics_settings, dict) else {}
@@ -105,6 +108,7 @@ def build_default_shell_workspace_ui_state(
         typography.get("graph_node_icon_pixel_size_override")
     )
     return ShellWorkspaceUiState(
+        canvas_import_mode=normalize_canvas_import_mode(interaction.get("canvas_import_mode")),
         canvas_background_variant=normalize_canvas_background_variant(
             canvas.get(
                 "background_variant",

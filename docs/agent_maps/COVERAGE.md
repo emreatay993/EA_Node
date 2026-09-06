@@ -44,6 +44,8 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
 - [Retained Work-Packet QA Evidence And Spec Navigation](feature_routes/work_packet_docs_status_qa.md)
 
 ## Current ownership notes
+- Imported project artifacts carry Path runtime descriptors. Staging remains in `ProjectFilesService`; authored-property admission and integrity checks remain in `RuntimeArtifactService`; Panel preserves admitted carriers through its existing execution helper. The project-files, execution, surface-input, and clipboard maps cover this handoff and its real-process tests.
+- Shared external canvas imports are owned by `ui/shell/controllers/canvas_import_controller.py`, with MIME/choice construction in `ui/shell/clipboard_paste_nodes.py`, the native chooser/capture in `ui/shell/`, and one graph-scene batch in `ui_qml/graph_scene_mutation/node_creation_batch.py`. The clipboard/history route covers import behaviour; the graphics route covers the shared Automatic/Ask app preference and its two controls.
 - Port-row sizing reserves editor height only for a nonempty `inline_editor`; stored input defaults alone do not create extra vertical space.
 - Shared header diagnostics use external warning/error circles with no title-width reservation; the header owns placement, tooltip/accessibility, and failure precedence.
 

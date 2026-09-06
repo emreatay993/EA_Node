@@ -281,6 +281,17 @@ class AppPreferencesController:
         self.update_graphics_settings({"shell": {"node_library_usage": usage}})
         return usage
 
+    def set_graphics_canvas_import_mode(
+        self,
+        mode: str,
+        *,
+        host: ShellWindow | None = None,
+    ) -> dict[str, Any]:
+        return self.update_graphics_settings(
+            {"interaction": {"canvas_import_mode": mode}},
+            host=host,
+        )
+
     def set_graphics_expand_collision_avoidance(
         self,
         settings: Any,

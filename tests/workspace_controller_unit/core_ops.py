@@ -195,7 +195,7 @@ class WorkspaceEditControllerCoreTests(WorkspaceDirectControllerTestBase):
             refreshed["value"] = True
 
         owners.navigation.refresh_workspace_tabs = _mark_refreshed  # type: ignore[method-assign]
-        controller.read_graph_fragment_from_clipboard = lambda: None  # type: ignore[method-assign]
+        controller.clipboard = lambda: None  # type: ignore[method-assign]
 
         pasted = controller.paste_nodes_from_clipboard()
 

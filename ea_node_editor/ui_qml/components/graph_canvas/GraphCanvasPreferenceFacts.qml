@@ -13,6 +13,9 @@ QtObject {
     id: facts
     property var stateBridge: null
 
+    readonly property string canvasImportMode: facts.stateBridge
+        ? String(facts.stateBridge.graphics_canvas_import_mode || "automatic")
+        : "automatic"
     readonly property bool minimapExpanded: facts.stateBridge
         ? Boolean(facts.stateBridge.graphics_minimap_expanded)
         : true

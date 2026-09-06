@@ -38,6 +38,7 @@ from ea_node_editor.ui_qml.graph_canvas_command.scene_mutation_ops import SceneM
 from ea_node_editor.ui_qml.graph_canvas_command.viewport_ops import ViewportOps
 
 if TYPE_CHECKING:
+    from ea_node_editor.ui.shell.controllers.canvas_import_controller import CanvasImportController
     from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
         AppPreferencesController,
     )
@@ -112,6 +113,7 @@ class GraphCanvasCommandBridge(
         inspector_source: "ShellInspectorPresenter | None" = None,
         library_source: "ShellLibraryPresenter | None" = None,
         workspace_edit_controller: "WorkspaceEditController | None" = None,
+        canvas_import_controller: "CanvasImportController | None" = None,
         workspace_drop_connect_controller: "WorkspaceDropConnectController | None" = None,
         model_provider: Callable[[], object] | None = None,
         active_workspace_id_provider: Callable[[], str] | None = None,
@@ -137,6 +139,7 @@ class GraphCanvasCommandBridge(
         self._inspector_source = inspector_source
         self._library_source = library_source
         self._workspace_edit_controller = workspace_edit_controller
+        self._canvas_import_controller = canvas_import_controller
         self._workspace_drop_connect_controller = workspace_drop_connect_controller
         self._model_provider = model_provider
         self._active_workspace_id_provider = active_workspace_id_provider
