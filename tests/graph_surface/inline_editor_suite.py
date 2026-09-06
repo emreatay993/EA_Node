@@ -1296,6 +1296,31 @@ class PassiveGraphSurfaceInlineEditorTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_collapsed_viewer_grows_to_fit_header_title(self) -> None:
+        self._run_qml_probe(
+            "viewer-collapsed-title-host",
+            """
+            payload = node_payload(surface_family="viewer")
+            payload["title"] = "Model Viewer"
+            payload["collapsed"] = True
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            app.processEvents()
+            title_item = host.findChild(QObject, "graphNodeTitle")
+            metrics = variant_value(host.property("surfaceMetrics"))
+            assert title_item is not None
+            assert float(host.width()) > float(metrics["collapsed_width"]) + 0.5, (
+                float(host.width()),
+                metrics,
+            )
+            assert not bool(title_item.property("truncated")), (
+                float(host.width()),
+                float(title_item.property("contentWidth") or 0.0),
+                float(title_item.property("width") or 0.0),
+            )
+            """,
+        )
+
     def test_non_scoped_standard_and_passive_titles_use_shared_header_editor_without_pointer_leaks(self) -> None:
         self._run_qml_probe(
             "shared-header-title-rollout-host",

@@ -19,10 +19,10 @@ Item {
     readonly property bool isGroupBackdropNode: host
         ? String(host.surfaceFamily || "") === "group_backdrop"
         : false
-    // Families whose collapsed chip should grow to show the full header title.
-    // Flowchart and panel surfaces keep their fixed compact collapsed size.
+    // Flowchart shapes retain their fixed compact collapsed geometry; every
+    // other card grows to show its full header title.
     readonly property bool collapsedTitleFitsWidth: host
-        ? (root.isGroupBackdropNode || String(host.surfaceFamily || "standard") === "standard")
+        ? !host.isFlowchartSurface
         : false
     readonly property bool groupTitleIconVisible: host
         ? root.isGroupBackdropNode && host.isCollapsed
