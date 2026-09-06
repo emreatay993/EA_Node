@@ -53,7 +53,7 @@ _MIGRATION_INVENTORY = (
 )
 _INVENTORY_ROW = re.compile(
     r"^\| `(?P<type_id>[^`]+)` \| "
-    r"(?P<disposition>convert|internal exception|DPF excluded) \| "
+    r"(?P<disposition>convert|native function|internal exception|DPF excluded) \| "
     r"`(?P<owner>[^`]+)` \| (?P<ports>.*?) \| (?P<properties>.*?) \| "
     r".* \| `(?P<test>[^`]+)` \|$"
 )
@@ -139,7 +139,7 @@ def _current_non_dpf_catalog() -> list[dict[str, object]]:
 def test_builtin_registry_contains_retained_corex_contract_families() -> None:
     registry = build_builtin_registry()
 
-    assert len(registry.all_specs()) == 121
+    assert len(registry.all_specs()) == 129
     for type_id in (
         "plot.signal",
         "geometry.cylinder",
@@ -169,7 +169,7 @@ def test_frozen_non_dpf_catalog_plus_documentation_and_structural_overlays_match
     frozen = load_frozen_non_dpf_catalog()
     assert len(frozen) == 133
     effective = load_effective_non_dpf_catalog()
-    assert len(effective) == 131
+    assert len(effective) == 139
     current = _current_non_dpf_catalog()
     assert current == effective
 
@@ -346,12 +346,12 @@ def test_solution_reuse_classification_matches_all_shipped_rows() -> None:
     executable = tuple(spec for spec in specs if spec.runtime_behavior == "active")
     excluded = tuple(spec for spec in specs if spec.runtime_behavior != "active")
 
-    assert len(specs) == 936
-    assert len(executable) == 898
+    assert len(specs) == 944
+    assert len(executable) == 906
     assert Counter(spec.solution_reuse_scope for spec in executable) == {
         "durable": 29,
         "session": 27,
-        "never": 842,
+        "never": 850,
     }
     assert Counter(spec.runtime_behavior for spec in excluded) == {
         "passive": 35,
@@ -409,14 +409,15 @@ def test_novice_plugin_sdk_migration_inventory_is_exhaustive() -> None:
     )
     specs = (*non_dpf, *dpf)
 
-    assert len(rows) == 936
-    assert len(specs) == 936
+    assert len(rows) == 944
+    assert len(specs) == 944
     current_type_ids = {spec.type_id for spec in specs}
     assert current_type_ids == set(rows)
     assert {
         type_id for type_id, row in rows.items() if row["disposition"] == "DPF excluded"
     } == {spec.type_id for spec in dpf}
     assert [row["disposition"] for row in rows.values()].count("convert") == 78
+    assert [row["disposition"] for row in rows.values()].count("native function") == 8
     assert [row["disposition"] for row in rows.values()].count(
         "internal exception"
     ) == 53

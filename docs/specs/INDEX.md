@@ -51,6 +51,7 @@ T01–T17 are complete, and the locked 176-type snapshot is fully classified.
 
 ### Completed Implementation Plans
 
+- [COREX File System Nodes](../PLAN_COREX_FILESYSTEM_NODES.md) — `COMPLETED - T01-T04 ACCEPTED`; focused and serial checks passed, with two verified baseline fast-gate failures documented.
 - [COREX Typed Connection Reliability](../PLAN_COREX_TYPED_CONNECTION_RELIABILITY.md) — `COMPLETED — T00–T06 ACCEPTED`; [task ledger](../PLANS/COREX_TYPED_CONNECTION_RELIABILITY_TASK_LEDGER.md)
 - [COREX Maintainability And Ownership Refactor](../PLAN_COREX_MAINTAINABILITY_OWNERSHIP_REFACTOR.md) — `COMPLETED — T00–T08 ACCEPTED`
 - [COREX Incremental Execution And Solution Snapshots](../PLAN_COREX_INCREMENTAL_EXECUTION_AND_SOLUTION_SNAPSHOTS.md) — `COMPLETED — T01–T09 ACCEPTED`

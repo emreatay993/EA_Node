@@ -742,6 +742,7 @@ def _parse_function(
                 )
             private_port_fields = {
                 "_port_accepted_data_types",
+                "_port_allow_empty_string",
                 "_port_description",
                 "_port_label",
                 "_port_required",
@@ -771,6 +772,9 @@ def _parse_function(
                         "_port_uses_property_default", True
                     ),
                     accepted_data_types=accepted,
+                    allow_empty_string=_engine.bool_value(
+                        values, "_port_allow_empty_string"
+                    ),
                 )
                 if _engine.bool_value(values, "port")
                 else None

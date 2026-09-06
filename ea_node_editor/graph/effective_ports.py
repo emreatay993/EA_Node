@@ -35,6 +35,7 @@ class EffectivePort:
     required: bool = False
     exposed: bool = True
     allow_multiple_connections: bool = False
+    allow_empty_string: bool = False
     uses_property_default: bool = False
     accepted_data_types: tuple[str, ...] = ()
     display_tier: str = ""
@@ -201,6 +202,7 @@ def effective_ports(
                 if str(port.kind) == "flow"
                 else False
             ),
+            allow_empty_string=bool(port.allow_empty_string),
             uses_property_default=bool(port.uses_property_default),
             accepted_data_types=port.accepted_data_types,
             display_tier=port_display_tier(port),

@@ -18,10 +18,12 @@ class ReadinessIssue:
     message: str
 
 
-def readiness_value_is_present(value: object) -> bool:
+def readiness_value_is_present(value: object, *, allow_empty_string: bool = False) -> bool:
     if value is None:
         return False
     if isinstance(value, str):
+        if allow_empty_string and value == "":
+            return True
         return bool(value.strip())
     if isinstance(value, (bytes, bytearray, memoryview)):
         return bool(value)
@@ -48,7 +50,9 @@ def evaluate_node_readiness(
         return (
             port.uses_property_default
             and key not in overridden
-            and readiness_value_is_present(properties.get(key))
+            and readiness_value_is_present(
+                properties.get(key), allow_empty_string=port.allow_empty_string
+            )
         )
 
     issues: list[ReadinessIssue] = []

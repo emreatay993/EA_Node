@@ -2,9 +2,9 @@
 
 This T01 inventory freezes the clean-break migration boundary before production source changes. The source-of-truth catalog proof is `tests/fixtures/node_catalog/pre_cutover_non_dpf_catalog.json`; implementation owners may change during T10–T16, while type IDs and preserved port/property keys must remain stable unless this table is explicitly revised.
 
-Disposition counts: **78 convert**, **53 internal exception**, **805 DPF excluded**; **936 total unique type IDs**.
+Disposition counts: **78 convert**, **8 native function**, **53 internal exception**, **805 DPF excluded**; **944 total unique type IDs**.
 
-`tests/test_corex_contract_catalog.py` proves the frozen 133-node pre-cutover baseline and the effective 131-node current non-DPF catalog. DPF rows use their catalog-family tests because DPF source is excluded from conversion.
+`tests/test_corex_contract_catalog.py` proves the frozen 133-node pre-cutover baseline and the effective 139-node current non-DPF catalog. DPF rows use their catalog-family tests because DPF source is excluded from conversion.
 
 | Type ID | Disposition | Current owner | Preserved port keys | Preserved property keys | Reason | Proving test |
 |---|---|---|---|---|---|---|
@@ -850,6 +850,14 @@ Disposition counts: **78 convert**, **53 internal exception**, **805 DPF exclude
 | `io.excel_read` | convert | `ea_node_editor/nodes/builtin_functions/integrations_spreadsheet.py` | path, rows | path, sheet_name | Function-honest non-DPF node. | `tests/test_builtin_integration_function_migration.py` |
 | `io.excel_write` | convert | `ea_node_editor/nodes/builtin_functions/integrations_spreadsheet.py` | rows, path, written_path | path | Function-honest non-DPF node. | `tests/test_builtin_integration_function_migration.py` |
 | `io.file_read` | convert | `ea_node_editor/nodes/builtin_functions/integrations_file_io.py` | path, text | path | Function-honest non-DPF node. | `tests/test_builtin_integration_function_migration.py` |
+| `io.combine_file_paths` | native function | `ea_node_editor/nodes/builtin_functions/filesystem.py` | paths, final_path | — | Native function added after the migration baseline. | `tests/test_filesystem_function_nodes.py` |
+| `io.construct_file_path` | native function | `ea_node_editor/nodes/builtin_functions/filesystem.py` | directory, file_name, file_extension, file_path | directory, file_name, file_extension | Native function added after the migration baseline. | `tests/test_filesystem_function_nodes.py` |
+| `io.contents_in_directory` | native function | `ea_node_editor/nodes/builtin_functions/filesystem.py` | directory, search_pattern, subdirectory_levels, content_type, content_paths | directory, search_pattern, subdirectory_levels, content_type | Native function added after the migration baseline. | `tests/test_filesystem_function_nodes.py` |
+| `io.create_directory` | native function | `ea_node_editor/nodes/builtin_functions/filesystem.py` | directory, create_recursive, created_directory | directory, create_recursive | Native function added after the migration baseline. | `tests/test_filesystem_function_nodes.py` |
+| `io.deconstruct_file_path` | native function | `ea_node_editor/nodes/builtin_functions/filesystem.py` | file_path, directory, file_name, file_extension | file_path | Native function added after the migration baseline. | `tests/test_filesystem_function_nodes.py` |
+| `io.delete_file` | native function | `ea_node_editor/nodes/builtin_functions/filesystem.py` | file_path, successful | file_path | Native function added after the migration baseline. | `tests/test_filesystem_function_nodes.py` |
+| `io.move_file` | native function | `ea_node_editor/nodes/builtin_functions/filesystem.py` | source_path, target_path, operation_mode, overwrite_target_file, successful | source_path, target_path, operation_mode, overwrite_target_file | Native function added after the migration baseline. | `tests/test_filesystem_function_nodes.py` |
+| `io.temporary_file_path` | native function | `ea_node_editor/nodes/builtin_functions/filesystem.py` | file_name, file_extension, file_path | file_name, file_extension | Native function added after the migration baseline. | `tests/test_filesystem_function_nodes.py` |
 | `io.file_write` | convert | `ea_node_editor/nodes/builtin_functions/integrations_file_io.py` | path, text, data, written_path | path, as_json | Function-honest non-DPF node. | `tests/test_builtin_integration_function_migration.py` |
 | `io.folder_explorer` | internal exception | `ea_node_editor/nodes/builtins/integrations_file_io.py` | current | current_path | Passive native folder surface remains a trusted internal exception. | `tests/test_folder_explorer_filesystem_service.py` |
 | `io.image_export` | convert | `ea_node_editor/nodes/builtin_functions/integrations_file_io.py` | image, path, overwrite, written_path | path, overwrite | Function-honest non-DPF node. | `tests/test_builtin_integration_function_migration.py` |

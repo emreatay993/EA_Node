@@ -117,6 +117,7 @@ def _readiness_spec_from_payload(node: Mapping[str, Any]) -> SimpleNamespace:
                 port.get("uses_property_default", False)
                 or port.get("default_property") is not None
             ),
+            allow_empty_string=bool(port.get("allow_empty_string", False)),
         )
         for port in readiness_ports
         if isinstance(port, Mapping)
@@ -776,6 +777,7 @@ def _latest_output_record(records: object) -> Mapping[str, Any] | None:
 
 def _readiness_input_facts(
     *,
+    node_payloads: object,
     edge_payloads: object,
     output_records_by_node: object,
 ) -> tuple[dict[str, dict[str, bool]], dict[str, set[str]]]:
@@ -784,7 +786,7 @@ def _readiness_input_facts(
         if isinstance(output_records_by_node, Mapping)
         else {}
     )
-    output_presence: dict[tuple[str, str], bool] = {}
+    output_presence: dict[tuple[str, str], tuple[bool, bool]] = {}
     for raw_node_id, records in records_by_node.items():
         node_id = normalize_node_id(raw_node_id)
         latest = _latest_output_record(records)
@@ -806,11 +808,29 @@ def _readiness_input_facts(
                 or not isinstance(result.value, DataTree)
             ):
                 continue
-            output_presence[(node_id, port_key)] = any(
-                readiness_value_is_present(item)
-                for _path, items in result.value.branches
-                for item in items
+            ordinary_present = False
+            empty_string_present = False
+            for _path, items in result.value.branches:
+                for item in items:
+                    if readiness_value_is_present(item):
+                        ordinary_present = True
+                        break
+                    if isinstance(item, str) and item == "":
+                        empty_string_present = True
+                if ordinary_present:
+                    break
+            output_presence[(node_id, port_key)] = (
+                ordinary_present,
+                empty_string_present,
             )
+
+    allow_empty_targets = {
+        (normalize_node_id(node.get("node_id")), str(port.get("key", "") or "").strip())
+        for node in (node_payloads if isinstance(node_payloads, (list, tuple)) else ())
+        if isinstance(node, Mapping)
+        for port in node.get("readiness", {}).get("ports", ())
+        if isinstance(port, Mapping) and bool(port.get("allow_empty_string", False))
+    }
 
     presence_by_node: dict[str, dict[str, bool]] = {}
     overridden_by_node: dict[str, set[str]] = {}
@@ -829,7 +849,11 @@ def _readiness_input_facts(
             target_presence.get(target_port_key, False)
             or edge.get("data_type_warning", False)
             or edge.get("availability_warning", False)
-            or output_presence.get((source_node_id, source_port_key), False)
+            or output_presence.get((source_node_id, source_port_key), (False, False))[0]
+            or (
+                (target_node_id, target_port_key) in allow_empty_targets
+                and output_presence.get((source_node_id, source_port_key), (False, False))[1]
+            )
         )
     return presence_by_node, overridden_by_node
 
@@ -1440,6 +1464,7 @@ class ExecutionStateProps:
             solution_facts_by_node=solution_facts_by_node,
         )
         presence_by_node, overridden_by_node = _readiness_input_facts(
+            node_payloads=node_payloads,
             edge_payloads=edge_payloads,
             output_records_by_node=records_by_node,
         )
@@ -1606,6 +1631,7 @@ class ExecutionStateProps:
             current_only=True
         )
         presence_by_node, overridden_by_node = _readiness_input_facts(
+            node_payloads=node_payloads,
             edge_payloads=_source_attr(self._scene_state_source, "edges_model", []),
             output_records_by_node=records_by_node,
         )

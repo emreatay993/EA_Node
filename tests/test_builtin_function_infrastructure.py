@@ -37,6 +37,7 @@ from ea_node_editor.nodes.builtin_functions import (
     engineering_geometry,
     engineering_imports,
     engineering_viewer,
+    filesystem,
     integrations_email,
     integrations_file_io,
     integrations_process,
@@ -128,6 +129,7 @@ def test_placeholder_sources_form_one_noop_internal_bundle(
             data_control,
             engineering_imports,
             engineering_viewer,
+            filesystem,
             viewer_viewport,
             engineering_geometry,
             engineering_fem,
@@ -154,6 +156,7 @@ def test_placeholder_sources_form_one_noop_internal_bundle(
         "data_control.py",
         "engineering_imports.py",
         "engineering_viewer.py",
+        "filesystem.py",
         "viewer_viewport.py",
         "engineering_geometry.py",
         "engineering_fem.py",
@@ -193,11 +196,11 @@ def test_internal_function_declarations_carry_the_accepted_reuse_scopes(
         if isinstance((entry := registry.get_entry(spec.type_id)), PythonFunctionEntry)
     )
 
-    assert len(function_entries) == 68
+    assert len(function_entries) == 76
     assert Counter(entry.spec.solution_reuse_scope for entry in function_entries) == {
         "durable": 29,
         "session": 22,
-        "never": 17,
+        "never": 25,
     }
 
 

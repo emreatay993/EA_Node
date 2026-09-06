@@ -84,6 +84,7 @@ _INTERNAL_CONTROL_FIELDS = frozenset(
         "_inspector_visible",
         "_persistence_type",
         "_port_accepted_data_types",
+        "_port_allow_empty_string",
         "_port_description",
         "_port_label",
         "_port_required",
@@ -574,6 +575,7 @@ def port_spec(
     data_access: str = "item",
     uses_property_default: bool = False,
     accepted_data_types: tuple[str, ...] = (),
+    allow_empty_string: bool = False,
 ) -> PortSpec:
     return PortSpec(
         key,
@@ -586,6 +588,7 @@ def port_spec(
         data_access=data_access,  # type: ignore[arg-type]
         uses_property_default=uses_property_default,
         accepted_data_types=accepted_data_types,
+        allow_empty_string=allow_empty_string,
     )
 
 

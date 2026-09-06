@@ -68,6 +68,7 @@ _CONTROL_PRIVATE_FIELDS = {
     "_inspector_visible",
     "_persistence_type",
     "_port_accepted_data_types",
+    "_port_allow_empty_string",
     "_port_description",
     "_port_label",
     "_port_required",

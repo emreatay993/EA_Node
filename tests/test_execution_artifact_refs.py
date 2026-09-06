@@ -1404,6 +1404,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                 uses_property_default=True,
                 data_access="item",
                 required=True,
+                allow_empty_string=False,
             )
             node = SimpleNamespace(
                 type_id="tests.saved_property",

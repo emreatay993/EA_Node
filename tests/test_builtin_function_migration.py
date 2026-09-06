@@ -111,6 +111,16 @@ _CONVERTED_TYPE_IDS = (
     *_T12_CONVERTED_TYPE_IDS,
     *_T15_CONVERTED_TYPE_IDS,
 )
+_NATIVE_FUNCTION_TYPE_IDS = (
+    "io.combine_file_paths",
+    "io.construct_file_path",
+    "io.contents_in_directory",
+    "io.create_directory",
+    "io.deconstruct_file_path",
+    "io.delete_file",
+    "io.move_file",
+    "io.temporary_file_path",
+)
 def test_exact_t10_entries_match_golden_and_leave_truthful_descriptor_boundary(
     tmp_path: Path,
 ) -> None:
@@ -127,7 +137,7 @@ def test_exact_t10_entries_match_golden_and_leave_truthful_descriptor_boundary(
         spec.type_id
         for spec in registry.all_specs()
         if isinstance(registry.get_entry(spec.type_id), PythonFunctionEntry)
-    } == set(_CONVERTED_TYPE_IDS)
+    } == set((*_CONVERTED_TYPE_IDS, *_NATIVE_FUNCTION_TYPE_IDS))
     for type_id in _T10_CONVERTED_TYPE_IDS:
         entry = registry.get_entry(type_id)
         assert isinstance(entry, PythonFunctionEntry)
@@ -142,7 +152,7 @@ def test_exact_t10_entries_match_golden_and_leave_truthful_descriptor_boundary(
     }
     assert trusted_type_ids == {
         spec.type_id for spec in registry.all_specs()
-    } - set(_CONVERTED_TYPE_IDS)
+    } - set((*_CONVERTED_TYPE_IDS, *_NATIVE_FUNCTION_TYPE_IDS))
     assert {
         "core.python_script",
         "core.stream_gate",
@@ -154,7 +164,7 @@ def test_exact_t10_entries_match_golden_and_leave_truthful_descriptor_boundary(
 
     bundle = registry.plugin_bundle_refs()[0]
     assert bundle.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
-    assert len(bundle.functions) == len(_CONVERTED_TYPE_IDS)
+    assert len(bundle.functions) == len(_CONVERTED_TYPE_IDS) + len(_NATIVE_FUNCTION_TYPE_IDS)
     assert not any(
         name == f"_corex_plugin_{bundle.bundle_digest}"
         or name.startswith(f"_corex_plugin_{bundle.bundle_digest}.")

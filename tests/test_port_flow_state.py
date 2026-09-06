@@ -1621,8 +1621,8 @@ def test_dynamic_port_graph_payload_carries_port_flow_state() -> None:
     registry = _flow_probe_registry()
     model = GraphModel()
     workspace = model.active_workspace
-    source = model.add_node(workspace.workspace_id, "tests.flow_probe", "Source", 0, 0)
-    sink = model.add_node(workspace.workspace_id, "tests.flow_probe", "Sink", 240, 0)
+    source = model.add_node(workspace.workspace_id, "tests.flow_probe", "Source", 0, 0, properties={"dynamic_names": ["dynamic"]})
+    sink = model.add_node(workspace.workspace_id, "tests.flow_probe", "Sink", 240, 0, properties={"dynamic_names": ["dynamic"]})
     empty = model.add_node(
         workspace.workspace_id,
         "tests.flow_probe",
@@ -1681,6 +1681,7 @@ def test_dynamic_port_graph_payload_carries_port_flow_state() -> None:
         "kind": "data",
         "required": True,
         "uses_property_default": False,
+        "allow_empty_string": False,
     }
     assert source_payload["dynamic_port_groups"] == [
         {

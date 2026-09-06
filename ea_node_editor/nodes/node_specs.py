@@ -462,6 +462,7 @@ class PortSpec:
     uses_property_default: bool = False
     exposed: bool = True
     allow_multiple_connections: bool = False
+    allow_empty_string: bool = False
     side: PortSide = ""
     source_metadata: DpfPinSourceSpec | None = None
     accepted_data_types: tuple[str, ...] = ()
@@ -470,6 +471,8 @@ class PortSpec:
     data_access: DataAccess = "item"
 
     def __post_init__(self) -> None:
+        if type(self.allow_empty_string) is not bool:
+            raise TypeError("PortSpec.allow_empty_string must be a bool")
         object.__setattr__(
             self,
             "description",

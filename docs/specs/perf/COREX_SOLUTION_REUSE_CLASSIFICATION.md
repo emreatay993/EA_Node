@@ -37,12 +37,12 @@ applied. The type-ID hashes are over sorted IDs joined by LF with a final LF.
 | --- | ---: |
 | `durable` | 29 |
 | `session` | 27 |
-| `never` | 842 |
-| Executable subtotal | 898 |
+| `never` | 850 |
+| Executable subtotal | 906 |
 | Excluded passive | 35 |
 | Excluded compile-only | 3 |
 | Excluded subtotal | 38 |
-| Shipped total | 936 |
+| Shipped total | 944 |
 
 ## Scope Meanings
 
@@ -972,6 +972,14 @@ locations, and package paths are deliberately absent from this tracked artifact.
 | `io.excel_write` | Excel Write | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/integrations_spreadsheet.py` | Input / Output | `never` | `external_side_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `external_output_or_effect` | `external_side_effect` | `tests/test_builtin_integration_function_migration.py` |
 | `io.file_read` | File Read | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/integrations_file_io.py` | Input / Output | `session` | `read_only_external` | `core_build+bundle+source` | `file_sha256+path_policy+environment_digest+artifact_semantic_identity+current_integrity` | `session_inline_text` | `artifact_semantic_identity+current_integrity` | `external_file_reader_session_only` | `tests/test_builtin_integration_function_migration.py` |
 | `io.file_write` | File Write | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/integrations_file_io.py` | Input / Output | `never` | `external_side_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `external_output_or_effect` | `external_side_effect` | `tests/test_builtin_integration_function_migration.py` |
+| `io.combine_file_paths` | Combine File Paths | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/filesystem.py` | Utilities/File System | `never` | `host_filesystem_path_rules` | `not_required_never` | `not_used_never` | `not_reusable` | `host_path_semantics` | `filesystem_environment` | `tests/test_filesystem_function_nodes.py` |
+| `io.construct_file_path` | Construct File Path | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/filesystem.py` | Utilities/File System | `never` | `host_filesystem_path_rules` | `not_required_never` | `not_used_never` | `not_reusable` | `host_path_semantics` | `filesystem_environment` | `tests/test_filesystem_function_nodes.py` |
+| `io.contents_in_directory` | Contents in Directory | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/filesystem.py` | Utilities/File System | `never` | `read_only_external` | `not_required_never` | `not_used_never` | `not_reusable` | `external_file_listing` | `filesystem_environment` | `tests/test_filesystem_function_nodes.py` |
+| `io.create_directory` | Create Directory | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/filesystem.py` | Utilities/File System | `never` | `external_side_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `external_output_or_effect` | `external_side_effect` | `tests/test_filesystem_function_nodes.py` |
+| `io.deconstruct_file_path` | Deconstruct File Path | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/filesystem.py` | Utilities/File System | `never` | `host_filesystem_path_rules` | `not_required_never` | `not_used_never` | `not_reusable` | `host_path_semantics` | `filesystem_environment` | `tests/test_filesystem_function_nodes.py` |
+| `io.delete_file` | Delete File | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/filesystem.py` | Utilities/File System | `never` | `external_side_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `external_output_or_effect` | `external_side_effect` | `tests/test_filesystem_function_nodes.py` |
+| `io.move_file` | Move File | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/filesystem.py` | Utilities/File System | `never` | `external_side_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `external_output_or_effect` | `external_side_effect` | `tests/test_filesystem_function_nodes.py` |
+| `io.temporary_file_path` | Temporary File Path | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/filesystem.py` | Utilities/File System | `never` | `host_filesystem_path_rules` | `not_required_never` | `not_used_never` | `not_reusable` | `host_path_semantics` | `filesystem_environment` | `tests/test_filesystem_function_nodes.py` |
 | `io.image_export` | Export Image | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/integrations_file_io.py` | Input / Output | `never` | `external_side_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `external_output_or_effect` | `external_side_effect` | `tests/test_builtin_integration_function_migration.py` |
 | `io.image_import` | Import Image | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/integrations_file_io.py` | Input / Output | `session` | `read_only_external` | `core_build+bundle+source` | `file_sha256+path_policy+environment_digest+artifact_semantic_identity+current_integrity` | `session_inline_image` | `artifact_semantic_identity+current_integrity` | `external_file_reader_session_only` | `tests/test_signal_plot_renderer.py` |
 | `io.process_run` | Process Run | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/integrations_process.py` | Input / Output | `never` | `external_side_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `external_output_or_effect` | `external_side_effect` | `tests/test_builtin_integration_function_migration.py` |
@@ -1093,16 +1101,16 @@ the scheduler excludes them before solution-record classification.
   classification revision supplies complete portable provenance and codecs.
 - DPF rows remain row-by-row `never`; family counts above are navigation aids,
   not an inheritance mechanism.
-- Public declarations remain outside the 936-row shipped total and cannot
+- Public declarations remain outside the 944-row shipped total and cannot
   increase any total in this document.
 
 ## Validation Contract
 
 Review and implementation checks must prove all of the following:
 
-1. The executable table has exactly 898 unique shipped type IDs and the excluded
+1. The executable table has exactly 906 unique shipped type IDs and the excluded
    table has exactly 38 unique IDs with no overlap.
-2. Executable totals are exactly 29 `durable`, 27 `session`, and 842 `never`.
+2. Executable totals are exactly 29 `durable`, 27 `session`, and 850 `never`.
 3. Exactly 805 executable rows use the DPF owner families, every one is `never`,
    and their family counts match the locked family table.
 4. The excluded table contains exactly 35 passive and 3 compile-only rows.

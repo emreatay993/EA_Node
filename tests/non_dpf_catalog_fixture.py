@@ -25,7 +25,7 @@ FROZEN_CATALOG_SHA256 = (
     "3CF91390E9E4C606B571ED3C907D7BF35647165F5358328F8FE9C18BF15C618F"
 )
 SOLUTION_REUSE_CLASSIFICATION_SHA256 = (
-    "0693C625B37118F46032DEF77BE4EB4C46D28774A984CB31684130DE62422551"
+    "C5B5018E36D8CD34F7C5B1E01420AA168E832ADC93814D920C81C4A0CAC0BC9B"
 )
 
 
@@ -367,6 +367,10 @@ def load_effective_non_dpf_catalog(
                 f"Missing solution reuse classification for {type_id}"
             ) from exc
         spec = row["spec"]
+        # Historical rows predate this internal required-string exception.
+        for ports in (spec["ports"], row["resolved_default_ports"]):
+            for port in ports:
+                port.setdefault("allow_empty_string", False)
         # Historical groups predate this optional declaration field.
         for group in spec["dynamic_port_groups"]:
             group.setdefault("property_editor", None)

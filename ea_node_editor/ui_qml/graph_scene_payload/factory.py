@@ -149,6 +149,7 @@ def _readiness_payload_for_spec(
                 "kind": str(port.kind),
                 "required": port.required,
                 "uses_property_default": bool(port.uses_property_default),
+                "allow_empty_string": bool(port.allow_empty_string),
             }
             for port in ports
         ],
@@ -1516,6 +1517,7 @@ class _GraphSceneNodePayloadFactory:
                     "connected": bool(connection_count),
                     "optional": not bool(port.required),
                     "uses_property_default": bool(port.uses_property_default),
+                    "allow_empty_string": bool(port.allow_empty_string),
                     "availability": availability_state,
                     "availability_reason": availability_reason,
                     "blocks_new_connections": bool(

@@ -106,7 +106,7 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
 - Novice plugin authoring is shared by the nodes-owned static/save backend, native
   PyQt dialog/editor, and shell controller/File actions; reload still routes only
   through the guarded registry replacement coordinator.
-- The reserved built-in bundle owns exactly 68 inert function declarations under
+- The reserved built-in bundle owns exactly 76 inert function declarations under
   `nodes/builtin_functions/`; trusted helpers and data contracts remain under
   `nodes/builtins/`, and the current migration inventory pins 53 trusted
   exceptions while the 133-row pre-cutover catalog remains immutable.
@@ -138,7 +138,7 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
   `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json` through
   `tests/non_dpf_catalog_fixture.py`; the unified Media Panel structural overlay
   and strict current-contract default overlay are applied afterward to form the
-  131-row current catalog, while the 133-node pre-cutover fixture remains frozen.
+  139-row current catalog, while the 133-node pre-cutover fixture remains frozen.
   Closeout evidence lives in
   `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`.
 - Core integrations contribute eight reserved function entries plus the trusted

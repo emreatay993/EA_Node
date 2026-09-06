@@ -61,7 +61,7 @@ def test_exact_t12_entries_match_golden_and_remove_legacy_exports(
         if row["spec"]["type_id"] in _CONVERTED_TYPE_IDS
     }
 
-    assert len(golden_rows) == 131
+    assert len(golden_rows) == 139
     assert len(_CONVERTED_TYPE_IDS) == 14
     assert set(expected) == set(_CONVERTED_TYPE_IDS)
     for type_id in _CONVERTED_TYPE_IDS:
@@ -74,7 +74,7 @@ def test_exact_t12_entries_match_golden_and_remove_legacy_exports(
         assert isinstance(registry.get_entry(type_id), TrustedFactoryEntry)
         assert registry.descriptor_or_none(type_id) is not None
 
-    assert len(registry.plugin_bundle_refs()[0].functions) == 68
+    assert len(registry.plugin_bundle_refs()[0].functions) == 76
     builtins_root = Path(__file__).parents[1] / "ea_node_editor" / "nodes" / "builtins"
     assert not (builtins_root / "integrations.py").exists()
     builtins_package = importlib.import_module("ea_node_editor.nodes.builtins")
@@ -123,7 +123,7 @@ print(json.dumps({
     )
 
     assert json.loads(completed.stdout) == {
-        "count": 68,
+        "count": 76,
         "openpyxl": False,
         "paramiko": False,
     }

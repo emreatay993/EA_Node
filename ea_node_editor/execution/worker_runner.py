@@ -706,7 +706,17 @@ class NodeExecutor:
                     port_key: result.status == "value"
                     and isinstance(result.value, DataTree)
                     and any(
-                        readiness_value_is_present(item)
+                            readiness_value_is_present(
+                                item,
+                                allow_empty_string=next(
+                                    (
+                                        port.allow_empty_string
+                                        for port in spec.ports
+                                        if port.key == port_key
+                                    ),
+                                    False,
+                                ),
+                            )
                         for _path, items in result.value.branches
                         for item in items
                     )
