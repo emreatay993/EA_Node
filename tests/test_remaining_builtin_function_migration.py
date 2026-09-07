@@ -77,7 +77,7 @@ def test_exact_t15_entries_match_golden_and_leave_exact_exception_set(
         if row["spec"]["type_id"] in _T15_CONVERTED_TYPE_IDS
     }
 
-    assert len(golden_rows) == 139
+    assert len(golden_rows) == 140
     assert len(_T15_CONVERTED_TYPE_IDS) == 30
     assert set(expected) == set(_T15_CONVERTED_TYPE_IDS)
     for type_id in _T15_CONVERTED_TYPE_IDS:

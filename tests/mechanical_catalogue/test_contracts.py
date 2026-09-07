@@ -443,10 +443,9 @@ def test_catalog_validates_all_carriers_without_ansys_imports() -> None:
 
 def test_mechanical_backend_registers_all_four_semantic_contracts() -> None:
     registry = NodeRegistry()
-    assert (
-        register_plugin_backends((MECHANICAL_PLUGIN_BACKEND,), registry, "mechanical")
-        == []
-    )
+    assert register_plugin_backends(
+        (MECHANICAL_PLUGIN_BACKEND,), registry, "mechanical"
+    ) == ["mechanical.open_model"]
     assert {
         spec.type_id
         for spec in registry.data_types.all_specs()

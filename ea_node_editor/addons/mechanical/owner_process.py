@@ -13,6 +13,8 @@ import sys
 import threading
 import time
 import uuid
+import hashlib
+import tempfile
 from collections.abc import Mapping
 from ctypes import wintypes
 from dataclasses import dataclass
@@ -22,6 +24,12 @@ from typing import Any
 import psutil
 
 from ea_node_editor.common.payload_tools import copy_json_safe
+from ea_node_editor.runtime_contracts.scientific_codec import (
+    check_scientific_budget,
+    scientific_from_payload,
+    scientific_payload_size,
+    scientific_to_payload,
+)
 
 DEFAULT_OPERATION_TIMEOUT_SEC = 600.0
 COOPERATIVE_CLOSE_TIMEOUT_SEC = 5.0
@@ -32,14 +40,13 @@ class OwnerProtocolError(RuntimeError):
     pass
 
 
-def _owner_python_executable() -> str:
+def _owner_command() -> list[str]:
     executable = Path(sys.executable)
-    if getattr(sys, "frozen", False) or not executable.is_file():
-        raise RuntimeError(
-            "Mechanical owner subprocess requires a Python module launcher; "
-            "the packaged launcher route is not yet available"
-        )
-    return str(executable)
+    if not executable.is_file():
+        raise RuntimeError("Mechanical owner subprocess executable is unavailable")
+    if getattr(sys, "frozen", False):
+        return [str(executable), "--private-mechanical-owner"]
+    return [str(executable), "-m", __name__]
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,7 +200,59 @@ def _receive(stream: Any) -> dict[str, Any]:
     )
 
 
-def _child(port: int, token: str) -> int:
+def _write_bulk(root: Path, value: Any) -> dict[str, Any]:
+    from ea_node_editor.addons.mechanical.contracts import catalogue_table
+    payload = scientific_to_payload(catalogue_table(value))
+    scientific_payload_size(payload)
+    name = f"catalogue-{uuid.uuid4().hex}.json"
+    encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
+    path = root / name
+    path.write_bytes(encoded)
+    return {"kind": "scientific", "relative_name": name, "byte_length": len(encoded), "sha256": hashlib.sha256(encoded).hexdigest()}
+
+
+def _read_bulk(root: Path, descriptor: object):
+    if not isinstance(descriptor, Mapping) or set(descriptor) != {"kind", "relative_name", "byte_length", "sha256"}:
+        raise OwnerProtocolError("Mechanical bulk descriptor schema is invalid")
+    name = descriptor["relative_name"]
+    length = descriptor["byte_length"]
+    digest = descriptor["sha256"]
+    if (
+        descriptor["kind"] != "scientific"
+        or type(name) is not str
+        or Path(name).name != name
+        or type(length) is not int
+        or length < 0
+        or length > 384 * 1024 * 1024
+        or type(digest) is not str
+        or len(digest) != 64
+    ):
+        raise OwnerProtocolError("Mechanical bulk descriptor kind/path is invalid")
+    candidate = root / name
+    try:
+        stat = candidate.lstat()
+    except OSError as exc:
+        raise OwnerProtocolError("Mechanical bulk file is unavailable") from exc
+    reparse = bool(getattr(stat, "st_file_attributes", 0) & 0x400)
+    path = candidate.resolve()
+    if candidate.is_symlink() or reparse or path.parent != root.resolve() or not path.is_file():
+        raise OwnerProtocolError("Mechanical bulk file is outside the owned spool")
+    if stat.st_size != length or stat.st_size > 384 * 1024 * 1024:
+        candidate.unlink(missing_ok=True)
+        raise OwnerProtocolError("Mechanical bulk file length is invalid")
+    try:
+        data = path.read_bytes()
+        if len(data) != length or hashlib.sha256(data).hexdigest() != digest:
+            raise OwnerProtocolError("Mechanical bulk file length/hash mismatch")
+        payload = json.loads(data)
+        scientific_payload_size(payload)
+        check_scientific_budget(payload)
+        return scientific_from_payload(payload)
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def _child(port: int, token: str, spool_root: str) -> int:
     connection = socket.create_connection(("127.0.0.1", port), timeout=10)
     stream = connection.makefile("rwb", buffering=0)
     _send(
@@ -208,9 +267,10 @@ def _child(port: int, token: str) -> int:
     if _receive(stream) != {"type": "start", "token": token}:
         return 2
     # Native imports happen only after the parent assigns the kill-on-close job.
-    from ea_node_editor.addons.mechanical.backend import execute_lifecycle_operation
+    from ea_node_editor.addons.mechanical.backend import MechanicalOwnerBackend
 
     scope = None
+    backend = MechanicalOwnerBackend()
     try:
         while True:
             request = _request(_receive(stream))
@@ -227,9 +287,10 @@ def _child(port: int, token: str) -> int:
                         raise ValueError(
                             "Mechanical owner request identity does not match its session"
                         )
-                result = execute_lifecycle_operation(
-                    request["operation"], request["args"]
-                )
+                result = backend.execute(request["operation"], request["args"])
+                if "rows" in result:
+                    rows = result.pop("rows")
+                    result["bulk"] = _write_bulk(Path(spool_root), rows)
                 _send(
                     stream,
                     {"request_id": request["request_id"], "ok": True, "result": result},
@@ -248,12 +309,18 @@ def _child(port: int, token: str) -> int:
     except (EOFError, OSError):
         return 0
     finally:
-        stream.close()
-        connection.close()
+        try:
+            backend.close()
+        finally:
+            stream.close()
+            connection.close()
 
 
 class MechanicalOwnerProcess:
-    def __init__(self, *, start_timeout_sec: float = 10.0) -> None:
+    def __init__(self, *, start_timeout_sec: float = 10.0, work_root: Path | str | None = None) -> None:
+        self._temporary_spool = work_root is None
+        self._spool_root = Path(work_root or tempfile.mkdtemp(prefix="corex-mechanical-owner-")).resolve()
+        self._spool_root.mkdir(parents=True, exist_ok=True)
         listener = socket.socket()
         listener.bind(("127.0.0.1", 0))
         listener.listen(1)
@@ -264,12 +331,11 @@ class MechanicalOwnerProcess:
         )
         process = subprocess.Popen(
             [
-                _owner_python_executable(),
-                "-m",
-                __name__,
+                *_owner_command(),
                 "--owner-child",
                 str(listener.getsockname()[1]),
                 token,
+                str(self._spool_root),
             ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -391,6 +457,8 @@ class MechanicalOwnerProcess:
         result = response.get("result")
         if not isinstance(result, dict):
             raise OwnerProtocolError("Mechanical owner result must be a dictionary")
+        if "bulk" in result:
+            result["catalogue"] = _read_bulk(self._spool_root, result.pop("bulk"))
         return result
 
     def close(self) -> None:
@@ -423,6 +491,9 @@ class MechanicalOwnerProcess:
                         )
                 except (EOFError, OSError, socket.timeout, subprocess.TimeoutExpired):
                     self._job.terminate()
+                    deadline = time.monotonic() + 2.0
+                    while self.alive and time.monotonic() < deadline:
+                        time.sleep(0.02)
             if self.alive:
                 raise RuntimeError("Mechanical owner process did not terminate")
             self._stream.close()
@@ -430,12 +501,18 @@ class MechanicalOwnerProcess:
             self._job.close()
             self._closed = True
             atexit.unregister(self.close)
+            for path in self._spool_root.glob("catalogue-*.json"):
+                if path.is_file() and not path.is_symlink():
+                    path.unlink(missing_ok=True)
+            if self._temporary_spool:
+                import shutil
+                shutil.rmtree(self._spool_root, ignore_errors=True)
 
 
 def _main() -> int:
     return (
-        _child(int(sys.argv[2]), sys.argv[3])
-        if len(sys.argv) == 4 and sys.argv[1] == "--owner-child"
+        _child(int(sys.argv[2]), sys.argv[3], sys.argv[4])
+        if len(sys.argv) == 5 and sys.argv[1] == "--owner-child"
         else 2
     )
 

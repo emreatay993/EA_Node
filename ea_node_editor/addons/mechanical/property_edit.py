@@ -33,7 +33,7 @@ class _CatalogueIndex:
     rows_by_kind: Mapping[str, tuple[tuple[Any, str], ...]]
     complete: bool
     omitted_rows: int | None
-    table_id: int
+    table: TableValue
     locator: tuple[Any, ...]
 
 
@@ -69,7 +69,7 @@ def _catalogue_index(table: TableValue, rows: list[dict[str, Any]]) -> _Catalogu
     summary = rows[0]
     key = (str(summary["catalogue_id"]), int(summary["model_revision"]))
     cached = _INDEX_CACHE.get(key)
-    if cached is not None and cached.table_id == id(table):
+    if cached is not None and cached.table is table:
         _INDEX_CACHE.move_to_end(key)
         return cached
     rows_by_kind: dict[str, list[tuple[Any, str]]] = {}
@@ -98,7 +98,7 @@ def _catalogue_index(table: TableValue, rows: list[dict[str, Any]]) -> _Catalogu
         rows_by_kind={kind: tuple(values) for kind, values in rows_by_kind.items()},
         complete=bool(summary["catalogue_complete"]),
         omitted_rows=None if summary.get("omitted_rows") is None else int(summary["omitted_rows"]),
-        table_id=id(table),
+        table=table,
         locator=tuple(summary.get(field) for field in _LOCATOR_FIELDS),
     )
     _INDEX_CACHE[key] = result
@@ -145,7 +145,7 @@ def _catalogue_for_model(
         if not isinstance(candidate, TableValue) or not candidate.row_count:
             continue
         cached = next(
-            (index for index in _INDEX_CACHE.values() if index.table_id == id(candidate)),
+            (index for index in _INDEX_CACHE.values() if index.table is candidate),
             None,
         )
         if cached is not None:
@@ -215,7 +215,27 @@ class MechanicalPropertyEditAdapter:
                 elif index is not None:
                     indexes.append(index)
         for item in result:
-            kinds = _SELECTOR_KINDS.get(str(item.get("key") or ""))
+            item_key = str(item.get("key") or "")
+            if item_key == "mode":
+                item.update(
+                    enum_codes=["background", "interactive"],
+                    enum_values=["Background", "Interactive"],
+                    exact_selectors=True,
+                )
+                continue
+            if item_key == "version":
+                from ea_node_editor.addons.mechanical.catalog import mechanical_release_choices
+                releases = mechanical_release_choices()
+                item.update(
+                    enum_codes=[0, *releases],
+                    enum_values=[
+                        "Auto · 2026 R1 or newer",
+                        *(f"20{code // 10:02d} R{code % 10} ({code})" for code in releases),
+                    ],
+                    exact_selectors=True,
+                )
+                continue
+            kinds = _SELECTOR_KINDS.get(item_key)
             if not kinds:
                 continue
             options: list[tuple[Any, str]] = []

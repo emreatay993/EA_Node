@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from ea_node_editor.addons.mars.function_nodes import SOURCE as MARS_SOURCE
 from ea_node_editor.addons.mars.metadata import MARS_ADDON_ID
+from ea_node_editor.addons.mechanical.catalog import MECHANICAL_ADDON_ID
+from ea_node_editor.addons.mechanical.function_nodes import SOURCE as MECHANICAL_SOURCE
 from ea_node_editor.addons.tabular_data.catalog import TABULAR_DATA_FUNCTION_TYPE_IDS
 from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default_registry
 from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
@@ -20,6 +22,16 @@ _MARS_SPECS = tuple(
         allow_internal_metadata=True,
     )
 )
+_MECHANICAL_SPECS = tuple(
+    declaration.spec
+    for declaration in discover_plugin_declarations(
+        MECHANICAL_SOURCE,
+        filename="mechanical_nodes.py",
+        allow_reserved_ids=True,
+        owner_id=MECHANICAL_ADDON_ID,
+        allow_internal_metadata=True,
+    )
+)
 REPO_OWNED_NODE_SPECS = (
     *build_builtin_registry().all_specs(),
     *(
@@ -27,6 +39,7 @@ REPO_OWNED_NODE_SPECS = (
         for type_id in TABULAR_DATA_FUNCTION_TYPE_IDS
     ),
     *_MARS_SPECS,
+    *_MECHANICAL_SPECS,
 )
 
 
@@ -34,8 +47,8 @@ def test_all_repo_owned_nodes_have_authored_documentation() -> None:
     specs = REPO_OWNED_NODE_SPECS
     resolved_ports = tuple((spec, resolve_instance_ports(spec, {})) for spec in specs)
 
-    assert len(specs) == 139
-    assert sum(len(ports) for _, ports in resolved_ports) == 542
+    assert len(specs) == 140
+    assert sum(len(ports) for _, ports in resolved_ports) == 550
     assert len({spec.type_id for spec in specs}) == len(specs)
 
     missing_node_descriptions = [spec.type_id for spec in specs if not spec.description.strip()]
@@ -53,4 +66,4 @@ def test_all_repo_owned_nodes_have_authored_documentation() -> None:
 
 
 def test_repo_owned_catalog_fixture_has_exact_scope() -> None:
-    assert len(load_current_repo_owned_catalog()) == 139
+    assert len(load_current_repo_owned_catalog()) == 140

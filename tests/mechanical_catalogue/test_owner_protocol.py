@@ -14,6 +14,8 @@ from ea_node_editor.addons.mechanical.owner_process import (
     MechanicalOwnerProcess,
     OwnerProtocolError,
     _creation_time_for_pid,
+    _owner_command,
+    _read_bulk,
 )
 
 
@@ -64,6 +66,23 @@ def test_owner_protocol_rejects_non_data_arguments() -> None:
             )
     finally:
         owner.close()
+
+
+def test_owner_commands_use_module_in_source_and_private_role_when_frozen(monkeypatch) -> None:
+    monkeypatch.delattr(sys, "frozen", raising=False)
+    assert _owner_command() == [sys.executable, "-m", "ea_node_editor.addons.mechanical.owner_process"]
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    assert _owner_command() == [sys.executable, "--private-mechanical-owner"]
+
+
+def test_bulk_reader_rejects_escape_and_deletes_bad_hash(tmp_path: Path) -> None:
+    with pytest.raises(OwnerProtocolError, match="kind/path"):
+        _read_bulk(tmp_path, {"kind": "scientific", "relative_name": "../x", "byte_length": 0, "sha256": "0" * 64})
+    payload = tmp_path / "catalogue-test.json"
+    payload.write_bytes(b"{}")
+    with pytest.raises(OwnerProtocolError, match="hash"):
+        _read_bulk(tmp_path, {"kind": "scientific", "relative_name": payload.name, "byte_length": 2, "sha256": "0" * 64})
+    assert not payload.exists()
 
 
 def test_owner_transport_crash_is_detected_without_touching_other_processes() -> None:

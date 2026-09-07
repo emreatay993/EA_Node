@@ -17,6 +17,7 @@ Use this for launch path, app lifetime, splash handoff, and startup authority ch
 
 ## Common Changes
 - Preserve `python -m ea_node_editor.bootstrap` as the source/dev launch route.
+- Frozen startup recognizes only the private Mechanical owner-child role before Qt/application imports; source owners continue to use the owner module directly.
 - Keep startup authority in `bootstrap` and `app`, with shell composition in `ui/shell`.
 - Startup still calls session restore during shell bootstrap, but restore should leave the active project empty instead of reopening the last saved project.
 - For splash behavior, route through `ui/splash/opening_screen.py` and app handoff code; the splash should keep normal desktop z-order and not force itself above unrelated windows.

@@ -60,6 +60,7 @@ TABULAR_RUNTIME_METADATA_DISTRIBUTIONS = (
 FULL_RUNTIME_REQUIRED_PACKAGES = (
     "OCP",
     "ansys.mechanical.core",
+    "ansys.workbench.core",
     "duckdb",
     "h5py",
     "llvmlite",
@@ -79,6 +80,7 @@ FULL_RUNTIME_REQUIRED_PACKAGES = (
 )
 FULL_RUNTIME_HIDDENIMPORT_PACKAGES = (
     "ansys.mechanical.core",
+    "ansys.workbench.core",
     "matplotlib",
     "numba",
     "pyqtgraph",
@@ -86,6 +88,7 @@ FULL_RUNTIME_HIDDENIMPORT_PACKAGES = (
 )
 FULL_RUNTIME_METADATA_DISTRIBUTIONS = (
     "ansys-mechanical-core",
+    "ansys-workbench-core",
     "llvmlite",
     "matplotlib",
     "numba",

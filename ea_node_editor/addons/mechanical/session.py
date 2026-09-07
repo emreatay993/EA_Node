@@ -61,8 +61,17 @@ class _Session:
             return
         self.terminal = True
         self.owner.close()
+        deadline = time.monotonic() + 2.0
+        while self.work_root.exists():
+            shutil.rmtree(self.work_root, ignore_errors=True)
+            if not self.work_root.exists() or time.monotonic() >= deadline:
+                break
+            time.sleep(0.05)
+        if self.work_root.exists():
+            raise MechanicalSessionError(
+                f"Mechanical working directory cleanup failed: {self.work_root}"
+            )
         self.closed = True
-        shutil.rmtree(self.work_root, ignore_errors=True)
 
 
 class MechanicalSessionService:
@@ -99,6 +108,7 @@ class MechanicalSessionService:
         target_path: DataPath = (0,),
         target_iteration: int = 0,
         backend_mode: str = "background",
+        working_folder: Path | str | None = None,
         register_cancel: Callable[[Callable[[], None]], None] | None = None,
     ) -> _Session:
         run_id = _identity(run_id, "run_id")
@@ -129,16 +139,24 @@ class MechanicalSessionService:
                         "session key was reused with different ownership metadata"
                     )
                 return existing
-            work_root = Path(tempfile.mkdtemp(prefix="corex-mechanical-"))
-            work_path = work_root / source.name
+            if working_folder:
+                work_root = Path(working_folder).resolve()
+                if work_root.exists() and any(work_root.iterdir()):
+                    raise ValueError("Mechanical working folder must be empty")
+                work_root.mkdir(parents=True, exist_ok=True)
+            else:
+                work_root = Path(tempfile.mkdtemp(prefix="corex-mechanical-"))
+            work_suffix = {".mechpz": ".mechdb", ".wbpz": ".wbpj"}.get(
+                source.suffix.casefold(), source.suffix
+            )
+            work_path = work_root / f"{source.stem}{work_suffix}"
             try:
-                # Lifecycle staging only. T05 must replace Workbench-family sources
-                # with the qualified native project/archive copy route.
-                if source.is_dir():
-                    shutil.copytree(source, work_path)
+                if self._owner_factory is MechanicalOwnerProcess:
+                    owner = self._owner_factory(work_root=work_root)
                 else:
+                    # Existing deterministic lifecycle fakes do not implement native Open.
                     shutil.copy2(source, work_path)
-                owner = self._owner_factory()
+                    owner = self._owner_factory()
             except BaseException:
                 shutil.rmtree(work_root, ignore_errors=True)
                 raise

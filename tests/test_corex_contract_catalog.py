@@ -10,6 +10,8 @@ import re
 
 from ea_node_editor.addons.mars.function_nodes import SOURCE as MARS_SOURCE
 from ea_node_editor.addons.mars.metadata import MARS_ADDON_ID
+from ea_node_editor.addons.mechanical.catalog import MECHANICAL_ADDON_ID
+from ea_node_editor.addons.mechanical.function_nodes import SOURCE as MECHANICAL_SOURCE
 from ea_node_editor.addons.tabular_data.function_nodes import SOURCE as TABULAR_SOURCE
 from ea_node_editor.addons.tabular_data.metadata import TABULAR_DATA_ADDON_ID
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
@@ -94,10 +96,21 @@ def _current_repo_owned_catalog() -> list[dict[str, object]]:
             allow_internal_metadata=True,
         )
     )
+    mechanical_specs = tuple(
+        declaration.spec
+        for declaration in discover_plugin_declarations(
+            MECHANICAL_SOURCE,
+            filename="mechanical_nodes.py",
+            allow_reserved_ids=True,
+            owner_id=MECHANICAL_ADDON_ID,
+            allow_internal_metadata=True,
+        )
+    )
     specs = (
         *build_builtin_registry().all_specs(),
         *tabular_specs,
         *mars_specs,
+        *mechanical_specs,
     )
     type_ids = [spec.type_id for spec in specs]
     assert len(type_ids) == len(set(type_ids))
@@ -142,7 +155,7 @@ def test_builtin_registry_contains_retained_corex_contract_families() -> None:
 
 def test_current_repo_owned_catalog_matches_current() -> None:
     expected = load_current_repo_owned_catalog()
-    assert len(expected) == 139
+    assert len(expected) == 140
     assert _current_repo_owned_catalog() == expected
 
 
@@ -211,16 +224,26 @@ def test_solution_reuse_classification_matches_all_shipped_rows() -> None:
             allow_internal_metadata=True,
         )
     )
-    specs = (*build_builtin_registry().all_specs(), *tabular_specs, *mars_specs)
+    mechanical_specs = tuple(
+        declaration.spec
+        for declaration in discover_plugin_declarations(
+            MECHANICAL_SOURCE,
+            filename="mechanical_nodes.py",
+            allow_reserved_ids=True,
+            owner_id=MECHANICAL_ADDON_ID,
+            allow_internal_metadata=True,
+        )
+    )
+    specs = (*build_builtin_registry().all_specs(), *tabular_specs, *mars_specs, *mechanical_specs)
     executable = tuple(spec for spec in specs if spec.runtime_behavior == "active")
     excluded = tuple(spec for spec in specs if spec.runtime_behavior != "active")
 
-    assert len(specs) == 139
-    assert len(executable) == 101
+    assert len(specs) == 140
+    assert len(executable) == 102
     assert Counter(spec.solution_reuse_scope for spec in executable) == {
         "durable": 29,
         "session": 27,
-        "never": 45,
+        "never": 46,
     }
     assert Counter(spec.runtime_behavior for spec in excluded) == {
         "passive": 35,

@@ -44,6 +44,15 @@ def _touch(path: Path) -> Path:
 
 
 class MainBootstrapTests(unittest.TestCase):
+    def test_private_mechanical_owner_dispatches_before_app_bootstrap(self) -> None:
+        with patch.object(
+            bootstrap_module.sys,
+            "argv",
+            ["corex.exe", "--private-mechanical-owner", "--owner-child", "7", "token", "C:/spool"],
+        ), patch("ea_node_editor.addons.mechanical.owner_process._child", return_value=19) as child:
+            self.assertEqual(bootstrap_module.main(), 19)
+        child.assert_called_once_with(7, "token", "C:/spool")
+
     def test_root_source_launcher_is_retired(self) -> None:
         self.assertFalse((Path(__file__).resolve().parents[1] / "main.py").exists())
 

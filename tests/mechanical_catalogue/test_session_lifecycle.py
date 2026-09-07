@@ -133,6 +133,46 @@ def test_session_key_shares_dependencies_but_isolates_open_items_and_runs(
     service.reset()
 
 
+@pytest.mark.parametrize(
+    ("source_name", "work_name"),
+    [("source.mechpz", "source.mechdb"), ("source.wbpz", "source.wbpj")],
+)
+def test_native_archives_receive_full_family_specific_work_targets(
+    tmp_path: Path, source_name: str, work_name: str
+) -> None:
+    source = tmp_path / source_name
+    source.write_bytes(b"archive")
+    owners: list[_Owner] = []
+    service = _services(owners).mechanical_session_service
+    session = service.open_session(
+        run_id="run", workspace_id="workspace", open_node_id="open", source_path=source
+    )
+    assert session.work_path.name == work_name
+    service.reset()
+
+
+def test_work_root_cleanup_failure_remains_retryable(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "source.mechdb"
+    source.write_bytes(b"source")
+    owners: list[_Owner] = []
+    service = _services(owners).mechanical_session_service
+    session = service.open_session(
+        run_id="run", workspace_id="workspace", open_node_id="open", source_path=source
+    )
+    real_rmtree = session_module.shutil.rmtree
+    real_monotonic = session_module.time.monotonic
+    ticks = iter((0.0, 3.0))
+    monkeypatch.setattr(session_module.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(session_module.shutil, "rmtree", lambda *_args, **_kwargs: None)
+    with pytest.raises(Exception, match="working directory cleanup failed"):
+        session.close()
+    assert not session.closed and session.work_root.exists()
+    monkeypatch.setattr(session_module.shutil, "rmtree", real_rmtree)
+    monkeypatch.setattr(session_module.time, "monotonic", real_monotonic)
+    session.close()
+    assert session.closed and not session.work_root.exists()
+
+
 def test_cleanup_expires_handles_despite_output_lease_and_rejects_wrong_run(
     tmp_path: Path,
 ) -> None:

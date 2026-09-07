@@ -135,6 +135,9 @@ def test_optional_dependency_groups_wire_ansys_and_viewer_into_all_and_dev() -> 
     expected_ansys = {
         "ansys-dpf-core>=0.16,<0.17",
         "ansys-mechanical-core>=0.12.6",
+        "ansys-workbench-core>=0.14.0",
+        "numpy>=2.0",
+        "pandas>=2.3",
     }
     expected_viewer = {
         "cadquery-ocp-novtk==7.9.3.1.1",
@@ -438,6 +441,7 @@ def test_spec_declares_full_profile_as_all_runtime_stack() -> None:
     expected_required_modules = {
         "OCP",
         "ansys.mechanical.core",
+        "ansys.workbench.core",
         "duckdb",
         "h5py",
         "llvmlite",
@@ -464,6 +468,7 @@ def test_spec_declares_full_profile_as_all_runtime_stack() -> None:
     }
     expected_metadata = {
         "ansys-mechanical-core",
+        "ansys-workbench-core",
         "llvmlite",
         "matplotlib",
         "numba",
@@ -781,6 +786,7 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert 'dependency = "llvmlite"' in build_package_source
     assert 'dependency = "pyqtgraph"' in build_package_source
     assert 'dependency = "ansys-mechanical-core"' in build_package_source
+    assert 'dependency = "ansys-workbench-core"' in build_package_source
     assert 'dependency = "cadquery-ocp-novtk"' in build_package_source
     assert '@{ Key = "ocp"; Display = "cadquery-ocp-novtk" }' in build_package_source
     assert "ansys_dpf" not in build_package_source

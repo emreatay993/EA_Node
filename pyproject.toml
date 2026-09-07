@@ -23,6 +23,9 @@ dependencies = [
 ansys = [
     "ansys-dpf-core>=0.16,<0.17",
     "ansys-mechanical-core>=0.12.6",
+    "ansys-workbench-core>=0.14.0",
+    "numpy>=2.0",
+    "pandas>=2.3",
 ]
 excel = ["openpyxl>=3.1"]
 acceleration = ["numba>=0.65.1"]
@@ -73,6 +76,7 @@ jupyter = [
 all = [
     "ansys-dpf-core>=0.16,<0.17",
     "ansys-mechanical-core>=0.12.6",
+    "ansys-workbench-core>=0.14.0",
     "cadquery-ocp-novtk==7.9.3.1.1",
     "duckdb>=1.5",
     "h5py>=3.16",
@@ -108,6 +112,7 @@ dev = [
     "pyinstaller>=6.0",
     "ansys-dpf-core>=0.16,<0.17",
     "ansys-mechanical-core>=0.12.6",
+    "ansys-workbench-core>=0.14.0",
     "cadquery-ocp-novtk==7.9.3.1.1",
     "duckdb>=1.5",
     "h5py>=3.16",

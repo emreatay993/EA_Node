@@ -84,6 +84,9 @@ def configure_qquick_controls_runtime() -> None:
 
 
 def main() -> int:
+    if len(sys.argv) == 6 and sys.argv[1] == "--private-mechanical-owner" and sys.argv[2] == "--owner-child":
+        from ea_node_editor.addons.mechanical.owner_process import _child
+        return _child(int(sys.argv[3]), sys.argv[4], sys.argv[5])
     _bootstrap_python()
     configure_qquick_controls_runtime()
     from ea_node_editor.telemetry.startup_profile import phase

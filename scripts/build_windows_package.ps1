@@ -458,6 +458,7 @@ modules = {
     "pyarrow": "pyarrow",
     "tables": "tables",
     "ansys_mechanical_core": "ansys.mechanical.core",
+    "ansys_workbench_core": "ansys.workbench.core",
     "matplotlib": "matplotlib",
     "ocp": "OCP",
     "paramiko": "paramiko",
@@ -710,6 +711,7 @@ function Get-PackageProfileDependencyRules {
     if ($Profile -eq "full") {
         $required += @(
             @{ Key = "ansys_mechanical_core"; Display = "ansys-mechanical-core" },
+            @{ Key = "ansys_workbench_core"; Display = "ansys-workbench-core" },
             @{ Key = "duckdb"; Display = "duckdb" },
             @{ Key = "h5py"; Display = "h5py" },
             @{ Key = "llvmlite"; Display = "llvmlite" },
@@ -1057,6 +1059,16 @@ function Write-DependencyMatrix {
             packaged_runtime_behavior = if ($isFullProfile) { "Full profile bundles ansys-mechanical-core and fails the build when missing." } else { "PyMechanical is bundled only when present in the build environment." }
             packaging_policy = if ($isFullProfile) { "Full profile required dependency; missing install fails the build." } else { "Optional include; bundled only if present in build environment." }
             operator_action = if ($isFullProfile) { "Install the all/dev dependency stack before running a full-profile package build." } else { "Install the ansys extra before packaging when PyMechanical workflows are required." }
+        },
+        [PSCustomObject]@{
+            package_profile = $Profile
+            dependency_group = "ansys"
+            dependency = "ansys-workbench-core"
+            build_env_installed = $Availability.ansys_workbench_core
+            source_runtime_behavior = "PyWorkbench retains native Workbench project ownership for Mechanical catalogue runs."
+            packaged_runtime_behavior = if ($isFullProfile) { "Full profile bundles ansys-workbench-core and fails the build when missing." } else { "PyWorkbench is bundled only when present in the build environment." }
+            packaging_policy = if ($isFullProfile) { "Full profile required dependency; missing install fails the build." } else { "Optional include; bundled only if present in build environment." }
+            operator_action = if ($isFullProfile) { "Install the all/dev dependency stack before running a full-profile package build." } else { "Install the ansys extra before packaging when Workbench workflows are required." }
         },
         [PSCustomObject]@{
             package_profile = $Profile
