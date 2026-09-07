@@ -1170,7 +1170,7 @@ def test_content_fullscreen_overlay_exposes_viewer_viewport_placeholder_contract
     with _shell_lifecycle_context() as app:
         window = _create_window(app, _build_window_via_constructor)
 
-        node_id = window.scene.add_node_from_type("dpf.viewer", x=120.0, y=80.0)
+        node_id = window.scene.add_node_from_type("model.viewer", x=120.0, y=80.0)
         _flush_shell_qt_events(app)
 
         bridge = _shell_runtime(window).content_fullscreen_bridge

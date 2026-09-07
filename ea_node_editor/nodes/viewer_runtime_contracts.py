@@ -1,15 +1,12 @@
 # Purpose: Dependency-light viewer command ports used by executable viewer nodes.
 # Map: feature_routes/viewer_session_overlay_fullscreen.md
-# Tests: tests/test_dpf_viewer_node.py
+# Tests: tests/test_engineering_viewer_node.py
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 from ea_node_editor.runtime_contracts import default_viewer_session_id
-
-DPF_EXECUTION_VIEWER_BACKEND_ID = "dpf_embedded"
-
 
 @dataclass(frozen=True)
 class OpenViewerSessionCommand:
@@ -83,7 +80,6 @@ def viewer_session_error(event: object) -> str:
 
 
 __all__ = [
-    "DPF_EXECUTION_VIEWER_BACKEND_ID",
     "MaterializeViewerDataCommand",
     "OpenViewerSessionCommand",
     "UpdateViewerSessionCommand",

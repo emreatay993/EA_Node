@@ -81,7 +81,7 @@ from ea_node_editor.runtime_contracts import (
     RuntimeHandleRef,
     TypedInlineValue,
 )
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 _CONVERTED_TYPE_IDS = (
     "fea.force",
@@ -121,7 +121,7 @@ def test_fem_function_declarations_match_golden() -> None:
     )
     expected = {
         row["spec"]["type_id"]: row["spec"]
-        for row in load_effective_non_dpf_catalog()
+        for row in load_current_repo_owned_catalog()
         if row["spec"]["type_id"] in _CONVERTED_TYPE_IDS
     }
     assert tuple(declaration.spec.type_id for declaration in declarations) == (

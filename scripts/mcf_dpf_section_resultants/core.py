@@ -1,5 +1,5 @@
 # Purpose: Core config, parsing, math, and unit helpers for the MCF DPF section resultants tool.
-# Map: feature_routes/ansys_dpf_operator_viewer_transport
+# Map: subsystems/packaging_generated_assets
 # Tests: tests/test_mcf_dpf_section_resultants_gui.py
 # Landmarks: SectionConfig; StaticAnimationSession; fit_geometry_following_frame; resolve_static_result_set_ids
 """Shared data, constants, and pure helpers for section resultant extraction."""

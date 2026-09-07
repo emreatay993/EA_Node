@@ -1,4 +1,4 @@
-# Purpose: Define node, port, property, and DPF pin metadata records.
+# Purpose: Define node, port, and property metadata records.
 # Map: subsystems/nodes_registry_builtins.md
 # Tests: tests/test_registry_validation.py
 
@@ -62,23 +62,9 @@ SurfaceFamily = Literal[
     "jupyter",
 ]
 RenderQualityTier = Literal["full", "reduced", "proxy"]
-DpfPinDirection = Literal["input", "output"]
-DpfPinValueOrigin = Literal["port", "property"]
-DpfPinPresence = Literal["required", "optional"]
-DpfPinOmissionSemantics = Literal["disallowed", "skip", "operator_default"]
-DpfCallableKind = Literal["constructor", "factory", "mutator"]
-DpfCallableBindingKind = Literal["parameter", "receiver", "return_value"]
-DpfNodeStability = Literal["", "core", "advanced", "raw"]
 DynamicPortRenameMode = Literal["none", "label", "key"]
 
 _SUPPORTED_RENDER_QUALITY_TIERS = {"full", "reduced", "proxy"}
-_SUPPORTED_DPF_PIN_DIRECTIONS = {"input", "output"}
-_SUPPORTED_DPF_PIN_VALUE_ORIGINS = {"port", "property"}
-_SUPPORTED_DPF_PIN_PRESENCE = {"required", "optional"}
-_SUPPORTED_DPF_PIN_OMISSION_SEMANTICS = {"disallowed", "skip", "operator_default"}
-_SUPPORTED_DPF_CALLABLE_KINDS = {"constructor", "factory", "mutator"}
-_SUPPORTED_DPF_CALLABLE_BINDING_KINDS = {"parameter", "receiver", "return_value"}
-_SUPPORTED_DPF_NODE_STABILITY = {"", "core", "advanced", "raw"}
 def _normalize_render_quality_token(
     field_name: str,
     value: object,
@@ -168,275 +154,6 @@ def _normalize_string_tuple(
     return tuple(normalized)
 
 
-def _normalize_dpf_node_stability(field_name: str, value: object) -> str:
-    normalized = _normalize_trimmed_string(field_name, value, allow_empty=True)
-    if normalized not in _SUPPORTED_DPF_NODE_STABILITY:
-        raise ValueError(f"{field_name} has invalid value: {normalized}")
-    return normalized
-
-
-@dataclass(slots=True, frozen=True)
-class DpfOperatorSelectorCondition:
-    property_key: str
-    values: tuple[str, ...]
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "property_key",
-            _normalize_trimmed_string("dpf selector property_key", self.property_key),
-        )
-        object.__setattr__(
-            self,
-            "values",
-            _normalize_string_tuple("dpf selector values", self.values),
-        )
-
-
-@dataclass(slots=True, frozen=True)
-class DpfOperatorVariantSpec:
-    key: str
-    operator_name: str = ""
-    operator_name_template: str = ""
-    selector_conditions: tuple[DpfOperatorSelectorCondition, ...] = ()
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "key",
-            _normalize_trimmed_string("dpf operator variant key", self.key),
-        )
-        operator_name = _normalize_trimmed_string(
-            "dpf operator variant operator_name",
-            self.operator_name,
-            allow_empty=True,
-        )
-        operator_name_template = _normalize_trimmed_string(
-            "dpf operator variant operator_name_template",
-            self.operator_name_template,
-            allow_empty=True,
-        )
-        if bool(operator_name) == bool(operator_name_template):
-            raise ValueError(
-                "dpf operator variants must define exactly one of operator_name or operator_name_template"
-            )
-        object.__setattr__(self, "operator_name", operator_name)
-        object.__setattr__(self, "operator_name_template", operator_name_template)
-        if not isinstance(self.selector_conditions, tuple):
-            raise TypeError("dpf operator variant selector_conditions must be a tuple")
-        for index, condition in enumerate(self.selector_conditions):
-            if not isinstance(condition, DpfOperatorSelectorCondition):
-                raise TypeError(
-                    f"dpf operator variant selector_conditions[{index}] must be DpfOperatorSelectorCondition"
-                )
-
-
-@dataclass(slots=True, frozen=True)
-class DpfOperatorSourceSpec:
-    backend: str = "ansys.dpf.core"
-    variants: tuple[DpfOperatorVariantSpec, ...] = ()
-    source_path: str = ""
-    family_path: tuple[str, ...] = ()
-    stability: DpfNodeStability = ""
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "backend",
-            _normalize_trimmed_string("dpf operator backend", self.backend),
-        )
-        if not isinstance(self.variants, tuple):
-            raise TypeError("dpf operator variants must be a tuple")
-        if not self.variants:
-            raise ValueError("dpf operator variants must contain at least one variant")
-        variant_keys: set[str] = set()
-        for index, variant in enumerate(self.variants):
-            if not isinstance(variant, DpfOperatorVariantSpec):
-                raise TypeError(f"dpf operator variants[{index}] must be DpfOperatorVariantSpec")
-            if variant.key in variant_keys:
-                raise ValueError(f"dpf operator variants must not reuse the key {variant.key!r}")
-            variant_keys.add(variant.key)
-        object.__setattr__(
-            self,
-            "source_path",
-            _normalize_trimmed_string("dpf operator source_path", self.source_path, allow_empty=True),
-        )
-        object.__setattr__(
-            self,
-            "family_path",
-            _normalize_string_tuple("dpf operator family_path", self.family_path, allow_empty=True),
-        )
-        object.__setattr__(
-            self,
-            "stability",
-            _normalize_dpf_node_stability("dpf operator stability", self.stability),
-        )
-
-    @property
-    def variant_keys(self) -> tuple[str, ...]:
-        return tuple(variant.key for variant in self.variants)
-
-
-@dataclass(slots=True, frozen=True)
-class DpfCallableSourceSpec:
-    callable_name: str
-    callable_kind: DpfCallableKind
-    backend: str = "ansys.dpf.core"
-    source_path: str = ""
-    family_path: tuple[str, ...] = ()
-    stability: DpfNodeStability = ""
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "backend",
-            _normalize_trimmed_string("dpf callable backend", self.backend),
-        )
-        object.__setattr__(
-            self,
-            "callable_name",
-            _normalize_trimmed_string("dpf callable callable_name", self.callable_name),
-        )
-        if self.callable_kind not in _SUPPORTED_DPF_CALLABLE_KINDS:
-            raise ValueError(f"dpf callable callable_kind has invalid value: {self.callable_kind}")
-        object.__setattr__(
-            self,
-            "source_path",
-            _normalize_trimmed_string("dpf callable source_path", self.source_path, allow_empty=True),
-        )
-        object.__setattr__(
-            self,
-            "family_path",
-            _normalize_string_tuple("dpf callable family_path", self.family_path, allow_empty=True),
-        )
-        object.__setattr__(
-            self,
-            "stability",
-            _normalize_dpf_node_stability("dpf callable stability", self.stability),
-        )
-
-
-@dataclass(slots=True, frozen=True)
-class DpfCallableBindingSpec:
-    binding_kind: DpfCallableBindingKind
-    binding_name: str = ""
-
-    def __post_init__(self) -> None:
-        if self.binding_kind not in _SUPPORTED_DPF_CALLABLE_BINDING_KINDS:
-            raise ValueError(f"dpf callable binding_kind has invalid value: {self.binding_kind}")
-        object.__setattr__(
-            self,
-            "binding_name",
-            _normalize_trimmed_string(
-                "dpf callable binding_name",
-                self.binding_name,
-                allow_empty=True,
-            ),
-        )
-        if self.binding_kind == "parameter" and not self.binding_name:
-            raise ValueError("dpf callable parameter bindings must declare a binding_name")
-
-
-@dataclass(slots=True, frozen=True)
-class DpfPinSourceSpec:
-    pin_name: str
-    pin_direction: DpfPinDirection
-    value_origin: DpfPinValueOrigin
-    value_key: str
-    data_type: str
-    presence: DpfPinPresence = "optional"
-    omission_semantics: DpfPinOmissionSemantics = "skip"
-    exclusive_group: str = ""
-    variant_keys: tuple[str, ...] = ()
-    accepted_data_types: tuple[str, ...] = ()
-    callable_binding: DpfCallableBindingSpec | None = None
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "pin_name",
-            _normalize_trimmed_string("dpf pin_name", self.pin_name),
-        )
-        object.__setattr__(
-            self,
-            "value_key",
-            _normalize_trimmed_string("dpf value_key", self.value_key),
-        )
-        object.__setattr__(
-            self,
-            "data_type",
-            _normalize_trimmed_string("dpf data_type", self.data_type),
-        )
-        object.__setattr__(
-            self,
-            "exclusive_group",
-            _normalize_trimmed_string(
-                "dpf exclusive_group",
-                self.exclusive_group,
-                allow_empty=True,
-            ),
-        )
-        if self.pin_direction not in _SUPPORTED_DPF_PIN_DIRECTIONS:
-            raise ValueError(f"dpf pin_direction has invalid value: {self.pin_direction}")
-        if self.value_origin not in _SUPPORTED_DPF_PIN_VALUE_ORIGINS:
-            raise ValueError(f"dpf value_origin has invalid value: {self.value_origin}")
-        if self.presence not in _SUPPORTED_DPF_PIN_PRESENCE:
-            raise ValueError(f"dpf presence has invalid value: {self.presence}")
-        if self.omission_semantics not in _SUPPORTED_DPF_PIN_OMISSION_SEMANTICS:
-            raise ValueError(
-                f"dpf omission_semantics has invalid value: {self.omission_semantics}"
-            )
-        if self.presence == "required" and self.omission_semantics != "disallowed":
-            raise ValueError(
-                "required dpf input bindings must use disallowed omission semantics"
-            )
-        if self.pin_direction == "output" and self.value_origin != "port":
-            raise ValueError("dpf output bindings must originate from a port")
-        object.__setattr__(
-            self,
-            "variant_keys",
-            _normalize_string_tuple(
-                "dpf variant_keys",
-                self.variant_keys,
-                allow_empty=True,
-            ),
-        )
-        object.__setattr__(
-            self,
-            "accepted_data_types",
-            _normalize_string_tuple(
-                "dpf accepted_data_types",
-                self.accepted_data_types,
-                allow_empty=True,
-            ),
-        )
-        if self.callable_binding is not None and not isinstance(
-            self.callable_binding,
-            DpfCallableBindingSpec,
-        ):
-            raise TypeError("dpf callable_binding must be DpfCallableBindingSpec or None")
-
-
-def _coerce_dpf_node_source_metadata(
-    value: DpfOperatorSourceSpec | DpfCallableSourceSpec | None,
-    *,
-    field_name: str,
-) -> DpfOperatorSourceSpec | DpfCallableSourceSpec | None:
-    if value is None or isinstance(value, (DpfOperatorSourceSpec, DpfCallableSourceSpec)):
-        return value
-    raise TypeError(f"{field_name} must be a DpfOperatorSourceSpec, DpfCallableSourceSpec, or None")
-
-
-def _coerce_dpf_pin_source_metadata(
-    value: DpfPinSourceSpec | None,
-    *,
-    field_name: str,
-) -> DpfPinSourceSpec | None:
-    if value is None or isinstance(value, DpfPinSourceSpec):
-        return value
-    raise TypeError(f"{field_name} must be a DpfPinSourceSpec or None")
-
-
 @dataclass(slots=True, frozen=True)
 class PropertyConditionSpec:
     property_key: str
@@ -464,7 +181,6 @@ class PortSpec:
     allow_multiple_connections: bool = False
     allow_empty_string: bool = False
     side: PortSide = ""
-    source_metadata: DpfPinSourceSpec | None = None
     accepted_data_types: tuple[str, ...] = ()
     display_tier: PortDisplayTier = ""
     description: str = ""
@@ -480,14 +196,6 @@ class PortSpec:
                 "PortSpec.description",
                 self.description,
                 allow_empty=True,
-            ),
-        )
-        object.__setattr__(
-            self,
-            "source_metadata",
-            _coerce_dpf_pin_source_metadata(
-                self.source_metadata,
-                field_name="PortSpec.source_metadata",
             ),
         )
         object.__setattr__(
@@ -532,7 +240,6 @@ class PropertySpec:
     inline_editor: InlineEditorType = ""
     inspector_editor: InspectorEditorType = ""
     inspector_visible: bool = True
-    source_metadata: DpfPinSourceSpec | None = None
     group: str = ""
     file_filter: str = ""
     enabled_when: PropertyConditionSpec | None = None
@@ -558,14 +265,6 @@ class PropertySpec:
                 "PropertySpec.description",
                 self.description,
                 allow_empty=True,
-            ),
-        )
-        object.__setattr__(
-            self,
-            "source_metadata",
-            _coerce_dpf_pin_source_metadata(
-                self.source_metadata,
-                field_name="PropertySpec.source_metadata",
             ),
         )
         object.__setattr__(
@@ -653,7 +352,6 @@ class NodeTypeSpec:
     surface_family: SurfaceFamily = "standard"
     surface_variant: str = ""
     render_quality: NodeRenderQualitySpec = field(default_factory=NodeRenderQualitySpec)
-    source_metadata: DpfOperatorSourceSpec | DpfCallableSourceSpec | None = None
     # Opt-in title-icon override for passive nodes.
     #
     # By default, passive nodes suppress the header icon (see
@@ -705,14 +403,6 @@ class NodeTypeSpec:
             "render_quality",
             NodeRenderQualitySpec.from_value(self.render_quality),
         )
-        object.__setattr__(
-            self,
-            "source_metadata",
-            _coerce_dpf_node_source_metadata(
-                self.source_metadata,
-                field_name="NodeTypeSpec.source_metadata",
-            ),
-        )
 
     @property
     def category(self) -> str:
@@ -753,19 +443,6 @@ __all__ = [
     "DataAccess",
     "DynamicPortGroupSpec",
     "DynamicPortRenameMode",
-    "DpfCallableBindingKind",
-    "DpfCallableBindingSpec",
-    "DpfCallableKind",
-    "DpfCallableSourceSpec",
-    "DpfNodeStability",
-    "DpfOperatorSelectorCondition",
-    "DpfOperatorSourceSpec",
-    "DpfOperatorVariantSpec",
-    "DpfPinDirection",
-    "DpfPinOmissionSemantics",
-    "DpfPinPresence",
-    "DpfPinSourceSpec",
-    "DpfPinValueOrigin",
     "InlineEditorType",
     "InspectorEditorType",
     "NodeRenderQualitySpec",

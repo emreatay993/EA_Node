@@ -636,27 +636,27 @@ class ShellLibraryBridgeTests(unittest.TestCase):
 
     def test_bridge_nested_category_library_payload_preserves_row_and_quick_insert_metadata(self) -> None:
         host = _ShellLibraryHostStub()
-        root_key = category_key(("Ansys DPF",))
-        compute_key = category_key(("Ansys DPF", "Compute"))
+        root_key = category_key(("Engineering Analysis",))
+        compute_key = category_key(("Engineering Analysis", "Compute"))
         host.grouped_node_library_items = [
             {
                 "kind": "category",
-                "category": "Ansys DPF",
-                "category_display": "Ansys DPF",
-                "category_path": ("Ansys DPF",),
+                "category": "Engineering Analysis",
+                "category_display": "Engineering Analysis",
+                "category_path": ("Engineering Analysis",),
                 "category_key": root_key,
-                "root_category": "Ansys DPF",
-                "label": "Ansys DPF",
+                "root_category": "Engineering Analysis",
+                "label": "Engineering Analysis",
                 "depth": 0,
                 "ancestor_category_keys": [],
             },
             {
                 "kind": "category",
-                "category": "Ansys DPF > Compute",
-                "category_display": "Ansys DPF > Compute",
-                "category_path": ("Ansys DPF", "Compute"),
+                "category": "Engineering Analysis > Compute",
+                "category_display": "Engineering Analysis > Compute",
+                "category_path": ("Engineering Analysis", "Compute"),
                 "category_key": compute_key,
-                "root_category": "Ansys DPF",
+                "root_category": "Engineering Analysis",
                 "label": "Compute",
                 "depth": 1,
                 "ancestor_category_keys": [root_key],
@@ -665,11 +665,11 @@ class ShellLibraryBridgeTests(unittest.TestCase):
                 "kind": "node",
                 "type_id": "fixture.compute",
                 "display_name": "Compute Node",
-                "category": "Ansys DPF > Compute",
-                "category_display": "Ansys DPF > Compute",
-                "category_path": ("Ansys DPF", "Compute"),
+                "category": "Engineering Analysis > Compute",
+                "category_display": "Engineering Analysis > Compute",
+                "category_path": ("Engineering Analysis", "Compute"),
                 "category_key": compute_key,
-                "root_category": "Ansys DPF",
+                "root_category": "Engineering Analysis",
                 "depth": 2,
                 "ancestor_category_keys": [root_key, compute_key],
             },
@@ -678,11 +678,11 @@ class ShellLibraryBridgeTests(unittest.TestCase):
             {
                 "type_id": "fixture.compute",
                 "display_name": "Compute Node",
-                "category": "Ansys DPF > Compute",
-                "category_display": "Ansys DPF > Compute",
-                "category_path": ("Ansys DPF", "Compute"),
+                "category": "Engineering Analysis > Compute",
+                "category_display": "Engineering Analysis > Compute",
+                "category_path": ("Engineering Analysis", "Compute"),
                 "category_key": compute_key,
-                "root_category": "Ansys DPF",
+                "root_category": "Engineering Analysis",
             }
         ]
         host.passive_node_library_display_mode = "icon"
@@ -690,11 +690,11 @@ class ShellLibraryBridgeTests(unittest.TestCase):
             host.grouped_node_library_items[0],
             {
                 "kind": "passive_icon_grid",
-                "category": "Ansys DPF > Compute",
-                "category_display": "Ansys DPF > Compute",
-                "category_path": ("Ansys DPF", "Compute"),
+                "category": "Engineering Analysis > Compute",
+                "category_display": "Engineering Analysis > Compute",
+                "category_path": ("Engineering Analysis", "Compute"),
                 "category_key": compute_key,
-                "root_category": "Ansys DPF",
+                "root_category": "Engineering Analysis",
                 "depth": 2,
                 "ancestor_category_keys": [root_key, compute_key],
                 "items": [
@@ -718,7 +718,7 @@ class ShellLibraryBridgeTests(unittest.TestCase):
         )
         self.assertEqual(
             bridge.connection_quick_insert_results[0]["category"],
-            "Ansys DPF > Compute",
+            "Engineering Analysis > Compute",
         )
         self.assertEqual(
             bridge.connection_quick_insert_results[0]["category_key"],

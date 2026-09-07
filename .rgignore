@@ -5,7 +5,6 @@
 web/
 
 # Large reference and planning document trees; keep compact spec entry points searchable.
-docs/dpf_operator_docs/
 docs/specs/work_packets/
 docs/specs/perf/
 docs/Benchmark_Programs/

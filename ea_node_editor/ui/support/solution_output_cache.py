@@ -124,7 +124,6 @@ def cache_accepted_output_record(
     event: Mapping[str, Any],
     outputs: Mapping[str, Any],
     catalog: Any,
-    dpf_workflow_summary: Mapping[str, Any] | None = None,
 ) -> bool:
     workspace_key = str(workspace_id or "").strip()
     node_key = str(node_id or "").strip()
@@ -171,8 +170,6 @@ def cache_accepted_output_record(
         "payload_bytes": payload_bytes,
         "cache_sequence": sequence,
     }
-    if dpf_workflow_summary is not None:
-        record["dpf_workflow_summary"] = dict(dpf_workflow_summary)
     records = run_state.cached_node_output_records_by_workspace_id.setdefault(
         workspace_key, {}
     ).setdefault(node_key, {})

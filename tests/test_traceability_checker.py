@@ -107,899 +107,89 @@ PROJECT_MANAGED_FILES_QA_MATRIX_TOKENS = (
 CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md"
 )
-CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P01_COMMAND = (
-    "./venv/Scripts/python.exe -m pytest "
-    "tests/test_execution_viewer_protocol.py tests/test_client_common.py "
-    "tests/test_process_client.py tests/test_external_python_client.py "
-    "tests/test_trusted_client.py tests/test_backend_client.py "
-    "tests/test_execution_viewer_service.py tests/test_execution_worker.py "
-    "tests/test_dpf_viewer_node.py --ignore=venv -q"
-)
-CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P02_SERVICE_COMMAND = (
-    "./venv/Scripts/python.exe -m pytest "
-    "tests/test_execution_viewer_service.py tests/test_execution_worker.py "
-    "tests/test_dpf_viewer_node.py --ignore=venv -q"
-)
-CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P02_MATERIALIZATION_COMMAND = (
-    "./venv/Scripts/python.exe -m pytest "
-    "tests/test_dpf_runtime_service.py tests/test_dpf_materialization.py "
-    "--ignore=venv -q"
-)
-CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P03_COMMAND = (
-    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
-    "tests/test_embedded_viewer_overlay_manager.py tests/test_viewer_host_service.py "
-    "--ignore=venv -q"
-)
-CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P04_COMMAND = (
-    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
-    "tests/test_embedded_viewer_overlay_manager.py tests/test_viewer_host_service.py "
-    "tests/test_dpf_viewer_widget_binder.py --ignore=venv -q"
-)
-CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P05_BRIDGE_COMMAND = (
-    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
-    "tests/test_viewer_session_bridge.py tests/test_shell_run_controller.py "
-    "tests/test_project_session_controller_unit.py tests/test_shell_project_session_controller.py "
-    "--ignore=venv -q"
-)
-CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P05_SURFACE_COMMAND = (
-    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
-    "tests/test_viewer_surface_contract.py tests/test_viewer_surface_host.py "
-    "--ignore=venv -q"
-)
-CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_TEST_COMMAND = (
-    "./venv/Scripts/python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
-)
-CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_COMMAND = (
-    "./venv/Scripts/python.exe scripts/check_traceability.py"
-)
-
 CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
     "docs/specs/requirements/10_ARCHITECTURE.md": {
-        "REQ-ARCH-016": (
-            "registry-driven",
-            "backend_id",
-            "ViewerHostService",
-            "ViewerWidgetBinderRegistry",
-            "EmbeddedViewerOverlayManager",
-        ),
-        "AC-REQ-ARCH-016-01": (
-            "worker-side DPF authority",
-            "backend and binder seams",
-            "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-        ),
+        "REQ-ARCH-016": ("registry-driven", "ViewerHostService", "native scene objects"),
+        "AC-REQ-ARCH-016-01": ("worker-side scene authority", "engineering-backend"),
     },
     "docs/specs/requirements/20_UI_UX.md": {
-        "REQ-UI-032": (
-            "viewerSessionBridge",
-            "ViewerHostService",
-            "backend_id",
-            "transport_revision",
-            "rerun_required",
-        ),
-        "AC-REQ-UI-032-01": (
-            "explicit activation",
-            "presentation holds",
-            "rerun_required",
-            "widget cleanup and rebinding",
-        ),
+        "REQ-UI-032": ("model.viewer", "viewerSessionBridge", "rerun_required"),
     },
     "docs/specs/requirements/45_NODE_EXECUTION_MODEL.md": {
-        "REQ-NODE-026": ("session-owned", "output_mode=memory", "temp transport bundle", "rerun-required"),
-        "AC-REQ-NODE-026-01": (
-            "output_mode=memory",
-            "rerun-required reopen blocking",
-            "post-rerun restoration",
-        ),
+        "REQ-NODE-026": ("model.viewer", "ViewerSessionService", "rerun-required"),
     },
     "docs/specs/requirements/50_EXECUTION_ENGINE.md": {
-        "REQ-EXEC-013": (
-            "ViewerBackendRegistry",
-            "ViewerSessionService",
-            "backend_id",
-            "transport_revision",
-            "live_open_status",
-            "live_open_blocker",
-        ),
-        "AC-REQ-EXEC-013-01": (
-            "temp-bundle reuse and cleanup",
-            "rerun-required blocker projection",
-            "queue-safe viewer payloads",
-        ),
+        "REQ-EXEC-013": ("engineering backend", "queue-safe viewer protocol payloads"),
     },
     "docs/specs/requirements/60_PERSISTENCE.md": {
-        "REQ-PERSIST-020": (".cxproj", "temp transport bundles", "transport revisions", "serialized project artifacts"),
-        "AC-REQ-PERSIST-020-01": (
-            "rerun-required projection",
-            "temp bundles",
-            "dene3.cxproj",
-            "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-        ),
-    },
-    "docs/specs/requirements/70_INTEGRATIONS.md": {
-        "REQ-INT-008": ("ansys-dpf-core", "pyvistaqt", "dpf.viewer", "dpf_embedded"),
-        "AC-REQ-INT-008-01": ("viewer-backend", "binder", "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md"),
+        "REQ-PERSIST-020": (".cxproj", "session-scoped transport bundles"),
     },
     "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
-        "REQ-QA-023": (
-            "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK",
-            "ViewerHostService",
-            "rerun-required reopen behavior",
-            "traceability coverage",
-        ),
-        "REQ-QA-024": (
-            "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-            "dene3.cxproj",
-            "desktop-only validation",
-            "traceability gate",
-        ),
-        "AC-REQ-QA-023-01": (
-            "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-            CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_TEST_COMMAND,
-            CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_COMMAND,
-        ),
-        "AC-REQ-QA-024-01": (
-            CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_TEST_COMMAND,
-            CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_COMMAND,
-            "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-        ),
+        "REQ-QA-023": ("engineering scene transport", "model.viewer"),
     },
 }
-
 CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
-    "REQ-ARCH-016": (
-        "viewer_backend.py",
-        "viewer_session_backend.py",
-        "viewer_host_service.py",
-        "viewer_widget_binder.py",
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "AC-REQ-ARCH-016-01": (
-        "test_execution_viewer_protocol.py",
-        "test_viewer_host_service.py",
-        "test_dpf_viewer_widget_binder.py",
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "REQ-UI-032": (
-        "viewer_session_bridge.py",
-        "viewer_host_service.py",
-        "dpf_viewer_widget_binder.py",
-        "GraphViewerSurface.qml",
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "AC-REQ-UI-032-01": (
-        "test_viewer_surface_contract.py",
-        "test_viewer_surface_host.py",
-        "test_dpf_viewer_widget_binder.py",
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "REQ-NODE-026": (
-        "viewer_session_service.py",
-        "project_session_services.py",
-        "run_controller.py",
-        "GraphViewerSurface.qml",
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "AC-REQ-NODE-026-01": (
-        "test_execution_worker.py",
-        "test_shell_run_controller.py",
-        "test_project_session_controller_unit.py",
-        "test_shell_project_session_controller.py",
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "REQ-EXEC-013": (
-        "viewer_backend.py",
-        "materialization.py",
-        "viewer_session_backend.py",
-        "test_execution_viewer_protocol.py",
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "AC-REQ-EXEC-013-01": (
-        "test_execution_viewer_service.py",
-        "test_execution_worker.py",
-        "test_dpf_materialization.py",
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "REQ-PERSIST-020": (
-        "project_session_services.py",
-        "viewer_session_backend.py",
-        "fixture_paths.py",
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "AC-REQ-PERSIST-020-01": (
-        "test_project_session_controller_unit.py",
-        "test_shell_project_session_controller.py",
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "REQ-INT-008": (
-        "ansys_dpf.py",
-        "ansys_dpf_viewer_adapter.py",
-        "dpf_viewer_widget_binder.py",
-        "ea_node_editor.spec",
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "AC-REQ-INT-008-01": (
-        "test_dpf_compute_nodes.py",
-        "test_dpf_viewer_widget_binder.py",
-        "test_packaging_configuration.py",
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "REQ-QA-023": (
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-        "test_execution_viewer_protocol.py",
-        "test_dpf_materialization.py",
-        "test_viewer_host_service.py",
-        "test_shell_project_session_controller.py",
-    ),
-    "REQ-QA-024": (
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-        "tests/test_traceability_checker.py",
-        "scripts/check_traceability.py",
-    ),
-    "AC-REQ-QA-023-01": (
-        CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P01_COMMAND,
-        CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P04_COMMAND,
-        CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P05_BRIDGE_COMMAND,
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
-    "AC-REQ-QA-024-01": (
-        CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_TEST_COMMAND,
-        CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_COMMAND,
-        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
-    ),
+    "REQ-ARCH-016": ("viewer_backend_engineering.py", "engineering_viewer_widget_binder.py"),
+    "REQ-UI-032": ("engineering_viewer_widget_binder.py", "GraphViewerSurface.qml"),
+    "REQ-NODE-026": ("viewer_session_service.py", "GraphViewerSurface.qml"),
+    "REQ-EXEC-013": ("viewer_backend_engineering.py", "test_execution_viewer_protocol.py"),
+    "REQ-PERSIST-020": ("project_session_services.py", "viewer_backend_engineering.py"),
+    "REQ-QA-023": ("test_engineering_viewer_backend.py", "test_engineering_viewer_widget_binder.py"),
 }
-
 CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX_TOKENS = (
     "Cross-Process Viewer Backend Framework QA Matrix",
     "## Locked Scope",
-    "backend_id",
+    "model.viewer",
     "ViewerHostService",
     "ViewerWidgetBinderRegistry",
-    "dpf_embedded",
-    "output_mode=memory",
-    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P01_COMMAND,
-    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P02_SERVICE_COMMAND,
-    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P02_MATERIALIZATION_COMMAND,
-    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P03_COMMAND,
-    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P04_COMMAND,
-    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P05_BRIDGE_COMMAND,
-    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P05_SURFACE_COMMAND,
-    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_TEST_COMMAND,
-    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_COMMAND,
-    "dene3.cxproj",
-    "rerun-required blocker",
-    "transport_revision",
-    "## Residual Desktop-Only Validation",
-)
-
-DPF_OPERATOR_PLUGIN_BACKEND_REVIEW = (
-    REPO_ROOT / "docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md"
-)
-DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX = (
-    REPO_ROOT / "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md"
-)
-DPF_OPERATOR_PLUGIN_BACKEND_P01_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_plugin_loader.py "
-    r"tests/test_dpf_node_catalog.py --ignore=venv -q"
-)
-DPF_OPERATOR_PLUGIN_BACKEND_P02_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_node_catalog.py "
-    r"tests/test_registry_validation.py tests/test_library_projection.py --ignore=venv -q"
-)
-DPF_OPERATOR_PLUGIN_BACKEND_P03_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_compute_nodes.py "
-    r"tests/test_dpf_runtime_service.py tests/test_passive_runtime_wiring.py "
-    r"tests/test_execution_worker.py --ignore=venv -q"
-)
-DPF_OPERATOR_PLUGIN_BACKEND_P04_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_serializer.py "
-    r"tests/test_serializer_schema_migration.py "
-    r"tests/test_graph_scene_bridge_bind_regression.py "
-    r"tests/test_graph_surface_input_contract.py --ignore=venv -q"
-)
-DPF_OPERATOR_PLUGIN_BACKEND_CLOSEOUT_PYTEST_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py "
-    r"tests/test_markdown_hygiene.py --ignore=venv -q"
-)
-DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_COMMAND = (
-    r".\venv\Scripts\python.exe scripts/check_traceability.py"
-)
-DPF_OPERATOR_PLUGIN_BACKEND_MARKDOWN_COMMAND = (
-    r".\venv\Scripts\python.exe scripts/check_markdown_links.py"
-)
-
-DPF_OPERATOR_PLUGIN_BACKEND_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
-    "README.md": (
-        "DPF operator backend review",
-        "DPF operator backend QA matrix",
-        "ansys-dpf-core",
-        "locked unavailable-add-on projections",
-    ),
-    "ARCHITECTURE.md": (
-        "## DPF operator backend preparation",
-        "`ansys-dpf-core` remains optional",
-        "DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
-        "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-        "locked unavailable-add-on projections",
-    ),
-    "docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md": (
-        "## Delivered Backend Contract",
-        "## Explicit Deferrals For Later Operator Rollout",
-        "plugin_loader.py",
-        "ansys_dpf_catalog.py",
-        "graph_scene_payload_builder.py",
-        "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-        "Non-operator `ansys.dpf.core` reflection",
-    ),
-}
-
-DPF_OPERATOR_PLUGIN_BACKEND_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
-    "docs/specs/requirements/70_INTEGRATIONS.md": {
-        "REQ-INT-009": (
-            "ansys-dpf-core",
-            "register shipped DPF descriptors",
-            "normalize operator metadata",
-            "generic DPF runtime adapter",
-            "locked unavailable-add-on surfaces",
-            "non-operator `ansys.dpf.core` reflection",
-        ),
-        "AC-REQ-INT-009-01": (
-            "DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
-            "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-            "plugin-loader",
-            "locked unavailable-add-on projection",
-        ),
-    },
-    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
-        "REQ-QA-035": (
-            "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR",
-            "optional plugin lifecycle",
-            "operator metadata and generated ports",
-            "generic operator-backed runtime invocation",
-            "unavailable-backend node projection",
-        ),
-        "REQ-QA-036": (
-            "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-            "`P01` through `P04`",
-            "traceability, markdown-hygiene, and markdown-link",
-            "manual DPF availability or reopen smoke checks",
-            "later operator-rollout packet set",
-        ),
-        "AC-REQ-QA-035-01": (
-            DPF_OPERATOR_PLUGIN_BACKEND_P01_COMMAND,
-            DPF_OPERATOR_PLUGIN_BACKEND_P02_COMMAND,
-            DPF_OPERATOR_PLUGIN_BACKEND_P03_COMMAND,
-            DPF_OPERATOR_PLUGIN_BACKEND_P04_COMMAND,
-            "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-        ),
-        "AC-REQ-QA-036-01": (
-            DPF_OPERATOR_PLUGIN_BACKEND_CLOSEOUT_PYTEST_COMMAND,
-            DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_COMMAND,
-            DPF_OPERATOR_PLUGIN_BACKEND_MARKDOWN_COMMAND,
-            "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-        ),
-    },
-}
-
-DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
-    "REQ-INT-009": (
-        "registry_contributions.py",
-        "plugin_contracts.py",
-        "addons/ansys_dpf",
-        "catalog.py",
-        "operations.py",
-        "project_codec.py",
-        "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-    ),
-    "AC-REQ-INT-009-01": (
-        "tests/test_addon_registry_contributions.py",
-        "tests/test_plugin_loader.py",
-        "tests/test_dpf_node_catalog.py",
-        "tests/test_dpf_compute_nodes.py",
-        "tests/test_dpf_runtime_service.py",
-        "tests/test_serializer_schema_migration.py",
-        "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-    ),
-    "REQ-QA-035": (
-        "docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
-        "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-        "tests/test_plugin_loader.py",
-        "tests/test_dpf_node_catalog.py",
-        "tests/test_dpf_compute_nodes.py",
-        "tests/test_dpf_runtime_service.py",
-        "tests/test_serializer_schema_migration.py",
-        "scripts/check_traceability.py",
-    ),
-    "REQ-QA-036": (
-        "ARCHITECTURE.md",
-        "README.md",
-        "docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
-        "docs/specs/requirements/70_INTEGRATIONS.md",
-        "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-        "tests/test_traceability_checker.py",
-        "tests/test_markdown_hygiene.py",
-        "scripts/check_traceability.py",
-    ),
-    "AC-REQ-QA-035-01": (
-        DPF_OPERATOR_PLUGIN_BACKEND_P01_COMMAND,
-        DPF_OPERATOR_PLUGIN_BACKEND_P02_COMMAND,
-        DPF_OPERATOR_PLUGIN_BACKEND_P03_COMMAND,
-        DPF_OPERATOR_PLUGIN_BACKEND_P04_COMMAND,
-        "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-    ),
-    "AC-REQ-QA-036-01": (
-        DPF_OPERATOR_PLUGIN_BACKEND_CLOSEOUT_PYTEST_COMMAND,
-        DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_COMMAND,
-        DPF_OPERATOR_PLUGIN_BACKEND_MARKDOWN_COMMAND,
-        "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-    ),
-}
-
-DPF_OPERATOR_PLUGIN_BACKEND_QA_MATRIX_TOKENS = (
-    "DPF Operator Plugin Backend Refactor QA Matrix",
-    "## Locked Scope",
-    "## Retained Automated Verification",
-    "## Final Closeout Commands",
-    "## 2026-04-12 Execution Results",
-    "## Retained Manual Evidence",
-    "## Residual Risks",
-    "ansys-dpf-core",
-    "generated-port semantics",
-    "read-only missing-plugin placeholders",
-    "tests/ansys_dpf_core/example_outputs/",
-    "ElementalNodal",
-    "P01_optional_dpf_plugin_lifecycle_WRAPUP.md",
-    "P04_missing_plugin_placeholder_portability_WRAPUP.md",
-    DPF_OPERATOR_PLUGIN_BACKEND_P01_COMMAND,
-    DPF_OPERATOR_PLUGIN_BACKEND_P02_COMMAND,
-    DPF_OPERATOR_PLUGIN_BACKEND_P03_COMMAND,
-    DPF_OPERATOR_PLUGIN_BACKEND_P04_COMMAND,
-    DPF_OPERATOR_PLUGIN_BACKEND_CLOSEOUT_PYTEST_COMMAND,
-    DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_COMMAND,
-    DPF_OPERATOR_PLUGIN_BACKEND_MARKDOWN_COMMAND,
-)
-
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX = (
-    REPO_ROOT / "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md"
-)
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P01_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py "
-    r"tests/test_dpf_node_catalog.py --ignore=venv -q"
-)
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P02_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_registry_validation.py "
-    r"tests/test_dpf_contracts.py --ignore=venv -q"
-)
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P03_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_library_taxonomy.py "
-    r"tests/test_dpf_node_catalog.py tests/test_library_projection.py "
-    r"--ignore=venv -q"
-)
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P04_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest "
-    r"tests/test_dpf_generated_operator_catalog.py tests/test_dpf_node_catalog.py "
-    r"--ignore=venv -q"
-)
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P05_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest "
-    r"tests/test_dpf_generated_helper_catalog.py tests/test_dpf_workflow_helpers.py "
-    r"--ignore=venv -q"
-)
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P06_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_materialization.py "
-    r"tests/test_dpf_runtime_service.py tests/test_serializer.py "
-    r"tests/test_serializer_schema_migration.py --ignore=venv -q"
-)
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_CLOSEOUT_PYTEST_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py "
-    r"tests/test_markdown_hygiene.py --ignore=venv -q"
-)
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_COMMAND = (
-    r".\venv\Scripts\python.exe scripts/check_traceability.py"
-)
-
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
-    "README.md": (
-        "workflow-first",
-        "Ansys DPF > Inputs",
-        "Ansys DPF > Helpers",
-        "Ansys DPF > Operators",
-        "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
-    ),
-    "ARCHITECTURE.md": (
-        "workflow-first and descriptor-driven",
-        "version-aware",
-        "Ansys DPF > Operators > <Family>",
-        "generic object handles",
-        "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
-    ),
-}
-
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
-    "docs/specs/requirements/70_INTEGRATIONS.md": {
-        "REQ-INT-008": (
-            '("Ansys DPF", "Inputs")',
-            '("Ansys DPF", "Workflow")',
-            '("Ansys DPF", "Helpers", ...)',
-            '("Ansys DPF", "Operators", ...)',
-            '("Ansys DPF", "Advanced", "Raw API Mirror")',
-        ),
-        "REQ-INT-009": (
-            "version-aware plugin lifecycle",
-            "generated operator and helper descriptors",
-            "generic object handles",
-            "locked unavailable-add-on surfaces",
-            "non-operator `ansys.dpf.core` reflection",
-        ),
-        "AC-REQ-INT-008-01": (
-            "generated operator and helper",
-            "Ansys DPF > Inputs",
-            "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
-        ),
-        "AC-REQ-INT-009-01": (
-            "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
-            "generated operator/helper",
-            "helper object-handle portability",
-            "locked unavailable-add-on projection",
-        ),
-    },
-    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
-        "REQ-QA-038": (
-            "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
-            "`P00` through `P06`",
-            "`P07` traceability and markdown-hygiene closeout commands",
-            "workflow-first `Ansys DPF` family taxonomy",
-            "version-aware plugin lifecycle evidence",
-            "`Ansys DPF > Advanced > Raw API Mirror` deferral",
-        ),
-        "AC-REQ-QA-038-01": (
-            ANSYS_DPF_FULL_PLUGIN_ROLLOUT_CLOSEOUT_PYTEST_COMMAND,
-            ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_COMMAND,
-            "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
-        ),
-    },
-}
-
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
-    "REQ-INT-008": (
-        "ansys_dpf_taxonomy.py",
-        "operator_catalog.py",
-        "helper_catalog.py",
-        "tests/test_dpf_library_taxonomy.py",
-        "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
-    ),
-    "AC-REQ-INT-008-01": (
-        "tests/test_dpf_generated_operator_catalog.py",
-        "tests/test_dpf_generated_helper_catalog.py",
-        "tests/test_packaging_configuration.py",
-        "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
-    ),
-    "REQ-INT-009": (
-        "settings.py",
-        "app_preferences.py",
-        "bootstrap.py",
-        "ansys_dpf_helper_adapters.py",
-        "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
-    ),
-    "AC-REQ-INT-009-01": (
-        "tests/test_app_preferences.py",
-        "tests/test_dpf_contracts.py",
-        "tests/test_dpf_materialization.py",
-        "tests/test_serializer.py",
-        "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
-    ),
-    "REQ-QA-038": (
-        "ARCHITECTURE.md",
-        "README.md",
-        "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
-        "tests/test_traceability_checker.py",
-        "tests/test_markdown_hygiene.py",
-        "scripts/check_traceability.py",
-    ),
-    "AC-REQ-QA-038-01": (
-        ANSYS_DPF_FULL_PLUGIN_ROLLOUT_CLOSEOUT_PYTEST_COMMAND,
-        ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_COMMAND,
-        "docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md",
-    ),
-}
-
-ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX_TOKENS = (
-    "ANSYS DPF Full Plugin Rollout QA Matrix",
-    "## Locked Scope",
-    "## Retained Automated Verification",
-    "## Final Closeout Commands",
-    "## 2026-04-15 Execution Results",
-    "## Retained Manual Evidence",
-    "## Residual Risks",
-    "workflow-first",
-    "version-aware",
-    "Ansys DPF > Advanced > Raw API Mirror",
-    "generic object handles",
-    "read-only placeholders",
-    "P00_bootstrap_WRAPUP.md",
-    "P03_family_taxonomy_WRAPUP.md",
-    "P06_runtime_persistence_portability_WRAPUP.md",
-    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P01_COMMAND,
-    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P02_COMMAND,
-    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P03_COMMAND,
-    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P04_COMMAND,
-    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P05_COMMAND,
-    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_P06_COMMAND,
-    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_CLOSEOUT_PYTEST_COMMAND,
-    ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_COMMAND,
+    "engineering viewer binder",
+    "rerun required",
+    "transport revision",
 )
 
 ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md"
 )
-ADDON_MANAGER_BACKEND_PREPARATION_P01_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_plugin_loader.py --ignore=venv -q"
-)
-ADDON_MANAGER_BACKEND_PREPARATION_P02_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_main_window_shell.py "
-    r"tests/main_window_shell/shell_basics_and_search.py --ignore=venv -q"
-)
-ADDON_MANAGER_BACKEND_PREPARATION_P03_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_serializer.py "
-    r"tests/test_serializer_schema_migration.py tests/test_registry_validation.py "
-    r"tests/test_graph_scene_bridge_bind_regression.py --ignore=venv -q"
-)
-ADDON_MANAGER_BACKEND_PREPARATION_P04_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_contract.py "
-    r"tests/test_graph_surface_input_controls.py tests/test_graph_surface_input_inline.py "
-    r"tests/test_passive_graph_surface_host.py --ignore=venv -q"
-)
-ADDON_MANAGER_BACKEND_PREPARATION_P05_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_node_catalog.py "
-    r"tests/test_dpf_generated_helper_catalog.py tests/test_dpf_generated_operator_catalog.py "
-    r"tests/test_dpf_operator_help_lookup.py --ignore=venv -q"
-)
-ADDON_MANAGER_BACKEND_PREPARATION_P06_COMMAND = (
-    "./venv/Scripts/python.exe -m pytest tests/test_dpf_runtime_service.py "
-    "tests/test_execution_viewer_service.py tests/test_viewer_host_service.py "
-    "tests/test_dpf_viewer_node.py tests/test_dpf_viewer_widget_binder.py "
-    "--ignore=venv -q"
-)
-ADDON_MANAGER_BACKEND_PREPARATION_P07_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_main_window_shell.py "
-    r"tests/main_window_shell/shell_basics_and_search.py "
-    r"tests/main_window_shell/bridge_qml_boundaries.py --ignore=venv -q"
-)
-ADDON_MANAGER_BACKEND_PREPARATION_CLOSEOUT_PYTEST_COMMAND = (
-    "./venv/Scripts/python.exe -m pytest tests/test_traceability_checker.py "
-    "tests/test_markdown_hygiene.py --ignore=venv -q"
-)
-ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_COMMAND = (
-    "./venv/Scripts/python.exe scripts/check_traceability.py"
-)
-ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND = (
-    "./venv/Scripts/python.exe scripts/check_markdown_links.py"
-)
 ADDON_MANAGER_BACKEND_PREPARATION_INDEX_TOKENS = (
     "[ADDON_MANAGER_BACKEND_PREPARATION QA Matrix](perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md)",
 )
 ADDON_MANAGER_BACKEND_PREPARATION_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
-    "README.md": (
-        "Add-On Manager",
-        "Variant 4 inspector-style drawer",
-        "`hot_apply` or `restart_required`",
-        "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
-    "ARCHITECTURE.md": (
-        "## Add-on backend preparation",
-        "Variant 4 inspector-style right drawer",
-        "locked Mockup B surfaces",
-        "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
+    "README.md": ("Add-On Manager", "Variant 4 inspector-style drawer"),
+    "ARCHITECTURE.md": ("## Add-on backend preparation", "Variant 4 inspector-style right drawer"),
 }
 ADDON_MANAGER_BACKEND_PREPARATION_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
     "docs/specs/requirements/20_UI_UX.md": {
-        "REQ-UI-041": (
-            "Add-On Manager",
-            "Variant 4 inspector-style right drawer",
-            "focus_addon_id",
-            "`About` / `Dependencies` / `Nodes` / `Changelog`",
-        ),
-        "REQ-UI-042": (
-            "locked Mockup B placeholders",
-            "`LOCKED` badge",
-            "`Load missing add-ons`",
-            "drag, and resize mutations",
-        ),
-        "AC-REQ-UI-041-01": (
-            "Variant 4 drawer fidelity",
-            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-        ),
-        "AC-REQ-UI-042-01": (
-            "locked placeholders",
-            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-        ),
+        "REQ-UI-041": ("Add-On Manager", "Variant 4 inspector-style right drawer"),
+        "REQ-UI-042": ("locked Mockup B placeholders", "Load missing add-ons"),
     },
     "docs/specs/requirements/60_PERSISTENCE.md": {
-        "REQ-PERSIST-023": (
-            "pending-restart intent",
-            "locked unavailable-add-on projections",
-            "rebind them when the add-on returns",
-            "projection payloads",
-        ),
-        "AC-REQ-PERSIST-023-01": (
-            "plugin-loader",
-            "locked projection",
-            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-        ),
+        "REQ-PERSIST-023": ("app preferences", "locked unavailable-add-on projections"),
     },
     "docs/specs/requirements/70_INTEGRATIONS.md": {
-        "REQ-INT-011": (
-            "stable id, name, version, category, dependency, and availability facts",
-            "`hot_apply` or `restart_required`",
-            "open-manager requests",
-            "add-on ids",
-        ),
-        "REQ-INT-012": (
-            "first repo-local `hot_apply` add-on",
-            "`ea_node_editor.addons.ansys_dpf`",
-            "locked unavailable-add-on projections",
-            "full app restart",
-        ),
-        "AC-REQ-INT-011-01": (
-            "generic add-on catalog",
-            "shell focus-target plumbing",
-            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-        ),
-        "AC-REQ-INT-012-01": (
-            "repo-local `ANSYS DPF` add-on package",
-            "hot-apply lifecycle",
-            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-        ),
+        "REQ-INT-011": ("stable id, name, version", "hot_apply", "restart_required"),
     },
     "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
-        "REQ-QA-040": (
-            "ADDON_MANAGER_BACKEND_PREPARATION",
-            "generic add-on contract and persisted state model",
-            "Mockup B locked-node behavior",
-            "Variant 4 manager surface",
-        ),
-        "REQ-QA-041": (
-            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-            "`P01` through `P07`",
-            "`P08` traceability, markdown-hygiene, and markdown-link closeout commands",
-            "menu open/toggle/projection/DPF flows",
-        ),
-        "AC-REQ-QA-040-01": (
-            ADDON_MANAGER_BACKEND_PREPARATION_P01_COMMAND,
-            ADDON_MANAGER_BACKEND_PREPARATION_P07_COMMAND,
-            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-        ),
-        "AC-REQ-QA-041-01": (
-            ADDON_MANAGER_BACKEND_PREPARATION_CLOSEOUT_PYTEST_COMMAND,
-            ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_COMMAND,
-            ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND,
-            "ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-        ),
+        "REQ-QA-040": ("Tabular", "MARS", "Variant 4 manager surface"),
+        "REQ-QA-041": ("Tabular", "MARS", "menu open/toggle/projection flows"),
     },
 }
 ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
-    "REQ-UI-041": (
-        "window_actions.py",
-        "addon_manager_presenter.py",
-        "AddOnManagerPane.qml",
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
-    "AC-REQ-UI-041-01": (
-        "tests/test_main_window_shell.py",
-        "tests/main_window_shell/shell_basics_and_search.py",
-        "tests/main_window_shell/bridge_qml_boundaries.py",
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
-    "REQ-UI-042": (
-        "graph/registry_normalization.py",
-        "GraphNodeHost.qml",
-        "GraphNodeHeaderLayer.qml",
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
-    "AC-REQ-UI-042-01": (
-        "tests/test_serializer.py",
-        "tests/test_graph_surface_input_contract.py",
-        "tests/test_graph_surface_input_controls.py",
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
-    "REQ-PERSIST-023": (
-        "app_preferences.py",
-        "settings.py",
-        "project_codec.py",
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
-    "AC-REQ-PERSIST-023-01": (
-        "tests/test_plugin_loader.py",
-        "tests/test_serializer_schema_migration.py",
-        "tests/test_registry_validation.py",
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
-    "REQ-INT-011": (
-        "catalog.py",
-        "registry_contributions.py",
-        "tabular_data/{function_nodes.py,catalog.py}",
-        "mars/{function_nodes.py,catalog.py}",
-        "plugin_contracts.py",
-        "function_bundle.py",
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
-    "AC-REQ-INT-011-01": (
-        "tests/test_addon_registry_contributions.py",
-        "tests/test_tabular_function_migration.py",
-        "tests/test_mars_function_migration.py",
-        "tests/test_registry_replacement.py",
-        "tests/test_main_window_shell.py",
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
-    "REQ-INT-012": (
-        "ansys_dpf/catalog.py",
-        "state_changes.py",
-        "registry_replacement.py",
-        "worker_services.py",
-        "viewer_host_service.py",
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
-    "AC-REQ-INT-012-01": (
-        "tests/test_addon_state_changes.py",
-        "tests/test_registry_replacement.py",
-        "tests/test_dpf_node_catalog.py",
-        "tests/test_dpf_runtime_service.py",
-        "tests/test_viewer_host_service.py",
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
-    "REQ-QA-040": (
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-        "20_UI_UX.md",
-        "70_INTEGRATIONS.md",
-        "tests/test_traceability_checker.py",
-        "scripts/check_traceability.py",
-    ),
-    "AC-REQ-QA-040-01": (
-        ADDON_MANAGER_BACKEND_PREPARATION_P01_COMMAND,
-        ADDON_MANAGER_BACKEND_PREPARATION_P06_COMMAND,
-        ADDON_MANAGER_BACKEND_PREPARATION_P07_COMMAND,
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
-    "REQ-QA-041": (
-        "ARCHITECTURE.md",
-        "README.md",
-        "docs/specs/INDEX.md",
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-        "tests/test_markdown_hygiene.py",
-        "scripts/check_markdown_links.py",
-    ),
-    "AC-REQ-QA-041-01": (
-        ADDON_MANAGER_BACKEND_PREPARATION_CLOSEOUT_PYTEST_COMMAND,
-        ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_COMMAND,
-        ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND,
-        "docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
-    ),
+    "REQ-UI-041": ("addon_manager_presenter.py", "AddOnManagerPane.qml"),
+    "REQ-UI-042": ("registry_normalization.py", "GraphNodeHost.qml"),
+    "REQ-PERSIST-023": ("app_preferences.py", "project_codec.py"),
+    "REQ-INT-011": ("tabular_data/{function_nodes.py,catalog.py}", "mars/{function_nodes.py,catalog.py}"),
+    "REQ-QA-040": ("ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",),
 }
 ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX_TOKENS = (
     "Add-On Manager Backend Preparation QA Matrix",
     "## Locked Scope",
-    "## Retained Automated Verification",
-    "## Final Closeout Commands",
-    "## 2026-04-20 Execution Results",
-    "## Remaining Manual Desktop Checks",
-    "## Residual Risks",
+    "## Current Automated Verification",
     "Variant 4 inspector-style right drawer",
     "Mockup B placeholders",
-    "`hot_apply`",
-    "`restart_required`",
-    "P01_addon_contracts_and_state_model_WRAPUP.md",
-    "P07_addon_manager_variant4_surface_WRAPUP.md",
-    ADDON_MANAGER_BACKEND_PREPARATION_P01_COMMAND,
-    ADDON_MANAGER_BACKEND_PREPARATION_P02_COMMAND,
-    ADDON_MANAGER_BACKEND_PREPARATION_P03_COMMAND,
-    ADDON_MANAGER_BACKEND_PREPARATION_P04_COMMAND,
-    ADDON_MANAGER_BACKEND_PREPARATION_P05_COMMAND,
-    ADDON_MANAGER_BACKEND_PREPARATION_P06_COMMAND,
-    ADDON_MANAGER_BACKEND_PREPARATION_P07_COMMAND,
-    ADDON_MANAGER_BACKEND_PREPARATION_CLOSEOUT_PYTEST_COMMAND,
-    ADDON_MANAGER_BACKEND_PREPARATION_TRACEABILITY_COMMAND,
-    ADDON_MANAGER_BACKEND_PREPARATION_MARKDOWN_COMMAND,
+    "Tabular Data",
+    "MARS",
 )
+
 
 COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX = (
     REPO_ROOT / manifest.COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX_DOC
@@ -1021,8 +211,8 @@ COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...
     "README.md": (
         "COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md",
         "ea_node_editor.bootstrap",
-        "descriptor-first",
-        "locked unavailable-add-on projections",
+        "Validation and reload parse source without executing it.",
+        "locked projections",
         "Public plugins do not import COREX internals.",
     ),
     "ARCHITECTURE.md": (
@@ -1063,11 +253,6 @@ COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_REQUIREMENT_TOKENS: dict[str, dict[str, tup
         ),
         "REQ-PERSIST-023": ("locked unavailable-add-on projections", "projection payloads"),
         "AC-REQ-PERSIST-023-01": ("current-schema", "unavailable-add-on locked projection"),
-    },
-    "docs/specs/requirements/70_INTEGRATIONS.md": {
-        "REQ-INT-009": ("descriptor/add-on catalog", "locked unavailable-add-on surfaces"),
-        "AC-REQ-INT-009-01": ("locked unavailable-add-on projection",),
-        "REQ-INT-012": ("locked unavailable-add-on projections",),
     },
     "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
         "REQ-QA-042": manifest.QA_ACCEPTANCE_REQUIREMENT_TOKENS["REQ-QA-042"],
@@ -1655,245 +840,43 @@ NODE_EXECUTION_VISUALIZATION_QA_MATRIX_FORBIDDEN_TOKENS = (
 NESTED_NODE_CATEGORIES_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md"
 )
-NESTED_NODE_CATEGORIES_P01_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_decorator_sdk.py "
-    r"tests/test_registry_validation.py -k nested_category_sdk --ignore=venv -q"
-)
-NESTED_NODE_CATEGORIES_P01_REVIEW_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_registry_validation.py "
-    r"-k nested_category_sdk --ignore=venv -q"
-)
-NESTED_NODE_CATEGORIES_P02_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_library_projection.py "
-    r"tests/test_dpf_node_catalog.py tests/test_graph_theme_shell.py "
-    r"-k nested_category_library --ignore=venv -q"
-)
-NESTED_NODE_CATEGORIES_P02_REVIEW_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_library_projection.py "
-    r"tests/test_dpf_node_catalog.py -k nested_category_library --ignore=venv -q"
-)
-NESTED_NODE_CATEGORIES_P03_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_window_library_inspector.py "
-    r"tests/main_window_shell/bridge_support.py -k nested_category_library_payload --ignore=venv -q"
-)
-NESTED_NODE_CATEGORIES_P03_REVIEW_COMMAND = (
-    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
-    r"tests/main_window_shell/drop_connect_and_workflow_io.py "
-    r"-k nested_category_library_payload --ignore=venv -q"
-)
-NESTED_NODE_CATEGORIES_P04_COMMAND = (
-    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
-    r"tests/main_window_shell/bridge_qml_boundaries.py "
-    r"tests/main_window_shell/drop_connect_and_workflow_io.py tests/test_main_window_shell.py "
-    r"-k nested_category_qml --ignore=venv -q"
-)
-NESTED_NODE_CATEGORIES_P04_REVIEW_COMMAND = (
-    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
-    r"tests/main_window_shell/drop_connect_and_workflow_io.py "
-    r"-k nested_category_qml --ignore=venv -q"
-)
-NESTED_NODE_CATEGORIES_TRACEABILITY_TEST_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
-)
-NESTED_NODE_CATEGORIES_TRACEABILITY_COMMAND = (
-    r".\venv\Scripts\python.exe scripts/check_traceability.py"
-)
-
 NESTED_NODE_CATEGORIES_INDEX_TOKENS = (
     "NESTED_NODE_CATEGORIES QA Matrix",
     "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
 )
-
 NESTED_NODE_CATEGORIES_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
-    "README.md": (
-        "category=(\"Custom\", \"Math\")",
-        "Plugin Authoring Guide",
-        "Ansys DPF > Workflow",
-        "Reusable Python function nodes",
-        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-    ),
-    "docs/GETTING_STARTED.md": (
-        "corex.node",
-        "schema-2",
-        "Plugin Authoring Guide",
-        "category_path",
-        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-    ),
+    "docs/GETTING_STARTED.md": ("corex.node", "category_path", "NESTED_NODE_CATEGORIES_QA_MATRIX.md"),
 }
-
 NESTED_NODE_CATEGORIES_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
     "docs/specs/requirements/20_UI_UX.md": {
-        "REQ-UI-006": (
-            "normalized category path",
-            "descendant-inclusive",
-            "ListView",
-            "category_key",
-            "Input / Output",
-        ),
-        "AC-REQ-UI-006-01": (
-            "Ansys DPF > Compute",
-            "Ansys DPF > Viewer",
-            "category rows default collapsed",
-            "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-        ),
+        "REQ-UI-006": ("normalized category path", "descendant-inclusive", "category_key"),
+        "AC-REQ-UI-006-01": ("Engineering > Import", "Engineering > Viewer"),
     },
     "docs/specs/requirements/40_NODE_SDK.md": {
-        "REQ-NODE-003": (
-            "category_path",
-            "descendant-inclusive",
-            "category_paths()",
-        ),
-        "REQ-NODE-007": (
-            "category_path=",
-            "category=",
-            "external plugins",
-            "derived display labels",
-        ),
-        "AC-REQ-NODE-003-01": (
-            "category_path",
-            "parent category filters including descendant nodes",
-        ),
-        "AC-REQ-NODE-008-01": (
-            "category_path=",
-            "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-        ),
-    },
-    "docs/specs/requirements/70_INTEGRATIONS.md": {
-        "REQ-INT-008": (
-            "category_path",
-            "(\"Ansys DPF\", \"Compute\")",
-            "(\"Ansys DPF\", \"Viewer\")",
-        ),
-        "AC-REQ-INT-008-01": (
-            "Ansys DPF > Compute",
-            "Ansys DPF > Viewer",
-            "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-        ),
+        "REQ-NODE-003": ("category_path", "descendant-inclusive", "category_paths()"),
     },
     "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
-        "REQ-QA-033": (
-            "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-            "`P01` through `P05`",
-            "external-plugin",
-            "category_path=",
-            "display-only ` > ` delimiter",
-            "manual evidence",
-        ),
-        "AC-REQ-QA-033-01": (
-            NESTED_NODE_CATEGORIES_TRACEABILITY_TEST_COMMAND,
-            NESTED_NODE_CATEGORIES_TRACEABILITY_COMMAND,
-            "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-        ),
+        "REQ-QA-033": ("NESTED_NODE_CATEGORIES_QA_MATRIX.md", "nested Engineering taxonomy"),
     },
 }
-
 NESTED_NODE_CATEGORIES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
-    "REQ-UI-006": (
-        "category_paths.py",
-        "library_projection.py",
-        "NodeLibraryPane.qml",
-        "tests/test_library_projection.py",
-        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-    ),
-    "AC-REQ-UI-006-01": (
-        "tests/main_window_shell/bridge_qml_boundaries.py",
-        "tests/main_window_shell/drop_connect_and_workflow_io.py",
-        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-    ),
-    "REQ-NODE-003": (
-        "category_paths.py",
-        "library_projection.py",
-        "tests/test_library_projection.py",
-        "tests/test_registry_validation.py",
-        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-    ),
-    "REQ-NODE-007": (
-        "decorators.py",
-        "node_specs.py",
-        "README.md",
-        "docs/GETTING_STARTED.md",
-        "tests/test_decorator_sdk.py",
-    ),
-    "AC-REQ-NODE-003-01": (
-        NESTED_NODE_CATEGORIES_P02_COMMAND,
-        "tests/test_library_projection.py",
-        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-    ),
-    "AC-REQ-NODE-008-01": (
-        "tests/test_decorator_sdk.py",
-        "category_path=",
-        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-    ),
-    "REQ-NODE-025": (
-        "ansys_dpf_compute.py",
-        "ansys_dpf_viewer.py",
-        "DPF_ADVANCED_BUILDING_BLOCKS_CATEGORY_PATH",
-        "DPF_VIEWER_CATEGORY_PATH",
-        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-    ),
-    "AC-REQ-NODE-025-01": (
-        NESTED_NODE_CATEGORIES_P02_REVIEW_COMMAND,
-        "tests/test_library_projection.py",
-        "tests/test_dpf_node_catalog.py",
-        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-    ),
-    "REQ-INT-008": (
-        "ansys_dpf_compute.py",
-        "ansys_dpf_viewer.py",
-        "tests/test_dpf_node_catalog.py",
-        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-    ),
-    "AC-REQ-INT-008-01": (
-        "tests/test_dpf_compute_nodes.py",
-        "tests/test_dpf_node_catalog.py",
-        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-    ),
-    "REQ-QA-033": (
-        "README.md",
-        "docs/GETTING_STARTED.md",
-        "docs/specs/INDEX.md",
-        "docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-        "tests/test_traceability_checker.py",
-        "scripts/check_traceability.py",
-    ),
-    "AC-REQ-QA-033-01": (
-        NESTED_NODE_CATEGORIES_TRACEABILITY_TEST_COMMAND,
-        NESTED_NODE_CATEGORIES_TRACEABILITY_COMMAND,
-        "docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md",
-    ),
+    "REQ-UI-006": ("category_paths.py", "library_projection.py", "NESTED_NODE_CATEGORIES_QA_MATRIX.md"),
+    "AC-REQ-UI-006-01": ("bridge_qml_boundaries.py", "drop_connect_and_workflow_io.py"),
+    "REQ-NODE-003": ("category_paths.py", "test_registry_validation.py"),
+    "REQ-QA-033": ("NESTED_NODE_CATEGORIES_QA_MATRIX.md", "tests/test_traceability_checker.py"),
 }
-
 NESTED_NODE_CATEGORIES_QA_MATRIX_TOKENS = (
     "Nested Node Categories QA Matrix",
     "## Locked Scope",
     "category_path: tuple[str, ...]",
     "`1..10`",
-    "`category=` is a breaking change for external plugins",
     "` > `",
-    "Input / Output",
-    "descendant-inclusive",
-    "Ansys DPF > Compute",
-    "Ansys DPF > Viewer",
+    "Descendant filters",
+    "Engineering > Import",
+    "Engineering > Viewer",
     "Custom Workflows",
-    "flat `ListView`",
-    "category_key",
-    NESTED_NODE_CATEGORIES_P01_COMMAND,
-    NESTED_NODE_CATEGORIES_P01_REVIEW_COMMAND,
-    NESTED_NODE_CATEGORIES_P02_COMMAND,
-    NESTED_NODE_CATEGORIES_P02_REVIEW_COMMAND,
-    NESTED_NODE_CATEGORIES_P03_COMMAND,
-    NESTED_NODE_CATEGORIES_P03_REVIEW_COMMAND,
-    NESTED_NODE_CATEGORIES_P04_COMMAND,
-    NESTED_NODE_CATEGORIES_P04_REVIEW_COMMAND,
-    NESTED_NODE_CATEGORIES_TRACEABILITY_TEST_COMMAND,
-    NESTED_NODE_CATEGORIES_TRACEABILITY_COMMAND,
-    "P01_sdk_category_path_contract_WRAPUP.md",
-    "P04_qml_nested_library_presentation_WRAPUP.md",
-    "## Final Closeout Commands",
-    "## 2026-04-11 Execution Results",
-    "## Retained Manual Evidence",
-    "## Residual Risks",
 )
+
 SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md"
 )
@@ -2409,7 +1392,7 @@ TITLE_ICONS_FOR_NON_PASSIVE_NODES_P04_ASSET_COMMAND = (
     r"tests/test_registry_validation.py -k title_icon --ignore=venv -q"
 )
 TITLE_ICONS_FOR_NON_PASSIVE_NODES_P04_CATALOG_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_node_catalog.py "
+    r".\venv\Scripts\python.exe -m pytest tests/test_registry_validation.py "
     r"tests/test_passive_node_contracts.py tests/test_passive_flowchart_catalog.py "
     r"-k title_icon --ignore=venv -q"
 )
@@ -2551,7 +1534,6 @@ TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, 
         "tests/test_registry_validation.py",
         "tests/test_passive_visual_metadata.py",
         "tests/test_node_title_icon_assets.py",
-        "tests/test_dpf_node_catalog.py",
         "tests/test_passive_node_contracts.py",
         "tests/test_passive_flowchart_catalog.py",
         "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
@@ -3462,14 +2444,6 @@ class TraceabilityCheckerTests(unittest.TestCase):
             "docs/specs/perf/UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
             self.checker.REQUIRED_ARTIFACTS,
         )
-        self.assertIn(
-            "docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
-            self.checker.REQUIRED_ARTIFACTS,
-        )
-        self.assertIn(
-            "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-            self.checker.REQUIRED_ARTIFACTS,
-        )
         self.assertEqual((), self.checker.P08_REQUIRED_ARTIFACTS)
         manifest_rules = {
             path: (rule.required, rule.forbidden)
@@ -3629,7 +2603,6 @@ class TraceabilityCheckerTests(unittest.TestCase):
         required_paths = set(self.checker.REQUIRED_ARTIFACTS)
         required_paths.update(self.checker.P08_REQUIRED_ARTIFACTS)
         required_paths.update(self.checker.P10_REQUIREMENT_DOC_TOKENS.keys())
-        required_paths.update(DPF_OPERATOR_PLUGIN_BACKEND_REQUIREMENT_TOKENS.keys())
         required_paths.update(ADDON_MANAGER_BACKEND_PREPARATION_REQUIREMENT_TOKENS.keys())
         for relative_path in required_paths:
             source = REPO_ROOT / relative_path
@@ -4077,55 +3050,6 @@ class TraceabilityCheckerTests(unittest.TestCase):
             issues,
         )
 
-    def test_audit_repository_reports_dpf_backend_closeout_regression(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_root = Path(temp_dir)
-            self.make_repo_fixture(repo_root)
-
-            replace_text(
-                repo_root / "README.md",
-                "DPF operator backend QA matrix",
-                "DPF operator backend proof",
-            )
-            remove_token_from_requirement_line(
-                repo_root / "docs/specs/requirements/70_INTEGRATIONS.md",
-                "REQ-INT-009",
-                "generic DPF runtime adapter",
-            )
-            replace_text(
-                repo_root / "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
-                "generated-port semantics",
-                "generated port semantics",
-            )
-            remove_token_from_traceability_row(
-                repo_root / self.manifest.TRACEABILITY_MATRIX_DOC,
-                "REQ-QA-036",
-                "tests/test_markdown_hygiene.py",
-            )
-
-            issues = self.checker.audit_repository(repo_root)
-
-        self.assertIn(
-            "README.md: readme dpf backend closeout missing fact: "
-            "DPF operator backend QA matrix",
-            issues,
-        )
-        self.assertIn(
-            "docs/specs/requirements/70_INTEGRATIONS.md: requirement REQ-INT-009 missing fact: "
-            "generic DPF runtime adapter",
-            issues,
-        )
-        self.assertIn(
-            "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md: "
-            "dpf-operator-plugin-backend-refactor qa matrix missing fact: "
-            "generated-port semantics",
-            issues,
-        )
-        self.assertIn(
-            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row REQ-QA-036 missing implementation "
-            "artifact text: tests/test_markdown_hygiene.py",
-            issues,
-        )
 
     def test_project_managed_files_docs_record_final_scope_tokens(self) -> None:
         for relative_path, requirement_tokens in PROJECT_MANAGED_FILES_REQUIREMENT_TOKENS.items():
@@ -4174,60 +3098,12 @@ class TraceabilityCheckerTests(unittest.TestCase):
         for token in CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
-    def test_dpf_operator_plugin_backend_docs_record_closeout_scope_tokens(self) -> None:
-        for relative_path, tokens in DPF_OPERATOR_PLUGIN_BACKEND_PUBLIC_DOC_TOKENS.items():
-            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8-sig")
-            for token in tokens:
-                self.assertIn(token, text, msg=f"{relative_path} missing token {token!r}")
 
-        for relative_path, requirement_tokens in DPF_OPERATOR_PLUGIN_BACKEND_REQUIREMENT_TOKENS.items():
-            path = REPO_ROOT / relative_path
-            for requirement_id, tokens in requirement_tokens.items():
-                body = requirement_line(path, requirement_id)
-                for token in tokens:
-                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
 
-    def test_dpf_operator_plugin_backend_traceability_rows_reference_packet_artifacts(self) -> None:
-        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
-        for row_id, tokens in DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_ROW_TOKENS.items():
-            row_text = traceability_row(traceability_path, row_id)
-            for token in tokens:
-                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
 
-    def test_dpf_operator_plugin_backend_qa_matrix_records_commands_and_manual_checks(self) -> None:
-        text = DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.read_text(encoding="utf-8-sig")
-        for token in DPF_OPERATOR_PLUGIN_BACKEND_QA_MATRIX_TOKENS:
-            self.assertIn(token, text)
 
-    def test_ansys_dpf_full_plugin_rollout_public_docs_record_closeout_scope_tokens(self) -> None:
-        for relative_path, tokens in ANSYS_DPF_FULL_PLUGIN_ROLLOUT_PUBLIC_DOC_TOKENS.items():
-            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8-sig")
-            for token in tokens:
-                self.assertIn(token, text, msg=f"{relative_path} missing token {token!r}")
 
-    def test_ansys_dpf_full_plugin_rollout_requirements_record_closeout_scope_tokens(self) -> None:
-        for relative_path, requirement_tokens in ANSYS_DPF_FULL_PLUGIN_ROLLOUT_REQUIREMENT_TOKENS.items():
-            path = REPO_ROOT / relative_path
-            for requirement_id, tokens in requirement_tokens.items():
-                body = requirement_line(path, requirement_id)
-                for token in tokens:
-                    self.assertIn(
-                        token,
-                        body,
-                        msg=f"{relative_path} {requirement_id} missing token {token!r}",
-                    )
 
-    def test_ansys_dpf_full_plugin_rollout_traceability_rows_reference_packet_artifacts(self) -> None:
-        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
-        for row_id, tokens in ANSYS_DPF_FULL_PLUGIN_ROLLOUT_TRACEABILITY_ROW_TOKENS.items():
-            row_text = traceability_row(traceability_path, row_id)
-            for token in tokens:
-                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
-
-    def test_ansys_dpf_full_plugin_rollout_qa_matrix_records_commands_and_manual_checks(self) -> None:
-        text = ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.read_text(encoding="utf-8-sig")
-        for token in ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX_TOKENS:
-            self.assertIn(token, text)
 
     def test_addon_manager_backend_preparation_spec_index_registers_packet_set(self) -> None:
         text = (REPO_ROOT / "docs/specs/INDEX.md").read_text(encoding="utf-8-sig")
@@ -4269,6 +3145,52 @@ class TraceabilityCheckerTests(unittest.TestCase):
         text = ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
+
+        issues: list[str] = []
+        verification_rows = self.checker.table_after_heading(
+            text,
+            relative_path="docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+            heading="Current Automated Verification",
+            issues=issues,
+        )
+        self.assertEqual([], issues)
+        self.assertIsNotNone(verification_rows)
+        assert verification_rows is not None
+        for command in self.checker.ADDON_MANAGER_BACKEND_PREPARATION_VERIFICATION_COMMANDS:
+            row = self.checker.find_row(
+                verification_rows,
+                column="Command",
+                predicate=lambda value, command=command: self.checker.strip_code_fence(value)
+                == command,
+            )
+            self.assertIsNotNone(row, command)
+            assert row is not None
+            self.assertIn(self.checker.strip_code_fence(row["Status"]), {"PASS", "FAIL", "NOT RUN"})
+
+        for heading, result_column in (
+            ("Final Closeout Commands", None),
+            ("2026-09-07 Execution Results", "Result"),
+        ):
+            issues = []
+            rows = self.checker.table_after_heading(
+                text,
+                relative_path="docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md",
+                heading=heading,
+                issues=issues,
+            )
+            self.assertEqual([], issues)
+            self.assertIsNotNone(rows)
+            assert rows is not None
+            for command in self.checker.ADDON_MANAGER_BACKEND_PREPARATION_AUDIT_COMMANDS:
+                row = self.checker.find_row(
+                    rows,
+                    column="Command",
+                    predicate=lambda value, command=command: self.checker.strip_code_fence(value)
+                    == command,
+                )
+                self.assertIsNotNone(row, f"{heading}: {command}")
+                if row is not None and result_column is not None:
+                    self.assertEqual("PASS", self.checker.strip_code_fence(row[result_column]))
 
     def test_corex_no_legacy_architecture_cleanup_spec_index_registers_qa_matrix(self) -> None:
         text = (REPO_ROOT / "docs/specs/INDEX.md").read_text(encoding="utf-8-sig")

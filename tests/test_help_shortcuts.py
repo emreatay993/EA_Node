@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 from PyQt6.QtCore import QMetaObject, QObject, QPoint, QPointF, Qt
 from PyQt6.QtQuick import QQuickItem
@@ -61,35 +59,31 @@ class HelpShortcutShellTests(SharedMainWindowShellTestBase):
         help_tab = help_label.parentItem()
         self.assertIsNotNone(help_tab)
 
-        with patch(
-            "ea_node_editor.help.help_bridge.markdown_for_node",
-            return_value=("# Logger Help", "core.logger", "Logger"),
-        ) as lookup:
-            QTest.mouseClick(
-                self.window.quick_widget,
-                Qt.MouseButton.LeftButton,
-                Qt.KeyboardModifier.NoModifier,
-                self._item_widget_point(
-                    help_tab,
-                    float(help_tab.width()) * 0.5,
-                    float(help_tab.height()) * 0.5,
-                ),
-            )
-            wait_for_condition_or_raise(
-                lambda: (
-                    int(inspector_pane.property("activeTabIndex")) == 1
-                    and self.window.help_bridge.visible
-                    and self.window.help_bridge.title == "Logger"
-                ),
-                timeout_ms=1200,
-                poll_interval_ms=20,
-                app=self.app,
-                timeout_message="Help tab click did not activate the Help pane and load docs.",
-            )
+        QTest.mouseClick(
+            self.window.quick_widget,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            self._item_widget_point(
+                help_tab,
+                float(help_tab.width()) * 0.5,
+                float(help_tab.height()) * 0.5,
+            ),
+        )
+        wait_for_condition_or_raise(
+            lambda: (
+                int(inspector_pane.property("activeTabIndex")) == 1
+                and self.window.help_bridge.visible
+                and self.window.help_bridge.title == "Logger"
+            ),
+            timeout_ms=1200,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Help tab click did not activate the Help pane and load structured help.",
+        )
 
-        self.assertEqual(self.window.help_bridge.markdown, "# Logger Help")
+        self.assertIn("# Logger", self.window.help_bridge.markdown)
+        self.assertIn("**Keywords:** log, message, diagnostics", self.window.help_bridge.markdown)
         self.assertEqual(self.window.help_bridge.type_id, "core.logger")
-        self.assertEqual(lookup.call_count, 2)
 
     def test_f1_shortcut_switches_to_structured_node_help(self) -> None:
         inspector_pane = self._inspector_pane()
@@ -104,18 +98,17 @@ class HelpShortcutShellTests(SharedMainWindowShellTestBase):
         self.window.help_bridge.close_help()
         self.app.processEvents()
 
-        with patch("ea_node_editor.help.help_bridge.markdown_for_node", return_value=None) as lookup:
-            self.window.activateWindow()
-            self.window.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
-            QMetaObject.invokeMethod(inspector_pane, "forceActiveFocus")
-            QTest.keyClick(self.window, Qt.Key.Key_F1)
-            wait_for_condition_or_raise(
-                lambda: int(inspector_pane.property("activeTabIndex")) == 1,
-                timeout_ms=1200,
-                poll_interval_ms=20,
-                app=self.app,
-                timeout_message="F1 did not switch the inspector to the Help tab.",
-            )
+        self.window.activateWindow()
+        self.window.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
+        QMetaObject.invokeMethod(inspector_pane, "forceActiveFocus")
+        QTest.keyClick(self.window, Qt.Key.Key_F1)
+        wait_for_condition_or_raise(
+            lambda: int(inspector_pane.property("activeTabIndex")) == 1,
+            timeout_ms=1200,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="F1 did not switch the inspector to the Help tab.",
+        )
 
         self.assertTrue(self.window.help_bridge.visible)
         self.assertEqual(self.window.help_bridge.title, "Logger")
@@ -138,4 +131,3 @@ class HelpShortcutShellTests(SharedMainWindowShellTestBase):
         self.assertNotIn("Starts logging when execution reaches this node.", self.window.help_bridge.markdown)
         self.assertNotIn("Continues execution after the message is written.", self.window.help_bridge.markdown)
         self.assertNotIn("## Outputs", self.window.help_bridge.markdown)
-        self.assertEqual(lookup.call_count, 2)

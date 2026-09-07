@@ -49,7 +49,7 @@ from ea_node_editor.ui_qml.node_title_icon_sources import (
     resolve_node_title_icon_source,
 )
 from tests.test_mars_nodes import _fake_success_command
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 
 _CONVERTED_TYPE_IDS = mars_catalog.MARS_FUNCTION_TYPE_IDS
@@ -122,7 +122,7 @@ def test_exact_t14_entries_match_golden_and_remove_legacy_exports(
         preferences_document=_preferences(enabled=True),
         generation_root=generation_root,
     )
-    golden_rows = load_effective_non_dpf_catalog()
+    golden_rows = load_current_repo_owned_catalog()
     expected = {
         row["spec"]["type_id"]: row["spec"]
         for row in golden_rows

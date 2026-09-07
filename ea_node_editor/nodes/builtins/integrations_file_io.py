@@ -138,9 +138,8 @@ class PathPointerNodePlugin:
 
     Implements Variant B ("File / Folder Pointer") from the design mockup at
     ``~/.claude/plans/do-i-have-some-enchanted-spindle.html``. Decisions:
-    ``mode`` is ``"file"`` or ``"folder"``; no DPF handle output (downstream
-    DPF workflows continue to use ``dpf.result_file``); all properties live in
-    a single ``"Source"`` inspector group.
+    ``mode`` is ``"file"`` or ``"folder"``; all properties live in a single
+    ``"Source"`` inspector group.
 
     Acts as a passive data source: one editable path feeds many consumers, so a
     path referenced by several nodes has a single edit point.

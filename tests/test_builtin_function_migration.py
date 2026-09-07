@@ -29,7 +29,7 @@ from ea_node_editor.nodes.registry import PythonFunctionEntry, TrustedFactoryEnt
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import DataTree, deserialize_runtime_value
 from ea_node_editor.ui.shell.controllers.workspace_io_ops import WorkspaceIOOps
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 _T10_CONVERTED_TYPE_IDS = (
     "core.if",
@@ -127,7 +127,7 @@ def test_exact_t10_entries_match_golden_and_leave_truthful_descriptor_boundary(
     registry = build_builtin_registry(generation_root=tmp_path / "generations")
     expected = {
         row["spec"]["type_id"]: row["spec"]
-        for row in load_effective_non_dpf_catalog()
+        for row in load_current_repo_owned_catalog()
         if row["spec"]["type_id"] in _T10_CONVERTED_TYPE_IDS
     }
 

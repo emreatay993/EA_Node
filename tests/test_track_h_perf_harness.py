@@ -2069,7 +2069,7 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
                     "node_canvas_cad_import",
                     "scene",
                     "node_canvas_model_viewer",
-                    "scene",
+                    "scene_1",
                 ),
             },
         )

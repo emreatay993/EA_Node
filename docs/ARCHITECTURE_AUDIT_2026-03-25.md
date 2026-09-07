@@ -15,7 +15,7 @@ The bad news is that several boundaries are eroding under compatibility baggage 
 
 1. `ShellWindow` still acts as a compatibility-centered god object.
 2. The graph domain imports UI/QML helpers and duplicates invariants across multiple normalization paths.
-3. Runtime code is clean in concept, but `execution/worker.py` and the DPF stack have become oversized cross-layer hubs.
+3. Runtime code is clean in concept, but `execution/worker.py` has become an oversized cross-layer hub.
 4. The UI/QML bridge migration is directionally correct, but it is incomplete and still carries wrapper-on-wrapper indirection.
 5. Verification/docs/release tooling is strong but partially self-inconsistent, which creates maintainability risk outside the product code.
 
@@ -89,11 +89,8 @@ This is not automatically bad, but it does show where complexity is pooling.
 | `ea_node_editor/ui_qml/graph_scene_mutation_history.py` | 1125 lines | Scene edits, history, clipboard, geometry mixed together |
 | `ea_node_editor/ui_qml/graph_scene_bridge.py` | 872 lines | Scene bridge still owns too many responsibilities |
 | `ea_node_editor/graph/transforms.py` | 1265 lines | Layout, fragment ops, grouping, custom workflow snapshotting all mixed |
-| `ea_node_editor/execution/dpf_runtime_service.py` | 1023 lines | DPF runtime concerns concentrated in one file |
 | `ea_node_editor/execution/worker.py` | 901 lines | Worker transport, orchestration, execution lifecycle, artifact handling mixed |
 | `ea_node_editor/ui/shell/controllers/project_session_controller.py` | 903 lines | Project/session/files/artifact/session-recovery responsibilities bundled |
-| `ea_node_editor/nodes/builtins/ansys_dpf_common.py` | 900 lines | DPF common logic now large enough to merit sub-packaging |
-| `ea_node_editor/nodes/builtins/ansys_dpf.py` | 853 lines | Node definitions plus viewer/protocol orchestration mixed together |
 
 ### Import-cycle and boundary signals
 
@@ -114,7 +111,6 @@ These were targeted samples, not a full-suite pass.
   - Result: `24 passed, 3 subtests passed`
 - `venv/Scripts/python.exe scripts/check_traceability.py`
   - Result: `TRACEABILITY CHECK PASS`
-- `venv/Scripts/python.exe -m pytest tests/test_dpf_runtime_service.py tests/test_dpf_viewer_node.py -q`
   - Result: `8 passed`
 
 ### Drift signals from targeted failures
@@ -269,7 +265,6 @@ The problems are implementation concentration and compatibility residue, not mis
 - `ea_node_editor/execution/protocol.py`
 - `ea_node_editor/execution/handle_registry.py:37-176`
 - `ea_node_editor/execution/worker.py`
-- `ea_node_editor/execution/dpf_runtime_service.py`
 
 ### Key sub-findings
 
@@ -314,42 +309,6 @@ High.
 - Separate immutable run input from mutable execution scratch state.
 - Collapse `project_doc` compatibility into a single edge adapter.
 - Replace broad `worker_services` escape hatches with explicit typed capabilities.
-
-## 5. The DPF Subsystem Has Become A Sub-Application Spread Across Runtime And Node Layers
-
-### Why this matters
-
-DPF support is a major feature area, but it is now large enough that it is distorting both the execution package and the built-in node catalog.
-
-### Evidence
-
-- `ea_node_editor/execution/dpf_runtime_service.py` is ~1023 lines
-- `ea_node_editor/nodes/builtins/ansys_dpf_common.py` is ~900 lines
-- `ea_node_editor/nodes/builtins/ansys_dpf.py` is ~853 lines
-- `ea_node_editor/nodes/builtins/ansys_dpf.py:7-12`
-  - imports execution protocol command/event types directly
-- `ea_node_editor/nodes/builtins/ansys_dpf.py:756-817`
-  - directly orchestrates viewer sessions and protocol commands
-
-### Architectural judgment
-
-This is the clearest area where a feature family is drifting toward a monolith inside the codebase. It is still serviceable, but it is no longer a small node family.
-
-### Refactor priority
-
-High.
-
-### Recommended direction
-
-- Turn DPF into explicit subpackages on both sides:
-  - `execution/dpf/...`
-  - `nodes/builtins/dpf/...`
-- Separate:
-  - runtime handle/service behavior
-  - viewer session materialization
-  - export behavior
-  - node catalog definitions
-  - shared DPF normalization helpers
 
 ## 6. The UI/QML Architecture Is Directionally Good, But The Bridge Migration Is Incomplete
 
@@ -576,7 +535,6 @@ Keep:
 Refactor:
 
 - split `execution/worker.py`
-- modularize DPF
 - make `RuntimeSnapshot` semantics honest
 - remove lingering `project_doc` compatibility from core runtime path
 - finish descriptor-first/plugin-loader cleanup
@@ -642,7 +600,6 @@ Schedule next.
 1. Split `ui/shell/window.py` and narrow its role.
 2. Split `ProjectSessionController`.
 3. Split `execution/worker.py`.
-4. Modularize DPF into explicit subpackages.
 5. Split `GraphCanvas.qml`, `graph_scene_bridge.py`, `graph_scene_mutation_history.py`, and geometry modules.
 6. Split `graph/transforms.py`.
 
@@ -691,7 +648,7 @@ It **does require important refactoring and cleanup** in a few concentrated plac
 
 1. shell host / compatibility façade
 2. graph-domain boundary discipline and invariant centralization
-3. execution worker and DPF decomposition
+3. execution worker decomposition
 4. UI/QML bridge completion and scene/canvas hotspot reduction
 5. release/docs/proof single-source-of-truth cleanup
 

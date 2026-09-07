@@ -9,7 +9,6 @@ import time
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any, Literal, Protocol
 
-from ea_node_editor.addons.ansys_dpf.ui_summary import project_dpf_workflow_summary
 from ea_node_editor.execution.prepared_execution import SolutionStateChangedEvent
 from ea_node_editor.runtime_contracts.settled_results import (
     RootExecutionError,
@@ -217,16 +216,7 @@ class RunProjectionController:
         if not isinstance(outputs, Mapping):
             return
         typed_outputs = normalize_settled_output_mapping(outputs)
-        workspace = self._host.model.project.workspaces.get(normalized_workspace_id)
-        node = (
-            workspace.nodes.get(normalized_node_id) if workspace is not None else None
-        )
         observed_at_epoch_ms = self._current_epoch_ms()
-        summary = project_dpf_workflow_summary(
-            getattr(node, "type_id", ""),
-            self._summary_output_values(typed_outputs),
-            getattr(node, "properties", {}),
-        )
         enriched_event = dict(event)
         enriched_event["observed_at_epoch_ms"] = observed_at_epoch_ms
         cache_accepted_output_record(
@@ -236,22 +226,7 @@ class RunProjectionController:
             event=enriched_event,
             outputs=typed_outputs,
             catalog=self._host.registry.data_types,
-            dpf_workflow_summary=summary,
         )
-
-    @staticmethod
-    def _summary_output_values(
-        outputs: Mapping[str, SettledPortResult],
-    ) -> dict[str, Any]:
-        projected: dict[str, Any] = {}
-        for port_key, result in outputs.items():
-            tree = result.value
-            if result.status != "value" or tree is None or not tree.branches:
-                continue
-            first_branch = tree.branches[0][1]
-            if first_branch:
-                projected[str(port_key)] = first_branch[0]
-        return projected
 
     def set_run_ui_state(
         self,

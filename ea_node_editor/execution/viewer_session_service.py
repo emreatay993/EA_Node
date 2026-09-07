@@ -4,7 +4,6 @@ import copy
 import logging
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -72,9 +71,6 @@ _TRANSPORT_RERUN_REQUIRED_BLOCKER = {
 _VALID_VIEWER_SESSION_PHASES = frozenset(
     {"open", "opening", "closing", "closed", "blocked", "invalidated", "error"}
 )
-_SOURCE_REF_KEY_ALIASES = {
-    "fields": "fields_container",
-}
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -87,19 +83,12 @@ def _copy_mapping(value: Any) -> dict[str, Any]:
 def _transport_is_live(transport: Mapping[str, Any]) -> bool:
     if not transport:
         return False
-    kind = str(transport.get("kind", "")).strip()
-    if kind == "dpf_transport_bundle":
-        manifest_path = str(transport.get("manifest_path", "")).strip()
-        entry_path = str(transport.get("entry_path", "")).strip()
-        if not manifest_path or not entry_path:
-            return False
-        return Path(manifest_path).is_file() and Path(entry_path).is_file()
-    return bool(kind)
+    return bool(str(transport.get("kind", "")).strip())
 
 
 def _canonical_source_ref_key(key: Any) -> str:
     normalized_key = str(key).strip()
-    return _SOURCE_REF_KEY_ALIASES.get(normalized_key, normalized_key)
+    return normalized_key
 
 
 def build_viewer_session_model(

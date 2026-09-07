@@ -45,7 +45,6 @@ def test_registered_addon_ids_are_exact() -> None:
         registration.manifest.addon_id
         for registration in registered_addon_registrations()
     ) == (
-        "ea_node_editor.builtins.ansys_dpf",
         "ea_node_editor.builtins.tabular_data",
         "mars.corex",
     )

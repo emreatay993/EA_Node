@@ -130,7 +130,7 @@ Let me plan the 8 sub-variations, keeping them distinct:
 - 1D: **Constellation** — many small rings scattered across the frame, gradually reducing to the four canonical positions and resolving into the logo (convergence).
 
 **Variant 2 — Graph Assembly (canvas-native):**
-- 2A: **Linear pipeline** — horizontal 4-node flow (Read → Transform → DPF → Viewer), each drops in, single data pulse traces through.
+- 2A: **Linear pipeline** — horizontal 4-node flow (Read → Transform → engineering viewer → Viewer), each drops in, single data pulse traces through.
 - 2B: **Vertical flow** — top-down 3 nodes, waterfall-style.
 - 2C: **Subgraph cluster** — central "Solver" node with 4 satellite nodes feeding in from around (fan-in shape).
 - 2D: **Canvas zoom** — the whole canvas pans/zooms to frame a pre-built graph; edges pulse sequentially to show execution order.
@@ -164,7 +164,7 @@ _[tool: fork_verifier_agent]_
 **V2 — Canvas-native**
 - **2A Linear** — 4-node pipeline (Read → Transform → Solve → Plot)
 - **2B Vertical** — top-down waterfall with session-restore metadata
-- **2C Fan-in** — 4 inputs converge on a central DPF solver
+- **2C Fan-in** — 4 inputs converge on a central MARS solver
 - **2D Workspace** — pre-built 6-node graph with minimap; execution ripples through
 
 All share palette, frame, and the warm-yellow port. Let me know which to push further.
@@ -430,4 +430,3 @@ _[tool: done]_
 Added **M6 · Schematic** as its own variant — breathing mark over a subtle PCB backdrop (orthogonal traces, vias, labeled component pads like R12/C03/IC1, and a few "live" traces carrying a slow cyan pulse). The center is masked clear so the logo stays hero. M1 is restored to the clean original.
 
 Both M1 and M6 are tweakable (size + breathing duration) from the Tweaks panel.
-

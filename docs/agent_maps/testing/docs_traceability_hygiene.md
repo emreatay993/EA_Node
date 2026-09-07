@@ -11,11 +11,9 @@ Use this for docs links, traceability matrix checks, markdown hygiene, dead-code
 - `tests/test_traceability_checker.py`
 - `tests/test_dead_code_hygiene.py`
 - `tests/test_novice_plugin_sdk_docs.py`
-- `tests/test_non_dpf_node_documentation.py`
-- `tests/non_dpf_catalog_fixture.py`
-- `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json`
-- `tests/fixtures/node_catalog/unified_media_panel_structural_overlay.json`
-- `tests/fixtures/node_catalog/current_non_dpf_contract_overlay.json`
+- `tests/test_repo_owned_node_documentation.py`
+- `tests/repo_owned_catalog_fixture.py`
+- `tests/fixtures/node_catalog/current_repo_owned_catalog.json`
 - `docs/specs/requirements/TRACEABILITY_MATRIX.md`
 - `docs/PLUGIN_AUTHORING_GUIDE.md`
 - `docs/PLUGIN_MIGRATION_GUIDE.md`
@@ -61,7 +59,7 @@ Use this for docs links, traceability matrix checks, markdown hygiene, dead-code
 .\venv\Scripts\python.exe -m pytest tests/test_markdown_hygiene.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_agent_route_index.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_dead_code_hygiene.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_non_dpf_node_documentation.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_repo_owned_node_documentation.py --ignore=venv -q
 ```
 
 ## Update Triggers

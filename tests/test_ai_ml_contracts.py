@@ -72,7 +72,7 @@ from ea_node_editor.runtime_contracts import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 _EXPECTED_TYPE_IDS = (
     "COREX.AI.IOpenAIClient",
@@ -1889,7 +1889,7 @@ def test_sqlite_vector_function_specs_and_successor_inventory_are_exact() -> Non
         CREATE_VECTOR_COLLECTION_NODE_TYPE_ID,
         INSPECT_VECTOR_COLLECTION_NODE_TYPE_ID,
     }
-    golden = load_effective_non_dpf_catalog()
+    golden = load_current_repo_owned_catalog()
     expected = {
         row["spec"]["type_id"]: row["spec"]
         for row in golden

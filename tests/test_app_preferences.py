@@ -7,7 +7,6 @@ from pathlib import Path
 
 from ea_node_editor.app_preferences import (
     AppPreferencesStore,
-    ansys_dpf_plugin_state,
     default_app_preferences_document,
     engineering_viewer_tangent_selection_angle,
     normalize_app_preferences_document,
@@ -24,7 +23,6 @@ from ea_node_editor.app_preferences import (
     normalize_selection_toolbar_minimal_menu_trigger,
     normalize_selection_toolbar_mode,
     normalize_shell_panel_collapsed,
-    set_ansys_dpf_plugin_state,
 )
 from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
@@ -68,47 +66,14 @@ class AppPreferencesTests(unittest.TestCase):
         ] = 12.5
         self.assertEqual(engineering_viewer_tangent_selection_angle(document), 12.5)
 
-    def test_missing_document_defaults_ansys_dpf_plugin_state_to_empty_versions(self) -> None:
+    def test_missing_document_uses_current_defaults(self) -> None:
         document = self._store.load_document()
 
         self.assertEqual(document["kind"], APP_PREFERENCES_KIND)
         self.assertEqual(APP_PREFERENCES_VERSION, 8)
         self.assertEqual(document["version"], APP_PREFERENCES_VERSION)
         self.assertEqual(document["python_runtime"], DEFAULT_PYTHON_RUNTIME_SETTINGS)
-        self.assertEqual(
-            ansys_dpf_plugin_state(document),
-            {
-                "version": "",
-                "catalog_cache_version": "",
-            },
-        )
-
-    def test_invalid_ansys_dpf_plugin_state_normalizes_to_empty_versions(self) -> None:
-        self._preferences_path.write_text(
-            json.dumps(
-                {
-                    "kind": APP_PREFERENCES_KIND,
-                    "version": APP_PREFERENCES_VERSION,
-                    "plugins": {
-                        "ansys_dpf": {
-                            "version": None,
-                            "catalog_cache_version": {"unexpected": "mapping"},
-                        }
-                    },
-                }
-            ),
-            encoding="utf-8",
-        )
-
-        document = self._store.load_document()
-
-        self.assertEqual(
-            ansys_dpf_plugin_state(document),
-            {
-                "version": "",
-                "catalog_cache_version": "",
-            },
-        )
+        self.assertEqual(document["plugins"], {})
 
     def test_pre_v5_documents_load_locked_current_defaults(self) -> None:
         for old_version in (1, 2, 3, 4):
@@ -118,12 +83,7 @@ class AppPreferencesTests(unittest.TestCase):
                         {
                             "kind": APP_PREFERENCES_KIND,
                             "version": old_version,
-                            "plugins": {
-                                "ansys_dpf": {
-                                    "version": "0.1.0",
-                                    "catalog_cache_version": "0.1.0",
-                                }
-                            },
+                            "plugins": {"obsolete": {"version": "0.1.0"}},
                         }
                     ),
                     encoding="utf-8",
@@ -177,7 +137,7 @@ class AppPreferencesTests(unittest.TestCase):
                     "guided_connected_control_policy": "auto_expand",
                 }
                 legacy["selected_run"]["preview_before_run"] = False
-                legacy["plugins"]["ansys_dpf"]["version"] = "0.2.0"
+                legacy["plugins"] = {"obsolete": {"version": "0.2.0"}}
                 legacy["addons"]["states"] = {
                     "example": {"enabled": False, "pending_restart": True}
                 }
@@ -194,7 +154,7 @@ class AppPreferencesTests(unittest.TestCase):
                 self.assertFalse(document["graphics"]["canvas"]["show_canvas_options_button"])
                 self.assertEqual(document["source_import"]["default_mode"], "managed_copy")
                 self.assertFalse(document["selected_run"]["preview_before_run"])
-                self.assertEqual(document["plugins"]["ansys_dpf"]["version"], "0.2.0")
+                self.assertEqual(document["plugins"], {})
                 self.assertEqual(
                     document["addons"]["states"]["example"],
                     {"enabled": False, "pending_restart": True},
@@ -275,28 +235,6 @@ class AppPreferencesTests(unittest.TestCase):
             persisted["python_runtime"]["default_executable"],
             "C:\\Python\\python.exe",
         )
-
-    def test_set_ansys_dpf_plugin_state_round_trips_exact_version_string(self) -> None:
-        exact_version = "0.15.0.dev1+build.42"
-        document = set_ansys_dpf_plugin_state(
-            default_app_preferences_document(),
-            version=exact_version,
-            catalog_cache_version=exact_version,
-        )
-
-        self._store.persist_document(document)
-
-        persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
-        self.assertEqual(persisted["plugins"]["ansys_dpf"]["version"], exact_version)
-        self.assertEqual(persisted["plugins"]["ansys_dpf"]["catalog_cache_version"], exact_version)
-        self.assertEqual(
-            ansys_dpf_plugin_state(self._store.load_document()),
-            {
-                "version": exact_version,
-                "catalog_cache_version": exact_version,
-            },
-        )
-
 
 class FloatingToolbarStyleNormalizationTests(unittest.TestCase):
     def test_known_values_pass_through_case_insensitive(self) -> None:

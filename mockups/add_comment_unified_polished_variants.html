@@ -907,7 +907,7 @@
           <aside class="library">
             <p class="lib-title">Node Library</p>
             <div class="lib-item"><span class="lib-dot"></span>Start</div>
-            <div class="lib-item"><span class="lib-dot physics"></span>DPF Result</div>
+            <div class="lib-item"><span class="lib-dot physics"></span>Model Viewer</div>
             <div class="lib-item"><span class="lib-dot"></span>Python Script</div>
             <div class="lib-item"><span class="lib-dot logic"></span>Branch</div>
             <div class="lib-item"><span class="lib-dot hpc"></span>Remote Solve</div>
@@ -999,9 +999,9 @@
               <div class="head">RST Reader</div>
               <div class="body"><div class="port"><span class="dot"></span>exec_in</div><div class="port data"><span class="dot"></span>path</div><div class="port out"><span class="dot"></span>exec_out</div><div class="port data out"><span class="dot"></span>model</div></div>
               <div class="corner-badge">1</div>
-              <div class="peek"><div class="by">Emre - today</div><p>Use the project venv before checking DPF availability.</p></div>
+              <div class="peek"><div class="by">Emre - today</div><p>Use the project venv before checking viewer availability.</p></div>
             </div>
-            <button class="pin" data-thread="venv-dpf" style="left:208px;top:46px">1</button>
+            <button class="pin" data-thread="venv-viewer" style="left:208px;top:46px">1</button>
             <div class="node selected logic" data-node="Result Split" style="left:316px;top:70px">
               <div class="head">Result Split</div>
               <div class="body"><div class="port"><span class="dot"></span>exec_in</div><div class="port data"><span class="dot"></span>model</div><div class="port out"><span class="dot"></span>stress</div><div class="port out"><span class="dot"></span>strain</div></div>
@@ -1214,7 +1214,7 @@ const threads = {
   v2: {
     active: "strain-branch",
     items: [
-      {id:"venv-dpf", n:"1", node:"RST Reader", title:"DPF availability", author:"Emre", time:"today", state:"Open", body:"Use the project venv before checking DPF availability. System Python gives a false negative.", owner:"Emre"},
+      {id:"venv-viewer", n:"1", node:"RST Reader", title:"viewer availability", author:"Emre", time:"today", state:"Open", body:"Use the project venv before checking viewer availability. System Python gives a false negative.", owner:"Emre"},
       {id:"strain-branch", n:"2", node:"Result Split", title:"Strain branch label", author:"Mina", time:"today", state:"Open", body:"Confirm the strain branch is not using the stress label in the exported table.", owner:"Mina"},
       {id:"export-path", n:"3", node:"Export Bundle", title:"Relative export path", author:"Alex", time:"yesterday", state:"Open", body:"Export path should be relative to the run folder to make packaged jobs portable.", owner:"Alex"},
       {id:"review-note", n:"4", node:"Result Split", title:"Add tolerance note", author:"Emre", time:"today", state:"Open", body:"Add a short tolerance note before reviewers compare stress and strain deltas.", owner:"Emre"}

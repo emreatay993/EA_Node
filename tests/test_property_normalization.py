@@ -175,29 +175,6 @@ class PropertyNormalizationTests(unittest.TestCase):
             {"count": 15, "enabled": False},
         )
 
-    def test_legacy_curated_time_values_infer_explicit_time_scope_mode(self) -> None:
-        registry = build_default_registry(include_public_plugins=False)
-        set_scoped = registry.normalize_properties(
-            "dpf.workflow.result_fields",
-            {"set_ids": "2, 4"},
-        )
-        time_scoped = registry.normalize_properties(
-            "dpf.workflow.result_fields",
-            {"time_values": "0.5, 1.0"},
-        )
-
-        self.assertEqual(set_scoped["time_scope_mode"], "set_ids")
-        self.assertEqual(time_scoped["time_scope_mode"], "time_values")
-
-    def test_ambiguous_legacy_curated_time_values_require_explicit_mode(self) -> None:
-        registry = build_default_registry(include_public_plugins=False)
-        properties = registry.normalize_properties(
-            "dpf.workflow.result_fields",
-            {"set_ids": "2", "time_values": "1.0"},
-        )
-
-        self.assertNotIn("time_scope_mode", properties)
-
     def test_select_slider_and_web_browser_state_use_exact_builtin_policy(self) -> None:
         registry = build_default_registry(include_public_plugins=False)
 

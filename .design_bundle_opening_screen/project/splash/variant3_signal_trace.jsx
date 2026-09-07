@@ -12,7 +12,7 @@ function V3SignalTrace() {
     'Loading theme · Stitch Dark',
     'Registering node types',
     'Scanning plug-ins',
-    'Warming DPF backend',
+    'Warming viewer backend',
     'Restoring last workspace',
     'Preparing canvas',
     'Ready',

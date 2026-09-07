@@ -5,7 +5,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.builtins.data_control import PANEL_TYPE_ID
 from ea_node_editor.nodes.builtins.excalidraw import (
     EXCALIDRAW_BOARD_SURFACE_FAMILY,
@@ -205,14 +204,6 @@ _PLOT_BODY_LAYOUT = SurfaceLayoutMetrics(
     min_body_height=180.0,
     preferred_body_height=220.0,
 )
-_DPF_WORKFLOW_BODY_LAYOUT = SurfaceLayoutMetrics(
-    content_region="body",
-    min_body_width=300.0,
-    min_body_height=188.0,
-    preferred_body_height=212.0,
-)
-
-
 def _plot_surface_spec(plot_type: str) -> SurfaceSpec:
     return SurfaceSpec(
         family="plot",
@@ -289,14 +280,6 @@ _SURFACE_SPECS_BY_FAMILY: dict[str, SurfaceSpec] = {
         ),
         input_capabilities=_VIEWER_CANVAS_INPUT,
         native_overlay=NativeOverlayPolicy(required=True, target="body", owner=VIEWER_SESSION_OVERLAY_OWNER),
-    ),
-    "dpf_workflow": SurfaceSpec(
-        family="dpf_workflow",
-        component_key="dpf_workflow",
-        qml_component="dpf/GraphDpfWorkflowSurface.qml",
-        input_capabilities=_BASIC_CANVAS_INPUT,
-        layout=_DPF_WORKFLOW_BODY_LAYOUT,
-        metadata={"task_oriented": True},
     ),
     "plot": _plot_surface_spec("line"),
 }
@@ -381,7 +364,6 @@ _SURFACE_SPECS_BY_TYPE_ID: dict[str, SurfaceSpec] = {
         f"plot.{plot_type}": spec
         for (_family, plot_type), spec in _PLOT_SURFACE_SPECS_BY_VARIANT.items()
     },
-    DPF_VIEWER_NODE_TYPE_ID: _SURFACE_SPECS_BY_FAMILY["viewer"],
     MEDIA_PANEL_TYPE_ID: _SURFACE_SPECS_BY_FAMILY_VARIANT[("media", "media_panel")],
     PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID: _SURFACE_SPECS_BY_FAMILY_VARIANT[("media", "mail_panel")],
     EXCALIDRAW_BOARD_TYPE_ID: _SURFACE_SPECS_BY_FAMILY_VARIANT[

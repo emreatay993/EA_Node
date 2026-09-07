@@ -244,7 +244,7 @@ Model routing note:
 - Preconditions: `T03` if `QQuickView` is considered; otherwise can run after `T07`.
 - Conservative write scope:
   - `ea_node_editor/ui_qml/embedded_viewer_overlay_manager.py`
-  - `ea_node_editor/ui_qml/dpf_viewer_widget_binder.py`
+  - `ea_node_editor/ui_qml/engineering_viewer_widget_binder.py`
   - `ea_node_editor/ui_qml/components/graph/passive/*`
   - `tests/graph_surface/media_and_scope_suite.py`
   - `tests/graph_surface/passive_host_boundary_suite.py`

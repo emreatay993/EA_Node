@@ -292,10 +292,6 @@ class RegistryReplacementCoordinator:
                         for step in self._publication_steps(
                             current_registry=current_registry,
                             replacement_registry=final_registry,
-                            preferences_document=preferences_document,
-                            previous_preferences_document=previous_preferences_document,
-                            reason=operation,
-                            rebuild_addon_services=bool(addon_id),
                         ):
                             completed_steps.append(step)
                             step.apply()
@@ -330,8 +326,6 @@ class RegistryReplacementCoordinator:
                             tuple(completed_steps),
                             transaction,
                         )
-                        if addon_id:
-                            self._invalidate_addon(addon_id)
                         if failures:
                             raise RegistryReplacementRollbackError(failures) from original
                         raise
@@ -342,8 +336,6 @@ class RegistryReplacementCoordinator:
                 raise
             with self._host.execution_client.registry_publication_guard():
                 failures = self._rollback_transaction((), transaction)
-            if addon_id:
-                self._invalidate_addon(addon_id)
             if failures:
                 raise RegistryReplacementRollbackError(failures) from original
             raise
@@ -357,8 +349,6 @@ class RegistryReplacementCoordinator:
         preferences_document: Any,
         addon_id: str,
     ) -> NodeRegistry:
-        if addon_id:
-            self._invalidate_addon(addon_id)
         return self._candidate_builder(
             extra_plugin_dirs=list(extra_plugin_dirs or ()),
             generation_root=Path(generation_root),
@@ -384,10 +374,6 @@ class RegistryReplacementCoordinator:
         *,
         current_registry: NodeRegistry,
         replacement_registry: NodeRegistry,
-        preferences_document: Any,
-        previous_preferences_document: Any,
-        reason: str,
-        rebuild_addon_services: bool,
     ) -> tuple[_PublicationStep, ...]:
         host = self._host
         runtime = host.execution_client
@@ -397,7 +383,6 @@ class RegistryReplacementCoordinator:
         new_serializer = JsonProjectSerializer(replacement_registry)
         session_store = host.session_store
         viewer_sessions = host.viewer_session_bridge
-        viewer_host = getattr(host, "viewer_host_service", None)
 
         steps: list[_PublicationStep] = [
             _PublicationStep(
@@ -406,21 +391,6 @@ class RegistryReplacementCoordinator:
                 lambda: runtime.replace_registry(current_registry),
             )
         ]
-        rebuild_binders = getattr(viewer_host, "rebuild_addon_binders", None)
-        if rebuild_addon_services and callable(rebuild_binders):
-            steps.append(
-                _PublicationStep(
-                    "addon_viewer_services",
-                    lambda: rebuild_binders(
-                        preferences_document=preferences_document,
-                        reason=reason,
-                    ),
-                    lambda: rebuild_binders(
-                        preferences_document=previous_preferences_document,
-                        reason=f"rollback:{reason}",
-                    ),
-                )
-            )
         steps.extend(
             (
                 _PublicationStep(
@@ -496,12 +466,6 @@ class RegistryReplacementCoordinator:
         controller = getattr(self._host, "app_preferences_controller", None)
         document = getattr(controller, "document", None)
         return document() if callable(document) else None
-
-    @staticmethod
-    def _invalidate_addon(addon_id: str) -> None:
-        from ea_node_editor.addons.catalog import invalidate_addon_runtime_caches
-
-        invalidate_addon_runtime_caches(addon_id)
 
     @classmethod
     def _rollback_transaction(

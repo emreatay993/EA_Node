@@ -398,6 +398,7 @@ def test_t25_live_and_removed_inventories_have_exact_ledger_membership() -> None
         "main_window__lifecycle__project_reset_timer_cancellation",
         "main_window__lifecycle__repeated_mount_close_teardown",
         "main_window__lifecycle__viewer_reparent_restore",
+        "script_editor__test_canvas_port_edits_preserve_dirty_drafts_and_refresh_clean_editor",
     }
     assert removed_ids == {
         "main_window__bridge_local_pack__contracts_and_library_qml",
@@ -422,7 +423,7 @@ def test_t25_live_and_removed_inventories_have_exact_ledger_membership() -> None
         "main_window__lifecycle__viewer_reparent_restore",
         "project_session__test_recovery_prompt_is_deferred_until_main_window_is_visible",
     }
-    assert len(live_rows) - len(lifecycle_ids) == 42
+    assert len(live_rows) - len(lifecycle_ids) == 43
     for row in live_rows:
         assert row[5] != "N/A"
         assert (

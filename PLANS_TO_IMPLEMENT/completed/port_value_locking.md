@@ -7,7 +7,7 @@
 Primitive input ports (`int`, `float`, `bool`, `str`) currently clutter the graph
 even after a literal value has been entered via the inline editor — every one of
 them still presents a connectable dot, inviting accidental wires and making dense
-graphs (especially DPF operator stacks) visually noisy.
+graphs with many optional inputs visually noisy.
 
 Users typically either *wire* a primitive input OR *type a literal* into it,
 very rarely both. This plan formalises that intent:
@@ -368,7 +368,7 @@ event.
 ## Verification (end-to-end)
 
 1. Run the app, drop a node whose spec defaults include a non-zero primitive
-   (e.g. a DPF operator with `iterations=10`).
+   (e.g. a node with `iterations=10`).
    → that port appears with the padlock visual; connection drop is refused.
 2. Drop a different node with only default-zero primitives.
    → all primitive ports render normally.

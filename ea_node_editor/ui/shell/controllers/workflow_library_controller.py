@@ -6,7 +6,6 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING, Any
 
-from ea_node_editor.addons.catalog import create_live_workflow_definitions
 from ea_node_editor.custom_workflows import (
     custom_workflow_library_items,
     find_custom_workflow_definition,
@@ -17,11 +16,6 @@ from ea_node_editor.custom_workflows import (
 )
 from ea_node_editor.graph.hierarchy import scope_parent_id
 from ea_node_editor.graph.transforms import build_subnode_custom_workflow_snapshot_data
-from ea_node_editor.nodes.category_paths import (
-    category_display,
-    category_key,
-    normalize_category_path,
-)
 from ea_node_editor.nodes.builtins.subnode import SUBNODE_TYPE_ID
 from ea_node_editor.ui.shell.controllers.dialog_support import resolve_dialog_parent
 from ea_node_editor.ui.shell.controllers.result import ControllerResult
@@ -39,7 +33,6 @@ if TYPE_CHECKING:
 _CUSTOM_WORKFLOW_DESCRIPTION = "Project-local custom workflow snapshot."
 _WORKFLOW_SCOPE_LOCAL = "local"
 _WORKFLOW_SCOPE_GLOBAL = "global"
-_WORKFLOW_SCOPE_BUNDLED = "bundled"
 
 
 def _published_workflow_id(shell_node_id: object) -> str:
@@ -113,13 +106,6 @@ class WorkflowLibraryController:
     def set_global_custom_workflow_definitions(definitions: list[dict[str, Any]]) -> None:
         save_global_custom_workflow_definitions(definitions)
 
-    def bundled_custom_workflow_definitions(self) -> list[dict[str, Any]]:
-        preferences_controller = getattr(self._host, "app_preferences_controller", None)
-        document = getattr(preferences_controller, "document", None)
-        if not callable(document):
-            return []
-        return list(create_live_workflow_definitions(preferences_document=document()))
-
     @staticmethod
     def upsert_workflow_definition_by_id(
         definitions: list[dict[str, Any]],
@@ -166,32 +152,6 @@ class WorkflowLibraryController:
         for item in global_items:
             item["workflow_scope"] = _WORKFLOW_SCOPE_GLOBAL
 
-        bundled_definitions = self.bundled_custom_workflow_definitions()
-        bundled_by_id = {
-            str(definition.get("workflow_id", "")).strip(): definition
-            for definition in bundled_definitions
-            if isinstance(definition, dict)
-        }
-        bundled_items = custom_workflow_library_items(bundled_definitions)
-        for item in bundled_items:
-            item["workflow_scope"] = _WORKFLOW_SCOPE_BUNDLED
-            item["read_only"] = True
-            definition = bundled_by_id.get(str(item.get("workflow_id", "")).strip(), {})
-            try:
-                category_path = normalize_category_path(definition.get("category_path", ()))
-            except (TypeError, ValueError):
-                continue
-            category_display_text = category_display(category_path)
-            item.update(
-                {
-                    "category_path": category_path,
-                    "category_key": category_key(category_path),
-                    "category_display": category_display_text,
-                    "root_category": category_path[0],
-                    "category": category_display_text,
-                }
-            )
-
         local_ids = {str(item.get("workflow_id", "")).strip() for item in local_items}
         merged_items = list(local_items)
         global_only_items = [
@@ -200,14 +160,6 @@ class WorkflowLibraryController:
             if str(item.get("workflow_id", "")).strip() not in local_ids
         ]
         merged_items.extend(global_only_items)
-        user_ids = local_ids | {
-            str(item.get("workflow_id", "")).strip() for item in global_only_items
-        }
-        merged_items.extend(
-            item
-            for item in bundled_items
-            if str(item.get("workflow_id", "")).strip() not in user_ids
-        )
         merged_items.sort(
             key=lambda item: (
                 str(item.get("display_name", "")).lower(),
@@ -232,10 +184,7 @@ class WorkflowLibraryController:
         )
         if global_definition is not None:
             return global_definition
-        return find_custom_workflow_definition(
-            self.bundled_custom_workflow_definitions(),
-            normalized_workflow_id,
-        )
+        return None
 
     def set_custom_workflow_scope(
         self,

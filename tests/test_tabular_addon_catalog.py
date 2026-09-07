@@ -136,7 +136,6 @@ def test_registered_addon_catalog_exposes_tabular_property_edit_adapter_factory(
     )
 
     assert [adapter.__class__.__name__ for adapter in adapters] == [
-        "AnsysDpfPropertyEditAdapter",
         "TabularDataPropertyEditAdapter",
     ]
     assert [
@@ -146,6 +145,5 @@ def test_registered_addon_catalog_exposes_tabular_property_edit_adapter_factory(
         )
     ] == [
         "PlotPropertyEditAdapter",
-        "AnsysDpfPropertyEditAdapter",
         "TabularDataPropertyEditAdapter",
     ]

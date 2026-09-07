@@ -15,6 +15,8 @@ from ea_node_editor.nodes.bootstrap import build_builtin_registry, build_default
 from ea_node_editor.runtime_contracts import (
     DOUBLE_DATA_TYPE_ID,
     GRAPH_DATA_TYPE_ID,
+    INTEGER_DATA_TYPE_ID,
+    STRING_DATA_TYPE_ID,
 )
 from ea_node_editor.ui.shell.library_projection import (
     build_combined_library_items,
@@ -29,38 +31,6 @@ from ea_node_editor.ui.shell.library_projection import (
     rank_node_library_usage,
 )
 
-from ea_node_editor.nodes.builtins.ansys_dpf_common import (
-    DPF_EXPORT_NODE_TYPE_ID,
-    DPF_FIELD_OPS_NODE_TYPE_ID,
-    DPF_MESH_EXTRACT_NODE_TYPE_ID,
-    DPF_MESH_SCOPING_NODE_TYPE_ID,
-    DPF_MODEL_NODE_TYPE_ID,
-    DPF_RESULT_FIELD_NODE_TYPE_ID,
-    DPF_RESULT_FILE_NODE_TYPE_ID,
-    DPF_TIME_SCOPING_NODE_TYPE_ID,
-    DPF_VIEWER_NODE_TYPE_ID,
-)
-from ea_node_editor.nodes.builtins.ansys_dpf_taxonomy import (
-    DPF_ADVANCED_BUILDING_BLOCKS_CATEGORY_PATH,
-    DPF_HELPERS_CATEGORY_PATH,
-    DPF_HELPERS_CONTAINERS_CATEGORY_PATH,
-    DPF_HELPERS_SCOPING_CATEGORY_PATH,
-    DPF_HELPERS_SUPPORT_CATEGORY_PATH,
-    DPF_INPUTS_CATEGORY_PATH,
-    DPF_NODE_CATEGORY,
-    DPF_NODE_CATEGORY_PATH,
-    DPF_RAW_API_MIRROR_CATEGORY_PATH,
-    DPF_VIEWER_CATEGORY_PATH,
-    DPF_WORKFLOW_CATEGORY_PATH,
-    operator_family_category_path,
-)
-from ea_node_editor.nodes.ansys_dpf_data_types import (
-    DPF_DATA_SOURCES_DATA_TYPE,
-    DPF_MODEL_DATA_TYPE,
-    DPF_OBJECT_HANDLE_DATA_TYPE,
-    DPF_RESULT_FILE_DATA_TYPE,
-    DPF_SCOPING_DATA_TYPE,
-)
 from ea_node_editor.nodes.node_specs import DynamicPortGroupSpec, NodeTypeSpec, PortSpec, PropertySpec
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
@@ -380,18 +350,18 @@ class LibraryProjectionNestedCategoryPayloadTests(unittest.TestCase):
     def test_registry_items_nested_category_library_payload_projects_path_metadata(
         self,
     ) -> None:
-        path = ("Ansys DPF", "Compute", "Stress")
+        path = ("Engineering Analysis", "Compute", "Stress")
         [item] = build_registry_library_items(
             data_types=NodeRegistry().data_types, registry_specs=[
-                _spec("fixture.dpf_stress", "DPF Stress", path),
+                _spec("fixture.stress", "Stress", path),
             ]
         )
 
         self.assertEqual(item["category_path"], path)
         self.assertEqual(item["category_key"], category_key(path))
-        self.assertEqual(item["category_display"], "Ansys DPF > Compute > Stress")
-        self.assertEqual(item["category"], "Ansys DPF > Compute > Stress")
-        self.assertEqual(item["root_category"], "Ansys DPF")
+        self.assertEqual(item["category_display"], "Engineering Analysis > Compute > Stress")
+        self.assertEqual(item["category"], "Engineering Analysis > Compute > Stress")
+        self.assertEqual(item["root_category"], "Engineering Analysis")
         self.assertEqual(item["runtime_behavior"], "active")
         self.assertEqual(item["surface_family"], "standard")
         self.assertEqual(item["surface_variant"], "")
@@ -573,8 +543,8 @@ class LibraryProjectionNestedCategoryPayloadTests(unittest.TestCase):
         combined_items = build_combined_library_items(
             registry_items=build_registry_library_items(
                 data_types=NodeRegistry().data_types, registry_specs=[
-                    _spec("fixture.compute", "Compute Node", ("Ansys DPF", "Compute")),
-                    _spec("fixture.viewer", "Viewer Node", ("Ansys DPF", "Viewer")),
+                    _spec("fixture.compute", "Compute Node", ("Engineering Analysis", "Compute")),
+                    _spec("fixture.viewer", "Viewer Node", ("Engineering Analysis", "Viewer")),
                     _spec("fixture.io", "Input Node", ("Input / Output",)),
                 ]
             ),
@@ -584,7 +554,7 @@ class LibraryProjectionNestedCategoryPayloadTests(unittest.TestCase):
         root_filtered = build_filtered_library_items(
             combined_items=combined_items,
             query="",
-            category=category_key(("Ansys DPF",)),
+            category=category_key(("Engineering Analysis",)),
             data_type="",
             direction="",
         )
@@ -596,7 +566,7 @@ class LibraryProjectionNestedCategoryPayloadTests(unittest.TestCase):
         compute_filtered = build_filtered_library_items(
             combined_items=combined_items,
             query="",
-            category=category_key(("Ansys DPF", "Compute")),
+            category=category_key(("Engineering Analysis", "Compute")),
             data_type="",
             direction="",
         )
@@ -606,7 +576,7 @@ class LibraryProjectionNestedCategoryPayloadTests(unittest.TestCase):
 
         query_filtered = build_filtered_library_items(
             combined_items=combined_items,
-            query="Ansys DPF > Viewer",
+            query="Engineering Analysis > Viewer",
             category="",
             data_type="",
             direction="",
@@ -620,11 +590,11 @@ class LibraryProjectionNestedCategoryPayloadTests(unittest.TestCase):
         )
         options_by_label = {option["label"]: option for option in options}
         self.assertEqual(
-            options_by_label["Ansys DPF"]["value"], category_key(("Ansys DPF",))
+            options_by_label["Engineering Analysis"]["value"], category_key(("Engineering Analysis",))
         )
         self.assertEqual(
-            options_by_label["Ansys DPF > Compute"]["value"],
-            category_key(("Ansys DPF", "Compute")),
+            options_by_label["Engineering Analysis > Compute"]["value"],
+            category_key(("Engineering Analysis", "Compute")),
         )
         self.assertEqual(
             options_by_label["Input / Output"]["value"],
@@ -730,24 +700,6 @@ def _library_leaf_categories(registry):
     )
 
 
-_DPF_HELPER_TYPE_IDS = {
-    DPF_RESULT_FILE_NODE_TYPE_ID,
-    DPF_MODEL_NODE_TYPE_ID,
-    DPF_MESH_SCOPING_NODE_TYPE_ID,
-    DPF_TIME_SCOPING_NODE_TYPE_ID,
-    DPF_MESH_EXTRACT_NODE_TYPE_ID,
-    DPF_EXPORT_NODE_TYPE_ID,
-    DPF_VIEWER_NODE_TYPE_ID,
-}
-_DPF_OPERATOR_TYPE_IDS = {
-    DPF_RESULT_FIELD_NODE_TYPE_ID,
-    DPF_FIELD_OPS_NODE_TYPE_ID,
-}
-_DPF_SCOPING_TYPE_IDS = {
-    DPF_MESH_SCOPING_NODE_TYPE_ID,
-    DPF_TIME_SCOPING_NODE_TYPE_ID,
-}
-_DPF_ALL_TYPE_IDS = _DPF_HELPER_TYPE_IDS | _DPF_OPERATOR_TYPE_IDS
 _ANNOTATION_CATEGORY_PATH = ("Annotation",)
 _UTILITIES_CATEGORY_PATH = ("Utilities",)
 _CANVAS_CATEGORY_PATH = ("Utilities", "Canvas")
@@ -943,151 +895,10 @@ class LibraryProjectionRegistryCoverageTests(unittest.TestCase):
             ],
         )
 
-    def test_nested_category_library_filter_accepts_parent_category_path(self) -> None:
-        registry = build_default_registry()
-        results = _library_filter(registry, category_path=DPF_NODE_CATEGORY_PATH)
-
-        result_type_ids = {spec.type_id for spec in results}
-        self.assertTrue(_DPF_ALL_TYPE_IDS.issubset(result_type_ids))
-        self.assertTrue(
-            all(spec.category_path[0] == DPF_NODE_CATEGORY for spec in results)
-        )
-
-    def test_nested_category_library_flat_display_matches_ancestor(self) -> None:
-        registry = build_default_registry()
-        results = _library_filter(registry, category=DPF_NODE_CATEGORY.lower())
-
-        self.assertTrue(_DPF_ALL_TYPE_IDS.issubset({spec.type_id for spec in results}))
-        self.assertTrue(
-            all(spec.category_path[0] == DPF_NODE_CATEGORY for spec in results)
-        )
-
-    def test_nested_category_library_leaf_category_path_filter_is_precise(self) -> None:
-        registry = build_default_registry()
-        scoping_results = _library_filter(
-            registry, category_path=DPF_HELPERS_SCOPING_CATEGORY_PATH
-        )
-        result_results = _library_filter(
-            registry, category_path=operator_family_category_path("result")
-        )
-        viewer_results = _library_filter(
-            registry, category_path=DPF_VIEWER_CATEGORY_PATH
-        )
-
-        self.assertTrue(
-            _DPF_SCOPING_TYPE_IDS.issubset({spec.type_id for spec in scoping_results})
-        )
-        self.assertIn(
-            DPF_RESULT_FIELD_NODE_TYPE_ID, {spec.type_id for spec in result_results}
-        )
-        self.assertEqual(
-            [spec.type_id for spec in viewer_results], [DPF_VIEWER_NODE_TYPE_ID]
-        )
-        self.assertTrue(
-            all(
-                spec.category_path == DPF_HELPERS_SCOPING_CATEGORY_PATH
-                for spec in scoping_results
-            )
-        )
-        self.assertTrue(
-            all(
-                spec.category_path == operator_family_category_path("result")
-                for spec in result_results
-            )
-        )
-        self.assertEqual(viewer_results[0].category_path, DPF_VIEWER_CATEGORY_PATH)
-
-    def test_nested_category_library_options_include_dpf_ancestors(self) -> None:
-        registry = build_default_registry()
-        category_paths = _library_category_paths(registry)
-        categories = _library_leaf_categories(registry)
-
-        self.assertIn(DPF_NODE_CATEGORY_PATH, category_paths)
-        self.assertIn(DPF_INPUTS_CATEGORY_PATH, category_paths)
-        self.assertIn(DPF_ADVANCED_BUILDING_BLOCKS_CATEGORY_PATH, category_paths)
-        self.assertIn(DPF_WORKFLOW_CATEGORY_PATH, category_paths)
-        self.assertIn(DPF_HELPERS_CATEGORY_PATH, category_paths)
-        self.assertIn(DPF_HELPERS_SCOPING_CATEGORY_PATH, category_paths)
-        self.assertIn(DPF_HELPERS_CONTAINERS_CATEGORY_PATH, category_paths)
-        self.assertIn(DPF_HELPERS_SUPPORT_CATEGORY_PATH, category_paths)
-        self.assertIn(DPF_RAW_API_MIRROR_CATEGORY_PATH, category_paths)
-        self.assertIn(operator_family_category_path("result"), category_paths)
-        self.assertIn(operator_family_category_path("math"), category_paths)
-        self.assertIn(DPF_VIEWER_CATEGORY_PATH, category_paths)
-        self.assertIn(
-            category_display(DPF_ADVANCED_BUILDING_BLOCKS_CATEGORY_PATH), categories
-        )
-        self.assertIn(category_display(DPF_WORKFLOW_CATEGORY_PATH), categories)
-        self.assertIn(category_display(DPF_HELPERS_SCOPING_CATEGORY_PATH), categories)
-        self.assertIn(
-            category_display(DPF_HELPERS_CONTAINERS_CATEGORY_PATH), categories
-        )
-        self.assertIn(category_display(DPF_HELPERS_SUPPORT_CATEGORY_PATH), categories)
-        self.assertIn(
-            category_display(operator_family_category_path("result")), categories
-        )
-        self.assertIn(
-            category_display(operator_family_category_path("math")), categories
-        )
-        self.assertIn(category_display(DPF_VIEWER_CATEGORY_PATH), categories)
-        self.assertNotIn(category_display(DPF_NODE_CATEGORY_PATH), categories)
-        self.assertNotIn(category_display(DPF_HELPERS_CATEGORY_PATH), categories)
-        # The flat Operators bucket is fully retired: every dpf.op.* mirror
-        # lives under Advanced > Raw API Mirror now.
-        self.assertNotIn(("Ansys DPF", "Operators"), category_paths)
-        self.assertNotIn(category_display(("Ansys DPF", "Operators")), categories)
-        self.assertIn(("Flowchart",), category_paths)
-
-    def test_default_library_accepts_foundational_dpf_port_types(self) -> None:
-        registry = build_default_registry()
-
-        category_specs = _library_filter(
-            registry,
-            category_path=DPF_NODE_CATEGORY_PATH,
-        )
-        result_file_specs = _library_filter(
-            registry,
-            data_type=DPF_RESULT_FILE_DATA_TYPE,
-            direction="out",
-        )
-        model_specs = _library_filter(
-            registry,
-            data_type=DPF_MODEL_DATA_TYPE,
-            direction="out",
-        )
-        scoping_specs = _library_filter(
-            registry,
-            data_type=DPF_SCOPING_DATA_TYPE,
-            direction="out",
-        )
-
-        self.assertTrue(
-            {
-                "dpf.result_file",
-                "dpf.model",
-                "dpf.scoping.mesh",
-                "dpf.scoping.time",
-                "dpf.viewer",
-                "dpf.result_field",
-                "dpf.export",
-                "dpf.field_ops",
-                "dpf.mesh_extract",
-            }.issubset({spec.type_id for spec in category_specs})
-        )
-        self.assertIn("dpf.result_file", [spec.type_id for spec in result_file_specs])
-        self.assertIn("dpf.model", [spec.type_id for spec in model_specs])
-        self.assertTrue(
-            {"dpf.scoping.mesh", "dpf.scoping.time"}.issubset(
-                {spec.type_id for spec in scoping_specs}
-            )
-        )
-
-    def test_library_filters_primary_and_accepted_dpf_data_types_as_union(
-        self,
-    ) -> None:
+    def test_library_filters_primary_and_accepted_data_types_as_union(self) -> None:
         spec = NodeTypeSpec(
-            type_id="tests.dpf.helper.multi_input",
-            display_name="DPF Multi Input",
+            type_id="tests.multi_input",
+            display_name="Multi Input",
             category_path=("Tests",),
             icon="",
             ports=(
@@ -1095,19 +906,19 @@ class LibraryProjectionRegistryCoverageTests(unittest.TestCase):
                     "receiver",
                     "in",
                     "data",
-                    DPF_OBJECT_HANDLE_DATA_TYPE,
+                    DOUBLE_DATA_TYPE_ID,
                     required=False,
-                    accepted_data_types=(
-                        DPF_MODEL_DATA_TYPE,
-                        DPF_DATA_SOURCES_DATA_TYPE,
-                    ),
+                    accepted_data_types=(INTEGER_DATA_TYPE_ID, STRING_DATA_TYPE_ID),
                 ),
-                PortSpec("result", "out", "data", DPF_OBJECT_HANDLE_DATA_TYPE),
+                PortSpec("result", "out", "data", DOUBLE_DATA_TYPE_ID),
             ),
             properties=(),
         )
         combined = build_combined_library_items(
-            registry_items=build_registry_library_items(data_types=NodeRegistry().data_types, registry_specs=[spec]),
+            registry_items=build_registry_library_items(
+                data_types=build_default_registry().data_types,
+                registry_specs=[spec],
+            ),
             custom_workflow_items=[],
         )
 
@@ -1120,23 +931,16 @@ class LibraryProjectionRegistryCoverageTests(unittest.TestCase):
                 direction=direction,
             )
 
+        for data_type in (DOUBLE_DATA_TYPE_ID, INTEGER_DATA_TYPE_ID, STRING_DATA_TYPE_ID):
+            with self.subTest(data_type=data_type):
+                self.assertEqual(
+                    [item["type_id"] for item in matches(data_type, "in")],
+                    [spec.type_id],
+                )
         self.assertEqual(
-            [item["type_id"] for item in matches(DPF_MODEL_DATA_TYPE, "in")],
+            [item["type_id"] for item in matches(DOUBLE_DATA_TYPE_ID, "out")],
             [spec.type_id],
         )
-        self.assertEqual(
-            [item["type_id"] for item in matches(DPF_DATA_SOURCES_DATA_TYPE, "in")],
-            [spec.type_id],
-        )
-        self.assertEqual(
-            [item["type_id"] for item in matches(DPF_OBJECT_HANDLE_DATA_TYPE, "out")],
-            [spec.type_id],
-        )
-        self.assertEqual(
-            [item["type_id"] for item in matches(DPF_OBJECT_HANDLE_DATA_TYPE, "in")],
-            [spec.type_id],
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,6 @@
 """Slot-identity and duplicate-payload guards for the phantom/duplicate node bug.
 
-The 2026-07-03 duplicated-DPF-Viewer report pinned the corruption signature:
+The duplicated-viewer report pinned the corruption signature:
 a stale ``node_payload_location_by_id`` entry lets a keyed payload-cache write
 clobber ANOTHER node's slot, leaving one node's payload duplicated (stale copy
 at the old position + fresh copy in the clobbered slot) and the clobbered

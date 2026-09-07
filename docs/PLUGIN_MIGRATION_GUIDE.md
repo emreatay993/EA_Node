@@ -35,7 +35,7 @@ Public functions return an output mapping, not a result wrapper. With controls,
 read values from the immutable final `settings` parameter. `port=True` creates
 an optional override input but the effective value still appears in `settings`.
 Do not convert a trusted dynamic-topology, passive/custom-surface,
-backend-manifest, handle/session, or DPF node into a fake function; those remain
+backend-manifest, or handle/session node into a fake function; those remain
 internal implementation exceptions.
 
 ## Make port types explicit
@@ -90,7 +90,7 @@ If a bundled import is absent, the declared node remains visible but locked.
 - Keep a one-project synchronous transform in **Core > Python Script**; its
   source and applied declaration live in `.cxproj`.
 - Use a **Custom Workflow** when the reusable behavior is already a graph.
-- Keep advanced host services and DPF behavior in trusted internal code.
+- Keep advanced host services in trusted internal code.
 
 External/native runners, automatic dependency installation, background source
 watching, a marketplace, and generated `.py`/`.pyi` typing companions are not

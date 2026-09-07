@@ -42,12 +42,6 @@ GENERIC_PLOT_SERIES_RUNTIME_SHAPES = (
     "lists of numbers",
     "dict-of-arrays",
 )
-DPF_PLOT_SERIES_RUNTIME_SHAPES = (
-    "DPF Field handles",
-    "DPF FieldsContainer handles",
-    "DPF mesh and scoping metadata",
-)
-DPF_PLOT_FRAME_SELECTOR_DEFAULT = "1"
 _SUPPORTED_PLOT_SURFACES = set(PLOT_SURFACES)
 
 
@@ -125,119 +119,6 @@ def normalize_generic_plot_series(value: object) -> tuple[dict[str, Any], ...]:
             return tuple(dict(item) for item in raw_items if isinstance(item, Mapping))
         return ({"values": raw_items},)
     return ({"values": [normalized_value]},)
-
-
-@dataclass(slots=True, frozen=True)
-class DpfPlotFrameSelection:
-    selector: str
-    selected_indices: tuple[int, ...]
-    selected_set_ids: tuple[int, ...]
-    available_set_ids: tuple[int, ...]
-
-    @property
-    def frame_count(self) -> int:
-        return len(self.available_set_ids)
-
-
-def _coerce_selector_tokens(value: object) -> tuple[object, ...]:
-    if value is None:
-        return (DPF_PLOT_FRAME_SELECTOR_DEFAULT,)
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return (DPF_PLOT_FRAME_SELECTOR_DEFAULT,)
-        if text.casefold() in {"first", "last", "all"}:
-            return (text.casefold(),)
-        return tuple(token for token in text.replace(";", ",").split(",") if token.strip())
-    if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray)):
-        return tuple(value)
-    return (value,)
-
-
-def _normalize_available_set_ids(
-    *,
-    frame_count: int,
-    label_spaces: Sequence[Mapping[str, Any]] = (),
-) -> tuple[int, ...]:
-    normalized_frame_count = max(0, int(frame_count))
-    set_ids: list[int] = []
-    for index in range(normalized_frame_count):
-        set_id = None
-        if index < len(label_spaces):
-            try:
-                set_id = label_spaces[index].get("time")
-            except AttributeError:
-                set_id = None
-        try:
-            set_ids.append(int(set_id) if set_id is not None else index + 1)
-        except (TypeError, ValueError):
-            set_ids.append(index + 1)
-    return tuple(set_ids)
-
-
-def normalize_dpf_plot_frame_selector(
-    value: object,
-    *,
-    frame_count: int,
-    label_spaces: Sequence[Mapping[str, Any]] = (),
-) -> DpfPlotFrameSelection:
-    """Resolve a DPF frame selector to zero-based container indices.
-
-    Selectors are user-facing and therefore one-based. Numeric values first
-    match DPF ``time`` label-space set ids when available, then fall back to
-    one-based frame positions.
-    """
-
-    normalized_frame_count = max(0, int(frame_count))
-    available_set_ids = _normalize_available_set_ids(
-        frame_count=normalized_frame_count,
-        label_spaces=label_spaces,
-    )
-    if normalized_frame_count == 0:
-        return DpfPlotFrameSelection(
-            selector=str(value or "").strip() or DPF_PLOT_FRAME_SELECTOR_DEFAULT,
-            selected_indices=(),
-            selected_set_ids=(),
-            available_set_ids=available_set_ids,
-        )
-
-    selected: list[int] = []
-    for raw_token in _coerce_selector_tokens(value):
-        token = str(raw_token).strip()
-        lowered = token.casefold()
-        if lowered == "first":
-            selected.append(0)
-            continue
-        if lowered == "last":
-            selected.append(normalized_frame_count - 1)
-            continue
-        if lowered == "all":
-            selected.extend(range(normalized_frame_count))
-            continue
-        try:
-            requested = int(token)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(
-                "frame_selector must be first, last, all, or one or more integer set/frame ids"
-            ) from exc
-        if requested in available_set_ids:
-            selected.append(available_set_ids.index(requested))
-            continue
-        one_based_index = requested - 1
-        if 0 <= one_based_index < normalized_frame_count:
-            selected.append(one_based_index)
-            continue
-        raise ValueError(
-            f"frame_selector value {requested!r} does not match any available DPF frame."
-        )
-
-    deduped = tuple(dict.fromkeys(selected))
-    return DpfPlotFrameSelection(
-        selector=str(value or "").strip() or DPF_PLOT_FRAME_SELECTOR_DEFAULT,
-        selected_indices=deduped,
-        selected_set_ids=tuple(available_set_ids[index] for index in deduped),
-        available_set_ids=available_set_ids,
-    )
 
 
 @dataclass(slots=True, frozen=True, order=True)
@@ -627,8 +508,6 @@ def create_default_plot_backend_registry(
 
 __all__ = [
     "AUTO_PLOT_BACKEND_ID",
-    "DPF_PLOT_FRAME_SELECTOR_DEFAULT",
-    "DPF_PLOT_SERIES_RUNTIME_SHAPES",
     "GENERIC_PLOT_SERIES_RUNTIME_SHAPES",
     "PLOT_SURFACE_DATA_EXPORT",
     "PLOT_SURFACE_LIVE",
@@ -643,7 +522,6 @@ __all__ = [
     "PLOT_TYPE_SCATTER",
     "PLOT_TYPE_STREAMLINES",
     "PLOT_TYPE_SURFACE",
-    "DpfPlotFrameSelection",
     "PlotBackend",
     "PlotBackendRecord",
     "PlotBackendRegistry",
@@ -657,7 +535,6 @@ __all__ = [
     "create_builtin_plot_backend_records",
     "create_default_plot_backend_registry",
     "create_plot_backend_registry",
-    "normalize_dpf_plot_frame_selector",
     "normalize_generic_plot_series",
     "normalize_plot_surface",
     "normalize_plot_type",

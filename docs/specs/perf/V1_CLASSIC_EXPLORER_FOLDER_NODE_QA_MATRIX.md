@@ -64,7 +64,7 @@ Ready for manual testing
 
 ## Residual Risks
 
-- Existing dependency warnings from optional Ansys DPF packages may still appear during focused or fast verification and are unrelated to the Classic Explorer folder node.
+- Existing dependency warnings from optional engineering packages may still appear during focused or fast verification and are unrelated to the Classic Explorer folder node.
 - Context-budget guardrails are retained as optional historical diagnostics only and are not required future coding, closeout, release, or docs/proof gates.
 - P07 follow-up remediation touched source and tests solely to clear closeout verification failures; retained P01 through P06 packet evidence remains the primary feature evidence.
 - Future work that expands Folder Explorer into a project artifact manager, adds project-only virtual trees, or changes Path Pointer semantics requires a separate packet set.

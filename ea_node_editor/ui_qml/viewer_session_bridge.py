@@ -16,9 +16,14 @@ from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 from ea_node_editor.common.coercions import coerce_float
 from ea_node_editor.common.scene_protocol import (
     normalize_scene_styles,
+    normalize_viewer_background,
+    normalize_viewer_colormap,
+    normalize_viewer_deform_scale,
     normalize_viewer_representation,
+    normalize_viewer_result_component,
+    normalize_viewer_scalar_range_bound,
+    normalize_viewer_scalar_range_mode,
 )
-from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.execution.viewer_messages import (
     normalize_viewer_invalidation_node_ids,
     normalize_viewer_node_invalidation_epochs,
@@ -28,26 +33,6 @@ from ea_node_editor.execution.viewer_session_service import (
     build_run_required_viewer_session_model,
     coerce_viewer_session_model,
     projection_safe_viewer_transport,
-)
-from ea_node_editor.nodes.builtins.ansys_dpf_common import (
-    DPF_VIEWER_BACKGROUND_PROPERTY,
-    DPF_VIEWER_COLORMAP_PROPERTY,
-    DPF_VIEWER_DEFORM_SCALE_PROPERTY,
-    DPF_VIEWER_HOVER_PROBE_PROPERTY,
-    DPF_VIEWER_NODE_TYPE_ID,
-    DPF_VIEWER_RESULT_COMPONENT_PROPERTY,
-    DPF_VIEWER_SCALAR_RANGE_MAX_PROPERTY,
-    DPF_VIEWER_SCALAR_RANGE_MIN_PROPERTY,
-    DPF_VIEWER_SCALAR_RANGE_MODE_PROPERTY,
-    DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
-    DPF_VIEWER_SHOW_MINMAX_MARKERS_PROPERTY,
-    DPF_VIEWER_SHOW_SCALAR_BAR_PROPERTY,
-    normalize_dpf_viewer_background,
-    normalize_dpf_viewer_colormap,
-    normalize_dpf_viewer_deform_scale,
-    normalize_dpf_viewer_result_component,
-    normalize_dpf_viewer_scalar_range_bound,
-    normalize_dpf_viewer_scalar_range_mode,
 )
 from ea_node_editor.runtime_contracts import (
     COREX_VIEWER_SESSION_HANDLE_KIND,
@@ -210,19 +195,17 @@ def _coerce_bool(value: Any, *, default: bool = False) -> bool:
 
 
 _VIEW_OPTION_COERCERS: dict[str, Any] = {
-    DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY: _coerce_bool,
-    DPF_VIEWER_COLORMAP_PROPERTY: normalize_dpf_viewer_colormap,
-    DPF_VIEWER_RESULT_COMPONENT_PROPERTY: normalize_dpf_viewer_result_component,
-    DPF_VIEWER_SCALAR_RANGE_MODE_PROPERTY: normalize_dpf_viewer_scalar_range_mode,
-    DPF_VIEWER_SCALAR_RANGE_MIN_PROPERTY: normalize_dpf_viewer_scalar_range_bound,
-    DPF_VIEWER_SCALAR_RANGE_MAX_PROPERTY: normalize_dpf_viewer_scalar_range_bound,
-    DPF_VIEWER_SHOW_SCALAR_BAR_PROPERTY: lambda value: _coerce_bool(
-        value, default=True
-    ),
-    DPF_VIEWER_DEFORM_SCALE_PROPERTY: normalize_dpf_viewer_deform_scale,
-    DPF_VIEWER_HOVER_PROBE_PROPERTY: _coerce_bool,
-    DPF_VIEWER_SHOW_MINMAX_MARKERS_PROPERTY: _coerce_bool,
-    DPF_VIEWER_BACKGROUND_PROPERTY: normalize_dpf_viewer_background,
+    "show_mesh_edges": _coerce_bool,
+    "colormap": normalize_viewer_colormap,
+    "result_component": normalize_viewer_result_component,
+    "scalar_range_mode": normalize_viewer_scalar_range_mode,
+    "scalar_range_min": normalize_viewer_scalar_range_bound,
+    "scalar_range_max": normalize_viewer_scalar_range_bound,
+    "show_scalar_bar": lambda value: _coerce_bool(value, default=True),
+    "deform_scale": normalize_viewer_deform_scale,
+    "hover_probe": _coerce_bool,
+    "show_minmax_markers": _coerce_bool,
+    "viewer_background": normalize_viewer_background,
     "representation": normalize_viewer_representation,
     "scene_styles": normalize_scene_styles,
     "parallel_projection": _coerce_bool,
@@ -1035,8 +1018,6 @@ class ViewerSessionBridge(QObject):
                 state.invalidated_reason = ""
                 state.close_reason = ""
                 self._clear_pending_projection(state)
-                if not state.backend_id:
-                    state.backend_id = self._default_backend_id_for_node(node)
                 self._project_run_required_state(
                     state,
                     reason="project_reload",
@@ -1047,24 +1028,15 @@ class ViewerSessionBridge(QObject):
 
     @staticmethod
     def _is_viewer_node(node: Any, registry: "NodeRegistry | None") -> bool:
-        type_id = _string(getattr(node, "type_id", ""))
-        if type_id == DPF_VIEWER_NODE_TYPE_ID:
-            return True
         if registry is None:
             return False
         spec_or_none = getattr(registry, "spec_or_none", None)
         if not callable(spec_or_none):
             return False
-        spec = spec_or_none(type_id)
+        spec = spec_or_none(_string(getattr(node, "type_id", "")))
         if spec is None:
             return False
         return _string(getattr(spec, "surface_family", "")) == "viewer"
-
-    @staticmethod
-    def _default_backend_id_for_node(node: Any) -> str:
-        if _string(getattr(node, "type_id", "")) == DPF_VIEWER_NODE_TYPE_ID:
-            return DPF_EXECUTION_VIEWER_BACKEND_ID
-        return ""
 
     def _project_run_required_state(
         self,

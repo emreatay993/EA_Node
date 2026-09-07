@@ -70,9 +70,7 @@
       "id": "CL-08",
       "query": "viewer session ownership",
       "primary_owner": "docs/agent_maps/feature_routes/viewer_session_overlay_fullscreen.md",
-      "secondary_owners": [
-        "docs/agent_maps/feature_routes/ansys_dpf_operator_viewer_transport.md"
-      ],
+      "secondary_owners": [],
       "focused_test": "tests/test_viewer_session_bridge.py",
       "not_first_paths": [
         "ea_node_editor/ui_qml/graph_scene_bridge.py"

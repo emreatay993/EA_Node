@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
 from ea_node_editor.addons.catalog import discover_addon_records
 from ea_node_editor.addons.contracts import AddOnRecord
 from ._addon_manager_payloads import canonical_token
@@ -220,12 +219,6 @@ class AddOnManagerPresenter:
         for record in self._records:
             if record.addon_id == normalized:
                 return record.addon_id
-        aliases = {
-            "ansys.dpf": ANSYS_DPF_ADDON_ID,
-            "ansys_dpf": ANSYS_DPF_ADDON_ID,
-        }
-        if normalized in aliases:
-            return aliases[normalized]
         requested_token = canonical_token(normalized)
         if not requested_token:
             return ""

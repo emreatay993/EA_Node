@@ -24,7 +24,6 @@ Deeper `QQuickWidget` rendering, readback, painting, and host changes were defer
 |---|---|
 | Python | `3.10.0` |
 | PyQt / Qt | `6.11.0` |
-| `ansys-dpf-core` | `0.16.1`, inside declared `>=0.16,<0.17` |
 | Formal Windows host/backend | `qquickwidget` / Direct3D 11 RHI |
 | Stress fixture | `examples/stress_1200_nodes.cxproj`, workspace `ws_perf_h`, `1200` nodes / `1199` edges |
 | Baseline/final fixture SHA-256 | `e1aa111b9bfdf88a14e19c24da15e0ea71f04428866a051326d353207118541c` |
@@ -35,9 +34,9 @@ Older retained Track H matrices contain fixture hashes from earlier fixture revi
 
 | Packet | Status | Retained outcome |
 |---|---|---|
-| `P00` | PASS | Corrected DPF from out-of-range `0.15.0` to `0.16.1`; recorded exact environment, fixture checksum, startup, load, mutation, runtime-snapshot, and autosave baselines before product edits. |
+| `P00` | PASS | Recorded exact environment, fixture checksum, startup, load, mutation, runtime-snapshot, and autosave baselines before product edits. |
 | `P01` | PASS | One `GraphInvariantKernel` and validation memo per registry/compiler pass; memo invalidation follows edge removal; runtime snapshot and compiler output parity preserved. |
-| `P02` | PASS | Deterministic schema-1 DPF operator catalog for exact `0.16.1`, guarded live discovery for other supported `0.16.x`, warn-once fallback, package preflight, and no writable user cache. |
+| `P02` | RETIRED | The former optional operator-catalog optimization no longer applies to the current application surface. |
 | `P03` | PASS | Invocation-scoped frozen presentation facts reused across node, minimap, backdrop, bounds, icon, and edge endpoint construction without payload-schema changes. |
 | `P04` | PASS | Contiguous in-place visible-model replacement, structural fallback, deferred latest-wins reentrancy, and sparse comment/link badge projection. |
 | `P05` | PASS | Stable edge payloads replace in place with zero reindex; `R05` extends the cache with safe single-edge structural insert/remove while bulk and invalid cases retain full fallback. |
@@ -67,7 +66,6 @@ Older retained Track H matrices contain fixture hashes from earlier fixture revi
 
 | Metric | Result | Classification |
 |---|---:|---|
-| Exact-match DPF registry construction | `898.565 ms` median, `76%` faster; `805` full descriptors (`767` generated operator descriptors) | PASS (`<=1.5 s`, at least `70%` faster) |
 | App import | `28.5 ms` median, `97.4%` faster | PASS (`<=1.0 s`, at least `50%` faster) |
 | Project + scene load | `6273.124 -> 2214.771 ms` p95 | PASS (`<3000 ms`) |
 | Runtime snapshot + compile | `230.101 ms` p95 | PASS (`<=450 ms`, at least `20%` faster) |
@@ -136,10 +134,10 @@ The final selected path verified membership size `3`, exactly one membership fre
 
 ## Correctness And Architecture
 
-- Packet-focused unit, integration, QML, persistence, DPF catalog/runtime, packaging, and architecture-boundary checks passed.
+- Packet-focused unit, integration, QML, persistence, packaging, and architecture-boundary checks passed.
 - Runtime DTO/compiler output, descriptor IDs/order/metadata, `.cxproj` shape, display parity, bridge QObject types, QML context names, and public user-facing behavior remain unchanged.
 - The architecture audit passed: graph remains independent of UI/persistence, execution snapshot assembly remains in `ea_node_editor.execution`, persistence conversion remains in `ea_node_editor.persistence`, and startup authority remains in `ea_node_editor.bootstrap` / `ea_node_editor.app`.
-- `V01` composite correctness verification passed: fast recorded `2151` passed and `1` skipped, its dedicated serial phase recorded `20` passed, standalone one-worker GUI recorded `566` passed, slow recorded `34` passed, shell isolation recorded `31` passed, and the DPF catalog, traceability, Markdown, and map checks passed.
+- `V01` composite correctness verification passed: fast recorded `2151` passed and `1` skipped, its dedicated serial phase recorded `20` passed, standalone one-worker GUI recorded `566` passed, slow recorded `34` passed, shell isolation recorded `31` passed, and traceability, Markdown, and map checks passed.
 - The raw monolithic full command did **not** pass because three intermittent QML order/resource test nodes failed inside its embedded GUI phase. Each exact serial rerun passed and the standalone one-worker GUI suite passed, so correctness is **PASS** with a runner reproducibility **WARN**, not a product-correctness failure.
 - The detailed `V01` logs remain ignored verification evidence under `artifacts/verification_logs/v01_final_correctness/`; they are not committed retained artifacts.
 
@@ -147,14 +145,13 @@ The final selected path verified membership size `3`, exactly one membership fre
 
 | Audit | Status | Retained conclusion |
 |---|---|---|
-| `V01` correctness | PASS / WARN | Composite correctness PASS: fast `2151` passed + `1` skipped, serial `20` passed, standalone one-worker GUI `566` passed, slow `34` passed, shell isolation `31` passed, and DPF/docs/maps checks passed. Raw monolithic full has a runner reproducibility WARN after three intermittent embedded-GUI QML failures whose exact serial reruns passed. |
+| `V01` correctness | PASS / WARN | Composite correctness PASS: fast `2151` passed + `1` skipped, serial `20` passed, standalone one-worker GUI `566` passed, slow `34` passed, shell isolation `31` passed, and docs/maps checks passed. Raw monolithic full has a runner reproducibility WARN after three intermittent embedded-GUI QML failures whose exact serial reruns passed. |
 | `V02` performance | FAIL / PARTIAL | Product/internal gates and pan/zoom guardrails pass; formal display, shell-create relative, and QML relative-proof closure do not. |
 | `V03` independent final audit | PASS | Independent audit confirmed product-head ancestry, docs-only `P15` lineage through `6578e2b9`, a clean worktree, `V01` composite correctness PASS with raw-full runner WARN, accurate retained metric transcription, explicit unresolved formal display, shell-create, and QML-relative failures, and no committed raw artifacts. The implementation is ready for partial-performance handoff, not staged performance closure. |
 
 ## P15 Verification
 
 ```powershell
-.\venv\Scripts\python.exe .\scripts\generate_ansys_dpf_operator_catalog.py --check
 .\venv\Scripts\python.exe .\scripts\generate_source_test_file_index.py --check
 .\venv\Scripts\python.exe .\scripts\generate_qml_navigation_index.py --check
 .\venv\Scripts\python.exe .\scripts\generate_agent_route_index.py --check

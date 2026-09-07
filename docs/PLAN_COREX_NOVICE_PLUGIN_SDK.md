@@ -30,7 +30,7 @@ def scale(ctx, value, settings):
 
 Public plugin discovery will parse source statically without importing it. Validated source will be copied into an immutable content-addressed generation and imported only inside a process-isolated execution worker.
 
-Convert every function-honest non-DPF built-in and add-on node to this SDK. Retain private trusted descriptors only for compiler-special, dynamic-topology, passive/custom-surface, generated-family, and backend-manifest behavior. All Ansys DPF-specific nodes remain excluded and unchanged.
+Convert every function-honest repo-owned built-in and add-on node to this SDK. Retain private trusted descriptors only for compiler-special, dynamic-topology, passive/custom-surface, generated-family, and backend-manifest behavior.
 
 Implementation begins by creating `docs/PLAN_COREX_NOVICE_PLUGIN_SDK.md`. That file must contain this approved plan plus an embedded live task ledger:
 
@@ -56,12 +56,12 @@ Source handoff: `codex-plan-01a03779-f09e-70b2-825b-a371a8b0ccc2-01a03779-f0.md`
 | T08 | Completed | T08 implementation team | Mandatory transaction/data-loss and architecture reviews cleared; final lanes passed 230 tests/145 subtests, 93/30, 125/31, and 64/53 with one optional skip. Full registry identity, bounded add-on worker config, guarded admission, persistence-aware reload safety, reversible packages, exact consumer rollback, Ruff, compile, traceability, maps, and links passed. |
 | T09 | Completed | T09 implementation team | Independent backend/security and native UI reviews cleared; 135 authoring, dialog, controller, declaration, loader, and guarded-reload tests passed. One-time IDs, no-clobber/attested saves, structured diagnostics, native editor focus/actions, active run/viewer refusal, Ruff, compile, traceability, maps, and links passed. |
 | T10 | Completed | T10 conversion team | Independent conversion review cleared; 350 focused migration, runtime, catalog, geometry, registry, authoring, and persistence tests plus 104 subtests passed. Exact 23-ID function-entry cutover, unchanged 133-node golden fixture, inert reserved bundle, process/trusted execution, descriptor/dead-module removal, Ruff, compile, traceability, maps, and links passed. |
-| T11 | Completed | T11 implementation team | Independent Signal/parser review cleared; 215 parser, catalog, renderer, registry, process, DPF-boundary, and production QML tests plus 104 subtests passed. Exact frozen Signal Plot/group parity, private internal-only parser metadata, ordered warnings, ImageValue transport, eight generic descriptor retention, DPF exclusion, Ruff, compile, traceability, maps, and links passed. |
+| T11 | Completed | T11 implementation team | Independent Signal/parser review cleared; 215 parser, catalog, renderer, registry, process, add-on-boundary, and production QML tests plus 104 subtests passed. Exact Signal Plot/group parity, private internal-only parser metadata, ordered warnings, ImageValue transport, eight generic descriptor retention, Ruff, compile, traceability, maps, and links passed. |
 | T12 | Completed | T12 integration conversion team | Independent security/behavior review cleared after the connected-blank presence fix. Final disjoint lanes passed 135 tests/23 subtests, 64 tests, 212 tests/104 subtests, and 24 tests/2 subtests with one optional skip; exact 14-ID conversion, two trusted exceptions, golden parity, worker/persistence, lazy dependency loading, Ruff, compile, traceability, maps, and links passed. |
 | T13 | Completed | T13 Tabular conversion team | Independent security/architecture review cleared after the manifest-only trust-collision fix. Final lanes passed 130 tests; 17 tests; 68 tests/145 subtests; 164 tests/104 subtests; 42 tests; 72 tests/3 subtests; 37 tests; and 8 tests. Exact seven-ID golden parity, atomic same-owner bundle publication, trusted-generation attestation, dependency/disable gating, process-worker pipelines, persistence exclusion, lazy discovery, Ruff, compile, traceability, maps, and links passed. |
 | T14 | Completed | T14 MARS conversion team | Independent security/behavior review cleared. Final lanes passed 23 tests/2 subtests with one optional real-process skip, 44 tests, 11 tests, 15 tests, and 27 tests. Exact three-ID golden parity, package-local icon provenance with generation-backed code, trusted-generation rejection, real coordinator enable/disable identity, worker runtime, persistence exclusion, unchanged MARS process/artifact helpers, Ruff, compile, traceability, maps, and links passed. |
 | T15 | Completed | T15 remaining conversion team | Independent cross-catalog security/behavior review cleared after restoring the complete 133-spec documentation audit and removing dead Windows-auth owner residue. Final lanes passed 329 tests/104 subtests, 105 tests, 91 tests, 107 tests, 55 tests, 154 tests/15 subtests, and 23 tests. Exact 30-ID golden parity, 68-function/55-exception boundary, typed defaults, trusted handles/sessions, discovery isolation, persistence exclusion, Ruff, compile, traceability, maps, and links passed; T17 documentation gaps remain visibly failing. |
-| T16 | Completed | T16 clean-break team | Mandatory independent architecture/security review cleared. Final root gate passed 300 tests/138 subtests; exact 17 public `corex` exports, 68 function entries, fail-closed 55 trusted exceptions, 805 DPF exclusions, and three registered add-ons passed. Public legacy barrels/provenance/discovery were removed; source process-worker smoke returned 37; isolated wheel import passed outside the repository; managed runtime, packaging configuration, Ruff, compile, traceability, maps, and links passed. Windows package smoke remains T17 acceptance. |
+| T16 | Completed | T16 clean-break team | Mandatory independent architecture/security review cleared. Final root gate passed 300 tests/138 subtests; exact 17 public `corex` exports, 76 function entries, fail-closed 53 trusted exceptions, and two registered add-ons passed. Public legacy barrels/provenance/discovery were removed; source process-worker smoke returned 37; isolated wheel import passed outside the repository; managed runtime, packaging configuration, Ruff, compile, traceability, maps, and links passed. Windows package smoke remains T17 acceptance. |
 | T17 | Completed | T17 closeout team | Independent final diff/evidence review cleared with no remaining findings. Post-correction full verification passed 3,872 fast tests, 220 fast-serial tests, 70 QML Quick tests, 659 GUI tests, 18 GUI-serial tests, 46 slow tests, and 58 shell-isolation tests; clean base packaging passed startup, `corex` function-worker result `37`, and Signal Plot PNG smokes; traceability, links, maps, generated indexes, and local diagram renders passed. |
 
 T01 migration authority: [COREX Novice Plugin SDK Migration Inventory](specs/requirements/COREX_NOVICE_PLUGIN_SDK_MIGRATION_INVENTORY.md) classifies all 938 registered type IDs and records every preserved port/property key.
@@ -372,7 +372,7 @@ unavailable reason
 
 - GUI discovery never materializes a public callable.
 - Source paths, digests, bundle refs, and implementation records never enter `.cxproj`, graph fragments, or `.cxwf`.
-- Trusted descriptor/factory records remain private for explicit internal exceptions and Ansys DPF.
+- Trusted descriptor/factory records remain private for explicit internal exceptions and shipped add-ons.
 
 ### Package schema 2
 
@@ -446,13 +446,13 @@ Reject encrypted members, symlinks, absolute paths, traversal, backslashes, dot 
 - Deliverables:
   - Persist this plan with embedded T01–T17 ledger.
   - Replace descriptor-first public requirements with the function-SDK contract.
-  - Add an exhaustive table for every registered type ID: `convert`, `internal exception`, or `DPF excluded`, including owner, preserved keys, reason, and proving test.
-  - Capture the current normalized non-DPF catalog as a deterministic golden baseline.
+  - Add an exhaustive table for every registered type ID: `convert` or `internal exception`, including owner, preserved keys, reason, and proving test.
+  - Capture the current normalized repo-owned catalog as a deterministic golden baseline.
   - Register the plan under Active Implementation Plans.
 - Verification:
   - Baseline registry reproduces the captured fixture.
   - `check_traceability.py`, `check_markdown_links.py`, `check_agent_maps.py`.
-- Non-goals: Production source changes, compatibility loaders, DPF source edits.
+- Non-goals: Production source changes and compatibility loaders.
 - Packetization notes: `P01 Requirements and Migration Inventory`; must precede all implementation.
 - Review gate: Root orchestrator reviews the complete migration table before T02.
 
@@ -624,7 +624,7 @@ Reject encrypted members, symlinks, absolute paths, traversal, backslashes, dot 
 - Non-goals: QML editor, marketplace, watcher, generated types, pip UI, external environment selection.
 - Packetization notes: `P09 Authoring UI`.
 
-### T10 Convert simple ordinary non-DPF nodes
+### T10 Convert simple ordinary repo-owned nodes
 
 - Goal: Make the public SDK the normal implementation path for COREX itself.
 - Preconditions: T03 and migration matrix.
@@ -637,7 +637,7 @@ Reject encrypted members, symlinks, absolute paths, traversal, backslashes, dot 
   - Golden catalog parity.
   - Focused execution and persistence tests.
   - `.cxproj`, fragment, duplication, and `.cxwf` round trips.
-- Non-goals: Signal Plot, integrations, DPF, internal exception nodes.
+- Non-goals: Signal Plot, integrations, and internal exception nodes.
 - Packetization notes: `P10 Simple Built-ins`.
 
 ### T11 Convert Signal Plot and function-honest plot nodes
@@ -654,14 +654,13 @@ Reject encrypted members, symlinks, absolute paths, traversal, backslashes, dot 
   - Exact catalog/property/group parity.
   - Renderer/image/warning tests.
   - Port/default/UI projection tests.
-- Non-goals: DPF Plot.
 - Packetization notes: `P11 Plot Nodes`.
 
 ### T12 Convert file/process/email/spreadsheet/SSH integrations
 
 - Goal: Convert ordinary integration shells while retaining service, cancellation, artifact, and security helpers.
 - Preconditions: T10.
-- Conservative write scope: mapped non-DPF integration node declarations and focused runtime tests.
+- Conservative write scope: mapped repo-owned integration node declarations and focused runtime tests.
 - Deliverables:
   - Function declarations using trusted `ctx` services.
   - Preserved cancellation, staging, artifact, secret, and path behavior.
@@ -700,7 +699,7 @@ Reject encrypted members, symlinks, absolute paths, traversal, backslashes, dot 
 
 ### T15 Convert remaining feasible engineering/service-backed nodes
 
-- Goal: Complete the non-DPF function-honest conversion.
+- Goal: Complete the repo-owned function-honest conversion.
 - Preconditions: T10–T14.
 - Conservative write scope: engineering imports/viewer shells, Jupyter/AI/service-backed candidates proven convertible by the migration matrix.
 - Deliverables:
@@ -727,9 +726,8 @@ Reject encrypted members, symlinks, absolute paths, traversal, backslashes, dot 
     - Passive/custom-surface nodes.
     - Generated descriptor families where function expansion is less maintainable.
     - Advanced add-on/backend manifests.
-    - All Ansys DPF-specific nodes.
   - Remove public `@node_type`, `NodePlugin`, `PluginDescriptor`, `PLUGIN_DESCRIPTORS`, class probing, module executable manifests, and `ea_node_editor.plugins`.
-  - Keep trusted descriptor types private and available to DPF/internal code.
+  - Keep trusted descriptor types private and available to internal/add-on code.
   - Zero public legacy-reference audit.
   - Source wheel/frozen package includes `corex`.
 - Verification:
@@ -737,8 +735,7 @@ Reject encrypted members, symlinks, absolute paths, traversal, backslashes, dot 
   - Packaging configuration.
   - `import corex` in source, wheel, managed worker, and packaged app.
   - Exact exception inventory equals the migration matrix.
-  - DPF regression proves exclusion remains intact.
-- Non-goals: DPF conversion.
+  - Add-on regression proves the private boundary remains intact.
 - Packetization notes: `P16 Legacy Removal`.
 - Review gate: Independent final architecture review before closeout.
 
@@ -837,11 +834,11 @@ After every context compaction, before any new edit:
 ### Migration
 
 - Golden catalog parity for every converted type ID.
-- Exact internal-exception and DPF-exclusion inventories.
+- Exact internal-exception inventory.
 - `.cxproj`, graph fragment, duplication, and `.cxwf` persistence for retained IDs.
 - Signal Plot renderer/control parity.
 - Integration, Tabular, MARS, engineering, viewer, passive, handle, artifact, and cancellation suites.
-- DPF catalog/runtime/viewer regression despite DPF source exclusion.
+- Retained add-on catalog/runtime regression.
 
 ### Final commands
 
@@ -864,7 +861,6 @@ The package build must exercise `import corex` and run one packaged public-funct
 - COREX is unreleased and no external legacy plugin compatibility is required.
 - Existing unrelated dirty files are preserved and never overwritten or staged accidentally.
 - Node IDs and semantic port/property keys remain stable unless the migration matrix explicitly classifies a deliberate break.
-- Ansys DPF-specific source is not converted or refactored in this plan.
 - Private trusted descriptor/factory records remain for explicit internal exceptions; they are not public SDK.
 - Public plugins use standard metadata-driven surfaces only.
 - Custom Workflows remain copied graph snapshots.

@@ -31,7 +31,6 @@ def _build_targets():
             "main_window__drop_connect_and_workflow_io__connection_constraints_and_library_drop",
             (
                 "tests.main_window_shell.drop_connect_and_workflow_io.MainWindowShellDropConnectAndWorkflowIOTests.test_qml_connect_ports_rejects_passive_flow_to_data_kind_mismatch",
-                "tests.main_window_shell.drop_connect_and_workflow_io.MainWindowShellDropConnectAndWorkflowIOTests.test_qml_connect_ports_surfaces_graph_hint_for_mutually_exclusive_dpf_inputs",
                 "tests.main_window_shell.drop_connect_and_workflow_io.MainWindowShellDropConnectAndWorkflowIOTests.test_qml_request_drop_node_from_library_places_node_at_exact_scene_position",
                 "tests.main_window_shell.drop_connect_and_workflow_io.MainWindowShellDropConnectAndWorkflowIOTests.test_qml_request_drop_node_from_library_port_target_autoconnects_single_candidate",
                 "tests.main_window_shell.drop_connect_and_workflow_io.MainWindowShellDropConnectAndWorkflowIOTests.test_qml_request_drop_node_from_library_port_target_ambiguous_uses_prompt_selection",
@@ -292,7 +291,6 @@ def _build_targets():
                 "tests.main_window_shell.view_library_inspector.MainWindowShellViewLibraryInspectorTests.test_qml_optional_port_filter_is_view_local",
                 "tests.main_window_shell.view_library_inspector.MainWindowShellViewLibraryInspectorTests.test_qml_node_payload_exposes_inline_property_metadata_for_supported_nodes",
                 "tests.main_window_shell.view_library_inspector.MainWindowShellViewLibraryInspectorTests.test_qml_default_property_payload_tracks_value_changes_and_input_override",
-                "tests.main_window_shell.view_library_inspector.MainWindowShellViewLibraryInspectorTests.test_qml_dpf_model_path_property_is_overridden_by_result_file_input",
                 "tests.main_window_shell.view_library_inspector.MainWindowShellViewLibraryInspectorTests.test_viewport_commands_frame_all_frame_selection_and_center_selection",
                 "tests.main_window_shell.view_library_inspector.MainWindowShellViewLibraryInspectorTests.test_viewport_commands_are_noops_for_empty_graph_or_empty_selection",
                 "tests.main_window_shell.view_library_inspector.MainWindowShellViewLibraryInspectorTests.test_script_editor_action_focuses_editor_when_script_node_selected",

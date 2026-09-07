@@ -68,7 +68,7 @@ from ea_node_editor.runtime_contracts import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 
 class _DictSubclass(dict):
@@ -293,7 +293,7 @@ _CONVERTED_SPATIAL_TYPE_IDS = (
 def test_converted_spatial_specs_match_golden_and_use_function_entries(
     tmp_path: Path,
 ) -> None:
-    expected_rows = load_effective_non_dpf_catalog()
+    expected_rows = load_current_repo_owned_catalog()
     expected = {
         row["spec"]["type_id"]: row["spec"]
         for row in expected_rows

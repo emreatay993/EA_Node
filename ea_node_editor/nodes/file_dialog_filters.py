@@ -113,10 +113,6 @@ SCRIPT_FILES_FILTER = (
     "Script Files (*.sh *.bash *.slurm *.pbs *.lsf *.cmd *.bat *.ps1);;"
     f"{ALL_FILES_FILTER}"
 )
-ANSYS_DPF_RESULT_FILES_FILTER = (
-    "Ansys/DPF Result Files (*.rst *.rth *.rmg *.mode *.d3plot *.h5 *.hdf5);;"
-    f"{ALL_FILES_FILTER}"
-)
 FE_SCENE_FILES_FILTER = (
     f"Neutral FE Files (*{' *'.join(FE_SCENE_SUFFIXES)});;{ALL_FILES_FILTER}"
 )
@@ -127,7 +123,6 @@ CAD_SCENE_FILES_FILTER = (
 
 __all__ = [
     "ALL_FILES_FILTER",
-    "ANSYS_DPF_RESULT_FILES_FILTER",
     "CAD_SCENE_FILES_FILTER",
     "FE_SCENE_FILES_FILTER",
     "IMAGE_FILE_SUFFIXES",

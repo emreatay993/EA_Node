@@ -283,9 +283,9 @@ end-to-end rather than inventing a new rail.
 7. `P07 Palette body` — derived primarily from **T07**. Depends on P02 + P04.
 8. `P08 Wire + retire classic` — derived primarily from **T08**. Depends on everything.
 
-A later optional `P09 Node spec group annotations` back-fills `PropertySpec.group=` on the DPF /
-Compute / Source specs so Smart Groups and Accordion Cards show real Source / Selection / Post clusters
-instead of a single `"Properties"` bucket. **Landed** — see "Completed follow-ups" below.
+A later optional `P09 Node spec group annotations` can back-fill `PropertySpec.group=` on retained
+node specs so Smart Groups and Accordion Cards show meaningful clusters instead of a single
+`"Properties"` bucket.
 
 ## Test Plan
 
@@ -325,22 +325,15 @@ instead of a single `"Properties"` bucket. **Landed** — see "Completed follow-
 
 ## Completed follow-ups
 
-- **P09 — DPF Source/Selection/Post group annotations** — `dpf_output_mode_property()` factory now
-  defaults to `group="Post"`, and every hand-authored DPF `PropertySpec` literal in
-  `ea_node_editor/nodes/builtins/ansys_dpf_compute.py` (20 literals) and
-  `ea_node_editor/nodes/builtins/ansys_dpf_helper_adapters.py` (7 literals) carries an explicit
-  `group="Source"` / `"Selection"` / `"Post"`. Covered by `tests/test_dpf_property_groups.py`.
+- The former P09 node-family-specific annotation follow-up was retired with that node family.
 
 ## Follow-ups (explicitly out of scope)
 
-- Dynamic `ansys_dpf_operator_catalog.py` specs — still fall back to the `"Properties"` bucket. A
-  follow-up could map by DPF operator `family_path` (`"result"` → Source, `"scoping"` → Selection,
-  `"math"` / `"averaging"` → Post) if a hand-curated table is desired.
 - Port the remaining Tweaks from the HTML (`showHelp`, `showOverride`, `paneWidth`) — these live on
   the design canvas harness, not the variants.
 - Variants V11, V13, V14, V17–V20 from the bundle.
-- Group vocabulary for non-DPF plugins (`core.py`, `hpc.py`, `integrations_*.py`, `passive_media.py`)
-  — the Source / Selection / Post taxonomy is DPF-centric and doesn't map cleanly to logger / email /
+- Group vocabulary for general plugins (`core.py`, `hpc.py`, `integrations_*.py`, `passive_media.py`)
+  — the Source / Selection / Post taxonomy is engineering-specific and doesn't map cleanly to logger / email /
   excel nodes, so those specs intentionally stay on the synthetic `"Properties"` bucket.
 
 ## Between-packet workflow (per user request)

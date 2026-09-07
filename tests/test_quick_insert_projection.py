@@ -407,7 +407,7 @@ class QuickInsertProjectionCategoryTests(unittest.TestCase):
     def test_quick_insert_nested_category_library_payload_shows_full_path(
         self,
     ) -> None:
-        path = ("Ansys DPF", "Compute")
+        path = ("Engineering Analysis", "Compute")
         combined_items = build_combined_library_items(
             registry_items=[
                 {
@@ -430,20 +430,20 @@ class QuickInsertProjectionCategoryTests(unittest.TestCase):
 
         canvas_results = build_canvas_quick_insert_items(
             combined_items=combined_items,
-            query="Ansys DPF > Compute",
+            query="Engineering Analysis > Compute",
         )
-        self.assertEqual(canvas_results[0]["category"], "Ansys DPF > Compute")
-        self.assertEqual(canvas_results[0]["category_display"], "Ansys DPF > Compute")
+        self.assertEqual(canvas_results[0]["category"], "Engineering Analysis > Compute")
+        self.assertEqual(canvas_results[0]["category_display"], "Engineering Analysis > Compute")
 
         connection_results = build_connection_quick_insert_items(
             combined_items=combined_items,
             data_types=build_default_registry().data_types,
-            query="Ansys DPF > Compute",
+            query="Engineering Analysis > Compute",
             source_direction="out",
             source_kind="data",
             source_data_type=GRAPH_DATA_TYPE_ID,
         )
-        self.assertEqual(connection_results[0]["category"], "Ansys DPF > Compute")
+        self.assertEqual(connection_results[0]["category"], "Engineering Analysis > Compute")
 
 
 if __name__ == "__main__":

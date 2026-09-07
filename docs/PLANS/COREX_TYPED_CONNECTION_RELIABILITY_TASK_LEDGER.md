@@ -9,13 +9,12 @@ Plan: [COREX Typed Connection Reliability](../PLAN_COREX_TYPED_CONNECTION_RELIAB
 - The graph owns structured compatibility; Quick Insert owns recommendation.
 - Blank connection Quick Insert hides broad/runtime fallbacks; explicit search
   reveals them with text labels.
-- Non-DPF/public authoring and projection fail closed instead of inventing
+- Repo-owned/public authoring and projection fail closed instead of inventing
   global Any.
-- DPF-specific metadata, generators, catalogues, fixtures, and type expansion
-  are excluded.
+- Unrelated metadata, generators, catalogues, fixtures, and type expansion are excluded.
 - No runtime-red wire redesign, compatibility shim, or insertion rollback.
 - No commit or push without separate explicit authorization.
-- Implementation inventory correction: the exact default-resolved non-DPF Any
+- Implementation inventory correction: the exact default-resolved repo-owned Any
   inventory is 20, not the planning count of 17. Existing
   `mars.batch_solve.files`, `mars.run_job.files`, and `mars.time_history.files`
   deliberately emit filename-to-`RuntimeArtifactRef` maps. Their explicit Any
@@ -49,7 +48,7 @@ Plan: [COREX Typed Connection Reliability](../PLAN_COREX_TYPED_CONNECTION_RELIAB
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | T00 | ACCEPTED | `/root` | Implementation authorization | Plan, ledger, exact index line | Plan and ledger created; index registration added while preserving the user hunk | Markdown links PASS; `git diff --check` PASS; protected hash unchanged | T01 unblocked | none |
 | T01 | ACCEPTED | `/root/typed_connection_implementer` | T00 accepted | Type catalogue, core types, graph compatibility/warnings, focused tests | runtime type/core exports; core_data_types; effective_ports; invariant_kernel; route_payload; five focused test modules | 74 core/type/graph passed; 4 warning/export tests passed; 4 declared-collection tests passed; Ruff and diff check PASS | Root inspected complete diff; T02 unblocked | none |
-| T02 | ACCEPTED | `/root/typed_connection_implementer` | T01 accepted | Non-DPF metadata, declaration parsers, overlay, focused tests | Eleven primary types; four accepted tuples; plugin/Python parsers; current overlay/loader; focused tests | 168 + 114 + 115 + 1 tests passed, 77 subtests; audit/accepted-Any leak/reuse/migration exact checks 4 passed; Ruff/diff PASS | Root reviewed declarations/overlay/audit; exact Any count 20; T03 unblocked | none |
+| T02 | ACCEPTED | `/root/typed_connection_implementer` | T01 accepted | Repo-owned metadata, declaration parsers, catalogue, focused tests | Eleven primary types; four accepted tuples; plugin/Python parsers; current catalogue/loader; focused tests | 168 + 114 + 115 + 1 tests passed, 77 subtests; audit/accepted-Any leak/reuse/migration exact checks 4 passed; Ruff/diff PASS | Root reviewed declarations/catalogue/audit; exact Any count 20; T03 unblocked | none |
 | T03 | ACCEPTED | `/root/typed_connection_implementer` | T01-T02 accepted | Workflow/Library/QML preview projection, focused tests | codec/publication guard; Library projection/presenter; QML preview; necessary Quick Insert missing-type guards; focused tests | 77 tests + 12 subtests; package IO 6 tests; Ruff/diff PASS | Root reviewed strict publish/tolerant load/default-port flow; T04 unblocked | none |
 | T04 | ACCEPTED | `/root/typed_connection_implementer` | T01-T03 accepted | Quick Insert, presenter, drop controller, overlay, focused tests | Quick Insert tiers/payload/rank; presenter/state; ordinary/workflow selected-key revalidation; overlay; projection/controller/shell/isolation tests; published pin-key mapping restricted to Quick Insert | REV-02 failed-before both subcases; after fix 2+4 subtests; controller/workflow/projection39+21; offscreen shell14+4; isolation2; Ruff/diff PASS | Independent re-review accepts REV-01/02, no residual findings | none |
 | T05 | ACCEPTED | `/root/typed_connection_implementer` | T01-T04 accepted | Persistence proof, specs/guides/maps/indexes, ledger | serializer load proof; three guides; architecture; requirements/traceability; nine maps/coverage; generated indexes | 80 tests + 22 subtests; hygiene 132 + 258 subtests; traceability/links/maps/index freshness/Ruff/diff PASS | Root reviewed load proof and docs; T06 unblocked | none |

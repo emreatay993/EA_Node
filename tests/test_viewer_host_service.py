@@ -10,18 +10,12 @@ from PyQt6.QtGui import QColor, QImage, QKeyEvent
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QApplication, QWidget
 
-from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
-from ea_node_editor.app_preferences import default_app_preferences_document, set_addon_state
 from ea_node_editor.execution.prepared_execution import InvalidationResult
-from ea_node_editor.nodes.builtins.ansys_dpf_common import (
-    DPF_VIEWER_NODE_TYPE_ID,
-    DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
-)
+from ea_node_editor.nodes.builtins.engineering_viewer import ENGINEERING_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import NodeRenderQualitySpec, NodeTypeSpec, PortSpec
 from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import VIEWER_SESSION_OVERLAY_OWNER
-from ea_node_editor.ui_qml.dpf_viewer_widget_binder import DpfViewerWidgetBinder
-from ea_node_editor.ui_qml import viewer_host_service as viewer_host_module
+from ea_node_editor.ui_qml.engineering_viewer_widget_binder import EngineeringViewerWidgetBinder
 from ea_node_editor.ui_qml.viewer_host_service import (
     ViewerHostService,
     _cache_relevant_options,
@@ -29,6 +23,8 @@ from ea_node_editor.ui_qml.viewer_host_service import (
 )
 from ea_node_editor.ui_qml.viewer_widget_binder import ViewerWidgetNoBind
 from tests.main_window_shell.base import MainWindowShellTestBase
+
+_SHOW_MESH_EDGES_PROPERTY = "show_mesh_edges"
 
 
 class _FakeContentFullscreenBridge(QObject):
@@ -58,7 +54,7 @@ def _viewer_overlay_spec() -> NodeTypeSpec:
         category_path=("Tests",),
         icon="",
         ports=(
-            PortSpec("fields", "in", "data", 'COREX.Ansys.DPF.Field', required=False),
+            PortSpec("scene", "in", "data", "COREX.Engineering.Scene", required=False),
             PortSpec("session", "out", "data", 'COREX.Viewer.Session'),
         ),
         properties=(),
@@ -494,7 +490,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.app.processEvents()
         return node_id
 
-    def _add_dpf_viewer_node(
+    def _add_engineering_viewer_node(
         self,
         *,
         x: float = 160.0,
@@ -502,7 +498,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         width: float = 360.0,
         height: float = 280.0,
     ) -> str:
-        node_id = self.window.scene.add_node_from_type(DPF_VIEWER_NODE_TYPE_ID, x=x, y=y)
+        node_id = self.window.scene.add_node_from_type(ENGINEERING_VIEWER_NODE_TYPE_ID, x=x, y=y)
         self.window.scene.resize_node(node_id, width, height)
         self.window.view.set_view_state(1.0, x + (width * 0.5), y + (height * 0.5))
         self.app.processEvents()
@@ -1062,48 +1058,40 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertEqual(self.host_service.last_error, "test refresh failure")
         self.assertEqual(binder.release_calls[-1]["reason"], "attach_refresh_error")
 
-    def test_host_service_registers_builtin_dpf_binder(self) -> None:
+    def test_host_service_registers_builtin_engineering_binder(self) -> None:
         self.assertIsInstance(
-            self.host_service.binder_registry.lookup(DpfViewerWidgetBinder.backend_id),
-            DpfViewerWidgetBinder,
+            self.host_service.binder_registry.lookup(EngineeringViewerWidgetBinder.backend_id),
+            EngineeringViewerWidgetBinder,
         )
 
     def test_binders_are_lazy_reused_and_custom_registration_survives_first_initialization(self) -> None:
-        with patch.object(
-            viewer_host_module,
-            "create_live_viewer_widget_binders",
-            return_value=(),
-        ) as binder_factory:
-            unopened = ViewerHostService(
-                qml_engine_provider=lambda: None,
-                save_file_dialog=lambda **_kwargs: "",
-                cycle_camera_bookmark=lambda _node_id, _direction: False,
-                content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
-            )
-            unopened.shutdown()
-            self.assertIs(unopened.binder_registry, unopened._binder_registry)  # noqa: SLF001
-            binder_factory.assert_not_called()
+        unopened = ViewerHostService(
+            qml_engine_provider=lambda: None,
+            save_file_dialog=lambda **_kwargs: "",
+            cycle_camera_bookmark=lambda _node_id, _direction: False,
+            content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
+        )
+        unopened.shutdown()
+        self.assertIs(unopened.binder_registry, unopened._binder_registry)  # noqa: SLF001
 
-            service = ViewerHostService(
-                qml_engine_provider=lambda: None,
-                save_file_dialog=lambda **_kwargs: "",
-                cycle_camera_bookmark=lambda _node_id, _direction: False,
-                content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
-            )
-            custom_binder = _RecordingBinder()
-            service.register_binder("tests.lazy.custom", custom_binder)
-            binder_factory.assert_not_called()
+        service = ViewerHostService(
+            qml_engine_provider=lambda: None,
+            save_file_dialog=lambda **_kwargs: "",
+            cycle_camera_bookmark=lambda _node_id, _direction: False,
+            content_fullscreen_bridge=_FakeContentFullscreenBridge(),  # type: ignore[arg-type]
+        )
+        custom_binder = _RecordingBinder()
+        service.register_binder("tests.lazy.custom", custom_binder)
 
-            registry = service.binder_registry
-            self.assertIs(registry.lookup("tests.lazy.custom"), custom_binder)
-            self.assertIs(service.binder_registry, registry)
-            binder_factory.assert_called_once_with(preferences_document=None)
-            service.shutdown()
+        registry = service.binder_registry
+        self.assertIs(registry.lookup("tests.lazy.custom"), custom_binder)
+        self.assertIs(service.binder_registry, registry)
+        service.shutdown()
 
     def test_mesh_edge_option_change_rebinds_active_overlay(self) -> None:
         binder = _RecordingBinder()
         self.host_service.register_binder("tests.viewer_backend", binder)
-        node_id = self._add_dpf_viewer_node()
+        node_id = self._add_engineering_viewer_node()
         self.window.scene.select_node(node_id, False)
         self.app.processEvents()
 
@@ -1112,12 +1100,12 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         first_widget = self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
         self.assertIsNotNone(first_widget)
         self.assertEqual(len(binder.bind_calls), 1)
-        self.assertNotIn(DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY, binder.bind_calls[-1]["options"])
+        self.assertNotIn(_SHOW_MESH_EDGES_PROPERTY, binder.bind_calls[-1]["options"])
 
         self.assertTrue(
             self.bridge.sync_node_property_option(
                 node_id,
-                DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
+                _SHOW_MESH_EDGES_PROPERTY,
                 True,
                 {"workspace_id": self.workspace_id},
             )
@@ -1129,17 +1117,17 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id),
             first_widget,
         )
-        self.assertTrue(binder.bind_calls[-1]["options"][DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY])
+        self.assertTrue(binder.bind_calls[-1]["options"][_SHOW_MESH_EDGES_PROPERTY])
         self.assertTrue(
             self.window.execution_client.update_calls[-1]["options"][
-                DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY
+                _SHOW_MESH_EDGES_PROPERTY
             ]
         )
 
     def test_view_option_change_migrates_camera_state_across_rebind(self) -> None:
         binder = _ViewStateBinder(view_state={"zoom": 3.3})
         self.host_service.register_binder("tests.viewer_backend", binder)
-        node_id = self._add_dpf_viewer_node()
+        node_id = self._add_engineering_viewer_node()
         self.window.scene.select_node(node_id, False)
         self.app.processEvents()
 
@@ -1149,7 +1137,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertTrue(
             self.bridge.sync_node_property_option(
                 node_id,
-                DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
+                _SHOW_MESH_EDGES_PROPERTY,
                 True,
                 {"workspace_id": self.workspace_id},
             )
@@ -1163,7 +1151,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
     def test_transport_revision_change_drops_cached_camera_state(self) -> None:
         binder = _ViewStateBinder(view_state={"zoom": 3.3})
         self.host_service.register_binder("tests.viewer_backend", binder)
-        node_id = self._add_dpf_viewer_node()
+        node_id = self._add_engineering_viewer_node()
         self.window.scene.select_node(node_id, False)
         self.app.processEvents()
 
@@ -1182,7 +1170,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
     def test_render_stats_and_camera_slots_route_to_bound_widget(self) -> None:
         binder = _CameraStatsBinder(stats={"min": 1.5, "max": 4.5, "component": "Y"})
         self.host_service.register_binder("tests.viewer_backend", binder)
-        node_id = self._add_dpf_viewer_node()
+        node_id = self._add_engineering_viewer_node()
         self.window.scene.select_node(node_id, False)
         self.app.processEvents()
 
@@ -1239,7 +1227,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             captured_camera_state={"zoom": 9.0},
         )
         self.host_service.register_binder("tests.viewer_backend", binder)
-        node_id = self._add_dpf_viewer_node()
+        node_id = self._add_engineering_viewer_node()
         self.window.scene.select_node(node_id, False)
         self.app.processEvents()
         self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
@@ -1259,7 +1247,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         capture.fill(0xFF00FF00)
         binder = _RecordingBinder(captured_preview_image=capture)
         self.host_service.register_binder("tests.viewer_backend", binder)
-        node_id = self._add_dpf_viewer_node()
+        node_id = self._add_engineering_viewer_node()
         self.window.scene.select_node(node_id, False)
         self.app.processEvents()
         self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
@@ -1290,41 +1278,6 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         missing = self.host_service.export_viewer_screenshot("missing-node")
         self.assertFalse(missing["ok"])
         self.assertTrue(missing["error"])
-
-    def test_rebuild_addon_binders_removes_disabled_dpf_binder_and_preserves_custom_binders(self) -> None:
-        custom_binder = _RecordingBinder()
-        self.host_service.register_binder("tests.viewer_backend.custom", custom_binder)
-        disabled_preferences = set_addon_state(
-            default_app_preferences_document(),
-            ANSYS_DPF_ADDON_ID,
-            enabled=False,
-            pending_restart=False,
-        )
-
-        self.host_service.rebuild_addon_binders(preferences_document=disabled_preferences)
-
-        self.assertIsNone(self.host_service.binder_registry.lookup(DpfViewerWidgetBinder.backend_id))
-        self.assertIs(
-            self.host_service.binder_registry.lookup("tests.viewer_backend.custom"),
-            custom_binder,
-        )
-
-        reenabled_preferences = set_addon_state(
-            disabled_preferences,
-            ANSYS_DPF_ADDON_ID,
-            enabled=True,
-            pending_restart=False,
-        )
-        self.host_service.rebuild_addon_binders(preferences_document=reenabled_preferences)
-
-        self.assertIsInstance(
-            self.host_service.binder_registry.lookup(DpfViewerWidgetBinder.backend_id),
-            DpfViewerWidgetBinder,
-        )
-        self.assertIs(
-            self.host_service.binder_registry.lookup("tests.viewer_backend.custom"),
-            custom_binder,
-        )
 
     def test_ready_or_selected_viewer_without_explicit_inline_activation_is_not_retained(self) -> None:
         binder = _RecordingBinder()
@@ -1790,7 +1743,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
     def test_content_fullscreen_bridge_retargets_existing_live_widget_to_shell_viewport_and_restores(self) -> None:
         binder = _RecordingBinder()
         self.host_service.register_binder("tests.viewer_backend", binder)
-        node_id = self._add_dpf_viewer_node()
+        node_id = self._add_engineering_viewer_node()
 
         self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
         self._activate_inline(node_id)
@@ -1825,7 +1778,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
     def test_proxy_fullscreen_hold_survives_selection_loss_then_releases_once(self) -> None:
         binder = _RecordingBinder()
         self.host_service.register_binder("tests.viewer_backend", binder)
-        node_id = self._add_dpf_viewer_node()
+        node_id = self._add_engineering_viewer_node()
         session_id = f"session::{node_id}"
         self._emit_viewer_event(
             event_type="viewer_data_materialized",
@@ -1869,7 +1822,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
         )
 
-        reset_node_id = self._add_dpf_viewer_node()
+        reset_node_id = self._add_engineering_viewer_node()
         self._emit_viewer_event(
             event_type="viewer_data_materialized",
             node_id=reset_node_id,

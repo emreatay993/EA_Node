@@ -73,8 +73,6 @@ MOCKUP_RUNTIME_ASSET_GLOBS = {
     "mockups/**/*.qml",
     "mockups/**/*.js",
 }
-DPF_OPERATOR_CATALOG_PACKAGE_DATA_GLOB = "addons/ansys_dpf/operator_catalog.json"
-DPF_WORKFLOW_HELP_ASSET_GLOB = "addons/ansys_dpf/workflow_docs/*.md"
 MARS_ICON_PACKAGE_DATA_GLOB = "addons/mars/icons/mars_icon_64.png"
 APPLICATION_FONT_PACKAGE_DATA_GLOBS = {"assets/fonts/*.ttf", "assets/fonts/*.txt"}
 EXCALIDRAW_HOST_ASSET_ROOT = REPO_ROOT / "ea_node_editor" / "web_assets" / "excalidraw_host"
@@ -136,7 +134,6 @@ def test_optional_dependency_groups_wire_ansys_and_viewer_into_all_and_dev() -> 
 
     expected_ansys = {
         "ansys-dpf-core>=0.16,<0.17",
-        "ansys-dpf-post>=0.11",
         "ansys-mechanical-core>=0.12.6",
     }
     expected_viewer = {
@@ -210,6 +207,10 @@ def test_optional_dependency_groups_wire_ansys_and_viewer_into_all_and_dev() -> 
     assert not any(
         dependency.split(">=", 1)[0] in tabular_package_names
         for dependency in pyproject["project"]["dependencies"]
+    )
+    assert all(
+        not any(dependency.startswith("ansys-dpf-post") for dependency in dependencies)
+        for dependencies in optional_dependencies.values()
     )
 
 
@@ -331,23 +332,16 @@ def test_ui_qml_runtime_assets_are_packaged_for_pyinstaller_and_setuptools() -> 
         assert asset_glob in spec_source
 
 
-def test_dpf_operator_catalog_is_packaged_and_required_for_full_profile_only() -> None:
+def test_dpf_assets_are_not_packaged_by_setuptools_or_pyinstaller() -> None:
     pyproject = _load_pyproject()
     package_data = set(pyproject["tool"]["setuptools"]["package-data"]["ea_node_editor"])
     spec_source = SPEC_PATH.read_text(encoding="utf-8")
-    assignments = _literal_assignments(SPEC_PATH)
 
-    assert DPF_OPERATOR_CATALOG_PACKAGE_DATA_GLOB in package_data
-    assert assignments["DPF_OPERATOR_CATALOG_SCHEMA_VERSION"] == 1
-    assert '"ea_node_editor.addons.ansys_dpf"' in spec_source
-    assert 'includes=["operator_catalog.json"]' in spec_source
-    assert "def _require_matching_dpf_operator_catalog()" in spec_source
-    assert (
-        "if full_profile_enabled:\n"
-        "        _require_full_stack()\n"
-        "        _require_matching_dpf_operator_catalog()"
-    ) in spec_source
-    assert "if viewer_payload_enabled:\n    _require_matching_dpf_operator_catalog()" not in spec_source
+    assert not any("addons/ansys_dpf/" in asset for asset in package_data)
+    assert "ea_node_editor.addons.ansys_dpf" not in spec_source
+    assert "operator_catalog" not in spec_source
+    assert "workflow_docs" not in spec_source
+    assert "_require_matching_dpf_operator_catalog" not in spec_source
 
 
 def test_mockup_qml_runtime_assets_are_packaged_for_pyinstaller_and_setuptools() -> None:
@@ -358,15 +352,6 @@ def test_mockup_qml_runtime_assets_are_packaged_for_pyinstaller_and_setuptools()
     assert MOCKUP_RUNTIME_ASSET_GLOBS.issubset(package_data)
     assert '"mockups/**/*.qml"' in spec_source
     assert '"mockups/**/*.js"' in spec_source
-
-
-def test_curated_dpf_workflow_help_is_packaged_for_pyinstaller_and_setuptools() -> None:
-    pyproject = _load_pyproject()
-    package_data = set(pyproject["tool"]["setuptools"]["package-data"]["ea_node_editor"])
-    spec_source = SPEC_PATH.read_text(encoding="utf-8")
-
-    assert DPF_WORKFLOW_HELP_ASSET_GLOB in package_data
-    assert f'"{DPF_WORKFLOW_HELP_ASSET_GLOB}"' in spec_source
 
 
 def test_mars_icon_is_packaged_for_pyinstaller_and_setuptools() -> None:
@@ -452,8 +437,6 @@ def test_spec_declares_full_profile_as_all_runtime_stack() -> None:
 
     expected_required_modules = {
         "OCP",
-        "ansys.dpf.core",
-        "ansys.dpf.post",
         "ansys.mechanical.core",
         "duckdb",
         "h5py",
@@ -473,10 +456,6 @@ def test_spec_declares_full_profile_as_all_runtime_stack() -> None:
         "vtkmodules",
     }
     expected_hiddenimports = {
-        "ansys.dpf.core",
-        "ansys.dpf.gate",
-        "ansys.dpf.post",
-        "ansys.grpc.dpf",
         "ansys.mechanical.core",
         "matplotlib",
         "numba",
@@ -484,8 +463,6 @@ def test_spec_declares_full_profile_as_all_runtime_stack() -> None:
         "scipy",
     }
     expected_metadata = {
-        "ansys-dpf-core",
-        "ansys-dpf-post",
         "ansys-mechanical-core",
         "llvmlite",
         "matplotlib",
@@ -497,6 +474,15 @@ def test_spec_declares_full_profile_as_all_runtime_stack() -> None:
     assert expected_required_modules.issubset(set(assignments["FULL_RUNTIME_REQUIRED_PACKAGES"]))
     assert expected_hiddenimports.issubset(set(assignments["FULL_RUNTIME_HIDDENIMPORT_PACKAGES"]))
     assert expected_metadata.issubset(set(assignments["FULL_RUNTIME_METADATA_DISTRIBUTIONS"]))
+    assert not {"ansys.dpf.core", "ansys.dpf.post"}.intersection(
+        assignments["FULL_RUNTIME_REQUIRED_PACKAGES"]
+    )
+    assert not {"ansys.dpf.core", "ansys.dpf.gate", "ansys.dpf.post", "ansys.grpc.dpf"}.intersection(
+        assignments["FULL_RUNTIME_HIDDENIMPORT_PACKAGES"]
+    )
+    assert not {"ansys-dpf-core", "ansys-dpf-post"}.intersection(
+        assignments["FULL_RUNTIME_METADATA_DISTRIBUTIONS"]
+    )
     assert "paramiko" not in assignments["FULL_RUNTIME_REQUIRED_PACKAGES"]
     assert "paramiko" not in assignments["FULL_RUNTIME_HIDDENIMPORT_PACKAGES"]
     assert "paramiko" not in assignments["FULL_RUNTIME_METADATA_DISTRIBUTIONS"]
@@ -511,14 +497,13 @@ def test_spec_declares_full_profile_as_all_runtime_stack() -> None:
     assert "## Paramiko" in (REPO_ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
     assert "## XY" in (REPO_ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
     assert (REPO_ROOT / "licenses" / "XY-APACHE-2.0-NOTICE.txt").is_file()
-    assert assignments["FULL_NAMESPACE_BINARY_PATTERNS"]["ansys.dpf.gatebin"] == ("*.dll",)
     assert assignments["QT_BINDING_EXCLUDES"] == ("PyQt5", "PySide2", "PySide6")
     assert "full_profile_enabled = package_profile == FULL_PACKAGE_PROFILE" in spec_source
     assert "def _require_full_stack()" in spec_source
     assert "_require_modules(\"Full\", FULL_RUNTIME_REQUIRED_PACKAGES)" in spec_source
     assert "hiddenimports += _collect_full_hiddenimports()" in spec_source
     assert "datas += _collect_full_datas()" in spec_source
-    assert "binaries += _collect_full_namespace_binaries()" in spec_source
+    assert "_collect_full_namespace_binaries" not in spec_source
     assert 'hookspath=[str(PROJECT_ROOT / "scripts" / "pyinstaller_hooks")]' in spec_source
     assert "excludes=analysis_excludes" in spec_source
 
@@ -587,7 +572,7 @@ def test_spec_declares_tabular_optional_hiddenimports_and_metadata() -> None:
     assert "data_files += copy_metadata(distribution_name)" in spec_source
 
 
-def test_spec_excludes_unowned_ml_and_vision_stacks_from_pyinstaller_analysis() -> None:
+def test_spec_excludes_unowned_ml_vision_and_dpf_stacks_from_pyinstaller_analysis() -> None:
     spec_source = SPEC_PATH.read_text(encoding="utf-8")
     assignments = _literal_assignments(SPEC_PATH)
 
@@ -605,6 +590,8 @@ def test_spec_excludes_unowned_ml_and_vision_stacks_from_pyinstaller_analysis() 
         "torch",
         "torchvision",
         "transformers",
+        "ansys.dpf",
+        "ansys.grpc.dpf",
     )
     assert 'NON_FULL_RUNTIME_EXCLUDES = ("ansys",)' in spec_source
     assert assignments["NON_FULL_RUNTIME_DATA_EXCLUDE_PREFIXES"] == ("ansys_",)
@@ -615,6 +602,15 @@ def test_spec_excludes_unowned_ml_and_vision_stacks_from_pyinstaller_analysis() 
     assert "if not _matches_module_prefix(module_name, analysis_excludes)" in spec_source
     assert "def _matches_data_target_prefix(target_name: str, prefixes) -> bool:" in spec_source
     assert "if not _matches_data_target_prefix(entry[0], NON_FULL_RUNTIME_DATA_EXCLUDE_PREFIXES)" in spec_source
+    assert assignments["DPF_RUNTIME_PAYLOAD_EXCLUDE_PREFIXES"] == (
+        "ansys/dpf",
+        "ansys/grpc/dpf",
+        "ansys_dpf",
+        "ansys-dpf",
+    )
+    assert spec_source.count(
+        "if not _matches_data_target_prefix(entry[0], DPF_RUNTIME_PAYLOAD_EXCLUDE_PREFIXES)"
+    ) == 2
 
 
 def test_spec_suppresses_native_crashers_in_bindepend_child_imports() -> None:
@@ -715,6 +711,20 @@ def test_mcf_dpf_standalone_build_bundles_animation_icons() -> None:
     assert "Expected bundled animation icon asset was not created" in build_source
 
 
+def test_corex_runtime_wheel_cleans_only_repo_build_before_building() -> None:
+    source = BUILD_PACKAGE_PATH.read_text(encoding="utf-8")
+    cleanup = "Remove-Item -LiteralPath $projectBuildPath -Recurse -Force"
+    corex_wheel = "$wheelBuildProcess = Start-Process -FilePath $pythonExe"
+    mars_wheel = "$marsWheelBuildProcess = Start-Process -FilePath $pythonExe"
+
+    assert '$projectBuildPath = [System.IO.Path]::GetFullPath((Join-Path $projectRootPath "build"))' in source
+    assert "$projectBuildPath.StartsWith($projectRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)" in source
+    assert "[string]::Equals($projectBuildPath, $expectedProjectBuildPath" in source
+    assert "Refusing to clean unexpected COREX wheel build directory" in source
+    assert cleanup in source
+    assert source.index(cleanup) < source.index(corex_wheel) < source.index(mars_wheel)
+
+
 def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None:
     build_package_source = BUILD_PACKAGE_PATH.read_text(encoding="utf-8")
     app_source = APP_PATH.read_text(encoding="utf-8")
@@ -741,8 +751,6 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert '"ocp": "OCP"' in build_package_source
     assert 'ocp = [bool]$parsed.ocp' in build_package_source
     for full_dependency in (
-        ("ansys_dpf_core", "ansys.dpf.core"),
-        ("ansys_dpf_post", "ansys.dpf.post"),
         ("ansys_mechanical_core", "ansys.mechanical.core"),
         ("llvmlite", "llvmlite"),
         ("matplotlib", "matplotlib"),
@@ -772,11 +780,11 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert 'dependency = "numba"' in build_package_source
     assert 'dependency = "llvmlite"' in build_package_source
     assert 'dependency = "pyqtgraph"' in build_package_source
-    assert 'dependency = "ansys-dpf-post"' in build_package_source
     assert 'dependency = "ansys-mechanical-core"' in build_package_source
     assert 'dependency = "cadquery-ocp-novtk"' in build_package_source
     assert '@{ Key = "ocp"; Display = "cadquery-ocp-novtk" }' in build_package_source
-    assert 'Ansys DPF is excluded from base, viewer, and web package profiles.' in build_package_source
+    assert "ansys_dpf" not in build_package_source
+    assert 'dependency = "ansys-dpf' not in build_package_source
     assert 'dependency_group = "media"' in build_package_source
     assert 'dependency_group = "ssh_sftp"' in build_package_source
     assert 'dependency_group = "hpc"' not in build_package_source
@@ -790,7 +798,7 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert "Media Panel video-mode trim-save uses imageio-ffmpeg" in build_package_source
     assert 'dependency_group = "tabular"' in build_package_source
     assert 'Tabular Data stays optional' in build_package_source
-    assert 'Full profile bundles every current runtime extra' in build_package_source
+    assert 'Full profile bundles the application runtime stack' in build_package_source
     assert 'Full profile bundles the Numba acceleration backend' in build_package_source
     assert 'Full profile bundles every tabular backend' in build_package_source
     assert 'Install the all/dev dependency stack before running a full-profile package build.' in build_package_source

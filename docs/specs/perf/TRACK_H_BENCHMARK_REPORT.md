@@ -7,7 +7,7 @@
 - Canonical Artifact Paths: `artifacts/graph_canvas_perf_docs/TRACK_H_BENCHMARK_REPORT.md`, `artifacts/graph_canvas_perf_docs/track_h_benchmark_report.json`
 - Structural edge delta harness-isolation artifacts: `artifacts/graph_canvas_structural_edge_delta_harness_isolation/TRACK_H_BENCHMARK_REPORT.md`, `artifacts/graph_canvas_structural_edge_delta_harness_isolation/track_h_benchmark_report.json`
 - Windows Desktop Exit Gate: `PASS` on `2026-03-21`; desktop-reference artifacts: `artifacts/graph_canvas_interaction_perf_p09_desktop_reference/TRACK_H_BENCHMARK_REPORT.md`, `artifacts/graph_canvas_interaction_perf_p09_desktop_reference/track_h_benchmark_report.json`
-- Current Host Default: Windows display-attached launches default to `qquickwidget` plus Direct3D 11 when no environment override is set. `qquickview_container` plus Direct3D 11 remains available as an explicit A/B override, but is not the default because native DPF viewer overlays require the composited canvas path.
+- Current Host Default: Windows display-attached launches default to `qquickwidget` plus Direct3D 11 when no environment override is set. `qquickview_container` plus Direct3D 11 remains available as an explicit A/B override; the composited canvas path remains the default for native viewer overlays.
 
 ## 2026-07-14 Node Insertion Latency Contract
 

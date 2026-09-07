@@ -533,28 +533,28 @@ TestCase {
         var expected = {
             "unlocked_input": {
                 "topology_hash": "d0078e01",
-                "geometry_hash": "9f420013",
+                "geometry_hash": "598ed08e",
                 "qquickitem_count": 135,
                 "loader_count": 0,
                 "canvas_count": 1
             },
             "unlocked_output": {
                 "topology_hash": "55b1e6c7",
-                "geometry_hash": "48eed5e1",
+                "geometry_hash": "bb892984",
                 "qquickitem_count": 21,
                 "loader_count": 1,
                 "canvas_count": 0
             },
             "locked_input": {
                 "topology_hash": "ee335365",
-                "geometry_hash": "1b603336",
+                "geometry_hash": "68a714d3",
                 "qquickitem_count": 25,
                 "loader_count": 0,
                 "canvas_count": 1
             },
             "locked_output": {
                 "topology_hash": "2fccbe03",
-                "geometry_hash": "e34bc1a8",
+                "geometry_hash": "f942da05",
                 "qquickitem_count": 22,
                 "loader_count": 1,
                 "canvas_count": 1
@@ -698,36 +698,38 @@ TestCase {
         var outputRow = findNamedItems(host, "graphNodeOutputPortRow")[0]
         mouseMove(inputRow, inputRow.portPoint.x, inputRow.height * 0.5)
         tryVerify(function() {
-            return findNamedItems(host, "graphNodeDynamicPortRemove_payload").length === 1
-                && findNamedItems(host, "graphNodeDynamicPortRemove_result").length === 1
+            var controls = findNamedItems(host, "graphNodeDynamicPortRemove_payload")
+            return controls.length === 1 && controls[0].visible
         })
         var inputRemove = findNamedItems(host, "graphNodeDynamicPortRemove_payload")[0]
-        mouseMove(outputRow, outputRow.portPoint.x, outputRow.height * 0.5)
-        tryVerify(function() {
-            return findNamedItems(host, "graphNodeDynamicPortRemove_result")[0].visible
-        })
-        var outputRemove = findNamedItems(host, "graphNodeDynamicPortRemove_result")[0]
         compare(
             t21Rounded(inputRemove.x + inputRemove.width * 0.5 - inputRow.portPoint.x),
             t21Rounded(9)
         )
-        compare(
-            t21Rounded(outputRow.portPoint.x - (outputRemove.x + outputRemove.width * 0.5)),
-            t21Rounded(9)
-        )
         compare(inputRemove.propertyKey, "payload")
-        compare(outputRemove.propertyKey, "result")
         var inputLabel = findNamedItems(host, "graphNodeInputPortLabel")[0]
-        var outputLabel = findNamedItems(host, "graphNodeOutputPortLabel")[0]
         compare(
             t21Rounded(inputLabel.parent.x - (inputRemove.x + inputRemove.width)),
             t21Rounded(0)
         )
+        compare(inputRemove.tooltipText, "Remove input")
+
+        mouseMove(outputRow, outputRow.portPoint.x, outputRow.height * 0.5)
+        tryVerify(function() {
+            var controls = findNamedItems(host, "graphNodeDynamicPortRemove_result")
+            return controls.length === 1 && controls[0].visible
+        })
+        var outputRemove = findNamedItems(host, "graphNodeDynamicPortRemove_result")[0]
+        compare(
+            t21Rounded(outputRow.portPoint.x - (outputRemove.x + outputRemove.width * 0.5)),
+            t21Rounded(9)
+        )
+        compare(outputRemove.propertyKey, "result")
+        var outputLabel = findNamedItems(host, "graphNodeOutputPortLabel")[0]
         compare(
             t21Rounded(outputRemove.x - (outputLabel.parent.x + outputLabel.parent.width)),
             t21Rounded(0)
         )
-        compare(inputRemove.tooltipText, "Remove input")
         compare(outputRemove.tooltipText, "Remove output")
 
         var portsLayer = findNamedItems(host, "graphNodePortsLayer")[0]

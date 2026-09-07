@@ -30,7 +30,7 @@ function V2GraphAssembly() {
     'Registered 142 node types',
     'Restoring workspace',
     'Loading graph theme · Stitch Dark',
-    'Warming DPF backend',
+    'Warming viewer backend',
     'Canvas ready',
   ], { stepMs: 650 });
 
@@ -79,7 +79,7 @@ function V2GraphAssembly() {
   // Node positions (inside 672×220 drawing area)
   const A = { x: 30,  y: 72, cat: COREX.blue,   title: 'Read CSV',   tcat: 'io'     };
   const B = { x: 230, y: 50, cat: '#B35BD1',    title: 'Transform',  tcat: 'logic'  };
-  const C = { x: 460, y: 84, cat: '#D88C32',    title: 'DPF · Plot', tcat: 'phys'   };
+  const C = { x: 460, y: 84, cat: '#D88C32',    title: 'Model Viewer', tcat: 'phys'   };
 
   // Edge path AB + BC (cubic bezier horizontal)
   const edgePath = (from, to) => {

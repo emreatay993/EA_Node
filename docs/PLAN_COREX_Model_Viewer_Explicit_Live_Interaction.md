@@ -43,9 +43,8 @@ Baseline and exclusions:
 | P08 | T08 Independent Review | `/root/explicit_live_second_review` | P07 | Read-only | Accepted | Original and second independent reviews are clear with no remaining findings | Final P01 stale-failure branch and all previously accepted remediation/evidence rereviewed against current source, tests, maps, plan, and ledger; no broad rerun required | Read-only final publication-readiness review | None | Pending | None |
 | P09 | T08 Publication | `/root/explicit_live_publisher` | P08 and accepted remediation | Exact 53-path inventory below; Git state only | Active/Authorized | Publish one atomic commit because T01-T06 production, tests, generated indexes, documentation, and this ledger are cross-dependent; preserve all concurrent user-owned commits | Publication base local `HEAD`/`origin/main` `9d62955db1d929753acc1cf1f1a10ad7df6a797e` at 0/0 parity; stage only the exact inventory; exclude `docs/specs/INDEX.md` and `docs/PLAN_COREX_Physical_Simulation_Backend.md`; run staged privacy/provenance scan, `git diff --cached --check`, commit, push, and verify local/tracking/remote parity; no broad rerun required | Exact 53 paths listed below | One atomic commit is required because no T01-T06 slice is independently publishable from its tests/docs/ledger; concurrent commits remain immutable | publication commit containing this ledger | None |
 
-### P09 Authorized Staging Inventory (53 paths)
+### P09 Authorized Staging Inventory (48 retained paths)
 
-1. `docs/Cross-Process Viewer Backend Framework for Embedded DPF Sessions.md`
 2. `docs/PLAN_COREX_Model_Viewer_Explicit_Live_Interaction.md`
 3. `docs/agent_maps/feature_routes/graph_canvas_input_layers.md`
 4. `docs/agent_maps/feature_routes/neutral_cad_fe_engineering_viewer.md`
@@ -57,12 +56,9 @@ Baseline and exclusions:
 10. `docs/fix_empty_proxy_pane_on_viewer_blur.md` (delete)
 11. `docs/qml_navigation_index.json`
 12. `docs/qml_navigation_index.md`
-13. `docs/specs/perf/PYDPF_VIEWER_V1_QA_MATRIX.md`
 14. `docs/specs/requirements/20_UI_UX.md`
 15. `docs/specs/requirements/40_NODE_SDK.md`
 16. `ea_node_editor/execution/viewer_session_service.py`
-17. `ea_node_editor/nodes/builtins/ansys_dpf_common.py`
-18. `ea_node_editor/nodes/builtins/ansys_dpf_viewer_adapter.py`
 19. `ea_node_editor/nodes/builtins/engineering_viewer.py`
 20. `ea_node_editor/ui/dialogs/input_reference_dialog.py`
 21. `ea_node_editor/ui/shell/composition/runtime_services.py`
@@ -81,7 +77,6 @@ Baseline and exclusions:
 34. `scripts/profile_canvas_lag.py`
 35. `tests/graph_surface/media_and_scope_suite.py`
 36. `tests/test_content_fullscreen_bridge.py`
-37. `tests/test_dpf_viewer_node.py`
 38. `tests/test_embedded_viewer_overlay_manager.py`
 39. `tests/test_engineering_viewer_example_project.py`
 40. `tests/test_engineering_viewer_node.py`
@@ -261,7 +256,6 @@ The orchestrator may approve bounded technical deviations. Any deviation that ch
   - `tests/test_viewer_session_bridge.py`
   - `tests/test_execution_viewer_service.py`
   - `tests/test_engineering_viewer_node.py`
-  - `tests/test_dpf_viewer_node.py`
 - **Deliverables:**
   - Delete `live_policy` and `keep_live` projection fields and defaults.
   - Delete their normalization and command slots.
@@ -273,7 +267,7 @@ The orchestrator may approve bounded technical deviations. Any deviation that ch
   - Delete tests authorizing Keep Live and automatic selection activation.
   - Rewrite session tests around initial proxy, explicit activation, exclusive arbitration, demotion, and presentation holds.
 - **Verification:**
-  - Focused bridge, execution-service, engineering-viewer, and DPF-viewer tests.
+  - Focused bridge, execution-service, and engineering-viewer tests.
   - Zero remaining production references to `keep_live`, `live_policy`, `set_keep_live`, `set_live_policy`, and `focus_session`, except deliberate migration documentation if any.
 - **Non-goals:**
   - Do not remove `live_mode`.

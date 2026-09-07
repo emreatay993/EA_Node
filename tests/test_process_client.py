@@ -9,6 +9,10 @@ import unittest
 from unittest.mock import Mock
 
 from ea_node_editor.execution.process_client import ProcessExecutionClient
+from ea_node_editor.common.scene_protocol import (
+    COREX_SCENE_HANDLE_KIND,
+    ENGINEERING_VIEWER_BACKEND_ID,
+)
 from ea_node_editor.execution.protocol_codec import (
     event_to_dict,
 )
@@ -32,6 +36,7 @@ from ea_node_editor.runtime_contracts import (
     TABULAR_DATA_REF_TYPE_ID,
     ArrayDataRef,
     DataTree,
+    ENGINEERING_SCENE_DATA_TYPE_ID,
     ImageValue,
     TabularDataRef,
 )
@@ -895,13 +900,13 @@ class ProcessClientTests(ProcessClientTestHarness):
             "ws_main",
             "node_viewer",
             session_id="session_existing",
-            backend_id="dpf_embedded",
+            backend_id=ENGINEERING_VIEWER_BACKEND_ID,
             data_refs={
                 "dataset": RuntimeHandleRef(
-                    data_type_id="COREX.Viewer.Dataset",
+                    data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
                     schema_version=1,
                     handle_id="viewer_dataset_live",
-                    kind="dpf.viewer_dataset",
+                    kind=COREX_SCENE_HANDLE_KIND,
                     owner_scope="viewer:session_existing",
                     worker_generation=3,
                 ),
@@ -930,7 +935,7 @@ class ProcessClientTests(ProcessClientTestHarness):
                 ),
             },
             transport={
-                "kind": "dpf_handle_refs",
+                "kind": "scene_handle_refs",
                 "version": 1,
             },
             transport_revision=5,
@@ -948,9 +953,9 @@ class ProcessClientTests(ProcessClientTestHarness):
         self.assertEqual(payload["workspace_id"], "ws_main")
         self.assertEqual(payload["node_id"], "node_viewer")
         self.assertEqual(payload["session_id"], "session_existing")
-        self.assertEqual(payload["backend_id"], "dpf_embedded")
+        self.assertEqual(payload["backend_id"], ENGINEERING_VIEWER_BACKEND_ID)
         self.assertEqual(
-            payload["transport"], {"kind": "dpf_handle_refs", "version": 1}
+            payload["transport"], {"kind": "scene_handle_refs", "version": 1}
         )
         self.assertEqual(payload["transport_revision"], 5)
         self.assertEqual(payload["live_open_status"], "ready")
@@ -962,10 +967,10 @@ class ProcessClientTests(ProcessClientTestHarness):
             payload["data_refs"]["dataset"],
             {
                 "__ea_runtime_value__": "handle_ref",
-                "data_type_id": "COREX.Viewer.Dataset",
+                "data_type_id": ENGINEERING_SCENE_DATA_TYPE_ID,
                 "schema_version": 1,
                 "handle_id": "viewer_dataset_live",
-                "kind": "dpf.viewer_dataset",
+                "kind": COREX_SCENE_HANDLE_KIND,
                 "owner_scope": "viewer:session_existing",
                 "worker_generation": 3,
             },

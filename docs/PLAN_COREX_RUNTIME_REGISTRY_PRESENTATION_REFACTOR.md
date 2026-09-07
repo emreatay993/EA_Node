@@ -109,7 +109,6 @@ Performance is advisory and noise-aware, never an automatic rollback trigger.
 
 - Persistence/artifact-store decomposition.
 - Engineering-scene pipeline decomposition.
-- `ansys_dpf_common.py` restructuring and generic/DPF plot consolidation.
 - New protocol versions, schemas, transport abstractions, retry systems, or async
   frameworks.
 - Deep `GraphNodeHost.qml` decomposition.
@@ -166,8 +165,6 @@ No aliases or deprecated forwarding modules remain for these changes:
 - `nodes.plugin_loader` becomes public-plugin-only. Built-in and trusted add-on
   contributions move to direct owners.
 - Remove `NodeRegistry.filter_nodes`, `category_paths`, and `categories`.
-- Delete `execution.dpf_runtime_service` and `nodes.dpf_runtime_contracts`;
-  retain only the lazy DPF factory at `execution.dpf_runtime`.
 - Delete `execution.protocol`, `execution.client`, and
   `execution.headless_runtime`; callers import exact message, codec, transport,
   runtime, loader, or CLI owners.
@@ -237,7 +234,7 @@ No aliases or deprecated forwarding modules remain for these changes:
     `rebuild_after_addon_apply`.
   - Preserve pending-restart behavior without rebuilding runtime consumers.
 - **Verification:** direct state-change tests, full registry-replacement
-  success/refusal/order/rollback tests, add-on catalog tests, and one real DPF
+  success/refusal/order/rollback tests, add-on catalog tests, and one real Tabular
   disable/re-enable integration through the coordinator.
 - **Performance:** preserve candidate/final build counts; compare interleaved
   hot-apply timings only after structural equality.
@@ -318,22 +315,19 @@ No aliases or deprecated forwarding modules remain for these changes:
   retaining the registry's spec-aware API.
 - **Preconditions:** T03 accepted.
 - **Conservative write scope:** `nodes/registry.py`, new
-  `nodes/property_normalization.py`, direct normalization and DPF integration
-  tests/maps.
+  `nodes/property_normalization.py`, and direct normalization tests/maps.
 - **Deliverables:**
   - Reuse `property_coercion.py`; do not duplicate coercion.
   - Move generic defaults/coercion orchestration, dynamic-property-backed port
-    handling, Select, Number Slider, Web Viewer, and explicit DPF legacy
-    time-scope normalization.
+    handling, Select, Number Slider, and Web Viewer normalization.
   - Retain `NodeRegistry.default_properties`, `normalize_property_value`, and
     `normalize_properties` as intentional spec/catalog-aware APIs.
-  - Remove built-in imports and DPF type branches from `registry.py`.
+  - Remove built-in-specific type branches from `registry.py`.
 - **Verification:** exact output hashes and deep-copy isolation for scalar,
-  interval/tree carriers, dynamic ports, Select, slider, Web state, DPF
-  `set_ids`/`time_values`, and ambiguous dual-selector behavior.
+  interval/tree carriers, dynamic ports, Select, slider, and Web state.
 - **Performance:** one base-spec lookup, one instance resolution, one property
   traversal, and no added deep copy or validation pass.
-- **Non-goals:** no generic callback framework or DPF workflow redesign.
+- **Non-goals:** no generic callback framework or workflow redesign.
 - **Commit:** `Extract node property normalization policy`.
 - **Packetization notes:** `PA04`.
 
@@ -354,44 +348,19 @@ No aliases or deprecated forwarding modules remain for these changes:
   - Move filter/taxonomy tests to the Library owner; do not create a replacement
     registry filter API.
 - **Verification:** identical ordering, accepted-type unions, hidden-port
-  behavior, category ancestors/options/tree, query matching, DPF taxonomy, and
-  custom-workflow categories.
+  behavior, category ancestors/options/tree, query matching, Engineering taxonomy,
+  and custom-workflow categories.
 - **Performance:** one category tree per cached request; matched Library and
   Quick Insert query timings.
 - **Non-goals:** no new projection module or registry search engine.
 - **Commit:** `Move node library queries to presentation ownership`.
 - **Packetization notes:** `PA05`.
 
-### T06 — Finish internal DPF runtime package ownership
-
-- **Goal:** remove residual compatibility paths without changing DPF behavior.
-- **Preconditions:** T04 accepted.
-- **Conservative write scope:** the existing DPF runtime package, old facade,
-  DPF data-type constants, direct imports/tests/maps.
-- **Deliverables:**
-  - Move concrete `DpfRuntimeService` composition to
-    `execution/dpf_runtime/service.py`.
-  - Keep DTOs/errors in `execution/dpf_runtime/contracts.py`.
-  - Define DPF handle-kind strings once in `nodes/ansys_dpf_data_types.py`.
-  - Make `execution/dpf_runtime/__init__.py` expose only the lazy factory.
-  - Delete `execution/dpf_runtime_service.py`,
-    `nodes/dpf_runtime_contracts.py`, their three unused protocols, and
-    package-level DTO/constant reexports.
-- **Verification:** DPF service, analysis, materialization, compute, viewer,
-  worker, architecture, lazy-import, lease/reset/cleanup, and deleted-path
-  guards.
-- **Performance:** unchanged lazy creation, cache identity, lease counts,
-  metadata bounds, first/cached load, and materialization behavior.
-- **Non-goals:** no `ansys_dpf_common.py`, operator, viewer, or optional-backend
-  behavior redesign.
-- **Commit:** `Finish DPF runtime package ownership`.
-- **Packetization notes:** `PA06`.
-
 ### T07 — Split typed execution protocol ownership
 
 - **Goal:** delete the protocol catch-all while preserving byte-identical
   transport behavior.
-- **Preconditions:** T01–T06 committed; the post-T06 registry/add-on/DPF baseline
+- **Preconditions:** T01–T05 committed; the current registry/add-on baseline
   passes.
 - **Conservative write scope:** `execution/protocol.py`, runtime DTO parsing,
   direct production imports, split protocol tests, execution/viewer maps.

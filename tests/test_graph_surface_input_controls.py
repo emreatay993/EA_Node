@@ -63,7 +63,7 @@ def _viewer_surface_spec() -> NodeTypeSpec:
         category_path=("Tests",),
         icon="",
         ports=(
-            PortSpec("field", "in", "data", 'COREX.Ansys.DPF.Field', required=False),
+            PortSpec("scene", "in", "data", "COREX.Engineering.Scene", required=False),
             PortSpec("session", "out", "data", 'COREX.Viewer.Session'),
         ),
         properties=(),
@@ -636,14 +636,14 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         baseline_port_point = surface_port_local_point(
             node,
             spec,
-            "field",
+            "scene",
             {node.node_id: node},
             graph_label_pixel_size=16,
         )
         large_icon_port_point = surface_port_local_point(
             node,
             spec,
-            "field",
+            "scene",
             {node.node_id: node},
             graph_label_pixel_size=16,
             graph_node_icon_pixel_size=50,
@@ -659,13 +659,13 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(large_icon_metrics.body_height, default_metrics.body_height)
         self.assertEqual(large_icon_port_point[1] - baseline_port_point[1], 26.0)
 
-    def test_dpf_viewer_metrics_follow_graph_label_size_for_port_rows(self) -> None:
+    def test_model_viewer_metrics_follow_graph_label_size_for_port_rows(self) -> None:
         registry = build_default_registry()
-        spec = registry.get_spec("dpf.viewer")
+        spec = registry.get_spec("model.viewer")
         node = NodeInstance(
-            node_id="node_dpf_viewer_input_controls",
+            node_id="node_model_viewer_input_controls",
             type_id=spec.type_id,
-            title="DPF Viewer",
+            title="Model Viewer",
             x=32.0,
             y=48.0,
         )
@@ -689,8 +689,8 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(large_metrics.port_height, 24.0)
         self.assertEqual(large_metrics.body_top, default_metrics.body_top)
         self.assertEqual(large_metrics.body_height, default_metrics.body_height)
-        self.assertEqual(large_metrics.default_height - default_metrics.default_height, 18.0)
-        self.assertEqual(large_metrics.min_height - default_metrics.min_height, 18.0)
+        self.assertEqual(large_metrics.default_height - default_metrics.default_height, 12.0)
+        self.assertEqual(large_metrics.min_height - default_metrics.min_height, 12.0)
 
     def test_scene_payload_builder_applies_title_icon_size_to_standard_nodes(self) -> None:
         class _ThemeSource:
@@ -771,48 +771,6 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(payload["viewer_surface"]["live_rect"]["height"], 176.0)
         self.assertEqual(payload["surface_metrics"]["port_height"], 24.0)
         self.assertEqual(payload["height"], 268.0)
-
-    def test_scene_payload_builder_applies_graph_label_port_height_to_dpf_viewer_nodes(self) -> None:
-        class _ThemeSource:
-            graphics_graph_label_pixel_size = 16
-            graphics_node_title_icon_pixel_size = 50
-
-        class _ThemeBridge:
-            theme = "stitch_dark"
-
-            def __init__(self, parent: object) -> None:
-                self._parent = parent
-
-            def parent(self) -> object:
-                return self._parent
-
-        registry = build_default_registry()
-        model = GraphModel()
-        workspace_id = model.active_workspace.workspace_id
-        model.add_node(workspace_id, "dpf.viewer", "DPF Viewer", 32.0, 48.0)
-
-        builder = GraphScenePayloadBuilder()
-        nodes_payload, backdrop_nodes_payload, _minimap_nodes_payload, _edges_payload = builder.rebuild_partitioned_models(
-            model=model,
-            registry=registry,
-            workspace_id=workspace_id,
-            scope_path=(),
-            graph_theme_bridge=_ThemeBridge(_ThemeSource()),
-            graph_label_pixel_size=16,
-            graph_node_icon_pixel_size=50,
-        )
-
-        self.assertEqual(len(backdrop_nodes_payload), 0)
-        self.assertEqual(len(nodes_payload), 1)
-        payload = nodes_payload[0]
-        self.assertEqual(payload["surface_family"], "viewer")
-        self.assertEqual(payload["surface_metrics"]["body_top"], 56.0)
-        self.assertEqual(payload["surface_metrics"]["body_height"], 176.0)
-        self.assertEqual(payload["surface_metrics"]["port_height"], 24.0)
-        self.assertEqual(payload["surface_metrics"]["min_height"], 288.0)
-        self.assertEqual(payload["viewer_surface"]["live_rect"]["y"], 56.0)
-        self.assertEqual(payload["viewer_surface"]["live_rect"]["height"], 176.0)
-        self.assertEqual(payload["height"], 316.0)
 
     def test_scene_payload_builder_reads_title_icon_size_from_workspace_presenter(self) -> None:
         class _Host(QObject):
@@ -987,9 +945,9 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
             category_path=("Tests",),
             icon="",
             ports=(
-                PortSpec("field", "in", "data", 'COREX.Ansys.DPF.Field'),
-                PortSpec("model", "in", "data", 'COREX.Ansys.DPF.Model'),
-                PortSpec("mesh", "in", "data", 'COREX.Ansys.DPF.Mesh'),
+                PortSpec("scene_a", "in", "data", "COREX.Engineering.Scene"),
+                PortSpec("scene_b", "in", "data", "COREX.Engineering.Scene"),
+                PortSpec("scene_c", "in", "data", "COREX.Engineering.Scene"),
                 PortSpec("session", "out", "data", 'COREX.Viewer.Session'),
             ),
             properties=(),
@@ -3564,13 +3522,38 @@ class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase
                     expected_y(center_y, zoom),
                 )
 
+            def assert_canvas_options_position(center_x, center_y, zoom):
+                expected_anchor_x = expected_x(center_x, zoom)
+                expected_anchor_y = expected_y(center_y, zoom)
+                actual_anchor_x = float(canvas_options.property("anchorX"))
+                actual_anchor_y = float(canvas_options.property("anchorY"))
+                assert abs(actual_anchor_x - expected_anchor_x) < 0.01
+                assert abs(actual_anchor_y - expected_anchor_y) < 0.01
+
+                actual_x = float(canvas_options.property("x"))
+                actual_y = float(canvas_options.property("y"))
+                viewport_padding = float(canvas_options.property("viewportPadding"))
+                popup_height = float(canvas_options.property("height"))
+                canvas_height = float(canvas_item.property("height"))
+                expected_visible_y = max(
+                    viewport_padding,
+                    min(
+                        expected_anchor_y,
+                        canvas_height - popup_height - viewport_padding,
+                    ),
+                )
+                assert abs(actual_x - expected_anchor_x) < 0.01
+                assert abs(actual_y - expected_visible_y) < 0.01
+                assert actual_y >= viewport_padding
+                assert actual_y + popup_height <= canvas_height - viewport_padding
+
             for label, popup in (
                 ("node", node_popup),
                 ("edge", edge_popup),
                 ("selection", selection_popup),
-                ("canvas", canvas_options),
             ):
                 assert_popup_position(label, popup, 100, 50, 1.25)
+            assert_canvas_options_position(100, 50, 1.25)
 
             view_bridge = canvas_item.property("canvasViewBridgeRef")
             view_bridge.setProperty("center_x", 120)
@@ -3582,9 +3565,9 @@ class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase
                 ("node", node_popup),
                 ("edge", edge_popup),
                 ("selection", selection_popup),
-                ("canvas", canvas_options),
             ):
                 assert_popup_position(label, popup, 120, 80, 0.5)
+            assert_canvas_options_position(120, 80, 0.5)
 
             menus.deleteLater()
             canvas_item.deleteLater()

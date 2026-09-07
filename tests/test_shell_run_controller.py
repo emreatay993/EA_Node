@@ -44,7 +44,7 @@ from tests.shell_isolation_runtime import format_child_output
 from tests.shell_isolation_runtime import run_shell_isolation_target
 from tests.shell_isolation_runtime import ShellIsolationTarget
 from tests.shell_isolation_runtime import ShellIsolationTargetTimeout
-from tests.typed_handle_support import dpf_worker_services
+from tests.typed_handle_support import core_worker_services
 
 _SHELL_TEST_RUNNER = (
     "import sys, unittest; "
@@ -515,7 +515,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         )
         self.app.processEvents()
 
-        worker_services = dpf_worker_services()
+        worker_services = core_worker_services()
         service = worker_services.viewer_session_service
         service.install_workspace_context(workspace_id=workspace_id)
         service_opened = service.open_session(
@@ -1471,7 +1471,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertIs(bridge, self.window.viewer_session_bridge)
 
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("dpf.viewer", x=120.0, y=40.0)
+        node_id = self.window.scene.add_node_from_type("model.viewer", x=120.0, y=40.0)
         session_id = bridge.open(
             node_id,
             {
@@ -1533,11 +1533,11 @@ class ShellRunControllerTests(MainWindowShellTestBase):
 
         bridge = self.window.viewer_session_bridge
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("dpf.viewer", x=120.0, y=40.0)
+        node_id = self.window.scene.add_node_from_type("model.viewer", x=120.0, y=40.0)
         session_id = bridge.open(
             node_id,
             {
-                "backend_id": "dpf_embedded",
+                "backend_id": "corex_scene",
                 "data_refs": {"fields_container": "fields_ref"},
             },
         )
@@ -1548,9 +1548,9 @@ class ShellRunControllerTests(MainWindowShellTestBase):
                 workspace_id=workspace_id,
                 node_id=node_id,
                 session_id=session_id,
-                backend_id="dpf_embedded",
+                backend_id="corex_scene",
                 live_open_status="ready",
-                transport={"kind": "bundle", "backend_id": "dpf_embedded"},
+                transport={"kind": "bundle", "backend_id": "corex_scene"},
                 summary={"cache_state": "live_ready"},
                 options={"live_mode": "full"},
             )
@@ -1604,11 +1604,11 @@ class ShellRunControllerTests(MainWindowShellTestBase):
 
         bridge = self.window.viewer_session_bridge
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("dpf.viewer", x=120.0, y=40.0)
+        node_id = self.window.scene.add_node_from_type("model.viewer", x=120.0, y=40.0)
         session_id = bridge.open(
             node_id,
             {
-                "backend_id": "dpf_embedded",
+                "backend_id": "corex_scene",
                 "data_refs": {"fields_container": "fields_ref"},
             },
         )
@@ -1619,9 +1619,9 @@ class ShellRunControllerTests(MainWindowShellTestBase):
                 workspace_id=workspace_id,
                 node_id=node_id,
                 session_id=session_id,
-                backend_id="dpf_embedded",
+                backend_id="corex_scene",
                 live_open_status="ready",
-                transport={"kind": "bundle", "backend_id": "dpf_embedded"},
+                transport={"kind": "bundle", "backend_id": "corex_scene"},
                 summary={"cache_state": "live_ready"},
                 options={"live_mode": "full"},
             )

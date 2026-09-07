@@ -16,12 +16,6 @@ from ea_node_editor.execution.protocol_codec import (
 )
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.graph.model import GraphModel
-from ea_node_editor.nodes.ansys_dpf_data_types import (
-    DPF_MESH_DATA_TYPE,
-    DPF_MODEL_DATA_TYPE,
-    COREX_MESH_INTERFACE_DATA_TYPE,
-    COREX_MODEL_INTERFACE_DATA_TYPE,
-)
 from ea_node_editor.nodes.bootstrap import (
     build_builtin_registry,
     build_default_registry,
@@ -67,7 +61,7 @@ from ea_node_editor.runtime_contracts import (
     serialize_runtime_value,
 )
 from ea_node_editor.settings import SCHEMA_VERSION
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 
 def _plane(
@@ -161,19 +155,6 @@ def test_rich_value_catalog_and_clippable_assignability_are_exact() -> None:
         ENGINEERING_SCENE_DATA_TYPE_ID,
         CLIPPABLE_GRAPH_DATA_TYPE_ID,
     )
-
-    default_catalog = build_default_registry().data_types
-    for concrete, interface in (
-        (DPF_MESH_DATA_TYPE, COREX_MESH_INTERFACE_DATA_TYPE),
-        (DPF_MODEL_DATA_TYPE, COREX_MODEL_INTERFACE_DATA_TYPE),
-    ):
-        if default_catalog.get(concrete) is None:
-            continue
-        assert default_catalog.is_assignable(concrete, interface)
-        assert not default_catalog.is_assignable(
-            concrete,
-            CLIPPABLE_GRAPH_DATA_TYPE_ID,
-        )
 
 
 @pytest.mark.parametrize(
@@ -354,7 +335,7 @@ def test_rich_value_function_specs_match_frozen_catalog() -> None:
         )
     )
     ids = {LARGE_LANGUAGE_MODEL_NODE_TYPE_ID, PLANE_CONTAINER_NODE_TYPE_ID}
-    golden = load_effective_non_dpf_catalog()
+    golden = load_current_repo_owned_catalog()
     expected = {
         row["spec"]["type_id"]: row["spec"]
         for row in golden

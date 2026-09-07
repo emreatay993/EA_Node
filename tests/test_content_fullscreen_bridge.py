@@ -25,9 +25,8 @@ from ea_node_editor.runtime_contracts.solution_records import (
 )
 from ea_node_editor.runtime_contracts import DataTree
 from ea_node_editor.graph.project_state import ProjectData
-from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.builtins.core import PYTHON_SCRIPT_DEFAULT_SOURCE
-from ea_node_editor.nodes.builtins.ansys_dpf_viewer import DpfViewerNodePlugin
+from ea_node_editor.nodes.builtins.engineering_viewer import ENGINEERING_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.builtins.excalidraw import (
     EXCALIDRAW_BOARD_TYPE_ID,
     EXCALIDRAW_PREVIEW_REF_PROPERTY,
@@ -296,11 +295,9 @@ class _ContentFullscreenDirectTestCase(unittest.TestCase):
     ) -> dict[str, object]:
         return self.video_trim_presenter.request_trim_video_clip_copy(*args, **kwargs)
 
-    def _add_dpf_viewer_node(self) -> str:
-        if self.registry.spec_or_none(DPF_VIEWER_NODE_TYPE_ID) is None:
-            self.registry.register(DpfViewerNodePlugin)
+    def _add_viewer_node(self) -> str:
         return self.scene.add_node_from_type(
-            DPF_VIEWER_NODE_TYPE_ID, x=120.0, y=80.0
+            ENGINEERING_VIEWER_NODE_TYPE_ID, x=120.0, y=80.0
         )
 
     def _write_test_image(self, name: str) -> Path:
@@ -972,8 +969,8 @@ class ContentFullscreenBridgeTests(_ContentFullscreenDirectTestCase):
             "clip_end_ms": 15000,
         })])
 
-    def test_content_fullscreen_bridge_opens_dpf_viewer_with_session_metadata(self) -> None:
-        node_id = self._add_dpf_viewer_node()
+    def test_content_fullscreen_bridge_opens_viewer_with_session_metadata(self) -> None:
+        node_id = self._add_viewer_node()
         self.app.processEvents()
 
         bridge = self._bridge()
@@ -986,7 +983,7 @@ class ContentFullscreenBridgeTests(_ContentFullscreenDirectTestCase):
         viewer_payload = bridge.viewer_payload
         self.assertEqual(viewer_payload["workspace_id"], self.workspace_id)
         self.assertEqual(viewer_payload["node_id"], node_id)
-        self.assertEqual(viewer_payload["type_id"], DPF_VIEWER_NODE_TYPE_ID)
+        self.assertEqual(viewer_payload["type_id"], ENGINEERING_VIEWER_NODE_TYPE_ID)
         self.assertEqual(viewer_payload["surface_spec"]["component_key"], "viewer")
         self.assertTrue(viewer_payload["surface_spec"]["native_overlay"]["required"])
         self.assertIn("viewer.pluginGesture", viewer_payload["surface_spec"]["input_capabilities"]["plugin_gestures"])

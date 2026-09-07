@@ -1,7 +1,7 @@
 # Media And Viewer Content Fullscreen
 
 ## Summary
-Add a transient in-app fullscreen overlay for media and DPF viewer nodes. The overlay is shell-owned, opened from node-surface controls or `F11`, closed with `Esc`, `F11`, or a close button, and keeps fullscreen state out of saved project data. Media renders through QML using the same source, crop, and fit semantics as the node preview; live viewer fullscreen reuses the existing native overlay host instead of creating a second viewer widget.
+Add a transient in-app fullscreen overlay for media and Model Viewer nodes. The overlay is shell-owned, opened from node-surface controls or `F11`, closed with `Esc`, `F11`, or a close button, and keeps fullscreen state out of saved project data. Media renders through QML using the same source, crop, and fit semantics as the node preview; live viewer fullscreen reuses the existing native overlay host instead of creating a second viewer widget.
 
 ## Key Changes
 - Add a shell-level `contentFullscreenBridge` and render a new `ContentFullscreenOverlay.qml` from [MainShell.qml](C:/Users/emre_/PycharmProjects/EA_Node_Editor/ea_node_editor/ui_qml/MainShell.qml).
@@ -45,7 +45,7 @@ Add a transient in-app fullscreen overlay for media and DPF viewer nodes. The ov
 - Packetization notes: `P03`; depends on `T01`, can be implemented in parallel with `T04` after the bridge contract is stable.
 
 ### T04 Interactive Live Viewer Retargeting
-- Goal: Make DPF viewer fullscreen interactive when a live session is available or can be opened.
+- Goal: Make Model Viewer fullscreen interactive when a live session is available or can be opened.
 - Preconditions: `T01` bridge state and `T02` overlay viewport object name exist.
 - Conservative write scope: [viewer_host_service.py](C:/Users/emre_/PycharmProjects/EA_Node_Editor/ea_node_editor/ui_qml/viewer_host_service.py), [embedded_viewer_overlay_manager.py](C:/Users/emre_/PycharmProjects/EA_Node_Editor/ea_node_editor/ui_qml/embedded_viewer_overlay_manager.py), and viewer host tests.
 - Deliverables: Fullscreen pin for the active viewer node, native widget geometry retargeting to the fullscreen viewport, proxy image/status while live is opening or blocked, and restoration to node viewport on close.
@@ -74,7 +74,7 @@ Add a transient in-app fullscreen overlay for media and DPF viewer nodes. The ov
 - Unit/contract: content bridge eligibility, media payload normalization, PDF preview payloads, overlay open/close lifecycle, and workspace/node deletion cleanup.
 - QML surface: media button visibility and rects, viewer toolbar button routing, `F11` selection behavior, Escape close, and background interaction blocking.
 - Viewer native host: fullscreen geometry retarget, widget reuse, proxy fallback, restore-on-close, and no orphaned overlay containers.
-- Manual smoke: image node fullscreen, PDF node fullscreen, crop mode suppression, closed viewer proxy fullscreen, live DPF viewer interactive fullscreen, `Esc`/`F11` close, and workspace switch cleanup.
+- Manual smoke: image node fullscreen, PDF node fullscreen, crop mode suppression, closed viewer proxy fullscreen, live Model Viewer interactive fullscreen, `Esc`/`F11` close, and workspace switch cleanup.
 
 ## Assumptions
 - Chosen UX: in-app overlay, button plus `F11`, interactive live viewer support.

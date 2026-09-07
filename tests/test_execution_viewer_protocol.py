@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import unittest
 from dataclasses import replace
-from pathlib import Path
 
 from ea_node_editor.execution.viewer_messages import (
     CloseViewerSessionCommand,
@@ -31,10 +30,14 @@ from ea_node_editor.runtime_contracts.value_refs import (
     RuntimeHandleRef,
 )
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.runtime_contracts import PATH_DATA_TYPE_ID
+from ea_node_editor.common.scene_protocol import (
+    COREX_SCENE_HANDLE_KIND,
+    ENGINEERING_VIEWER_BACKEND_ID,
+)
+from ea_node_editor.runtime_contracts import ENGINEERING_SCENE_DATA_TYPE_ID, PATH_DATA_TYPE_ID
 
 
-class _FakeDpfObject:
+class _FakeViewerObject:
     pass
 
 
@@ -42,34 +45,12 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
     def setUp(self) -> None:
         self.catalog = build_default_registry().data_types
 
-    def test_dpf_viewer_protocol_edge_is_owned_by_adapter_module(self) -> None:
-        builtins_dir = (
-            Path(__file__).resolve().parents[1]
-            / "ea_node_editor"
-            / "nodes"
-            / "builtins"
-        )
-        ansys_dpf_text = (builtins_dir / "ansys_dpf.py").read_text(encoding="utf-8")
-        viewer_text = (builtins_dir / "ansys_dpf_viewer.py").read_text(encoding="utf-8")
-        adapter_text = (builtins_dir / "ansys_dpf_viewer_adapter.py").read_text(
-            encoding="utf-8"
-        )
-
-        self.assertNotIn(
-            "from ea_node_editor.execution.protocol import", ansys_dpf_text
-        )
-        self.assertNotIn("from ea_node_editor.execution.protocol import", viewer_text)
-        self.assertNotIn("from ea_node_editor.execution.protocol import", adapter_text)
-        self.assertIn(
-            "from ea_node_editor.nodes.viewer_runtime_contracts import", adapter_text
-        )
-
     def test_viewer_command_family_round_trips_runtime_refs_and_options(self) -> None:
         shared_handle = RuntimeHandleRef(
-            data_type_id="COREX.Viewer.Dataset",
+            data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
             schema_version=1,
             handle_id="viewer_dataset_001",
-            kind="dpf.viewer_dataset",
+            kind=COREX_SCENE_HANDLE_KIND,
             owner_scope="workspace:ws_main",
             worker_generation=5,
             metadata={"array_names": ["U"]},
@@ -90,13 +71,13 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_existing",
-                backend_id="dpf_embedded",
+                backend_id=ENGINEERING_VIEWER_BACKEND_ID,
                 data_refs={
                     "dataset": shared_handle,
                     "preview": preview_artifact,
                 },
                 transport={
-                    "kind": "dpf_transport_bundle",
+                    "kind": "scene_transport",
                     "version": 1,
                     "data_refs": {"dataset": shared_handle},
                 },
@@ -112,10 +93,10 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_existing",
-                backend_id="dpf_embedded",
+                backend_id=ENGINEERING_VIEWER_BACKEND_ID,
                 data_refs={"dataset": shared_handle},
                 transport={
-                    "kind": "dpf_transport_bundle",
+                    "kind": "scene_transport",
                     "version": 1,
                     "data_refs": {"dataset": shared_handle},
                 },
@@ -177,16 +158,16 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                         payload["data_refs"].get("dataset"),
                         {
                             "__ea_runtime_value__": "handle_ref",
-                            "data_type_id": "COREX.Viewer.Dataset",
+                            "data_type_id": ENGINEERING_SCENE_DATA_TYPE_ID,
                             "schema_version": 1,
                             "handle_id": "viewer_dataset_001",
-                            "kind": "dpf.viewer_dataset",
+                            "kind": COREX_SCENE_HANDLE_KIND,
                             "owner_scope": "workspace:ws_main",
                             "worker_generation": 5,
                             "metadata": {"array_names": ["U"]},
                         },
                     )
-                    self.assertEqual(payload["backend_id"], "dpf_embedded")
+                    self.assertEqual(payload["backend_id"], ENGINEERING_VIEWER_BACKEND_ID)
                     self.assertIn("transport", payload)
                     self.assertIn("transport_revision", payload)
                     self.assertIn("live_open_status", payload)
@@ -208,7 +189,7 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                     self.assertIsInstance(
                         restored.data_refs["dataset"], RuntimeHandleRef
                     )
-                    self.assertEqual(restored.backend_id, "dpf_embedded")
+                    self.assertEqual(restored.backend_id, ENGINEERING_VIEWER_BACKEND_ID)
                     self.assertEqual(
                         restored.transport_revision, command.transport_revision
                     )
@@ -229,10 +210,10 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
 
     def test_viewer_event_family_round_trips_runtime_refs_and_summaries(self) -> None:
         dataset_ref = RuntimeHandleRef(
-            data_type_id="COREX.Viewer.Dataset",
+            data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
             schema_version=1,
             handle_id="viewer_dataset_live",
-            kind="dpf.viewer_dataset",
+            kind=COREX_SCENE_HANDLE_KIND,
             owner_scope="viewer:session_live",
             worker_generation=7,
             metadata={"dataset_type": "UnstructuredGrid"},
@@ -253,10 +234,10 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_live",
-                backend_id="dpf_embedded",
+                backend_id=ENGINEERING_VIEWER_BACKEND_ID,
                 data_refs={"dataset": dataset_ref},
                 transport={
-                    "kind": "dpf_transport_bundle",
+                    "kind": "scene_transport",
                     "version": 1,
                     "data_refs": {"dataset": dataset_ref},
                 },
@@ -272,10 +253,10 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_live",
-                backend_id="dpf_embedded",
+                backend_id=ENGINEERING_VIEWER_BACKEND_ID,
                 data_refs={"dataset": dataset_ref},
                 transport={
-                    "kind": "dpf_transport_bundle",
+                    "kind": "scene_transport",
                     "version": 1,
                     "data_refs": {"dataset": dataset_ref},
                 },
@@ -291,7 +272,7 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_live",
-                backend_id="dpf_embedded",
+                backend_id=ENGINEERING_VIEWER_BACKEND_ID,
                 transport_revision=2,
                 live_open_status="blocked",
                 live_open_blocker={"code": "session_closed"},
@@ -304,13 +285,13 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_live",
-                backend_id="dpf_embedded",
+                backend_id=ENGINEERING_VIEWER_BACKEND_ID,
                 data_refs={
                     "dataset": dataset_ref,
                     "png": staged_png,
                 },
                 transport={
-                    "kind": "dpf_transport_bundle",
+                    "kind": "scene_transport",
                     "version": 1,
                     "data_refs": {"dataset": dataset_ref, "png": staged_png},
                 },
@@ -375,7 +356,7 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                     self.assertIsInstance(
                         restored.data_refs["dataset"], RuntimeHandleRef
                     )
-                    self.assertEqual(restored.backend_id, "dpf_embedded")
+                    self.assertEqual(restored.backend_id, ENGINEERING_VIEWER_BACKEND_ID)
                     self.assertEqual(
                         restored.transport_revision, event.transport_revision
                     )
@@ -385,7 +366,7 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 if isinstance(restored, ViewerDataMaterializedEvent):
                     self.assertIsInstance(restored.data_refs["png"], RuntimeArtifactRef)
                 if isinstance(restored, ViewerSessionClosedEvent):
-                    self.assertEqual(restored.backend_id, "dpf_embedded")
+                    self.assertEqual(restored.backend_id, ENGINEERING_VIEWER_BACKEND_ID)
                     self.assertEqual(restored.live_open_status, "blocked")
                     self.assertEqual(
                         restored.live_open_blocker, {"code": "session_closed"}
@@ -419,7 +400,7 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
             request_id="viewer_req_bad",
             workspace_id="ws_main",
             node_id="node_viewer",
-            data_refs={"raw_dpf_object": _FakeDpfObject()},
+            data_refs={"raw_viewer_object": _FakeViewerObject()},
         )
 
         with self.assertRaisesRegex(TypeError, "JSON-safe"):

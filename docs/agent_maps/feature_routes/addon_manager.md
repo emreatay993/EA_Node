@@ -35,7 +35,6 @@ Use this for add-on catalog metadata, add-on manager shell/QML payloads, depende
 ## Breadcrumbs
 - [Add-ons](../subsystems/addons.md)
 - [Tabular Data Add-on And Preview](tabular_data_addon_preview.md)
-- [Ansys DPF Operator Nodes, Viewer, And Transport](ansys_dpf_operator_viewer_transport.md)
 - [MARS Solver Add-on](mars_solver_addon.md)
 
 ## Update Triggers

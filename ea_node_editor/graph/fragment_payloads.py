@@ -11,7 +11,6 @@ from ea_node_editor.graph.effective_ports import (
     port_supports_incoming_edge,
     port_supports_outgoing_edge,
 )
-from ea_node_editor.graph.input_semantics import mutually_exclusive_target_input_group
 from ea_node_editor.graph.invariant_kernel import GraphInvariantKernel, RegistryEdgeResolution
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.record_payloads import (
@@ -417,7 +416,6 @@ def graph_fragment_payload_is_valid(
 
     seen_connections: set[tuple[str, str, str, str]] = set()
     occupied_single_target_ports: set[tuple[str, str]] = set()
-    occupied_mutually_exclusive_target_groups: set[tuple[str, tuple[str, ...]]] = set()
     for edge_payload in raw_edges:
         source_ref_id = edge_payload["source_ref_id"]
         target_ref_id = edge_payload["target_ref_id"]
@@ -451,15 +449,6 @@ def graph_fragment_payload_is_valid(
             )
         ):
             return False
-        mutually_exclusive_group = mutually_exclusive_target_input_group(
-            str(target_spec.type_id),
-            edge_payload["target_port_key"],
-        )
-        if mutually_exclusive_group is not None and (
-            target_ref_id,
-            mutually_exclusive_group,
-        ) in occupied_mutually_exclusive_target_groups:
-            return False
         if not GraphInvariantKernel.accept_registry_edge(
             RegistryEdgeResolution(
                 source_node_id=source_ref_id,
@@ -473,8 +462,6 @@ def graph_fragment_payload_is_valid(
             occupied_single_target_ports=occupied_single_target_ports,
         ):
             return False
-        if mutually_exclusive_group is not None:
-            occupied_mutually_exclusive_target_groups.add((target_ref_id, mutually_exclusive_group))
     return True
 
 

@@ -3,7 +3,7 @@
 
 // M1 — Breathe (baseline refined)
 function M1_Breathe({ size = 180, breatheDur = 2.4 } = {}) {
-  const boot = useBootSequence(['Initialising runtime…','Loading registry','Scanning plug-ins','Warming DPF','Ready'], { stepMs: 720 });
+  const boot = useBootSequence(['Initialising runtime…','Loading registry','Scanning plug-ins','Loading viewer','Ready'], { stepMs: 720 });
   return (
     <SplashFrame>
       <div style={{ position:'absolute', inset:0,
@@ -24,7 +24,7 @@ function M1_Breathe({ size = 180, breatheDur = 2.4 } = {}) {
 
 // M6 — Schematic (PCB-trace backdrop behind a breathing mark)
 function M6_Schematic({ size = 180, breatheDur = 2.4 } = {}) {
-  const boot = useBootSequence(['Initialising runtime…','Loading registry','Scanning plug-ins','Warming DPF','Ready'], { stepMs: 720 });
+  const boot = useBootSequence(['Initialising runtime…','Loading registry','Scanning plug-ins','Loading viewer','Ready'], { stepMs: 720 });
   return (
     <SplashFrame>
       <div style={{ position:'absolute', inset:0,
@@ -206,7 +206,7 @@ function SchematicBackdrop() {
 
 // M2 — Pulse-out (concentric rings emit on each step)
 function M2_PulseOut() {
-  const boot = useBootSequence(['Ignite runtime','Resolve registry','Warm DPF','Ready'], { stepMs: 820 });
+  const boot = useBootSequence(['Ignite runtime','Resolve registry','Load viewer','Ready'], { stepMs: 820 });
   // On every step change, emit a new ring from center
   const [rings, setRings] = React.useState([]);
   React.useEffect(() => {

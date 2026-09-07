@@ -45,7 +45,7 @@ from ea_node_editor.runtime_contracts import (
     RuntimeHandleRef,
     TypedInlineValue,
 )
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 
 class _HandleSubclass(RuntimeHandleRef):
@@ -268,7 +268,7 @@ def test_windows_authentication_function_spec_matches_frozen_catalog() -> None:
         allow_reserved_ids=True,
         owner_id=INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
     )
-    golden = load_effective_non_dpf_catalog()
+    golden = load_current_repo_owned_catalog()
     expected = next(
         row["spec"]
         for row in golden

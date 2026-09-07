@@ -64,7 +64,7 @@ _INLINE_VALUE_DATA_TYPE_IDS = frozenset(
 )
 _SENSITIVE_RUNTIME_MARKERS = frozenset({"secret_data", "ssh_sftp_host_data"})
 _SAFE_HANDLE_PREVIEW_FAMILIES = frozenset(
-    {"dpf", "engineering", "fem", "geometry", "mesh"}
+    {"engineering", "fem", "geometry", "mesh"}
 )
 _SAFE_HANDLE_METADATA_LABELS = {
     "node_count": "nodes",
@@ -1169,54 +1169,6 @@ def _node_ids_from_values(values: object) -> set[str]:
     }
 
 
-def _latest_dpf_workflow_summary(records: object) -> dict[str, Any] | None:
-    if not isinstance(records, dict):
-        return None
-    latest_record: dict[str, Any] | None = None
-    latest_observed_at = float("-inf")
-    for record in records.values():
-        if not isinstance(record, dict):
-            continue
-        try:
-            observed_at = float(record.get("observed_at_epoch_ms", 0.0) or 0.0)
-        except (TypeError, ValueError):
-            observed_at = 0.0
-        if latest_record is None or observed_at >= latest_observed_at:
-            latest_record = record
-            latest_observed_at = observed_at
-    if latest_record is None:
-        return None
-    if not bool(latest_record.get("outputs_available", True)):
-        return {
-            "state": "unavailable",
-            "headline": "Unavailable",
-            "detail": "",
-            "facts": [],
-        }
-    summary = latest_record.get("dpf_workflow_summary")
-    if not isinstance(summary, dict):
-        return None
-    facts = summary.get("facts")
-    qml_facts = (
-        [
-            {
-                "label": str(fact.get("label", "") or ""),
-                "value": str(fact.get("value", "") or ""),
-            }
-            for fact in facts
-            if isinstance(fact, dict)
-        ][:6]
-        if isinstance(facts, list)
-        else []
-    )
-    return {
-        "state": "stale" if bool(latest_record.get("stale", False)) else "ready",
-        "headline": str(summary.get("headline", "") or ""),
-        "detail": str(summary.get("detail", "") or ""),
-        "facts": qml_facts,
-    }
-
-
 class ExecutionStateProps:
     """Execution-state projections: failed/running/completed/warning/fresh-run
     lookups, started-at/elapsed timing, selected-run preview, revisions."""
@@ -1706,17 +1658,6 @@ class ExecutionStateProps:
                     [title, *(f"- {row['message']}" for row in rows)]
                 ),
             }
-        return lookup
-
-    @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
-    def dpf_workflow_summary_lookup(self) -> dict[str, dict[str, Any]]:
-        records_by_node = self._active_workspace_retained_records()
-        lookup: dict[str, dict[str, Any]] = {}
-        for raw_node_id, records in records_by_node.items():
-            node_id = normalize_node_id(raw_node_id)
-            summary = _latest_dpf_workflow_summary(records)
-            if node_id and summary is not None:
-                lookup[node_id] = summary
         return lookup
 
     @pyqtProperty("QVariantList", notify=node_execution_state_changed)

@@ -4,14 +4,6 @@ from dataclasses import replace
 
 import pytest
 
-from ea_node_editor.nodes.ansys_dpf_data_types import (
-    DPF_DATA_CONVERSIONS,
-    DPF_DATA_TYPE_FAMILIES,
-    DPF_DATA_TYPE_OWNER_ID,
-    DPF_DATA_TYPES,
-    DPF_MESH_DATA_TYPE,
-    COREX_MESH_INTERFACE_DATA_TYPE,
-)
 from ea_node_editor.nodes.builtins.ai_ml_contracts import (
     COREX_AI_ML_CONTRACT_MANIFEST,
     COREX_AI_ML_CONTRACTS_OWNER_ID,
@@ -463,12 +455,6 @@ def test_exact_abstract_handle_specs_have_the_reduced_direct_parent_dag() -> Non
 def test_geometry_dag_assignability_and_clippable_children_are_exact() -> None:
     registry = _registry(COREX_GEOMETRY_CLOSURE_CANDIDATE_CONTRACT_MANIFEST)
     catalog = registry.data_types
-    catalog.register_many(
-        families=DPF_DATA_TYPE_FAMILIES,
-        types=DPF_DATA_TYPES,
-        conversions=DPF_DATA_CONVERSIONS,
-        owner_id=DPF_DATA_TYPE_OWNER_ID,
-    )
     checked_targets = {
         GRAPH_DATA_TYPE_ID,
         CLIPPABLE_GRAPH_DATA_TYPE_ID,
@@ -690,18 +676,6 @@ def test_geometry_dag_assignability_and_clippable_children_are_exact() -> None:
     assert not catalog.is_assignable(SUBD_DATA_TYPE_ID, CLIPPABLE_GRAPH_DATA_TYPE_ID)
     assert catalog.owner_of(CLIPPABLE_GRAPH_DATA_TYPE_ID) == CORE_DATA_TYPE_OWNER_ID
     assert catalog.require(ENGINEERING_SCENE_DATA_TYPE_ID).parents == (
-        CLIPPABLE_GRAPH_DATA_TYPE_ID,
-    )
-    assert catalog.is_assignable(
-        DPF_MESH_DATA_TYPE,
-        COREX_MESH_INTERFACE_DATA_TYPE,
-    )
-    assert not catalog.is_assignable(
-        COREX_MESH_INTERFACE_DATA_TYPE,
-        CLIPPABLE_GRAPH_DATA_TYPE_ID,
-    )
-    assert not catalog.is_assignable(
-        DPF_MESH_DATA_TYPE,
         CLIPPABLE_GRAPH_DATA_TYPE_ID,
     )
     assert {

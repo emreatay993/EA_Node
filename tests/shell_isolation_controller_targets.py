@@ -13,6 +13,10 @@ def _build_targets():
 
     return (
         ShellIsolationTarget.unittest_target(
+            f"{_SCRIPT_EDITOR_TEST_CLASS}.test_canvas_port_edits_preserve_dirty_drafts_and_refresh_clean_editor",
+            target_id="script_editor__test_canvas_port_edits_preserve_dirty_drafts_and_refresh_clean_editor",
+        ),
+        ShellIsolationTarget.unittest_target(
             f"{_SCRIPT_EDITOR_TEST_CLASS}.test_script_editor_binds_to_selected_python_script_node",
             target_id="script_editor__test_script_editor_binds_to_selected_python_script_node",
         ),

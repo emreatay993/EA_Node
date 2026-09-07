@@ -32,7 +32,7 @@ function V1ForgingCore() {
     'Loading node registry',
     'Registering 142 node types',
     'Scanning plug-ins',
-    'Connecting DPF backend',
+    'Connecting viewer backend',
     'Warming canvas',
     'Ready',
   ], { loop: true, stepMs: 700 });

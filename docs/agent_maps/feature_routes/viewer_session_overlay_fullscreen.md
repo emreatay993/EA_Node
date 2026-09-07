@@ -11,7 +11,6 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 ## Start Here
 - `ea_node_editor/ui_qml/viewer_session_bridge.py`
 - `ea_node_editor/ui_qml/viewer_host_service.py`
-- `ea_node_editor/ui_qml/dpf_viewer_widget_binder.py`
 - `ea_node_editor/ui_qml/engineering_viewer_widget_binder.py`
 - `ea_node_editor/ui/plot_preview_cache_provider.py`
 - `ea_node_editor/ui_qml/embedded_viewer_overlay_manager.py`
@@ -92,7 +91,6 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
   only a fullscreen Guide toggle plus `PythonScriptGuidePane.qml`. The guide is
   a local, theme-aware rich-HTML document; it must not create a second editor,
   browser host, PDF pipeline, or executable help surface.
-- `DpfViewerWidgetBinder._populate_interactor` keeps the LIVE extracted camera on any re-populate of a widget that already had a live session (view-option/step changes must never move the camera); payload `camera_state` only applies on the first bind of a widget. The viewer surface's fullscreen action is idempotent-open: it never toggle-closes a fullscreen already open for the same node (clicks can be eaten by the native window's airspace).
 - Node-scoped viewer writes go through `ViewerControlBridge`: normalize and
   mutate node properties through the scene bridge, then synchronize the live
   viewer session. It owns viewer options, camera bookmarks, saved engineering
@@ -166,11 +164,10 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 
 ## Breadcrumbs
 - [Viewer Surfaces, Native Overlays, And Fullscreen](../subsystems/viewer_surfaces.md)
-- [Ansys DPF Operator Nodes, Viewer, And Transport](ansys_dpf_operator_viewer_transport.md)
 - [Neutral CAD/FE Engineering Viewer](neutral_cad_fe_engineering_viewer.md)
 
 ## Update Triggers
-Update when viewer bridge, worker-side session-handle lease ownership, host service, DPF or engineering viewer binder, viewer preview cache provider, overlay manager, fullscreen bridge, Python Script fullscreen guide, fullscreen tabular persistence, viewer protocol, or Help reference fullscreen coverage changes.
+Update when viewer bridge, worker-side session-handle lease ownership, host service, engineering viewer binder, viewer preview cache provider, overlay manager, fullscreen bridge, Python Script fullscreen guide, fullscreen tabular persistence, viewer protocol, or Help reference fullscreen coverage changes.
 
 ## 2026-07-11 Performance Ownership
 

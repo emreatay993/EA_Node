@@ -295,7 +295,7 @@ Evidence:
 
 - The shell builds a registry at startup (`ea_node_editor/ui/shell/composition.py:306-342`), and the worker rebuilds a fresh registry during runtime preparation (`ea_node_editor/execution/worker_runtime.py:201-226`).
 - `RuntimeSnapshot` is the intended execution boundary, but protocol/client/runtime code still keeps the legacy `project_doc` compatibility path alive (`ea_node_editor/execution/runtime_snapshot.py:154-203`, `ea_node_editor/execution/client.py:239-250`).
-- `ViewerSessionService` is worker-side but already DPF-aware (`ea_node_editor/execution/viewer_session_service.py:9-27`, `ea_node_editor/execution/viewer_session_service.py:117-220`).
+- `ViewerSessionService` is worker-side and already engineering-transport-aware (`ea_node_editor/execution/viewer_session_service.py`).
 - `ViewerSessionBridge` keeps a separate UI-side viewer session state machine (`ea_node_editor/ui_qml/viewer_session_bridge.py:21-213`).
 - `AsyncNodePlugin` claims thread-pool execution in docs, but worker execution is still `asyncio.run(...)` inline (`ea_node_editor/nodes/types.py:594-603`, `ea_node_editor/execution/worker_runner.py:377-383`).
 

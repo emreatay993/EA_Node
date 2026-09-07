@@ -72,7 +72,7 @@ from ea_node_editor.runtime_contracts import (
 from ea_node_editor.ui_qml.node_title_icon_sources import (
     title_icon_presentation_for_node_payload,
 )
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 
 _MARS_SPECS = {
@@ -199,7 +199,7 @@ print(json.dumps({"record": "result", "result": result}), flush=True)
 
 class MarsAddOnContractTests(unittest.TestCase):
     def test_static_function_specs_match_pre_cutover_golden(self) -> None:
-        rows = load_effective_non_dpf_catalog()
+        rows = load_current_repo_owned_catalog()
         expected = {
             row["spec"]["type_id"]: row["spec"]
             for row in rows

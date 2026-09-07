@@ -67,7 +67,7 @@
   --accent-default:#4AA9D6;
   --accent-core:#2F89FF;
   --accent-io:#22B455;
-  --accent-physics:#D88C32;   /* Ansys DPF ≈ physics */
+  --accent-physics:#D88C32;   /* Engineering ≈ physics */
   --accent-logic:#B35BD1;
   --accent-hpc:#C75050;
 
@@ -1112,7 +1112,7 @@ html,body {
       <span class="app-name">COREX Node Editor</span>
       <span style="color:var(--muted-fg);font-size:11px;margin-left:6px;">— Engineering</span>
       <span class="spacer"></span>
-      <span class="project">multistage_cyclic_advanced.cxproj</span>
+      <span class="project">engineering_viewer_capabilities.cxproj</span>
       <span class="win-ctrls"><span>—</span><span>▢</span><span>✕</span></span>
     </div>
 
@@ -1140,24 +1140,15 @@ html,body {
         <div class="search"><input placeholder="Search nodes..." /></div>
         <div class="library-tree">
           <div class="lib-cat"><span class="chev">▸</span> Annotation</div>
-          <div class="lib-cat"><span class="chev">▾</span> Ansys DPF</div>
-            <div class="lib-sub"><span class="chev">▸</span> Compute</div>
-            <div class="lib-sub"><span class="chev">▸</span> Helpers</div>
-            <div class="lib-sub"><span class="chev">▾</span> Inputs</div>
-              <div class="lib-node deep"><span class="dot"></span>DPF Data Sources</div>
-              <div class="lib-node deep"><span class="dot"></span>DPF Model</div>
-            <div class="lib-sub"><span class="chev">▸</span> Operators</div>
+          <div class="lib-cat"><span class="chev">▾</span> Engineering</div>
+            <div class="lib-sub"><span class="chev">▾</span> Import</div>
+              <div class="lib-node deep"><span class="dot"></span>FE Import</div>
             <div class="lib-sub"><span class="chev">▾</span> Viewer</div>
-              <div class="lib-node deep"><span class="dot"></span>DPF Viewer</div>
-            <div class="lib-sub"><span class="chev">▸</span> Workflow</div>
+              <div class="lib-node deep"><span class="dot"></span>Model Viewer</div>
           <div class="lib-cat"><span class="chev">▾</span> Core</div>
             <div class="lib-node"><span class="dot"></span>Constant</div>
-            <div class="lib-node"><span class="dot"></span>End</div>
-            <div class="lib-node"><span class="dot"></span>If-Else Branch</div>
             <div class="lib-node"><span class="dot"></span>Logger</div>
-            <div class="lib-node"><span class="dot"></span>On Failure</div>
             <div class="lib-node"><span class="dot"></span>Python Script</div>
-            <div class="lib-node"><span class="dot"></span>Start</div>
           <div class="lib-cat"><span class="chev">▸</span> Flowchart</div>
           <div class="lib-cat"><span class="chev">▸</span> HPC</div>
           <div class="lib-cat"><span class="chev">▸</span> Input/Output</div>
@@ -1171,7 +1162,7 @@ html,body {
         <div class="scopebar">
           <span class="scope-label">Scope:</span>
           <div class="scope-crumbs">
-            <span class="scope-crumb active">Multi-stage Cyclic Symmetry</span>
+            <span class="scope-crumb active">Model Viewer Capabilities</span>
           </div>
           <span class="spacer"></span>
           <span class="views-label">VIEWS</span>
@@ -1183,7 +1174,7 @@ html,body {
         <div class="canvas">
           <div class="group-backdrop" style="left:24px;top:18px;width:540px;">
             <div class="hint">★ Group</div>
-            DPF Workflow Example: Multi-stage Cyclic Symmetry — Advanced Options
+            Engineering Viewer Workflow Example: CAD and FE Overlay
           </div>
 
           <svg class="edges" viewBox="0 0 1440 600" preserveAspectRatio="none">
@@ -1193,48 +1184,27 @@ html,body {
             <path d="M 550 288 C 620 288, 628 356, 704 356" stroke="#7AA8FF"/>
           </svg>
 
-          <div class="node cat-core" style="left:60px;top:190px;width:170px;">
-            <div class="accent-bar"></div>
-            <div class="header"><span class="title">Start</span></div>
-            <div class="ports">
-              <div class="col"><div class="port exec"><span class="dot"></span>exec_in</div></div>
-              <div class="col right"><div class="port exec right"><span>exec_out</span><span class="dot"></span></div></div>
-            </div>
-          </div>
-
           <div class="node cat-physics has-comment" style="left:360px;top:190px;width:190px;">
             <div class="accent-bar"></div>
-            <div class="header"><span class="title">DPF Data Sources</span></div>
-            <div class="inline"><span class="label">Result File</span><span class="val">cyclic.rst</span></div>
+            <div class="header"><span class="title">FE Import</span></div>
+            <div class="inline"><span class="label">FE File</span><span class="val">mesh.vtu</span></div>
             <div class="ports">
-              <div class="col">
-                <div class="port exec"><span class="dot"></span>exec_in</div>
-                <div class="port"><span class="dot"></span>path</div>
-              </div>
-              <div class="col right">
-                <div class="port exec right"><span>exec_out</span><span class="dot"></span></div>
-                <div class="port right"><span>data_sources</span><span class="dot"></span></div>
-              </div>
+              <div class="col"><div class="port"><span class="dot"></span>path</div></div>
+              <div class="col right"><div class="port right"><span>scene</span><span class="dot"></span></div></div>
             </div>
             <div class="corner-badge" title="Comments (3)">3</div>
           </div>
 
           <div class="node cat-physics selected" style="left:700px;top:280px;width:210px;">
             <div class="accent-bar"></div>
-            <div class="header"><span class="title">DPF Model</span><span class="open-badge">OPEN</span></div>
-            <div class="inline"><span class="label">Bool Ro…</span><span class="chk">☐</span></div>
-            <div class="inline"><span class="label">Read Cy…</span><span class="val">2</span></div>
-            <div class="inline"><span class="label">Phi</span><span class="val">0</span></div>
-            <div class="inline"><span class="label">Scalar Int</span><span class="val">2</span></div>
+            <div class="header"><span class="title">Model Viewer</span><span class="open-badge">OPEN</span></div>
+            <div class="inline"><span class="label">Representation</span><span class="val">surface_with_edges</span></div>
+            <div class="inline"><span class="label">Show Mesh Edges</span><span class="chk">☐</span></div>
             <div class="ports">
-              <div class="col">
-                <div class="port exec"><span class="dot"></span>exec_in</div>
-                <div class="port"><span class="dot"></span>data_sources</div>
-              </div>
+              <div class="col"><div class="port"><span class="dot"></span>scene_1</div></div>
               <div class="col right">
-                <div class="port exec right"><span>exec_out</span><span class="dot"></span></div>
-                <div class="port right"><span>model</span><span class="dot"></span></div>
-                <div class="port right"><span>mesh</span><span class="dot"></span></div>
+                <div class="port right"><span>session</span><span class="dot"></span></div>
+                <div class="port right"><span>selections</span><span class="dot"></span></div>
               </div>
             </div>
           </div>
@@ -1242,7 +1212,7 @@ html,body {
 
         <div class="workspaces">
           <span class="ws-label">WORKSPACES</span>
-          <div class="ws-tabs"><span class="ws-tab">Multi-stage Cyclic Symmetr…</span></div>
+          <div class="ws-tabs"><span class="ws-tab">Model Viewer Capabilities</span></div>
           <span class="new-ws">+ New Workspace</span>
         </div>
 
@@ -1254,8 +1224,8 @@ html,body {
             <span class="spacer"></span>
             <span class="tab">Clear</span>
           </div>
-          <div class="body">[12:41:02] Workspace "Multi-stage Cyclic Symmetry" activated.
-[12:41:05] DPF Model :: 24 fields loaded. 2 sectors scoped.
+          <div class="body">[12:41:02] Workspace "Model Viewer Capabilities" activated.
+[12:41:05] Model Viewer :: scene ready.
 [12:41:06] Ready.</div>
         </div>
       </main>
@@ -1270,13 +1240,13 @@ html,body {
           <div class="insp-card">
             <div class="insp-head-row">
               <div>
-                <div class="node-title">DPF Model</div>
-                <div class="node-sub">Ansys DPF model constructor</div>
+                <div class="node-title">Model Viewer</div>
+                <div class="node-sub">Engineering scene viewer</div>
               </div>
               <button class="insp-btn sel">COLLAPSE</button>
             </div>
             <div class="meta-chips">
-              <span class="meta-chip">CATEGORY <b>Ansys DPF › Inputs</b></span>
+              <span class="meta-chip">CATEGORY <b>Engineering › Viewer</b></span>
               <span class="meta-chip">ID <b>2</b></span>
             </div>
           </div>
@@ -1286,25 +1256,20 @@ html,body {
             <div class="insp-segment"><span class="seg sel">NAME</span><span class="seg">VALUE</span></div>
           </div>
 
-          <div class="smart-group">Model Options <span class="count">4</span></div>
-          <div class="insp-row"><span class="lbl">Output Mode</span><span class="val">both ▾</span></div>
-          <div class="insp-row"><span class="lbl">Bool Rotate</span><span class="val">false</span></div>
-          <div class="insp-row"><span class="lbl">Read Cyclic</span><span class="val">2</span></div>
-          <div class="insp-row"><span class="lbl">Phi</span><span class="val">0</span></div>
+          <div class="smart-group">View <span class="count">3</span></div>
+          <div class="insp-row"><span class="lbl">Representation</span><span class="val">surface_with_edges ▾</span></div>
+          <div class="insp-row"><span class="lbl">Show Mesh Edges</span><span class="val">false</span></div>
+          <div class="insp-row"><span class="lbl">Parallel Projection</span><span class="val">false</span></div>
 
           <div class="insp-card">
             <div class="card-title">PORT MANAGEMENT</div>
             <div class="port-tabs">
-              <span class="seg sel">INPUTS (2)</span>
-              <span class="seg">OUTPUTS (3)</span>
-            </div>
-            <div class="port-row exec">
-              <span class="chk">☐</span><span class="kind-dot"></span>
-              <span class="key">exec_in</span><span class="kind-chip">EXEC</span>
+              <span class="seg sel">INPUTS (1)</span>
+              <span class="seg">OUTPUTS (2)</span>
             </div>
             <div class="port-row sel">
               <span class="chk on">✓</span><span class="kind-dot"></span>
-              <span class="key">data_sources</span><span class="kind-chip">DPF_DATA_SOURCES</span>
+              <span class="key">scene_1</span><span class="kind-chip">ENGINEERING_SCENE</span>
             </div>
           </div>
 
@@ -1316,14 +1281,14 @@ html,body {
                 <div class="avatar">EA</div>
                 <div class="body">
                   <div class="meta"><b>Emre</b><span>• 2h ago</span><span>• resolved ✓</span></div>
-                  <div class="txt">Confirmed cyclic sector count lines up with the mesh extension node downstream.</div>
+                  <div class="txt">Confirmed the imported FE scene uses the intended units before viewing.</div>
                 </div>
               </div>
               <div class="comment-item">
                 <div class="avatar">MK</div>
                 <div class="body">
                   <div class="meta"><b>Melis</b><span>• 38m ago</span></div>
-                  <div class="txt">Should we surface Phi as an input port for the sweep study?</div>
+                  <div class="txt">Should we expose Show Mesh Edges in the compact viewer controls?</div>
                 </div>
               </div>
               <div class="comment-compose">
@@ -1364,7 +1329,7 @@ html,body {
       <span class="app-name">COREX Node Editor</span>
       <span style="color:var(--muted-fg);font-size:11px;margin-left:6px;">— Engineering</span>
       <span class="spacer"></span>
-      <span class="project">multistage_cyclic_advanced.cxproj</span>
+      <span class="project">engineering_viewer_capabilities.cxproj</span>
       <span class="win-ctrls"><span>—</span><span>▢</span><span>✕</span></span>
     </div>
     <div class="runbar">
@@ -1384,14 +1349,11 @@ html,body {
         <div class="search"><input placeholder="Search nodes..." /></div>
         <div class="library-tree">
           <div class="lib-cat"><span class="chev">▸</span> Annotation</div>
-          <div class="lib-cat"><span class="chev">▾</span> Ansys DPF</div>
-            <div class="lib-sub"><span class="chev">▾</span> Operators</div>
-              <div class="lib-node deep"><span class="dot"></span>Displacement</div>
-              <div class="lib-node deep"><span class="dot"></span>Cyclic Mesh Expansion</div>
-              <div class="lib-node deep"><span class="dot"></span>Extract Field</div>
-              <div class="lib-node deep"><span class="dot"></span>Norm Fields Container</div>
+          <div class="lib-cat"><span class="chev">▾</span> Engineering</div>
+            <div class="lib-sub"><span class="chev">▾</span> Import</div>
+              <div class="lib-node deep"><span class="dot"></span>FE Import</div>
             <div class="lib-sub"><span class="chev">▾</span> Viewer</div>
-              <div class="lib-node deep"><span class="dot"></span>DPF Viewer</div>
+              <div class="lib-node deep"><span class="dot"></span>Model Viewer</div>
           <div class="lib-cat"><span class="chev">▸</span> Core</div>
           <div class="lib-cat"><span class="chev">▸</span> Flowchart</div>
           <div class="lib-cat"><span class="chev">▸</span> HPC</div>
@@ -1401,7 +1363,7 @@ html,body {
       <main class="center">
         <div class="scopebar">
           <span class="scope-label">Scope:</span>
-          <div class="scope-crumbs"><span class="scope-crumb active">Multi-stage Cyclic Symmetry</span></div>
+          <div class="scope-crumbs"><span class="scope-crumb active">Model Viewer Capabilities</span></div>
           <span class="spacer"></span>
           <span class="views-label">VIEWS</span>
           <span class="view-tab">V1</span>
@@ -1410,7 +1372,7 @@ html,body {
         <div class="canvas">
           <div class="group-backdrop" style="left:24px;top:18px;width:540px;">
             <div class="hint">★ Group</div>
-            DPF Workflow Example: Multi-stage Cyclic Symmetry — Advanced Options
+            Engineering Viewer Workflow Example: CAD and FE Overlay
           </div>
           <svg class="edges" viewBox="0 0 1440 600" preserveAspectRatio="none">
             <path d="M 240 260 C 300 260, 308 260, 360 260" stroke="#67D487"/>
@@ -1420,54 +1382,34 @@ html,body {
 
           <div class="node cat-physics" style="left:60px;top:230px;width:180px;">
             <div class="accent-bar"></div>
-            <div class="header"><span class="title">DPF Data Sources</span></div>
-            <div class="inline"><span class="label">Result File</span><span class="val">cyclic.rst</span></div>
+            <div class="header"><span class="title">FE Import</span></div>
+            <div class="inline"><span class="label">FE File</span><span class="val">mesh.vtu</span></div>
             <div class="ports">
-              <div class="col"><div class="port exec"><span class="dot"></span>exec_in</div></div>
-              <div class="col right"><div class="port exec right"><span>exec_out</span><span class="dot"></span></div></div>
+              <div class="col"><div class="port"><span class="dot"></span>path</div></div>
+              <div class="col right"><div class="port right"><span>scene</span><span class="dot"></span></div></div>
             </div>
           </div>
 
           <div class="node cat-physics selected has-comment" style="left:360px;top:210px;width:180px;">
             <div class="accent-bar"></div>
-            <div class="header"><span class="title">Displacement</span><span class="open-badge">OPEN</span></div>
-            <div class="inline"><span class="label">Scoping</span><span class="val">sectors</span></div>
-            <div class="inline"><span class="label">Phi</span><span class="val">0</span></div>
+            <div class="header"><span class="title">Model Viewer</span><span class="open-badge">OPEN</span></div>
+            <div class="inline"><span class="label">Representation</span><span class="val">surface_with_edges</span></div>
+            <div class="inline"><span class="label">Show Mesh Edges</span><span class="chk">☐</span></div>
             <div class="ports">
-              <div class="col">
-                <div class="port exec"><span class="dot"></span>exec_in</div>
-                <div class="port"><span class="dot"></span>model</div>
-                <div class="port"><span class="dot"></span>mesh</div>
-              </div>
+              <div class="col"><div class="port"><span class="dot"></span>scene_1</div></div>
               <div class="col right">
-                <div class="port exec right"><span>exec_out</span><span class="dot"></span></div>
-                <div class="port right"><span>displacements</span><span class="dot"></span></div>
+                <div class="port right"><span>session</span><span class="dot"></span></div>
+                <div class="port right"><span>selections</span><span class="dot"></span></div>
               </div>
             </div>
             <div class="corner-badge">2</div>
           </div>
 
-          <div class="node cat-physics" style="left:680px;top:280px;width:200px;">
-            <div class="accent-bar"></div>
-            <div class="header"><span class="title">Cyclic Mesh Expansion</span></div>
-            <div class="inline"><span class="label">Sectors</span><span class="val">2</span></div>
-            <div class="ports">
-              <div class="col">
-                <div class="port exec"><span class="dot"></span>exec_in</div>
-                <div class="port"><span class="dot"></span>fields_in</div>
-                <div class="port"><span class="dot"></span>mesh</div>
-              </div>
-              <div class="col right">
-                <div class="port exec right"><span>exec_out</span><span class="dot"></span></div>
-                <div class="port right"><span>expanded</span><span class="dot"></span></div>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div class="workspaces">
           <span class="ws-label">WORKSPACES</span>
-          <div class="ws-tabs"><span class="ws-tab">Multi-stage Cyclic Symmetr…</span></div>
+          <div class="ws-tabs"><span class="ws-tab">CAD and FE Overlay</span></div>
           <span class="new-ws">+ New Workspace</span>
         </div>
         <div class="console">
@@ -1475,8 +1417,8 @@ html,body {
             <span class="tab active">Output</span><span class="tab">Errors (0)</span><span class="tab">Warnings (0)</span>
             <span class="spacer"></span><span class="tab">Clear</span>
           </div>
-          <div class="body">[12:44:01] Displacement :: scoping = sectors (2).
-[12:44:03] 2 comments synced to "Displacement".</div>
+          <div class="body">[12:44:01] Model Viewer :: scene ready.
+[12:44:03] 2 comments synced to "Model Viewer".</div>
         </div>
       </main>
 
@@ -1490,13 +1432,13 @@ html,body {
             <div class="insp-card">
               <div class="insp-head-row">
                 <div>
-                  <div class="node-title">Displacement</div>
-                  <div class="node-sub">Cyclic expansion displacement operator</div>
+                  <div class="node-title">Model Viewer</div>
+                  <div class="node-sub">CAD and FE scene viewer</div>
                 </div>
                 <button class="insp-btn sel">COLLAPSE</button>
               </div>
               <div class="meta-chips">
-                <span class="meta-chip">CATEGORY <b>Ansys DPF › Operators</b></span>
+                <span class="meta-chip">CATEGORY <b>Engineering › Viewer</b></span>
                 <span class="meta-chip">ID <b>4</b></span>
               </div>
             </div>
@@ -1504,28 +1446,19 @@ html,body {
               <input placeholder="Filter by name…">
               <div class="insp-segment"><span class="seg sel">NAME</span><span class="seg">VALUE</span></div>
             </div>
-            <div class="smart-group">Scoping <span class="count">3</span></div>
-            <div class="insp-row"><span class="lbl">Scoping</span><span class="val">sectors</span></div>
-            <div class="insp-row"><span class="lbl">Phi</span><span class="val">0</span></div>
-            <div class="smart-group">POST <span class="count">2</span></div>
-            <div class="insp-row"><span class="lbl">Output Mode</span><span class="val">both ▾</span></div>
+            <div class="smart-group">View <span class="count">3</span></div>
+            <div class="insp-row"><span class="lbl">Representation</span><span class="val">surface_with_edges ▾</span></div>
+            <div class="insp-row"><span class="lbl">Show Mesh Edges</span><span class="val">false</span></div>
+            <div class="insp-row"><span class="lbl">Parallel Projection</span><span class="val">false</span></div>
             <div class="insp-card">
               <div class="card-title">PORT MANAGEMENT</div>
               <div class="port-tabs">
-                <span class="seg sel">INPUTS (3)</span>
+                <span class="seg sel">INPUTS (1)</span>
                 <span class="seg">OUTPUTS (2)</span>
-              </div>
-              <div class="port-row exec">
-                <span class="chk">☐</span><span class="kind-dot"></span>
-                <span class="key">exec_in</span><span class="kind-chip">EXEC</span>
-              </div>
-              <div class="port-row">
-                <span class="chk on">✓</span><span class="kind-dot"></span>
-                <span class="key">model</span><span class="kind-chip">DPF_MODEL</span>
               </div>
               <div class="port-row sel">
                 <span class="chk on">✓</span><span class="kind-dot"></span>
-                <span class="key">mesh</span><span class="kind-chip">DPF_MESH</span>
+                <span class="key">scene_1</span><span class="kind-chip">ENGINEERING_SCENE</span>
               </div>
             </div>
           </div>
@@ -1541,18 +1474,18 @@ html,body {
                 <div class="avatar">EA</div>
                 <div class="body">
                   <div class="meta"><b>Emre</b><span>• 2h ago</span></div>
-                  <div class="txt">Use <code>sectors</code> scoping here — the viewer expects expanded fields already reduced.</div>
+                  <div class="txt">Use <code>scene_1</code> here — the viewer expects a prepared Engineering Scene.</div>
                 </div>
               </div>
               <div class="comment-item">
                 <div class="avatar">MK</div>
                 <div class="body">
                   <div class="meta"><b>Melis</b><span>• 38m ago</span></div>
-                  <div class="txt">@Emre — let's document the mesh input requirement in Help too.</div>
+                  <div class="txt">@Emre — let's document the scene input requirement in Help too.</div>
                 </div>
               </div>
               <div class="comment-compose">
-                <textarea placeholder="Comment on Displacement…"></textarea>
+                <textarea placeholder="Comment on Model Viewer…"></textarea>
                 <button class="send">Post</button>
               </div>
             </div>
@@ -1588,7 +1521,7 @@ html,body {
       <span class="app-name">COREX Node Editor</span>
       <span style="color:var(--muted-fg);font-size:11px;margin-left:6px;">— Engineering</span>
       <span class="spacer"></span>
-      <span class="project">multistage_cyclic_advanced.cxproj</span>
+      <span class="project">engineering_viewer_capabilities.cxproj</span>
       <span class="win-ctrls"><span>—</span><span>▢</span><span>✕</span></span>
     </div>
     <div class="runbar">
@@ -1607,17 +1540,11 @@ html,body {
         </div>
         <div class="search"><input placeholder="Search nodes..." /></div>
         <div class="library-tree">
-          <div class="lib-cat"><span class="chev">▾</span> Ansys DPF</div>
-            <div class="lib-sub"><span class="chev">▾</span> Inputs</div>
-              <div class="lib-node deep"><span class="dot"></span>DPF Data Sources</div>
-              <div class="lib-node deep"><span class="dot"></span>DPF Model</div>
-            <div class="lib-sub"><span class="chev">▾</span> Operators</div>
-              <div class="lib-node deep"><span class="dot"></span>Displacement</div>
-              <div class="lib-node deep"><span class="dot"></span>Cyclic Support Provider</div>
-              <div class="lib-node deep"><span class="dot"></span>Norm Fields Container</div>
-              <div class="lib-node deep"><span class="dot"></span>Ascending Sort Fc</div>
+          <div class="lib-cat"><span class="chev">▾</span> Engineering</div>
+            <div class="lib-sub"><span class="chev">▾</span> Import</div>
+              <div class="lib-node deep"><span class="dot"></span>FE Import</div>
             <div class="lib-sub"><span class="chev">▾</span> Viewer</div>
-              <div class="lib-node deep"><span class="dot"></span>DPF Viewer</div>
+              <div class="lib-node deep"><span class="dot"></span>Model Viewer</div>
           <div class="lib-cat"><span class="chev">▸</span> Core</div>
           <div class="lib-cat"><span class="chev">▸</span> Planning</div>
         </div>
@@ -1626,7 +1553,7 @@ html,body {
       <main class="center">
         <div class="scopebar">
           <span class="scope-label">Scope:</span>
-          <div class="scope-crumbs"><span class="scope-crumb active">Multi-stage Cyclic Symmetry</span></div>
+          <div class="scope-crumbs"><span class="scope-crumb active">Model Viewer Capabilities</span></div>
           <span class="spacer"></span>
           <span class="views-label">VIEWS</span>
           <span class="view-tab">V1</span>
@@ -1635,7 +1562,7 @@ html,body {
         <div class="canvas">
           <div class="group-backdrop" style="left:24px;top:16px;width:560px;">
             <div class="hint">★ Group</div>
-            DPF Workflow Example: Multi-stage Cyclic Symmetry — Advanced Options
+            Engineering Viewer Workflow Example: CAD and FE Overlay
           </div>
 
           <svg class="edges" viewBox="0 0 1440 600" preserveAspectRatio="none">
@@ -1643,45 +1570,28 @@ html,body {
             <path d="M 540 260 C 600 260, 620 320, 680 320" stroke="#7AA8FF"/>
           </svg>
 
-          <div class="pin-marker" style="left:393px;top:182px;" title="Thread on Sectors Scoping">12</div>
-
-          <div class="node cat-core" style="left:60px;top:230px;width:160px;">
-            <div class="accent-bar"></div>
-            <div class="header"><span class="title">Start</span></div>
-            <div class="ports">
-              <div class="col"><div class="port exec"><span class="dot"></span>exec_in</div></div>
-              <div class="col right"><div class="port exec right"><span>exec_out</span><span class="dot"></span></div></div>
-            </div>
-          </div>
+          <div class="pin-marker" style="left:393px;top:182px;" title="Thread on FE Import">12</div>
 
           <div class="node cat-physics selected has-comment" style="left:360px;top:210px;width:180px;">
             <div class="accent-bar"></div>
-            <div class="header"><span class="title">Sectors Scoping</span><span class="open-badge">OPEN</span></div>
-            <div class="inline"><span class="label">Sectors</span><span class="val">[1..24]</span></div>
+            <div class="header"><span class="title">FE Import</span><span class="open-badge">OPEN</span></div>
+            <div class="inline"><span class="label">FE File</span><span class="val">mesh.vtu</span></div>
+            <div class="inline"><span class="label">Length Unit</span><span class="val">mm</span></div>
             <div class="ports">
-              <div class="col">
-                <div class="port exec"><span class="dot"></span>exec_in</div>
-                <div class="port"><span class="dot"></span>mesh</div>
-              </div>
-              <div class="col right">
-                <div class="port exec right"><span>exec_out</span><span class="dot"></span></div>
-                <div class="port right"><span>scoping</span><span class="dot"></span></div>
-              </div>
+              <div class="col"><div class="port"><span class="dot"></span>path</div></div>
+              <div class="col right"><div class="port right"><span>scene</span><span class="dot"></span></div></div>
             </div>
           </div>
 
           <div class="node cat-physics has-comment" style="left:680px;top:280px;width:200px;">
             <div class="accent-bar"></div>
-            <div class="header"><span class="title">Cyclic Support Provider</span></div>
-            <div class="inline"><span class="label">Phi</span><span class="val">0</span></div>
+            <div class="header"><span class="title">Model Viewer</span></div>
+            <div class="inline"><span class="label">Representation</span><span class="val">surface_with_edges</span></div>
             <div class="ports">
-              <div class="col">
-                <div class="port exec"><span class="dot"></span>exec_in</div>
-                <div class="port"><span class="dot"></span>data_sources</div>
-              </div>
+              <div class="col"><div class="port"><span class="dot"></span>scene_1</div></div>
               <div class="col right">
-                <div class="port exec right"><span>exec_out</span><span class="dot"></span></div>
-                <div class="port right"><span>support</span><span class="dot"></span></div>
+                <div class="port right"><span>session</span><span class="dot"></span></div>
+                <div class="port right"><span>selections</span><span class="dot"></span></div>
               </div>
             </div>
             <div class="pin-marker" style="left:170px;top:-20px;">4</div>
@@ -1690,7 +1600,7 @@ html,body {
 
         <div class="workspaces">
           <span class="ws-label">WORKSPACES</span>
-          <div class="ws-tabs"><span class="ws-tab">Multi-stage Cyclic Symmetr…</span></div>
+          <div class="ws-tabs"><span class="ws-tab">Model Viewer Capabilities</span></div>
           <span class="new-ws">+ New Workspace</span>
         </div>
 
@@ -1709,25 +1619,25 @@ html,body {
               <span class="av">EA</span>
               <div>
                 <div style="font-size:11px;color:var(--muted-fg);"><b style="color:var(--app-fg);">Emre</b> · 2h ago</div>
-                <div style="margin-top:3px;">Confirmed cyclic sector count lines up with the mesh extension node downstream. Should we parametrize 24 as input?</div>
+                <div style="margin-top:3px;">Confirmed the imported scene uses the intended units before viewing.</div>
               </div>
-              <span class="loc">→ Sectors Scoping #12</span>
+              <span class="loc">→ FE Import #12</span>
             </div>
             <div class="console-comment-row">
               <span class="av">MK</span>
               <div>
                 <div style="font-size:11px;color:var(--muted-fg);"><b style="color:var(--app-fg);">Melis</b> · 38m ago</div>
-                <div style="margin-top:3px;">Let's add a Phi sweep here.</div>
+                <div style="margin-top:3px;">Let's verify the import units here.</div>
               </div>
-              <span class="loc">→ Cyclic Support Provider #4</span>
+              <span class="loc">→ FE Import #4</span>
             </div>
             <div class="console-comment-row">
               <span class="av" style="background:var(--comment-strong);color:#fff;">TT</span>
               <div>
                 <div style="font-size:11px;color:var(--muted-fg);"><b style="color:var(--app-fg);">Tuna</b> · yesterday · <i>resolved</i></div>
-                <div style="margin-top:3px;">Renaming <code>mesh_out</code> to <code>expanded</code> for consistency.</div>
+                <div style="margin-top:3px;">Documenting the <code>scene</code> output for downstream viewing.</div>
               </div>
-              <span class="loc">→ Cyclic Mesh Expansion</span>
+              <span class="loc">→ FE Import</span>
             </div>
           </div>
         </div>
@@ -1742,13 +1652,13 @@ html,body {
           <div class="insp-card">
             <div class="insp-head-row">
               <div>
-                <div class="node-title">Sectors Scoping</div>
-                <div class="node-sub">Cyclic sector scoping generator</div>
+                <div class="node-title">FE Import</div>
+                <div class="node-sub">Neutral FE scene importer</div>
               </div>
               <button class="insp-btn sel">COLLAPSE</button>
             </div>
             <div class="meta-chips">
-              <span class="meta-chip">CATEGORY <b>Ansys DPF › Helpers</b></span>
+              <span class="meta-chip">CATEGORY <b>Engineering › Import</b></span>
               <span class="meta-chip">ID <b>3</b></span>
               <span class="meta-chip" style="background:var(--comment-bg);border-color:var(--comment-border);color:var(--comment-ink);">★ 12 comments</span>
             </div>
@@ -1757,23 +1667,20 @@ html,body {
             <input placeholder="Filter by name…">
             <div class="insp-segment"><span class="seg sel">NAME</span><span class="seg">VALUE</span></div>
           </div>
-          <div class="smart-group">Scoping <span class="count">2</span></div>
-          <div class="insp-row"><span class="lbl">Sectors</span><span class="val">[1..24]</span></div>
-          <div class="insp-row"><span class="lbl">Include Mesh</span><span class="val">true</span></div>
+          <div class="smart-group">Import <span class="count">2</span></div>
+          <div class="insp-row"><span class="lbl">Path</span><span class="val">mesh.vtu</span></div>
+          <div class="insp-row"><span class="lbl">Length Unit</span><span class="val">mm</span></div>
           <div class="insp-card">
             <div class="card-title">PORT MANAGEMENT</div>
             <div class="port-tabs">
-              <span class="seg sel">INPUTS (2)</span>
+              <span class="seg sel">INPUTS (1)</span>
               <span class="seg">OUTPUTS (1)</span>
-            </div>
-            <div class="port-row exec">
-              <span class="chk">☐</span><span class="kind-dot"></span>
-              <span class="key">exec_in</span><span class="kind-chip">EXEC</span>
             </div>
             <div class="port-row sel">
               <span class="chk on">✓</span><span class="kind-dot"></span>
-              <span class="key">mesh</span><span class="kind-chip">DPF_MESH</span>
+              <span class="key">path</span><span class="kind-chip">PATH</span>
             </div>
+            <div class="port-row"><span class="chk on">✓</span><span class="kind-dot"></span><span class="key">scene</span><span class="kind-chip">ENGINEERING_SCENE</span></div>
           </div>
         </div>
       </aside>
@@ -1788,7 +1695,7 @@ html,body {
     </div>
   </div>
   <div class="callout">
-    <b>Interaction:</b> pinned markers are reassuring at a distance (you can count un-addressed threads at a glance). Clicking a <code>→ Sectors Scoping #12</code> link in the Comments tab pans the canvas to that node and opens the thread in the inspector. Great fit for teams that live in the bottom console.
+    <b>Interaction:</b> pinned markers are reassuring at a distance (you can count un-addressed threads at a glance). Clicking a <code>→ FE Import #12</code> link in the Comments tab pans the canvas to that node and opens the thread in the inspector. Great fit for teams that live in the bottom console.
   </div>
 </section>
 
@@ -1806,7 +1713,7 @@ html,body {
       <span class="app-name">COREX Node Editor</span>
       <span style="color:var(--muted-fg);font-size:11px;margin-left:6px;">— Engineering</span>
       <span class="spacer"></span>
-      <span class="project">multistage_cyclic_advanced.cxproj</span>
+      <span class="project">engineering_viewer_capabilities.cxproj</span>
       <span class="win-ctrls"><span>—</span><span>▢</span><span>✕</span></span>
     </div>
     <div class="runbar">
@@ -1825,20 +1732,18 @@ html,body {
         </div>
         <div class="search"><input placeholder="Search nodes..." /></div>
         <div class="library-tree">
-          <div class="lib-cat"><span class="chev">▾</span> Ansys DPF</div>
-            <div class="lib-sub"><span class="chev">▾</span> Operators</div>
-              <div class="lib-node deep"><span class="dot"></span>Extract Field</div>
-              <div class="lib-node deep"><span class="dot"></span>Norm Fields Container</div>
-              <div class="lib-node deep"><span class="dot"></span>Ascending Sort Fc</div>
+          <div class="lib-cat"><span class="chev">▾</span> Engineering</div>
+            <div class="lib-sub"><span class="chev">▾</span> Import</div>
+              <div class="lib-node deep"><span class="dot"></span>FE Import</div>
             <div class="lib-sub"><span class="chev">▾</span> Viewer</div>
-              <div class="lib-node deep"><span class="dot"></span>DPF Viewer</div>
+              <div class="lib-node deep"><span class="dot"></span>Model Viewer</div>
         </div>
       </aside>
 
       <main class="center">
         <div class="scopebar">
           <span class="scope-label">Scope:</span>
-          <div class="scope-crumbs"><span class="scope-crumb active">Multi-stage Cyclic Symmetry</span></div>
+          <div class="scope-crumbs"><span class="scope-crumb active">Model Viewer Capabilities</span></div>
           <span class="spacer"></span>
           <span class="views-label">VIEWS</span>
           <span class="view-tab">V1</span>
@@ -1848,7 +1753,7 @@ html,body {
         <div class="canvas">
           <div class="group-backdrop" style="left:24px;top:18px;width:540px;">
             <div class="hint">★ Group</div>
-            DPF Workflow Example: Multi-stage Cyclic Symmetry — Advanced Options
+            Engineering Viewer Workflow Example: CAD and FE Overlay
           </div>
 
           <svg class="edges" viewBox="0 0 1440 600" preserveAspectRatio="none">
@@ -1857,28 +1762,28 @@ html,body {
 
           <div class="node cat-physics" style="left:72px;top:230px;width:180px;">
             <div class="accent-bar"></div>
-            <div class="header"><span class="title">Extract Field</span></div>
-            <div class="inline"><span class="label">Index</span><span class="val">0</span></div>
+            <div class="header"><span class="title">FE Import</span></div>
+            <div class="inline"><span class="label">FE File</span><span class="val">mesh.vtu</span></div>
             <div class="ports">
-              <div class="col"><div class="port exec"><span class="dot"></span>exec_in</div><div class="port"><span class="dot"></span>fields</div></div>
-              <div class="col right"><div class="port exec right"><span>exec_out</span><span class="dot"></span></div><div class="port right"><span>field</span><span class="dot"></span></div></div>
+              <div class="col"><div class="port"><span class="dot"></span>path</div></div>
+              <div class="col right"><div class="port right"><span>scene</span><span class="dot"></span></div></div>
             </div>
           </div>
 
           <div class="node cat-physics selected has-comment" style="left:400px;top:200px;width:200px;">
             <div class="accent-bar"></div>
-            <div class="header"><span class="title">Norm Fields Container</span><span class="open-badge">OPEN</span></div>
-            <div class="inline"><span class="label">Kind</span><span class="val">L2</span></div>
+            <div class="header"><span class="title">Model Viewer</span><span class="open-badge">OPEN</span></div>
+            <div class="inline"><span class="label">Representation</span><span class="val">surface_with_edges</span></div>
             <div class="ports">
-              <div class="col"><div class="port exec"><span class="dot"></span>exec_in</div><div class="port"><span class="dot"></span>fields_in</div></div>
-              <div class="col right"><div class="port exec right"><span>exec_out</span><span class="dot"></span></div><div class="port right"><span>fields_out</span><span class="dot"></span></div></div>
+              <div class="col"><div class="port"><span class="dot"></span>scene_1</div></div>
+              <div class="col right"><div class="port right"><span>session</span><span class="dot"></span></div><div class="port right"><span>selections</span><span class="dot"></span></div></div>
             </div>
             <div class="corner-badge">5</div>
           </div>
 
           <div class="float-thread" style="left:620px;top:192px;">
             <div class="head">
-              <span>★ Norm Fields Container</span>
+              <span>★ Model Viewer</span>
               <span class="spacer"></span>
               <span style="padding:1px 6px;border-radius:8px;background:rgba(0,0,0,.12);font-size:10px;">5</span>
               <span class="x" title="Close">✕</span>
@@ -1888,14 +1793,14 @@ html,body {
                 <div class="avatar">EA</div>
                 <div class="body">
                   <div class="meta"><b>Emre</b><span>• 10m ago</span></div>
-                  <div class="txt">Switching from L2 to Linf here breaks the viewer's color scaling — worth a note.</div>
+                  <div class="txt">Keep the representation consistent when comparing scene layers.</div>
                 </div>
               </div>
               <div class="comment-item">
                 <div class="avatar">MK</div>
                 <div class="body">
                   <div class="meta"><b>Melis</b><span>• 8m ago</span></div>
-                  <div class="txt">Ack. I'll add a validator on the Viewer input.</div>
+                  <div class="txt">Ack. I'll document the required Engineering Scene input.</div>
                 </div>
               </div>
             </div>
@@ -1922,7 +1827,7 @@ html,body {
 
         <div class="workspaces">
           <span class="ws-label">WORKSPACES</span>
-          <div class="ws-tabs"><span class="ws-tab">Multi-stage Cyclic Symmetr…</span></div>
+          <div class="ws-tabs"><span class="ws-tab">Model Viewer Capabilities</span></div>
           <span class="new-ws">+ New Workspace</span>
         </div>
         <div class="console">
@@ -1930,7 +1835,7 @@ html,body {
             <span class="tab active">Output</span><span class="tab">Errors (0)</span><span class="tab">Warnings (0)</span>
             <span class="spacer"></span><span class="tab">Clear</span>
           </div>
-          <div class="body">[12:49:44] Norm Fields Container :: kind=L2 computed over 12 fields.</div>
+          <div class="body">[12:49:44] Model Viewer :: scene ready.</div>
         </div>
       </main>
 
@@ -1943,13 +1848,13 @@ html,body {
           <div class="insp-card">
             <div class="insp-head-row">
               <div>
-                <div class="node-title">Norm Fields Container</div>
-                <div class="node-sub">Compute norms across a fields container</div>
+                <div class="node-title">Model Viewer</div>
+                <div class="node-sub">CAD and FE scene viewer</div>
               </div>
               <button class="insp-btn sel">COLLAPSE</button>
             </div>
             <div class="meta-chips">
-              <span class="meta-chip">CATEGORY <b>Ansys DPF › Operators</b></span>
+              <span class="meta-chip">CATEGORY <b>Engineering › Viewer</b></span>
               <span class="meta-chip">ID <b>7</b></span>
               <span class="meta-chip" style="background:var(--comment-bg);border-color:var(--comment-border);color:var(--comment-ink);">★ 5 comments</span>
             </div>
@@ -1958,16 +1863,19 @@ html,body {
             <input placeholder="Filter by name…">
             <div class="insp-segment"><span class="seg sel">NAME</span><span class="seg">VALUE</span></div>
           </div>
-          <div class="smart-group">POST <span class="count">1</span></div>
-          <div class="insp-row"><span class="lbl">Output Mode</span><span class="val">both ▾</span></div>
+          <div class="smart-group">View <span class="count">3</span></div>
+          <div class="insp-row"><span class="lbl">Representation</span><span class="val">surface_with_edges ▾</span></div>
+          <div class="insp-row"><span class="lbl">Show Mesh Edges</span><span class="val">false</span></div>
+          <div class="insp-row"><span class="lbl">Parallel Projection</span><span class="val">false</span></div>
           <div class="insp-card">
             <div class="card-title">PORT MANAGEMENT</div>
             <div class="port-tabs">
-              <span class="seg sel">INPUTS (2)</span>
-              <span class="seg">OUTPUTS (1)</span>
+              <span class="seg sel">INPUTS (1)</span>
+              <span class="seg">OUTPUTS (2)</span>
             </div>
-            <div class="port-row exec"><span class="chk">☐</span><span class="kind-dot"></span><span class="key">exec_in</span><span class="kind-chip">EXEC</span></div>
-            <div class="port-row sel"><span class="chk on">✓</span><span class="kind-dot"></span><span class="key">fields_in</span><span class="kind-chip">DPF_FIELDS</span></div>
+            <div class="port-row sel"><span class="chk on">✓</span><span class="kind-dot"></span><span class="key">scene_1</span><span class="kind-chip">ENGINEERING_SCENE</span></div>
+            <div class="port-row"><span class="chk on">✓</span><span class="kind-dot"></span><span class="key">session</span><span class="kind-chip">VIEWER_SESSION</span></div>
+            <div class="port-row"><span class="chk on">✓</span><span class="kind-dot"></span><span class="key">selections</span><span class="kind-chip">SELECTION_SET</span></div>
           </div>
         </div>
       </aside>
@@ -1999,7 +1907,7 @@ html,body {
       <span class="app-name">COREX Node Editor</span>
       <span style="color:var(--muted-fg);font-size:11px;margin-left:6px;">— Engineering</span>
       <span class="spacer"></span>
-      <span class="project">multistage_cyclic_advanced.cxproj</span>
+      <span class="project">engineering_viewer_capabilities.cxproj</span>
       <span class="win-ctrls"><span>—</span><span>▢</span><span>✕</span></span>
     </div>
     <div class="runbar">
@@ -2018,11 +1926,11 @@ html,body {
         </div>
         <div class="search"><input placeholder="Search nodes..." /></div>
         <div class="library-tree">
-          <div class="lib-cat"><span class="chev">▾</span> Ansys DPF</div>
-            <div class="lib-sub"><span class="chev">▾</span> Operators</div>
-              <div class="lib-node deep"><span class="dot"></span>Ascending Sort Fc</div>
+          <div class="lib-cat"><span class="chev">▾</span> Engineering</div>
+            <div class="lib-sub"><span class="chev">▾</span> Import</div>
+              <div class="lib-node deep"><span class="dot"></span>FE Import</div>
             <div class="lib-sub"><span class="chev">▾</span> Viewer</div>
-              <div class="lib-node deep"><span class="dot"></span>DPF Viewer</div>
+              <div class="lib-node deep"><span class="dot"></span>Model Viewer</div>
           <div class="lib-cat"><span class="chev">▸</span> Core</div>
         </div>
       </aside>
@@ -2030,7 +1938,7 @@ html,body {
       <main class="center">
         <div class="scopebar">
           <span class="scope-label">Scope:</span>
-          <div class="scope-crumbs"><span class="scope-crumb active">Multi-stage Cyclic Symmetry</span></div>
+          <div class="scope-crumbs"><span class="scope-crumb active">Model Viewer Capabilities</span></div>
           <span class="spacer"></span>
           <span class="views-label">VIEWS</span>
           <span class="view-tab">V1</span>
@@ -2040,7 +1948,7 @@ html,body {
         <div class="canvas">
           <div class="group-backdrop" style="left:24px;top:18px;width:540px;">
             <div class="hint">★ Group</div>
-            DPF Workflow Example: Multi-stage Cyclic Symmetry — Advanced Options
+            Engineering Viewer Workflow Example: CAD and FE Overlay
           </div>
 
           <svg class="edges" viewBox="0 0 1440 600" preserveAspectRatio="none">
@@ -2049,49 +1957,49 @@ html,body {
 
           <div class="node cat-physics" style="left:72px;top:230px;width:180px;">
             <div class="accent-bar"></div>
-            <div class="header"><span class="title">Ascending Sort Fc</span></div>
-            <div class="inline"><span class="label">Order</span><span class="val">asc</span></div>
+            <div class="header"><span class="title">FE Import</span></div>
+            <div class="inline"><span class="label">FE File</span><span class="val">mesh.vtu</span></div>
             <div class="ports">
-              <div class="col"><div class="port exec"><span class="dot"></span>exec_in</div><div class="port"><span class="dot"></span>fc</div></div>
-              <div class="col right"><div class="port exec right"><span>exec_out</span><span class="dot"></span></div><div class="port right"><span>sorted</span><span class="dot"></span></div></div>
+              <div class="col"><div class="port"><span class="dot"></span>path</div></div>
+              <div class="col right"><div class="port right"><span>scene</span><span class="dot"></span></div></div>
             </div>
           </div>
 
           <div class="node cat-physics selected has-comment" style="left:400px;top:200px;width:190px;">
             <div class="accent-bar"></div>
-            <div class="header"><span class="title">DPF Viewer</span><span class="open-badge">OPEN</span></div>
-            <div class="inline"><span class="label">Output</span><span class="val">both</span></div>
+            <div class="header"><span class="title">Model Viewer</span><span class="open-badge">OPEN</span></div>
+            <div class="inline"><span class="label">Representation</span><span class="val">surface_with_edges</span></div>
             <div class="ports">
-              <div class="col"><div class="port exec"><span class="dot"></span>exec_in</div><div class="port"><span class="dot"></span>field</div><div class="port"><span class="dot"></span>model</div><div class="port"><span class="dot"></span>mesh</div></div>
-              <div class="col right"><div class="port exec right"><span>exec_out</span><span class="dot"></span></div><div class="port right"><span>render</span><span class="dot"></span></div></div>
+              <div class="col"><div class="port"><span class="dot"></span>scene_1</div></div>
+              <div class="col right"><div class="port right"><span>session</span><span class="dot"></span></div><div class="port right"><span>selections</span><span class="dot"></span></div></div>
             </div>
             <div class="corner-badge">2</div>
           </div>
 
           <div class="docked-note" style="left:402px;top:392px;">
             <div class="meta">★ E. Atay · just now</div>
-            Check viewer input ordering after switching norm kind — validator wired in Inspector / Help tab.
+            Check viewer input ordering after changing scene order — guidance is available in the Inspector / Help tab.
           </div>
 
           <div class="cmdbar">
             <div class="row1">
               <span class="slash">/</span>
-              <input id="cmdbarInput" value="comment Check viewer input ordering after switching norm kind" />
+              <input id="cmdbarInput" value="comment Check viewer input ordering after changing scene order" />
               <span class="kbd">Ctrl+/</span>
             </div>
             <div class="row2">
               <div class="hit active"><span class="tag">COMMENT</span>/comment &lt;text&gt; — dock a note under the selected node</div>
-              <div class="hit"><span class="tag" style="background:color-mix(in srgb, var(--port-data) 20%, transparent);border-color:var(--port-data);color:var(--port-data);">NAV</span>/go Cyclic Mesh Expansion</div>
+              <div class="hit"><span class="tag" style="background:color-mix(in srgb, var(--port-data) 20%, transparent);border-color:var(--port-data);color:var(--port-data);">NAV</span>/go FE Import</div>
               <div class="hit"><span class="tag" style="background:color-mix(in srgb, var(--port-exec) 20%, transparent);border-color:var(--port-exec);color:var(--port-exec);">RUN</span>/run from selected</div>
               <div class="hit"><span class="tag" style="background:color-mix(in srgb, var(--port-failed) 20%, transparent);border-color:var(--port-failed);color:var(--port-failed);">DEL</span>/delete selected</div>
-              <div class="hit"><span class="tag" style="background:var(--inspector-section-header-bg);border-color:var(--border);color:var(--muted-fg);">SET</span>/set port model = data_sources</div>
+              <div class="hit"><span class="tag" style="background:var(--inspector-section-header-bg);border-color:var(--border);color:var(--muted-fg);">SET</span>/set port scene_1 = scene</div>
             </div>
           </div>
         </div>
 
         <div class="workspaces">
           <span class="ws-label">WORKSPACES</span>
-          <div class="ws-tabs"><span class="ws-tab">Multi-stage Cyclic Symmetr…</span></div>
+          <div class="ws-tabs"><span class="ws-tab">Model Viewer Capabilities</span></div>
           <span class="new-ws">+ New Workspace</span>
         </div>
         <div class="console">
@@ -2099,7 +2007,7 @@ html,body {
             <span class="tab active">Output</span><span class="tab">Errors (0)</span><span class="tab">Warnings (0)</span>
             <span class="spacer"></span><span class="tab">Clear</span>
           </div>
-          <div class="body">[12:54:10] / comment attached to DPF Viewer (#9).</div>
+          <div class="body">[12:54:10] / comment attached to Model Viewer (#9).</div>
         </div>
       </main>
 
@@ -2112,13 +2020,13 @@ html,body {
           <div class="insp-card">
             <div class="insp-head-row">
               <div>
-                <div class="node-title">DPF Viewer</div>
-                <div class="node-sub">Render fields, mesh and model in an embedded viewer</div>
+                <div class="node-title">Model Viewer</div>
+                <div class="node-sub">Display CAD and FE scenes in an embedded viewer</div>
               </div>
               <button class="insp-btn sel">COLLAPSE</button>
             </div>
             <div class="meta-chips">
-              <span class="meta-chip">CATEGORY <b>Ansys DPF › Viewer</b></span>
+              <span class="meta-chip">CATEGORY <b>Engineering › Viewer</b></span>
               <span class="meta-chip">ID <b>1</b></span>
               <span class="meta-chip" style="background:var(--comment-bg);border-color:var(--comment-border);color:var(--comment-ink);">★ 2 comments</span>
             </div>
@@ -2127,18 +2035,19 @@ html,body {
             <input placeholder="Filter by name…">
             <div class="insp-segment"><span class="seg sel">NAME</span><span class="seg">VALUE</span></div>
           </div>
-          <div class="smart-group">POST <span class="count">1</span></div>
-          <div class="insp-row"><span class="lbl">Output Mode</span><span class="val">both ▾</span></div>
+          <div class="smart-group">View <span class="count">3</span></div>
+          <div class="insp-row"><span class="lbl">Representation</span><span class="val">surface_with_edges ▾</span></div>
+          <div class="insp-row"><span class="lbl">Show Mesh Edges</span><span class="val">false</span></div>
+          <div class="insp-row"><span class="lbl">Parallel Projection</span><span class="val">false</span></div>
           <div class="insp-card">
             <div class="card-title">PORT MANAGEMENT</div>
             <div class="port-tabs">
-              <span class="seg sel">INPUTS (4)</span>
+              <span class="seg sel">INPUTS (1)</span>
               <span class="seg">OUTPUTS (2)</span>
             </div>
-            <div class="port-row exec"><span class="chk">☐</span><span class="kind-dot"></span><span class="key">exec_in</span><span class="kind-chip">EXEC</span></div>
-            <div class="port-row"><span class="chk on">✓</span><span class="kind-dot"></span><span class="key">field</span><span class="kind-chip">DPF_FIELD</span></div>
-            <div class="port-row"><span class="chk on">✓</span><span class="kind-dot"></span><span class="key">model</span><span class="kind-chip">DPF_MODEL</span></div>
-            <div class="port-row sel"><span class="chk on">✓</span><span class="kind-dot"></span><span class="key">mesh</span><span class="kind-chip">DPF_MESH</span></div>
+            <div class="port-row sel"><span class="chk on">✓</span><span class="kind-dot"></span><span class="key">scene_1</span><span class="kind-chip">ENGINEERING_SCENE</span></div>
+            <div class="port-row"><span class="chk on">✓</span><span class="kind-dot"></span><span class="key">session</span><span class="kind-chip">VIEWER_SESSION</span></div>
+            <div class="port-row"><span class="chk on">✓</span><span class="kind-dot"></span><span class="key">selections</span><span class="kind-chip">SELECTION_SET</span></div>
           </div>
         </div>
       </aside>

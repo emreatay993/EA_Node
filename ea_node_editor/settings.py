@@ -326,11 +326,6 @@ DEFAULT_TABULAR_DATA_SETTINGS = {
     "preview_columns": TABULAR_DATA_DEFAULT_PREVIEW_COLUMNS,
 }
 
-DEFAULT_ANSYS_DPF_PLUGIN_SETTINGS = {
-    "version": "",
-    "catalog_cache_version": "",
-}
-
 DEFAULT_ADDON_STATE = {
     "enabled": True,
     "pending_restart": False,
@@ -340,9 +335,7 @@ DEFAULT_ADDON_SETTINGS = {
     "states": {},
 }
 
-DEFAULT_PLUGIN_SETTINGS = {
-    "ansys_dpf": DEFAULT_ANSYS_DPF_PLUGIN_SETTINGS,
-}
+DEFAULT_PLUGIN_SETTINGS = {}
 
 DEFAULT_PYTHON_RUNTIME_SETTINGS = {
     "default_executable": "",

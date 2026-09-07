@@ -4,10 +4,10 @@ This repository ships Windows release artifacts from the repository-root
 PyInstaller spec file `ea_node_editor.spec`. The active release flow is
 profile-aware: `base` is the default packaged app, and `viewer` adds the
 neutral CAD/FE viewer stack (`cadquery-ocp-novtk`, PyVista, PyVistaQt, and
-VTK) without requiring Ansys DPF. The `full` profile is the developer-style
-all-feature package profile: it requires and freezes every current runtime
-extra from the `all` dependency set, including Ansys DPF. The Tabular Data
-add-on is part of the base app surface but remains dependency-gated unless the
+VTK). The `full` profile is the developer-style all-feature application
+package profile: it requires and freezes the current application runtime
+stack, including PyMechanical, but explicitly excludes Ansys DPF. The Tabular
+Data add-on is part of the base app surface but remains dependency-gated unless the
 packaging venv includes the optional `tabular` stack.
 
 ## Prerequisites
@@ -22,9 +22,9 @@ packaging venv includes the optional `tabular` stack.
   before packaging so `Data > Tabular Data Input` can register in the packaged
   app. Without those dependencies, the add-on remains dependency-gated.
 - Viewer profile: install `.[viewer]` or `.[dev]` in that venv before
-  packaging. A viewer-only packaging environment does not need Ansys DPF.
+  packaging.
 - Full profile: install `.[all,dev]` or `.[dev]` in that venv before packaging.
-  This profile requires the Ansys/PyDPF, PyMechanical, viewer/plot, tabular,
+  This profile requires the PyMechanical, viewer/plot, tabular,
   Numba acceleration, Excel, web, and media runtime stacks and fails early
   when any import is missing.
 - Web profile: use only when retaining isolated web-host packaging proof
@@ -101,11 +101,12 @@ Python 3.10 package builds use the `tables>=3.10.1,<3.11` marker from
 makes this whole tabular and acceleration stack strict instead of
 dependency-gated.
 
-The `viewer` profile is intentionally solver-neutral. It freezes OCP,
-PyVista/PyVistaQt, and VTK but excludes Ansys DPF even when DPF happens to be
-installed in the packaging environment. Use `full` when the packaged app must
-include Ansys DPF workflows and their version-matched generated operator
-catalog.
+Every COREX app package profile excludes `ansys.dpf` and `ansys.grpc.dpf`,
+including their binaries and metadata, even when PyDPF is installed in the
+packaging environment. `ansys-dpf-core` remains in the `ansys`, `all`, and
+`dev` extras only for standalone engineering utilities under `scripts/`; use
+their dedicated build paths when packaging those tools. The full app profile
+continues to include PyMechanical.
 
 The viewer payload also carries `LICENSE`, `THIRD_PARTY_NOTICES.md`, and the
 complete OCP/OCCT/VTK/PyVista license texts under `licenses\`. OCP's sibling

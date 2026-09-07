@@ -207,36 +207,6 @@
           "source_url": "https://www.faa.gov/regulations_policies/advisory_circulars/index.cfm/go/document.information/documentID/1042036",
           "workspace_id": "ws-evidence-binder",
           "workspace_name": "Evidence Binder"
-        },
-        "web_07_preview_png": {
-          "artifact_kind": "web_preview",
-          "io_dir": "out",
-          "label": "PyAnsys Rotor 67 mesh preview",
-          "node_id": "node_03a4ae8ef9",
-          "node_title": "PyDPF-Core User Guide",
-          "node_type": "web.page_viewer",
-          "relative_path": "workspaces/ws-binder/nodes/pydpf-core-user-guide-01/out/web-previews/07-pydpf-core-user-guide.png",
-          "source_asset": "https://embedding.examples.mechanical.docs.pyansys.com/_images/sphx_glr_Rotor_Blade_Inverse_solve_002.png",
-          "source_note": "Public PyAnsys example image used as the PyDPF/PyMechanical workflow preview.",
-          "source_origin": "web:pyansys-docs",
-          "source_url": "https://embedding.examples.mechanical.docs.pyansys.com/examples/02_technology_showcase/Rotor_Blade_Inverse_solve.html",
-          "workspace_id": "ws-evidence-binder",
-          "workspace_name": "Evidence Binder"
-        },
-        "web_08_preview_png": {
-          "artifact_kind": "web_preview",
-          "io_dir": "out",
-          "label": "PyAnsys Rotor 67 pressure-load preview",
-          "node_id": "node_187c18fe36",
-          "node_title": "Ansys DPF Developer Docs",
-          "node_type": "web.page_viewer",
-          "relative_path": "workspaces/ws-binder/nodes/ansys-dpf-developer-docs-01/out/web-previews/08-ansys-dpf-developer-docs.png",
-          "source_asset": "https://embedding.examples.mechanical.docs.pyansys.com/_images/sphx_glr_Rotor_Blade_Inverse_solve_003.png",
-          "source_note": "Public PyAnsys example image used as the DPF developer workflow preview.",
-          "source_origin": "web:pyansys-docs",
-          "source_url": "https://embedding.examples.mechanical.docs.pyansys.com/examples/02_technology_showcase/Rotor_Blade_Inverse_solve.html",
-          "workspace_id": "ws-evidence-binder",
-          "workspace_name": "Evidence Binder"
         }
       },
       "staged": {}
@@ -244,7 +214,6 @@
     "custom_workflows": [],
     "description": "Demonstration project for Project Review Deck export using an airworthiness rotor life-limited part FEA review scenario.",
     "scenario": {
-      "analysis_fixture": "Repo-local static bolted-joint RST used as a rotor-flange surrogate",
       "basis": "EASA-first CS-E framing with FAA Part 33.70 comparison",
       "topic": "Rotor LLP airworthiness review"
     },
@@ -284,7 +253,6 @@
     },
     "workspace_order": [
       "ws-certification-review-map",
-      "ws-dpf-evidence-canvases",
       "ws-evidence-binder"
     ]
   },
@@ -293,7 +261,6 @@
   "schema_version": 5,
   "workspace_order": [
     "ws-certification-review-map",
-    "ws-dpf-evidence-canvases",
     "ws-evidence-binder"
   ],
   "workspaces": [
@@ -371,7 +338,7 @@
             "opacity": 100,
             "padding": 4,
             "strikeout": false,
-            "text": "### Synthesis note\n\nThe deck exporter captures this canvas as a review snapshot. The text is intentionally styled with **bold labels**, short paragraphs, and bullet lists so the snapshot slide demonstrates how engineering rationale can travel with linked evidence.\n\n- DPF canvas: runnable/local fixture references\n- Evidence binder: image, PDF, web previews, unsupported files\n- Deck curation: global slide ordering exercised by the exported PPTX",
+            "text": "### Synthesis note\n\nThe deck exporter captures this canvas as a review snapshot. The text is intentionally styled with **bold labels**, short paragraphs, and bullet lists so the snapshot slide demonstrates how engineering rationale can travel with linked evidence.\n\n- Certification map: regulatory evidence and review rationale\n- Evidence binder: image, PDF, web previews, unsupported files\n- Deck curation: global slide ordering exercised by the exported PPTX",
             "text_color": "",
             "underline": false,
             "vertical_alignment": "middle",
@@ -601,7 +568,7 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "body": "**Scope**\n\nRotor life-limited part review package for a design review export demonstration.\n\n- Surrogate FEA uses the repo-local bolted-joint RST fixture.\n- DPF nodes show displacement and stress evidence canvases.\n- Generated PDFs preserve non-page-1 Media Panel state in the exported deck.\n- Unsupported CSV/Markdown register files are expected to appear on an issues slide.",
+            "body": "**Scope**\n\nRotor life-limited part review package for a design review export demonstration.\n\n- Image panels preserve portable PyAnsys Rotor 67 result evidence.\n- Generated PDFs preserve non-page-1 Media Panel state in the exported deck.\n- Unsupported CSV/Markdown register files are expected to appear on an issues slide.",
             "body_background_color": "",
             "body_font_family": "",
             "body_font_size": 0,
@@ -641,235 +608,11 @@
       "workspace_id": "ws-certification-review-map"
     },
     {
-      "active_view_id": "view_56b295ade0",
-      "dirty": true,
-      "edges": [],
-      "name": "DPF Evidence Canvases",
-      "nodes": [
-        {
-          "collapsed": false,
-          "comments": [],
-          "custom_height": 320,
-          "custom_width": 460,
-          "exposed_ports": {
-            "fields": true,
-            "mesh": true,
-            "mesh_scoping": true,
-            "model": true,
-            "normalized_path": true,
-            "path": false,
-            "result_file": true,
-            "session": true,
-            "time_scoping": true
-          },
-          "links": [],
-          "locked": false,
-          "node_id": "node_235f9ad12d",
-          "parent_node_id": null,
-          "port_labels": {},
-          "port_modifiers": {},
-          "principal_input_port_id": null,
-          "properties": {
-            "element_ids": "",
-            "location": "nodal",
-            "named_selection": "BOLT_NODES",
-            "node_ids": "",
-            "output_mode": "both",
-            "path": "../../tests/ansys_dpf_core/example_outputs/static_analysis_1_bolted_joint/file.rst",
-            "result_name": "stress",
-            "selection_mode": "named_selection",
-            "set_ids": "",
-            "show_mesh_edges": true,
-            "time_scope_mode": "time_values",
-            "time_values": "2.0"
-          },
-          "title": "DPF Stress Evidence - BOLT_NODES",
-          "type_id": "dpf.workflow.result_viewer",
-          "visual_style": {},
-          "x": 170,
-          "y": -270
-        },
-        {
-          "collapsed": false,
-          "comments": [],
-          "custom_height": 320,
-          "custom_width": 460,
-          "exposed_ports": {
-            "fields": true,
-            "mesh": true,
-            "mesh_scoping": true,
-            "model": true,
-            "normalized_path": true,
-            "path": false,
-            "result_file": true,
-            "session": true,
-            "time_scoping": true
-          },
-          "links": [],
-          "locked": false,
-          "node_id": "node_a1c2f10f66",
-          "parent_node_id": null,
-          "port_labels": {},
-          "port_modifiers": {},
-          "principal_input_port_id": null,
-          "properties": {
-            "element_ids": "",
-            "location": "nodal",
-            "named_selection": "BOLT_NODES",
-            "node_ids": "",
-            "output_mode": "both",
-            "path": "../../tests/ansys_dpf_core/example_outputs/static_analysis_1_bolted_joint/file.rst",
-            "result_name": "displacement",
-            "selection_mode": "named_selection",
-            "set_ids": "",
-            "show_mesh_edges": true,
-            "time_scope_mode": "time_values",
-            "time_values": "2.0"
-          },
-          "title": "DPF Displacement Evidence - BOLT_NODES",
-          "type_id": "dpf.workflow.result_viewer",
-          "visual_style": {},
-          "x": -420,
-          "y": -270
-        },
-        {
-          "collapsed": false,
-          "comments": [],
-          "custom_height": 260,
-          "custom_width": 460,
-          "exposed_ports": {
-            "bottom": true,
-            "left": true,
-            "right": true,
-            "top": true
-          },
-          "links": [],
-          "locked": false,
-          "node_id": "node_a9a6a7c4a0",
-          "parent_node_id": null,
-          "port_labels": {},
-          "port_modifiers": {},
-          "principal_input_port_id": null,
-          "properties": {
-            "body": "**Ansys routing**\n\nansys-router -> ansys-dpf-core-rst-generic. No live Ansys MCP session is required for this portable example.\n\nThe fixture remains a surrogate: users should replace the path with their certified model result file.",
-            "body_background_color": "",
-            "body_font_family": "",
-            "body_font_size": 0,
-            "body_font_weight": "",
-            "body_format": "markdown",
-            "body_horizontal_alignment": "",
-            "body_italic": false,
-            "body_letter_spacing": -999,
-            "body_line_height": 0,
-            "body_opacity": -1,
-            "body_padding": -1,
-            "body_strikeout": false,
-            "body_text_color": "",
-            "body_underline": false,
-            "body_vertical_alignment": "",
-            "body_wrap_mode": "",
-            "title": "Sticky Note"
-          },
-          "title": "DPF Router Note",
-          "type_id": "passive.annotation.sticky_note",
-          "visual_style": {},
-          "x": -420,
-          "y": 130
-        }
-      ],
-      "views": [
-        {
-          "hide_optional_ports": false,
-          "name": "DPF Evidence Canvases",
-          "pan_x": 80,
-          "pan_y": 120,
-          "scope_path": [],
-          "view_id": "view_56b295ade0",
-          "zoom": 0.76
-        }
-      ],
-      "workspace_id": "ws-dpf-evidence-canvases"
-    },
-    {
       "active_view_id": "view_c40241c9aa",
       "dirty": true,
       "edges": [],
       "name": "Evidence Binder",
       "nodes": [
-        {
-          "collapsed": false,
-          "comments": [],
-          "custom_height": 220,
-          "custom_width": 330,
-          "exposed_ports": {
-            "bottom": true,
-            "left": true,
-            "right": true,
-            "top": true
-          },
-          "links": [],
-          "locked": false,
-          "node_id": "node_03a4ae8ef9",
-          "parent_node_id": null,
-          "port_labels": {},
-          "port_modifiers": {},
-          "principal_input_port_id": null,
-          "properties": {
-            "browser_state": {},
-            "display_mode": "fit_width",
-            "persist_browser_state": true,
-            "preview_ref": {
-              "artifact_ref": "saved://web_07_preview_png",
-              "captured_title": "PyDPF-Core User Guide",
-              "captured_url": "https://dpf.docs.pyansys.com/version/stable/user_guide/index.html"
-            },
-            "show_frame": true,
-            "show_title": true,
-            "start_location": "https://dpf.docs.pyansys.com/version/stable/user_guide/index.html"
-          },
-          "title": "PyDPF-Core User Guide",
-          "type_id": "web.page_viewer",
-          "visual_style": {},
-          "x": 20,
-          "y": 160
-        },
-        {
-          "collapsed": false,
-          "comments": [],
-          "custom_height": 220,
-          "custom_width": 330,
-          "exposed_ports": {
-            "bottom": true,
-            "left": true,
-            "right": true,
-            "top": true
-          },
-          "links": [],
-          "locked": false,
-          "node_id": "node_187c18fe36",
-          "parent_node_id": null,
-          "port_labels": {},
-          "port_modifiers": {},
-          "principal_input_port_id": null,
-          "properties": {
-            "browser_state": {},
-            "display_mode": "fit_width",
-            "persist_browser_state": true,
-            "preview_ref": {
-              "artifact_ref": "saved://web_08_preview_png",
-              "captured_title": "Ansys DPF Developer Docs",
-              "captured_url": "https://developer.ansys.com/docs/dpf"
-            },
-            "show_frame": true,
-            "show_title": true,
-            "start_location": "https://developer.ansys.com/docs/dpf"
-          },
-          "title": "Ansys DPF Developer Docs",
-          "type_id": "web.page_viewer",
-          "visual_style": {},
-          "x": 410,
-          "y": 420
-        },
         {
           "collapsed": false,
           "comments": [],

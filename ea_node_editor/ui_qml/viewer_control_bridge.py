@@ -18,27 +18,13 @@ from ea_node_editor.common.scene_protocol import (
     empty_engineering_selection_set,
     normalize_engineering_selection_set,
     normalize_scene_styles,
+    normalize_viewer_background,
+    normalize_viewer_colormap,
+    normalize_viewer_deform_scale,
     normalize_viewer_representation,
-)
-from ea_node_editor.nodes.builtins.ansys_dpf_common import (
-    DPF_VIEWER_BACKGROUND_PROPERTY,
-    DPF_VIEWER_CAMERA_BOOKMARKS_PROPERTY,
-    DPF_VIEWER_COLORMAP_PROPERTY,
-    DPF_VIEWER_DEFORM_SCALE_PROPERTY,
-    DPF_VIEWER_HOVER_PROBE_PROPERTY,
-    DPF_VIEWER_RESULT_COMPONENT_PROPERTY,
-    DPF_VIEWER_SCALAR_RANGE_MAX_PROPERTY,
-    DPF_VIEWER_SCALAR_RANGE_MIN_PROPERTY,
-    DPF_VIEWER_SCALAR_RANGE_MODE_PROPERTY,
-    DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
-    DPF_VIEWER_SHOW_MINMAX_MARKERS_PROPERTY,
-    DPF_VIEWER_SHOW_SCALAR_BAR_PROPERTY,
-    normalize_dpf_viewer_background,
-    normalize_dpf_viewer_colormap,
-    normalize_dpf_viewer_deform_scale,
-    normalize_dpf_viewer_result_component,
-    normalize_dpf_viewer_scalar_range_bound,
-    normalize_dpf_viewer_scalar_range_mode,
+    normalize_viewer_result_component,
+    normalize_viewer_scalar_range_bound,
+    normalize_viewer_scalar_range_mode,
 )
 
 if TYPE_CHECKING:
@@ -129,17 +115,17 @@ def _next_bookmark_name(bookmarks: Sequence[Mapping[str, Any]]) -> str:
 
 
 _VIEWER_OPTION_COERCERS: dict[str, Any] = {
-    DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY: lambda value: _bool_value(value, False),
-    DPF_VIEWER_COLORMAP_PROPERTY: normalize_dpf_viewer_colormap,
-    DPF_VIEWER_RESULT_COMPONENT_PROPERTY: normalize_dpf_viewer_result_component,
-    DPF_VIEWER_SCALAR_RANGE_MODE_PROPERTY: normalize_dpf_viewer_scalar_range_mode,
-    DPF_VIEWER_SCALAR_RANGE_MIN_PROPERTY: normalize_dpf_viewer_scalar_range_bound,
-    DPF_VIEWER_SCALAR_RANGE_MAX_PROPERTY: normalize_dpf_viewer_scalar_range_bound,
-    DPF_VIEWER_SHOW_SCALAR_BAR_PROPERTY: lambda value: _bool_value(value, True),
-    DPF_VIEWER_DEFORM_SCALE_PROPERTY: normalize_dpf_viewer_deform_scale,
-    DPF_VIEWER_HOVER_PROBE_PROPERTY: lambda value: _bool_value(value, False),
-    DPF_VIEWER_SHOW_MINMAX_MARKERS_PROPERTY: lambda value: _bool_value(value, False),
-    DPF_VIEWER_BACKGROUND_PROPERTY: normalize_dpf_viewer_background,
+    "show_mesh_edges": lambda value: _bool_value(value, False),
+    "colormap": normalize_viewer_colormap,
+    "result_component": normalize_viewer_result_component,
+    "scalar_range_mode": normalize_viewer_scalar_range_mode,
+    "scalar_range_min": normalize_viewer_scalar_range_bound,
+    "scalar_range_max": normalize_viewer_scalar_range_bound,
+    "show_scalar_bar": lambda value: _bool_value(value, True),
+    "deform_scale": normalize_viewer_deform_scale,
+    "hover_probe": lambda value: _bool_value(value, False),
+    "show_minmax_markers": lambda value: _bool_value(value, False),
+    "viewer_background": normalize_viewer_background,
     "representation": _normalized_representation,
     "scene_styles": normalize_scene_styles,
     "parallel_projection": lambda value: _bool_value(value, False),
@@ -447,7 +433,7 @@ class ViewerControlBridge(QObject):
         resolved = self._node_properties(node_id)
         if resolved is None:
             return []
-        return _normalized_camera_bookmarks(resolved[2].get(DPF_VIEWER_CAMERA_BOOKMARKS_PROPERTY))
+        return _normalized_camera_bookmarks(resolved[2].get("camera_bookmarks"))
 
     @pyqtSlot(str, result=int)
     def viewer_camera_bookmark_current_index(self, node_id: str) -> int:
@@ -491,7 +477,7 @@ class ViewerControlBridge(QObject):
                 "created_at": datetime.now().isoformat(timespec="seconds"),
             }
         )
-        if not self._set_node_property(node_id, DPF_VIEWER_CAMERA_BOOKMARKS_PROPERTY, bookmarks):
+        if not self._set_node_property(node_id, "camera_bookmarks", bookmarks):
             return False
         key = self._bookmark_key(node_id)
         if key is not None:
@@ -551,7 +537,7 @@ class ViewerControlBridge(QObject):
         if normalized_index < 0 or normalized_index >= len(bookmarks) or not normalized_name:
             return False
         bookmarks[normalized_index]["name"] = normalized_name
-        if not self._set_node_property(node_id, DPF_VIEWER_CAMERA_BOOKMARKS_PROPERTY, bookmarks):
+        if not self._set_node_property(node_id, "camera_bookmarks", bookmarks):
             return False
         self.viewer_control_changed.emit(str(node_id or ""))
         return True
@@ -564,7 +550,7 @@ class ViewerControlBridge(QObject):
         if source < 0 or source >= len(bookmarks) or target < 0 or target >= len(bookmarks):
             return False
         bookmarks[source], bookmarks[target] = bookmarks[target], bookmarks[source]
-        if not self._set_node_property(node_id, DPF_VIEWER_CAMERA_BOOKMARKS_PROPERTY, bookmarks):
+        if not self._set_node_property(node_id, "camera_bookmarks", bookmarks):
             return False
         key = self._bookmark_key(node_id)
         current = self._bookmark_indices.get(key) if key is not None else None
@@ -583,7 +569,7 @@ class ViewerControlBridge(QObject):
         if normalized_index < 0 or normalized_index >= len(bookmarks):
             return False
         del bookmarks[normalized_index]
-        if not self._set_node_property(node_id, DPF_VIEWER_CAMERA_BOOKMARKS_PROPERTY, bookmarks):
+        if not self._set_node_property(node_id, "camera_bookmarks", bookmarks):
             return False
         key = self._bookmark_key(node_id)
         current = self._bookmark_indices.get(key) if key is not None else None

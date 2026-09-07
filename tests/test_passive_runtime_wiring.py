@@ -279,51 +279,6 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         self.assertEqual(len(series_edges), 2)
         self.assertEqual(registry.get_spec("plot.scatter").runtime_behavior, "active")
 
-    def test_dpf_plot_nodes_compile_as_active_runtime_nodes_with_variadic_series_edges(self) -> None:
-        registry = build_default_registry()
-        if registry.spec_or_none("dpf.plot.line") is None:
-            self.skipTest("ansys.dpf.core is not installed")
-        serializer = JsonProjectSerializer(registry)
-        model = GraphModel()
-        workspace = model.active_workspace
-
-        series_a = model.add_node(
-            workspace.workspace_id,
-            "core.python_script",
-            "DPF Field A",
-            120.0,
-            0.0,
-            properties=registry.default_properties("core.python_script"),
-        )
-        series_b = model.add_node(
-            workspace.workspace_id,
-            "core.python_script",
-            "DPF Field B",
-            120.0,
-            140.0,
-            properties=registry.default_properties("core.python_script"),
-        )
-        plot = model.add_node(workspace.workspace_id, "dpf.plot.line", "DPF Line Plot", 340.0, 80.0)
-
-        model.add_edge(workspace.workspace_id, series_a.node_id, "result", plot.node_id, "series")
-        model.add_edge(workspace.workspace_id, series_b.node_id, "result", plot.node_id, "series")
-
-        workspace_doc = serializer.to_document(model.project)["workspaces"][0]
-        compiled = compile_runtime_workspace(workspace_doc, registry=registry)
-
-        compiled_node_ids = {node.node_id for node in compiled.nodes}
-        self.assertEqual(
-            compiled_node_ids,
-            {series_a.node_id, series_b.node_id, plot.node_id},
-        )
-        series_edges = [
-            edge
-            for edge in compiled.edges
-            if edge.target_node_id == plot.node_id and edge.target_port_key == "series"
-        ]
-        self.assertEqual(len(series_edges), 2)
-        self.assertEqual(registry.get_spec("dpf.plot.line").runtime_behavior, "active")
-
     def test_excalidraw_board_is_excluded_from_runtime_dataflow(self) -> None:
         registry = build_default_registry()
         serializer = JsonProjectSerializer(registry)

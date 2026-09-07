@@ -3,7 +3,7 @@
 ## Summary
 Create a global Codex skill named `pymechanical-fixture-builder` under the global skills area so it can be reused across repos. The skill auto-triggers for requests about creating or modifying ANSYS Mechanical test inputs/outputs, adapts itself to repo-local fixture/test conventions when they are discoverable, and otherwise asks or fails clearly instead of guessing.
 
-The skill’s default job is end-to-end fixture work: create or modify Mechanical examples in place, solve them in batch mode, emit the full reproducibility bundle, place artifacts where the repo expects them, and smoke-validate the outputs through the repo’s DPF-style consumption path when applicable.
+The skill’s default job is end-to-end fixture work: create or modify Mechanical examples in place, solve them in batch mode, emit the full reproducibility bundle, place artifacts where the repo expects them, and smoke-validate the outputs through the repo’s existing result-reader path when applicable.
 
 ## Key Changes
 ### Skill behavior
@@ -24,7 +24,7 @@ The skill’s default job is end-to-end fixture work: create or modify Mechanica
 ### Repo-aware behavior
 - Detect repo conventions from existing fixture/test layout and place outputs in the local fixture area the repo already expects.
 - If repo detection is not confident, ask or fail clearly; do not guess a path.
-- Run downstream DPF smoke validation after solve when the repo exposes a DPF consumption path.
+- Run downstream result-reader smoke validation after solve when the repo exposes such a consumption path.
 
 ### Fixture/catalog scope
 - V1 catalog centers on a reusable family: `cantilever core + bolted-contact variant`.
@@ -53,7 +53,7 @@ The skill’s default job is end-to-end fixture work: create or modify Mechanica
   - units
   - named selections
   - expected result families / readable outputs
-  - DPF-readable handles or assumptions
+  - result-reader handles or assumptions
   - selected numeric expectations as tolerance ranges
 - Default failure policy:
   - batch only
@@ -65,8 +65,8 @@ The skill’s default job is end-to-end fixture work: create or modify Mechanica
 - Verify one heavier high-mesh transient structural fixture path.
 - Verify in-place modification updates project/results/script/manifest and prunes stale artifacts.
 - Verify manifest generation contains the agreed contract fields and tolerance-based numeric checks.
-- Verify named selections are present and usable for DPF scoping.
-- Verify DPF smoke validation succeeds for repos with existing DPF readers/tests.
+- Verify named selections are present and usable for downstream result scoping.
+- Verify result-reader smoke validation succeeds for repos with existing readers/tests.
 - Verify “newest available” release targeting works when explicitly requested.
 - Verify repo-detection failure produces a precise ask/fail outcome instead of silent fallback.
 
@@ -76,4 +76,4 @@ The skill’s default job is end-to-end fixture work: create or modify Mechanica
 - Prefer `.mechdat` for saved projects unless an existing example already dictates otherwise.
 - Use local `Ansys.ACT.WB1.xml` and shipped 2023 R2 scripts as the primary syntax authority.
 - Numeric assertions are sparse and tolerance-based, not exact-value regression locks.
-- The first implementation should bias toward DPF-consumable fixtures over broader Mechanical feature coverage.
+- The first implementation should bias toward result-consumable fixtures over broader Mechanical feature coverage.

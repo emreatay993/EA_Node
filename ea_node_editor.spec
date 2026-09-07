@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import os
 from pathlib import Path, PurePosixPath
-from importlib.metadata import PackageNotFoundError, version
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
@@ -20,8 +18,6 @@ VIEWER_PACKAGE_PROFILE = "viewer"
 WEB_PACKAGE_PROFILE = "web"
 FULL_PACKAGE_PROFILE = "full"
 PACKAGE_PROFILES = ("base", "viewer", "web", "full")
-DPF_OPERATOR_CATALOG_SCHEMA_VERSION = 1
-DPF_OPERATOR_CATALOG_PATH = PROJECT_ROOT / "ea_node_editor" / "addons" / "ansys_dpf" / "operator_catalog.json"
 VIEWER_RUNTIME_HIDDENIMPORT_PACKAGES = (
     "OCP",
     "pyvista",
@@ -63,8 +59,6 @@ TABULAR_RUNTIME_METADATA_DISTRIBUTIONS = (
 )
 FULL_RUNTIME_REQUIRED_PACKAGES = (
     "OCP",
-    "ansys.dpf.core",
-    "ansys.dpf.post",
     "ansys.mechanical.core",
     "duckdb",
     "h5py",
@@ -84,10 +78,6 @@ FULL_RUNTIME_REQUIRED_PACKAGES = (
     "vtkmodules",
 )
 FULL_RUNTIME_HIDDENIMPORT_PACKAGES = (
-    "ansys.dpf.core",
-    "ansys.dpf.gate",
-    "ansys.dpf.post",
-    "ansys.grpc.dpf",
     "ansys.mechanical.core",
     "matplotlib",
     "numba",
@@ -95,8 +85,6 @@ FULL_RUNTIME_HIDDENIMPORT_PACKAGES = (
     "scipy",
 )
 FULL_RUNTIME_METADATA_DISTRIBUTIONS = (
-    "ansys-dpf-core",
-    "ansys-dpf-post",
     "ansys-mechanical-core",
     "llvmlite",
     "matplotlib",
@@ -135,9 +123,17 @@ PYINSTALLER_EXCLUDES = (
     "torch",
     "torchvision",
     "transformers",
+    "ansys.dpf",
+    "ansys.grpc.dpf",
 )
 NON_FULL_RUNTIME_EXCLUDES = ("ansys",)
 NON_FULL_RUNTIME_DATA_EXCLUDE_PREFIXES = ("ansys_",)
+DPF_RUNTIME_PAYLOAD_EXCLUDE_PREFIXES = (
+    "ansys/dpf",
+    "ansys/grpc/dpf",
+    "ansys_dpf",
+    "ansys-dpf",
+)
 # PyInstaller's Windows bindepend step imports every collected package inside a
 # single isolated child process only to record DLL search-path changes (PATH
 # edits and os.add_dll_directory calls). In that DLL-heavy child, numba's
@@ -154,9 +150,6 @@ BINDEPEND_IMPORT_SUPPRESSIONS = (
     "numba",
     "pyarrow",
 )
-FULL_NAMESPACE_BINARY_PATTERNS = {
-    "ansys.dpf.gatebin": ("*.dll",),
-}
 VIEWER_SIBLING_BINARY_PATTERNS = {
     "OCP": {
         "cadquery_ocp_novtk.libs": ("*.dll",),
@@ -306,14 +299,6 @@ def _collect_full_datas() -> list[tuple[str, str]]:
     return data_files
 
 
-def _collect_full_namespace_binaries() -> list[tuple[str, str]]:
-    binaries: list[tuple[str, str]] = []
-    for package_name, patterns in FULL_NAMESPACE_BINARY_PATTERNS.items():
-        for source_root in _module_roots(package_name):
-            binaries += _collect_globbed_files(source_root, package_name.replace(".", "/"), patterns)
-    return binaries
-
-
 def _collect_viewer_sibling_binaries() -> list[tuple[str, str]]:
     binaries: list[tuple[str, str]] = []
     for anchor_module, sibling_patterns in VIEWER_SIBLING_BINARY_PATTERNS.items():
@@ -375,26 +360,6 @@ def _require_modules(label: str, package_names: tuple[str, ...]) -> None:
 
 def _require_viewer_stack() -> None:
     _require_modules("Viewer", ("OCP", "pyvista", "pyvistaqt", "vtkmodules"))
-
-
-def _require_matching_dpf_operator_catalog() -> None:
-    try:
-        runtime_version = version("ansys-dpf-core")
-    except PackageNotFoundError as exc:
-        raise RuntimeError("Viewer/full packaging requires ansys-dpf-core in the build environment.") from exc
-    try:
-        catalog = json.loads(DPF_OPERATOR_CATALOG_PATH.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise RuntimeError("Viewer/full packaging requires a readable committed DPF operator catalog.") from exc
-    if (
-        not isinstance(catalog, dict)
-        or catalog.get("schema_version") != DPF_OPERATOR_CATALOG_SCHEMA_VERSION
-        or catalog.get("ansys_dpf_core_version") != runtime_version
-    ):
-        raise RuntimeError(
-            "Viewer/full packaging requires the committed DPF operator catalog to match "
-            f"ansys-dpf-core {runtime_version}; regenerate it before packaging."
-        )
 
 
 def _require_full_stack() -> None:
@@ -480,11 +445,6 @@ datas += [
     (str(PROJECT_ROOT / "licenses" / "XY-APACHE-2.0-NOTICE.txt"), "licenses"),
     (str(PROJECT_ROOT / "licenses" / "OCP-APACHE-2.0.txt"), "licenses"),
 ]
-if full_profile_enabled:
-    datas += collect_data_files(
-        "ea_node_editor.addons.ansys_dpf",
-        includes=["operator_catalog.json"],
-    )
 datas += collect_data_files(
     "ea_node_editor.ui_qml",
     includes=[
@@ -534,8 +494,6 @@ core_runtime_data_includes = [
     "assets/node_title_icons/**/*.jpeg",
     "addons/mars/icons/mars_icon_64.png",
 ]
-if full_profile_enabled:
-    core_runtime_data_includes.append("addons/ansys_dpf/workflow_docs/*.md")
 datas += collect_data_files(
     "ea_node_editor",
     includes=core_runtime_data_includes,
@@ -546,7 +504,6 @@ binaries = []
 if viewer_payload_enabled:
     if full_profile_enabled:
         _require_full_stack()
-        _require_matching_dpf_operator_catalog()
     else:
         _require_viewer_stack()
     hiddenimports += _collect_viewer_hiddenimports()
@@ -562,7 +519,6 @@ if viewer_payload_enabled:
 if full_profile_enabled:
     hiddenimports += _collect_full_hiddenimports()
     datas += _collect_full_datas()
-    binaries += _collect_full_namespace_binaries()
 
 hiddenimports = sorted(
     module_name
@@ -587,6 +543,16 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+a.datas = [
+    entry
+    for entry in a.datas
+    if not _matches_data_target_prefix(entry[0], DPF_RUNTIME_PAYLOAD_EXCLUDE_PREFIXES)
+]
+a.binaries = [
+    entry
+    for entry in a.binaries
+    if not _matches_data_target_prefix(entry[0], DPF_RUNTIME_PAYLOAD_EXCLUDE_PREFIXES)
+]
 if not full_profile_enabled:
     # Some third-party hooks copy installed distribution metadata even when
     # the matching Python namespace is excluded from Analysis. Keep neutral

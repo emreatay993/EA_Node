@@ -19,18 +19,18 @@ function V5Diagnostic() {
   }, []);
 
   const logLines = [
-    { t: 'INFO',  msg: 'runtime: python 3.11.9 · pyqt 5.15.11' },
+    { t: 'INFO',  msg: 'runtime: Python and Qt ready' },
     { t: 'INFO',  msg: 'theme: stitch_dark · graph=stitch_dark' },
-    { t: 'OK',    msg: 'registry: resolved 142 node types' },
-    { t: 'OK',    msg: 'registry: ansys_dpf → 24 operators' },
+    { t: 'OK',    msg: 'registry: node catalogue ready' },
+    { t: 'OK',    msg: 'registry: engineering viewer registered' },
     { t: 'INFO',  msg: 'bridges: shellLibraryBridge attached' },
     { t: 'INFO',  msg: 'bridges: shellWorkspaceBridge attached' },
     { t: 'INFO',  msg: 'bridges: graphCanvasStateBridge attached' },
-    { t: 'WARN',  msg: 'dpf: backend probe 2024R2 · 1.2s' },
-    { t: 'OK',    msg: 'dpf: operator manifest verified' },
-    { t: 'INFO',  msg: 'workspace: restoring session · dene3.cxproj' },
-    { t: 'OK',    msg: 'workspace: 14 nodes · 18 edges loaded' },
-    { t: 'INFO',  msg: 'canvas: warming · 60fps' },
+    { t: 'INFO',  msg: 'viewer: backend readiness checked' },
+    { t: 'OK',    msg: 'viewer: transport contract verified' },
+    { t: 'INFO',  msg: 'workspace: restoring session' },
+    { t: 'OK',    msg: 'workspace: graph loaded' },
+    { t: 'INFO',  msg: 'canvas: renderer ready' },
     { t: 'OK',    msg: 'ready' },
   ];
   const [visibleLines, setVisibleLines] = React.useState(1);
@@ -75,7 +75,7 @@ function V5Diagnostic() {
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: 10, color: COREX.fgDim,
           fontFamily: '"Cascadia Mono", Consolas, monospace' }}>
-          pid 18244 · v0.9.3
+          local process · development build
         </span>
       </div>
 

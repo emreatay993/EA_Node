@@ -155,10 +155,10 @@ GENERIC_TEMPLATES = [
         "outputs": [Port("exec_out", PORT_EXEC, "exec"), Port("trigger", PORT_EXEC, "exec")],
     },
     {
-        "type_id": "dpf.model.load", "name": "Load DPF Model", "category": ("Ansys DPF",),
-        "glyph": "⊙", "desc": "Loads an Ansys DPF result model.",
-        "inputs": [Port("exec_in", PORT_EXEC, "exec", True), Port("path", PORT_DATA, "str", True)],
-        "outputs": [Port("model", PORT_DATA, "dpf_model"), Port("exec_out", PORT_EXEC, "exec")],
+        "type_id": "engineering.fe_import", "name": "FE Import", "category": ("Engineering", "Import"),
+        "glyph": "⊙", "desc": "Imports a neutral finite-element file as a prepared COREX scene.",
+        "inputs": [Port("path", PORT_DATA, "COREX.DataTypes.Path", True)],
+        "outputs": [Port("scene", PORT_DATA, "COREX.Engineering.Scene")],
     },
     {
         "type_id": "integrations.file_io.read", "name": "Read File",

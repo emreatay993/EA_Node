@@ -8,11 +8,6 @@ from ea_node_editor.addons.property_edit_adapters import (
     PropertyEditAdapterContext,
     PropertyEditRewrite,
 )
-from ea_node_editor.nodes.builtins.plot.dpf import (
-    DPF_PLOT_NODE_DEFINITIONS,
-    DPF_PLOT_FRAME_SELECTOR_DEFAULT,
-    DPF_PLOT_FRAME_SELECTOR_PROPERTY,
-)
 from ea_node_editor.nodes.builtins.plot.generic import (
     PLOT_AXIS_LIMITS_DEFAULT,
     PLOT_COLORMAP_VALUES,
@@ -35,11 +30,6 @@ _PLOT_JSON_PROPERTY_KEYS = {
     "axis_limits",
     "log_scales",
     PLOT_TABULAR_MAPPING_PROPERTY,
-    "plot_options",
-}
-_DPF_PLOT_JSON_PROPERTY_KEYS = {
-    "axis_limits",
-    "log_scales",
     "plot_options",
 }
 _PLOT_OPTION_PREFIX = "plot_option_"
@@ -92,12 +82,6 @@ _GENERIC_PLOT_TYPE_BY_NODE_TYPE = {
 }
 _GENERIC_SUPPORTS_COLORMAP_BY_NODE_TYPE = {
     definition.type_id: definition.supports_colormap for definition in PLOT_NODE_DEFINITIONS
-}
-_DPF_PLOT_TYPE_BY_NODE_TYPE = {
-    definition.type_id: definition.plot_type for definition in DPF_PLOT_NODE_DEFINITIONS
-}
-_DPF_SUPPORTS_COLORMAP_BY_NODE_TYPE = {
-    definition.type_id: definition.supports_colormap for definition in DPF_PLOT_NODE_DEFINITIONS
 }
 
 
@@ -204,24 +188,17 @@ def _log_scales(properties: Mapping[str, Any]) -> dict[str, bool]:
 
 def _plot_type_from_context(context: PropertyEditAdapterContext) -> str:
     type_id = str(getattr(context.node, "type_id", "") or "").strip()
-    return _GENERIC_PLOT_TYPE_BY_NODE_TYPE.get(type_id) or _DPF_PLOT_TYPE_BY_NODE_TYPE.get(type_id) or ""
+    return _GENERIC_PLOT_TYPE_BY_NODE_TYPE.get(type_id, "")
 
 
 def _supports_colormap(context: PropertyEditAdapterContext) -> bool:
     type_id = str(getattr(context.node, "type_id", "") or "").strip()
-    return bool(
-        _GENERIC_SUPPORTS_COLORMAP_BY_NODE_TYPE.get(type_id)
-        or _DPF_SUPPORTS_COLORMAP_BY_NODE_TYPE.get(type_id)
-    )
-
-
-def _is_generic_plot(context: PropertyEditAdapterContext) -> bool:
-    return str(getattr(context.node, "type_id", "") or "").strip() in _GENERIC_PLOT_TYPE_BY_NODE_TYPE
+    return bool(_GENERIC_SUPPORTS_COLORMAP_BY_NODE_TYPE.get(type_id))
 
 
 def _is_plot(context: PropertyEditAdapterContext) -> bool:
     type_id = str(getattr(context.node, "type_id", "") or "").strip()
-    return type_id in _GENERIC_PLOT_TYPE_BY_NODE_TYPE or type_id in _DPF_PLOT_TYPE_BY_NODE_TYPE
+    return type_id in _GENERIC_PLOT_TYPE_BY_NODE_TYPE
 
 
 def _connected_tabular_source_node(context: PropertyEditAdapterContext) -> Any | None:
@@ -640,38 +617,6 @@ def _option_items(context: PropertyEditAdapterContext) -> list[dict[str, Any]]:
     return items
 
 
-def _dpf_frame_selector_items(properties: Mapping[str, Any]) -> list[dict[str, Any]]:
-    selector = str(properties.get(DPF_PLOT_FRAME_SELECTOR_PROPERTY, DPF_PLOT_FRAME_SELECTOR_DEFAULT) or "").strip()
-    preset_values = ("first", "last", "all")
-    preset = selector if selector in preset_values else ""
-    custom = "" if preset else selector
-    return [
-        _base_item(
-            key="frame_selector_preset",
-            label="Frame Preset",
-            value=preset,
-            editor_mode="editable_combo",
-            enum_values=preset_values,
-            group="DPF",
-            dirty=bool(preset and preset != DPF_PLOT_FRAME_SELECTOR_DEFAULT),
-            placeholder_text="Specific frames",
-            help_text="Choose first, last, or all. Leave blank to use specific frame IDs.",
-        ),
-        _base_item(
-            key="frame_selector_values",
-            label="Specific Frames",
-            value=_string_list(custom),
-            type_="list",
-            editor_mode="chip_list",
-            group="DPF",
-            dirty=bool(custom),
-            enum_values=(),
-            placeholder_text="Type a frame or set ID",
-            help_text="Use the input to add frame/set IDs one at a time.",
-        ),
-    ]
-
-
 def _update_axis_limits(properties: Mapping[str, Any], key: str, value: Any) -> PropertyEditRewrite | None:
     suffix = key.removeprefix(_AXIS_LIMIT_PREFIX)
     axis, _, bound = suffix.partition("_")
@@ -763,24 +708,6 @@ def _update_plot_options(properties: Mapping[str, Any], key: str, value: Any) ->
     return PropertyEditRewrite("plot_options", options)
 
 
-def _update_dpf_frame_selector(properties: Mapping[str, Any], key: str, value: Any) -> PropertyEditRewrite | None:
-    if key == "frame_selector_preset":
-        text = _text(value).strip()
-        if text:
-            return PropertyEditRewrite(DPF_PLOT_FRAME_SELECTOR_PROPERTY, text)
-        current = str(properties.get(DPF_PLOT_FRAME_SELECTOR_PROPERTY, DPF_PLOT_FRAME_SELECTOR_DEFAULT) or "").strip()
-        if current in {"first", "last", "all"}:
-            return PropertyEditRewrite(DPF_PLOT_FRAME_SELECTOR_PROPERTY, DPF_PLOT_FRAME_SELECTOR_DEFAULT)
-        return PropertyEditRewrite(DPF_PLOT_FRAME_SELECTOR_PROPERTY, current)
-    if key == "frame_selector_values":
-        values = _string_list(value)
-        return PropertyEditRewrite(
-            DPF_PLOT_FRAME_SELECTOR_PROPERTY,
-            ",".join(values) if values else DPF_PLOT_FRAME_SELECTOR_DEFAULT,
-        )
-    return None
-
-
 class PlotPropertyEditAdapter:
     def rewrite_property_edit(
         self,
@@ -807,12 +734,10 @@ class PlotPropertyEditAdapter:
             return _update_axis_limits(properties, normalized_key, value)
         if normalized_key.startswith(_LOG_SCALE_PREFIX):
             return _update_log_scales(properties, normalized_key, value)
-        if normalized_key.startswith(_TABULAR_MAPPING_PREFIX) and _is_generic_plot(context):
+        if normalized_key.startswith(_TABULAR_MAPPING_PREFIX):
             return _update_tabular_mapping(properties, normalized_key, value)
         if normalized_key.startswith(_PLOT_OPTION_PREFIX) or normalized_key == _UNSUPPORTED_OPTIONS_RESET_KEY:
             return _update_plot_options(properties, normalized_key, value)
-        if normalized_key in {"frame_selector_preset", "frame_selector_values"}:
-            return _update_dpf_frame_selector(properties, normalized_key, value)
         return None
 
     def build_property_items(
@@ -828,14 +753,11 @@ class PlotPropertyEditAdapter:
             return [dict(item) for item in items]
 
         properties = _node_properties(context.node)
-        hidden_keys = set(_PLOT_JSON_PROPERTY_KEYS if _is_generic_plot(context) else _DPF_PLOT_JSON_PROPERTY_KEYS)
-        if not _is_generic_plot(context):
-            hidden_keys.add(DPF_PLOT_FRAME_SELECTOR_PROPERTY)
+        hidden_keys = set(_PLOT_JSON_PROPERTY_KEYS)
         result: list[dict[str, Any]] = []
         axis_controls_inserted = False
         mapping_inserted = False
         options_inserted = False
-        frame_inserted = False
         for raw_item in items:
             item = dict(raw_item)
             key = str(item.get("key", "") or "").strip()
@@ -844,7 +766,7 @@ class PlotPropertyEditAdapter:
                     result.extend(_axis_control_items(context))
                     axis_controls_inserted = True
                 continue
-            if key == PLOT_TABULAR_MAPPING_PROPERTY and _is_generic_plot(context):
+            if key == PLOT_TABULAR_MAPPING_PROPERTY:
                 result.extend(_tabular_mapping_items(context))
                 mapping_inserted = True
                 continue
@@ -852,22 +774,16 @@ class PlotPropertyEditAdapter:
                 result.extend(_option_items(context))
                 options_inserted = True
                 continue
-            if key == DPF_PLOT_FRAME_SELECTOR_PROPERTY and not _is_generic_plot(context):
-                result.extend(_dpf_frame_selector_items(properties))
-                frame_inserted = True
-                continue
             if key in hidden_keys:
                 continue
             result.append(item)
 
         if not axis_controls_inserted:
             result.extend(_axis_control_items(context))
-        if _is_generic_plot(context) and not mapping_inserted:
+        if not mapping_inserted:
             result.extend(_tabular_mapping_items(context))
         if not options_inserted:
             result.extend(_option_items(context))
-        if not _is_generic_plot(context) and not frame_inserted:
-            result.extend(_dpf_frame_selector_items(properties))
         return result
 
 

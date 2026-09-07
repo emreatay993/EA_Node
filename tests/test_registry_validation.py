@@ -51,26 +51,8 @@ from ea_node_editor.graph.transform_grouping_ops import (
 from ea_node_editor.addons.tabular_data.input_node import (
     TABULAR_DATA_INPUT_NODE_TYPE_ID,
 )
-from ea_node_editor.nodes.ansys_dpf_data_types import (
-    DPF_DATA_CONVERSIONS,
-    DPF_DATA_SOURCES_DATA_TYPE,
-    DPF_DATA_TYPE_FAMILIES,
-    DPF_DATA_TYPE_OWNER_ID,
-    DPF_DATA_TYPES,
-    DPF_MESH_DATA_TYPE,
-    DPF_MODEL_DATA_TYPE,
-    DPF_OBJECT_HANDLE_DATA_TYPE,
-    DPF_SCOPING_DATA_TYPE,
-    COREX_MESH_INTERFACE_DATA_TYPE,
-    COREX_MODEL_INTERFACE_DATA_TYPE,
-)
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.solution_provenance import SolutionProvenanceInputSpec
-from ea_node_editor.nodes.builtins.ansys_dpf_common import (
-    DPF_FIELD_OPS_VARIANT_NORM,
-    DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY,
-    DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
-)
 from ea_node_editor.nodes.builtins.icon_catalog import builtin_node_type
 from ea_node_editor.nodes.builtins.integrations_ssh_sftp import (
     SSH_SFTP_HOST_DATA_TYPE_ID,
@@ -100,9 +82,6 @@ from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import (
-    DpfOperatorSourceSpec,
-    DpfOperatorVariantSpec,
-    DpfPinSourceSpec,
     DynamicPortGroupSpec,
     NodeRenderQualitySpec,
     NodeTypeSpec,
@@ -129,17 +108,6 @@ class _Plugin:
 
 def _factory(spec: NodeTypeSpec):
     return lambda: _Plugin(spec)
-
-
-def _dpf_registry() -> NodeRegistry:
-    registry = NodeRegistry()
-    registry.data_types.register_many(
-        families=DPF_DATA_TYPE_FAMILIES,
-        types=DPF_DATA_TYPES,
-        conversions=DPF_DATA_CONVERSIONS,
-        owner_id=DPF_DATA_TYPE_OWNER_ID,
-    )
-    return registry
 
 
 def _dynamic_output_ports(properties: Mapping[str, object]) -> tuple[PortSpec, ...]:
@@ -857,7 +825,7 @@ class RegistryValidationTests(unittest.TestCase):
             workspace.workspace_id, "io.path_pointer", "Path", 0.0, 0.0
         )
         target = model.add_node(
-            workspace.workspace_id, "dpf.model", "DPF Model", 240.0, 0.0
+            workspace.workspace_id, "io.file_read", "Read File", 240.0, 0.0
         )
         edge_values = _CountingEdgeValues(workspace.edges.values())
         kernel = GraphInvariantKernel(
@@ -898,125 +866,13 @@ class RegistryValidationTests(unittest.TestCase):
 
         self.assertIsNotNone(first)
         self.assertIsNotNone(second)
-        self.assertEqual(edge_values.iterations, 1)
+        self.assertEqual(edge_values.iterations, 0)
         self.assertEqual(spy.call_count, 2)
         self.assertEqual(
             set(memo.effective_ports_by_node_id), {source.node_id, target.node_id}
         )
         self.assertIn((source.node_id, "path"), memo.port_by_node_and_key)
         self.assertIn((target.node_id, "path"), memo.port_by_node_and_key)
-
-    def test_validated_mutation_prune_edges_invalidates_edge_memo_after_removal_for_input_precedence(
-        self,
-    ) -> None:
-        registry = build_default_registry()
-        model = GraphModel()
-        workspace = model.active_workspace
-        result_file_source = model.add_node(
-            workspace.workspace_id, "dpf.result_file", "Result File", 0.0, 0.0
-        )
-        path_source = model.add_node(
-            workspace.workspace_id, "io.path_pointer", "Path", 0.0, 140.0
-        )
-        model_node = model.add_node(
-            workspace.workspace_id, "dpf.model", "DPF Model", 320.0, 40.0
-        )
-        result_file_edge = model.add_edge(
-            workspace.workspace_id,
-            result_file_source.node_id,
-            "result_file",
-            model_node.node_id,
-            "result_file",
-        )
-        path_edge = model.add_edge(
-            workspace.workspace_id,
-            path_source.node_id,
-            "path",
-            model_node.node_id,
-            "path",
-        )
-        model_node.exposed_ports["result_file"] = False
-        mutations = model.validated_mutations(workspace.workspace_id, registry)
-
-        removed_edge_ids = mutations._prune_edges_for_nodes({model_node.node_id})
-
-        self.assertEqual(removed_edge_ids, [result_file_edge.edge_id])
-        self.assertNotIn(result_file_edge.edge_id, workspace.edges)
-        self.assertIn(path_edge.edge_id, workspace.edges)
-
-    def test_registry_normalization_reuses_one_validation_memo_and_invalidates_removed_edges(
-        self,
-    ) -> None:
-        registry = build_default_registry()
-        model = GraphModel()
-        workspace = model.active_workspace
-        first_path_source = model.add_node(
-            workspace.workspace_id,
-            "io.path_pointer",
-            "Path 1",
-            0.0,
-            0.0,
-        )
-        result_file_source = model.add_node(
-            workspace.workspace_id,
-            "dpf.result_file",
-            "Result File",
-            0.0,
-            140.0,
-        )
-        second_path_source = model.add_node(
-            workspace.workspace_id,
-            "io.path_pointer",
-            "Path 2",
-            0.0,
-            280.0,
-        )
-        model_node = model.add_node(
-            workspace.workspace_id, "dpf.model", "DPF Model", 320.0, 120.0
-        )
-        model_node.exposed_ports["result_file"] = False
-        first_path_edge = EdgeInstance(
-            edge_id="edge_first_path",
-            source_node_id=first_path_source.node_id,
-            source_port_key="path",
-            target_node_id=model_node.node_id,
-            target_port_key="path",
-        )
-        hidden_result_file_edge = EdgeInstance(
-            edge_id="edge_hidden_result_file",
-            source_node_id=result_file_source.node_id,
-            source_port_key="result_file",
-            target_node_id=model_node.node_id,
-            target_port_key="result_file",
-        )
-        second_path_edge = EdgeInstance(
-            edge_id="edge_second_path",
-            source_node_id=second_path_source.node_id,
-            source_port_key="path",
-            target_node_id=model_node.node_id,
-            target_port_key="path",
-        )
-        workspace.edges = {
-            first_path_edge.edge_id: first_path_edge,
-            hidden_result_file_edge.edge_id: hidden_result_file_edge,
-            second_path_edge.edge_id: second_path_edge,
-        }
-
-        with (
-            patch.object(
-                registry, "spec_or_none", wraps=registry.spec_or_none
-            ) as spec_spy,
-            patch.object(
-                invariant_kernel,
-                "effective_ports",
-                wraps=invariant_kernel.effective_ports,
-            ) as ports_spy,
-        ):
-            normalize_project_for_registry(model.project, registry)
-
-        self.assertEqual(spec_spy.call_count, len(workspace.nodes))
-        self.assertEqual(ports_spy.call_count, len(workspace.nodes))
-        self.assertEqual(set(workspace.edges), {second_path_edge.edge_id})
 
     def test_validated_mutation_prune_edges_keeps_data_fan_in_and_removes_exact_duplicates(
         self,
@@ -2357,327 +2213,6 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(node_specs.property_inspector_editor(property_spec), "text")
         self.assertEqual(node_specs.inline_property_specs(spec), ())
 
-    def test_register_accepts_dpf_source_metadata_contract(self) -> None:
-        registry = _dpf_registry()
-        spec = NodeTypeSpec(
-            type_id="tests.dpf.result_field_metadata",
-            display_name="DPF Result Field Metadata",
-            category_path=("Tests",),
-            icon="",
-            ports=(
-                PortSpec(
-                    "model",
-                    "in",
-                    "data",
-                    DPF_MODEL_DATA_TYPE,
-                    required=True,
-                    source_metadata=DpfPinSourceSpec(
-                        pin_name="data_sources",
-                        pin_direction="input",
-                        value_origin="port",
-                        value_key="model",
-                        data_type=DPF_MODEL_DATA_TYPE,
-                        presence="required",
-                        omission_semantics="disallowed",
-                    ),
-                ),
-                PortSpec(
-                    "time_scoping",
-                    "in",
-                    "data",
-                    DPF_SCOPING_DATA_TYPE,
-                    required=False,
-                    source_metadata=DpfPinSourceSpec(
-                        pin_name="time_scoping",
-                        pin_direction="input",
-                        value_origin="port",
-                        value_key="time_scoping",
-                        data_type=DPF_SCOPING_DATA_TYPE,
-                        exclusive_group=DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
-                    ),
-                ),
-                PortSpec(
-                    "field",
-                    "out",
-                    "data",
-                    "COREX.Ansys.DPF.Field",
-                    source_metadata=DpfPinSourceSpec(
-                        pin_name="fields_container",
-                        pin_direction="output",
-                        value_origin="port",
-                        value_key="field",
-                        data_type="COREX.Ansys.DPF.Field",
-                        variant_keys=(DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY,),
-                    ),
-                ),
-            ),
-            properties=(
-                PropertySpec(
-                    "location",
-                    "enum",
-                    "auto",
-                    "Location",
-                    enum_values=("auto", "nodal"),
-                    source_metadata=DpfPinSourceSpec(
-                        pin_name="requested_location",
-                        pin_direction="input",
-                        value_origin="property",
-                        value_key="location",
-                        data_type="COREX.Ansys.DPF.Field",
-                        omission_semantics="operator_default",
-                    ),
-                ),
-            ),
-            source_metadata=DpfOperatorSourceSpec(
-                variants=(
-                    DpfOperatorVariantSpec(
-                        key=DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY,
-                        operator_name_template="result.{result_name}",
-                    ),
-                ),
-            ),
-        )
-
-        registry.register(_factory(spec))
-
-        registered = registry.get_spec(spec.type_id)
-        self.assertEqual(
-            registered.source_metadata.variants[0].operator_name_template,
-            "result.{result_name}",
-        )
-        self.assertEqual(
-            registered.ports[1].source_metadata.exclusive_group,
-            DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
-        )
-        self.assertEqual(
-            registered.properties[0].source_metadata.omission_semantics,
-            "operator_default",
-        )
-
-    def test_register_accepts_callable_dpf_source_metadata_contract(self) -> None:
-        registry = _dpf_registry()
-        spec = NodeTypeSpec(
-            type_id="tests.dpf.helper.data_sources_mutator",
-            display_name="DPF Data Sources Mutator",
-            category_path=("Tests",),
-            icon="",
-            ports=(
-                PortSpec(
-                    "receiver",
-                    "in",
-                    "data",
-                    DPF_OBJECT_HANDLE_DATA_TYPE,
-                    required=False,
-                    accepted_data_types=(
-                        DPF_MODEL_DATA_TYPE,
-                        DPF_DATA_SOURCES_DATA_TYPE,
-                    ),
-                    source_metadata=DpfPinSourceSpec(
-                        pin_name="self",
-                        pin_direction="input",
-                        value_origin="port",
-                        value_key="receiver",
-                        data_type=DPF_OBJECT_HANDLE_DATA_TYPE,
-                        accepted_data_types=(
-                            DPF_MODEL_DATA_TYPE,
-                            DPF_DATA_SOURCES_DATA_TYPE,
-                        ),
-                        callable_binding=node_specs.DpfCallableBindingSpec("receiver"),
-                    ),
-                ),
-                PortSpec(
-                    "result_path",
-                    "in",
-                    "data",
-                    "COREX.DataTypes.Path",
-                    required=False,
-                    source_metadata=DpfPinSourceSpec(
-                        pin_name="result_path",
-                        pin_direction="input",
-                        value_origin="port",
-                        value_key="result_path",
-                        data_type="COREX.DataTypes.Path",
-                        callable_binding=node_specs.DpfCallableBindingSpec(
-                            "parameter", "result_path"
-                        ),
-                    ),
-                ),
-                PortSpec(
-                    "updated_receiver",
-                    "out",
-                    "data",
-                    DPF_OBJECT_HANDLE_DATA_TYPE,
-                    accepted_data_types=(DPF_DATA_SOURCES_DATA_TYPE,),
-                    source_metadata=DpfPinSourceSpec(
-                        pin_name="return_value",
-                        pin_direction="output",
-                        value_origin="port",
-                        value_key="updated_receiver",
-                        data_type=DPF_OBJECT_HANDLE_DATA_TYPE,
-                        accepted_data_types=(DPF_DATA_SOURCES_DATA_TYPE,),
-                        callable_binding=node_specs.DpfCallableBindingSpec(
-                            "return_value"
-                        ),
-                    ),
-                ),
-            ),
-            properties=(
-                PropertySpec(
-                    "server",
-                    "str",
-                    "localhost",
-                    "Server",
-                    source_metadata=DpfPinSourceSpec(
-                        pin_name="server",
-                        pin_direction="input",
-                        value_origin="property",
-                        value_key="server",
-                        data_type="COREX.DataTypes.String",
-                        callable_binding=node_specs.DpfCallableBindingSpec(
-                            "parameter", "server"
-                        ),
-                    ),
-                ),
-            ),
-            source_metadata=node_specs.DpfCallableSourceSpec(
-                callable_name="DataSources.set_result_file_path",
-                callable_kind="mutator",
-                source_path="ansys.dpf.core.data_sources.DataSources.set_result_file_path",
-                family_path=("Inputs", "Result Setup"),
-                stability="core",
-            ),
-        )
-
-        registry.register(_factory(spec))
-
-        registered = registry.get_spec(spec.type_id)
-        self.assertEqual(registered.source_metadata.callable_kind, "mutator")
-        self.assertEqual(
-            registered.source_metadata.family_path, ("Inputs", "Result Setup")
-        )
-        self.assertEqual(
-            registered.ports[0].accepted_data_types,
-            (DPF_MODEL_DATA_TYPE, DPF_DATA_SOURCES_DATA_TYPE),
-        )
-        self.assertEqual(
-            registered.ports[2].source_metadata.callable_binding.binding_kind,
-            "return_value",
-        )
-
-    def test_register_rejects_port_source_metadata_without_node_source_metadata(
-        self,
-    ) -> None:
-        registry = _dpf_registry()
-        spec = NodeTypeSpec(
-            type_id="tests.dpf.port_source_without_node_source",
-            display_name="DPF Port Source Without Node Source",
-            category_path=("Tests",),
-            icon="",
-            ports=(
-                PortSpec(
-                    "model",
-                    "in",
-                    "data",
-                    DPF_MODEL_DATA_TYPE,
-                    required=True,
-                    source_metadata=DpfPinSourceSpec(
-                        pin_name="data_sources",
-                        pin_direction="input",
-                        value_origin="port",
-                        value_key="model",
-                        data_type=DPF_MODEL_DATA_TYPE,
-                        presence="required",
-                        omission_semantics="disallowed",
-                    ),
-                ),
-            ),
-            properties=(),
-        )
-
-        with self.assertRaises(ValueError):
-            registry.register(_factory(spec))
-
-    def test_register_rejects_invalid_dpf_source_metadata_shape(self) -> None:
-        registry = _dpf_registry()
-        spec = NodeTypeSpec(
-            type_id="tests.dpf.invalid_source_metadata",
-            display_name="DPF Invalid Source Metadata",
-            category_path=("Tests",),
-            icon="",
-            ports=(
-                PortSpec(
-                    "field",
-                    "in",
-                    "data",
-                    "COREX.Ansys.DPF.Field",
-                    required=True,
-                    source_metadata=DpfPinSourceSpec(
-                        pin_name="fields_container",
-                        pin_direction="input",
-                        value_origin="property",
-                        value_key="field",
-                        data_type="COREX.Ansys.DPF.Field",
-                        presence="required",
-                        omission_semantics="disallowed",
-                        variant_keys=(DPF_FIELD_OPS_VARIANT_NORM, "missing_variant"),
-                    ),
-                ),
-            ),
-            properties=(),
-            source_metadata=DpfOperatorSourceSpec(
-                variants=(
-                    DpfOperatorVariantSpec(
-                        key=DPF_FIELD_OPS_VARIANT_NORM,
-                        operator_name="math.norm_fc",
-                    ),
-                ),
-            ),
-        )
-
-        with self.assertRaises(ValueError):
-            registry.register(_factory(spec))
-
-    def test_register_rejects_dpf_source_metadata_with_mismatched_accepted_data_types(
-        self,
-    ) -> None:
-        registry = _dpf_registry()
-        spec = NodeTypeSpec(
-            type_id="tests.dpf.accepted_type_mismatch",
-            display_name="DPF Accepted Type Mismatch",
-            category_path=("Tests",),
-            icon="",
-            ports=(
-                PortSpec(
-                    "receiver",
-                    "in",
-                    "data",
-                    DPF_OBJECT_HANDLE_DATA_TYPE,
-                    required=False,
-                    accepted_data_types=(
-                        DPF_MODEL_DATA_TYPE,
-                        DPF_DATA_SOURCES_DATA_TYPE,
-                    ),
-                    source_metadata=DpfPinSourceSpec(
-                        pin_name="self",
-                        pin_direction="input",
-                        value_origin="port",
-                        value_key="receiver",
-                        data_type=DPF_OBJECT_HANDLE_DATA_TYPE,
-                        accepted_data_types=(DPF_MODEL_DATA_TYPE,),
-                        callable_binding=node_specs.DpfCallableBindingSpec("receiver"),
-                    ),
-                ),
-            ),
-            properties=(),
-            source_metadata=node_specs.DpfCallableSourceSpec(
-                callable_name="DataSources",
-                callable_kind="constructor",
-            ),
-        )
-
-        with self.assertRaises(ValueError):
-            registry.register(_factory(spec))
-
     def test_register_rejects_invalid_surface_family(self) -> None:
         registry = NodeRegistry()
         spec = NodeTypeSpec(
@@ -3770,9 +3305,7 @@ class RegistryValidationTests(unittest.TestCase):
     def test_default_registry_has_canonical_type_inventory_and_declared_special_cases(
         self,
     ) -> None:
-        registry = build_default_registry()
-        if registry.spec_or_none("dpf.op.result.displacement") is None:
-            self.skipTest("Ansys DPF add-on is unavailable")
+        registry = build_default_registry(include_public_plugins=False)
 
         data_ports = [
             port
@@ -3797,13 +3330,13 @@ class RegistryValidationTests(unittest.TestCase):
             for accepted_type in port.accepted_data_types
         }
 
-        self.assertEqual(len(registry.all_specs()), 941)
-        self.assertEqual(len(data_ports), 4482)
-        self.assertEqual(len(resolved_data_ports), 4487)
-        self.assertEqual(len(primary_type_ids), 63)
-        self.assertEqual(len(accepted_type_ids), 26)
-        self.assertEqual(len({accepted for _, port in resolved_data_ports for accepted in port.accepted_data_types}), 28)
-        self.assertEqual(len(registry.data_types.all_specs()), 176)
+        self.assertEqual(len(registry.all_specs()), 136)
+        self.assertEqual(len(data_ports), 363)
+        self.assertEqual(len(resolved_data_ports), 368)
+        self.assertEqual(len(primary_type_ids), 52)
+        self.assertEqual(len(accepted_type_ids), 13)
+        self.assertEqual(len({accepted for _, port in resolved_data_ports for accepted in port.accepted_data_types}), 15)
+        self.assertEqual(len(registry.data_types.all_specs()), 163)
         self.assertEqual(
             len(
                 [
@@ -3812,7 +3345,7 @@ class RegistryValidationTests(unittest.TestCase):
                     if spec.type_id != LOAD_STEP_DATA_TYPE_ID
                 ]
             ),
-            175,
+            162,
         )
         self.assertFalse(
             primary_type_ids
@@ -3828,9 +3361,6 @@ class RegistryValidationTests(unittest.TestCase):
                 "path",
                 "json",
                 "list[str]",
-                "dpf_model",
-                "dpf_mesh",
-                "dpf_field",
             }
         )
         static_port_keys = {
@@ -3865,9 +3395,6 @@ class RegistryValidationTests(unittest.TestCase):
             "path",
             "json",
             "list[str]",
-            "dpf_model",
-            "dpf_mesh",
-            "dpf_field",
         }
         for type_id, port in resolved_data_ports:
             for declared_type_id in (
@@ -3890,18 +3417,6 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(process_ports["stdout"].data_type, GRAPH_DATA_TYPE_ID)
         self.assertEqual(process_ports["stderr"].data_type, GRAPH_DATA_TYPE_ID)
 
-        self.assertTrue(
-            registry.data_types.is_assignable(
-                DPF_MESH_DATA_TYPE,
-                COREX_MESH_INTERFACE_DATA_TYPE,
-            )
-        )
-        self.assertTrue(
-            registry.data_types.is_assignable(
-                DPF_MODEL_DATA_TYPE,
-                COREX_MODEL_INTERFACE_DATA_TYPE,
-            )
-        )
         self.assertEqual(
             registry.data_types.require(SSH_SFTP_SECRET_DATA_TYPE_ID).sensitivity,
             "secret",

@@ -1,5 +1,5 @@
 # Purpose: DPF modal summation and result export orchestration for the MCF DPF section resultants tool.
-# Map: feature_routes/ansys_dpf_operator_viewer_transport
+# Map: subsystems/packaging_generated_assets
 # Tests: tests/test_mcf_dpf_section_resultants_gui.py
 # Landmarks: modal_force_moment_coefficients; static_force_moment_series; extract_static_section_resultants; extract_section_resultants
 """Section resultant extraction workflow."""

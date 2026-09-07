@@ -46,7 +46,7 @@ Use this for package builds, installer builds, signing checks, generated archite
 - Windows packages include a schema-v2 `runtime\runtime_manifest.json` plus contained COREX and MARS wheels; their app-managed venv installs COREX first and MARS with `--no-deps`. Source manifests point to editable local repositories, but add-on setup installs only MARS into the active COREX interpreter. Keep runtime preparation, package, and installer validation in sync.
 - Keep add-on-owned runtime assets in both setuptools package data and PyInstaller data collection; the MARS node title icon is `addons/mars/icons/mars_icon_64.png`.
 - Windows package profiles are `base`, `viewer`, `web`, and `full`. Use `full` for developer-style all-feature packages; it requires the all/dev runtime stack and should stay aligned across package, installer, signing, docs, and `tests/test_packaging_configuration.py`.
-- The `viewer` profile is solver-neutral: it requires OCP/PyVista/PyVistaQt/VTK, excludes Ansys DPF and catalog preflight, collects `cadquery_ocp_novtk.libs` beside `OCP`, and ships root/third-party notices plus complete OCP/OCCT/VTK/PyVista license texts. DPF remains required only by `full`.
+- The `viewer` profile is solver-neutral: it requires OCP/PyVista/PyVistaQt/VTK, excludes Ansys DPF, collects `cadquery_ocp_novtk.libs` beside `OCP`, and ships root/third-party notices plus complete OCP/OCCT/VTK/PyVista license texts. Every application package profile excludes DPF.
 - PyInstaller tabular hidden imports are an explicit runtime-module list, not broad dependency submodule scans. Keep the list narrow so optional dependency test/dev paths such as Polars ML adapters do not pull unrelated ML/vision stacks into full packages.
 - Full-profile packaging uses local hook overrides under `scripts/pyinstaller_hooks/` when upstream PyInstaller hooks collect optional native test/dev adapters that the app does not use; keep hook scope, spec `hookspath`, and packaging tests aligned.
 - The spec suppresses `numba`/`llvmlite`/`pyarrow` imports in PyInstaller's Windows bindepend child (`BINDEPEND_IMPORT_SUPPRESSIONS`): numba deadlocks in llvmlite's import-time JIT check and pyarrow can access-violate in `arrow.dll` there. A build stuck silently after `Looking for dynamic libraries` means that child is hanging on a package import; keep the suppression list, its spec wrapper, and `tests/test_packaging_configuration.py` aligned.
@@ -77,7 +77,3 @@ Use this for package builds, installer builds, signing checks, generated archite
 
 ## Update Triggers
 Update when build scripts, required or optional dependency groups, PyInstaller collection and hook overrides, third-party license payloads, static tooling baselines, generated asset scripts, signing policy, packaging tests, generated package metadata tracking, or generated output ownership changes.
-
-## 2026-07-11 Performance Ownership
-
-- Generate/check the DPF operator asset with `scripts/generate_ansys_dpf_operator_catalog.py`; viewer/full preflight in `ea_node_editor.spec` requires the build DPF version to match the committed catalog, while base packaging keeps DPF optional.

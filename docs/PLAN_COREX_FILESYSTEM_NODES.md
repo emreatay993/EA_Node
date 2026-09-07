@@ -87,8 +87,8 @@ No node-ID exceptions belong in shared readiness or execution code.
 For T04, use the existing current-contract overlay's `add_rows`; never edit the
 frozen historical catalogue. Introduce a native-function inventory disposition
 without changing the historical 78 conversions. Final expected totals: 76
-built-in functions, 129 built-in nodes, 139 effective non-DPF rows, 944 shipped
-rows, 906 executable rows, 850 executable rows with reuse `never`.
+built-in functions, 129 built-in nodes, 139 repo-owned rows, 101 executable
+rows, and 45 executable rows with reuse `never`.
 
 ## Verification
 
@@ -128,9 +128,8 @@ rows, 906 executable rows, 850 executable rows with reuse `never`.
   already-present 176. Those unrelated assertions are unchanged; this is not
   an all-green repository fast-gate claim. Local phase logs are under
   `artifacts/verification_logs/20260906_151246/`.
-- The frozen non-DPF catalogue remains byte-identical. DPF catalogue
-  regeneration added only `allow_empty_string: false` to 3,962 port records;
-  removing that added field yields exactly the previous catalogue content.
+- The current repo-owned catalogue remains exact and is checked directly against
+  the 139 live specifications.
 - Ruff, map validation, source/test index validation, traceability, Markdown
   links, and whitespace checks passed. Existing unrelated working-tree edits
   were preserved.

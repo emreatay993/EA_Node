@@ -70,8 +70,8 @@ evidence without changing `COREX_CLEAN_ARCHITECTURE_RESTRUCTURE_STATUS.md`.
 | P06 | `bfd41d501932335d77bb42edc09157aae4f1f7c9` | `.\venv\Scripts\python.exe -m pytest tests/test_main_window_shell.py tests/test_graph_action_contracts.py --ignore=venv`; `.\venv\Scripts\python.exe -m pytest tests/main_window_shell --ignore=venv`; review gate `tests/test_graph_action_contracts.py`; validator PASS. |
 | P07 | `9887d87bb2b6762db71fe6e7ec2215f2db5af848` | `.\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py tests/test_graph_surface_input_contract.py --ignore=venv`; `.\venv\Scripts\python.exe -m pytest tests/test_group_backdrop_contracts.py tests/test_passive_runtime_wiring.py --ignore=venv`; review gate `tests/test_graph_surface_input_contract.py`; validator PASS. |
 | P08 | `9a685b021adc0011cfa348c3587d2d095e64578a` | `.\venv\Scripts\python.exe -m pytest tests/test_viewer_session_bridge.py tests/test_viewer_host_service.py tests/test_execution_viewer_service.py --ignore=venv`; `.\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_embedded_viewer_overlay_manager.py --ignore=venv`; review gate `tests/test_embedded_viewer_overlay_manager.py`; validator PASS. |
-| P09 | `09f50d4099d39e6c3b3172027a21acbda923a680` | `.\venv\Scripts\python.exe -m pytest tests/test_plugin_loader.py tests/test_registry_validation.py tests/test_package_manager.py --ignore=venv`; `.\venv\Scripts\python.exe -m pytest tests/test_dpf_library_taxonomy.py tests/test_dpf_node_catalog.py tests/test_dpf_runtime_service.py tests/test_dpf_viewer_node.py --ignore=venv`; `tests/test_architecture_boundaries.py`; review gate `tests/test_registry_validation.py`; validator PASS. |
-| P10 | `d6fb309606bb209b7dbccb35ecf746c33ffa0626` | `.\venv\Scripts\python.exe -m pytest tests/test_plugin_loader.py tests/test_package_manager.py --ignore=venv`; `.\venv\Scripts\python.exe -m pytest tests/test_dpf_node_catalog.py tests/test_dpf_runtime_service.py tests/test_dpf_viewer_node.py --ignore=venv`; review gate `tests/test_plugin_loader.py`; validator PASS. |
+| P09 | `09f50d4099d39e6c3b3172027a21acbda923a680` | `.\venv\Scripts\python.exe -m pytest tests/test_plugin_loader.py tests/test_registry_validation.py tests/test_package_manager.py --ignore=venv`; `tests/test_architecture_boundaries.py`; review gate `tests/test_registry_validation.py`; validator PASS. |
+| P10 | `d6fb309606bb209b7dbccb35ecf746c33ffa0626` | `.\venv\Scripts\python.exe -m pytest tests/test_plugin_loader.py tests/test_package_manager.py --ignore=venv`; review gate `tests/test_plugin_loader.py`; validator PASS. |
 | P11 | `b1fc5fb3b359be5bf940ff0d23dddab10b4194f0` | `.\venv\Scripts\python.exe -m pytest tests/test_shell_theme.py tests/test_graph_theme_preferences.py --ignore=venv`; `.\venv\Scripts\python.exe -m pytest tests/test_project_session_controller_unit.py tests/test_main_window_shell.py --ignore=venv`; review gate `tests/test_graph_theme_preferences.py`; validator PASS. |
 
 ## Final Closeout Commands
@@ -105,7 +105,7 @@ Ready for manual testing after the final closeout commands pass.
 
 ## Residual Risks
 
-- Existing Ansys DPF deprecation warnings from earlier packet verification remain non-blocking and outside P12 scope.
-- Desktop DPF live-viewer validation still depends on local Ansys DPF, PyVista, VTK, and Qt availability; retained automated tests cover the transport and host contracts with fixtures.
+- Existing optional-package warnings from earlier packet verification remain non-blocking and outside P12 scope.
+- Desktop Model Viewer validation still depends on local PyVista, VTK, and Qt availability; retained automated tests cover the transport and host contracts with fixtures.
 - Shell-backed Qt/QML suites still require fresh-process execution on Windows because repeated `ShellWindow()` construction in one interpreter remains unreliable.
 - Generated architecture diagram artifacts can lag source Mermaid blocks until `.\venv\Scripts\python.exe .\scripts\export_architecture_diagrams.py` is run; P12 did not edit Mermaid blocks or generated diagram assets.

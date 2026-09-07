@@ -11,8 +11,8 @@ Update existing Ansys skills and add the full Release 2026 R1 Mechanical scripti
 - Add a small `index.md` beside the copied guide with release metadata, source path, asset count/size, and `rg` search phrases for major guide sections.
 - Mirror the docs folder into the installed plugin cache only if needed for current-session discoverability: `C:\Users\emre_\.codex\plugins\cache\local\ansys-mcp\0.1.0\docs\...`.
 - Update `ansys-mcp` skill text to treat that docs folder as the canonical Mechanical 2026 R1 scripting source.
-- Update `ansys-mechanical-ironpython` as the main consumer: add concise workflow guidance plus references for CPython/Python.NET migration, tree/property APIs, `SolverData`, worksheets, messages, graphics/export, `PlotData`, and in-Mechanical DPF.
-- Add small cross-references in `ansys-mechanical-model-debugger`, `ansys-apdl-command-debugger`, and `ansys-dpf-core-rst*` so they know when to consult the 2026 R1 guide.
+- Update `ansys-mechanical-ironpython` as the main consumer: add concise workflow guidance plus references for CPython/Python.NET migration, tree/property APIs, `SolverData`, worksheets, messages, graphics/export, `PlotData`, and in-Mechanical result post-processing.
+- Add small cross-references in `ansys-mechanical-model-debugger` and `ansys-apdl-command-debugger` so they know when to consult the 2026 R1 guide.
 
 ## Test Plan
 - Verify copied source integrity with file hash comparison for the `.md`.

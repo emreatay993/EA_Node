@@ -5,7 +5,6 @@ from typing import Any
 
 from ea_node_editor.addons.catalog import registered_addon_registration_by_id
 
-from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
 from ea_node_editor.addons.contracts import AddOnRecord
 
 _VALID_TABS = ("about", "dependencies", "nodes", "changelog")
@@ -115,8 +114,6 @@ def dependency_items(record: AddOnRecord) -> list[dict[str, Any]]:
 
 
 def category_label(record: AddOnRecord, item_rows: list[dict[str, Any]]) -> str:
-    if record.addon_id == ANSYS_DPF_ADDON_ID:
-        return "Ansys DPF"
     for item in item_rows:
         label = str(item.get("category", "")).strip()
         if label:
@@ -126,8 +123,6 @@ def category_label(record: AddOnRecord, item_rows: list[dict[str, Any]]) -> str:
 
 def category_key(label: str) -> str:
     normalized = str(label).strip().lower()
-    if "dpf" in normalized or "ansys" in normalized:
-        return "dpf"
     if "core" in normalized:
         return "core"
     if "integr" in normalized or normalized == "io":
@@ -141,7 +136,6 @@ def category_key(label: str) -> str:
 
 def icon_glyph(key: str, label: str) -> str:
     return {
-        "dpf": "D",
         "core": "C",
         "io": "I",
         "logic": "L",

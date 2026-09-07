@@ -1,5 +1,5 @@
 # Purpose: DPF metadata, scoping, named-selection, and coordinate-system helpers for the MCF DPF section resultants tool.
-# Map: feature_routes/ansys_dpf_operator_viewer_transport
+# Map: subsystems/packaging_generated_assets
 # Tests: tests/test_mcf_dpf_section_resultants_gui.py
 # Landmarks: selected_element_mesh; nodal_displacement_batch_for_ids; result_set_options; force_summation_operator
 """DPF and result-file access helpers."""

@@ -20,7 +20,7 @@ from ea_node_editor.nodes.core_data_types import DOUBLE_DATA_TYPE_ID
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.registry import PythonFunctionEntry
 from ea_node_editor.runtime_contracts import DataTree, TypedInlineValue
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 
 DECONSTRUCT_COLOR_TYPE_ID = "data.deconstruct_color"
@@ -67,7 +67,7 @@ def test_converted_entries_match_pre_cutover_specs_without_descriptors(
 ) -> None:
     expected = {
         row["spec"]["type_id"]: row["spec"]
-        for row in load_effective_non_dpf_catalog()
+        for row in load_current_repo_owned_catalog()
         if row["spec"]["type_id"] in _TYPE_IDS
     }
     registry = build_builtin_registry(generation_root=tmp_path / "generations")

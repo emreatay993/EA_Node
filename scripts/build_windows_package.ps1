@@ -161,6 +161,19 @@ function New-CorexRuntimeBundle {
 
     $corexWheelBuildRoot = Join-Path $wheelBuildRoot "corex"
     New-Item -ItemType Directory -Path $corexWheelBuildRoot -Force | Out-Null
+    $projectRootPath = [System.IO.Path]::GetFullPath([string]$repoRoot)
+    $projectRootPrefix = $projectRootPath.TrimEnd([char[]]"\/") + [System.IO.Path]::DirectorySeparatorChar
+    $projectBuildPath = [System.IO.Path]::GetFullPath((Join-Path $projectRootPath "build"))
+    $expectedProjectBuildPath = $projectRootPrefix + "build"
+    if (
+        -not $projectBuildPath.StartsWith($projectRootPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not [string]::Equals($projectBuildPath, $expectedProjectBuildPath, [System.StringComparison]::OrdinalIgnoreCase)
+    ) {
+        throw "Refusing to clean unexpected COREX wheel build directory: $projectBuildPath"
+    }
+    if (Test-Path -LiteralPath $projectBuildPath) {
+        Remove-Item -LiteralPath $projectBuildPath -Recurse -Force
+    }
     $wheelBuildProcess = Start-Process -FilePath $pythonExe -ArgumentList @(
         "-m",
         "build",
@@ -444,8 +457,6 @@ modules = {
     "psutil": "psutil",
     "pyarrow": "pyarrow",
     "tables": "tables",
-    "ansys_dpf_core": "ansys.dpf.core",
-    "ansys_dpf_post": "ansys.dpf.post",
     "ansys_mechanical_core": "ansys.mechanical.core",
     "matplotlib": "matplotlib",
     "ocp": "OCP",
@@ -511,8 +522,6 @@ Path(sys.argv[1]).write_text(json.dumps(payload), encoding="utf-8")
                 psutil = "unknown"
                 pyarrow = "unknown"
                 tables = "unknown"
-                ansys_dpf_core = "unknown"
-                ansys_dpf_post = "unknown"
                 ansys_mechanical_core = "unknown"
                 matplotlib = "unknown"
                 ocp = "unknown"
@@ -546,8 +555,6 @@ Path(sys.argv[1]).write_text(json.dumps(payload), encoding="utf-8")
                 psutil = "unknown"
                 pyarrow = "unknown"
                 tables = "unknown"
-                ansys_dpf_core = "unknown"
-                ansys_dpf_post = "unknown"
                 ansys_mechanical_core = "unknown"
                 matplotlib = "unknown"
                 ocp = "unknown"
@@ -583,8 +590,6 @@ Path(sys.argv[1]).write_text(json.dumps(payload), encoding="utf-8")
             psutil = [bool]$parsed.psutil
             pyarrow = [bool]$parsed.pyarrow
             tables = [bool]$parsed.tables
-            ansys_dpf_core = [bool]$parsed.ansys_dpf_core
-            ansys_dpf_post = [bool]$parsed.ansys_dpf_post
             ansys_mechanical_core = [bool]$parsed.ansys_mechanical_core
             matplotlib = [bool]$parsed.matplotlib
             ocp = [bool]$parsed.ocp
@@ -618,8 +623,6 @@ Path(sys.argv[1]).write_text(json.dumps(payload), encoding="utf-8")
             psutil = "unknown"
             pyarrow = "unknown"
             tables = "unknown"
-            ansys_dpf_core = "unknown"
-            ansys_dpf_post = "unknown"
             ansys_mechanical_core = "unknown"
             matplotlib = "unknown"
             ocp = "unknown"
@@ -706,8 +709,6 @@ function Get-PackageProfileDependencyRules {
 
     if ($Profile -eq "full") {
         $required += @(
-            @{ Key = "ansys_dpf_core"; Display = "ansys-dpf-core" },
-            @{ Key = "ansys_dpf_post"; Display = "ansys-dpf-post" },
             @{ Key = "ansys_mechanical_core"; Display = "ansys-mechanical-core" },
             @{ Key = "duckdb"; Display = "duckdb" },
             @{ Key = "h5py"; Display = "h5py" },
@@ -745,7 +746,7 @@ function Write-DependencyMatrix {
         "Viewer profile bundles the neutral CAD/FE viewer runtime and fails the build when missing from the build environment."
     }
     elseif ($isFullProfile) {
-        "Full profile bundles every current runtime extra, including Ansys, viewer, tabular, acceleration, Excel, and plot backends."
+        "Full profile bundles the application runtime stack, including PyMechanical, viewer, tabular, acceleration, Excel, and plot backends."
     }
     else {
         "Base/web profiles exclude the viewer runtime stack to keep packaged builds lean."
@@ -1046,26 +1047,6 @@ function Write-DependencyMatrix {
             packaged_runtime_behavior = if ($isFullProfile) { "Full profile bundles the PyQtGraph plot backend and fails the build when missing." } else { "Plot backend support is bundled only when PyQtGraph is present in the build environment." }
             packaging_policy = if ($isFullProfile) { "Full profile required dependency; missing install fails the build." } else { "Optional include; bundled only if present in build environment." }
             operator_action = if ($isFullProfile) { "Install the all/dev dependency stack before running a full-profile package build." } else { "Install the viewer extra before packaging when plot workflows are required." }
-        },
-        [PSCustomObject]@{
-            package_profile = $Profile
-            dependency_group = "ansys"
-            dependency = "ansys-dpf-core"
-            build_env_installed = $Availability.ansys_dpf_core
-            source_runtime_behavior = "PyDPF runtime services remain optional until a DPF-backed workflow executes."
-            packaged_runtime_behavior = if ($isFullProfile) { "Full profile bundles ansys-dpf-core and fails the build when missing." } else { "Ansys DPF is excluded from base, viewer, and web package profiles." }
-            packaging_policy = if ($isFullProfile) { "Full profile required dependency; missing install fails the build." } else { "Excluded from base/viewer/web package profiles." }
-            operator_action = if ($isFullProfile) { "Install the all/dev dependency stack before running a full-profile package build." } else { "Install the ansys extra for source workflows, or build the full package profile." }
-        },
-        [PSCustomObject]@{
-            package_profile = $Profile
-            dependency_group = "ansys"
-            dependency = "ansys-dpf-post"
-            build_env_installed = $Availability.ansys_dpf_post
-            source_runtime_behavior = "PyDPF post helpers are part of the Ansys optional runtime stack."
-            packaged_runtime_behavior = if ($isFullProfile) { "Full profile bundles ansys-dpf-post and fails the build when missing." } else { "Ansys post helpers are bundled only when present in the build environment." }
-            packaging_policy = if ($isFullProfile) { "Full profile required dependency; missing install fails the build." } else { "Optional include; bundled only if present in build environment." }
-            operator_action = if ($isFullProfile) { "Install the all/dev dependency stack before running a full-profile package build." } else { "Install the ansys extra before packaging when Ansys workflows are required." }
         },
         [PSCustomObject]@{
             package_profile = $Profile

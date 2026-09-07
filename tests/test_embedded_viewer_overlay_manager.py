@@ -10,7 +10,7 @@ from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QWidget
 
-from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
+from ea_node_editor.nodes.builtins.engineering_viewer import ENGINEERING_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import (
     NodeRenderQualitySpec,
@@ -45,7 +45,7 @@ def _viewer_overlay_spec() -> NodeTypeSpec:
         category_path=("Tests",),
         icon="",
         ports=(
-            PortSpec("fields", "in", "data", 'COREX.Ansys.DPF.Field', required=False),
+            PortSpec("scene", "in", "data", "COREX.Engineering.Scene", required=False),
             PortSpec("session", "out", "data", 'COREX.Viewer.Session'),
         ),
         properties=(),
@@ -160,7 +160,7 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self.app.processEvents()
         return node_id
 
-    def _add_dpf_viewer_node(
+    def _add_viewer_node(
         self,
         *,
         x: float = 160.0,
@@ -168,7 +168,7 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         width: float = 360.0,
         height: float = 280.0,
     ) -> str:
-        node_id = self.window.scene.add_node_from_type(DPF_VIEWER_NODE_TYPE_ID, x=x, y=y)
+        node_id = self.window.scene.add_node_from_type(ENGINEERING_VIEWER_NODE_TYPE_ID, x=x, y=y)
         self.window.scene.resize_node(node_id, width, height)
         self.window.view.set_view_state(1.0, x + (width * 0.5), y + (height * 0.5))
         self.app.processEvents()
@@ -402,7 +402,7 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
             transform_sync_spy.assert_called_once_with()
             root_viewport_geometry_spy.assert_not_called()
         self.assertTrue(container.isVisible())
-        self._assert_rect_close(container, node_id)
+        self._assert_rect_close(container, node_id, delta=2.0)
         self.assertEqual(widget.geometry(), container.rect())
 
     def test_live_overlay_geometry_tracks_rendered_node_position_changes(self) -> None:
@@ -615,7 +615,7 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
 
     def test_content_fullscreen_target_moves_live_overlay_to_shell_viewport_and_restores(self) -> None:
         self.window.viewer_host_service.suspend_sync(reason="manager_content_fullscreen_geometry_test")
-        node_id = self._add_dpf_viewer_node()
+        node_id = self._add_viewer_node()
         widget = self._activate_overlay(node_id)
         container = self.manager.overlay_container(node_id, workspace_id=self.workspace_id)
         self.assertIsNotNone(container)

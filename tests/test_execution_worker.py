@@ -16,16 +16,6 @@ from ea_node_editor.common.optimization_links import (
     PARAMETER_SETUP_PARAMETER_POOL_LINK_ID,
     PARAMETER_SETUP_PARAMETER_POOL_LINK_TITLE,
 )
-from ea_node_editor.execution.dpf_runtime.contracts import DpfMaterializationResult
-from ea_node_editor.nodes.ansys_dpf_data_types import (
-    DPF_FIELDS_CONTAINER_HANDLE_KIND,
-    DPF_MODEL_HANDLE_KIND,
-    DPF_VIEWER_DATASET_HANDLE_KIND,
-)
-from ea_node_editor.execution.dpf_runtime.viewer_session_backend import (
-    DpfViewerSessionMaterializationBackend,
-    ViewerSessionMaterializationRequest,
-)
 from ea_node_editor.execution.backends import (
     TRUSTED_IN_PROCESS_BACKEND,
     ExecutionBackendSelection,
@@ -71,11 +61,6 @@ from ea_node_editor.execution.viewer_backend import ViewerBackendQueryResult
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.records import NodeLinkRecord
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.ansys_dpf_data_types import (
-    DPF_FIELDS_CONTAINER_DATA_TYPE,
-    DPF_MODEL_DATA_TYPE,
-    DPF_VIEWER_DATASET_DATA_TYPE,
-)
 from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.output_artifacts import register_staged_artifact
 from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
@@ -91,6 +76,7 @@ from ea_node_editor.runtime_contracts import (
     PATH_DATA_TYPE_ID,
     TABULAR_DATA_REF_TYPE_ID,
     ArrayDataRef,
+    ENGINEERING_SCENE_DATA_TYPE_ID,
     DataTypeCatalog,
     DataTypeFamilySpec,
     DataTypeSpec,
@@ -99,10 +85,9 @@ from ea_node_editor.runtime_contracts import (
     RuntimeHandleRef,
     TabularDataRef,
 )
-from tests.typed_handle_support import dpf_worker_services
+from tests.typed_handle_support import core_worker_services
+from ea_node_editor.common.scene_protocol import COREX_SCENE_HANDLE_KIND
 
-_WAIT_NODE_ENTERED = threading.Event()
-_WAIT_NODE_RELEASE = threading.Event()
 _TEST_HANDLE_TYPE_ID = "tests.Runtime.Payload"
 _TEST_HANDLE_KIND = "tests.payload"
 _TEST_START_CATALOGS = {}
@@ -430,69 +415,6 @@ class _PersistentHandleSourcePlugin:
 
 
 @node_type(
-    type_id="tests.viewer_source",
-    display_name="Viewer Source",
-    category_path=("Tests",),
-    icon="image",
-    ports=(
-        PortSpec(
-            "fields_container",
-            "out",
-            "data",
-            DPF_FIELDS_CONTAINER_DATA_TYPE,
-            exposed=True,
-        ),
-        PortSpec("model", "out", "data", DPF_MODEL_DATA_TYPE, exposed=True),
-    ),
-    properties=(),
-)
-class _ViewerSourcePlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        fields_ref = ctx.register_handle(
-            {"viewer": "fields"},
-            data_type_id=DPF_FIELDS_CONTAINER_DATA_TYPE,
-            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
-        )
-        model_ref = ctx.register_handle(
-            {"viewer": "model"},
-            data_type_id=DPF_MODEL_DATA_TYPE,
-            kind=DPF_MODEL_HANDLE_KIND,
-        )
-        return NodeResult(
-            outputs={
-                "fields_container": fields_ref,
-                "model": model_ref,
-            }
-        )
-
-
-@node_type(
-    type_id="tests.viewer_wait",
-    display_name="Viewer Wait",
-    category_path=("Tests",),
-    icon="hourglass",
-    ports=(
-        PortSpec(
-            "dependency",
-            "in",
-            "data",
-            DPF_FIELDS_CONTAINER_DATA_TYPE,
-            required=True,
-        ),
-    ),
-    properties=(),
-)
-class _ViewerWaitPlugin:
-    def execute(self, ctx: ExecutionContext) -> NodeResult:
-        _WAIT_NODE_ENTERED.set()
-        deadline = time.time() + 15.0
-        while not _WAIT_NODE_RELEASE.is_set() and time.time() < deadline:
-            ctx.should_stop()
-            time.sleep(0.01)
-        return NodeResult()
-
-
-@node_type(
     type_id="tests.handle_sink",
     display_name="Handle Sink",
     category_path=("Tests",),
@@ -675,130 +597,6 @@ class ExecutionWorkerTests(unittest.TestCase):
                 return event
         return None
 
-    def _fake_viewer_materialize(
-        self,
-        worker_services: WorkerServices,
-        calls: list[dict[str, object]],
-    ):
-        def _materialize(
-            value,  # noqa: ANN001
-            *,
-            model,  # noqa: ANN001
-            mesh=None,  # noqa: ANN001
-            output_profile: str,
-            artifact_store=None,  # noqa: ANN001
-            artifact_key: str = "",
-            export_formats=(),  # noqa: ANN001
-            camera_state=None,  # noqa: ANN001
-            temporary_root_parent=None,  # noqa: ANN001
-            run_id: str = "",
-            owner_scope: str = "",
-            **extra_kwargs,  # noqa: ANN003
-        ) -> DpfMaterializationResult:
-            worker_services.resolve_handle(
-                value, expected_kind=DPF_FIELDS_CONTAINER_HANDLE_KIND
-            )
-            worker_services.resolve_handle(model, expected_kind=DPF_MODEL_HANDLE_KIND)
-            calls.append(
-                {
-                    "fields_owner_scope": value.owner_scope,
-                    "model_owner_scope": model.owner_scope,
-                    "artifact_key": artifact_key,
-                    "output_profile": output_profile,
-                    "export_formats": tuple(export_formats),
-                    "artifact_store_present": artifact_store is not None,
-                    "camera_state": dict(camera_state or {})
-                    if isinstance(camera_state, dict)
-                    else camera_state,
-                    "temporary_root_parent": temporary_root_parent,
-                    "run_id": run_id,
-                    "owner_scope": owner_scope,
-                    "extra_kwargs": dict(extra_kwargs),
-                }
-            )
-
-            dataset_ref = None
-            if output_profile in {"memory", "both"}:
-                dataset_ref = worker_services.register_handle(
-                    {"dataset": "viewer"},
-                    data_type_id=DPF_VIEWER_DATASET_DATA_TYPE,
-                    kind=DPF_VIEWER_DATASET_HANDLE_KIND,
-                    owner_scope=owner_scope or "cache:tests:viewer_dataset",
-                    metadata={"dataset_type": "fake_dataset", "array_names": ["U"]},
-                )
-            artifacts = {}
-            if output_profile in {"stored", "both"}:
-                artifacts["png"] = RuntimeArtifactRef.staged(
-                    "worker_viewer_png",
-                    data_type_id=PATH_DATA_TYPE_ID,
-                    schema_version=1,
-                    format="png",
-                    size_bytes=0,
-                    sha256="0" * 64,
-                    provenance="corex.test.fixture",
-                )
-            return DpfMaterializationResult(
-                output_profile=output_profile,
-                dataset_ref=dataset_ref,
-                artifacts=artifacts,
-                summary={"output_profile": output_profile, "field_count": 1},
-            )
-
-        return _materialize
-
-    @staticmethod
-    def _fake_viewer_transport_bundle(
-        _value,  # noqa: ANN001
-        *,
-        model,  # noqa: ANN001
-        bundle_root,
-        mesh=None,  # noqa: ANN001
-        workspace_id: str = "",
-        session_id: str = "",
-        transport_revision: int = 0,
-    ) -> dict[str, object]:
-        root_path = Path(bundle_root)
-        dataset_dir = root_path / "dataset"
-        dataset_dir.mkdir(parents=True, exist_ok=True)
-        entry_file = "dataset/dataset.vtm"
-        entry_path = root_path / entry_file
-        entry_path.write_text("worker fake transport bundle", encoding="utf-8")
-        manifest_path = root_path / "transport_manifest.json"
-        manifest_path.write_text(
-            json.dumps(
-                {
-                    "schema": "ea.dpf.viewer_transport_bundle.v1",
-                    "workspace_id": workspace_id,
-                    "session_id": session_id,
-                    "transport_revision": transport_revision,
-                    "entry_file": entry_file,
-                    "files": [entry_file],
-                    "metadata": {
-                        "model": repr(model),
-                        "has_mesh": mesh is not None,
-                    },
-                },
-                ensure_ascii=True,
-                indent=2,
-                sort_keys=True,
-            ),
-            encoding="utf-8",
-        )
-        return {
-            "kind": "dpf_transport_bundle",
-            "version": 1,
-            "schema": "ea.dpf.viewer_transport_bundle.v1",
-            "manifest_path": str(manifest_path),
-            "bundle_root": str(root_path),
-            "entry_file": entry_file,
-            "entry_path": str(entry_path),
-            "files": [entry_file],
-            "metadata": {
-                "model": repr(model),
-                "has_mesh": mesh is not None,
-            },
-        }
-
     def test_run_workflow_completes(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
@@ -930,68 +728,6 @@ class ExecutionWorkerTests(unittest.TestCase):
             and event.get("reason") == "catalog_mismatch"
         )
         self.assertEqual(run_state.get("reason"), "catalog_mismatch")
-
-    def test_dpf_viewer_alias_requires_semantic_type_and_handle_kind(self) -> None:
-        registry = build_default_registry()
-        services = WorkerServices()
-        services.bind_data_types(registry.data_types)
-        fields_ref = RuntimeHandleRef(
-            data_type_id=DPF_FIELDS_CONTAINER_DATA_TYPE,
-            schema_version=1,
-            handle_id="fields_valid",
-            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
-            owner_scope="run:viewer_alias",
-            worker_generation=1,
-        )
-        spoofed_ref = RuntimeHandleRef(
-            data_type_id=DPF_MODEL_DATA_TYPE,
-            schema_version=1,
-            handle_id="fields_spoofed",
-            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
-            owner_scope="run:viewer_alias",
-            worker_generation=1,
-        )
-        wrong_kind_ref = RuntimeHandleRef(
-            data_type_id=DPF_FIELDS_CONTAINER_DATA_TYPE,
-            schema_version=1,
-            handle_id="fields_wrong_kind",
-            kind=DPF_MODEL_HANDLE_KIND,
-            owner_scope="run:viewer_alias",
-            worker_generation=1,
-        )
-        command = OpenViewerSessionCommand(
-            request_id="viewer_alias",
-            workspace_id="ws_main",
-            node_id="node_viewer",
-            session_id="session_alias",
-            data_refs={
-                "fields": spoofed_ref,
-                "field_data": fields_ref,
-                "result": wrong_kind_ref,
-            },
-        )
-        event_queue: queue.Queue = queue.Queue()
-
-        with mock.patch.object(
-            services.viewer_session_service,
-            "handle_command",
-            return_value=ViewerSessionOpenedEvent(
-                request_id="viewer_alias",
-                workspace_id="ws_main",
-                node_id="node_viewer",
-                session_id="session_alias",
-            ),
-        ) as handle_command:
-            dispatch_viewer_command(
-                command,
-                event_queue=event_queue,
-                worker_services=services,
-            )
-
-        normalized = handle_command.call_args.args[0]
-        self.assertEqual(normalized.data_refs["fields"], spoofed_ref)
-        self.assertEqual(normalized.data_refs["fields_container"], fields_ref)
-        self.assertEqual(normalized.data_refs["result"], wrong_kind_ref)
 
     def test_worker_viewer_catch_all_failure_preserves_invalidation_epochs(self) -> None:
         services = WorkerServices()
@@ -1229,7 +965,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             )
             addon_payload = json.loads(json.dumps(builtin_payload))
             addon_payload["workspaces"][0]["nodes"][0]["type_id"] = (
-                "dpf.workflow.result_fields"
+                "tabular.input"
             )
             builtin_registry = cache.default_registry(command.addon_runtime_config)
             addon_registry = cache.default_registry(command.addon_runtime_config)
@@ -1255,7 +991,7 @@ class ExecutionWorkerTests(unittest.TestCase):
         self.assertIs(builtin_registry, addon_registry)
         self.assertIs(addon_prepared.registry, prepared.registry)
         self.assertIsNotNone(
-            addon_prepared.registry.spec_or_none("dpf.workflow.result_fields")
+            addon_prepared.registry.spec_or_none("tabular.input")
         )
         self.assertEqual(
             builtin_registry.data_types.fingerprint(),
@@ -2572,325 +2308,6 @@ def run(ctx):
         with self.assertRaisesRegex(StaleHandleError, "worker_generation is stale"):
             worker_services.resolve_handle(persistent_ref)
 
-    def test_worker_main_routes_viewer_commands_during_run_and_after_completion(
-        self,
-    ) -> None:
-        _WAIT_NODE_ENTERED.clear()
-        _WAIT_NODE_RELEASE.clear()
-        command_queue: queue.Queue = queue.Queue()
-        event_queue: queue.Queue = queue.Queue()
-        worker_services = dpf_worker_services()
-        registry = build_default_registry()
-        materialize_calls: list[dict[str, object]] = []
-        thread: threading.Thread | None = None
-
-        model = GraphModel()
-        ws = model.active_workspace
-        source = model.add_node(
-            ws.workspace_id, "tests.viewer_source", "Viewer Source", 120, 0
-        )
-        wait_node = model.add_node(
-            ws.workspace_id, "tests.viewer_wait", "Viewer Wait", 260, 0
-        )
-        model.add_edge(
-            ws.workspace_id,
-            source.node_id,
-            "fields_container",
-            wait_node.node_id,
-            "dependency",
-        )
-
-        registry = build_default_registry()
-        registry.register(_ViewerSourcePlugin)
-        registry.register(_ViewerWaitPlugin)
-        runtime_snapshot = self._runtime_snapshot(model, registry=registry)
-
-        with mock.patch(
-            "ea_node_editor.nodes.bootstrap.build_default_registry",
-            return_value=registry,
-        ):
-            with (
-                mock.patch.object(
-                    worker_services.dpf_runtime_service,
-                    "materialize_viewer_dataset",
-                    side_effect=self._fake_viewer_materialize(
-                        worker_services, materialize_calls
-                    ),
-                ),
-                mock.patch.object(
-                    worker_services.dpf_runtime_service,
-                    "export_viewer_transport_bundle",
-                    side_effect=self._fake_viewer_transport_bundle,
-                ),
-            ):
-                thread = threading.Thread(
-                    target=worker_main,
-                    args=(command_queue, event_queue),
-                    kwargs={"worker_services": worker_services},
-                    daemon=True,
-                )
-                thread.start()
-                collected_events: list[dict[str, object]] = []
-                try:
-                    command_queue.put(
-                        command_to_dict(
-                            StartRunCommand(
-                                run_id="run_viewer_worker",
-                                workspace_id=ws.workspace_id,
-                                runtime_snapshot=runtime_snapshot,
-                                plugin_bundles=registry.plugin_bundle_refs(),
-                                plugin_fingerprint=registry.plugin_fingerprint(),
-                                registry_contract_fingerprint=(
-                                    registry.contract_fingerprint()
-                                ),
-                                addon_runtime_config=registry.addon_runtime_config(),
-                            ),
-                            catalog=registry.data_types,
-                        )
-                    )
-
-                    source_completed = self._wait_for_event(
-                        event_queue,
-                        lambda event: (
-                            str(event.get("type", "")) == "node_settled"
-                            and str(event.get("node_id", "")) == source.node_id
-                        ),
-                        timeout=6.0,
-                        collected=collected_events,
-                    )
-                    self.assertIsNotNone(source_completed)
-                    self.assertTrue(_WAIT_NODE_ENTERED.wait(timeout=6.0))
-                    if source_completed is None:
-                        self.fail(
-                            "Expected viewer source outputs before sending session commands"
-                        )
-
-                    fields_ref = self._settled_output_value(
-                        source_completed,
-                        "fields_container",
-                        catalog=registry.data_types,
-                    )
-                    model_ref = self._settled_output_value(
-                        source_completed,
-                        "model",
-                        catalog=registry.data_types,
-                    )
-
-                    open_command = OpenViewerSessionCommand(
-                        request_id="viewer_req_open",
-                        workspace_id=ws.workspace_id,
-                        node_id="node_viewer",
-                        session_id="session_worker",
-                        backend_id="dpf_embedded",
-                        data_refs={"fields_container": fields_ref, "model": model_ref},
-                        summary={"result_name": "displacement"},
-                        options={"live_mode": "full"},
-                        workspace_invalidation_epoch=1,
-                    )
-                    transported = dict_to_command(
-                        command_to_dict(open_command, catalog=registry.data_types),
-                        catalog=registry.data_types,
-                    )
-                    self.assertEqual(
-                        worker_services.resolve_handle(
-                            transported.data_refs["fields_container"],
-                            expected_kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
-                        ),
-                        {"viewer": "fields"},
-                    )
-                    command_queue.put(
-                        command_to_dict(open_command, catalog=registry.data_types)
-                    )
-                    opened = self._wait_for_event(
-                        event_queue,
-                        lambda event: (
-                            str(event.get("type", "")) == "viewer_session_opened"
-                        ),
-                        timeout=6.0,
-                        collected=collected_events,
-                    )
-                    self.assertIsNotNone(opened)
-                    if opened is None:
-                        self.fail("Expected viewer_session_opened event")
-                    self.assertEqual(opened["backend_id"], "dpf_embedded")
-                    self.assertEqual(opened["live_open_status"], "blocked")
-                    self.assertEqual(opened["summary"]["cache_state"], "proxy_ready")
-                    self.assertEqual(opened["options"]["session_state"], "open")
-                    self.assertEqual(opened["options"]["live_mode"], "proxy")
-                    viewer_owner_scope = worker_services.viewer_session_service._sessions[  # noqa: SLF001
-                        (ws.workspace_id, "session_worker")
-                    ].owner_scope
-
-                    command_queue.put(
-                        command_to_dict(
-                            UpdateViewerSessionCommand(
-                                request_id="viewer_req_update",
-                                workspace_id=ws.workspace_id,
-                                node_id="node_viewer",
-                                session_id="session_worker",
-                                summary={"camera": {"zoom": 1.1}},
-                                options={"selection": {"set_ids": [3]}},
-                                workspace_invalidation_epoch=1,
-                            ),
-                            catalog=registry.data_types,
-                        )
-                    )
-                    updated = self._wait_for_event(
-                        event_queue,
-                        lambda event: (
-                            str(event.get("type", "")) == "viewer_session_updated"
-                        ),
-                        timeout=6.0,
-                        collected=collected_events,
-                    )
-                    self.assertIsNotNone(updated)
-
-                    _WAIT_NODE_RELEASE.set()
-                    completed = self._wait_for_event(
-                        event_queue,
-                        lambda event: (
-                            str(event.get("type", "")) == "run_completed"
-                            and str(event.get("run_id", "")) == "run_viewer_worker"
-                        ),
-                        timeout=6.0,
-                        collected=collected_events,
-                    )
-                    self.assertIsNotNone(completed)
-                    if completed is None:
-                        self.fail("Expected run completion after releasing wait node")
-
-                    with self.assertRaisesRegex(
-                        StaleHandleError,
-                        "owner_scope is stale",
-                    ):
-                        worker_services.resolve_handle(fields_ref)
-                    with self.assertRaisesRegex(
-                        StaleHandleError,
-                        "owner_scope is stale",
-                    ):
-                        worker_services.resolve_handle(model_ref)
-
-                    command_queue.put(
-                        command_to_dict(
-                            MaterializeViewerDataCommand(
-                                request_id="viewer_req_materialize",
-                                workspace_id=ws.workspace_id,
-                                node_id="node_viewer",
-                                session_id="session_worker",
-                                options={
-                                    "output_profile": "both",
-                                    "export_formats": ["png"],
-                                },
-                                workspace_invalidation_epoch=1,
-                            ),
-                            catalog=registry.data_types,
-                        )
-                    )
-                    materialized = self._wait_for_event(
-                        event_queue,
-                        lambda event: (
-                            str(event.get("type", "")) == "viewer_data_materialized"
-                        ),
-                        timeout=6.0,
-                        collected=collected_events,
-                    )
-                    self.assertIsNotNone(materialized)
-                    if materialized is None:
-                        self.fail("Expected viewer_data_materialized event")
-                    self.assertEqual(len(materialize_calls), 1)
-                    self.assertEqual(materialize_calls[0]["output_profile"], "both")
-                    self.assertEqual(
-                        materialize_calls[0]["artifact_key"],
-                        "node_viewer_session_worker",
-                    )
-                    self.assertEqual(
-                        materialize_calls[0]["camera_state"], {"zoom": 1.1}
-                    )
-                    self.assertEqual(
-                        materialize_calls[0]["fields_owner_scope"],
-                        viewer_owner_scope,
-                    )
-                    self.assertEqual(
-                        materialize_calls[0]["model_owner_scope"],
-                        viewer_owner_scope,
-                    )
-                    self.assertIn("dataset", materialized["data_refs"])
-                    self.assertIn("png", materialized["data_refs"])
-                    self.assertEqual(materialized["backend_id"], "dpf_embedded")
-                    self.assertEqual(
-                        materialized["transport"]["kind"], "dpf_transport_bundle"
-                    )
-                    self.assertTrue(
-                        Path(materialized["transport"]["manifest_path"]).is_file()
-                    )
-                    self.assertTrue(
-                        Path(materialized["transport"]["entry_path"]).is_file()
-                    )
-                    self.assertGreaterEqual(int(materialized["transport_revision"]), 1)
-                    self.assertEqual(materialized["live_open_status"], "ready")
-                    self.assertEqual(
-                        materialized["summary"]["cache_state"], "live_ready"
-                    )
-                    self.assertEqual(
-                        materialized["summary"]["transport_revision"],
-                        materialized["transport_revision"],
-                    )
-                    self.assertEqual(
-                        materialized["options"]["transport_revision"],
-                        materialized["transport_revision"],
-                    )
-
-                    opened_index = next(
-                        index
-                        for index, event in enumerate(collected_events)
-                        if str(event.get("type", "")) == "viewer_session_opened"
-                    )
-                    updated_index = next(
-                        index
-                        for index, event in enumerate(collected_events)
-                        if str(event.get("type", "")) == "viewer_session_updated"
-                    )
-                    completed_index = next(
-                        index
-                        for index, event in enumerate(collected_events)
-                        if str(event.get("type", "")) == "run_completed"
-                        and str(event.get("run_id", "")) == "run_viewer_worker"
-                    )
-                    self.assertLess(opened_index, completed_index)
-                    self.assertLess(updated_index, completed_index)
-
-                    command_queue.put(
-                        command_to_dict(
-                            CloseViewerSessionCommand(
-                                request_id="viewer_req_close",
-                                workspace_id=ws.workspace_id,
-                                node_id="node_viewer",
-                                session_id="session_worker",
-                                options={
-                                    "reason": "node_hidden",
-                                    "release_handles": True,
-                                },
-                                workspace_invalidation_epoch=1,
-                            ),
-                            catalog=registry.data_types,
-                        )
-                    )
-                    closed = self._wait_for_event(
-                        event_queue,
-                        lambda event: (
-                            str(event.get("type", "")) == "viewer_session_closed"
-                        ),
-                        timeout=6.0,
-                        collected=collected_events,
-                    )
-                    self.assertIsNotNone(closed)
-                finally:
-                    _WAIT_NODE_RELEASE.set()
-                    command_queue.put(command_to_dict(ShutdownCommand()))
-                    if thread is not None:
-                        thread.join(timeout=6.0)
-                        self.assertFalse(thread.is_alive())
-
     def test_worker_main_routes_serializable_viewer_query_command_and_result(
         self,
     ) -> None:
@@ -2966,7 +2383,7 @@ def run(ctx):
     def test_worker_main_invalidates_cached_viewer_sessions_on_rerun(self) -> None:
         command_queue: queue.Queue = queue.Queue()
         event_queue: queue.Queue = queue.Queue()
-        worker_services = dpf_worker_services()
+        worker_services = core_worker_services()
         registry = build_default_registry()
 
         model = GraphModel()
@@ -2975,14 +2392,14 @@ def run(ctx):
 
         fields_ref = worker_services.register_handle(
             {"viewer": "fields"},
-            data_type_id=DPF_FIELDS_CONTAINER_DATA_TYPE,
-            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+            data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
+            kind=COREX_SCENE_HANDLE_KIND,
             owner_scope="cache:tests:viewer_fields",
         )
         model_ref = worker_services.register_handle(
             {"viewer": "model"},
-            data_type_id=DPF_MODEL_DATA_TYPE,
-            kind=DPF_MODEL_HANDLE_KIND,
+            data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
+            kind=COREX_SCENE_HANDLE_KIND,
             owner_scope="cache:tests:viewer_model",
         )
 
@@ -3130,49 +2547,11 @@ def run(ctx):
         self.assertIn("emit_run_preflight_accepted", source)
         self.assertNotIn("invalidate_existing=True", source)
 
-    def test_worker_protocol_normalizes_legacy_dpf_fields_alias_before_viewer_session(
-        self,
-    ) -> None:
-        event_queue: queue.Queue = queue.Queue()
-        worker_services = dpf_worker_services()
-        fields_ref = worker_services.register_handle(
-            {"viewer": "fields"},
-            data_type_id=DPF_FIELDS_CONTAINER_DATA_TYPE,
-            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
-            owner_scope="run:viewer_alias",
-        )
-        model_ref = worker_services.register_handle(
-            {"viewer": "model"},
-            data_type_id=DPF_MODEL_DATA_TYPE,
-            kind=DPF_MODEL_HANDLE_KIND,
-            owner_scope="run:viewer_alias",
-        )
-
-        dispatch_viewer_command(
-            OpenViewerSessionCommand(
-                request_id="viewer_alias_open",
-                workspace_id="ws_main",
-                node_id="node_viewer",
-                session_id="session_alias",
-                data_refs={"fields": fields_ref, "model": model_ref},
-            ),
-            event_queue=event_queue,
-            worker_services=worker_services,
-        )
-
-        opened = event_queue.get_nowait()
-        self.assertEqual(opened["type"], "viewer_session_opened")
-        record = worker_services.viewer_session_service._sessions[
-            ("ws_main", "session_alias")
-        ]  # noqa: SLF001
-        self.assertIn("fields_container", record.source_refs)
-        self.assertNotIn("fields", record.source_refs)
-
     def test_worker_protocol_reports_viewer_close_cleanup_failure_then_allows_retry(
         self,
     ) -> None:
         event_queue: queue.Queue = queue.Queue()
-        worker_services = dpf_worker_services()
+        worker_services = core_worker_services()
         disposed: list[str] = []
 
         def fail_disposal() -> None:
@@ -3181,15 +2560,15 @@ def run(ctx):
 
         fields_ref = worker_services.register_handle(
             {"viewer": "fields"},
-            data_type_id=DPF_FIELDS_CONTAINER_DATA_TYPE,
-            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+            data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
+            kind=COREX_SCENE_HANDLE_KIND,
             run_id="run_close_failure",
             dispose=fail_disposal,
         )
         model_ref = worker_services.register_handle(
             {"viewer": "model"},
-            data_type_id=DPF_MODEL_DATA_TYPE,
-            kind=DPF_MODEL_HANDLE_KIND,
+            data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
+            kind=COREX_SCENE_HANDLE_KIND,
             run_id="run_close_failure",
             dispose=lambda: disposed.append("successful"),
         )
@@ -3238,38 +2617,6 @@ def run(ctx):
         self.assertEqual(closed["type"], "viewer_session_closed")
         self.assertEqual(closed["options"]["session_state"], "closed")
         self.assertCountEqual(disposed, ["failed", "successful"])
-
-    def test_dpf_viewer_backend_requires_canonical_fields_container_source_key(
-        self,
-    ) -> None:
-        worker_services = dpf_worker_services()
-        backend = DpfViewerSessionMaterializationBackend(worker_services)
-        fields_ref = worker_services.register_handle(
-            {"viewer": "fields"},
-            data_type_id=DPF_FIELDS_CONTAINER_DATA_TYPE,
-            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
-            owner_scope="cache:viewer_session:ws_main:session_alias",
-        )
-        model_ref = worker_services.register_handle(
-            {"viewer": "model"},
-            data_type_id=DPF_MODEL_DATA_TYPE,
-            kind=DPF_MODEL_HANDLE_KIND,
-            owner_scope="cache:viewer_session:ws_main:session_alias",
-        )
-
-        with self.assertRaisesRegex(ValueError, "missing cached fields/model refs"):
-            backend.materialize(
-                ViewerSessionMaterializationRequest(
-                    workspace_id="ws_main",
-                    node_id="node_viewer",
-                    session_id="session_alias",
-                    owner_scope="cache:viewer_session:ws_main:session_alias",
-                    source_refs={"fields": fields_ref, "model": model_ref},
-                    session_options={},
-                    request_options={},
-                    output_profile="memory",
-                )
-            )
 
     def test_run_workflow_runs_ready_isolated_active_nodes(self) -> None:
         model = GraphModel()

@@ -164,15 +164,10 @@ COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_DOC = (
 )
 COREX_NOVICE_PLUGIN_SDK_FOCUSED_PYTEST_COMMAND = (
     r".\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py "
-    r"tests/test_non_dpf_node_documentation.py tests/test_corex_contract_catalog.py "
+    r"tests/test_repo_owned_node_documentation.py tests/test_corex_contract_catalog.py "
     r"tests/test_node_title_icon_assets.py tests/test_builtin_function_migration.py "
     r"tests/test_remaining_builtin_function_migration.py tests/test_architecture_boundaries.py "
     r"tests/test_dead_code_hygiene.py --ignore=venv -q"
-)
-COREX_NOVICE_PLUGIN_SDK_DPF_PYTEST_COMMAND = (
-    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_operator_catalog_asset.py "
-    r"tests/test_dpf_node_catalog.py tests/test_dpf_generated_operator_catalog.py "
-    r"tests/test_dpf_compute_nodes.py --ignore=venv -q"
 )
 COREX_NOVICE_PLUGIN_SDK_HYGIENE_PYTEST_COMMAND = (
     r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py "
@@ -995,6 +990,7 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
         coverage_kind="method_targets",
         owner_name="ScriptEditorDockTests",
         covered_names=(
+            "test_canvas_port_edits_preserve_dirty_drafts_and_refresh_clean_editor",
             "test_script_editor_binds_to_selected_python_script_node",
             "test_script_editor_state_persists_in_metadata",
             "test_script_editor_exposes_cursor_diagnostics_and_dirty_state",
@@ -1208,7 +1204,6 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
             "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
             "dedicated fresh-process shell-isolation phase",
             "ea_node_editor.bootstrap",
-            "descriptor-first",
             SHELL_ISOLATION_SPEC.test_path,
             "proof-audit command",
             "SHELL_ISOLATION_CATALOG_SPECS",
@@ -1266,17 +1261,12 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
             "COREX_NO_LEGACY_ARCHITECTURE_CLEANUP_QA_MATRIX.md",
             "ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md",
             "PROJECT_MANAGED_FILES_QA_MATRIX.md",
-            "PYDPF_VIEWER_V1_QA_MATRIX.md",
             "COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md",
             "PLUGIN_AUTHORING_GUIDE.md",
             "PLUGIN_MIGRATION_GUIDE.md",
-            "closeout evidence only",
             "historical pointer",
         ),
-        forbidden=(
-            "work_packets/pydpf_viewer_v1/PYDPF_VIEWER_V1_MANIFEST.md",
-            "work_packets/pydpf_viewer_v1/PYDPF_VIEWER_V1_STATUS.md",
-        ),
+        forbidden=(),
     ),
     PACKAGING_WINDOWS_DOC: DocumentRule(
         required=(
@@ -1445,7 +1435,7 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
     ),
     "REQ-QA-055": (
         COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_DOC,
-        "936-type migration inventory",
+        "139-type migration inventory",
         "17-name public export set",
         "full summarized verification",
         "Windows package smoke",
@@ -1477,9 +1467,8 @@ NOVICE_PLUGIN_SDK_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
         "REQ-NODE-050": (
             "17 public names",
             "literal-only AST discovery",
-            "68-function",
+            "76-function",
             "53-trusted-exception",
-            "805-DPF-exclusion",
         ),
         "AC-REQ-NODE-050-01": ("exact 17-name export set", "hostile-source non-execution"),
     },
@@ -2039,13 +2028,11 @@ TRACEABILITY_ROW_REQUIRED_TOKENS.update(
         "REQ-QA-055": (
             "PLAN_COREX_NOVICE_PLUGIN_SDK.md",
             "COREX_NOVICE_PLUGIN_SDK_MIGRATION_INVENTORY.md",
-            "pre_cutover_non_dpf_catalog.json",
-            "current_non_dpf_contract_overlay.json",
+            "current_repo_owned_catalog.json",
             "COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md",
         ),
         "AC-REQ-QA-055-01": (
             COREX_NOVICE_PLUGIN_SDK_FOCUSED_PYTEST_COMMAND,
-            COREX_NOVICE_PLUGIN_SDK_DPF_PYTEST_COMMAND,
             COREX_NOVICE_PLUGIN_SDK_HYGIENE_PYTEST_COMMAND,
             COREX_NOVICE_PLUGIN_SDK_FULL_COMMAND,
             COREX_NOVICE_PLUGIN_SDK_PACKAGE_COMMAND,
@@ -2073,42 +2060,30 @@ TRACEABILITY_ROW_FORBIDDEN_TOKENS = {
     ),
 }
 
-COREX_NOVICE_PLUGIN_SDK_PASSED_GATES = (
+COREX_NOVICE_PLUGIN_SDK_PASSED_GATES: tuple[str, ...] = ()
+COREX_NOVICE_PLUGIN_SDK_TRANSITIONAL_GATES = (
     "Full summarized verification",
     "Clean base Windows package",
-)
-COREX_NOVICE_PLUGIN_SDK_TRANSITIONAL_GATES = (
     "Independent final diff/evidence review",
 )
 COREX_NOVICE_PLUGIN_SDK_QA_MATRIX_REQUIRED_TOKENS = (
     "COREX Novice Function Plugin SDK QA Matrix",
     "## Locked Scope",
-    "## Frozen Inventory",
+    "## Current Inventory",
     "17 public `corex` exports",
-    "936 classified type IDs",
+    "139 classified type IDs",
     "78 converted type IDs",
     "53 trusted internal exceptions",
-    "805 DPF exclusions",
-    "133 frozen non-DPF catalog rows",
-    "current_non_dpf_contract_overlay.json",
+    "current_repo_owned_catalog.json",
     "surface_with_edges",
-    "68 reserved built-in function entries",
-    "## T01-T16 Accepted Commits",
-    "bc58d7c7",
-    "eb7a1097",
+    "76 reserved built-in function entries",
     "## Public Documentation And Examples",
     "docs/PLUGIN_AUTHORING_GUIDE.md",
     "docs/PLUGIN_MIGRATION_GUIDE.md",
     "docs/examples/signal_plot_function_plugin.py",
     "docs/examples/strain_conditioner_plugin.py",
-    "## Generated Artifacts",
-    "ansys-dpf-core 0.16.1",
-    "767",
-    "enum_codes",
-    "list_item_step",
     "## Focused Closeout Results",
     COREX_NOVICE_PLUGIN_SDK_FOCUSED_PYTEST_COMMAND,
-    COREX_NOVICE_PLUGIN_SDK_DPF_PYTEST_COMMAND,
     COREX_NOVICE_PLUGIN_SDK_HYGIENE_PYTEST_COMMAND,
     "## Pending Acceptance Gates",
     COREX_NOVICE_PLUGIN_SDK_FULL_COMMAND,

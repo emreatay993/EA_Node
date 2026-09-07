@@ -15,7 +15,7 @@ Plot nodes expose three active display surfaces, hosted by a single widget insta
 The persistent multi-plot session window is deprecated and disabled. Sink mode is a per-node `render_in_canvas: bool` property that suppresses embedded rendering. The node still computes and caches; opening fullscreen or detached presentation triggers an on-demand render. A workspace-level "lightweight canvas" preference forces sink mode for every plot at once.
 
 ## Rationale
-- Hosting one widget instance through a `PlotHostService` reuses the embedded/fullscreen/detached pattern already proven by the DPF viewer, so no per-surface widget duplication is required.
+- Hosting one widget instance through a `PlotHostService` reuses the embedded/fullscreen/detached pattern already proven by Model Viewer, so no per-surface widget duplication is required.
 - The auto-static-on-blur rule keeps idle canvas cost low when many plots are visible simultaneously, while still letting the focused plot behave like a real interactive viewer.
 - Sink mode plus the global preference give users a coarse and a fine-grained control over canvas load without sacrificing the ability to inspect a plot when wanted.
 - Reusing P07's `SurfaceSpec` keeps surface selection data-driven (P07 acceptance criterion 1) and avoids reintroducing a QML branch per plot type.

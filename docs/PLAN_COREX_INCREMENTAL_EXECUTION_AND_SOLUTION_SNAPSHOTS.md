@@ -1114,14 +1114,13 @@ owner family, proposed scope, side-effect classification, implementation digest
 source, input provenance, output codec, handle/artifact facts, reason, and proving
 test. No row may inherit a broader scope merely from its category label.
 
-T02's locked shipped baseline is 936 rows: 898 executable and 38 excluded
+T02's current retained baseline is 139 rows: 101 executable and 38 excluded
 (35 passive, 3 compile-only). The conservative initial totals are:
 
 - `durable`: 29 explicitly proven pure/portable rows;
 - `session`: 27 file-reader, viewer, runtime-handle/ref, or currently non-durable
   codec rows;
-- `never`: 842 rows, including every one of the 805 DPF rows until trusted-factory
-  content/toolchain identity is complete;
+- `never`: 45 rows;
 - excluded: 38 non-executable rows.
 
 Runtime-discovered public plugins remain outside the tracked row inventory and are
@@ -1969,7 +1968,7 @@ container nodes or internalization commands.
   - `docs/specs/perf/COREX_SOLUTION_REUSE_CLASSIFICATION.md` (new)
   - `.gitignore` exact negation for
     `docs/specs/perf/COREX_SOLUTION_REUSE_CLASSIFICATION.md` only
-  - `tests/non_dpf_catalog_fixture.py`
+  - `tests/repo_owned_catalog_fixture.py`
   - `tests/test_solution_identity.py` (new)
   - `tests/test_registry_validation.py`
   - `tests/test_decorator_sdk.py`
@@ -2228,7 +2227,6 @@ container nodes or internalization commands.
   - `tests/test_media_panel_source_resolution.py`
   - `tests/test_data_type_ui_projection.py`
   - `tests/test_graph_scene_presentation_facts.py`
-  - `tests/test_dpf_ui_summary.py`
   - `tests/test_content_fullscreen_bridge.py`
   - `tests/test_project_review_deck.py`
   - `tests/test_port_availability.py`
@@ -2312,7 +2310,7 @@ container nodes or internalization commands.
   - shared retained-record selector chooses only the event matching
     `NodeSolutionFact.retained_record_id`; expired retained records remain
     inspectable/stale, expired-without-record and never expose no cached value;
-  - port flow, DPF, property presentation, Panel, Media, fullscreen, graph commands,
+  - port flow, viewer state, property presentation, Panel, Media, fullscreen, graph commands,
     graph presenter, and Project Review Deck use that selector;
   - exact node-level availability clearing uses invalidation results and prepared
     recompute IDs; late/rejected settlements cannot republish availability;
@@ -2355,7 +2353,7 @@ container nodes or internalization commands.
   - `CorexRuntime.start_run` and `_start_legacy` are absent;
   - cache count/byte/record eviction and monotonic run-count tests;
   - no node styling changes appear;
-  - `./venv/Scripts/python.exe -m pytest tests/test_run_controller_unit.py tests/test_shell_run_controller.py tests/test_port_flow_state.py tests/test_port_availability.py tests/test_media_panel_source_resolution.py tests/test_data_type_ui_projection.py tests/test_graph_scene_presentation_facts.py tests/test_dpf_ui_summary.py tests/test_content_fullscreen_bridge.py tests/test_project_review_deck.py tests/main_window_shell/bridge_support.py tests/main_window_shell/view_library_inspector.py tests/main_window_shell/bridge_qml_boundaries.py tests/main_window_shell/mutation_ui_effects.py tests/graph_track_b/qml_preference_rendering_suite.py -q`;
+  - `./venv/Scripts/python.exe -m pytest tests/test_run_controller_unit.py tests/test_shell_run_controller.py tests/test_port_flow_state.py tests/test_port_availability.py tests/test_media_panel_source_resolution.py tests/test_data_type_ui_projection.py tests/test_graph_scene_presentation_facts.py tests/test_content_fullscreen_bridge.py tests/test_project_review_deck.py tests/main_window_shell/bridge_support.py tests/main_window_shell/view_library_inspector.py tests/main_window_shell/bridge_qml_boundaries.py tests/main_window_shell/mutation_ui_effects.py tests/graph_track_b/qml_preference_rendering_suite.py -q`;
   - `./venv/Scripts/python.exe -m pytest tests/test_solution_store_session.py tests/test_headless_runtime.py tests/test_execution_client.py tests/test_plugin_runtime_agreement.py tests/test_registry_replacement.py -q`;
   - `./venv/Scripts/python.exe ./scripts/generate_source_test_file_index.py`;
   - `./venv/Scripts/python.exe ./scripts/generate_qml_navigation_index.py`;
@@ -2384,8 +2382,6 @@ container nodes or internalization commands.
   - `ea_node_editor/execution/viewer_session_service.py`
   - `ea_node_editor/execution/worker_runner.py`
   - `ea_node_editor/nodes/viewer_runtime_contracts.py`
-  - `ea_node_editor/addons/ansys_dpf/operator_catalog.json`
-  - `scripts/generate_ansys_dpf_operator_catalog.py`
   - `tests/test_shell_run_controller.py`
   - `tests/test_viewer_session_bridge.py`
   - `tests/test_execution_viewer_service.py`
@@ -2398,7 +2394,6 @@ container nodes or internalization commands.
   - `tests/test_execution_worker.py`
   - `tests/test_headless_runtime.py`
   - `tests/test_ssh_sftp_runtime.py`
-  - `tests/test_dpf_operator_catalog_asset.py`
   - `docs/agent_maps/subsystems/execution.md`
   - `docs/agent_maps/subsystems/viewer_surfaces.md`
   - `docs/agent_maps/feature_routes/run_controller_selected_workspace_state.md`
@@ -2536,8 +2531,7 @@ container nodes or internalization commands.
     every generation-retirement and fatal-generation path, including trusted-worker
     fatal successor cleanup, removes matching session IDs, session generations, and
     session-node indices together;
-  - regenerate the DPF operator catalog after reuse metadata changes and update
-    synthetic SSH `NodeExecutor` fixtures for accepted prepared-decision state;
+  - update synthetic SSH `NodeExecutor` fixtures for accepted prepared-decision state;
     real-process reuse tests use load-tolerant bounded waits and deterministic
     stale-run cleanup without weakening assertions;
   - true reset/project/registry/runtime/backend replacement remains global;
@@ -2617,9 +2611,6 @@ container nodes or internalization commands.
   - direct empty-request-ID service calls use current epochs without node edits;
   - explicit query/invalidate delegation signatures, unresolved query owner, string
     rejection, and retired-request count tests;
-  - regenerated DPF catalog passes
-    `test_committed_catalog_matches_live_discovery_and_complete_contract` and
-    generator `--check`;
   - all 17 `test_connection_failure_error_is_fixed_and_sensitive_text_free` SSH
     parameter cases pass with initialized prepared-decision fixture state;
   - `test_real_process_second_run_reuses_without_node_started` and
@@ -2831,8 +2822,8 @@ container nodes or internalization commands.
   - `tests/test_corex_contract_catalog.py`
   - `tests/test_traceability_checker.py`
   - `tests/test_markdown_hygiene.py`
-  - `tests/non_dpf_catalog_fixture.py`
-  - `tests/fixtures/node_catalog/current_non_dpf_contract_overlay.json` (new)
+  - `tests/repo_owned_catalog_fixture.py`
+  - `tests/fixtures/node_catalog/current_repo_owned_catalog.json`
   - `docs/specs/requirements/20_UI_UX.md`
   - `docs/specs/requirements/50_EXECUTION_ENGINE.md`
   - `docs/specs/requirements/60_PERSISTENCE.md`
@@ -2872,8 +2863,8 @@ container nodes or internalization commands.
     viewer `node_started`/release, current fact, and byte-identical session/
     transport/summary/preview through completion; then separately perform same-node
     invalidation and prove delayed old-epoch response rejection;
-  - current-contract overlay at
-    `tests/fixtures/node_catalog/current_non_dpf_contract_overlay.json`, applied
+  - current-contract catalogue at
+    `tests/fixtures/node_catalog/current_repo_owned_catalog.json`, applied
     after structural overlay and before reuse classification, with exact schema:
 
     ```text
@@ -2914,7 +2905,7 @@ container nodes or internalization commands.
     Plans, promote the two requirements, and rerun exact traceability/Markdown checks.
 - Verification:
   - `./venv/Scripts/python.exe -m pytest tests/test_viewer_session_bridge.py tests/test_execution_viewer_service.py tests/test_viewer_host_service.py tests/test_shell_run_controller.py tests/test_run_controller_unit.py --ignore=venv -q`;
-  - `./venv/Scripts/python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_non_dpf_node_documentation.py tests/test_corex_contract_catalog.py tests/test_node_title_icon_assets.py tests/test_builtin_function_migration.py tests/test_remaining_builtin_function_migration.py tests/test_architecture_boundaries.py tests/test_dead_code_hygiene.py --ignore=venv -q`;
+  - `./venv/Scripts/python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_repo_owned_node_documentation.py tests/test_corex_contract_catalog.py tests/test_node_title_icon_assets.py tests/test_builtin_function_migration.py tests/test_remaining_builtin_function_migration.py tests/test_architecture_boundaries.py tests/test_dead_code_hygiene.py --ignore=venv -q`;
   - `./venv/Scripts/python.exe -m pytest tests/test_traceability_checker.py tests/test_markdown_hygiene.py tests/test_agent_route_index.py --ignore=venv -q`;
   - `./venv/Scripts/python.exe -m pytest tests/test_data_tree_ui.py::test_open_project_shows_migration_report_after_finalization_without_overwriting_source -q`;
   - regenerate only agent route indexes; source/test paths and QML components do not

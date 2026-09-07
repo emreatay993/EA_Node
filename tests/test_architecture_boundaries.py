@@ -1280,7 +1280,6 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             'type_id == "data.select"',
             'type_id == "data.number_slider"',
             'type_id != "web.page_viewer"',
-            'type_id.startswith("dpf.workflow.")',
             "resolve_dynamic_port_groups(",
             "coerce_property_value(",
         ):
@@ -1297,10 +1296,8 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             '"data.select"',
             '"data.number_slider"',
             '"web.page_viewer"',
-            '"dpf.workflow.',
             "property_coercion",
             "_normalize_special_property",
-            "_normalize_legacy_dpf_time_scope",
         ):
             with self.subTest(registry_policy_anchor=policy_anchor):
                 self.assertNotIn(policy_anchor, registry_source)
@@ -1313,83 +1310,6 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         ):
             with self.subTest(api_name=api_name):
                 self.assertIn(api_name, registry_source)
-
-    def test_dpf_runtime_has_direct_service_contract_and_handle_kind_owners(self) -> None:
-        import ea_node_editor.execution.dpf_runtime as dpf_runtime
-        from ea_node_editor.execution.dpf_runtime.contracts import DpfResultFile
-        from ea_node_editor.execution.dpf_runtime.service import DpfRuntimeService
-
-        self.assertFalse(
-            (REPO_ROOT / "ea_node_editor/execution/dpf_runtime_service.py").exists()
-        )
-        self.assertFalse(
-            (REPO_ROOT / "ea_node_editor/nodes/dpf_runtime_contracts.py").exists()
-        )
-        self.assertEqual(dpf_runtime.__all__, ["create_dpf_runtime_service"])
-        self.assertFalse(hasattr(dpf_runtime, "DpfRuntimeService"))
-        self.assertFalse(hasattr(dpf_runtime, "DpfResultFile"))
-        self.assertEqual(
-            DpfRuntimeService.__module__,
-            "ea_node_editor.execution.dpf_runtime.service",
-        )
-        self.assertEqual(
-            DpfResultFile.__module__,
-            "ea_node_editor.execution.dpf_runtime.contracts",
-        )
-
-        expected_handle_kinds = {
-            "DPF_RESULT_FILE_HANDLE_KIND": "dpf.result_file",
-            "DPF_MODEL_HANDLE_KIND": "dpf.model",
-            "DPF_MESH_SCOPING_HANDLE_KIND": "dpf.mesh_scoping",
-            "DPF_TIME_SCOPING_HANDLE_KIND": "dpf.time_scoping",
-            "DPF_FIELDS_CONTAINER_HANDLE_KIND": "dpf.fields_container",
-            "DPF_FIELD_HANDLE_KIND": "dpf.field",
-            "DPF_MESH_HANDLE_KIND": "dpf.mesh",
-            "DPF_VIEWER_DATASET_HANDLE_KIND": "dpf.viewer_dataset",
-            "DPF_OBJECT_HANDLE_KIND": "dpf_object_handle",
-        }
-        assignments: dict[str, list[tuple[str, object]]] = {
-            name: [] for name in expected_handle_kinds
-        }
-        for source_path in (REPO_ROOT / "ea_node_editor").rglob("*.py"):
-            tree = ast.parse(
-                source_path.read_text(encoding="utf-8-sig"),
-                filename=str(source_path),
-            )
-            for node in tree.body:
-                if not isinstance(node, ast.Assign) or len(node.targets) != 1:
-                    continue
-                target = node.targets[0]
-                if isinstance(target, ast.Name) and target.id in assignments:
-                    assignments[target.id].append(
-                        (source_path.relative_to(REPO_ROOT).as_posix(), ast.literal_eval(node.value))
-                    )
-        for name, value in expected_handle_kinds.items():
-            with self.subTest(handle_kind=name):
-                self.assertEqual(
-                    assignments[name],
-                    [("ea_node_editor/nodes/ansys_dpf_data_types.py", value)],
-                )
-
-        service_imports = imported_modules(
-            parse_module("ea_node_editor/execution/dpf_runtime/service.py")
-        )
-        self.assertNotIn("ea_node_editor.execution.dpf_runtime.contracts", service_imports)
-        self.assertNotIn("ea_node_editor.nodes.ansys_dpf_data_types", service_imports)
-        package_source = (
-            REPO_ROOT / "ea_node_editor/execution/dpf_runtime/__init__.py"
-        ).read_text(encoding="utf-8")
-        self.assertNotIn("dpf_runtime.contracts", package_source)
-        self.assertNotIn("ansys_dpf_data_types", package_source)
-
-        worker_imports = imported_modules(
-            parse_module("ea_node_editor/execution/worker_services.py")
-        )
-        self.assertIn("ea_node_editor.execution.dpf_runtime.service", worker_imports)
-        metadata_source = (
-            REPO_ROOT / "ea_node_editor/addons/ansys_dpf/metadata.py"
-        ).read_text(encoding="utf-8")
-        self.assertIn("ea_node_editor.execution.dpf_runtime.service", metadata_source)
 
     def test_runtime_value_contracts_have_direct_owners_and_common_stays_leaf(self) -> None:
         from ea_node_editor.runtime_contracts import (
@@ -2568,7 +2488,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
 
         self.assertEqual(layer_text.count("GraphNodePortContextMenu {"), 1)
         self.assertEqual(declaration_count(layer_text, "Menu"), 0)
-        self.assertEqual(declaration_count(menu_text, "Menu"), 1)
+        self.assertEqual(declaration_count(menu_text, "Shell.ShellContextPopup"), 1)
         self.assertEqual(
             {
                 type_name: sum(
@@ -2583,7 +2503,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                     "Timer",
                     "Canvas",
                     "Repeater",
-                    "Menu",
+                    "Shell.ShellContextPopup",
                 )
             },
             {
@@ -2594,7 +2514,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                 "Timer": 0,
                 "Canvas": 2,
                 "Repeater": 4,
-                "Menu": 1,
+                "Shell.ShellContextPopup": 1,
             },
         )
         self.assertIn("required property Item portsLayer", menu_text)
@@ -2614,11 +2534,6 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         object_names = (
             "graphNodePortContextMenu",
             "graphNodePortAccessMetadata",
-            "graphNodePortModifierGraft",
-            "graphNodePortModifierFlatten",
-            "graphNodePortModifierSimplify",
-            "graphNodePortModifierReverse",
-            "graphNodePortModifierClean",
             "graphNodePortPrincipal",
             "graphNodeDynamicPortInsertBefore",
             "graphNodeDynamicPortInsertAfter",
@@ -2629,22 +2544,22 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(object_name=object_name):
                 self.assertIn(f'objectName: "{object_name}"', menu_text)
                 self.assertNotIn(f'objectName: "{object_name}"', layer_text)
+        self.assertIn(
+            'var modifiers = ["Graft", "Flatten", "Simplify", "Reverse", "Clean"]',
+            menu_text,
+        )
+        self.assertIn('objectName: "graphNodePortModifier" + modifiers[i]', menu_text)
+        self.assertIn("var layer = menu.portsLayer", menu_text)
         for owner_call in (
-            '_togglePortModifier("graft")',
-            '_togglePortModifier("flatten")',
-            '_togglePortModifier("simplify")',
-            '_togglePortModifier("reverse")',
-            '_togglePortModifier("clean")',
-            "_togglePrincipal()",
-            "_insertDynamicPort(dynamicGroup.id, ordinal)",
-            "_insertDynamicPort(dynamicGroup.id, ordinal + 1)",
-            "beginPortLabelEdit(",
-            "_removeDynamicPort(",
+            "layer._togglePortModifier(actionId)",
+            "layer._togglePrincipal()",
+            'layer._insertDynamicPort(group.id, ordinal + (actionId === "insert_after" ? 1 : 0))',
+            'layer.beginPortLabelEdit(key, String(group.direction || ""))',
+            "layer._removeDynamicPort(group.id, key)",
         ):
-            self.assertIn(f"menu.portsLayer.{owner_call}", menu_text)
-        self.assertIn("portContextMenu.x = Math.max", layer_text)
-        self.assertIn("portContextMenu.y = Math.max", layer_text)
-        self.assertIn("portContextMenu.open();", layer_text)
+            self.assertIn(owner_call, menu_text)
+        self.assertIn("root.contextPortData = portData;", layer_text)
+        self.assertIn("portContextMenu.openAt(sourceItem, localX, localY);", layer_text)
 
     def test_graph_action_presentation_is_pure_and_dispatch_stays_in_the_router(self) -> None:
         qml_root = REPO_ROOT / "ea_node_editor/ui_qml/components"

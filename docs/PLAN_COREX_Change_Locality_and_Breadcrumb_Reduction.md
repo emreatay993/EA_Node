@@ -141,7 +141,7 @@
 - Preconditions: confirm the current Node SDK/plugin contract still requires the external `nodes.types` surface; if it does not, deletion is preferred over compatibility retention.
 - Conservative write scope: import statements under `ea_node_editor/**` that currently reference `ea_node_editor.nodes.types`, `ea_node_editor/nodes/types.py`, `tests/test_architecture_boundaries.py`, and directly affected import/registry/viewer tests. No behavior body changes are allowed in this task.
 - Deliverables:
-  - Replace all 57 current internal barrel imports with imports from `node_specs`, `execution_context`, `dpf_runtime_contracts`, `category_paths`, `plugin_contracts`, `runtime_refs`, or `viewer_runtime_contracts`.
+  - Replace all 57 current internal barrel imports with imports from `node_specs`, `execution_context`, `category_paths`, `plugin_contracts`, `runtime_refs`, or `viewer_runtime_contracts`.
   - Keep `nodes.types` as external-only re-exports only when required by the public SDK contract.
   - Add one AST rule rejecting `ea_node_editor.nodes.types` imports inside `ea_node_editor/**`, with an empty whitelist unless a concrete generated/bootstrap exception is proven.
   - Update the nodes map with the direct-import rule.

@@ -19,7 +19,7 @@ from ea_node_editor.app_preferences import (
     default_app_preferences_document,
     set_addon_state,
 )
-from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
+from ea_node_editor.common.scene_protocol import ENGINEERING_VIEWER_BACKEND_ID
 from ea_node_editor.execution.runtime import CorexRuntime
 from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.graph.model import GraphModel
@@ -523,14 +523,14 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         self.window.execution_client = _ViewerExecutionClientStub()
         bridge = self.window.viewer_session_bridge
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("dpf.viewer", x=80.0, y=60.0)
+        node_id = self.window.scene.add_node_from_type("model.viewer", x=80.0, y=60.0)
         session_id = bridge.open(
             node_id,
             {
                 "data_refs": {
                     "fields": {"kind": "handle_ref", "handle_id": "handle::fields"}
                 },
-                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
                 "camera_state": {"zoom": 1.5},
                 "playback_state": {"state": "paused", "step_index": 4},
                 "summary": {
@@ -548,12 +548,12 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
                 workspace_id=workspace_id,
                 node_id=node_id,
                 session_id=session_id,
-                backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+                backend_id=ENGINEERING_VIEWER_BACKEND_ID,
                 transport_revision=9,
                 live_open_status="ready",
                 transport={
                     "kind": "bundle",
-                    "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                    "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
                     "bundle_path": str(bundle_path),
                 },
                 camera_state={"zoom": 1.5},
@@ -588,7 +588,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
 
         reopened_state = bridge.session_state(node_id)
         self.assertEqual(reopened_state["phase"], "blocked")
-        self.assertEqual(reopened_state["backend_id"], DPF_EXECUTION_VIEWER_BACKEND_ID)
+        self.assertEqual(reopened_state["backend_id"], ENGINEERING_VIEWER_BACKEND_ID)
         self.assertEqual(reopened_state["transport_revision"], 9)
         self.assertEqual(reopened_state["live_open_status"], "blocked")
         self.assertTrue(reopened_state["live_open_blocker"]["rerun_required"])
@@ -598,7 +598,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         )
         self.assertEqual(
             reopened_state["transport"],
-            {"kind": "bundle", "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID},
+            {"kind": "bundle", "backend_id": ENGINEERING_VIEWER_BACKEND_ID},
         )
         self.assertEqual(reopened_state["data_refs"], {})
 

@@ -546,7 +546,7 @@ def _orchestrate(args: argparse.Namespace) -> int:
     if args.cache_dir:
         # Isolate the managed parquet cache: point cold runs at a fresh dir,
         # warm runs at the same dir again. (A full APPDATA redirect breaks
-        # ansys.dpf plugin discovery, so only the tabular cache moves.)
+        # unrelated discovery/cache behavior, so only the tabular cache moves.)
         cache_dir = Path(args.cache_dir)
         cache_dir.mkdir(parents=True, exist_ok=True)
         env["EA_TABULAR_CACHE_DIR"] = str(cache_dir)

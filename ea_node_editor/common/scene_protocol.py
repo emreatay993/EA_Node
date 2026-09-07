@@ -19,6 +19,31 @@ ENGINEERING_SELECTION_SCHEMA = "engineering_selection_set.v2"
 ENGINEERING_SELECTION_TOPOLOGY_SCHEMA = "corex.selection_topology.v1"
 ENGINEERING_SELECTION_DATA_TYPE = "COREX.Engineering.SelectionSet"
 SCENE_IMPORTER_VERSION = 4
+VIEWER_COLORMAP_VALUES = (
+    "jet",
+    "viridis",
+    "turbo",
+    "rainbow",
+    "plasma",
+    "coolwarm",
+    "gray",
+)
+VIEWER_RESULT_COMPONENT_VALUES = ("magnitude", "x", "y", "z")
+VIEWER_SCALAR_RANGE_MODE_VALUES = ("auto", "custom")
+VIEWER_BACKGROUND_VALUES = ("theme", "white", "black", "gray")
+VIEWER_VIEW_OPTION_KEYS = (
+    "show_mesh_edges",
+    "colormap",
+    "result_component",
+    "scalar_range_mode",
+    "scalar_range_min",
+    "scalar_range_max",
+    "show_scalar_bar",
+    "deform_scale",
+    "hover_probe",
+    "show_minmax_markers",
+    "viewer_background",
+)
 
 _ENGINEERING_SELECTION_CAPABILITIES = (
     "cad_vertex_selection",
@@ -123,6 +148,86 @@ def normalize_viewer_representation(value: object) -> str:
             "points",
         }
         else "surface"
+    )
+
+
+def _normalize_viewer_choice(
+    value: object,
+    *,
+    allowed: tuple[str, ...],
+    default: str,
+) -> str:
+    normalized_default = str(default or allowed[0]).strip().casefold()
+    if normalized_default not in allowed:
+        normalized_default = allowed[0]
+    normalized = str(value or "").strip().casefold()
+    return normalized if normalized in allowed else normalized_default
+
+
+def normalize_viewer_colormap(value: object, *, default: str = "jet") -> str:
+    return _normalize_viewer_choice(
+        value,
+        allowed=VIEWER_COLORMAP_VALUES,
+        default=default,
+    )
+
+
+def normalize_viewer_result_component(
+    value: object,
+    *,
+    default: str = "magnitude",
+) -> str:
+    return _normalize_viewer_choice(
+        value,
+        allowed=VIEWER_RESULT_COMPONENT_VALUES,
+        default=default,
+    )
+
+
+def normalize_viewer_scalar_range_mode(
+    value: object,
+    *,
+    default: str = "auto",
+) -> str:
+    return _normalize_viewer_choice(
+        value,
+        allowed=VIEWER_SCALAR_RANGE_MODE_VALUES,
+        default=default,
+    )
+
+
+def normalize_viewer_scalar_range_bound(value: object) -> str:
+    text = str(value if value is not None else "").strip()
+    if not text:
+        return ""
+    try:
+        parsed = float(text)
+    except (TypeError, ValueError):
+        return ""
+    return text if math.isfinite(parsed) else ""
+
+
+def normalize_viewer_deform_scale(value: object, *, default: str = "off") -> str:
+    normalized_default = str(default or "off").strip().casefold()
+    if normalized_default not in {"off", "auto"}:
+        normalized_default = "off"
+    text = str(value if value is not None else "").strip().casefold()
+    if not text:
+        return normalized_default
+    if text in {"off", "auto"}:
+        return text
+    try:
+        parsed = float(text)
+    except (TypeError, ValueError):
+        return normalized_default
+    return text if math.isfinite(parsed) and parsed > 0.0 else "off"
+
+
+def normalize_viewer_background(value: object, *, default: str = "theme") -> str:
+    return _normalize_viewer_choice(
+        value,
+        allowed=VIEWER_BACKGROUND_VALUES,
+        default=default,
     )
 
 
@@ -1350,6 +1455,11 @@ __all__ = [
     "FE_SCENE_SUFFIXES",
     "OCP_CAD_SCENE_SUFFIXES",
     "SCENE_IMPORTER_VERSION",
+    "VIEWER_BACKGROUND_VALUES",
+    "VIEWER_COLORMAP_VALUES",
+    "VIEWER_RESULT_COMPONENT_VALUES",
+    "VIEWER_SCALAR_RANGE_MODE_VALUES",
+    "VIEWER_VIEW_OPTION_KEYS",
     "SceneDescriptor",
     "SceneSourceMetadata",
     "empty_engineering_selection_set",
@@ -1358,6 +1468,12 @@ __all__ = [
     "validate_engineering_selection_topology",
     "normalize_length_unit",
     "normalize_viewer_opacity",
+    "normalize_viewer_background",
+    "normalize_viewer_colormap",
+    "normalize_viewer_deform_scale",
+    "normalize_viewer_result_component",
+    "normalize_viewer_scalar_range_bound",
+    "normalize_viewer_scalar_range_mode",
     "normalize_scene_styles",
     "normalize_viewer_representation",
     "validate_scene_bundle",

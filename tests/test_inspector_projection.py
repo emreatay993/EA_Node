@@ -229,7 +229,7 @@ class InspectorProjectionHeaderTests(unittest.TestCase):
     def test_header_nested_category_library_payload_shows_full_path(
         self,
     ) -> None:
-        path = ("Ansys DPF", "Compute")
+        path = ("Engineering Analysis", "Compute")
         header = build_selected_node_header_data(
             node=SimpleNamespace(
                 title="", type_id="fixture.quick_insert", node_id="node-1"
@@ -237,13 +237,13 @@ class InspectorProjectionHeaderTests(unittest.TestCase):
             spec=SimpleNamespace(
                 display_name="Quick Insert Candidate",
                 description="Quick Insert Candidate description",
-                category="Ansys DPF",
+                category="Engineering Analysis",
                 category_path=path,
             ),
             workflow_nodes={"node-1": SimpleNamespace(type_id="fixture.quick_insert")},
         )
         metadata = {item["label"]: item["value"] for item in header["metadata_items"]}
-        self.assertEqual(metadata["Category"], "Ansys DPF > Compute")
+        self.assertEqual(metadata["Category"], "Engineering Analysis > Compute")
 
 
 class InspectorProjectionPropertyGroupTests(unittest.TestCase):

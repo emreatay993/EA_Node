@@ -22,7 +22,7 @@ py -3.10 -m venv venv
 
 Notes:
 
-- `.[all,dev]` installs the optional spreadsheet, Ansys, viewer, and tabular dependencies, including PyDPF, PyMechanical, PyVista, DuckDB, Pandas, Polars, PyArrow, and PyTables, plus the local dev tools used in this repo.
+- `.[all,dev]` installs the optional spreadsheet, Ansys, viewer, and tabular dependencies, including PyMechanical, PyVista, DuckDB, Pandas, Polars, PyArrow, and PyTables, plus dependencies for standalone engineering utilities and the local dev tools used in this repo.
 - QWebEngine-backed nodes such as `Excalidraw Board` and `Web Page Viewer` require a working `PyQt6-WebEngine` install. If they show a `QtWebEngineCore` DLL-load fallback after copying the repo to another machine or intranet share, follow [`docs/QT_WEBENGINE_INSTALLATION.md`](./QT_WEBENGINE_INSTALLATION.md).
 - If you only need the dependency-gated `Data > Tabular Data Input` node, install `.[tabular]` instead. On Python 3.10, that extra intentionally resolves `tables>=3.10.1,<3.11`; Python 3.11+ uses `tables>=3.11`.
 - The repo uses a Windows-style virtualenv layout even when opened from `bash`, so prefer `./venv/Scripts/python.exe` over a shell-default `python`.

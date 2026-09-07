@@ -15,7 +15,7 @@ from ea_node_editor.telemetry.startup_profile import phase
 Background ``NodeRegistry`` loader used by the splash screen.
 
 ``build_default_registry()`` is pure Python (see ``ea_node_editor/nodes/bootstrap.py``)
-and does plugin discovery, dynamic imports, and Ansys DPF backend registration.
+and does plugin discovery and dynamic imports.
 It dominates shell startup (~3.6s measured 2026-04-18 — see
 ``PLANS_TO_IMPLEMENT/in_progress/splash_threaded_plugin_registry.md``), but
 touches zero Qt widgets, so it runs off the GUI thread while the splash animates.

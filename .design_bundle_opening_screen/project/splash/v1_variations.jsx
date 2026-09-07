@@ -12,7 +12,7 @@ function V1A_Monolith() {
     'Initialising runtime…',
     'Loading node registry',
     'Scanning plug-ins',
-    'Warming DPF backend',
+    'Warming viewer backend',
     'Ready',
   ], { stepMs: 720 });
 
@@ -185,7 +185,7 @@ function V1C_OffsetMark() {
   const tasks = [
     { label: 'Runtime',      sub: 'Python 3.11 · PyQt5' },
     { label: 'Registry',     sub: '142 node types resolved' },
-    { label: 'DPF backend',  sub: 'ansys-dpf-core 2024R2' },
+    { label: 'viewer backend',  sub: 'PyVista 2024R2' },
     { label: 'Workspace',    sub: 'Restoring · dene3.cxproj' },
   ];
   const boot = useBootSequence(tasks.map(t => t.label), { stepMs: 720 });

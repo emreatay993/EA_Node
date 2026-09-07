@@ -243,7 +243,7 @@
 - Conservative write scope:
   - `ea_node_editor/ui_qml/embedded_viewer_overlay_manager.py`
   - `ea_node_editor/ui_qml/content_fullscreen_bridge.py`
-  - `ea_node_editor/ui_qml/dpf_viewer_widget_binder.py`
+  - `ea_node_editor/ui_qml/engineering_viewer_widget_binder.py`
   - `ea_node_editor/ui_qml/components/graph/passive/*`
   - `ea_node_editor/ui_qml/components/graph/viewer/*`
   - `tests/test_passive_graph_surface_host.py`

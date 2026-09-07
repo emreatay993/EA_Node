@@ -59,7 +59,7 @@ from ea_node_editor.runtime_contracts import (
     TabularWindowRef,
     deserialize_runtime_value,
 )
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 
 _CONVERTED_TYPE_IDS = tabular_catalog.TABULAR_DATA_FUNCTION_TYPE_IDS
@@ -134,7 +134,7 @@ def test_exact_t13_entries_match_golden_and_remove_legacy_exports(
         preferences_document=_tabular_preferences(enabled=True),
         generation_root=tmp_path / "generations",
     )
-    golden_rows = load_effective_non_dpf_catalog()
+    golden_rows = load_current_repo_owned_catalog()
     expected = {
         row["spec"]["type_id"]: row["spec"]
         for row in golden_rows

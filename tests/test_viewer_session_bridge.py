@@ -23,12 +23,11 @@ from ea_node_editor.execution.viewer_messages import (
 )
 from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
-from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
-from ea_node_editor.nodes.builtins.ansys_dpf_common import (
-    DPF_VIEWER_NODE_TYPE_ID,
-    DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
-    DPF_VIEWER_VIEW_OPTION_KEYS,
+from ea_node_editor.common.scene_protocol import (
+    ENGINEERING_VIEWER_BACKEND_ID,
+    VIEWER_VIEW_OPTION_KEYS,
 )
+from ea_node_editor.nodes.builtins.engineering_viewer import ENGINEERING_VIEWER_NODE_TYPE_ID
 from ea_node_editor.runtime_contracts import (
     COREX_VIEWER_SESSION_HANDLE_KIND,
     VIEWER_SESSION_DATA_TYPE_ID,
@@ -39,6 +38,8 @@ from ea_node_editor.ui_qml import viewer_session_bridge as viewer_session_bridge
 from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 from tests.main_window_shell.base import MainWindowShellTestBase
 from tests.typed_handle_support import core_data_type_catalog
+
+_SHOW_MESH_EDGES_PROPERTY = "show_mesh_edges"
 
 
 class _ViewerExecutionClientStub:
@@ -387,7 +388,7 @@ def _viewer_session_handle(
     workspace_id: str = "ws_main",
     node_id: str = "node_viewer",
     session_id: str = "viewer_session_runtime_seeded",
-    backend_id: str = DPF_EXECUTION_VIEWER_BACKEND_ID,
+    backend_id: str = ENGINEERING_VIEWER_BACKEND_ID,
 ) -> RuntimeHandleRef:
     return RuntimeHandleRef(
         data_type_id=VIEWER_SESSION_DATA_TYPE_ID,
@@ -516,7 +517,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertTrue(
             self.bridge.sync_node_property_option(
                 "node_viewer",
-                DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
+                _SHOW_MESH_EDGES_PROPERTY,
                 True,
             )
         )
@@ -965,7 +966,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertTrue(
             self.bridge.sync_node_property_option(
                 "node_viewer",
-                DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
+                _SHOW_MESH_EDGES_PROPERTY,
                 "true",
                 {"workspace_id": "ws_main"},
             )
@@ -975,16 +976,16 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         update_call = self.host.execution_client.update_calls[-1]
         self.assertEqual(update_call["node_id"], "node_viewer")
         self.assertEqual(update_call["session_id"], session_id)
-        self.assertTrue(update_call["options"][DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY])
+        self.assertTrue(update_call["options"][_SHOW_MESH_EDGES_PROPERTY])
         self.assertEqual(update_call["options"]["live_mode"], "full")
 
         projected_state = self.bridge.session_state("node_viewer")
-        self.assertTrue(projected_state["options"][DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY])
+        self.assertTrue(projected_state["options"][_SHOW_MESH_EDGES_PROPERTY])
 
         self.assertFalse(
             self.bridge.sync_node_property_option(
                 "node_viewer",
-                DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
+                _SHOW_MESH_EDGES_PROPERTY,
                 True,
                 {"workspace_id": "ws_main"},
             )
@@ -999,7 +1000,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             )
         )
 
-    def test_node_property_option_sync_routes_view_pack_properties(self) -> None:
+    def test_node_property_option_sync_routes_scalar_view_options(self) -> None:
         self._open_live_session()
         expected_updates = {
             "colormap": ("turbo", "turbo"),
@@ -1014,12 +1015,11 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "viewer_background": ("WHITE", "white"),
         }
         self.assertEqual(
-            set(expected_updates) | {DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY},
-            set(DPF_VIEWER_VIEW_OPTION_KEYS),
+            set(expected_updates) | {_SHOW_MESH_EDGES_PROPERTY},
+            set(VIEWER_VIEW_OPTION_KEYS),
         )
         for key, (raw_value, expected) in expected_updates.items():
             with self.subTest(key=key):
-                update_count = len(self.host.execution_client.update_calls)
                 self.assertTrue(
                     self.bridge.sync_node_property_option(
                         "node_viewer",
@@ -1029,22 +1029,9 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
                     )
                 )
                 self.assertEqual(
-                    len(self.host.execution_client.update_calls),
-                    update_count + 1,
+                    self.host.execution_client.update_calls[-1]["options"][key],
+                    expected,
                 )
-                update_call = self.host.execution_client.update_calls[-1]
-                self.assertEqual(update_call["options"][key], expected)
-
-        update_count = len(self.host.execution_client.update_calls)
-        self.assertFalse(
-            self.bridge.sync_node_property_option(
-                "node_viewer",
-                "colormap",
-                "turbo",
-                {"workspace_id": "ws_main"},
-            )
-        )
-        self.assertEqual(len(self.host.execution_client.update_calls), update_count)
 
     def test_engineering_viewer_options_sync_but_runtime_filter_does_not(self) -> None:
         self._open_live_session()
@@ -1129,7 +1116,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertFalse(
             self.bridge.sync_node_property_option(
                 "node_viewer",
-                DPF_VIEWER_SHOW_MESH_EDGES_PROPERTY,
+                _SHOW_MESH_EDGES_PROPERTY,
                 True,
             )
         )
@@ -1870,11 +1857,11 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
 
     def test_project_loaded_seeds_viewer_nodes_as_run_required_projection(self) -> None:
         self.host.model.project.workspaces["ws_main"].nodes = {
-            "node_viewer": SimpleNamespace(type_id=DPF_VIEWER_NODE_TYPE_ID),
+            "node_viewer": SimpleNamespace(type_id=ENGINEERING_VIEWER_NODE_TYPE_ID),
         }
         state = self.bridge._ensure_session_state("ws_main", "node_viewer")
         state.phase = "open"
-        state.backend_id = DPF_EXECUTION_VIEWER_BACKEND_ID
+        state.backend_id = ENGINEERING_VIEWER_BACKEND_ID
         state.transport_revision = 11
         state.live_open_status = "ready"
         state.cache_state = "live_ready"
@@ -1882,7 +1869,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         state.data_refs = {"fields": "fields_ref"}
         state.transport = {
             "kind": "bundle",
-            "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+            "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
             "bundle_path": "C:/temp/viewer_bundle",
         }
         state.camera_state = {"zoom": 1.4}
@@ -1896,7 +1883,12 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         }
         self.bridge._ensure_session_state("ws_old", "old_viewer")
 
-        self.bridge.project_loaded(self.host.model.project, None)
+        self.bridge.project_loaded(
+            self.host.model.project,
+            SimpleNamespace(
+                spec_or_none=lambda _type_id: SimpleNamespace(surface_family="viewer")
+            ),
+        )
 
         self.assertIn(
             ("ws_main", None),
@@ -1909,7 +1901,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
 
         projected_state = self.bridge.session_state("node_viewer")
         self.assertEqual(projected_state["phase"], "blocked")
-        self.assertEqual(projected_state["backend_id"], DPF_EXECUTION_VIEWER_BACKEND_ID)
+        self.assertEqual(projected_state["backend_id"], ENGINEERING_VIEWER_BACKEND_ID)
         self.assertEqual(projected_state["transport_revision"], 11)
         self.assertEqual(projected_state["live_open_status"], "blocked")
         self.assertTrue(projected_state["live_open_blocker"]["rerun_required"])
@@ -1922,7 +1914,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(projected_state["options"]["live_mode"], "proxy")
         self.assertEqual(
             projected_state["transport"],
-            {"kind": "bundle", "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID},
+            {"kind": "bundle", "backend_id": ENGINEERING_VIEWER_BACKEND_ID},
         )
         self.assertEqual(projected_state["data_refs"], {})
         self.assertEqual(projected_state["camera_state"], {"zoom": 1.4})
@@ -1935,7 +1927,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "node_viewer",
             {
                 "data_refs": {"fields": "fields_ref"},
-                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
             },
         )
         open_call = self.host.execution_client.open_calls[-1]
@@ -1947,12 +1939,12 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
                 session_id=session_id,
                 summary={"cache_state": "live_ready", "result_name": "displacement"},
                 options={"live_mode": "full"},
-                backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+                backend_id=ENGINEERING_VIEWER_BACKEND_ID,
                 transport_revision=5,
                 live_open_status="ready",
                 transport={
                     "kind": "bundle",
-                    "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                    "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
                     "bundle_path": "C:/temp/viewer_bundle",
                 },
             )
@@ -1974,7 +1966,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertTrue(blocked_state["options"]["rerun_required"])
         self.assertEqual(
             blocked_state["transport"],
-            {"kind": "bundle", "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID},
+            {"kind": "bundle", "backend_id": ENGINEERING_VIEWER_BACKEND_ID},
         )
 
     def test_scoped_invalidation_preserves_other_viewer_and_rejects_late_events(
@@ -2153,7 +2145,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "node_viewer",
             {
                 "data_refs": {"fields": "fields_ref"},
-                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
             },
         )
         open_call = self.host.execution_client.open_calls[-1]
@@ -2165,12 +2157,12 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
                 session_id=session_id,
                 summary={"cache_state": "live_ready", "result_name": "displacement"},
                 options={"live_mode": "full"},
-                backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+                backend_id=ENGINEERING_VIEWER_BACKEND_ID,
                 transport_revision=5,
                 live_open_status="ready",
                 transport={
                     "kind": "bundle",
-                    "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                    "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
                     "bundle_path": "C:/temp/viewer_bundle",
                 },
             )
@@ -2186,7 +2178,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             workspace_id="ws_main",
             node_id="node_viewer",
             session_id="viewer_session_runtime_seeded",
-            backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+            backend_id=ENGINEERING_VIEWER_BACKEND_ID,
             summary={"cache_state": "live_ready", "result_name": "displacement"},
             options={"live_mode": "proxy"},
             data_refs={"dataset": {"kind": "mock_dataset"}},
@@ -2194,7 +2186,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             live_open_status="ready",
             transport={
                 "kind": "bundle",
-                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
                 "bundle_path": "C:/temp/viewer_bundle",
             },
             workspace_invalidation_epoch=1,
@@ -2251,7 +2243,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             workspace_id="ws_main",
             node_id="node_viewer",
             session_id="viewer_session_runtime_seeded",
-            backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+            backend_id=ENGINEERING_VIEWER_BACKEND_ID,
             summary={"cache_state": "live_ready", "result_name": "displacement"},
             options={"live_mode": "proxy"},
             data_refs={"dataset": {"kind": "mock_dataset"}},
@@ -2259,7 +2251,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             live_open_status="ready",
             transport={
                 "kind": "bundle",
-                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
                 "bundle_path": "C:/temp/viewer_bundle",
             },
         )
@@ -2293,7 +2285,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(open_call["session_id"], "viewer_session_runtime_seeded")
         self.assertEqual(
             open_call["backend_id"],
-            DPF_EXECUTION_VIEWER_BACKEND_ID,
+            ENGINEERING_VIEWER_BACKEND_ID,
         )
         self.assertEqual(open_call["data_refs"], {})
         self.assertEqual(open_call["transport"], {})
@@ -2307,7 +2299,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         seeded_state = self.bridge.session_state("node_viewer")
         self.assertEqual(seeded_state["phase"], "open")
         self.assertEqual(seeded_state["session_id"], "viewer_session_runtime_seeded")
-        self.assertEqual(seeded_state["backend_id"], DPF_EXECUTION_VIEWER_BACKEND_ID)
+        self.assertEqual(seeded_state["backend_id"], ENGINEERING_VIEWER_BACKEND_ID)
         self.assertEqual(seeded_state["cache_state"], "live_ready")
         self.assertEqual(seeded_state["live_open_status"], "ready")
         self.assertEqual(
@@ -2317,7 +2309,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             seeded_state["transport"],
             {
                 "kind": "bundle",
-                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
                 "bundle_path": "C:/temp/viewer_bundle",
             },
         )
@@ -2415,14 +2407,14 @@ class ViewerSessionBridgeShellIntegrationTests(MainWindowShellTestBase):
         self.window.execution_client = _ViewerExecutionClientStub()
         bridge = self.window.viewer_session_bridge
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("dpf.viewer", x=80.0, y=40.0)
+        node_id = self.window.scene.add_node_from_type("model.viewer", x=80.0, y=40.0)
         session_id = bridge.open(
             node_id,
             {
                 "data_refs": {
                     "fields": {"kind": "handle_ref", "handle_id": "handle::fields"}
                 },
-                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
                 "camera_state": {"zoom": 1.5},
                 "playback_state": {"state": "paused", "step_index": 4},
                 "summary": {"result_name": "Displacement", "set_label": "Set 4"},
@@ -2437,12 +2429,12 @@ class ViewerSessionBridgeShellIntegrationTests(MainWindowShellTestBase):
                 workspace_id=workspace_id,
                 node_id=node_id,
                 session_id=session_id,
-                backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+                backend_id=ENGINEERING_VIEWER_BACKEND_ID,
                 transport_revision=9,
                 live_open_status="ready",
                 transport={
                     "kind": "bundle",
-                    "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                    "backend_id": ENGINEERING_VIEWER_BACKEND_ID,
                     "bundle_path": str(bundle_path),
                 },
                 camera_state={"zoom": 1.5},

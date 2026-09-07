@@ -45,16 +45,7 @@ Column {
     readonly property bool searchableEnum: !!(propertyItem && propertyItem.searchable)
     readonly property bool exactSelectors: !!(propertyItem && propertyItem.exact_selectors)
     readonly property bool attentionRequired: !!(propertyItem && propertyItem.attention_required)
-    readonly property string metadataState: String(
-        propertyItem && propertyItem.metadata_state ? propertyItem.metadata_state : ""
-    )
     readonly property string metadataStatusText: {
-        if (propertyEditor.metadataState === "loading")
-            return "Loading DPF metadata…"
-        if (propertyEditor.metadataState === "error")
-            return "DPF metadata unavailable"
-        if (propertyEditor.metadataState === "empty")
-            return "No metadata options available"
         if (propertyEditor.attentionRequired)
             return "Action required"
         return ""
@@ -148,21 +139,15 @@ Column {
         radius: 8
         implicitWidth: propertyStatusText.implicitWidth + 12
         implicitHeight: propertyStatusText.implicitHeight + 5
-        color: propertyEditor.attentionRequired || propertyEditor.metadataState === "error"
-            ? Qt.alpha(propertyEditor.pane.themePalette.inspector_danger_border, 0.16)
-            : Qt.alpha(propertyEditor.pane.themePalette.accent, 0.12)
+        color: Qt.alpha(propertyEditor.pane.themePalette.inspector_danger_border, 0.16)
         border.width: 1
-        border.color: propertyEditor.attentionRequired || propertyEditor.metadataState === "error"
-            ? propertyEditor.pane.themePalette.inspector_danger_border
-            : Qt.alpha(propertyEditor.pane.themePalette.accent, 0.52)
+        border.color: propertyEditor.pane.themePalette.inspector_danger_border
 
         Text {
             id: propertyStatusText
             anchors.centerIn: parent
             text: propertyEditor.metadataStatusText
-            color: propertyEditor.attentionRequired || propertyEditor.metadataState === "error"
-                ? propertyEditor.pane.themePalette.inspector_danger_fg
-                : propertyEditor.pane.themePalette.group_title_fg
+            color: propertyEditor.pane.themePalette.inspector_danger_fg
             font.pixelSize: 9
             font.bold: true
         }

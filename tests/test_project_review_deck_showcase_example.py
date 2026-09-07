@@ -21,6 +21,33 @@ SHOWCASE_DIR = REPO_ROOT / "examples" / "project_review_deck_airworthiness"
 PROJECT_PATH = SHOWCASE_DIR / "rotor_llp_review_showcase.cxproj"
 TEMPLATE_PATH = SHOWCASE_DIR / "templates" / "corex_airworthiness_template.pptx"
 EXPORTED_DECK_PATH = SHOWCASE_DIR / "exports" / "rotor_llp_review_showcase.pptx"
+EXPECTED_EXPORTED_SLIDE_TITLES = (
+    "Rotor LLP Airworthiness FEA Review Showcase",
+    "Certification Review Map - Snapshot",
+    "Evidence Binder - Snapshot",
+    "Certification Review Map / EASA CM-PIFS-013 / 03-easa-cm-pifs-013.png",
+    (
+        "Certification Review Map / EASA CS-E Easy Access Rules / "
+        "01-easa-cs-e-easy-access-rules.png"
+    ),
+    "Certification Review Map / EASA CM-PIFS-007 / 02-easa-cm-pifs-007.png",
+    "Certification Review Map / eCFR 14 CFR 33.70 / 04-ecfr-14-cfr-3370.png",
+    "Evidence Binder / EASA CM-PIFS-007 PDF - page 3 / cm-pifs-007-page-pdf-1.pdf",
+    "Evidence Binder / PyAnsys Rotor 67 Total Deformation / displacement-envelope.png",
+    "Evidence Binder / PyAnsys Rotor 67 Thermal Strain / stress-hotspot-map.png",
+    "Evidence Binder / FAA AC 33.70-4 / 06-faa-ac-3370-4.png",
+    (
+        "Evidence Binder / FAA AC 33.70-1 PDF - page 2 / "
+        "ac-33-70-1-life-limited-parts-chg-1.pdf"
+    ),
+    (
+        "Evidence Binder / Local Guide: FEA Evidence to CS-E Traceability / "
+        "local-fea-traceability-guide-preview.png"
+    ),
+    "Evidence Binder / Margin Summary Chart / margin-summary-chart.png",
+    "Evidence Binder / FAA AC 33.70-1 / 05-faa-ac-3370-1.png",
+    "Project Files To Review",
+)
 
 
 def _load_showcase():
@@ -44,7 +71,6 @@ def test_showcase_project_contains_expected_node_families() -> None:
 
     assert workspaces == {
         "Certification Review Map",
-        "DPF Evidence Canvases",
         "Evidence Binder",
     }
     assert any(
@@ -55,21 +81,9 @@ def test_showcase_project_contains_expected_node_families() -> None:
         node.properties.get("format") == "markdown"
         for node in nodes_by_type["passive.annotation.text"]
     )
-    assert len(nodes_by_type["dpf.workflow.result_viewer"]) == 2
-    assert {node.properties.get("result_name") for node in nodes_by_type["dpf.workflow.result_viewer"]} == {
-        "displacement",
-        "stress",
-    }
-    assert {
-        node.properties.get("named_selection")
-        for node in nodes_by_type["dpf.workflow.result_viewer"]
-    } == {"BOLT_NODES"}
-    assert {
-        float(node.properties.get("time_values"))
-        for node in nodes_by_type["dpf.workflow.result_viewer"]
-    } == {2.0}
     assert len(nodes_by_type["media.panel"]) >= 2
     assert nodes_by_type["web.page_viewer"]
+    assert not any(type_id.startswith("dpf.") for type_id in nodes_by_type)
 
 
 def test_showcase_project_includes_reference_web_nodes() -> None:
@@ -88,10 +102,9 @@ def test_showcase_project_includes_reference_web_nodes() -> None:
         "https://www.ecfr.gov/current/title-14/chapter-I/subchapter-C/part-33/subpart-E/section-33.70",
         "https://www.faa.gov/airports/resources/advisory_circulars/index.cfm/go/document.information/documentNumber/33.70-1",
         "https://www.faa.gov/regulations_policies/advisory_circulars/index.cfm/go/document.information/documentID/1042036",
-        "https://dpf.docs.pyansys.com/version/stable/user_guide/index.html",
-        "https://developer.ansys.com/docs/dpf",
     }.issubset(web_urls)
     assert "saved://local_traceability_guide_html" in web_urls
+    assert not any("dpf" in str(url).lower() for url in web_urls)
 
 
 def test_showcase_project_review_plan_discovers_evidence_and_warnings(qapp) -> None:  # noqa: ANN001
@@ -118,8 +131,6 @@ def test_showcase_project_review_plan_discovers_evidence_and_warnings(qapp) -> N
         "web_04_preview_png",
         "web_05_preview_png",
         "web_06_preview_png",
-        "web_07_preview_png",
-        "web_08_preview_png",
     }
     assert evidence["compliance_memo_pdf"].kind == PROJECT_REVIEW_SLIDE_PDF
     assert evidence["compliance_memo_pdf"].page_number == 3
@@ -132,8 +143,8 @@ def test_showcase_project_review_plan_discovers_evidence_and_warnings(qapp) -> N
     assert "Unsupported CSV Evidence Register / artifact: Media Panel source is invalid" in warnings
     assert "Unsupported Markdown Review Notes / artifact: Media Panel source is invalid" in warnings
     assert "unsupported evidence file type '.html'" in warnings
-    assert "external file paths are listed but not embedded" in warnings
-    assert "file.rst" in warnings
+    assert "Media Panel source is stale" in warnings
+    assert "file.rst" not in warnings
 
 
 def test_showcase_artifacts_record_skill_and_web_provenance() -> None:
@@ -150,10 +161,12 @@ def test_showcase_artifacts_record_skill_and_web_provenance() -> None:
     assert "Rotor_Blade_Inverse_solve_005" in artifact_store["displacement_envelope_png"]["source_asset"]
     assert artifact_store["stress_hotspot_map_png"]["source_origin"] == "web:pyansys-docs"
     assert "Rotor_Blade_Inverse_solve_006" in artifact_store["stress_hotspot_map_png"]["source_asset"]
+    assert "web_07_preview_png" not in artifact_store
+    assert "web_08_preview_png" not in artifact_store
 
 
 def test_showcase_selected_evidence_materializes_to_template_deck(tmp_path: Path, qapp) -> None:  # noqa: ANN001
-    pytest.importorskip("pptx")
+    pptx = pytest.importorskip("pptx")
     project, registry = _load_showcase()
     plan = build_project_review_deck_plan(
         project=project,
@@ -188,4 +201,19 @@ def test_showcase_selected_evidence_materializes_to_template_deck(tmp_path: Path
     assert output_path.exists()
     assert output_path.stat().st_size > 0
     assert EXPORTED_DECK_PATH.exists()
+    exported = pptx.Presentation(EXPORTED_DECK_PATH)
+    slide_titles = []
+    slide_text = []
+    for slide in exported.slides:
+        text_shapes = [
+            shape.text.strip()
+            for shape in slide.shapes
+            if getattr(shape, "has_text_frame", False) and shape.text.strip()
+        ]
+        slide_titles.append(text_shapes[0])
+        slide_text.extend(text_shapes)
+    assert tuple(slide_titles) == EXPECTED_EXPORTED_SLIDE_TITLES
+    exported_text = "\n".join(slide_text).casefold()
+    assert "dpf" not in exported_text
+    assert "pydpf" not in exported_text
     assert TEMPLATE_PATH.exists()

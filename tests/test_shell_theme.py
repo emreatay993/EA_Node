@@ -201,7 +201,7 @@ class ShellThemeServiceTests(unittest.TestCase):
 
         bridge.apply_theme("graph_ocean_light")
         self.assertEqual(
-            bridge.resolve_data_type_color("data.dpf"),
+            bridge.resolve_data_type_color("data.engineering"),
             bridge.port_kind_palette["data"],
         )
 

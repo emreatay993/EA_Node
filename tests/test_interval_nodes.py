@@ -36,7 +36,7 @@ from ea_node_editor.runtime_contracts import (
     Interval1D,
     deserialize_runtime_value,
 )
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 CONSTRUCT_INTERVAL_TYPE_ID = "math.construct_interval"
 DECONSTRUCT_INTERVAL_TYPE_ID = "math.deconstruct_interval"
@@ -176,7 +176,7 @@ def test_interval_node_specs_register_with_numeric_defaults_and_icon(
 def test_interval_specs_match_golden(tmp_path: Path) -> None:
     expected = {
         item["spec"]["type_id"]: item["spec"]
-        for item in load_effective_non_dpf_catalog()
+        for item in load_current_repo_owned_catalog()
     }
     registry = build_builtin_registry(generation_root=tmp_path / "generations")
 

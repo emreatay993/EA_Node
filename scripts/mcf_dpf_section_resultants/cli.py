@@ -1,5 +1,5 @@
 # Purpose: Command-line interface for the MCF DPF section resultants tool.
-# Map: feature_routes/ansys_dpf_operator_viewer_transport
+# Map: subsystems/packaging_generated_assets
 # Tests: tests/test_mcf_dpf_section_resultants_gui.py
 """Standalone DPF section resultant extractor.
 

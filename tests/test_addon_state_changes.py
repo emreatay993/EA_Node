@@ -4,8 +4,7 @@ from copy import deepcopy
 
 import pytest
 
-from ea_node_editor.addons.ansys_dpf.metadata import ANSYS_DPF_ADDON_ID
-from ea_node_editor.addons.catalog import AddOnRegistration
+from ea_node_editor.addons.catalog import AddOnRegistration, TABULAR_DATA_ADDON_ID
 from ea_node_editor.addons.state_changes import prepare_addon_enabled_state
 from ea_node_editor.app_preferences import (
     addon_state,
@@ -57,7 +56,7 @@ def test_prepare_hot_apply_state_is_pure_and_leaves_source_unchanged() -> None:
     original = deepcopy(source)
 
     result = prepare_addon_enabled_state(
-        ANSYS_DPF_ADDON_ID,
+        TABULAR_DATA_ADDON_ID,
         enabled=False,
         preferences_document=source,
     )
@@ -65,7 +64,7 @@ def test_prepare_hot_apply_state_is_pure_and_leaves_source_unchanged() -> None:
     assert source == original
     assert result.registry is None
     assert result.restart_required is False
-    assert addon_state(result.preferences_document, ANSYS_DPF_ADDON_ID) == {
+    assert addon_state(result.preferences_document, TABULAR_DATA_ADDON_ID) == {
         "enabled": False,
         "pending_restart": False,
     }

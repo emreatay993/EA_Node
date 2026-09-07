@@ -22,7 +22,6 @@ dependencies = [
 [project.optional-dependencies]
 ansys = [
     "ansys-dpf-core>=0.16,<0.17",
-    "ansys-dpf-post>=0.11",
     "ansys-mechanical-core>=0.12.6",
 ]
 excel = ["openpyxl>=3.1"]
@@ -73,7 +72,6 @@ jupyter = [
 ]
 all = [
     "ansys-dpf-core>=0.16,<0.17",
-    "ansys-dpf-post>=0.11",
     "ansys-mechanical-core>=0.12.6",
     "cadquery-ocp-novtk==7.9.3.1.1",
     "duckdb>=1.5",
@@ -109,7 +107,6 @@ dev = [
     "build>=1.2",
     "pyinstaller>=6.0",
     "ansys-dpf-core>=0.16,<0.17",
-    "ansys-dpf-post>=0.11",
     "ansys-mechanical-core>=0.12.6",
     "cadquery-ocp-novtk==7.9.3.1.1",
     "duckdb>=1.5",
@@ -148,7 +145,6 @@ include = ["ea_node_editor*", "corex*"]
 
 [tool.setuptools.package-data]
 ea_node_editor = [
-    "addons/ansys_dpf/operator_catalog.json",
     "addons/mars/icons/mars_icon_64.png",
     "assets/app_icon/*.svg",
     "assets/app_icon/*.png",
@@ -159,7 +155,6 @@ ea_node_editor = [
     "assets/node_title_icons/**/*.png",
     "assets/node_title_icons/**/*.jpg",
     "assets/node_title_icons/**/*.jpeg",
-    "addons/ansys_dpf/workflow_docs/*.md",
     "web_assets/**/*.html",
     "web_assets/**/*.css",
     "web_assets/**/*.js",

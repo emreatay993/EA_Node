@@ -75,7 +75,7 @@ from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
     node_surface_metrics,
     resolved_node_surface_size,
 )
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 
 def _context(
@@ -132,7 +132,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
                 generation_root=Path(temp_dir) / "generations"
             )
 
-        fixture = load_effective_non_dpf_catalog()
+        fixture = load_current_repo_owned_catalog()
         expected = {
             row["spec"]["type_id"]: row["spec"]
             for row in fixture
@@ -841,7 +841,7 @@ class PathPointerWidthResolverTests(unittest.TestCase):
     def test_show_full_path_true_uses_tight_width_for_typical_absolute_path(
         self,
     ) -> None:
-        path = "C:/Users/emre_/PycharmProjects/EA_Node_Editor/examples/ansys_dpf/modal_superposition.cxproj"
+        path = "C:/Users/emre_/PycharmProjects/EA_Node_Editor/examples/custom_workflows/demo.cxproj"
         node = self._node({"show_full_path": True, "path": path})
         width, _height = _fallback_node_size(node, self._spec())
         self.assertLessEqual(width, 925.0)

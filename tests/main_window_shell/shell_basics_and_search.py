@@ -356,14 +356,8 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             )
             self.assertEqual(entries[("Video fullscreen", "Space")], "Play or pause the video.")
             for input_name in ("Space", "Left or Right", "Home", "R"):
-                with self.subTest(
-                    context="DPF viewer fullscreen",
-                    input=input_name,
-                ):
-                    self.assertIn(
-                        ("DPF viewer fullscreen", input_name),
-                        entries,
-                    )
+                with self.subTest(context="Viewer fullscreen", input=input_name):
+                    self.assertIn(("Viewer fullscreen", input_name), entries)
         finally:
             dialog.close()
 
@@ -512,20 +506,20 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertGreater(float(scrim.property("height")), 0.0)
         self.assertTrue(bool(workspace_row.property("visible")))
         self.assertGreaterEqual(controller.rowCount, 1)
-        self.assertEqual(controller.selectedAddonId, "ea_node_editor.builtins.ansys_dpf")
+        self.assertEqual(controller.selectedAddonId, "mars.corex")
 
-        self.window.request_open_addon_manager("ansys.dpf")
+        self.window.request_open_addon_manager("ea_node_editor.builtins.tabular_data")
         self.app.processEvents()
 
         self.assertTrue(self.window.addon_manager_open)
-        self.assertEqual(self.window.addon_manager_focus_addon_id, "ansys.dpf")
+        self.assertEqual(self.window.addon_manager_focus_addon_id, "ea_node_editor.builtins.tabular_data")
         self.assertEqual(self.window.addon_manager_request_serial, initial_serial + 2)
         self.assertEqual(
             self.window.addon_manager_request,
-            {"open": True, "focus_addon_id": "ansys.dpf", "request_serial": initial_serial + 2},
+            {"open": True, "focus_addon_id": "ea_node_editor.builtins.tabular_data", "request_serial": initial_serial + 2},
         )
-        self.assertEqual(controller.selectedAddonId, "ea_node_editor.builtins.ansys_dpf")
-        self.assertEqual(str(detail_title.property("text")), "ANSYS DPF")
+        self.assertEqual(controller.selectedAddonId, "ea_node_editor.builtins.tabular_data")
+        self.assertEqual(str(detail_title.property("text")), "Tabular Data")
         self.assertTrue(bool(workspace_row.property("visible")))
 
         self.window.request_close_addon_manager()

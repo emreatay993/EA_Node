@@ -1811,60 +1811,6 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertEqual(default_property["value"], "inline update")
         self.assertTrue(default_property["overridden_by_input"])
 
-    def test_qml_dpf_model_path_property_is_overridden_by_result_file_input(self) -> None:
-        self.window.shell_inspector_presenter.set_property_pane_variant("smart_groups")
-        self.app.processEvents()
-
-        model_id = self.window.scene.add_node_from_type("dpf.model", x=260.0, y=120.0)
-        result_file_id = self.window.scene.add_node_from_type("dpf.result_file", x=20.0, y=120.0)
-        self.window.scene.focus_node(model_id)
-        self.window.set_selected_node_property("path", "C:/tmp/example.rst")
-        self.window.request_connect_ports(result_file_id, "result_file", model_id, "result_file")
-        self.app.processEvents()
-
-        property_items = {item["key"]: item for item in self.window.selected_node_property_items}
-        self.assertEqual(property_items["path"]["value"], "C:/tmp/example.rst")
-        self.assertTrue(property_items["path"]["overridden_by_input"])
-        self.assertEqual(property_items["path"]["input_port_label"], "result_file")
-        self.assertEqual(property_items["path"]["override_reason"], "Driven by result_file")
-
-        node_payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == model_id)
-        ports_by_key = {port["key"]: port for port in node_payload["ports"]}
-        self.assertTrue(ports_by_key["path"]["inactive"])
-        self.assertEqual(ports_by_key["path"]["inactive_source_key"], "result_file")
-        self.assertEqual(ports_by_key["path"]["inactive_reason"], "Driven by result_file")
-
-        inspector_pane = self._inspector_object("inspectorPane")
-        self._pane_child_item(inspector_pane, "inspectorSmartGroupHeader_driven")
-        smart_groups_body = self._pane_child_item(inspector_pane, "inspectorSmartGroupsBody")
-        smart_groups_body.setProperty("expandedMap", {"driven:Driven": True})
-        wait_for_condition_or_raise(
-            lambda: self._find_inspector_property_object(
-                "inspectorPropertyInactiveChip",
-                "path",
-            )
-            is not None,
-            timeout_ms=1500,
-            poll_interval_ms=20,
-            app=self.app,
-            timeout_message="Timed out waiting for driven property group to expand.",
-        )
-
-        path_editor = self._inspector_property_object("inspectorPathEditor", "path")
-        path_browse_button = self._inspector_property_object(
-            "inspectorPathBrowseButton", "path"
-        )
-        inactive_chip = self._inspector_property_object("inspectorPropertyInactiveChip", "path")
-        override_reason = self._inspector_property_object("inspectorPropertyOverrideReason", "path")
-        self.assertFalse(bool(path_editor.property("enabled")))
-        self.assertFalse(bool(path_browse_button.property("enabled")))
-        self.assertEqual(str(path_editor.property("text")), "—")
-        self.assertTrue(bool(inactive_chip.property("visible")))
-        self.assertEqual(
-            str(override_reason.property("text")),
-            "Value supplied by connected input.",
-        )
-
     def test_viewport_commands_frame_all_frame_selection_and_center_selection(self) -> None:
         node_a = self.window.scene.add_node_from_type("core.constant", x=20.0, y=30.0)
         self.window.scene.add_node_from_type("core.logger", x=540.0, y=260.0)

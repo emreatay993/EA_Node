@@ -4,12 +4,14 @@ import copy
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from PyQt6.QtTest import QTest
 
 from ea_node_editor.custom_workflows import import_custom_workflow_file
 from ea_node_editor.nodes.category_paths import category_key
+from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.main_window_shell.base import _action_shortcuts
 from tests.main_window_shell.bridge_support import _named_child_items
@@ -29,6 +31,28 @@ def _single_inserted_node_id(workspace, before_node_ids: set[str]) -> str:  # no
 
 
 class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase):
+    _DEEP_CATEGORY_PATH = ("Engineering Analysis", "Simulation", "Results")
+    _DEEP_CATEGORY_TYPE_ID = "tests.deep_category_result"
+
+    def _register_deep_category_fixture(self) -> None:
+        if self.window.registry.spec_or_none(self._DEEP_CATEGORY_TYPE_ID) is None:
+            self.window.registry.register_descriptor(
+                NodeTypeSpec(
+                    type_id=self._DEEP_CATEGORY_TYPE_ID,
+                    display_name="Deep Category Result",
+                    category_path=self._DEEP_CATEGORY_PATH,
+                    icon="",
+                    ports=(),
+                    properties=(),
+                    description="Retained fixture for nested library-category behavior.",
+                    keywords=("nested", "category"),
+                ),
+                lambda: SimpleNamespace(),
+            )
+        self.window.shell_library_presenter._invalidate_registry_items()
+        self.window.node_library_changed.emit()
+        self.app.processEvents()
+
     def test_file_menu_new_project_resets_to_blank_project(self) -> None:
         self.window.scene.add_node_from_type("core.constant", x=40.0, y=40.0)
         self.window.workspace_manager.create_workspace("Second")
@@ -186,19 +210,108 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         created = self.window.request_connect_ports(source_id, "right", target_id, "condition")
         self.assertFalse(created)
 
-    def test_qml_connect_ports_surfaces_graph_hint_for_mutually_exclusive_dpf_inputs(self) -> None:
-        result_file_id = self.window.scene.add_node_from_type("dpf.result_file", x=40.0, y=40.0)
-        model_id = self.window.scene.add_node_from_type("dpf.model", x=280.0, y=40.0)
+    def test_qml_nested_category_library_payload_filters_and_quick_insert_use_path_values(self) -> None:
+        self._register_deep_category_fixture()
+        self.window.set_library_query("")
+        self.window.set_library_direction("")
+        self.window.set_library_data_type("")
         self.app.processEvents()
 
-        self.assertTrue(self.window.request_connect_ports(result_file_id, "result_file", model_id, "result_file"))
-        self.window.clear_graph_hint()
-        self.app.processEvents()
+        options_by_label = {
+            option["label"]: option for option in self.window.library_category_options
+        }
+        root_path = self._DEEP_CATEGORY_PATH[:1]
+        leaf_label = " > ".join(self._DEEP_CATEGORY_PATH)
+        leaf_key = category_key(self._DEEP_CATEGORY_PATH)
+        self.assertEqual(options_by_label[root_path[0]]["value"], category_key(root_path))
+        self.assertEqual(options_by_label[leaf_label]["value"], leaf_key)
 
-        created = self.window.request_connect_ports(result_file_id, "normalized_path", model_id, "path")
-        self.assertFalse(created)
-        self.assertTrue(self.window.graph_hint_visible)
-        self.assertEqual(self.window.graph_hint_message, "Can't connect path while result_file is active.")
+        self.window.set_library_category(options_by_label[root_path[0]]["value"])
+        self.app.processEvents()
+        self.assertIn(
+            leaf_label,
+            {item["category"] for item in self.window.filtered_node_library_items},
+        )
+
+        self.window.set_library_category(leaf_key)
+        self.app.processEvents()
+        leaf_items = self.window.filtered_node_library_items
+        self.assertTrue(leaf_items)
+        self.assertTrue(all(item["category"] == leaf_label for item in leaf_items))
+
+        self.window.request_open_canvas_quick_insert(320.0, 160.0, 420.0, 220.0)
+        self.window.set_connection_quick_insert_query(leaf_label)
+        self.app.processEvents()
+        results = self.window.connection_quick_insert_results
+        self.assertTrue(results)
+        self.assertTrue(all(item["category"] == leaf_label for item in results))
+        self.assertTrue(all(item["category_key"] == leaf_key for item in results))
+
+    def test_nested_category_qml_descendants_require_each_ancestor_expanded(self) -> None:
+        self._register_deep_category_fixture()
+        library_pane = self._library_pane_item()
+        root_key = category_key(self._DEEP_CATEGORY_PATH[:1])
+        middle_key = category_key(self._DEEP_CATEGORY_PATH[:2])
+        leaf_key = category_key(self._DEEP_CATEGORY_PATH)
+
+        def collapsed_map() -> dict[str, bool]:
+            return {
+                key: bool(value)
+                for key, value in _qml_variant_map(
+                    library_pane.property("collapsedCategories")
+                ).items()
+            }
+
+        def library_rows():  # noqa: ANN202
+            self.app.processEvents()
+            return _named_child_items(library_pane, "nodeLibraryRow")
+
+        def category_row(category_key_value: str):  # noqa: ANN202
+            return next(
+                row
+                for row in library_rows()
+                if bool(row.property("isCategory"))
+                and str(row.property("rowCategoryKey") or "") == category_key_value
+            )
+
+        def node_row():  # noqa: ANN202
+            return next(
+                row
+                for row in library_rows()
+                if str(row.property("rowTypeId") or "") == self._DEEP_CATEGORY_TYPE_ID
+            )
+
+        collapsed = collapsed_map()
+        self.assertTrue(collapsed.get(root_key, False))
+        self.assertTrue(collapsed.get(middle_key, False))
+        self.assertTrue(collapsed.get(leaf_key, False))
+        self.assertEqual(int(category_row(root_key).property("rowDepth")), 0)
+        self.assertEqual(int(category_row(middle_key).property("rowDepth")), 1)
+        self.assertEqual(int(category_row(leaf_key).property("rowDepth")), 2)
+        self.assertEqual(int(node_row().property("rowDepth")), 3)
+        self.assertFalse(bool(category_row(root_key).property("hiddenByAncestors")))
+        self.assertTrue(bool(category_row(middle_key).property("hiddenByAncestors")))
+        self.assertTrue(bool(category_row(leaf_key).property("hiddenByAncestors")))
+        self.assertTrue(bool(node_row().property("hiddenByAncestors")))
+
+        for key, revealed in (
+            (root_key, middle_key),
+            (middle_key, leaf_key),
+            (leaf_key, self._DEEP_CATEGORY_TYPE_ID),
+        ):
+            next_collapsed = collapsed_map()
+            next_collapsed[key] = False
+            library_pane.setProperty("collapsedCategories", next_collapsed)
+            self.app.processEvents()
+            revealed_row = (
+                node_row()
+                if revealed == self._DEEP_CATEGORY_TYPE_ID
+                else category_row(revealed)
+            )
+            self.assertFalse(bool(revealed_row.property("hiddenByAncestors")))
+
+        self.assertTrue(bool(node_row().property("visible")))
+        self.assertEqual(float(node_row().property("height")), 28.0)
 
     def test_qml_request_drop_node_from_library_places_node_at_exact_scene_position(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -471,7 +584,16 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         self.assertTrue(self.window.request_connection_quick_insert_choose(index))
         edge = next(iter(workspace.edges.values()))
         self.assertEqual((edge.source_node_id, edge.source_port_key, edge.target_port_key), (source_id, "group", "scene_1"))
-        self.assertTrue(self.window.request_open_connection_quick_insert(edge.target_node_id, "scene", 200.0, 100.0, 300.0, 150.0))
+        self.assertTrue(
+            self.window.request_open_connection_quick_insert(
+                edge.target_node_id,
+                edge.target_port_key,
+                200.0,
+                100.0,
+                300.0,
+                150.0,
+            )
+        )
         reverse_rows = {row["type_id"]: row for row in self.window.connection_quick_insert_results}
         self.assertEqual(reverse_rows["geometry.construct_group"]["compatibility_kind"], "exact")
         self.assertNotIn("core.constant", reverse_rows)
@@ -530,56 +652,6 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         QTest.keyClick(self._qml_input_widget(), Qt.Key.Key_Escape)
         self.app.processEvents()
         self.assertFalse(self.window.connection_quick_insert_open)
-
-    def test_qml_nested_category_library_payload_filters_and_quick_insert_use_path_values(self) -> None:
-        self.window.set_library_query("")
-        self.window.set_library_direction("")
-        self.window.set_library_data_type("")
-        self.app.processEvents()
-
-        options_by_label = {
-            option["label"]: option
-            for option in self.window.library_category_options
-        }
-        building_blocks_label = "Ansys DPF > Advanced > Building Blocks"
-        building_blocks_key = category_key(("Ansys DPF", "Advanced", "Building Blocks"))
-        self.assertEqual(options_by_label["Ansys DPF"]["value"], category_key(("Ansys DPF",)))
-        self.assertEqual(
-            options_by_label[building_blocks_label]["value"],
-            building_blocks_key,
-        )
-        self.assertEqual(
-            options_by_label["Ansys DPF > Viewer"]["value"],
-            category_key(("Ansys DPF", "Viewer")),
-        )
-
-        self.window.set_library_category(options_by_label["Ansys DPF"]["value"])
-        self.app.processEvents()
-        root_filtered_categories = {
-            item["category"]
-            for item in self.window.filtered_node_library_items
-        }
-        self.assertIn(building_blocks_label, root_filtered_categories)
-        self.assertIn("Ansys DPF > Viewer", root_filtered_categories)
-
-        self.window.set_library_category(options_by_label[building_blocks_label]["value"])
-        self.app.processEvents()
-        building_block_filtered = self.window.filtered_node_library_items
-        self.assertTrue(building_block_filtered)
-        self.assertTrue(
-            all(item["category"] == building_blocks_label for item in building_block_filtered)
-        )
-
-        self.window.request_open_canvas_quick_insert(320.0, 160.0, 420.0, 220.0)
-        self.window.set_connection_quick_insert_query(building_blocks_label)
-        self.app.processEvents()
-
-        results = self.window.connection_quick_insert_results
-        self.assertTrue(results)
-        self.assertTrue(all(item["category"] == building_blocks_label for item in results))
-        self.assertTrue(
-            all(item["category_key"] == building_blocks_key for item in results)
-        )
 
     def test_qml_published_workflow_quick_insert_maps_displayed_pin_keys_in_both_directions(self) -> None:
         workspace = self.window.model.active_workspace
@@ -1056,89 +1128,6 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         self.assertIn(category_key(("Custom Workflows",)), restored_category_keys)
         for category_key_value in restored_category_keys:
             self.assertTrue(bool(collapsed_categories.get(category_key_value, False)))
-
-    def test_nested_category_qml_descendants_require_each_ancestor_expanded(self) -> None:
-        library_pane = self._library_pane_item()
-        self.app.processEvents()
-
-        root_key = category_key(("Ansys DPF",))
-        advanced_key = category_key(("Ansys DPF", "Advanced"))
-        building_blocks_key = category_key(("Ansys DPF", "Advanced", "Building Blocks"))
-
-        def _collapsed_map() -> dict[str, bool]:
-            return {
-                key: bool(value)
-                for key, value in _qml_variant_map(library_pane.property("collapsedCategories")).items()
-            }
-
-        def _library_rows():
-            self.app.processEvents()
-            return _named_child_items(library_pane, "nodeLibraryRow")
-
-        def _category_row(category_key_value: str):
-            for row in _library_rows():
-                if (
-                    bool(row.property("isCategory"))
-                    and str(row.property("rowCategoryKey") or "") == category_key_value
-                ):
-                    return row
-            raise AssertionError(f"Missing library category row for {category_key_value}.")
-
-        def _node_row(type_id: str):
-            for row in _library_rows():
-                if str(row.property("rowTypeId") or "") == type_id:
-                    return row
-            raise AssertionError(f"Missing library node row for {type_id}.")
-
-        collapsed_categories = _collapsed_map()
-        self.assertTrue(collapsed_categories.get(root_key, False))
-        self.assertTrue(collapsed_categories.get(advanced_key, False))
-        self.assertTrue(collapsed_categories.get(building_blocks_key, False))
-
-        root_row = _category_row(root_key)
-        advanced_row = _category_row(advanced_key)
-        building_blocks_row = _category_row(building_blocks_key)
-        result_file_row = _node_row("dpf.result_file")
-        self.assertEqual(int(root_row.property("rowDepth")), 0)
-        self.assertEqual(int(advanced_row.property("rowDepth")), 1)
-        self.assertEqual(int(building_blocks_row.property("rowDepth")), 2)
-        self.assertEqual(int(result_file_row.property("rowDepth")), 3)
-        self.assertGreater(float(advanced_row.property("rowIndent")), float(root_row.property("rowIndent")))
-        self.assertGreater(float(building_blocks_row.property("rowIndent")), float(advanced_row.property("rowIndent")))
-        self.assertGreater(float(result_file_row.property("rowIndent")), float(building_blocks_row.property("rowIndent")))
-        self.assertFalse(bool(root_row.property("hiddenByAncestors")))
-        self.assertTrue(bool(advanced_row.property("hiddenByAncestors")))
-        self.assertTrue(bool(building_blocks_row.property("hiddenByAncestors")))
-        self.assertTrue(bool(result_file_row.property("hiddenByAncestors")))
-
-        next_collapsed_categories = dict(collapsed_categories)
-        next_collapsed_categories[root_key] = False
-        library_pane.setProperty("collapsedCategories", next_collapsed_categories)
-        self.app.processEvents()
-
-        self.assertFalse(bool(_category_row(advanced_key).property("hiddenByAncestors")))
-        self.assertTrue(_collapsed_map().get(advanced_key, False))
-        self.assertTrue(bool(_category_row(building_blocks_key).property("hiddenByAncestors")))
-        self.assertTrue(bool(_node_row("dpf.result_file").property("hiddenByAncestors")))
-
-        next_collapsed_categories = _collapsed_map()
-        next_collapsed_categories[advanced_key] = False
-        library_pane.setProperty("collapsedCategories", next_collapsed_categories)
-        self.app.processEvents()
-
-        self.assertFalse(bool(_category_row(building_blocks_key).property("hiddenByAncestors")))
-        self.assertTrue(_collapsed_map().get(building_blocks_key, False))
-        self.assertTrue(bool(_node_row("dpf.result_file").property("hiddenByAncestors")))
-
-        next_collapsed_categories = _collapsed_map()
-        next_collapsed_categories[building_blocks_key] = False
-        library_pane.setProperty("collapsedCategories", next_collapsed_categories)
-        self.app.processEvents()
-
-        visible_result_file_row = _node_row("dpf.result_file")
-        self.assertFalse(bool(visible_result_file_row.property("hiddenByAncestors")))
-        self.assertTrue(bool(visible_result_file_row.property("visible")))
-        self.assertEqual(float(visible_result_file_row.property("height")), 28.0)
 
     def test_qml_custom_workflow_update_changes_future_placements_only(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

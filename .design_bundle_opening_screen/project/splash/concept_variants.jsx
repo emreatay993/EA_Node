@@ -1,5 +1,5 @@
 // Concept-node family — 5 variations where the COREX logo connects
-// to labeled concept nodes (Plan · Model · Process · Solve · Plot · Report).
+// to labeled concept nodes (Plan · Model · Process · View · Plot · Report).
 // These present the product's "what it does" alongside the brand.
 
 // Small concept node card — icon box + label + sub
@@ -86,14 +86,14 @@ function cubicTo(from, to, curve = 0.5) {
 
 // ───────────────────────────────────────────────────────────
 // C1 — COMPASS (4 cardinal concepts)
-// Plan · Process · Solve · Plot around the logo. Active node rotates
+// Plan · Process · View · Plot around the logo. Active node rotates
 // through the list; edges light up when active.
 // ───────────────────────────────────────────────────────────
 function C1_Compass() {
   const concepts = [
     { label:'PLAN',     sub:'scope · define',      color: COREX.blue },
     { label:'PROCESS',  sub:'shape · transform',   color:'#B35BD1'   },
-    { label:'SOLVE',    sub:'dpf · compute',       color:'#D88C32'   },
+    { label:'VIEW',     sub:'scene · inspect',        color:'#D88C32'   },
     { label:'PLOT',     sub:'view · report',       color:'#22B455'   },
   ];
   const [cur, setCur] = React.useState(0);
@@ -109,7 +109,7 @@ function C1_Compass() {
   const pos = [
     { x: cx - W/2, y: 10 },        // top  — PLAN
     { x: cx + 150, y: cy - H/2 },  // right — PROCESS
-    { x: cx - W/2, y: 320 - H },   // bottom — SOLVE (was wrong)
+    { x: cx - W/2, y: 320 - H },   // bottom — VIEW
     { x: cx - W - 150, y: cy - H/2 }, // left — PLOT
   ];
   // Fix bottom
@@ -192,14 +192,14 @@ function C1_Compass() {
 
 // ───────────────────────────────────────────────────────────
 // C2 — ORBIT RING (6 concepts rotating around the logo)
-// Plan · Model · Process · Solve · Plot · Report on a slow ring.
+// Plan · Model · Process · View · Plot · Report on a slow ring.
 // ───────────────────────────────────────────────────────────
 function C2_OrbitRing() {
   const concepts = [
     { label:'PLAN',    color: COREX.blue   },
     { label:'MODEL',   color:'#4AA9D6'     },
     { label:'PROCESS', color:'#B35BD1'     },
-    { label:'SOLVE',   color:'#D88C32'     },
+    { label:'VIEW',    color:'#D88C32'     },
     { label:'PLOT',    color:'#22B455'     },
     { label:'REPORT',  color:'#C75050'     },
   ];
@@ -302,7 +302,7 @@ function C3_LifecycleArc() {
     { label:'PLAN',    sub:'01', color: COREX.blue },
     { label:'MODEL',   sub:'02', color:'#4AA9D6'   },
     { label:'PROCESS', sub:'03', color:'#B35BD1'   },
-    { label:'SOLVE',   sub:'04', color:'#D88C32'   },
+    { label:'VIEW',    sub:'04', color:'#D88C32'   },
     { label:'PLOT',    sub:'05', color:'#22B455'   },
   ];
   const [cur, setCur] = React.useState(0);
@@ -436,7 +436,7 @@ function C3_LifecycleArc() {
 
 // ───────────────────────────────────────────────────────────
 // C4 — HEX LATTICE (6 concepts in hexagonal arrangement)
-// Plan / Model / Process / Solve / Plot / Report at hex vertices.
+// Plan / Model / Process / View / Plot / Report at hex vertices.
 // Active edges light up as execution ripples.
 // ───────────────────────────────────────────────────────────
 function C4_HexLattice() {
@@ -444,7 +444,7 @@ function C4_HexLattice() {
     { label:'PLAN',    color: COREX.blue },
     { label:'MODEL',   color:'#4AA9D6'   },
     { label:'PROCESS', color:'#B35BD1'   },
-    { label:'SOLVE',   color:'#D88C32'   },
+    { label:'VIEW',    color:'#D88C32'   },
     { label:'PLOT',    color:'#22B455'   },
     { label:'REPORT',  color:'#C75050'   },
   ];
@@ -531,7 +531,7 @@ function C4_HexLattice() {
 // C5 — CASCADING COLUMNS
 // Concepts in two staggered columns flanking the central mark:
 // Left column = INPUT stages (Plan · Model · Process)
-// Right column = OUTPUT stages (Solve · Plot · Report)
+// Right column = OUTPUT stages (View · Plot · Report)
 // Edges fan in from the left, fan out to the right.
 // ───────────────────────────────────────────────────────────
 function C5_CascadingColumns() {
@@ -541,7 +541,7 @@ function C5_CascadingColumns() {
     { label:'PROCESS', sub:'transform',color:'#B35BD1'   },
   ];
   const right = [
-    { label:'SOLVE',   sub:'dpf',      color:'#D88C32'   },
+    { label:'VIEW',    sub:'scene',       color:'#D88C32'   },
     { label:'PLOT',    sub:'view',     color:'#22B455'   },
     { label:'REPORT',  sub:'export',   color:'#C75050'   },
   ];

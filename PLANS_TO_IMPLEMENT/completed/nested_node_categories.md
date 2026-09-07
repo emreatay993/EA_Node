@@ -5,7 +5,7 @@
 - Adopt a **path-only** category model with a maximum depth of 10.
 - Parent category filtering is **descendant-inclusive**: selecting a parent returns everything below it.
 - Keep the current library-pane architecture: a flat `ListView` fed by a pre-flattened tree model. Do not introduce `TreeView`.
-- Ship one real nested family in the product catalog now: **Ansys DPF**. Leave the rest of the catalog effectively flat in this pass.
+- Ship one real nested family in the product catalog now: **Engineering**. Leave the rest of the catalog effectively flat in this pass.
 
 ### Key Changes
 - Replace `NodeTypeSpec.category: str` with `category_path: tuple[str, ...]`.
@@ -19,9 +19,9 @@
   - each segment is a non-empty trimmed string
   - existing labels like `Input / Output` remain a **single segment**
 - Migrate all built-in node declarations to tuple paths.
-- Migrate Ansys DPF nodes to nested paths:
-  - compute nodes: `["Ansys DPF", "Compute", ...]`
-  - viewer nodes: `["Ansys DPF", "Viewer", ...]`
+- Migrate Engineering nodes to nested paths:
+  - import nodes: `["Engineering", "Import", ...]`
+  - viewer nodes: `["Engineering", "Viewer", ...]`
 - Keep most other built-in families as one-segment paths for now.
 - Update the registry and library pipeline to operate on paths, not flat strings.
 - Library item payloads should expose:
@@ -70,7 +70,7 @@
   - quick insert shows full path text
   - inspector metadata shows full path text
   - theme accent follows root category
-- Update current flat-category tests, especially DPF and library grouping assertions.
+- Update current flat-category tests, especially Engineering and library grouping assertions.
 
 ### Assumptions and Risks
 - This is a **breaking authoring change** for node specs and external plugins because `category` becomes `category_path`.

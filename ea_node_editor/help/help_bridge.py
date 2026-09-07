@@ -1,4 +1,4 @@
-"""QObject bridge exposing curated DPF workflow and operator help to QML.
+"""QObject bridge exposing node help to QML.
 
 Modeled on [ShellInspectorBridge](../ui_qml/shell_inspector_bridge.py). The
 bridge holds the currently-displayed Markdown and title and exposes a slot to
@@ -14,11 +14,6 @@ from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QTextCursor
 from PyQt6.QtQuick import QQuickTextDocument
 
-from ea_node_editor.help.dpf_operator_docs import (
-    is_dpf_help_type_id,
-    markdown_for_node,
-    markdown_for_type_id,
-)
 from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
 
 _PARAGRAPH_TOP_MARGIN = 10.0
@@ -133,16 +128,12 @@ class HelpBridge(QObject):
     def show_help_for_node(self, node_id: str) -> bool:
         if self._shell_window is None or not node_id:
             return False
-        resolved = markdown_for_node(self._shell_window, str(node_id))
-        if resolved is not None:
-            markdown, type_id, display_name = resolved
-        else:
-            spec = _spec_for_node(self._shell_window, str(node_id))
-            if spec is None:
-                return False
-            type_id = str(getattr(spec, "type_id", "") or "")
-            display_name = str(getattr(spec, "display_name", "") or type_id)
-            markdown = _structured_markdown_for_spec(spec)
+        spec = _spec_for_node(self._shell_window, str(node_id))
+        if spec is None:
+            return False
+        type_id = str(getattr(spec, "type_id", "") or "")
+        display_name = str(getattr(spec, "display_name", "") or type_id)
+        markdown = _structured_markdown_for_spec(spec)
         self._apply(markdown=markdown, type_id=type_id, title=display_name)
         self._set_visible(True)
         return True
@@ -172,13 +163,7 @@ class HelpBridge(QObject):
         spec = registry.spec_or_none(normalized_type_id)
         if spec is None:
             return False
-        markdown = (
-            markdown_for_type_id(normalized_type_id, registry)
-            if is_dpf_help_type_id(normalized_type_id)
-            else None
-        )
-        if markdown is None:
-            markdown = _structured_markdown_for_spec(spec)
+        markdown = _structured_markdown_for_spec(spec)
         display_name = str(getattr(spec, "display_name", "") or normalized_type_id)
         self.help_tab_requested.emit()
         self._apply(markdown=markdown, type_id=normalized_type_id, title=display_name)
@@ -189,10 +174,7 @@ class HelpBridge(QObject):
     def can_show_help_for_node(self, node_id: str) -> bool:
         if self._shell_window is None or not node_id:
             return False
-        return (
-            markdown_for_node(self._shell_window, str(node_id)) is not None
-            or _spec_for_node(self._shell_window, str(node_id)) is not None
-        )
+        return _spec_for_node(self._shell_window, str(node_id)) is not None
 
     @pyqtSlot()
     def close_help(self) -> None:

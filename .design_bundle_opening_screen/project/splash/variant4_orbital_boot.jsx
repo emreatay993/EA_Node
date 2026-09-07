@@ -1,7 +1,7 @@
 // Variant 4 — "Orbital Boot"
 // The core pulses at center while three orbital nodes rotate around
 // it, each representing a subsystem being warmed (Runtime · Registry ·
-// DPF). Active orbit node lights up; others are dim rings. Beneath
+// engineering viewer). Active orbit node lights up; others are dim rings. Beneath
 // the orbit: a checklist of boot tasks ticks off. This variant trades
 // raw "graph vocabulary" for a more contemplative brand moment —
 // closer to a hero-splash than a canvas.
@@ -22,7 +22,7 @@ function V4OrbitalBoot() {
   const tasks = [
     { label: 'Runtime',       sub: 'Python · PyQt · QML' },
     { label: 'Node registry', sub: '142 node types' },
-    { label: 'DPF backend',   sub: 'ansys-dpf-core 2024 R2' },
+    { label: 'viewer backend',   sub: 'PyVista 2024 R2' },
     { label: 'Workspace',     sub: 'Restored from session' },
   ];
   const boot = useBootSequence(tasks.map(t => t.label), { stepMs: 700 });

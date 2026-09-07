@@ -621,8 +621,9 @@ def test_rich_preview_redacts_carrier_identity_and_uses_strict_handle_metadata()
     handle_spec = next(
         spec
         for spec in registry.data_types.all_specs()
-        if spec.family_id in {"dpf", "engineering", "fem", "geometry", "mesh"}
+        if spec.family_id in {"engineering", "fem", "geometry", "mesh"}
         and spec.sensitivity == "normal"
+        and not spec.abstract
         and "handle" in spec.carriers
     )
     handle = RuntimeHandleRef(

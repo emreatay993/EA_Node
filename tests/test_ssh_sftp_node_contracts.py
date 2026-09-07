@@ -23,7 +23,7 @@ from ea_node_editor.runtime_contracts import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 
 NODE_METADATA = {
@@ -536,7 +536,7 @@ def test_ssh_sftp_node_metadata_and_catalogue_port_contracts() -> None:
 def test_ssh_sftp_function_specs_match_pre_cutover_golden_exactly() -> None:
     expected = {
         row["spec"]["type_id"]: row["spec"]
-        for row in load_effective_non_dpf_catalog()
+        for row in load_current_repo_owned_catalog()
         if row["spec"]["type_id"] in NODE_METADATA
     }
 

@@ -80,7 +80,6 @@ Before broad exploration, open the coverage matrix and the most relevant subsyst
 - [Excalidraw Web Host And Real Editor](feature_routes/excalidraw_web_host_real_editor.md)
 - [Tabular Data Add-on And Preview](feature_routes/tabular_data_addon_preview.md)
 - [Plotter Nodes](feature_routes/plotter_nodes.md)
-- [Ansys DPF Operator Nodes, Viewer, And Transport](feature_routes/ansys_dpf_operator_viewer_transport.md)
 - [Add-on Manager](feature_routes/addon_manager.md)
 - [MARS Solver Add-on](feature_routes/mars_solver_addon.md)
 - [Core Integrations: File, Process, Email, Spreadsheet](feature_routes/core_integrations_file_process_email_spreadsheet.md)

@@ -13,14 +13,12 @@ import sys
 
 import pytest
 
-from ea_node_editor.addons.ansys_dpf import catalog as ansys_dpf_catalog
 from ea_node_editor.nodes import builtin_catalog
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER_ID
-from ea_node_editor.nodes.plugin_contracts import PluginAvailability
 from ea_node_editor.nodes.registry import PythonFunctionEntry, TrustedFactoryEntry
 from ea_node_editor.runtime_contracts import TypedInlineValue
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 from tests.test_corex_contract_catalog import _catalog_value
 
 
@@ -66,16 +64,13 @@ _MIGRATION_INVENTORY = (
 _INTERNAL_EXCEPTION_ROW = re.compile(
     r"^\| `(?P<type_id>[^`]+)` \| internal exception \|"
 )
-_DPF_EXCLUDED_ROW = re.compile(
-    r"^\| `(?P<type_id>[^`]+)` \| DPF excluded \|"
-)
 
 
 def test_exact_t15_entries_match_golden_and_leave_exact_exception_set(
     tmp_path: Path,
 ) -> None:
     registry = build_builtin_registry(generation_root=tmp_path / "generations")
-    golden_rows = load_effective_non_dpf_catalog()
+    golden_rows = load_current_repo_owned_catalog()
     expected = {
         row["spec"]["type_id"]: row["spec"]
         for row in golden_rows
@@ -129,37 +124,6 @@ def test_t16_trusted_descriptor_allowlist_fails_closed(
         match="Trusted built-in descriptor allowlist mismatch",
     ):
         build_builtin_registry(generation_root=tmp_path / "generations")
-
-
-def test_t16_dpf_backend_catalog_matches_exact_excluded_inventory(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    expected_type_ids = {
-        match["type_id"]
-        for line in _MIGRATION_INVENTORY.read_text(encoding="utf-8").splitlines()
-        if (match := _DPF_EXCLUDED_ROW.match(line)) is not None
-    }
-    monkeypatch.setattr(
-        ansys_dpf_catalog,
-        "get_ansys_dpf_plugin_availability",
-        lambda: PluginAvailability.available(),
-    )
-    monkeypatch.setattr(
-        ansys_dpf_catalog,
-        "resolve_ansys_dpf_plugin_version",
-        lambda: "t16-inventory",
-    )
-    ansys_dpf_catalog.invalidate_ansys_dpf_descriptor_cache()
-
-    try:
-        descriptors = ansys_dpf_catalog.ANSYS_DPF_PLUGIN_BACKEND.load_descriptors()
-    finally:
-        ansys_dpf_catalog.invalidate_ansys_dpf_descriptor_cache()
-    actual_type_ids = tuple(descriptor.spec.type_id for descriptor in descriptors)
-
-    assert len(expected_type_ids) == 805
-    assert len(actual_type_ids) == len(set(actual_type_ids)) == 805
-    assert set(actual_type_ids) == expected_type_ids
 
 
 def test_t15_discovery_does_not_load_heavy_or_identity_dependencies(

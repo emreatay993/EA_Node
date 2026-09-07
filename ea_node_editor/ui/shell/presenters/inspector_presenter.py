@@ -29,10 +29,6 @@ from ea_node_editor.ui.support.node_presentation import build_user_facing_node_i
 from ea_node_editor.ui.support.solution_output_cache import current_output_value
 from ea_node_editor.nodes.builtins.plot.signal_schema import connected_signal_value, enrich_signal_property_items
 from ea_node_editor.ui.media_panel_source import media_panel_source_input_exposed
-from ea_node_editor.ui_qml.dpf_metadata_options_service import (
-    reset_shared_dpf_metadata_options_service,
-    shared_dpf_metadata_options_service,
-)
 from ea_node_editor.ui.shell.inspector_projection import (
     build_pin_data_type_options,
     build_selected_node_header_data,
@@ -74,30 +70,10 @@ class ShellInspectorPresenter(QObject):
         self._gui_app = app if isinstance(app, QGuiApplication) else None
         if self._gui_app is not None:
             self._gui_app.focusObjectChanged.connect(self._on_editor_focus_changed)
-        self._dpf_metadata_options_service = shared_dpf_metadata_options_service()
-        self._dpf_metadata_options_service.options_ready.connect(self._on_dpf_metadata_options_ready)
-
-    @pyqtSlot(str, str, int)
-    def _on_dpf_metadata_options_ready(
-        self,
-        workspace_id: str,
-        node_id: str,
-        _revision: int,
-    ) -> None:
-        if workspace_id != self.selected_node_workspace_id or node_id != self.selected_node_id:
-            return
-        self.inspector_state_changed.emit()
 
     def shutdown(self) -> None:
         if self._gui_app is not None:
             self._gui_app.focusObjectChanged.disconnect(self._on_editor_focus_changed)
-        try:
-            self._dpf_metadata_options_service.options_ready.disconnect(
-                self._on_dpf_metadata_options_ready
-            )
-        except (TypeError, RuntimeError):
-            pass
-        reset_shared_dpf_metadata_options_service()
 
     def _emit_selected_node_changed(self) -> None:
         self._runtime_schema_pending = False

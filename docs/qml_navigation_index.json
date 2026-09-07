@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 176,
-    "repeater_constructs": 90,
-    "loader_constructs": 24,
-    "signal_handlers": 904,
+    "qml_files": 175,
+    "repeater_constructs": 87,
+    "loader_constructs": 25,
+    "signal_handlers": 893,
     "connections": 48,
-    "property_bindings": 7625,
-    "local_component_refs": 283
+    "property_bindings": 7562,
+    "local_component_refs": 281
   },
   "entries": [
     {
@@ -3137,729 +3137,6 @@
           "anchor": "SecretEditorHandlerOnClicked",
           "kind": "handler",
           "name": "onClicked"
-        }
-      ]
-    },
-    {
-      "path": "ea_node_editor/ui_qml/components/graph/dpf/GraphDpfWorkflowSurface.qml",
-      "component_name": "GraphDpfWorkflowSurface",
-      "aliases": [
-        "GraphDpfWorkflowSurface",
-        "GraphDpfWorkflowSurface.qml",
-        "ea_node_editor/ui_qml/components/graph/dpf/GraphDpfWorkflowSurface.qml",
-        "ea_node_editor\\ui_qml\\components\\graph\\dpf\\GraphDpfWorkflowSurface.qml"
-      ],
-      "root_component": "GraphShared.GraphSurfaceBase",
-      "imports": [
-        "QtQuick 2.15",
-        "QtQuick.Controls 2.15",
-        "QtQuick.Layouts 1.15",
-        "\"..\" as GraphShared",
-        "\"../surface_controls\" as SurfaceControls",
-        "\"../surface_controls/SurfaceControlGeometry.js\" as SurfaceControlGeometry"
-      ],
-      "ids": [
-        {
-          "name": "root"
-        },
-        {
-          "name": "contentColumn"
-        },
-        {
-          "name": "controlsRepeater"
-        },
-        {
-          "name": "controlRow"
-        },
-        {
-          "name": "editor"
-        },
-        {
-          "name": "statusText"
-        },
-        {
-          "name": "factsColumn"
-        }
-      ],
-      "object_names": [
-        {
-          "name": "graphDpfWorkflowSurface"
-        },
-        {
-          "name": "dpfWorkflowConfigurationSummary"
-        },
-        {
-          "name": "dpfWorkflowFieldMathGuidance"
-        },
-        {
-          "name": "dpfWorkflowControl_"
-        },
-        {
-          "name": "dpfWorkflowStatusStrip"
-        },
-        {
-          "name": "dpfWorkflowResultHeadline"
-        },
-        {
-          "name": "dpfWorkflowResultDetail"
-        }
-      ],
-      "properties": [
-        {
-          "kind": "string",
-          "name": "nodeId"
-        },
-        {
-          "kind": "string",
-          "name": "nodeType"
-        },
-        {
-          "kind": "var",
-          "name": "summaryLookup"
-        },
-        {
-          "kind": "var",
-          "name": "runSummary"
-        },
-        {
-          "kind": "bool",
-          "name": "blocksHostInteraction"
-        },
-        {
-          "kind": "var",
-          "name": "surfaceActions"
-        },
-        {
-          "kind": "real",
-          "name": "minimumBodyWidth"
-        },
-        {
-          "kind": "real",
-          "name": "minimumBodyHeight"
-        },
-        {
-          "kind": "string",
-          "name": "nextRequiredAction"
-        },
-        {
-          "kind": "string",
-          "name": "fieldMathPortGuidance"
-        },
-        {
-          "kind": "string",
-          "name": "statusMessage"
-        },
-        {
-          "kind": "bool",
-          "name": "incomplete"
-        },
-        {
-          "kind": "var",
-          "name": "controlRows"
-        },
-        {
-          "kind": "var",
-          "name": "embeddedInteractiveRects"
-        },
-        {
-          "kind": "var",
-          "name": "controlRects"
-        }
-      ],
-      "signals": [],
-      "functions": [
-        {
-          "name": "dispatchSurfaceAction"
-        },
-        {
-          "name": "requestInlineEditAt"
-        },
-        {
-          "name": "commitInlineEditFromExternalInteraction"
-        },
-        {
-          "name": "_pretty"
-        },
-        {
-          "name": "_scopeModeLabel"
-        },
-        {
-          "name": "_timeModeLabel"
-        },
-        {
-          "name": "_locationLabel"
-        },
-        {
-          "name": "_invariantLabel"
-        },
-        {
-          "name": "_operationLabel"
-        },
-        {
-          "name": "_propertyExists"
-        },
-        {
-          "name": "_portConnected"
-        },
-        {
-          "name": "_pathLabel"
-        },
-        {
-          "name": "_scopeLabel"
-        },
-        {
-          "name": "_timeLabel"
-        },
-        {
-          "name": "_resultLabel"
-        },
-        {
-          "name": "_configurationSummary"
-        },
-        {
-          "name": "_buildControlRows"
-        },
-        {
-          "name": "_commitProperty"
-        },
-        {
-          "name": "_nextRequiredAction"
-        },
-        {
-          "name": "_fieldMathPortGuidance"
-        },
-        {
-          "name": "_statusText"
-        },
-        {
-          "name": "_statusColor"
-        }
-      ],
-      "instantiated_components": [
-        {
-          "name": "Rectangle"
-        },
-        {
-          "name": "ColumnLayout"
-        },
-        {
-          "name": "Text"
-        },
-        {
-          "name": "Repeater"
-        },
-        {
-          "name": "SurfaceControls.GraphSurfaceComboBox"
-        }
-      ],
-      "dynamic_refs": [
-        {
-          "kind": "Repeater"
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "root.controlRows"
-          ]
-        },
-        {
-          "kind": "delegate",
-          "targets": [
-            "RowLayout"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "modelData.labels"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "root.runSummary.facts",
-            "root.runSummary.facts.slice"
-          ]
-        }
-      ],
-      "signal_handlers": [
-        {
-          "kind": "handler",
-          "name": "onControlStarted"
-        },
-        {
-          "kind": "handler",
-          "name": "onActivated"
-        }
-      ],
-      "connections": [],
-      "property_bindings": [
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "Math.max",
-            "minimumBodyHeight",
-            "contentColumn.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.fill",
-          "targets": [
-            "parent"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius"
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root.host",
-            "Qt.alpha",
-            "root.host.inlineRowColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width"
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "root.host",
-            "root.host.inlineRowBorderColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.margins"
-        },
-        {
-          "kind": "binding",
-          "name": "spacing"
-        },
-        {
-          "kind": "binding",
-          "name": "Layout.fillWidth"
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "root._configurationSummary"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root.host",
-            "root.host.inlineInputTextColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.pixelSize",
-          "targets": [
-            "root.host",
-            "root.host.graphSharedTypography"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.bold"
-        },
-        {
-          "kind": "binding",
-          "name": "wrapMode",
-          "targets": [
-            "Text.Wrap"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "elide",
-          "targets": [
-            "Text.ElideRight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "maximumLineCount"
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.fieldMathPortGuidance.length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "root.fieldMathPortGuidance"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root.host",
-            "root.host.inlineLabelColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.pixelSize"
-        },
-        {
-          "kind": "binding",
-          "name": "Layout.preferredWidth"
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "String",
-            "modelData.label"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "host",
-          "targets": [
-            "root.host"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "currentIndex",
-          "targets": [
-            "Math.max",
-            "modelData.values",
-            "indexOf",
-            "modelData.value"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "controlHeight"
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "statusText.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "Qt.alpha",
-            "root._statusColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "Qt.alpha",
-            "root._statusColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "root.statusMessage"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "verticalAlignment",
-          "targets": [
-            "Text.AlignVCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "String",
-            "root.runSummary.headline",
-            "length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "String",
-            "root.runSummary.headline"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "String",
-            "root.runSummary.detail"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "text.length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "String",
-            "modelData.label",
-            "modelData.value"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "elide",
-          "targets": [
-            "Text.ElideMiddle"
-          ]
-        }
-      ],
-      "local_component_refs": [
-        {
-          "kind": "localComponent",
-          "name": "SurfaceControls.GraphSurfaceComboBox",
-          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceComboBox.qml"
-        }
-      ],
-      "symbol_anchors": [
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyNodeId",
-          "kind": "property",
-          "name": "nodeId",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyNodeType",
-          "kind": "property",
-          "name": "nodeType",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertySummaryLookup",
-          "kind": "property",
-          "name": "summaryLookup",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyRunSummary",
-          "kind": "property",
-          "name": "runSummary",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyBlocksHostInteraction",
-          "kind": "property",
-          "name": "blocksHostInteraction",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertySurfaceActions",
-          "kind": "property",
-          "name": "surfaceActions",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyMinimumBodyWidth",
-          "kind": "property",
-          "name": "minimumBodyWidth",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyMinimumBodyHeight",
-          "kind": "property",
-          "name": "minimumBodyHeight",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyNextRequiredAction",
-          "kind": "property",
-          "name": "nextRequiredAction",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyFieldMathPortGuidance",
-          "kind": "property",
-          "name": "fieldMathPortGuidance",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyStatusMessage",
-          "kind": "property",
-          "name": "statusMessage",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyIncomplete",
-          "kind": "property",
-          "name": "incomplete",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyControlRows",
-          "kind": "property",
-          "name": "controlRows",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyEmbeddedInteractiveRects",
-          "kind": "property",
-          "name": "embeddedInteractiveRects",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfacePropertyControlRects",
-          "kind": "property",
-          "name": "controlRects",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionDispatchSurfaceAction",
-          "kind": "function",
-          "name": "dispatchSurfaceAction"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionRequestInlineEditAt",
-          "kind": "function",
-          "name": "requestInlineEditAt"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionCommitInlineEditFromExternalInteraction",
-          "kind": "function",
-          "name": "commitInlineEditFromExternalInteraction"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionPretty",
-          "kind": "function",
-          "name": "_pretty"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionScopeModeLabel",
-          "kind": "function",
-          "name": "_scopeModeLabel"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionTimeModeLabel",
-          "kind": "function",
-          "name": "_timeModeLabel"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionLocationLabel",
-          "kind": "function",
-          "name": "_locationLabel"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionInvariantLabel",
-          "kind": "function",
-          "name": "_invariantLabel"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionOperationLabel",
-          "kind": "function",
-          "name": "_operationLabel"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionPropertyExists",
-          "kind": "function",
-          "name": "_propertyExists"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionPortConnected",
-          "kind": "function",
-          "name": "_portConnected"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionPathLabel",
-          "kind": "function",
-          "name": "_pathLabel"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionScopeLabel",
-          "kind": "function",
-          "name": "_scopeLabel"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionTimeLabel",
-          "kind": "function",
-          "name": "_timeLabel"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionResultLabel",
-          "kind": "function",
-          "name": "_resultLabel"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionConfigurationSummary",
-          "kind": "function",
-          "name": "_configurationSummary"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionBuildControlRows",
-          "kind": "function",
-          "name": "_buildControlRows"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionCommitProperty",
-          "kind": "function",
-          "name": "_commitProperty"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionNextRequiredAction",
-          "kind": "function",
-          "name": "_nextRequiredAction"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionFieldMathPortGuidance",
-          "kind": "function",
-          "name": "_fieldMathPortGuidance"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionStatusText",
-          "kind": "function",
-          "name": "_statusText"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceFunctionStatusColor",
-          "kind": "function",
-          "name": "_statusColor"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceHandlerOnControlStarted",
-          "kind": "handler",
-          "name": "onControlStarted"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceHandlerOnActivated",
-          "kind": "handler",
-          "name": "onActivated"
-        },
-        {
-          "anchor": "GraphDpfWorkflowSurfaceLocalComponentSurfaceControlsGraphSurfaceComboBox",
-          "kind": "localComponent",
-          "name": "SurfaceControls.GraphSurfaceComboBox",
-          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceComboBox.qml"
         }
       ]
     },
@@ -9570,6 +8847,14 @@
         },
         {
           "kind": "binding",
+          "name": "exactSelectors",
+          "targets": [
+            "Boolean",
+            "inlineRow.propertyData.exact_selectors"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "minimum",
           "targets": [
             "inlineRow.propertyData.list_item_minimum"
@@ -9588,6 +8873,13 @@
           "targets": [
             "Number",
             "inlineRow.propertyData.list_item_step"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "optionCodes",
+          "targets": [
+            "inlineRow.propertyData.enum_codes"
           ]
         },
         {
@@ -11291,6 +10583,9 @@
           "name": "failureBadgeText"
         },
         {
+          "name": "failureBadgeHover"
+        },
+        {
           "name": "lockedBadge"
         },
         {
@@ -11357,6 +10652,9 @@
         },
         {
           "name": "graphNodeFailureBadgeText"
+        },
+        {
+          "name": "graphNodeFailureToolTip"
         },
         {
           "name": "graphNodeLockedChip"
@@ -11533,6 +10831,10 @@
         {
           "kind": "real",
           "name": "_headerBadgeReserveWidth"
+        },
+        {
+          "kind": "real",
+          "name": "diagnosticBadgeSize"
         },
         {
           "kind": "string",
@@ -12349,45 +11651,41 @@
         },
         {
           "kind": "binding",
-          "name": "anchors.right",
-          "targets": [
-            "lockedBadge.visible",
-            "lockedBadge.left",
-            "parent.right"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.rightMargin",
-          "targets": [
-            "lockedBadge.visible"
-          ]
+          "name": "anchors.rightMargin"
         },
         {
           "kind": "binding",
           "name": "y",
           "targets": [
-            "root.host",
-            "root.host._titleTop",
-            "Math.max",
-            "root.host._titleHeight",
             "height"
           ]
         },
         {
           "kind": "binding",
-          "name": "height"
+          "name": "width",
+          "targets": [
+            "root.diagnosticBadgeSize"
+          ]
         },
         {
           "kind": "binding",
-          "name": "radius"
+          "name": "height",
+          "targets": [
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "width"
+          ]
         },
         {
           "kind": "binding",
           "name": "color",
           "targets": [
             "root.host",
-            "Qt.alpha",
             "root.host.warningOutlineColor"
           ]
         },
@@ -12423,11 +11721,7 @@
         },
         {
           "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root.host",
-            "root.host.warningOutlineColor"
-          ]
+          "name": "color"
         },
         {
           "kind": "binding",
@@ -12540,6 +11834,10 @@
         },
         {
           "kind": "binding",
+          "name": "height"
+        },
+        {
+          "kind": "binding",
           "name": "color",
           "targets": [
             "root.nodeHelpDividerColor"
@@ -12643,10 +11941,21 @@
         },
         {
           "kind": "binding",
+          "name": "Accessible.name"
+        },
+        {
+          "kind": "binding",
           "name": "color",
           "targets": [
             "root.host",
             "root.host.failureBadgeTextColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "active",
+          "targets": [
+            "failureBadgeHover.hovered"
           ]
         },
         {
@@ -12658,7 +11967,14 @@
         },
         {
           "kind": "binding",
-          "name": "anchors.rightMargin"
+          "name": "y",
+          "targets": [
+            "root.host",
+            "root.host._titleTop",
+            "Math.max",
+            "root.host._titleHeight",
+            "height"
+          ]
         },
         {
           "kind": "binding",
@@ -12667,6 +11983,10 @@
             "Math.ceil",
             "lockedBadgeText.implicitWidth"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius"
         },
         {
           "kind": "binding",
@@ -12957,6 +12277,12 @@
           "anchor": "GraphNodeHeaderLayerPropertyHeaderBadgeReserveWidth",
           "kind": "property",
           "name": "_headerBadgeReserveWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeHeaderLayerPropertyDiagnosticBadgeSize",
+          "kind": "property",
+          "name": "diagnosticBadgeSize",
           "detail": "real"
         },
         {
@@ -21050,6 +20376,10 @@
         },
         {
           "kind": "bool",
+          "name": "revealActive"
+        },
+        {
+          "kind": "bool",
           "name": "isEditing"
         },
         {
@@ -21283,7 +20613,7 @@
           "kind": "binding",
           "name": "sourceSize",
           "targets": [
-            "Qt.size"
+            "row.portsLayer.notchSourceSize"
           ]
         },
         {
@@ -21462,20 +20792,30 @@
         },
         {
           "kind": "binding",
+          "name": "x",
+          "targets": [
+            "row.isInput",
+            "removeButton.visible"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "y"
         },
         {
           "kind": "binding",
           "name": "width",
           "targets": [
-            "parent.width"
+            "removeButton.visible",
+            "row.isInput"
           ]
         },
         {
           "kind": "binding",
           "name": "height",
           "targets": [
-            "parent.height"
+            "parent.height",
+            "row.portsLayer._dynamicPortInlineControlsVisible"
           ]
         },
         {
@@ -21603,11 +20943,17 @@
         },
         {
           "kind": "binding",
-          "name": "width"
+          "name": "width",
+          "targets": [
+            "row.portsLayer.dynamicPortRemoveTargetWidth"
+          ]
         },
         {
           "kind": "binding",
-          "name": "height"
+          "name": "height",
+          "targets": [
+            "row.portsLayer.dynamicPortTargetDiameter"
+          ]
         },
         {
           "kind": "binding",
@@ -21686,6 +21032,10 @@
         },
         {
           "kind": "binding",
+          "name": "anchors.verticalCenterOffset"
+        },
+        {
+          "kind": "binding",
           "name": "color"
         },
         {
@@ -21718,6 +21068,13 @@
           "name": "width",
           "targets": [
             "availableWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "parent.height"
           ]
         },
         {
@@ -21840,6 +21197,10 @@
           "targets": [
             "parent.bottom"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "height"
         },
         {
           "kind": "binding",
@@ -22403,6 +21764,12 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphNodePortRowPropertyRevealActive",
+          "kind": "property",
+          "name": "revealActive",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphNodePortRowPropertyIsEditing",
           "kind": "property",
           "name": "isEditing",
@@ -22752,23 +22119,31 @@
         },
         {
           "kind": "real",
-          "name": "portInteractionPadding"
-        },
-        {
-          "kind": "real",
-          "name": "dynamicPortTargetRadius"
-        },
-        {
-          "kind": "real",
-          "name": "dynamicPortControlGap"
-        },
-        {
-          "kind": "real",
           "name": "dynamicPortControlCenterInterval"
         },
         {
           "kind": "real",
+          "name": "dynamicPortTargetDiameter"
+        },
+        {
+          "kind": "real",
+          "name": "dynamicPortRemoveCenterInterval"
+        },
+        {
+          "kind": "real",
+          "name": "dynamicPortRemoveTargetWidth"
+        },
+        {
+          "kind": "real",
+          "name": "dynamicPortHoverHandoffOverlap"
+        },
+        {
+          "kind": "real",
           "name": "notchDiameter"
+        },
+        {
+          "kind": "size",
+          "name": "notchSourceSize"
         },
         {
           "kind": "bool",
@@ -22903,6 +22278,10 @@
           "name": "actionActive"
         },
         {
+          "kind": "bool",
+          "name": "revealActive"
+        },
+        {
           "kind": "color",
           "name": "actionFillColor"
         }
@@ -22972,6 +22351,18 @@
         },
         {
           "name": "_dynamicPortInlineControlsVisible"
+        },
+        {
+          "name": "_dynamicPortControlRevealActive"
+        },
+        {
+          "name": "_dynamicPortIsGroupTerminus"
+        },
+        {
+          "name": "_anyDynamicPortControlRevealActive"
+        },
+        {
+          "name": "_dynamicGroupControlRevealActive"
         },
         {
           "name": "_isEditablePort"
@@ -23329,7 +22720,7 @@
           "kind": "binding",
           "name": "sourceSize",
           "targets": [
-            "Qt.size"
+            "root.notchSourceSize"
           ]
         },
         {
@@ -23708,6 +23099,13 @@
         },
         {
           "kind": "binding",
+          "name": "width",
+          "targets": [
+            "root.dynamicPortTargetDiameter"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "text"
         },
         {
@@ -23773,6 +23171,10 @@
           "targets": [
             "dynamicPortAddButton.activeFocus"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.verticalCenterOffset"
         },
         {
           "kind": "binding",
@@ -23915,27 +23317,33 @@
           "detail": "real"
         },
         {
-          "anchor": "GraphNodePortsLayerPropertyPortInteractionPadding",
-          "kind": "property",
-          "name": "portInteractionPadding",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyDynamicPortTargetRadius",
-          "kind": "property",
-          "name": "dynamicPortTargetRadius",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyDynamicPortControlGap",
-          "kind": "property",
-          "name": "dynamicPortControlGap",
-          "detail": "real"
-        },
-        {
           "anchor": "GraphNodePortsLayerPropertyDynamicPortControlCenterInterval",
           "kind": "property",
           "name": "dynamicPortControlCenterInterval",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyDynamicPortTargetDiameter",
+          "kind": "property",
+          "name": "dynamicPortTargetDiameter",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyDynamicPortRemoveCenterInterval",
+          "kind": "property",
+          "name": "dynamicPortRemoveCenterInterval",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyDynamicPortRemoveTargetWidth",
+          "kind": "property",
+          "name": "dynamicPortRemoveTargetWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyDynamicPortHoverHandoffOverlap",
+          "kind": "property",
+          "name": "dynamicPortHoverHandoffOverlap",
           "detail": "real"
         },
         {
@@ -23943,6 +23351,12 @@
           "kind": "property",
           "name": "notchDiameter",
           "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyNotchSourceSize",
+          "kind": "property",
+          "name": "notchSourceSize",
+          "detail": "size"
         },
         {
           "anchor": "GraphNodePortsLayerPropertyNotchedPortsEffective",
@@ -24143,6 +23557,12 @@
           "detail": "bool"
         },
         {
+          "anchor": "GraphNodePortsLayerPropertyRevealActive",
+          "kind": "property",
+          "name": "revealActive",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphNodePortsLayerPropertyActionFillColor",
           "kind": "property",
           "name": "actionFillColor",
@@ -24252,6 +23672,26 @@
           "anchor": "GraphNodePortsLayerFunctionDynamicPortInlineControlsVisible",
           "kind": "function",
           "name": "_dynamicPortInlineControlsVisible"
+        },
+        {
+          "anchor": "GraphNodePortsLayerFunctionDynamicPortControlRevealActive",
+          "kind": "function",
+          "name": "_dynamicPortControlRevealActive"
+        },
+        {
+          "anchor": "GraphNodePortsLayerFunctionDynamicPortIsGroupTerminus",
+          "kind": "function",
+          "name": "_dynamicPortIsGroupTerminus"
+        },
+        {
+          "anchor": "GraphNodePortsLayerFunctionAnyDynamicPortControlRevealActive",
+          "kind": "function",
+          "name": "_anyDynamicPortControlRevealActive"
+        },
+        {
+          "anchor": "GraphNodePortsLayerFunctionDynamicGroupControlRevealActive",
+          "kind": "function",
+          "name": "_dynamicGroupControlRevealActive"
         },
         {
           "anchor": "GraphNodePortsLayerFunctionIsEditablePort",
@@ -33550,7 +32990,11 @@
         },
         {
           "kind": "binding",
-          "name": "iconName"
+          "name": "iconName",
+          "targets": [
+            "String",
+            "modelData.menu_icon"
+          ]
         },
         {
           "kind": "binding",
@@ -33560,8 +33004,9 @@
           "kind": "binding",
           "name": "iconSize",
           "targets": [
-            "Math.max",
-            "root._buttonIconSize"
+            "modelData.menu_icon",
+            "root._buttonIconSize",
+            "Math.max"
           ]
         },
         {
@@ -71640,6 +71085,9 @@
           "name": "removeButton"
         },
         {
+          "name": "searchableComponent"
+        },
+        {
           "name": "enumComponent"
         },
         {
@@ -71661,6 +71109,9 @@
         },
         {
           "name": "graphSurfaceListRemoveButton"
+        },
+        {
+          "name": "graphSurfaceListSearchableEditor"
         },
         {
           "name": "graphSurfaceListAddButton"
@@ -71692,6 +71143,10 @@
           "name": "enumCodes"
         },
         {
+          "kind": "bool",
+          "name": "exactSelectors"
+        },
+        {
           "kind": "var",
           "name": "minimum"
         },
@@ -71710,6 +71165,10 @@
         {
           "kind": "bool",
           "name": "_syncing"
+        },
+        {
+          "kind": "bool",
+          "name": "_ready"
         },
         {
           "kind": "int",
@@ -71758,6 +71217,9 @@
           "name": "Component"
         },
         {
+          "name": "GraphSurfaceSearchableComboBox"
+        },
+        {
           "name": "GraphSurfaceComboBox"
         },
         {
@@ -71789,6 +71251,8 @@
         {
           "kind": "sourceComponent",
           "targets": [
+            "root.exactSelectors",
+            "searchableComponent",
             "root.itemType"
           ]
         },
@@ -71809,6 +71273,10 @@
         },
         {
           "kind": "handler",
+          "name": "onExactSelectorsChanged"
+        },
+        {
+          "kind": "handler",
           "name": "Component.onCompleted"
         },
         {
@@ -71826,6 +71294,10 @@
         {
           "kind": "handler",
           "name": "onClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "onValueActivated"
         },
         {
           "kind": "handler",
@@ -72012,6 +71484,24 @@
         },
         {
           "kind": "binding",
+          "name": "optionCodes",
+          "targets": [
+            "root.enumCodes"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "exactSelectors"
+        },
+        {
+          "kind": "binding",
+          "name": "selectedValue",
+          "targets": [
+            "itemValue"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "currentIndex",
           "targets": [
             "root.enumCodes.indexOf",
@@ -72110,6 +71600,11 @@
         },
         {
           "kind": "localComponent",
+          "name": "GraphSurfaceSearchableComboBox",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSearchableComboBox.qml"
+        },
+        {
+          "kind": "localComponent",
           "name": "GraphSurfaceComboBox",
           "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceComboBox.qml"
         },
@@ -72162,6 +71657,12 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphSurfaceListEditorPropertyExactSelectors",
+          "kind": "property",
+          "name": "exactSelectors",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphSurfaceListEditorPropertyMinimum",
           "kind": "property",
           "name": "minimum",
@@ -72189,6 +71690,12 @@
           "anchor": "GraphSurfaceListEditorPropertySyncing",
           "kind": "property",
           "name": "_syncing",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSurfaceListEditorPropertyReady",
+          "kind": "property",
+          "name": "_ready",
           "detail": "bool"
         },
         {
@@ -72233,6 +71740,11 @@
           "name": "onValuesChanged"
         },
         {
+          "anchor": "GraphSurfaceListEditorHandlerOnExactSelectorsChanged",
+          "kind": "handler",
+          "name": "onExactSelectorsChanged"
+        },
+        {
           "anchor": "GraphSurfaceListEditorHandlerComponentOnCompleted",
           "kind": "handler",
           "name": "Component.onCompleted"
@@ -72258,6 +71770,11 @@
           "name": "onClicked"
         },
         {
+          "anchor": "GraphSurfaceListEditorHandlerOnValueActivated",
+          "kind": "handler",
+          "name": "onValueActivated"
+        },
+        {
           "anchor": "GraphSurfaceListEditorHandlerOnActivated",
           "kind": "handler",
           "name": "onActivated"
@@ -72278,6 +71795,12 @@
           "kind": "localComponent",
           "name": "GraphSurfaceButton",
           "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml"
+        },
+        {
+          "anchor": "GraphSurfaceListEditorLocalComponentGraphSurfaceSearchableComboBox",
+          "kind": "localComponent",
+          "name": "GraphSurfaceSearchableComboBox",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSearchableComboBox.qml"
         },
         {
           "anchor": "GraphSurfaceListEditorLocalComponentGraphSurfaceComboBox",
@@ -72872,7 +72395,11 @@
           "name": "optionsView"
         }
       ],
-      "object_names": [],
+      "object_names": [
+        {
+          "name": "graphSelectorOptions"
+        }
+      ],
       "properties": [
         {
           "kind": "Item",
@@ -72887,11 +72414,27 @@
           "name": "model"
         },
         {
+          "kind": "var",
+          "name": "optionCodes"
+        },
+        {
+          "kind": "bool",
+          "name": "exactSelectors"
+        },
+        {
+          "kind": "var",
+          "name": "_syncedValue"
+        },
+        {
+          "kind": "string",
+          "name": "_syncedText"
+        },
+        {
           "kind": "string",
           "name": "placeholderText"
         },
         {
-          "kind": "string",
+          "kind": "var",
           "name": "selectedValue"
         },
         {
@@ -73096,6 +72639,9 @@
           "name": "_optionIndex"
         },
         {
+          "name": "labelForValue"
+        },
+        {
           "name": "_filteredOptionsFor"
         },
         {
@@ -73172,6 +72718,10 @@
         },
         {
           "kind": "handler",
+          "name": "onOptionCodesChanged"
+        },
+        {
+          "kind": "handler",
           "name": "onOptionValuesChanged"
         },
         {
@@ -73245,7 +72795,7 @@
           "kind": "binding",
           "name": "text",
           "targets": [
-            "String",
+            "control.labelForValue",
             "control.selectedValue",
             "control.placeholderText"
           ]
@@ -73669,6 +73219,30 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphSurfaceSearchableComboBoxPropertyOptionCodes",
+          "kind": "property",
+          "name": "optionCodes",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphSurfaceSearchableComboBoxPropertyExactSelectors",
+          "kind": "property",
+          "name": "exactSelectors",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSurfaceSearchableComboBoxPropertySyncedValue",
+          "kind": "property",
+          "name": "_syncedValue",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphSurfaceSearchableComboBoxPropertySyncedText",
+          "kind": "property",
+          "name": "_syncedText",
+          "detail": "string"
+        },
+        {
           "anchor": "GraphSurfaceSearchableComboBoxPropertyPlaceholderText",
           "kind": "property",
           "name": "placeholderText",
@@ -73678,7 +73252,7 @@
           "anchor": "GraphSurfaceSearchableComboBoxPropertySelectedValue",
           "kind": "property",
           "name": "selectedValue",
-          "detail": "string"
+          "detail": "var"
         },
         {
           "anchor": "GraphSurfaceSearchableComboBoxPropertyEditText",
@@ -73980,6 +73554,11 @@
           "name": "_optionIndex"
         },
         {
+          "anchor": "GraphSurfaceSearchableComboBoxFunctionLabelForValue",
+          "kind": "function",
+          "name": "labelForValue"
+        },
+        {
           "anchor": "GraphSurfaceSearchableComboBoxFunctionFilteredOptionsFor",
           "kind": "function",
           "name": "_filteredOptionsFor"
@@ -74023,6 +73602,11 @@
           "anchor": "GraphSurfaceSearchableComboBoxHandlerOnSelectedValueChanged",
           "kind": "handler",
           "name": "onSelectedValueChanged"
+        },
+        {
+          "anchor": "GraphSurfaceSearchableComboBoxHandlerOnOptionCodesChanged",
+          "kind": "handler",
+          "name": "onOptionCodesChanged"
         },
         {
           "anchor": "GraphSurfaceSearchableComboBoxHandlerOnOptionValuesChanged",
@@ -76521,6 +76105,18 @@
           "name": "elide",
           "targets": [
             "Text.ElideRight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x"
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.max",
+            "parent.width"
           ]
         },
         {
@@ -79972,15 +79568,6 @@
         },
         {
           "name": "placeholderIcon"
-        },
-        {
-          "name": "footerFrame"
-        },
-        {
-          "name": "footerFlow"
-        },
-        {
-          "name": "footerMetaRow"
         }
       ],
       "object_names": [
@@ -80074,22 +79661,6 @@
         {
           "kind": "var",
           "name": "viewerOptions"
-        },
-        {
-          "kind": "var",
-          "name": "viewerRenderStats"
-        },
-        {
-          "kind": "var",
-          "name": "viewerRangeFallback"
-        },
-        {
-          "kind": "string",
-          "name": "viewerStatsUnit"
-        },
-        {
-          "kind": "real",
-          "name": "viewerCurrentTimeValue"
         },
         {
           "kind": "bool",
@@ -80206,18 +79777,6 @@
         {
           "kind": "string",
           "name": "viewerLastError"
-        },
-        {
-          "kind": "string",
-          "name": "viewerResultLabel"
-        },
-        {
-          "kind": "string",
-          "name": "viewerSourceKind"
-        },
-        {
-          "kind": "string",
-          "name": "viewerSetLabel"
         },
         {
           "kind": "string",
@@ -80364,10 +79923,6 @@
           "name": "viewerSurfaceContract"
         },
         {
-          "kind": "var",
-          "name": "viewerFooterMetaModel"
-        },
-        {
           "kind": "bool",
           "name": "inlineLiveRequested"
         },
@@ -80394,10 +79949,6 @@
         {
           "kind": "bool",
           "name": "_embeddedInteractionSyncQueued"
-        },
-        {
-          "kind": "real",
-          "name": "maxChipWidth"
         }
       ],
       "signals": [],
@@ -80469,15 +80020,6 @@
           "name": "_iconSource"
         },
         {
-          "name": "_appendFooterMeta"
-        },
-        {
-          "name": "_formatStatValue"
-        },
-        {
-          "name": "_buildFooterMetaModel"
-        },
-        {
           "name": "requestSessionToggle"
         },
         {
@@ -80523,15 +80065,6 @@
         },
         {
           "name": "Image"
-        },
-        {
-          "name": "Flow"
-        },
-        {
-          "name": "Repeater"
-        },
-        {
-          "name": "Row"
         }
       ],
       "dynamic_refs": [
@@ -80549,15 +80082,6 @@
             "String",
             "Qt.alpha",
             "surface.viewerAccentColor"
-          ]
-        },
-        {
-          "kind": "Repeater"
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "surface.viewerFooterMetaModel"
           ]
         }
       ],
@@ -81120,107 +80644,6 @@
           "targets": [
             "surface.viewerHintText"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "surface.viewerFooterMetaModel.length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.bottom",
-          "targets": [
-            "parent.bottom"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "host",
-            "Qt.alpha",
-            "host.inlineInputBackgroundColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "host",
-            "Qt.alpha",
-            "host.inlineInputBorderColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "footerFlow.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.topMargin"
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.bottomMargin"
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "footerMetaRow.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "Math.min",
-            "maxChipWidth",
-            "footerMetaRow.implicitWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "modelData.label"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "Math.max",
-            "parent.width",
-            "x"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "modelData.value"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "host",
-            "host.inlineLabelColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "elide",
-          "targets": [
-            "Text.ElideRight"
-          ]
         }
       ],
       "local_component_refs": [],
@@ -81290,30 +80713,6 @@
           "kind": "property",
           "name": "viewerOptions",
           "detail": "var"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyViewerRenderStats",
-          "kind": "property",
-          "name": "viewerRenderStats",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyViewerRangeFallback",
-          "kind": "property",
-          "name": "viewerRangeFallback",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyViewerStatsUnit",
-          "kind": "property",
-          "name": "viewerStatsUnit",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyViewerCurrentTimeValue",
-          "kind": "property",
-          "name": "viewerCurrentTimeValue",
-          "detail": "real"
         },
         {
           "anchor": "GraphViewerSurfaceBodyPropertyHostSelected",
@@ -81487,24 +80886,6 @@
           "anchor": "GraphViewerSurfaceBodyPropertyViewerLastError",
           "kind": "property",
           "name": "viewerLastError",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyViewerResultLabel",
-          "kind": "property",
-          "name": "viewerResultLabel",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyViewerSourceKind",
-          "kind": "property",
-          "name": "viewerSourceKind",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyViewerSetLabel",
-          "kind": "property",
-          "name": "viewerSetLabel",
           "detail": "string"
         },
         {
@@ -81724,12 +81105,6 @@
           "detail": "var"
         },
         {
-          "anchor": "GraphViewerSurfaceBodyPropertyViewerFooterMetaModel",
-          "kind": "property",
-          "name": "viewerFooterMetaModel",
-          "detail": "var"
-        },
-        {
           "anchor": "GraphViewerSurfaceBodyPropertyInlineLiveRequested",
           "kind": "property",
           "name": "inlineLiveRequested",
@@ -81770,12 +81145,6 @@
           "kind": "property",
           "name": "_embeddedInteractionSyncQueued",
           "detail": "bool"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyPropertyMaxChipWidth",
-          "kind": "property",
-          "name": "maxChipWidth",
-          "detail": "real"
         },
         {
           "anchor": "GraphViewerSurfaceBodyFunctionDispatchSurfaceAction",
@@ -81886,21 +81255,6 @@
           "anchor": "GraphViewerSurfaceBodyFunctionIconSource",
           "kind": "function",
           "name": "_iconSource"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyFunctionAppendFooterMeta",
-          "kind": "function",
-          "name": "_appendFooterMeta"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyFunctionFormatStatValue",
-          "kind": "function",
-          "name": "_formatStatValue"
-        },
-        {
-          "anchor": "GraphViewerSurfaceBodyFunctionBuildFooterMetaModel",
-          "kind": "function",
-          "name": "_buildFooterMetaModel"
         },
         {
           "anchor": "GraphViewerSurfaceBodyFunctionRequestSessionToggle",
@@ -89915,10 +89269,6 @@
         },
         {
           "kind": "var",
-          "name": "dpfWorkflowSummaryLookup"
-        },
-        {
-          "kind": "var",
           "name": "mediaPanelSourceLookup"
         },
         {
@@ -90049,12 +89399,6 @@
           "anchor": "GraphCanvasExecutionFactsPropertyNodeDiagnosticLookup",
           "kind": "property",
           "name": "nodeDiagnosticLookup",
-          "detail": "var"
-        },
-        {
-          "anchor": "GraphCanvasExecutionFactsPropertyDpfWorkflowSummaryLookup",
-          "kind": "property",
-          "name": "dpfWorkflowSummaryLookup",
           "detail": "var"
         },
         {
@@ -95014,6 +94358,7 @@
       "root_component": "Item",
       "imports": [
         "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
         "\"../common\" as Common",
         "\"../graph/GraphActionPresentation.js\" as GraphActionPresentation"
       ],
@@ -95025,7 +94370,13 @@
           "name": "mainPanel"
         },
         {
+          "name": "mainScroll"
+        },
+        {
           "name": "mainColumn"
+        },
+        {
+          "name": "canvasImportSubmenuLoader"
         },
         {
           "name": "selectedWireDisplayModeSubmenuLoader"
@@ -95064,13 +94415,32 @@
           "name": "submenuPanel"
         },
         {
+          "name": "submenuScroll"
+        },
+        {
           "name": "submenuColumn"
         },
         {
           "name": "submenuOptionMouseArea"
         }
       ],
-      "object_names": [],
+      "object_names": [
+        {
+          "name": "canvasOptionsMainScroll"
+        },
+        {
+          "name": "canvasOptionsPasteAndDropRow"
+        },
+        {
+          "name": "canvasOptionsOpenGraphicsSettingsRow"
+        },
+        {
+          "name": "canvasOptionsPasteAndDropSubmenu"
+        },
+        {
+          "name": "canvasOptionsSubmenuScroll"
+        }
+      ],
       "properties": [
         {
           "kind": "Item",
@@ -95143,6 +94513,10 @@
         {
           "kind": "real",
           "name": "resolvedX"
+        },
+        {
+          "kind": "real",
+          "name": "availablePanelHeight"
         },
         {
           "kind": "real",
@@ -95243,6 +94617,14 @@
         {
           "kind": "string",
           "name": "gridStyleLabel"
+        },
+        {
+          "kind": "string",
+          "name": "canvasImportModeValue"
+        },
+        {
+          "kind": "string",
+          "name": "canvasImportModeLabel"
         },
         {
           "kind": "string",
@@ -95377,6 +94759,9 @@
           "name": "setSnapToGrid"
         },
         {
+          "name": "setCanvasImportMode"
+        },
+        {
           "name": "setNodeShadows"
         },
         {
@@ -95407,6 +94792,9 @@
       "instantiated_components": [
         {
           "name": "MenuPanel"
+        },
+        {
+          "name": "ScrollView"
         },
         {
           "name": "Column"
@@ -95535,6 +94923,7 @@
           "kind": "binding",
           "name": "panelHeight",
           "targets": [
+            "Math.min",
             "mainColumn.implicitHeight",
             "root.contentPad"
           ]
@@ -95557,8 +94946,42 @@
           "kind": "binding",
           "name": "width",
           "targets": [
-            "root.panelW",
+            "mainPanel.panelWidth",
             "root.contentPad"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "Math.max",
+            "mainPanel.panelHeight",
+            "root.contentPad"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentWidth",
+          "targets": [
+            "availableWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentHeight",
+          "targets": [
+            "mainColumn.implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "clip"
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "parent.width"
           ]
         },
         {
@@ -95670,6 +95093,17 @@
         },
         {
           "kind": "binding",
+          "name": "value",
+          "targets": [
+            "root.canvasImportModeLabel"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText"
+        },
+        {
+          "kind": "binding",
           "name": "checked",
           "targets": [
             "root.nodeShadows"
@@ -95713,6 +95147,17 @@
         },
         {
           "kind": "binding",
+          "name": "options"
+        },
+        {
+          "kind": "binding",
+          "name": "currentValue",
+          "targets": [
+            "root.canvasImportModeValue"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "options",
           "targets": [
             "GraphActionPresentation.edgeDisplayChoices"
@@ -95724,10 +95169,6 @@
           "targets": [
             "root.selectedWireDisplayModeValue"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "options"
         },
         {
           "kind": "binding",
@@ -96170,6 +95611,7 @@
           "kind": "binding",
           "name": "panelHeight",
           "targets": [
+            "Math.min",
             "submenuColumn.implicitHeight",
             "root.contentPad"
           ]
@@ -96178,8 +95620,24 @@
           "kind": "binding",
           "name": "width",
           "targets": [
-            "root.submenuW",
+            "submenuPanel.panelWidth",
             "root.contentPad"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "Math.max",
+            "submenuPanel.panelHeight",
+            "root.contentPad"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentHeight",
+          "targets": [
+            "submenuColumn.implicitHeight"
           ]
         },
         {
@@ -96337,6 +95795,12 @@
           "detail": "real"
         },
         {
+          "anchor": "GraphCanvasOptionsMenuPropertyAvailablePanelHeight",
+          "kind": "property",
+          "name": "availablePanelHeight",
+          "detail": "real"
+        },
+        {
           "anchor": "GraphCanvasOptionsMenuPropertyResolvedY",
           "kind": "property",
           "name": "resolvedY",
@@ -96484,6 +95948,18 @@
           "anchor": "GraphCanvasOptionsMenuPropertyGridStyleLabel",
           "kind": "property",
           "name": "gridStyleLabel",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphCanvasOptionsMenuPropertyCanvasImportModeValue",
+          "kind": "property",
+          "name": "canvasImportModeValue",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphCanvasOptionsMenuPropertyCanvasImportModeLabel",
+          "kind": "property",
+          "name": "canvasImportModeLabel",
           "detail": "string"
         },
         {
@@ -96685,6 +96161,11 @@
           "name": "setSnapToGrid"
         },
         {
+          "anchor": "GraphCanvasOptionsMenuFunctionSetCanvasImportMode",
+          "kind": "function",
+          "name": "setCanvasImportMode"
+        },
+        {
           "anchor": "GraphCanvasOptionsMenuFunctionSetNodeShadows",
           "kind": "function",
           "name": "setNodeShadows"
@@ -96786,6 +96267,10 @@
         {
           "kind": "var",
           "name": "stateBridge"
+        },
+        {
+          "kind": "string",
+          "name": "canvasImportMode"
         },
         {
           "kind": "bool",
@@ -96916,6 +96401,12 @@
           "kind": "property",
           "name": "stateBridge",
           "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasPreferenceFactsPropertyCanvasImportMode",
+          "kind": "property",
+          "name": "canvasImportMode",
+          "detail": "string"
         },
         {
           "anchor": "GraphCanvasPreferenceFactsPropertyMinimapExpanded",
@@ -102349,33 +101840,6 @@
         },
         {
           "name": "osPathDropArea"
-        },
-        {
-          "name": "lockedNodeStatusRibbon"
-        },
-        {
-          "name": "lockedNodeStatusPill"
-        },
-        {
-          "name": "lockedNodeStatusTextItem"
-        },
-        {
-          "name": "lockedNodeStatusAction"
-        },
-        {
-          "name": "lockedNodeStatusActionText"
-        },
-        {
-          "name": "canvasOptionsGearButton"
-        },
-        {
-          "name": "canvasOptionsGearMouseArea"
-        },
-        {
-          "name": "inputLayers"
-        },
-        {
-          "name": "contextMenus"
         }
       ],
       "object_names": [
@@ -102387,36 +101851,6 @@
         },
         {
           "name": "graphCanvasOsPathDropArea"
-        },
-        {
-          "name": "graphCanvasLockedNodeStatusRibbon"
-        },
-        {
-          "name": "graphCanvasLockedNodeStatusPill"
-        },
-        {
-          "name": "graphCanvasLockedNodeStatusText"
-        },
-        {
-          "name": "graphCanvasLockedNodeStatusAction"
-        },
-        {
-          "name": "graphCanvasLockedNodeStatusActionText"
-        },
-        {
-          "name": "graphCanvasLockedNodeStatusActionMouseArea"
-        },
-        {
-          "name": "graphCanvasOptionsGearButton"
-        },
-        {
-          "name": "graphCanvasOptionsGearMouseArea"
-        },
-        {
-          "name": "graphCanvasInputLayers"
-        },
-        {
-          "name": "graphCanvasContextMenus"
         }
       ],
       "properties": [
@@ -102919,26 +102353,6 @@
         {
           "kind": "alias",
           "name": "wireSelectionModeHeld"
-        },
-        {
-          "kind": "bool",
-          "name": "hovered"
-        },
-        {
-          "kind": "color",
-          "name": "accentColor"
-        },
-        {
-          "kind": "color",
-          "name": "panelColor"
-        },
-        {
-          "kind": "color",
-          "name": "borderColor"
-        },
-        {
-          "kind": "color",
-          "name": "iconColor"
         }
       ],
       "signals": [
@@ -103314,16 +102728,16 @@
           "name": "_pathFromDropEvent"
         },
         {
-          "name": "_mailFileDropPayload"
-        },
-        {
-          "name": "_fileDropPayload"
-        },
-        {
           "name": "updatePathPointerDropPreview"
         },
         {
           "name": "performPathPointerDrop"
+        },
+        {
+          "name": "_acceptExternalCanvasDrop"
+        },
+        {
+          "name": "performExternalCanvasDrop"
         },
         {
           "name": "_pathPointerDropHostAt"
@@ -103426,51 +102840,6 @@
         },
         {
           "name": "exportCanvasBasePng"
-        },
-        {
-          "name": "hostForNodeId"
-        },
-        {
-          "name": "requestInlineRenameForNode"
-        },
-        {
-          "name": "requestAddNodeLinkForNode"
-        },
-        {
-          "name": "requestNodeCommentEditorForNode"
-        },
-        {
-          "name": "openNodeCommentEditor"
-        },
-        {
-          "name": "openNodeLinkEditor"
-        },
-        {
-          "name": "requestNodeLinkTargetPick"
-        },
-        {
-          "name": "applyNodeLinkTargetPick"
-        },
-        {
-          "name": "resumeNodeLinkEditorAfterPickCancel"
-        },
-        {
-          "name": "abortNodeLinkEditorAfterSourceLoss"
-        },
-        {
-          "name": "completeNodeLinkTargetPick"
-        },
-        {
-          "name": "cancelNodeLinkTargetPick"
-        },
-        {
-          "name": "showNodeLinkHoverCard"
-        },
-        {
-          "name": "scheduleNodeLinkHoverDismiss"
-        },
-        {
-          "name": "_resetCanvasSceneState"
         }
       ],
       "instantiated_components": [
@@ -103515,36 +102884,9 @@
         },
         {
           "name": "DropArea"
-        },
-        {
-          "name": "Rectangle"
-        },
-        {
-          "name": "Text"
-        },
-        {
-          "name": "MouseArea"
-        },
-        {
-          "name": "Image"
-        },
-        {
-          "name": "GraphCanvasComponents.GraphCanvasInputLayers"
-        },
-        {
-          "name": "GraphCanvasComponents.GraphCanvasContextMenus"
         }
       ],
-      "dynamic_refs": [
-        {
-          "kind": "source",
-          "targets": [
-            "root._iconSource",
-            "String",
-            "canvasOptionsGearButton.iconColor"
-          ]
-        }
-      ],
+      "dynamic_refs": [],
       "signal_handlers": [
         {
           "kind": "handler",
@@ -103557,58 +102899,6 @@
         {
           "kind": "handler",
           "name": "onTriggered"
-        },
-        {
-          "kind": "handler",
-          "name": "onEntered"
-        },
-        {
-          "kind": "handler",
-          "name": "onPositionChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onExited"
-        },
-        {
-          "kind": "handler",
-          "name": "onDropped"
-        },
-        {
-          "kind": "handler",
-          "name": "onClicked"
-        },
-        {
-          "kind": "handler",
-          "name": "onCanvasStateBridgeChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onCanvasCommandBridgeChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onCanvasViewBridgeChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onSceneBridgeChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onWidthChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onHeightChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "Component.onCompleted"
-        },
-        {
-          "kind": "handler",
-          "name": "Component.onDestruction"
         }
       ],
       "connections": [
@@ -103883,271 +103173,7 @@
           "targets": [
             "text/uri-list",
             "text/plain",
-            "application/x-corex-path-pointer"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.lockedNodeStatusVisible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.left",
-          "targets": [
-            "parent.left"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.right",
-          "targets": [
-            "parent.right"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.top",
-          "targets": [
-            "parent.top"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.leftMargin"
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.rightMargin"
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.topMargin"
-        },
-        {
-          "kind": "binding",
-          "name": "height"
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.verticalCenter",
-          "targets": [
-            "parent.verticalCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "Math.ceil",
-            "lockedNodeStatusTextItem.implicitWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius"
-        },
-        {
-          "kind": "binding",
-          "name": "color"
-        },
-        {
-          "kind": "binding",
-          "name": "opacity"
-        },
-        {
-          "kind": "binding",
-          "name": "border.width"
-        },
-        {
-          "kind": "binding",
-          "name": "border.color"
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.centerIn",
-          "targets": [
-            "parent"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "root.lockedNodeStatusText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root.lockedNodeStatusMutedTextColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.pixelSize"
-        },
-        {
-          "kind": "binding",
-          "name": "font.weight",
-          "targets": [
-            "Font.Medium"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "renderType",
-          "targets": [
-            "Text.CurveRendering"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.lockedNodeStatusActionVisible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "Math.ceil",
-            "lockedNodeStatusActionText.implicitWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "root.lockedNodeStatusActionColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "Qt.lighter",
-            "root.lockedNodeStatusActionColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text"
-        },
-        {
-          "kind": "binding",
-          "name": "font.weight",
-          "targets": [
-            "Font.DemiBold"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "hoverEnabled"
-        },
-        {
-          "kind": "binding",
-          "name": "cursorShape",
-          "targets": [
-            "Qt.PointingHandCursor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width"
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.showCanvasOptionsButton"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "root.showCanvasOptionsButton"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "Qt.alpha"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "canvasOptionsGearButton.panelColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "root.canvasOptionsVisible",
-            "canvasOptionsGearButton.hovered"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "sourceSize.width"
-        },
-        {
-          "kind": "binding",
-          "name": "sourceSize.height"
-        },
-        {
-          "kind": "binding",
-          "name": "fillMode",
-          "targets": [
-            "Image.PreserveAspectFit"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "smooth"
-        },
-        {
-          "kind": "binding",
-          "name": "sceneCommandBridge",
-          "targets": [
-            "root.sceneCommandBridge"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "boxZoomDragThreshold",
-          "targets": [
-            "root.boxZoomDragThreshold"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "boxZoomPaddingPx",
-          "targets": [
-            "root.boxZoomPaddingPx"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "commandBridge",
-          "targets": [
-            "root.canvasCommandBridgeRef"
+            "text/html"
           ]
         }
       ],
@@ -104201,16 +103227,6 @@
           "kind": "localComponent",
           "name": "GraphCanvasComponents.GraphCanvasRootLayers",
           "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "GraphCanvasComponents.GraphCanvasInputLayers",
-          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInputLayers.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "GraphCanvasComponents.GraphCanvasContextMenus",
-          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasContextMenus.qml"
         }
       ],
       "symbol_anchors": [
@@ -104965,36 +103981,6 @@
           "detail": "alias"
         },
         {
-          "anchor": "GraphCanvasPropertyHovered",
-          "kind": "property",
-          "name": "hovered",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphCanvasPropertyAccentColor",
-          "kind": "property",
-          "name": "accentColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphCanvasPropertyPanelColor",
-          "kind": "property",
-          "name": "panelColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphCanvasPropertyBorderColor",
-          "kind": "property",
-          "name": "borderColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphCanvasPropertyIconColor",
-          "kind": "property",
-          "name": "iconColor",
-          "detail": "color"
-        },
-        {
           "anchor": "GraphCanvasSignalNodeCommentEditorRequested",
           "kind": "signal",
           "name": "nodeCommentEditorRequested"
@@ -105610,16 +104596,6 @@
           "name": "_pathFromDropEvent"
         },
         {
-          "anchor": "GraphCanvasFunctionMailFileDropPayload",
-          "kind": "function",
-          "name": "_mailFileDropPayload"
-        },
-        {
-          "anchor": "GraphCanvasFunctionFileDropPayload",
-          "kind": "function",
-          "name": "_fileDropPayload"
-        },
-        {
           "anchor": "GraphCanvasFunctionUpdatePathPointerDropPreview",
           "kind": "function",
           "name": "updatePathPointerDropPreview"
@@ -105628,6 +104604,16 @@
           "anchor": "GraphCanvasFunctionPerformPathPointerDrop",
           "kind": "function",
           "name": "performPathPointerDrop"
+        },
+        {
+          "anchor": "GraphCanvasFunctionAcceptExternalCanvasDrop",
+          "kind": "function",
+          "name": "_acceptExternalCanvasDrop"
+        },
+        {
+          "anchor": "GraphCanvasFunctionPerformExternalCanvasDrop",
+          "kind": "function",
+          "name": "performExternalCanvasDrop"
         },
         {
           "anchor": "GraphCanvasFunctionPathPointerDropHostAt",
@@ -105800,81 +104786,6 @@
           "name": "exportCanvasBasePng"
         },
         {
-          "anchor": "GraphCanvasFunctionHostForNodeId",
-          "kind": "function",
-          "name": "hostForNodeId"
-        },
-        {
-          "anchor": "GraphCanvasFunctionRequestInlineRenameForNode",
-          "kind": "function",
-          "name": "requestInlineRenameForNode"
-        },
-        {
-          "anchor": "GraphCanvasFunctionRequestAddNodeLinkForNode",
-          "kind": "function",
-          "name": "requestAddNodeLinkForNode"
-        },
-        {
-          "anchor": "GraphCanvasFunctionRequestNodeCommentEditorForNode",
-          "kind": "function",
-          "name": "requestNodeCommentEditorForNode"
-        },
-        {
-          "anchor": "GraphCanvasFunctionOpenNodeCommentEditor",
-          "kind": "function",
-          "name": "openNodeCommentEditor"
-        },
-        {
-          "anchor": "GraphCanvasFunctionOpenNodeLinkEditor",
-          "kind": "function",
-          "name": "openNodeLinkEditor"
-        },
-        {
-          "anchor": "GraphCanvasFunctionRequestNodeLinkTargetPick",
-          "kind": "function",
-          "name": "requestNodeLinkTargetPick"
-        },
-        {
-          "anchor": "GraphCanvasFunctionApplyNodeLinkTargetPick",
-          "kind": "function",
-          "name": "applyNodeLinkTargetPick"
-        },
-        {
-          "anchor": "GraphCanvasFunctionResumeNodeLinkEditorAfterPickCancel",
-          "kind": "function",
-          "name": "resumeNodeLinkEditorAfterPickCancel"
-        },
-        {
-          "anchor": "GraphCanvasFunctionAbortNodeLinkEditorAfterSourceLoss",
-          "kind": "function",
-          "name": "abortNodeLinkEditorAfterSourceLoss"
-        },
-        {
-          "anchor": "GraphCanvasFunctionCompleteNodeLinkTargetPick",
-          "kind": "function",
-          "name": "completeNodeLinkTargetPick"
-        },
-        {
-          "anchor": "GraphCanvasFunctionCancelNodeLinkTargetPick",
-          "kind": "function",
-          "name": "cancelNodeLinkTargetPick"
-        },
-        {
-          "anchor": "GraphCanvasFunctionShowNodeLinkHoverCard",
-          "kind": "function",
-          "name": "showNodeLinkHoverCard"
-        },
-        {
-          "anchor": "GraphCanvasFunctionScheduleNodeLinkHoverDismiss",
-          "kind": "function",
-          "name": "scheduleNodeLinkHoverDismiss"
-        },
-        {
-          "anchor": "GraphCanvasFunctionResetCanvasSceneState",
-          "kind": "function",
-          "name": "_resetCanvasSceneState"
-        },
-        {
           "anchor": "GraphCanvasHandlerOnLiveDragRevisionChanged",
           "kind": "handler",
           "name": "onLiveDragRevisionChanged"
@@ -105888,71 +104799,6 @@
           "anchor": "GraphCanvasHandlerOnTriggered",
           "kind": "handler",
           "name": "onTriggered"
-        },
-        {
-          "anchor": "GraphCanvasHandlerOnEntered",
-          "kind": "handler",
-          "name": "onEntered"
-        },
-        {
-          "anchor": "GraphCanvasHandlerOnPositionChanged",
-          "kind": "handler",
-          "name": "onPositionChanged"
-        },
-        {
-          "anchor": "GraphCanvasHandlerOnExited",
-          "kind": "handler",
-          "name": "onExited"
-        },
-        {
-          "anchor": "GraphCanvasHandlerOnDropped",
-          "kind": "handler",
-          "name": "onDropped"
-        },
-        {
-          "anchor": "GraphCanvasHandlerOnClicked",
-          "kind": "handler",
-          "name": "onClicked"
-        },
-        {
-          "anchor": "GraphCanvasHandlerOnCanvasStateBridgeChanged",
-          "kind": "handler",
-          "name": "onCanvasStateBridgeChanged"
-        },
-        {
-          "anchor": "GraphCanvasHandlerOnCanvasCommandBridgeChanged",
-          "kind": "handler",
-          "name": "onCanvasCommandBridgeChanged"
-        },
-        {
-          "anchor": "GraphCanvasHandlerOnCanvasViewBridgeChanged",
-          "kind": "handler",
-          "name": "onCanvasViewBridgeChanged"
-        },
-        {
-          "anchor": "GraphCanvasHandlerOnSceneBridgeChanged",
-          "kind": "handler",
-          "name": "onSceneBridgeChanged"
-        },
-        {
-          "anchor": "GraphCanvasHandlerOnWidthChanged",
-          "kind": "handler",
-          "name": "onWidthChanged"
-        },
-        {
-          "anchor": "GraphCanvasHandlerOnHeightChanged",
-          "kind": "handler",
-          "name": "onHeightChanged"
-        },
-        {
-          "anchor": "GraphCanvasHandlerComponentOnCompleted",
-          "kind": "handler",
-          "name": "Component.onCompleted"
-        },
-        {
-          "anchor": "GraphCanvasHandlerComponentOnDestruction",
-          "kind": "handler",
-          "name": "Component.onDestruction"
         },
         {
           "anchor": "GraphCanvasTargetRootWindowWindow",
@@ -106018,18 +104864,6 @@
           "kind": "localComponent",
           "name": "GraphCanvasComponents.GraphCanvasRootLayers",
           "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml"
-        },
-        {
-          "anchor": "GraphCanvasLocalComponentGraphCanvasComponentsGraphCanvasInputLayers",
-          "kind": "localComponent",
-          "name": "GraphCanvasComponents.GraphCanvasInputLayers",
-          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInputLayers.qml"
-        },
-        {
-          "anchor": "GraphCanvasLocalComponentGraphCanvasComponentsGraphCanvasContextMenus",
-          "kind": "localComponent",
-          "name": "GraphCanvasComponents.GraphCanvasContextMenus",
-          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasContextMenus.qml"
         }
       ]
     },
@@ -113248,7 +112082,11 @@
           "name": "optionsView"
         }
       ],
-      "object_names": [],
+      "object_names": [
+        {
+          "name": "inspectorSelectorOptions"
+        }
+      ],
       "properties": [
         {
           "kind": "var",
@@ -113259,11 +112097,27 @@
           "name": "model"
         },
         {
+          "kind": "var",
+          "name": "optionCodes"
+        },
+        {
+          "kind": "bool",
+          "name": "exactSelectors"
+        },
+        {
+          "kind": "var",
+          "name": "_syncedValue"
+        },
+        {
+          "kind": "string",
+          "name": "_syncedText"
+        },
+        {
           "kind": "string",
           "name": "placeholderText"
         },
         {
-          "kind": "string",
+          "kind": "var",
           "name": "selectedValue"
         },
         {
@@ -113285,6 +112139,10 @@
         {
           "kind": "real",
           "name": "popupMaxHeight"
+        },
+        {
+          "kind": "bool",
+          "name": "popupInteractionActive"
         },
         {
           "kind": "var",
@@ -113342,6 +112200,12 @@
         },
         {
           "name": "_optionIndex"
+        },
+        {
+          "name": "labelForValue"
+        },
+        {
+          "name": "valueForText"
         },
         {
           "name": "_filteredOptionsFor"
@@ -113408,6 +112272,10 @@
         {
           "kind": "handler",
           "name": "onSelectedValueChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onOptionCodesChanged"
         },
         {
           "kind": "handler",
@@ -113821,6 +112689,30 @@
           "detail": "var"
         },
         {
+          "anchor": "InspectorEditableComboBoxPropertyOptionCodes",
+          "kind": "property",
+          "name": "optionCodes",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorEditableComboBoxPropertyExactSelectors",
+          "kind": "property",
+          "name": "exactSelectors",
+          "detail": "bool"
+        },
+        {
+          "anchor": "InspectorEditableComboBoxPropertySyncedValue",
+          "kind": "property",
+          "name": "_syncedValue",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorEditableComboBoxPropertySyncedText",
+          "kind": "property",
+          "name": "_syncedText",
+          "detail": "string"
+        },
+        {
           "anchor": "InspectorEditableComboBoxPropertyPlaceholderText",
           "kind": "property",
           "name": "placeholderText",
@@ -113830,7 +112722,7 @@
           "anchor": "InspectorEditableComboBoxPropertySelectedValue",
           "kind": "property",
           "name": "selectedValue",
-          "detail": "string"
+          "detail": "var"
         },
         {
           "anchor": "InspectorEditableComboBoxPropertyEditText",
@@ -113861,6 +112753,12 @@
           "kind": "property",
           "name": "popupMaxHeight",
           "detail": "real"
+        },
+        {
+          "anchor": "InspectorEditableComboBoxPropertyPopupInteractionActive",
+          "kind": "property",
+          "name": "popupInteractionActive",
+          "detail": "bool"
         },
         {
           "anchor": "InspectorEditableComboBoxPropertyOptionValues",
@@ -113946,6 +112844,16 @@
           "name": "_optionIndex"
         },
         {
+          "anchor": "InspectorEditableComboBoxFunctionLabelForValue",
+          "kind": "function",
+          "name": "labelForValue"
+        },
+        {
+          "anchor": "InspectorEditableComboBoxFunctionValueForText",
+          "kind": "function",
+          "name": "valueForText"
+        },
+        {
           "anchor": "InspectorEditableComboBoxFunctionFilteredOptionsFor",
           "kind": "function",
           "name": "_filteredOptionsFor"
@@ -113989,6 +112897,11 @@
           "anchor": "InspectorEditableComboBoxHandlerOnSelectedValueChanged",
           "kind": "handler",
           "name": "onSelectedValueChanged"
+        },
+        {
+          "anchor": "InspectorEditableComboBoxHandlerOnOptionCodesChanged",
+          "kind": "handler",
+          "name": "onOptionCodesChanged"
         },
         {
           "anchor": "InspectorEditableComboBoxHandlerOnOptionValuesChanged",
@@ -119952,6 +118865,9 @@
           "name": "issueColumn"
         },
         {
+          "name": "chipListContainer"
+        },
+        {
           "name": "chipRow"
         },
         {
@@ -119962,6 +118878,9 @@
         }
       ],
       "object_names": [
+        {
+          "name": "inspectorPropertyEditor"
+        },
         {
           "name": "inspectorPropertyOverrideReason"
         },
@@ -119979,6 +118898,9 @@
         },
         {
           "name": "inspectorIntervalSlider"
+        },
+        {
+          "name": "inspectorEditableComboEditor"
         },
         {
           "name": "inspectorFontFamilyEditor"
@@ -120003,6 +118925,12 @@
         },
         {
           "name": "inspectorPathRepairButton"
+        },
+        {
+          "name": "inspectorChipListContainer"
+        },
+        {
+          "name": "inspectorChipListEditor"
         },
         {
           "name": "inspectorPropertySummaryValue"
@@ -120071,11 +118999,11 @@
         },
         {
           "kind": "bool",
-          "name": "attentionRequired"
+          "name": "exactSelectors"
         },
         {
-          "kind": "string",
-          "name": "metadataState"
+          "kind": "bool",
+          "name": "attentionRequired"
         },
         {
           "kind": "string",
@@ -120225,7 +119153,7 @@
         {
           "kind": "model",
           "targets": [
-            "chipValues"
+            "chipListContainer.chipValues"
           ]
         }
       ],
@@ -120435,8 +119363,8 @@
           "kind": "binding",
           "name": "color",
           "targets": [
-            "propertyEditor.attentionRequired",
-            "propertyEditor.metadataState"
+            "Qt.alpha",
+            "propertyEditor.pane.themePalette.inspector_danger_border"
           ]
         },
         {
@@ -120447,8 +119375,7 @@
           "kind": "binding",
           "name": "border.color",
           "targets": [
-            "propertyEditor.attentionRequired",
-            "propertyEditor.metadataState"
+            "propertyEditor.pane.themePalette.inspector_danger_border"
           ]
         },
         {
@@ -120463,6 +119390,13 @@
           "name": "text",
           "targets": [
             "propertyEditor.metadataStatusText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "propertyEditor.pane.themePalette.inspector_danger_fg"
           ]
         },
         {
@@ -120789,6 +119723,29 @@
         },
         {
           "kind": "binding",
+          "name": "optionCodes",
+          "targets": [
+            "propertyEditor.propertyItem.enum_codes"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "exactSelectors",
+          "targets": [
+            "propertyEditor.exactSelectors"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectedValue",
+          "targets": [
+            "propertyEditor.exactSelectors",
+            "propertyEditor.displayValue",
+            "propertyEditor.propertyValueText"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "placeholderText"
         },
         {
@@ -120940,7 +119897,7 @@
           "kind": "binding",
           "name": "visible",
           "targets": [
-            "chipValues.length"
+            "chipListContainer.chipValues.length"
           ]
         },
         {
@@ -120961,8 +119918,7 @@
           "kind": "binding",
           "name": "text",
           "targets": [
-            "String",
-            "modelData"
+            "propertyEditor.exactSelectors"
           ]
         },
         {
@@ -121149,16 +120105,16 @@
           "detail": "bool"
         },
         {
+          "anchor": "InspectorPropertyEditorPropertyExactSelectors",
+          "kind": "property",
+          "name": "exactSelectors",
+          "detail": "bool"
+        },
+        {
           "anchor": "InspectorPropertyEditorPropertyAttentionRequired",
           "kind": "property",
           "name": "attentionRequired",
           "detail": "bool"
-        },
-        {
-          "anchor": "InspectorPropertyEditorPropertyMetadataState",
-          "kind": "property",
-          "name": "metadataState",
-          "detail": "string"
         },
         {
           "anchor": "InspectorPropertyEditorPropertyMetadataStatusText",

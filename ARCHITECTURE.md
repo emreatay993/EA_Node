@@ -19,7 +19,7 @@ COREX Node Editor is a desktop visual workflow editor that:
 - executes workflows in a separate worker process,
 - persists projects as versioned `.cxproj` JSON with optional sibling `.data` managed-file sidecars,
 - persists app-wide graphics, shell-theme, and graph-theme preferences as versioned `app_preferences.json`,
-- ships repo-local dependency-gated add-ons such as ANSYS DPF and Tabular Data,
+- ships repo-local dependency-gated add-ons such as Tabular Data and MARS,
 - supports statically discovered function plugins written with the public `corex` SDK,
 - publishes/imports reusable custom workflow snapshots and merges project-local plus user-global workflow libraries,
 - restores sessions/autosaves and reports runtime status/metrics.
@@ -32,7 +32,7 @@ The app is split into clear parts:
 - `ea_node_editor/ui/theme`: shared theme registry, token sets, QWidget stylesheet generation, and QML palette bridge inputs.
 - `ea_node_editor/ui/graph_theme`: graph-theme registry, token sets, runtime resolution, and node/edge presentation helpers.
 - `ea_node_editor/graph`: in-memory graph domain (`ProjectData`, `WorkspaceData`, nodes, edges, views), hierarchy helpers, and graph transforms.
-- `ea_node_editor/addons`: repo-local add-on catalog, enablement state, hot-apply lifecycle, and optional add-ons such as ANSYS DPF and Tabular Data.
+- `ea_node_editor/addons`: repo-local add-on catalog, enablement state, hot-apply lifecycle, and optional add-ons such as Tabular Data and MARS.
 - `corex`: the dependency-free public function/decorator SDK.
 - `ea_node_editor/nodes`: static declaration parsing, private registry contracts, built-ins, immutable plugin generations, and schema-2 package import/export.
 - `ea_node_editor/execution`: runtime-snapshot assembly, UI client, worker process, and typed command/event protocol.
@@ -147,11 +147,11 @@ Design intent:
 - Focused bridges are the QML source contract: shell, graph-canvas state, graph-canvas commands, viewport, graph actions, add-on manager, content fullscreen, viewer session/host, script, theme, status, and help surfaces are exported explicitly from `ea_node_editor.ui.shell.composition`.
 - `ContentFullscreenBridge` owns exactly one active fullscreen state and payload. Candidate resolution snapshots composition-supplied live providers; plot quick controls mutate the opened node's aggregate `plot_options` once through `GraphSceneBridge`; script fullscreen retargets the existing `ScriptEditorModel`; terminal shutdown disconnects and clears without persisting after project close.
 - Persistence is current-schema-only for ordinary app load. The serializer normalizes `SCHEMA_VERSION = 5` documents and rejects older schema versions rather than keeping in-app migration hooks active.
-- Public plugin loading is function-only through the 17-name top-level `corex` SDK. Trusted factories, generated descriptors, and backend manifests are private implementation records for the explicit internal, DPF, and shipped add-on boundary.
+- Public plugin loading is function-only through the 17-name top-level `corex` SDK. Trusted factories, generated descriptors, and backend manifests are private implementation records for the explicit internal and shipped add-on boundary.
 - Runtime execution uses snapshot-only worker payloads. `RuntimeSnapshot` is mandatory at the protocol boundary; `project_path` remains artifact-resolution context, not a rebuild source.
 - Tabular runtime values cross execution, preview, and persistence-adjacent boundaries through JSON-safe `TabularDataRef` / `ArrayDataRef` payloads, not inlined DataFrames or dense arrays.
 - Generic plot nodes consume `TabularDataRef` / `ArrayDataRef` directly through plot-side normalization. Tabular nodes own durable selected-column and array-slice hints, while plot nodes own `tabular_mapping` overrides and plot-type-specific series interpretation.
-- Viewer state crosses process and UI boundaries through typed transport/session fields (`backend_id`, `transport`, `transport_revision`, live-open status, and blocker state). Raw DPF/PyVista/VTK objects stay worker-local or widget-local.
+- Viewer state crosses process and UI boundaries through typed transport/session fields (`backend_id`, `transport`, `transport_revision`, live-open status, and blocker state). Raw PyVista/VTK objects stay worker-local or widget-local.
 - The Corex runtime is available as a headless kernel through `ea_node_editor.execution.runtime`, with requests in `runtime_requests`, project loading in `project_loader`, and the `corex-runtime` entry in `runtime_cli`; the QML shell is one client of that API rather than the owner of execution behavior.
 - `RuntimeBackendSpec`, `ToolchainSpec`, `ArtifactDescriptor`, and `SurfaceCapabilitySpec` are private contracts for shipped add-on preparation. Trusted add-ons may declare foreign-language toolchain requirements and prepared artifacts, but public function plugins cannot and native build execution remains outside the current runtime.
 - Internal execution policy selects the bundled process, trusted in-process, or trusted add-on subprocess path explicitly, caches runtime preparation by backend selection, and keeps `Process Run` subprocess behavior behind one policy contract. It is not a public external-runner API.
@@ -200,8 +200,8 @@ loose decorated .py or installed schema-2 package
   manifest types into a staged catalog, registers staged entries, revalidates every
   surviving and new entry against that catalog, and publishes only after the
   complete transaction succeeds. `property_normalization.py` owns generic
-  defaults/coercion, dynamic backing-state updates, Select/Number Slider/Web policy,
-  and explicit DPF legacy time-scope normalization. `NodeRegistry` retains the
+  defaults/coercion, dynamic backing-state updates, and Select/Number Slider/Web policy.
+  `NodeRegistry` retains the
   intentional catalog/spec-aware `default_properties`, `normalize_property_value`,
   and `normalize_properties` entry points without built-in-specific branches.
 - Node Library filtering and category ancestors/options/tree are presentation
@@ -220,10 +220,9 @@ loose decorated .py or installed schema-2 package
   rebuilds the trusted registry from that state, verifies the selected
   generation root and member digests, reparses the attested source, and imports
   a function only when its node executes.
-- The reserved built-in generation contains 68 ordinary function entries.
-  Private `TrustedFactoryEntry` descriptors/backends remain limited to the 55
-  explicit non-DPF exceptions, the 805 DPF exclusions in the migration
-  inventory, and the three shipped add-on catalogs. This is an internal trust
+- The reserved built-in generation contains 76 ordinary function entries.
+  Private `TrustedFactoryEntry` descriptors/backends remain limited to the 53
+  explicit internal exceptions and the two shipped add-on catalogs. This is an internal trust
   boundary, not a second public SDK.
 - Project and workflow persistence stores stable type IDs, ports, properties,
   graph topology, and values only. `PythonFunctionRef`, `PluginBundleRef`,
@@ -313,7 +312,7 @@ The six SSH/SFTP nodes reuse COREX's normal executable-node route:
 - `ea_node_editor.addons.contracts.py` owns generic add-on state/presentation records, `ea_node_editor.addons.catalog` owns their dependency-gated construction and lookup, `ea_node_editor.addons.registry_contributions` owns trusted registry contributions, and `ea_node_editor.nodes.plugin_contracts.py` retains backend/manifest contracts. Public `plugin_loader.py` imports no add-on catalog/backend owner.
 - The shell `Add-On Manager` entry now runs through `ea_node_editor.ui.shell.window_actions.py`, `ea_node_editor.ui.shell.window.py`, `ea_node_editor.ui.shell.presenters.addon_manager_presenter.py`, `ea_node_editor.ui_qml/shell_addon_manager_bridge.py`, and `MainShell.qml`, landing the shipped Variant 4 inspector-style right drawer with row-level `HOT`/`RESTART` badges, pending-restart banners, and explicit but still-disabled install/restart affordances.
 - `ea_node_editor/persistence/project_codec.py`, `ea_node_editor/graph/registry_normalization.py`, `ea_node_editor/ui_qml/graph_scene_payload/`, `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`, `GraphNodeHeaderLayer.qml`, and `GraphCanvasContextMenus.qml` project unavailable add-on nodes as locked Mockup B surfaces with manager-targeted recovery affordances and blocked edit, drag, and resize gestures.
-- `ea_node_editor/addons/ansys_dpf/catalog.py` and `ea_node_editor/addons/tabular_data/catalog.py` define the shipped repo-local `hot_apply` add-ons. `ea_node_editor/addons/state_changes.py` prepares requested state without I/O; `ea_node_editor/ui/shell/registry_replacement.py` is the sole guarded apply/persist/rollback authority and publishes through execution/viewer owners. Disabling an add-on used by an open graph is refused before publication; projects opened while an add-on is unavailable retain locked unavailable-add-on surfaces.
+- `ea_node_editor/addons/tabular_data/catalog.py` and `ea_node_editor/addons/mars/catalog.py` define the shipped repo-local add-ons. `ea_node_editor/addons/state_changes.py` prepares requested state without I/O; `ea_node_editor/ui/shell/registry_replacement.py` is the sole guarded apply/persist/rollback authority and publishes through execution/viewer owners. Disabling an add-on used by an open graph is refused before publication; projects opened while an add-on is unavailable retain locked unavailable-add-on surfaces.
 - The retained packet evidence and closeout commands for this baseline are published in [the Add-On Manager backend preparation QA matrix](docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md).
 
 ## Tabular data add-on
@@ -325,22 +324,6 @@ The six SSH/SFTP nodes reuse COREX's normal executable-node route:
 - Generic plot nodes under `ea_node_editor/nodes/builtins/plot/generic.py` materialize tabular/array refs inside execution into existing `PlotRenderRequest.series` shapes. Precedence is plot `tabular_mapping`, then tabular selected columns or array slice hints, then schema/sample inference; backends remain unaware of tabular loaders.
 - Project-managed source and cache references use the existing `.data` sidecar and artifact resolver path. Tabular warnings are non-fatal: nodes can render warning chrome and emit structured warning facts/status logs without becoming failed execution nodes.
 - The direct tabular plotting follow-up proof lives in [the Hybrid Direct Tabular Auto-Plotting QA Matrix](docs/specs/perf/HYBRID_DIRECT_TABULAR_AUTO_PLOTTING_QA_MATRIX.md).
-
-## DPF operator backend preparation
-
-- `ansys-dpf-core` remains optional for the DPF operator backend preparation baseline; startup without that dependency keeps the rest of the app usable.
-- The frozen preparation contract is documented in [the DPF operator backend review](docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md) and [the DPF operator backend QA matrix](docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md).
-- Reopened DPF nodes without their add-on/backend dependency stay as locked unavailable-add-on projections so saved labels, values, exposure metadata, and connectivity remain inspectable without executing unavailable operators.
-
-## DPF plugin rollout
-
-- `ansys-dpf-core` remains optional. The node bootstrap and plugin loader only register the shipped DPF family when the dependency is available, so startup without DPF keeps the rest of the app usable.
-- The shipped DPF catalog is workflow-first and descriptor-driven. Foundational helpers and inputs live under `Ansys DPF > Inputs`, `Ansys DPF > Workflow`, and `Ansys DPF > Helpers > ...`, generated operator wrappers live under `Ansys DPF > Operators > <Family>`, and `dpf.viewer` remains under `Ansys DPF > Viewer`.
-- Built-in DPF registration is version-aware. Startup records the installed `ansys-dpf-core` version, refreshes the shipped descriptor cache when that version changes, and registers the family through the private trusted add-on boundary rather than the public function SDK.
-- `ea_node_editor/nodes/builtins/ansys_dpf_node_helpers.py`, `ansys_dpf_taxonomy.py`, `ansys_dpf_compute.py`, and `ansys_dpf_common.py` normalize foundational helpers plus generated operator families into stable internal node, port, and pin-source descriptors that distinguish required inputs, optional inputs, omitted defaults, literal values, mutually exclusive groups, and family provenance.
-- `ea_node_editor/execution/dpf_runtime/base.py`, `contracts.py`, and `operations.py` are the generic operator-backed runtime seam for the shipped DPF compute surface; they now materialize helper-originated model, scoping, mesh, fields-container, and generic object handles while preserving the existing handwritten `dpf.field_ops` passthrough edge case.
-- `ea_node_editor/persistence/project_codec.py`, `ea_node_editor/graph/registry_normalization.py`, and `ea_node_editor/ui_qml/graph_scene_payload/` project reopened `dpf.*` nodes as locked unavailable-add-on surfaces with saved labels, values, exposure metadata, and connectivity.
-- The earlier backend-preparation contract remains frozen in [the DPF operator backend review](docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md) and [the DPF operator backend QA matrix](docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md). That frozen preparation wording still includes the historical fact that "Broad autogenerated operator rollout and non-operator `ansys.dpf.core` reflection remain deferred". The shipped rollout proof now lives in [the ANSYS DPF full plugin rollout QA matrix](docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md), while the generic add-on-manager, locked-projection, and DPF toggle baseline that owns the repo-local lifecycle is summarized in [the Add-On Manager backend preparation QA matrix](docs/specs/perf/ADDON_MANAGER_BACKEND_PREPARATION_QA_MATRIX.md). On the shipped rollout, only the broad `Ansys DPF > Advanced > Raw API Mirror` / non-operator `ansys.dpf.core` reflection surface remains deferred to a later packet set.
 
 ## Project-managed files and stored outputs
 
@@ -359,7 +342,7 @@ The six SSH/SFTP nodes reuse COREX's normal executable-node route:
 - `scripts/check_traceability.py` is the semantic drift gate for the canonical docs above, while `scripts/check_markdown_links.py` is the local-link hygiene gate for the active Markdown docs in this branch.
 - `tests/shell_isolation_runtime.py` executes the manifest-owned shell-isolation contract, while `tests/shell_isolation_main_window_targets.py` and `tests/shell_isolation_controller_targets.py` remain the two active target catalogs behind that phase.
 - Content-fullscreen Python ownership is `42` direct bridge tests plus two mounted wiring/QML tests in `tests/test_content_fullscreen_bridge.py`, with three direct lifecycle tests in `tests/test_content_fullscreen_bridge_lifecycle.py`. Detailed viewer controls and holds moved to `tests/test_viewer_surface_contract.py`, `tests/test_viewer_control_bridge.py`, and `tests/test_viewer_host_service.py`; real-shell tests retain wiring smoke only.
-- Archived release reports remain separated from current release claims: `docs/specs/perf/RC_PACKAGING_REPORT.md` and `docs/specs/perf/PILOT_SIGNOFF.md` preserve the 2026-03-01 snapshots as historical context only, while older architecture and DPF packet matrices retain the evidence for their completed historical sequences.
+- Archived release reports remain separated from current release claims: `docs/specs/perf/RC_PACKAGING_REPORT.md` and `docs/specs/perf/PILOT_SIGNOFF.md` preserve the 2026-03-01 snapshots as historical context only.
 
 ## Visual architecture maps
 If your Markdown viewer supports Mermaid, these diagrams render inline.
@@ -704,7 +687,7 @@ sequenceDiagram
 - `DataTypeCatalog.compatibility()` owns nominal data-type relations. Graph-owned `port_compatibility()` adds structural kind checks and returns `DataTypeCompatibility`; `ports_compatible()` is only its Boolean adapter. The invariant kernel and static wire warnings consume the same result. The complete target primary/accepted union selects exact assignment, parent/interface assignment, direct conversion, runtime check, first unresolved, then incompatible, with declaration-order ties. Graph legality still accepts assignment, conversion, and runtime-check relations; graph code never executes conversions.
 - `library_projection.py` resolves every registry row through `resolve_instance_ports(spec, {}, data_types=...)`. Displayed ports and data-type filters therefore share the same default dynamic ports. Missing, blank, or non-string primary preview types are omitted rather than becoming Any; current workflow publication rejects them while legacy workflow loading retains the recoverable workflow and fragment.
 - `quick_insert_projection.py` owns recommendation tiers, not another type system. It compares the eventual output-to-input edge in either drag direction and retains only equal-best ports. Blank search shows exact, assignable, convertible, and flow matches. Explicit search also reveals broad `connection_fallback` matches and runtime checks with text labels. Text-query rank precedes tier, port-count, name, and type-ID tie-breaks; the result cap is last. Valid empty searches remain open and searchable.
-- Core typing distinguishes bounded native JSON-domain `COREX.DataTypes.JsonValue` from the exact native `COREX.Plot.ExportBundle` dictionary containing two artifact refs and two JSON metadata dictionaries. The trusted non-DPF primary/accepted Any audit contains exactly 20 endpoints, including three intentional MARS filename-to-artifact maps; public plugin authors must opt into Any explicitly.
+- Core typing distinguishes bounded native JSON-domain `COREX.DataTypes.JsonValue` from the exact native `COREX.Plot.ExportBundle` dictionary containing two artifact refs and two JSON metadata dictionaries. The trusted repo-owned primary/accepted Any audit contains exactly 20 endpoints, including three intentional MARS filename-to-artifact maps; public plugin authors must opt into Any explicitly.
 - Quick Insert passes only its displayed port keys to `WorkspaceDropConnectController`. After ordinary-node or workflow insertion, actual effective endpoints are resolved and rechecked before the existing chooser and graph gate. `None` means an unrestricted ordinary Library drop; an empty or populated tuple is restrictive. Stale keys leave the inserted node unconnected; no insertion rollback or runtime-failure wire coloring is added.
 
 ### 1b) Inline node controls

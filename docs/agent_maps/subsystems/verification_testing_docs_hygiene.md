@@ -14,9 +14,9 @@ Use this for verification mode selection, pytest defaults, shell isolation, docs
 - `tests/test_agent_route_index.py`
 - `tests/test_dead_code_hygiene.py`
 - `tests/test_novice_plugin_sdk_docs.py`
-- `tests/test_non_dpf_node_documentation.py`
-- `tests/non_dpf_catalog_fixture.py`
-- `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json`
+- `tests/test_repo_owned_node_documentation.py`
+- `tests/repo_owned_catalog_fixture.py`
+- `tests/fixtures/node_catalog/current_repo_owned_catalog.json`
 - `scripts/nav.py`
 - `tests/test_nav_cli.py`
 - `scripts/check_traceability.py`
@@ -69,7 +69,7 @@ Use this for verification mode selection, pytest defaults, shell isolation, docs
 .\venv\Scripts\python.exe -m pytest tests/test_run_verification.py tests/test_traceability_checker.py tests/test_markdown_hygiene.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_agent_route_index.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_dead_code_hygiene.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_non_dpf_node_documentation.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_repo_owned_node_documentation.py --ignore=venv -q
 .\venv\Scripts\python.exe .\scripts\generate_agent_route_index.py --check
 .\venv\Scripts\python.exe .\scripts\generate_source_test_file_index.py --check
 .\venv\Scripts\python.exe .\scripts\generate_qml_navigation_index.py --check

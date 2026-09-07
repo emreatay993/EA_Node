@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 from PyQt6.QtCore import QObject
 
-from ea_node_editor.addons.catalog import ANSYS_DPF_ADDON_ID
+from ea_node_editor.addons.catalog import TABULAR_DATA_ADDON_ID
 from ea_node_editor.ui.shell.composition import AddonManagerBridge
 from ea_node_editor.ui.shell.graph_action_contracts import GraphActionId
 from ea_node_editor.ui.shell.presenters.addon_manager_presenter import AddOnManagerPresenter
@@ -104,7 +104,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         presenter.bind(shell_window=self.window)
         presenter._records = (
             SimpleNamespace(
-                addon_id=ANSYS_DPF_ADDON_ID,
+                addon_id=TABULAR_DATA_ADDON_ID,
                 availability=SimpleNamespace(is_available=True),
             ),
         )
@@ -122,7 +122,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
             side_effect=RuntimeError("registry replacement failed"),
         ):
             self.assertFalse(
-                presenter.set_addon_enabled(ANSYS_DPF_ADDON_ID, False)
+                presenter.set_addon_enabled(TABULAR_DATA_ADDON_ID, False)
             )
 
         self.assertIs(self.window.registry, active_registry)
@@ -310,26 +310,26 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
             },
         )
 
-        self.window.request_open_addon_manager("ansys.dpf")
+        self.window.request_open_addon_manager(TABULAR_DATA_ADDON_ID)
         self.app.processEvents()
 
         self.assertTrue(bridge.open)
-        self.assertEqual(bridge.focusAddonId, "ansys.dpf")
+        self.assertEqual(bridge.focusAddonId, TABULAR_DATA_ADDON_ID)
         self.assertEqual(bridge.requestSerial, initial_serial + 1)
         self.assertEqual(
             bridge.request,
             {
                 "open": True,
-                "focus_addon_id": "ansys.dpf",
+                "focus_addon_id": TABULAR_DATA_ADDON_ID,
                 "request_serial": initial_serial + 1,
             },
         )
 
-        bridge.requestOpen("ansys.dpf")
+        bridge.requestOpen(TABULAR_DATA_ADDON_ID)
         self.app.processEvents()
 
         self.assertTrue(bridge.open)
-        self.assertEqual(bridge.focusAddonId, "ansys.dpf")
+        self.assertEqual(bridge.focusAddonId, TABULAR_DATA_ADDON_ID)
         self.assertEqual(bridge.requestSerial, initial_serial + 2)
 
         bridge.requestClose()
@@ -354,9 +354,9 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
 
         self.assertIsInstance(bridge, ContentFullscreenBridge)
         self.assertIs(bridge, runtime.content_fullscreen_bridge)
-        self.assertIs(bridge.shell_window, self.window)
-        self.assertIs(bridge.scene_bridge, self.window.scene)
-        self.assertIs(bridge.viewer_session_bridge, runtime.viewer_session_bridge)
+        self.assertIs(bridge.parent(), self.window)
+        self.assertIs(bridge._scene_bridge, self.window.scene)
+        self.assertIs(bridge._viewer_session_bridge, runtime.viewer_session_bridge)
         self.assertFalse(bridge.open)
         self.assertEqual(bridge.node_id, "")
         self.assertEqual(bridge.workspace_id, "")
@@ -459,7 +459,7 @@ class ShellWindowStateFacadeBoundaryTests(unittest.TestCase):
             "library_and_overlay_state": ("ShellWindowLibraryOverlayStateMixin", "request_open_graph_search"),
             "project_session_actions": ("ShellWindowProjectSessionActionsMixin", "_save_project"),
             "run_and_style_state": ("ShellWindowRunAndStyleStateMixin", "request_run_workflow"),
-            "workspace_graph_actions": ("ShellWindowWorkspaceGraphActionsMixin", "_switch_workspace"),
+            "workspace_graph_actions": ("ShellWindowWorkspaceGraphActionsMixin", "request_create_workspace"),
         }
         for module_name, (mixin_name, representative_name) in module_expectations.items():
             with self.subTest(module=module_name):
@@ -1534,14 +1534,14 @@ class MainWindowShellHostFacadeDelegationTests(SharedMainWindowShellTestBase):
                 "clear_node_execution_visualization_state",
             ) as clear_execution_mock,
         ):
-            self.window.request_open_addon_manager("ansys.dpf")
+            self.window.request_open_addon_manager(TABULAR_DATA_ADDON_ID)
             self.window.request_close_addon_manager()
             self.window.run_projection_controller.mark_node_execution_running(
                 "workspace-1", "node-1", started_at_epoch_ms=12.5
             )
             self.window.run_projection_controller.clear_node_execution_visualization_state()
 
-        open_addon_mock.assert_called_once_with("ansys.dpf")
+        open_addon_mock.assert_called_once_with(TABULAR_DATA_ADDON_ID)
         close_addon_mock.assert_called_once_with()
         mark_running_mock.assert_called_once_with(
             "workspace-1",

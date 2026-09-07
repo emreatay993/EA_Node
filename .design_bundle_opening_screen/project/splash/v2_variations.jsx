@@ -121,7 +121,7 @@ function V2A_Linear() {
   const nodes = [
     { x: 14,  y: 92, cat: COREX.blue,    title: 'Read CSV',   ports:{in:0,out:1} },
     { x: 178, y: 92, cat: '#B35BD1',     title: 'Transform',  ports:{in:1,out:1} },
-    { x: 342, y: 92, cat: '#D88C32',     title: 'DPF · Solve',ports:{in:1,out:1} },
+    { x: 342, y: 92, cat: '#D88C32',     title: 'MARS · Batch Solve',ports:{in:1,out:1} },
     { x: 506, y: 92, cat: '#22B455',     title: 'Plot',       ports:{in:1,out:0} },
   ];
   const W = 148, H = 58;
@@ -181,7 +181,7 @@ function V2B_Vertical() {
     tick(); return () => clearTimeout(t);
   }, []);
   const boot = useBootSequence([
-    'Initialising runtime','Loading registry','Warming DPF',
+    'Initialising runtime','Loading registry','Loading viewer',
     'Restoring session','Canvas ready',
   ], { stepMs: 680 });
 
@@ -191,7 +191,7 @@ function V2B_Vertical() {
   const nodes = [
     { x: col - W/2, y: 0,   cat: COREX.blue, title: 'Read Input',  ports:{in:0,out:1} },
     { x: col - W/2, y: 90,  cat: '#B35BD1',  title: 'Validate',    ports:{in:1,out:1} },
-    { x: col - W/2, y: 180, cat: '#D88C32',  title: 'DPF · Solve', ports:{in:1,out:1} },
+    { x: col - W/2, y: 180, cat: '#D88C32',  title: 'MARS · Batch Solve', ports:{in:1,out:1} },
     { x: col - W/2, y: 270, cat: '#22B455',  title: 'Export',      ports:{in:1,out:0} },
   ];
 
@@ -281,12 +281,12 @@ function V2C_FanIn() {
   const boot = useBootSequence([
     'Resolving 4 input operators',
     'Linking to solver',
-    'Running DPF solver',
+    'Running MARS solver',
     'Ready',
   ], { stepMs: 800 });
 
   const W = 130, H = 52;
-  const center = { x: 336 - W/2, y: 170 - H/2, cat: '#D88C32', title: 'DPF · Solve', ports:{in:1,out:1} };
+  const center = { x: 336 - W/2, y: 170 - H/2, cat: '#D88C32', title: 'MARS · Batch Solve', ports:{in:1,out:1} };
   const sats = [
     { x: 40,  y: 40,  cat: COREX.blue,  title: 'Mesh In',    ports:{in:0,out:1} },
     { x: 40,  y: 260, cat: COREX.blue,  title: 'Materials',  ports:{in:0,out:1} },
@@ -365,7 +365,7 @@ function V2D_CanvasZoom() {
     { id:'r', x: 16,  y: 30,  cat: COREX.blue,  title: 'Read',       ports:{in:0,out:1} },
     { id:'p', x: 16,  y: 170, cat: COREX.blue,  title: 'Params',     ports:{in:0,out:1} },
     { id:'t', x: 178, y: 100, cat: '#B35BD1',   title: 'Transform',  ports:{in:1,out:1} },
-    { id:'s', x: 350, y: 100, cat: '#D88C32',   title: 'DPF Solve',  ports:{in:1,out:1} },
+    { id:'s', x: 350, y: 100, cat: '#D88C32',   title: 'MARS Batch Solve',  ports:{in:1,out:1} },
     { id:'v', x: 520, y: 30,  cat: '#22B455',   title: 'Viewer',     ports:{in:1,out:0} },
     { id:'x', x: 520, y: 170, cat: '#C75050',   title: 'Export',     ports:{in:1,out:0} },
   ];

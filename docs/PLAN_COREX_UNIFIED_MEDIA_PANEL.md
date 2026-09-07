@@ -158,7 +158,7 @@ graphics.media_panel.source_input_exposed
 - Remove graph-owned PDF type/page special casing; preview/fullscreen own clamping.
 - Add no `.cxproj` migration, old-type alias, or compatibility shim.
 - Preserve the frozen 133-row pre-cutover catalogue byte-for-byte. Apply a structural current-catalog overlay after the documentation overlay.
-- Expected counts: built-ins `123 → 121`, effective non-DPF `133 → 131`, inventory `938 → 936`, internal exceptions `55 → 53`; convert remains `78`, DPF-excluded remains `805`.
+- Expected retained counts after the migration: 139 repo-owned nodes, 76 built-in function entries, 53 internal exceptions, and 78 converted type IDs.
 
 ## Public Interface Changes
 

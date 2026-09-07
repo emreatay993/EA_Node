@@ -520,7 +520,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                             "label": "Fields",
                             "direction": "in",
                             "kind": "data",
-                            "data_type": "dpf_field",
+                            "data_type": "COREX.Engineering.Scene",
                             "connected": False,
                         },
                         {

@@ -25,7 +25,7 @@ Item {
         { id: "E", order: 2, x: 566, y: 332, w: 214, h: 116, title: "Normalize",     sub: "data.formula",    glyph: "z", body: "note",     tag: "⑧ Bypass / mute", bypass: true,
           bodyProps: { expr: "z = (x−μ)/σ", lines: [["status","skipped"]], dim: true } },
         { id: "D", order: 3, x: 830, y: 96,  w: 250, h: 184, title: "Trend Chart",   sub: "plot.chart",      glyph: "▤", body: "chart",    tag: "④ Live chart · Qt Graphs" },
-        { id: "F", order: 4, x: 830, y: 330, w: 250, h: 198, title: "DPF 3D Viewer", sub: "dpf.viewer",      glyph: "◳", body: "viewer3d", tag: "⑤ 3D preview node", celebrate: true }
+        { id: "F", order: 4, x: 830, y: 330, w: 250, h: 198, title: "Model Viewer", sub: "model.viewer",      glyph: "◳", body: "viewer3d", tag: "⑤ 3D preview node", celebrate: true }
     ]
     property var edges: [
         { from: "A", to: "B" }, { from: "B", to: "C" }, { from: "B", to: "E" },

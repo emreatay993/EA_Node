@@ -147,7 +147,7 @@ do not declare a string-only list and coerce integer positions into names.
 Unrelated working-tree changes are preserved and excluded from publication. The
 implementation target is the current EA_Node_Editor checkout.
 
-Inputs fit RAM (up to a few million rows). Out-of-RAM transport, DPF conversion,
+Inputs fit RAM (up to a few million rows). Out-of-RAM transport, solver-specific conversion,
 categorical axes, new interactive chart surfaces, and durable native-object
 persistence are outside scope. No compatibility aliases or public Python-library
 subclass/view/attrs guarantees are required.

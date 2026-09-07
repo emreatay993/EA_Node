@@ -34,7 +34,6 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
 - [Tabular Data Add-on And Preview](feature_routes/tabular_data_addon_preview.md)
 - [MARS Solver Add-on](feature_routes/mars_solver_addon.md)
 - [Neutral CAD/FE Engineering Viewer](feature_routes/neutral_cad_fe_engineering_viewer.md)
-- [Ansys DPF Operator Viewer Transport](feature_routes/ansys_dpf_operator_viewer_transport.md)
 - [Managed Artifacts And Project Data](feature_routes/managed_artifacts_project_data.md)
 - [Project Session Files And Managed Artifacts](feature_routes/project_session_files_managed_artifacts.md)
 - [Workspace Tabs, Library, And Context Menus](feature_routes/workspace_tabs_library_context_menus.md)
@@ -57,7 +56,7 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
 
 - Context-menu chrome and keyboard selection are shared by `ShellContextMenu.qml`; `ShellContextPopup.qml` owns overlay placement, scrolling, dismissal, and focus restoration for port, Folder Explorer, tab, and workflow popups. Native standard editor/dialog menus share the `QMenu` stylesheet rules in `ui/theme/styles.py`.
 
-- Shell projection ownership is direct: `library_projection.py` owns Library rows, filters, category ancestors/options/tree, DPF/custom-workflow discoverability, and display projections from one cached combined item source; `inspector_projection.py` owns selected-node projection; `quick_insert_projection.py` owns canvas/connection search and ranking. `LibraryPresenter` caches one category tree, has no registry-category cache, and projects grouped/display rows lazily; `NodeRegistry` has no Library query API.
+- Shell projection ownership is direct: `library_projection.py` owns Library rows, filters, category ancestors/options/tree, custom-workflow discoverability, and display projections from one cached combined item source; `inspector_projection.py` owns selected-node projection; `quick_insert_projection.py` owns canvas/connection search and ranking. `LibraryPresenter` caches one category tree, has no registry-category cache, and projects grouped/display rows lazily; `NodeRegistry` has no Library query API.
 - `GraphCanvasHostPresenter` directly owns graph cursor application, passive-node/flow-edge style dialogs and presets, style clipboard operations, flow-edge labels, and their scene mutations. `ShellHostPresenter` retains app-wide/native dialog and import policy only; `ShellWindow` has no graph cursor/style facade slots.
 - Workspace shell ownership is direct: `WorkspaceSelectionContext`, `WorkspaceNavigationController`, `WorkspaceEditController`, `WorkspaceDropConnectController`, `WorkflowLibraryController`, and `WorkspacePackageIOController` are composed explicitly. One shared `MutationUiEffects` is injected into edit/drop, while `GraphActionController` calls concrete owners without string dispatch or umbrella fallbacks.
 - Tabular ownership is split without a second service: `loader_cache_service.py` coordinates refs, records, cache lifecycle, locks, and eviction; `source_backends.py` owns format IO/conversion; `preview_query.py` owns one normalized query and the optimized Arrow plus bounded Python evaluators.
@@ -113,37 +112,30 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
 - The reserved built-in bundle owns exactly 76 inert function declarations under
   `nodes/builtin_functions/`; trusted helpers and data contracts remain under
   `nodes/builtins/`, and the current migration inventory pins 53 trusted
-  exceptions while the 133-row pre-cutover catalog remains immutable.
+  exceptions across the exact 139-row repo-owned catalog.
 - Public filesystem discovery is nodes-owned in `plugin_loader.py`; shared
   function materialization/fingerprinting lives in `function_bundle.py`, built-in
   contributions in `builtin_catalog.py`, and trusted backend contributions in
   `addons/registry_contributions.py` without forwarding aliases.
-- DPF runtime ownership is direct: `execution/dpf_runtime/service.py` owns
-  concrete composition, `execution/dpf_runtime/contracts.py` owns DTOs/errors,
-  the package root exposes only its lazy factory, and
-  `nodes/ansys_dpf_data_types.py` is the sole handle-kind definition owner.
 - Node specification structure is validated purely by `nodes/spec_validation.py`
   against an explicit staged/live `DataTypeCatalog`; port and instance/dynamic
   resolution lives directly in `nodes/instance_resolution.py`, and dependency-light
-  property coercion lives in `nodes/property_coercion.py`. Generic and exact
-  built-in/DPF property normalization lives in `nodes/property_normalization.py`.
+  property coercion lives in `nodes/property_coercion.py`. Generic property
+  normalization lives in `nodes/property_normalization.py`.
   `NodeRegistry` retains storage, atomic staged composition/revalidation/rollback,
   fingerprints, registry-aware `resolve_spec`, and the three catalog-aware
   normalization API entry points without built-in-specific policy.
 - Public node authoring is now only the 17-name top-level `corex` function SDK.
   `ea_node_editor.nodes` is internal, its former `types.py` barrel is removed,
   and trusted descriptor decorators remain owned by the Nodes map for the exact
-  internal/DPF/add-on boundary only.
+  internal/add-on boundary only.
 - Public plugin guidance is `docs/PLUGIN_AUTHORING_GUIDE.md` plus the Signal
   Plot and strain examples under `docs/examples/`; migration failures route to
   `docs/PLUGIN_MIGRATION_GUIDE.md`. The old Signal Plot declaration is retained
   only as an internal visual fixture under `tests/fixtures/node_controls/`.
-- T17 documentation corrections use
-  `tests/fixtures/node_catalog/t17_non_dpf_documentation_overlay.json` through
-  `tests/non_dpf_catalog_fixture.py`; the unified Media Panel structural overlay
-  and strict current-contract default overlay are applied afterward to form the
-  139-row current catalog, while the 133-node pre-cutover fixture remains frozen.
-  Closeout evidence lives in
+- The exact current catalog is `tests/fixtures/node_catalog/current_repo_owned_catalog.json`;
+  `tests/repo_owned_catalog_fixture.py` loads its 139 rows for catalog, migration,
+  solution-reuse, and documentation checks. Closeout evidence lives in
   `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`.
 - Core integrations contribute eight reserved function entries plus the trusted
   Path Pointer and Folder Explorer exceptions. SSH/SFTP contributes six reserved
@@ -154,7 +146,7 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
   session/handle ownership, and neutral COREX identifiers remain with the existing
   helper modules.
 - Retired import and placeholder surfaces are absent from current ownership.
-- Typed connection reliability keeps relation authority in `runtime_contracts/data_types.py` plus `graph/effective_ports.py`, recommendation tiers in `ui/shell/quick_insert_projection.py`, default-port Library/filter projection in `ui/shell/library_projection.py`, and restrictive post-insertion endpoint checks in `workspace_drop_connect_controller.py`. Public/Python Script input/output types are explicit; malformed workflow/Library/QML previews never become Any. The trusted non-DPF primary/accepted Any audit is exactly 20 endpoints, with existing MARS artifact maps retained.
+- Typed connection reliability keeps relation authority in `runtime_contracts/data_types.py` plus `graph/effective_ports.py`, recommendation tiers in `ui/shell/quick_insert_projection.py`, default-port Library/filter projection in `ui/shell/library_projection.py`, and restrictive post-insertion endpoint checks in `workspace_drop_connect_controller.py`. Public/Python Script input/output types are explicit; malformed workflow/Library/QML previews never become Any. The trusted repo-owned primary/accepted Any audit is exactly 20 endpoints, with existing MARS artifact maps retained.
 
 ## Hygiene
 

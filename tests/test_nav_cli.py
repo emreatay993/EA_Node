@@ -904,7 +904,7 @@ class NavOwnerCorpusTests(unittest.TestCase):
         map_entries = [
             entry for entry in self.entries if entry.get("kind") != "qml_component"
         ]
-        self.assertEqual(len(map_entries), 68)
+        self.assertEqual(len(map_entries), 67)
         for entry in map_entries:
             with self.subTest(route=entry["route_key"]):
                 owners = nav.find_owner_routes(self.entries, entry["title"])

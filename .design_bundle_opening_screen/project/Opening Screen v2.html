@@ -118,7 +118,7 @@ function App() {
         <Cell idx="1C" fam="Forging Core" title="Offset mark"
           subtitle="Logo on the left; live task list on the right."
           chips={['informative', 'dialog-like']}
-          notes={<>Logo sits in a 240px left column with a vertical rule; right column carries the wordmark and a ticking checklist (Runtime · Registry · DPF · Workspace) with OK / … / idle markers. Strongest fit if boot takes more than 2s and you want the user to see what's happening.</>}>
+          notes={<>Logo sits in a 240px left column with a vertical rule; right column carries the wordmark and a ticking checklist (Runtime · Registry · Viewer · Workspace) with OK / … / idle markers. Strongest fit if boot takes more than 2s and you want the user to see what's happening.</>}>
           <V1C_OffsetMark />
         </Cell>
 
@@ -136,7 +136,7 @@ function App() {
         />
 
         <Cell idx="2A" fam="Graph Assembly" title="Linear pipeline"
-          subtitle="Four nodes, left-to-right: Read → Transform → Solve → Plot."
+          subtitle="Four nodes, left-to-right: Read → Transform → View → Plot."
           chips={['classic flow', 'reads at a glance']}
           notes={<>A canonical four-stage dataflow, each node category-coded (I/O blue → Logic purple → Physics orange → I/O green). Edges draw in sequentially, then a data pulse traces the whole pipeline. Longer, more "real workflow" feel than the 3-node original.</>}>
           <V2A_Linear />
@@ -150,9 +150,9 @@ function App() {
         </Cell>
 
         <Cell idx="2C" fam="Graph Assembly" title="Fan-in cluster"
-          subtitle="Four inputs feed a central DPF solver."
-          chips={['subgraph', 'dpf-forward']}
-          notes={<>Mesh, Materials, Loads, Constraints feed a central Solve node with four bezier edges converging from the corners. The solver pulses "running" while inputs stream data pulses. Strong visual if DPF / simulation is the product's headline use case.</>}>
+          subtitle="Four scene inputs feed a central Model Viewer."
+          chips={['subgraph', 'viewer-forward']}
+          notes={<>FE Import, CAD Import, Geometry Group, and a prepared scene feed a central Model Viewer with four bezier edges converging from the corners. The viewer pulses "ready" while inputs stream data pulses. Strong visual when engineering viewing is the product's headline use case.</>}>
           <V2C_FanIn />
         </Cell>
 
@@ -179,7 +179,7 @@ function App() {
             <li style={{ marginBottom: 6 }}><strong style={{ color: FG }}>1D Constellation</strong> — most narrative; registry "converging" into the logo.</li>
             <li style={{ marginBottom: 6 }}><strong style={{ color: FG }}>2A Linear</strong> — most readable flow.</li>
             <li style={{ marginBottom: 6 }}><strong style={{ color: FG }}>2B Vertical</strong> — tied to session restore.</li>
-            <li style={{ marginBottom: 6 }}><strong style={{ color: FG }}>2C Fan-in</strong> — DPF-forward.</li>
+            <li style={{ marginBottom: 6 }}><strong style={{ color: FG }}>2C Fan-in</strong> — engineering viewer-forward.</li>
             <li><strong style={{ color: FG }}>2D Workspace</strong> — most convincing "already running" illusion.</li>
           </ul>
         </div>

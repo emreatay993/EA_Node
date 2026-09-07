@@ -374,7 +374,7 @@ P06 also did not produce a valid GUI aggregate speed comparison:
 
 | Observation | QuickTest | GUI pytest | Outer wall time | Classification |
 |---|---|---|---:|---|
-| Detached baseline at `d3ee63beff959360902a1b57f2f9aaecdaabace2` | passed | `2 failed, 667 passed, 1 skipped, 48 errors`; the error fanout came from missing local DPF artifacts | `542.324s` | invalid/inconclusive baseline |
+| Detached baseline at `d3ee63beff959360902a1b57f2f9aaecdaabace2` | passed | `2 failed, 667 passed, 1 skipped, 48 errors`; the error fanout came from missing local result fixtures | `542.324s` | invalid/inconclusive baseline |
 | Candidate attempt 1 | not accepted as an aggregate | `5 failed` | `551.267s` | incomplete |
 | Candidate attempt 2 | not accepted as an aggregate | `4 failed` | `588.854s` | incomplete |
 | Candidate attempt 3 | QuickTest reached pass | `1 failed` | `652.155s` | incomplete |
@@ -407,7 +407,7 @@ P06 also did not produce a valid GUI aggregate speed comparison:
 - P06 shell deadline acceptance is failed, despite all three final phases
   completing successfully under the existing 360-second bootstrap hard cap.
 - The former sentence `No known out-of-scope verification baseline failures remain`
-  is superseded by the missing-local-DPF-artifact baseline recorded
+  is superseded by the missing-local-result-fixture baseline recorded
   above; it is retained here only as a traceability marker, not a current
   acceptance claim.
 

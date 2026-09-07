@@ -17,7 +17,6 @@ from PyQt6.QtGui import QCloseEvent, QImage
 from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QApplication, QGridLayout, QVBoxLayout, QWidget
 
-from ea_node_editor.addons.catalog import create_live_viewer_widget_binders
 from ea_node_editor.common.coercions import coerce_int as _coerce_int
 from ea_node_editor.execution.viewer_session_service import coerce_viewer_session_model
 from ea_node_editor.ui.plot_preview_cache_provider import ViewerPreviewCacheImageProvider
@@ -530,7 +529,6 @@ class ViewerHostService(QObject):
         self._content_fullscreen_bridge: QObject | None = content_fullscreen_bridge
         self._binder_registry = ViewerWidgetBinderRegistry()
         self._binders_initialized = False
-        self._binder_preferences_document: Any = None
         self._custom_binders: dict[str, ViewerWidgetBinder] = {}
         self._engineering_binder: EngineeringViewerWidgetBinder | None = None
         self._bound_overlays: dict[_OverlayKey, _BoundOverlay] = {}
@@ -1323,28 +1321,16 @@ class ViewerHostService(QObject):
             self._binder_registry.register(normalized_backend_id, binder)
         self._schedule_sync()
 
-    def rebuild_addon_binders(self, *, preferences_document: Any = None, reason: str = "") -> None:
-        if self._shutdown:
-            return
-        self.reset(reason=reason or "addon_runtime_rebuild")
-        was_initialized = self._binders_initialized
-        self._binder_registry = ViewerWidgetBinderRegistry()
-        self._binders_initialized = False
-        self._binder_preferences_document = preferences_document
-        if was_initialized:
-            self._ensure_binders_initialized()
-        self._schedule_sync()
-
     def _ensure_binders_initialized(self) -> ViewerWidgetBinderRegistry:
         if self._shutdown or self._binders_initialized:
             return self._binder_registry
-        self._register_builtin_binders(preferences_document=self._binder_preferences_document)
+        self._register_builtin_binders()
         for backend_id, binder in self._custom_binders.items():
             self._binder_registry.register(backend_id, binder)
         self._binders_initialized = True
         return self._binder_registry
 
-    def _register_builtin_binders(self, *, preferences_document: Any = None) -> None:
+    def _register_builtin_binders(self) -> None:
         if self._engineering_binder is not None:
             self._engineering_binder.shutdown()
         engineering_binder = EngineeringViewerWidgetBinder()
@@ -1352,10 +1338,6 @@ class ViewerHostService(QObject):
         engineering_binder.selection_changed.connect(self._on_engineering_selection_changed)
         self._engineering_binder = engineering_binder
         self._binder_registry.register(engineering_binder.backend_id, engineering_binder)
-        for backend_id, binder in create_live_viewer_widget_binders(
-            preferences_document=preferences_document,
-        ):
-            self._binder_registry.register(backend_id, binder)
 
     def set_overlay_manager(self, overlay_manager: EmbeddedViewerOverlayManager | None) -> None:
         if self._shutdown:

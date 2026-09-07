@@ -94,19 +94,16 @@ Item {
         border.color: Qt.alpha(root.themePalette.border || "#3a3d45", 0.7)
         clip: true
 
-        GraphCanvasComponents.GraphCanvasGridTiled {
+        GraphCanvasComponents.GraphCanvasGridShader {
             id: gridCanvas
             anchors.fill: parent
-            gridVisible: true
             gridStyle: "lines"
             minorGridColor: root.themePalette.canvas_minor_grid || "#2b2f38"
             majorGridColor: root.themePalette.canvas_major_grid || "#323746"
             minorStep: root.minorGridStep
             majorStep: root.majorGridStep
-            minorOffsetX: 0
-            minorOffsetY: 0
-            majorOffsetX: 0
-            majorOffsetY: 0
+            minorOffset: Qt.vector2d(0, 0)
+            majorOffset: Qt.vector2d(0, 0)
         }
 
         Item {

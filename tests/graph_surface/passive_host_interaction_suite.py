@@ -1495,7 +1495,6 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 "annotation": "text",
                 "group_backdrop": "",
                 "media": "image",
-                "dpf_workflow": "",
                 "web": "",
                 "jupyter": "",
             }
@@ -2895,7 +2894,6 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             payload["ports"][0]["data_type"] = "path"
             payload["ports"][0]["help_text"] = "Path supplied by the upstream result file."
             payload["ports"][0]["inactive"] = True
-            payload["ports"][0]["inactive_source_key"] = "result_file"
             payload["ports"][0]["inactive_reason"] = "Driven by result_file"
 
             host = create_component(graph_node_host_qml_path, {"nodeData": payload})

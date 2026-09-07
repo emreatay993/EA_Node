@@ -7,7 +7,7 @@
 
 ## Summary
 
-The M1 Breathe splash currently freezes because `create_shell_window()` runs on the main thread and blocks the Qt event loop for ~4.4s. Startup profiling (env-gated via `EA_PROFILE_STARTUP=1`) showed that a single pure-Python function, `build_default_registry()` at [`ea_node_editor/nodes/bootstrap.py`](../../ea_node_editor/nodes/bootstrap.py), accounts for **3.60s / 65%** of that build. The function does plugin discovery, Ansys DPF backend registration, and dynamic imports — zero Qt widget calls. This plan moves it onto a `QThread` that runs in parallel with the splash's boot animation, so the splash paints smoothly and the shell build on the main thread drops to ~0.8s (dominated by `_run_shell_startup_sequence`, addressed as an optional follow-up).
+The M1 Breathe splash currently freezes because `create_shell_window()` runs on the main thread and blocks the Qt event loop for ~4.4s. Startup profiling (env-gated via `EA_PROFILE_STARTUP=1`) showed that a single pure-Python function, `build_default_registry()` at [`ea_node_editor/nodes/bootstrap.py`](../../ea_node_editor/nodes/bootstrap.py), accounts for **3.60s / 65%** of that build. The function does plugin discovery, dependency-gated add-on registration, and dynamic imports — zero Qt widget calls. This plan moves it onto a `QThread` that runs in parallel with the splash's boot animation, so the splash paints smoothly and the shell build on the main thread drops to ~0.8s (dominated by `_run_shell_startup_sequence`, addressed as an optional follow-up).
 
 ## Context — why threading, not chunking
 
@@ -28,8 +28,7 @@ Profiling (captured 2026-04-18) picked path 2 unambiguously:
 
 `ea_node_editor/nodes/bootstrap.py` has no QWidget / QApplication / QPainter / QPixmap / QQuick references, so safe to run off the GUI thread. Costs come from:
 
-- `sync_ansys_dpf_plugin_state(...)` — Ansys DPF state sync.
-- `register_plugin_backends(ANSYS_DPF_PLUGIN_BACKENDS, registry, "ea_node_editor.nodes.builtins.ansys_dpf")` — heavy imports.
+- dependency-gated add-on state synchronization and registry contributions.
 - `discover_and_load_plugins(registry, extra_dirs=…)` — filesystem scan + dynamic imports.
 
 The user flagged that plugin/library count will grow over time, so the threading fix must be forward-looking: any additional plugin load cost should extend the splash duration gracefully, never reintroduce a freeze.

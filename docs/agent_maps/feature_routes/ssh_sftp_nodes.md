@@ -52,7 +52,7 @@ Use this for the six built-in Control > SSH/SFTP nodes, protected credentials, P
 .\venv\Scripts\python.exe -m pytest tests/test_ssh_sftp_node_contracts.py::test_ssh_sftp_runtime_type_contracts_and_process_transport_are_exact --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_ssh_sftp_node_contracts.py tests/test_ssh_sftp_runtime.py tests/test_protected_values.py tests/test_sensitive_property_controls.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_builtin_integration_function_migration.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_registry_validation.py tests/test_dataflow_graph_persistence.py tests/test_non_dpf_node_documentation.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_registry_validation.py tests/test_dataflow_graph_persistence.py tests/test_repo_owned_node_documentation.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_node_title_icon_assets.py tests/test_packaging_configuration.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_type_catalog_generator.py::test_current_unsupported_addin_source_node_policy_is_exact --ignore=venv -q
 ```

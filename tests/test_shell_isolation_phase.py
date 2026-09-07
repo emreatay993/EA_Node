@@ -60,6 +60,7 @@ _EXPECTED_T25_TARGET_IDS = {
     "project_session__test_recovery_prompt_reject_keeps_empty_startup_project_and_discards_autosave",
     "project_session__test_restore_session_handles_corrupted_session_and_autosave_files",
     "project_session__test_session_restore_recovers_workspace_order_active_workspace_and_view_camera",
+    "script_editor__test_canvas_port_edits_preserve_dirty_drafts_and_refresh_clean_editor",
     "script_editor__test_numeric_overflow_draft_stays_dirty_and_leaves_graph_unchanged",
     "script_editor__test_script_apply_failure_draft_survives_panel_reopen",
     "script_editor__test_script_apply_failure_keeps_draft_dirty",

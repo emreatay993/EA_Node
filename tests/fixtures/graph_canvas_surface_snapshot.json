@@ -160,7 +160,6 @@
       "QVariantList visible_backdrop_nodes_payloads NOTIFY visible_scene_models_changed()",
       "QVariantList visible_nodes_payloads NOTIFY visible_scene_models_changed()",
       "QVariantMap completed_node_lookup NOTIFY node_execution_state_changed()",
-      "QVariantMap dpf_workflow_summary_lookup NOTIFY node_execution_state_changed()",
       "QVariantMap edge_delta_payload NOTIFY scene_edges_changed()",
       "QVariantMap failed_node_lookup NOTIFY failure_highlight_changed()",
       "QVariantMap fresh_run_node_lookup NOTIFY node_execution_state_changed()",

@@ -19,21 +19,20 @@ from ea_node_editor.runtime_contracts.value_codec import (
     serialize_runtime_value,
 )
 from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
-from ea_node_editor.runtime_contracts import DataTree
-from tests.typed_handle_support import dpf_data_type_catalog
+from ea_node_editor.common.scene_protocol import COREX_SCENE_HANDLE_KIND
+from ea_node_editor.runtime_contracts import DataTree, ENGINEERING_SCENE_DATA_TYPE_ID
+from tests.typed_handle_support import core_data_type_catalog
 
-_DPF_FIELD_TYPE_ID = "COREX.Ansys.DPF.Field"
-_DPF_MESH_TYPE_ID = "COREX.Ansys.DPF.Mesh"
-_DATA_TYPES = dpf_data_type_catalog()
+_DATA_TYPES = core_data_type_catalog()
 
 
 class ExecutionHandleRefProtocolTests(unittest.TestCase):
     def test_node_settled_event_round_trips_runtime_handle_ref_payloads(self) -> None:
         runtime_ref = RuntimeHandleRef(
-            data_type_id=_DPF_MESH_TYPE_ID,
+            data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
             schema_version=1,
             handle_id="mesh_001",
-            kind="dpf.mesh",
+            kind=COREX_SCENE_HANDLE_KIND,
             owner_scope="run:run_handle",
             worker_generation=7,
             metadata={"label": "primary"},
@@ -56,10 +55,10 @@ class ExecutionHandleRefProtocolTests(unittest.TestCase):
             payload["outputs"]["mesh_handle"]["value"]["branches"][0]["items"][0],
             {
                 "__ea_runtime_value__": "handle_ref",
-                "data_type_id": _DPF_MESH_TYPE_ID,
+                "data_type_id": ENGINEERING_SCENE_DATA_TYPE_ID,
                 "schema_version": 1,
                 "handle_id": "mesh_001",
-                "kind": "dpf.mesh",
+                "kind": COREX_SCENE_HANDLE_KIND,
                 "owner_scope": "run:run_handle",
                 "worker_generation": 7,
                 "metadata": {"label": "primary"},
@@ -81,10 +80,10 @@ class ExecutionHandleRefProtocolTests(unittest.TestCase):
             metadata={
                 "viewer_state": {
                     "field_handle": RuntimeHandleRef(
-                        data_type_id=_DPF_FIELD_TYPE_ID,
+                        data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
                         schema_version=1,
                         handle_id="field_123",
-                        kind="dpf.field",
+                        kind=COREX_SCENE_HANDLE_KIND,
                         owner_scope="workspace:ws_main",
                         worker_generation=11,
                     )
@@ -104,10 +103,10 @@ class ExecutionHandleRefProtocolTests(unittest.TestCase):
             payload["runtime_snapshot"]["metadata"]["viewer_state"]["field_handle"],
             {
                 "__ea_runtime_value__": "handle_ref",
-                "data_type_id": _DPF_FIELD_TYPE_ID,
+                "data_type_id": ENGINEERING_SCENE_DATA_TYPE_ID,
                 "schema_version": 1,
                 "handle_id": "field_123",
-                "kind": "dpf.field",
+                "kind": COREX_SCENE_HANDLE_KIND,
                 "owner_scope": "workspace:ws_main",
                 "worker_generation": 11,
             },
@@ -124,7 +123,7 @@ class ExecutionHandleRefProtocolTests(unittest.TestCase):
         if not isinstance(restored_ref, RuntimeHandleRef):
             self.fail("runtime handle ref did not round-trip through RuntimeSnapshot")
         self.assertEqual(restored_ref.handle_id, "field_123")
-        self.assertEqual(restored_ref.kind, "dpf.field")
+        self.assertEqual(restored_ref.kind, COREX_SCENE_HANDLE_KIND)
         self.assertEqual(restored_ref.owner_scope, "workspace:ws_main")
         self.assertEqual(restored_ref.worker_generation, 11)
 
@@ -142,10 +141,10 @@ class ExecutionHandleRefProtocolTests(unittest.TestCase):
             deserialize_runtime_value(
                 {
                     "__ea_runtime_value__": "handle_ref",
-                    "data_type_id": _DPF_FIELD_TYPE_ID,
+                    "data_type_id": ENGINEERING_SCENE_DATA_TYPE_ID,
                     "schema_version": 1,
                     "handle_id": "field_123",
-                    "kind": "dpf.field",
+                    "kind": COREX_SCENE_HANDLE_KIND,
                     "worker_generation": 3,
                 },
                 catalog=_DATA_TYPES,

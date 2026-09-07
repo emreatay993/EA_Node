@@ -1,7 +1,7 @@
 # Viewer Surfaces, Native Overlays, And Fullscreen
 
 ## Purpose
-Use this for embedded viewer sessions, native overlay management, fullscreen content, viewer host services, and DPF viewer surfaces.
+Use this for embedded viewer sessions, native overlay management, fullscreen content, viewer host services, and engineering viewer surfaces.
 
 ## Start Here
 - `ea_node_editor/ui_qml/viewer_session_bridge.py`
@@ -19,7 +19,7 @@ Use this for embedded viewer sessions, native overlay management, fullscreen con
 
 ## Do Not Start Here
 - Passive media surfaces unless the content is non-execution media.
-- DPF node definitions before viewer transport/session ownership is clear.
+- Node definitions before viewer transport/session ownership is clear.
 
 ## Common Changes
 - Keep viewer session backend, bridge, overlay manager, and fullscreen bridge aligned.
@@ -31,9 +31,9 @@ Use this for embedded viewer sessions, native overlay management, fullscreen con
 - Native inline viewer overlays short-circuit polish/geometry/move/resize work and disable QWidget updates while `GraphCanvas.nativeOverlaySuppressionActive` is true. Inline live mode begins only after a proxy-viewport double-click; selection, hover, and single-click remain proxy. `ViewerHostService` owns one attached-but-hidden retained-inline slot only for a widget previously created by explicit inline activation, while fullscreen/detached use explicit presentation holds. Unchanged session/transport reactivation skips the binder; selection/background loss demotes, and identity or lifecycle termination still calls the release path.
 - `PlotHostService` owns live widget retargeting for embedded, fullscreen, and detached presentations.
 - Plot live overlays use the overlay manager's `plot_host` owner so plot syncs do not remove default viewer overlays.
-- Inline plot previews use an in-memory raster preview cache: capture the real native widget frame as a copied `QImage` on embedded live-exit, serve it through `image://plot-preview-cache/...`, and invalidate it on render-signature changes. Live-exit has the same mirror boundary as the DPF viewer: `PlotHostService` captures the exit raster, then defers the overlay release (and with it the native hide) until QML confirms the swapped image via `notify_cached_preview_swapped(node_id, source)` and one `afterRendering` frame has passed (`_EMBEDDED_EXIT_DEMOTION_TIMEOUT_MS` fallback), so the reveal never repaints a stale proxy frame; a pending exit keeps the overlay hosted through queued syncs, and re-activation cancels the demotion with the live overlay still bound.
+- Inline plot previews use an in-memory raster preview cache: capture the real native widget frame as a copied `QImage` on embedded live-exit, serve it through `image://plot-preview-cache/...`, and invalidate it on render-signature changes. `PlotHostService` captures the exit raster, then defers the overlay release until QML confirms the swapped image via `notify_cached_preview_swapped(node_id, source)` and one `afterRendering` frame has passed (`_EMBEDDED_EXIT_DEMOTION_TIMEOUT_MS` fallback), so the reveal never repaints a stale proxy frame; a pending exit keeps the overlay hosted through queued syncs, and re-activation cancels the demotion with the live overlay still bound.
 - Inline plot live reactivation should restore transient backend view state from the same live-exit point: pyqtgraph view ranges and fixed axis layout for 2D plots, and PyVista camera state for 3D plots.
-- Inline plot live activation should gate by actual on-screen viewport size (`graphNodeViewerViewport` dimensions multiplied by canvas zoom) only when `plot_surface.live_backend_id` resolves to pyqtgraph. Non-pyqtgraph live plotters and DPF viewer surfaces rely on backend/session readiness plus overlay geometry rather than the pyqtgraph clipping workaround.
+- Inline plot live activation should gate by actual on-screen viewport size (`graphNodeViewerViewport` dimensions multiplied by canvas zoom) only when `plot_surface.live_backend_id` resolves to pyqtgraph. Other live plotters and viewer surfaces rely on backend/session readiness plus overlay geometry rather than the pyqtgraph clipping workaround.
 - Keep cached/proxy plot content visible through live handoff until the native overlay reports attached and exact-viewport geometry-ready; `liveSurfaceActive` is the request, while `liveOverlayReady` is the visual handoff boundary. Plot overlays should use the mapped `graphNodeViewerViewport` rect, normalize cached preview rasters to overlay size/DPR, and avoid broader body fallback geometry.
 - Plot live/cache QML should depend on `PlotHostService.plot_overlay_revision`, not just active overlay count, because switching directly between two plot overlays can keep the count unchanged while readiness and identity change. While any fullscreen content is open, non-fullscreen inline plot overlays and inline cached plot images should be suppressed; plot fullscreen changes should publish only the fullscreen target before the queued retarget sync so old native content cannot flash in the fullscreen viewport. Keep the fullscreen scrim opaque so graph cached previews cannot show through while native fullscreen content attaches.
 - Plot fullscreen target selection should be keyed from the open fullscreen bridge node identity, not from optional `native_overlay` payload metadata. A plot live overlay that is the fullscreen target must wait hidden until `contentFullscreenViewerViewport` is visible and sized; do not show it at the inline `graphNodeViewerViewport` fallback geometry.
@@ -42,7 +42,6 @@ Use this for embedded viewer sessions, native overlay management, fullscreen con
 - Fullscreen PDF uses QML `PdfMultiPageView` in `ContentFullscreenOverlay.qml` and owns reader controls there: text search, match navigation, zoom, fit page/width/actual size, rotate, and page shortcuts. Keep this QML path separate from Python bridge fallback clamping.
 - Plot session windows are deprecated and disabled; keep inline plot live previews on the embedded path.
 - Finalize PyVista/QVTK plot widgets before hiding or detaching their Qt containers so VTK does not clean up against an invalid native OpenGL handle.
-- DPF viewer surfaces follow the embedded live-preview pattern from plot surfaces: QML calls `ViewerHostService.set_embedded_interaction_active(node_id, active)`, keeps an in-memory `image://viewer-preview-cache/...` raster visible during live-overlay handoff, and uses `viewer_overlay_revision`/`embedded_live_overlay_ready(node_id)` as the visual readiness boundary. Live-exit has the mirror boundary: the host service captures the exit preview, then defers the session-bridge demotion (and with it the overlay hide) until QML confirms the swapped image via `notify_cached_preview_swapped(node_id, source)` and one `afterRendering` frame has passed (`_EMBEDDED_EXIT_DEMOTION_TIMEOUT_MS` fallback), so the reveal never repaints a stale proxy frame. Re-activation during the pending exit cancels the demotion and keeps the live overlay bound. They are not gated by the pyqtgraph plot screen-size threshold. `GraphViewerSurfaceBody.qml` must invoke that slot only via its coalesced `Qt.callLater` queue (`_queueEmbeddedInteractionSync`) from property-change handlers: the slot re-emits `ViewerSessionBridge.sessions_changed`, and a direct call from the `embeddedInteractionActive` change handler runs inside the `bridgeSessionProjectionSeed` binding update and logs a QML binding loop (`test_session_projection_seed_survives_synchronous_state_flip_without_binding_loop`).
 - Neutral CAD/FE scenes use the same host/overlay/fullscreen ownership through
   `corex_scene`. The binder keeps one PyVista widget, reuses datasets and actors
   for same-session/revision view changes, applies display-only overlay unit
@@ -59,10 +58,7 @@ Use this for embedded viewer sessions, native overlay management, fullscreen con
   and fullscreen targets with `fullscreen > detached > inline` priority. A
   detached-window close docks inline, fullscreen temporarily takes ownership,
   and reset/session/workspace/node/backend loss closes transient presentations.
-- DPF viewer QML must retain the last non-empty viewer-preview-cache image source while a same-node cached frame remains valid, including during node selection and drag demotion. Clear it only for real invalidation such as node change, fullscreen takeover, run-required state, closed session, or a missing cache source.
-- DPF viewer cached previews and transient camera/view state are in-memory only. Do not reintroduce temp PNG preview materialization, project persistence, or `materialize_viewer_data(... export_formats=["png"])` for embedded demotion.
 - `ViewerHostService` keys the cached camera/view state by a camera-relevant signature (session, backend, transport revision, transport, data_refs) on both capture and restore, so the camera survives option-only and playback changes and resets only when the transported geometry changes; preview-signature changes migrate the camera entry instead of clearing it.
-- `DpfViewerWidgetBinder` owns PyVista camera capture/restore for live viewer reactivation (including a same-session re-populate snapshot when the bind request carries no camera payload); release QVTK widgets while they are still attached before hiding or detaching containers. It also computes component-aware post-warp display stats served through `ViewerHostService.viewer_render_stats(node_id)` alongside `apply_standard_view`/`reset_overlay_camera`/`camera_state_snapshot`/`apply_overlay_camera_state`/`export_viewer_screenshot`, and installs the fullscreen shortcut event filter on the fullscreen-target widget.
 - For cross-process viewer work, update execution viewer protocol tests.
 - `ViewerSessionBridge` advances epochs itself only for true project/reset/global run-required paths; run-driven invalidation has one path, `adopt_committed_invalidation(...)`, which adopts the independently committed high-level projection snapshot without incrementing again. It does not subscribe to `ShellWindow.execution_event`: the sole queued shell intake calls `handle_viewer_execution_event(...)` directly once after run-state routing. That consumer retains the existing node-settled, viewer-event, epoch, session, and request filters. Concrete transport responses reach it only after local client validation and translation to those projection epochs. It retires matching pending queries/presentation holds/inline activation and rejects old-epoch or mismatched-request responses before signals or session mutation. Unaffected viewer projections remain unchanged; the bridge never resets `ViewerHostService` for an ordinary run.
 - Keep native overlay and QML surface tests separate from generic graph node tests.
@@ -76,7 +72,6 @@ $env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test
 
 ## Breadcrumbs
 - [Viewer Session, Native Overlay, And Fullscreen](../feature_routes/viewer_session_overlay_fullscreen.md)
-- [Ansys DPF Operator Nodes, Viewer, And Transport](../feature_routes/ansys_dpf_operator_viewer_transport.md)
 - [Neutral CAD/FE Engineering Viewer](../feature_routes/neutral_cad_fe_engineering_viewer.md)
 
 ## Update Triggers

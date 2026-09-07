@@ -5,15 +5,6 @@ import unittest
 from ea_node_editor.execution.handle_registry import HandleRegistry, StaleHandleError
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.common.scene_protocol import COREX_SCENE_HANDLE_KIND
-from ea_node_editor.nodes.ansys_dpf_data_types import (
-    DPF_DATA_SOURCES_DATA_TYPE,
-    DPF_MODEL_DATA_TYPE,
-    DPF_OBJECT_HANDLE_DATA_TYPE,
-)
-from ea_node_editor.nodes.ansys_dpf_data_types import (
-    DPF_MODEL_HANDLE_KIND,
-    DPF_OBJECT_HANDLE_KIND,
-)
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 from ea_node_editor.runtime_contracts import (
@@ -24,7 +15,7 @@ from ea_node_editor.runtime_contracts import (
     ENGINEERING_SCENE_DATA_TYPE_ID,
     VIEWER_SESSION_DATA_TYPE_ID,
 )
-from tests.typed_handle_support import core_worker_services, dpf_worker_services
+from tests.typed_handle_support import core_worker_services
 
 _TEST_HANDLE_TYPE_ID = "tests.Runtime.Payload"
 _TEST_HANDLE_KIND = "tests.payload"
@@ -366,49 +357,6 @@ class ExecutionContextHandleTests(unittest.TestCase):
 
 
 class ConcreteHandleSemanticTests(unittest.TestCase):
-    def test_dpf_model_semantics_cannot_be_spoofed_with_generic_object_kind(self) -> None:
-        services = dpf_worker_services()
-        with self.assertRaisesRegex(DataTypeCatalogError, "invalid"):
-            services.register_handle(
-                object(),
-                data_type_id=DPF_MODEL_DATA_TYPE,
-                kind=DPF_OBJECT_HANDLE_KIND,
-                owner_scope="run:dpf_model_spoof",
-            )
-        with self.assertRaisesRegex(DataTypeCatalogError, "invalid"):
-            services.register_handle(
-                object(),
-                data_type_id=DPF_OBJECT_HANDLE_DATA_TYPE,
-                kind=DPF_MODEL_HANDLE_KIND,
-                owner_scope="run:dpf_object_spoof",
-            )
-
-        object_ref = services.register_handle(
-            object(),
-            data_type_id=DPF_OBJECT_HANDLE_DATA_TYPE,
-            kind=DPF_OBJECT_HANDLE_KIND,
-            owner_scope="run:dpf_object",
-        )
-        with self.assertRaisesRegex(TypeError, "data type mismatch"):
-            services.resolve_handle(
-                object_ref,
-                expected_data_type=DPF_MODEL_DATA_TYPE,
-                expected_kind=DPF_OBJECT_HANDLE_KIND,
-            )
-        data_sources_spoof = RuntimeHandleRef(
-            data_type_id=DPF_OBJECT_HANDLE_DATA_TYPE,
-            schema_version=object_ref.schema_version,
-            handle_id="spoof-data-sources",
-            kind=DPF_OBJECT_HANDLE_KIND,
-            owner_scope="run:spoof",
-            worker_generation=services.handle_registry.worker_generation,
-        )
-        with self.assertRaisesRegex(DataTypeCatalogError, "invalid"):
-            services.data_types.validate_output(
-                DPF_DATA_SOURCES_DATA_TYPE,
-                data_sources_spoof,
-            )
-
     def test_engineering_scene_semantics_reject_wrong_backend_kind(self) -> None:
         services = core_worker_services()
         with self.assertRaisesRegex(DataTypeCatalogError, "invalid"):

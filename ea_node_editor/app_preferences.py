@@ -16,7 +16,6 @@ from ea_node_editor.settings import (
     DEFAULT_ADDON_SETTINGS,
     DEFAULT_ADDON_STATE,
     DEFAULT_APP_PREFERENCES,
-    DEFAULT_ANSYS_DPF_PLUGIN_SETTINGS,
     DEFAULT_CANVAS_BACKGROUND_VARIANT,
     DEFAULT_CANVAS_IMPORT_MODE,
     DEFAULT_EDGE_CROSSING_STYLE,
@@ -651,37 +650,9 @@ def normalize_addon_settings(payload: Any) -> dict[str, Any]:
     return normalized
 
 
-def normalize_ansys_dpf_plugin_version(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, (Mapping, list, tuple, set, bool)):
-        return ""
-    if isinstance(value, str):
-        return value
-    return str(value)
-
-
-def normalize_ansys_dpf_plugin_settings(payload: Any) -> dict[str, str]:
-    defaults = DEFAULT_ANSYS_DPF_PLUGIN_SETTINGS
-    if not isinstance(payload, Mapping):
-        return copy.deepcopy(defaults)
-
-    normalized = copy.deepcopy(defaults)
-    normalized["version"] = normalize_ansys_dpf_plugin_version(payload.get("version"))
-    normalized["catalog_cache_version"] = normalize_ansys_dpf_plugin_version(
-        payload.get("catalog_cache_version")
-    )
-    return normalized
-
-
 def normalize_plugin_settings(payload: Any) -> dict[str, Any]:
-    defaults = DEFAULT_PLUGIN_SETTINGS
-    if not isinstance(payload, Mapping):
-        return copy.deepcopy(defaults)
-
-    normalized = copy.deepcopy(defaults)
-    normalized["ansys_dpf"] = normalize_ansys_dpf_plugin_settings(payload.get("ansys_dpf"))
-    return normalized
+    del payload
+    return copy.deepcopy(DEFAULT_PLUGIN_SETTINGS)
 
 
 def normalize_python_runtime_settings(payload: Any) -> dict[str, str]:
@@ -767,11 +738,6 @@ class AppPreferencesStore:
         return normalized
 
 
-def ansys_dpf_plugin_state(document: Any) -> dict[str, str]:
-    normalized = normalize_app_preferences_document(document)
-    return copy.deepcopy(normalized["plugins"]["ansys_dpf"])
-
-
 def addon_state(document: Any, addon_id: Any) -> dict[str, bool]:
     normalized = normalize_app_preferences_document(document)
     normalized_addon_id = _normalize_preference_key(addon_id)
@@ -798,22 +764,6 @@ def set_addon_state(
         {
             "enabled": enabled,
             "pending_restart": pending_restart,
-        }
-    )
-    return normalized
-
-
-def set_ansys_dpf_plugin_state(
-    document: Any,
-    *,
-    version: Any,
-    catalog_cache_version: Any,
-) -> dict[str, Any]:
-    normalized = normalize_app_preferences_document(document)
-    normalized["plugins"]["ansys_dpf"] = normalize_ansys_dpf_plugin_settings(
-        {
-            "version": version,
-            "catalog_cache_version": catalog_cache_version,
         }
     )
     return normalized
@@ -1119,14 +1069,11 @@ __all__ = [
     "normalize_canvas_import_mode",
     "AppPreferencesStore",
     "addon_state",
-    "ansys_dpf_plugin_state",
     "default_app_preferences_document",
     "engineering_viewer_tangent_selection_angle",
     "normalize_app_preferences_document",
     "normalize_addon_settings",
     "normalize_addon_state",
-    "normalize_ansys_dpf_plugin_settings",
-    "normalize_ansys_dpf_plugin_version",
     "normalize_canvas_background_variant",
     "normalize_edge_crossing_style",
     "normalize_engineering_viewer_settings",
@@ -1161,5 +1108,4 @@ __all__ = [
     "normalize_shell_panel_collapsed",
     "resolve_startup_theme_id",
     "set_addon_state",
-    "set_ansys_dpf_plugin_state",
 ]

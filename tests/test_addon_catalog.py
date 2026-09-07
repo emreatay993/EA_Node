@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from ea_node_editor.addons import catalog as addon_catalog
 from ea_node_editor.addons.catalog import (
-    ANSYS_DPF_ADDON_ID,
+    TABULAR_DATA_ADDON_ID,
     AddOnRegistration,
     registered_addon_registration_by_id,
 )
@@ -36,9 +36,8 @@ def _descriptor(type_id: str, display_name: str) -> PluginDescriptor:
 
 
 def test_addon_registration_lookup_requires_canonical_addon_id() -> None:
-    assert registered_addon_registration_by_id(ANSYS_DPF_ADDON_ID) is not None
-    assert registered_addon_registration_by_id("ansys.dpf") is None
-    assert registered_addon_registration_by_id("ansys_dpf") is None
+    assert registered_addon_registration_by_id(TABULAR_DATA_ADDON_ID) is not None
+    assert registered_addon_registration_by_id("tabular_data") is None
 
 
 def test_discover_addon_records_reports_generic_manifest_and_state(monkeypatch) -> None:

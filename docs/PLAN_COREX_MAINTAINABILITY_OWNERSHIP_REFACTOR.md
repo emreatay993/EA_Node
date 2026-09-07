@@ -174,7 +174,7 @@ line-count quota is imposed.
   - Delete `window_library_inspector.py` and update callers directly.
   - Split its tests by the same owners.
 - **Verification:** New owner tests plus data-type, graph-type, property-adapter,
-  media-source, sensitive-control, and DPF projection tests.
+  media-source, sensitive-control, and viewer projection tests.
 - **Performance:** Matched library rebuild and connection Quick Insert timings;
   one category-tree construction per request.
 - **Non-goals:** No QML change, generic tree library, registry redesign, or

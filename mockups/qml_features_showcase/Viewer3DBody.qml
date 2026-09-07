@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick3D
 
 // Feature (5): a 3D preview node — an orbitable Quick3D View3D embedded right in
-// the node body (evokes a DPF/mesh result viewer). Built-in primitive meshes, so
+// the node body (evokes a Model Viewer/mesh result viewer). Built-in primitive meshes, so
 // no asset files. Auto-spins; drag to orbit.
 Item {
     id: b

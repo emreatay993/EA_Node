@@ -5,13 +5,13 @@
 - Evaluated tree: the shared working tree was intentionally dirty with the uncommitted `T01` through `T07` implementation; unrelated changes were preserved.
 - Plan: [`docs/PLAN_COREX_Change_Locality_and_Breadcrumb_Reduction.md`](../../PLAN_COREX_Change_Locality_and_Breadcrumb_Reduction.md), SHA-256 `4b081ddd697b9c5fa437b0802ca0c603c00a551fac0daa9a7e0e9ed04b8443e7`
 - Owner corpus: [`tests/fixtures/nav_owner_corpus.json`](../../../tests/fixtures/nav_owner_corpus.json), SHA-256 `1ae9c746c66f221a7967928b86c1bc004bc19eb66e0e92decd05119edfab9893`
-- Overall status: **PARTIAL - task-owned evidence PASS; final fast verification FAIL on out-of-scope current-environment DPF catalog/live-discovery drift**
+- Overall status: **PARTIAL - task-owned evidence PASS; final fast verification FAIL on out-of-scope optional catalog/live-discovery drift**
 
 ## Decision Summary
 
 The accepted locality implementation is complete. Compact owner lookup meets the plan's accuracy and output caps, performance-harness proof is filterable and recoverable, committed navigation outputs no longer carry volatile line metadata, script-editor width has one interactive hop, package-internal `nodes.types` imports are zero, and viewer command paths no longer write canonical phase/options/transport/playback state or discover capture through the shell.
 
-All task-owned focused checks pass. The required final-state fast run is not green: it reports `2343 passed`, `2 skipped`, and one failure because the committed Ansys DPF operator catalog does not match live discovery in the installed `ansys-dpf-core 0.16.1`. The exact test also failed in the earlier focused classification run. The catalog, its generator, and its test are unchanged by this implementation and outside this plan's authorized scope, so this matrix records the current-environment failure without regenerating or changing that unrelated asset. The failure may predate this change, but no clean base checkout was tested.
+All task-owned focused checks pass. The required final-state fast run was not green: it reported `2343 passed`, `2 skipped`, and one failure because a retired optional operator catalog did not match live discovery in the installed environment. The catalog, its generator, and its test were unchanged by this implementation and outside this plan's authorized scope, so this matrix records that historical environment failure without relabeling it as task-owned.
 
 The graph-scene primary-owner gate is false: the corpus replay keeps every primary owner in the top three. The separate duplication/>5-production-files gate is **NOT MEASURED** because the five-path capsule cap is not an implementation replay. No affirmative trigger evidence was produced, so the conservative decision is **DEFER**: no graph-scene consolidation plan or implementation is created by this closeout.
 
@@ -25,7 +25,7 @@ The graph-scene primary-owner gate is false: the corpus replay keeps every prima
 | `T04` script-editor width locality | PASS | Final executable QML boundary run: `36 passed`, `935` subtests. Interactive path is `ScriptEditorOverlay.qml -> ScriptEditorModel.set_width`; snapshot/restore remains on the project/session path. |
 | `T05` direct node contract imports | PASS | Plan suite: `114 passed`, `36` subtests; four-package import smoke passed; AST count is `0` internal `ea_node_editor.nodes.types` imports. The external facade retains its curated `93`-name SDK `__all__`. |
 | `T06` viewer pending/authoritative state | PASS | Viewer suite: `99 passed`, `26` subtests; engineering-viewer performance tests: `2 passed`. Canonical phase/options/transport/playback command-path writes and raw shell capture lookups are both `0`; request/command/backend state and locally captured camera presentation remain intentional. |
-| `T07` measurement closeout | PARTIAL | This matrix, spec/map registration, final route-index regeneration, corpus replay, and focused checks pass without expanding graph scope. The required final-state fast run completed but failed on the unrelated DPF catalog drift recorded below. |
+| `T07` measurement closeout | PARTIAL | This matrix, spec/map registration, final route-index regeneration, corpus replay, and focused checks pass without expanding graph scope. The required final-state fast run completed but failed on the unrelated optional catalog drift recorded below. |
 
 The task-owned focused commands above produced inline console evidence; no focused-task log files were retained. This matrix is the durable retained summary of the final program-wide fast run; the detailed log pointer below is a local ignored diagnostic only.
 
@@ -87,14 +87,14 @@ Decision: **DEFER** graph-scene consolidation because no affirmative trigger evi
 | `scripts/check_markdown_links.py` | PASS | Inline console |
 | `scripts/check_agent_maps.py` | PASS | Inline console |
 | `scripts/run_verification.py --mode fast --summarize-output` | FAIL - `1 failed`, `2343 passed`, `2 skipped`, `12 warnings` in `166.17 s` | Local ignored diagnostic: `artifacts/verification_logs/20260716_045016/01_fast.pytest.log`; durable summary retained here |
-| Exact failed DPF test rerun | FAIL - `1 failed`, `4 warnings` in `12.78 s`; installed DPF version `0.16.1` | Inline console |
+| Exact failed optional-catalog test rerun | FAIL - `1 failed`, `4 warnings` in `12.78 s` | Inline console |
 | `git diff --check` | PASS | Inline console; line-ending warnings only |
 
 ## Residual Risks And Non-Goals
 
 - Dynamic imports are outside the static `nodes.types` AST ratchet; no current package use was found.
 - Untracked external plugins could have imported incidental `nodes.types` attributes that were never in its public `__all__`; the pre-release compatibility policy does not retain those aliases without a current SDK requirement.
-- The committed DPF catalog is `3,875,286` bytes while current-environment live rendering is `3,918,459` bytes and includes `maximum`/`minimum` fields absent from the asset. The catalog, generator, and test are unchanged by this implementation; the failure may predate it, but no clean base checkout was tested. Resolving the drift requires a separately authorized catalog decision; it is the sole final-fast failure.
+- The retired optional catalog was `3,875,286` bytes while the environment's live rendering was `3,918,459` bytes and included `maximum`/`minimum` fields absent from the asset. The catalog, generator, and test were unchanged by this implementation; no clean base checkout was tested. It was the sole final-fast failure in that historical run.
 - Offscreen/software harness smoke does not replace display-attached acceptance for performance-affecting work.
 - The corpus is intentionally ten labeled tasks. Expand it only when a new lookup failure cannot be represented by the existing sample.
 - Graph-scene consolidation, a second ownership manifest, SQLite indexing, a general barrel detector, dashboards, and new runner/checker rules remain out of scope.

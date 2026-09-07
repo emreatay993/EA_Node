@@ -10,7 +10,7 @@ Quick Insert and final graph mutation already share the graph compatibility
 predicate. The defect is that Quick Insert reduces every legal relation to a
 Boolean, so exact typed matches, broad structural matches, global `Any`, and
 runtime-checked matches compete as peers. Additional recurrence paths are
-over-broad non-DPF metadata, omitted author types becoming `Any`, malformed
+over-broad repo-owned metadata, omitted author types becoming `Any`, malformed
 workflow/library previews becoming `Any`, and Library rows using base rather
 than default-resolved dynamic ports.
 
@@ -18,8 +18,8 @@ This plan keeps graph legality unchanged for `assignable`, `convertible`, and
 `runtime_check`, adds one structured graph result, and makes Quick Insert a
 separate recommendation policy. Blank connection search shows only precise
 matches; explicit search reveals legal broad/runtime fallbacks with labels.
-Non-DPF authoring and projection fail closed. DPF-specific metadata,
-catalogue generation, and type-taxonomy work are excluded.
+Repo-owned authoring and projection fail closed. Unrelated catalogue generation
+and type-taxonomy work are excluded.
 
 No second registry, `allow_any` flag, compatibility shim, runtime-error wire
 redesign, or insertion rollback transaction is introduced.
@@ -86,7 +86,7 @@ Add internal `COREX.Plot.ExportBundle`:
 Export the two internal ID constants only through existing internal type
 surfaces. Keep public `corex.__all__` at exactly 17 names.
 
-### Exact non-DPF metadata changes
+### Exact repo-owned metadata changes
 
 Change primary types:
 
@@ -113,10 +113,10 @@ Remove repeated primary types from these accepted alternatives:
 | `ssh_sftp.host.private_key_path` | Path |
 | `core.stream_gate.gate` | Int |
 
-Update the current non-DPF contract overlay for the eleven primary-type
+Update the current repo-owned contract catalogue for the eleven primary-type
 changes. The pre-cutover fixture remains byte-identical.
 
-Add a trusted non-DPF registry audit whose exact default global-Any set is:
+Add a trusted repo-owned registry audit whose exact default global-Any set is:
 
 - `core.if.true_value`, `core.if.false_value`, `core.if.result`
 - `io.process_run.stdout`, `io.process_run.stderr`
@@ -129,8 +129,8 @@ Add a trusted non-DPF registry audit whose exact default global-Any set is:
 - hidden `media.panel._surface_source`
 - `mars.batch_solve.files`, `mars.run_job.files`, `mars.time_history.files`
 
-The audit excludes DPF node IDs and public plugins. A second audit requires every
-non-DPF accepted tuple to exclude its primary type.
+The audit excludes public plugins. A second audit requires every repo-owned
+accepted tuple to exclude its primary type.
 
 The approved planning count of seventeen omitted the three existing MARS
 filename-to-artifact maps. Implementation inspection confirmed their explicit
@@ -241,20 +241,20 @@ context prevents opening.
   effective-port/invariant/static-warning owners, focused tests.
 - Deliverables: exact contracts above with unchanged graph legality.
 - Verification: data-type, core-value, graph-enforcement, route-payload tests.
-- Non-goals: declarations, Quick Insert UI, DPF files.
+- Non-goals: declarations and Quick Insert UI.
 - Packetization notes: `P01 Contract Foundation`.
 
-### T02 Non-DPF metadata and explicit authoring
+### T02 Repo-owned metadata and explicit authoring
 
 - Goal: correct eleven primary types, four accepted tuples, and require explicit
   public/Python Script types.
 - Preconditions: T01 accepted.
 - Conservative write scope: affected built-ins/functions, declaration parsers,
-  current non-DPF overlay, exact conformance tests.
+  current repo-owned catalogue, exact conformance tests.
 - Deliverables: metadata changes, exact Any inventory, zero repeated primary.
 - Verification: plugin/Python Script, core, integration, FEM, generic plot,
   interval, SSH, overlay, registry-conformance tests.
-- Non-goals: DPF declaration/generation changes or public aliases.
+- Non-goals: unrelated declaration/generation changes or public aliases.
 - Packetization notes: `P02 Metadata and Authoring`.
 
 ### T03 Projection integrity
@@ -291,7 +291,7 @@ context prevents opening.
 - Deliverables: load regressions; `REQ-UI-067`, `REQ-GRAPH-023`,
   `REQ-QA-056`; amended `REQ-NODE-050`; migration guidance; map/index updates.
 - Verification: persistence/docs tests, traceability, links, maps, indexes.
-- Non-goals: QA matrix, schema migration, DPF docs.
+- Non-goals: QA matrix and schema migration.
 - Packetization notes: `P05 Compatibility and Documentation`.
 
 ### T06 Independent acceptance
@@ -345,8 +345,8 @@ Documentation/navigation and final shared-infrastructure gate:
 .\venv\Scripts\python.exe .\scripts\run_verification.py --mode fast --summarize-output
 ```
 
-Run Ruff on changed Python files and `git diff --check`. Do not run DPF
-catalogue generation or DPF-specific targeted suites.
+Run Ruff on changed Python files and `git diff --check`. Do not run unrelated
+catalogue generation or targeted suites.
 
 Mandatory desktop smoke uses
 `.\venv\Scripts\python.exe -m ea_node_editor.bootstrap` and proves:
@@ -366,10 +366,8 @@ that display-attached acceptance remains outstanding.
 ## Assumptions
 
 - Blank Quick Insert hides broad/runtime matches; explicit search reveals them.
-- Non-DPF/public authoring fails closed. DPF-specific metadata,
-  generation, catalogues, fixtures, deletion, and type expansion are excluded.
-- Generic recommendation rules may incidentally affect DPF rows, but this
-  plan makes no DPF correctness claim.
+- Repo-owned/public authoring fails closed. Unrelated metadata, generation,
+  catalogues, fixtures, deletion, and type expansion are excluded.
 - Assignable, convertible, and runtime-check relations remain graph-legal.
 - No runtime-wire coloring or insertion rollback is added.
 - Current project normalization may prune newly invalid edges in memory and

@@ -136,19 +136,12 @@ def test_generic_plot_json_properties_project_to_structured_inspector_rows() -> 
 def test_plot_axis_controls_show_z_only_for_3d_plot_types() -> None:
     line_items = _items_by_key("plot.scatter")
     surface_items = _items_by_key("plot.surface")
-    dpf_line_items = _items_by_key("dpf.plot.line")
-    dpf_surface_items = _items_by_key("dpf.plot.surface")
 
     assert {"plot_axis_x", "plot_axis_y"}.issubset(line_items)
     assert "plot_axis_z" not in line_items
     assert {"plot_axis_x", "plot_axis_y", "plot_axis_z"}.issubset(surface_items)
-    assert {"plot_axis_x", "plot_axis_y"}.issubset(dpf_line_items)
-    assert "plot_axis_z" not in dpf_line_items
-    assert {"plot_axis_x", "plot_axis_y", "plot_axis_z"}.issubset(dpf_surface_items)
     assert "plot_option_hover_readout" in line_items
-    assert "plot_option_hover_readout" in dpf_line_items
     assert "plot_option_hover_readout" not in surface_items
-    assert "plot_option_hover_readout" not in dpf_surface_items
 
 
 def test_histogram_plot_options_project_to_typed_controls() -> None:
@@ -157,16 +150,6 @@ def test_histogram_plot_options_project_to_typed_controls() -> None:
     assert "plot_options" not in items
     assert items["plot_option_bins"]["editor_mode"] == "text"
     assert items["plot_option_bins"]["value"] == 24
-
-
-def test_dpf_frame_selector_projects_without_raw_text_field() -> None:
-    items = _items_by_key("dpf.plot.line", {"frame_selector": "1,3"})
-
-    assert "frame_selector" not in items
-    assert items["frame_selector_preset"]["editor_mode"] == "editable_combo"
-    assert items["frame_selector_preset"]["enum_values"] == ["first", "last", "all"]
-    assert items["frame_selector_values"]["editor_mode"] == "chip_list"
-    assert items["frame_selector_values"]["value"] == ["1", "3"]
 
 
 def test_plot_adapter_rewrites_structured_axis_log_mapping_and_options() -> None:
@@ -204,16 +187,3 @@ def test_plot_adapter_rewrites_structured_axis_log_mapping_and_options() -> None
     assert hover is not None and hover.value["hover_readout"] is True
     assert guide is not None and guide.value["vertical_guide"] is True
     assert crosshair is not None and crosshair.value["crosshair"] is False
-
-
-def test_plot_adapter_rewrites_dpf_frame_selector_chips_to_canonical_string() -> None:
-    node = SimpleNamespace(type_id="dpf.plot.line", properties={"frame_selector": "first"})
-    rewrite = PlotPropertyEditAdapter().rewrite_property_edit(
-        PropertyEditAdapterContext(node=node),
-        key="frame_selector_values",
-        value=["2", "4"],
-    )
-
-    assert rewrite is not None
-    assert rewrite.key == "frame_selector"
-    assert rewrite.value == "2,4"

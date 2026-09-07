@@ -66,10 +66,6 @@ QtObject {
         && typeof facts.stateBridge.node_diagnostic_lookup !== "undefined"
         ? facts.stateBridge.node_diagnostic_lookup
         : ({})
-    readonly property var dpfWorkflowSummaryLookup: facts.stateBridge
-        && typeof facts.stateBridge.dpf_workflow_summary_lookup !== "undefined"
-        ? facts.stateBridge.dpf_workflow_summary_lookup
-        : ({})
     readonly property var mediaPanelSourceLookup: facts.stateBridge
         && typeof facts.stateBridge.media_panel_source_lookup !== "undefined"
         ? facts.stateBridge.media_panel_source_lookup

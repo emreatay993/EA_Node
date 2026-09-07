@@ -22,10 +22,6 @@ from ea_node_editor.graph.effective_ports import (
 from ea_node_editor.graph.node_comments import node_comment_badge_payload, node_comments_to_payload
 from ea_node_editor.graph.node_links import node_links_to_payload
 from ea_node_editor.graph.transform_layout_ops import LayoutNodeBounds
-from ea_node_editor.graph.input_semantics import (
-    driven_by_input_reason,
-    inactive_input_source_key,
-)
 from ea_node_editor.graph.workspace_state import WorkspaceData
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.plugin_contracts import PluginProvenance
@@ -1435,17 +1431,6 @@ class _GraphSceneNodePayloadFactory:
                 )
                 if str(item.get("key", ""))
             }
-        connected_input_port_keys = {
-            str(port.key)
-            for port in visible_ports
-            if str(port.direction).strip().lower() == "in"
-            and self._port_connection_count(
-                node_id=str(node.node_id),
-                port_key=str(port.key),
-                port_connection_counts=port_connection_counts,
-            )
-            > 0
-        }
         for port in ordered_ports_for_display(visible_ports):
             data_access = str(getattr(port, "data_access", "item") or "item").strip().lower()
             if data_access not in {"item", "list", "tree"}:
@@ -1456,18 +1441,11 @@ class _GraphSceneNodePayloadFactory:
                 port_key=port_key,
                 port_connection_counts=port_connection_counts,
             )
-            inactive_source_key = ""
-            if str(port.direction).strip().lower() == "in":
-                inactive_source_key = (
-                    inactive_input_source_key(str(node.type_id), str(port.key), connected_input_port_keys) or ""
-                )
             availability = availability_by_key.get(str(port.key))
             availability_state = availability.availability if availability is not None else "available"
             availability_reason = availability.reason if availability is not None else ""
             availability_inactive = bool(availability is not None and availability.unavailable)
-            inactive_reason = driven_by_input_reason(inactive_source_key)
-            if availability_inactive and not inactive_reason:
-                inactive_reason = availability_reason
+            inactive_reason = availability_reason if availability_inactive else ""
             display_tier = str(getattr(port, "display_tier", "") or "").strip().lower()
             if display_tier not in {"simple", "advanced"}:
                 display_tier = "visible"
@@ -1523,16 +1501,15 @@ class _GraphSceneNodePayloadFactory:
                     "blocks_new_connections": bool(
                         availability is not None and availability.blocks_new_connections
                     ),
-                    "inactive": bool(inactive_source_key) or availability_inactive,
+                    "inactive": availability_inactive,
                     "flow_state": resolve_port_flow_state(
                         direction=str(port.direction),
                         kind=str(port.kind),
                         connected=bool(connection_count),
                         required=bool(port.required),
-                        inactive=bool(inactive_source_key) or availability_inactive,
+                        inactive=availability_inactive,
                         has_default=default_property is not None,
                     ),
-                    "inactive_source_key": inactive_source_key,
                     "inactive_reason": inactive_reason,
                     "display_tier": display_tier,
                     "display_state": display_state,

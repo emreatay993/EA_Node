@@ -8,10 +8,6 @@ from typing import Any
 
 from ea_node_editor.common.protected_values import secret_public_state
 from ea_node_editor.graph.effective_ports import effective_ports
-from ea_node_editor.graph.input_semantics import (
-    driven_by_input_reason,
-    property_override_input_port_keys,
-)
 from ea_node_editor.nodes.node_specs import property_has_inline_editor
 from ea_node_editor.runtime_contracts import Interval1D
 
@@ -250,8 +246,7 @@ def _overriding_input_port(
     port_connection_counts: Mapping[tuple[str, str], int],
 ) -> Any | None:
     node_id = str(getattr(node, "node_id", "")).strip()
-    node_type_id = str(getattr(node, "type_id", "")).strip()
-    candidate_port_keys = property_override_input_port_keys(node_type_id, property_key)
+    candidate_port_keys = (str(property_key).strip(),)
     enabled_keys = (
         {str(key) for key in enabled_input_port_keys}
         if enabled_input_port_keys is not None
@@ -280,10 +275,7 @@ def build_property_input_override_state(
 ) -> dict[str, Any]:
     candidate_port_keys = tuple(
         key
-        for key in property_override_input_port_keys(
-            str(getattr(node, "type_id", "")).strip(),
-            property_key,
-        )
+        for key in (str(property_key).strip(),)
         if key in resolved_input_ports
     )
     overriding_input_port = _overriding_input_port(
@@ -305,9 +297,7 @@ def build_property_input_override_state(
             else ""
         ),
         "override_reason": (
-            driven_by_input_reason(
-                str(overriding_input_port.label or overriding_input_port.key)
-            )
+            f"Driven by {str(overriding_input_port.label or overriding_input_port.key).strip()}"
             if overriding_input_port is not None
             else ""
         ),

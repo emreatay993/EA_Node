@@ -187,54 +187,6 @@ def _staged_artifact_metadata(
     }
 
 
-def _dpf_placeholder_round_trip_payload() -> dict[str, object]:
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "project_id": "proj_dpf_placeholder_round_trip",
-        "name": "DPF Placeholder Round Trip",
-        "active_workspace_id": "ws_dpf",
-        "workspace_order": ["ws_dpf"],
-        "workspaces": [
-            {
-                "workspace_id": "ws_dpf",
-                "name": "Workspace DPF",
-                "active_view_id": "view_dpf",
-                "views": [
-                    {
-                        "view_id": "view_dpf",
-                        "name": "V1",
-                        "zoom": 1.0,
-                        "pan_x": 0.0,
-                        "pan_y": 0.0,
-                    }
-                ],
-                "nodes": [
-                    {
-                        "node_id": "node_dpf_model",
-                        "type_id": "dpf.model",
-                        "title": "Saved DPF Model",
-                        "x": 180.0,
-                        "y": 60.0,
-                        "collapsed": True,
-                        "properties": {"path": "C:/tmp/example.rst"},
-                        "exposed_ports": {"result_file": True, "model": True},
-                        "port_labels": {
-                            "result_file": "Saved Result File",
-                            "model": "Saved Model",
-                        },
-                        "visual_style": {"fill": "#334455"},
-                        "custom_width": 312.0,
-                        "custom_height": 144.0,
-                        "parent_node_id": None,
-                    }
-                ],
-                "edges": [],
-            }
-        ],
-        "metadata": {},
-    }
-
-
 class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, SerializerSchemaMixin, unittest.TestCase):
     def test_project_properties_reject_live_handles_datatrees_bytes_and_native_objects(self) -> None:
         serializer = JsonProjectSerializer(_persistence_registry())

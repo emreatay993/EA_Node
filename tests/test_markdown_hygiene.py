@@ -112,45 +112,6 @@ class MarkdownHygieneTests(unittest.TestCase):
         self.assertEqual([], self.checker.audit_markdown_file(spec_index_path, REPO_ROOT))
         self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
 
-    def test_readme_links_dpf_operator_backend_closeout_docs(self) -> None:
-        readme_path = REPO_ROOT / "README.md"
-        readme_text = readme_path.read_text(encoding="utf-8-sig")
-        review_path = REPO_ROOT / "docs" / "DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md"
-        review_text = review_path.read_text(encoding="utf-8-sig")
-        matrix_path = (
-            REPO_ROOT / "docs" / "specs" / "perf" / "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md"
-        )
-        matrix_text = matrix_path.read_text(encoding="utf-8-sig")
-
-        self.assertIn(
-            "[DPF Operator Backend Review](docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md)",
-            readme_text,
-        )
-        self.assertIn(
-            "[DPF Operator Backend QA Matrix](docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md)",
-            readme_text,
-        )
-        self.assertTrue(review_text.startswith("# DPF Operator Plugin Backend Review 2026-04-12"))
-        self.assertTrue(matrix_text.startswith("# DPF Operator Plugin Backend Refactor QA Matrix"))
-        self.assertEqual([], self.checker.audit_markdown_file(readme_path, REPO_ROOT))
-        self.assertEqual([], self.checker.audit_markdown_file(review_path, REPO_ROOT))
-        self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
-
-    def test_readme_links_ansys_dpf_full_plugin_rollout_matrix(self) -> None:
-        readme_path = REPO_ROOT / "README.md"
-        readme_text = readme_path.read_text(encoding="utf-8-sig")
-        matrix_path = (
-            REPO_ROOT / "docs" / "specs" / "perf" / "ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md"
-        )
-        matrix_text = matrix_path.read_text(encoding="utf-8-sig")
-
-        self.assertIn(
-            "[ANSYS DPF Full Plugin Rollout QA Matrix](docs/specs/perf/ANSYS_DPF_FULL_PLUGIN_ROLLOUT_QA_MATRIX.md)",
-            readme_text,
-        )
-        self.assertTrue(matrix_text.startswith("# ANSYS DPF Full Plugin Rollout QA Matrix"))
-        self.assertEqual([], self.checker.audit_markdown_file(readme_path, REPO_ROOT))
-        self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
 
     def test_readme_and_spec_index_link_addon_manager_backend_preparation_matrix(self) -> None:
         readme_path = REPO_ROOT / "README.md"

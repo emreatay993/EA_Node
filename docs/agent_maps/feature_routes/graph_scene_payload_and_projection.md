@@ -84,7 +84,7 @@ Use this for graph scene payload construction, state projection, data-port/edge 
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/qml_preference_bindings.py tests/test_plot_node_contracts.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_output_mode_ui.py tests/test_graph_action_contracts.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_scene_stale_view_resync.py tests/test_graph_scene_payload_slot_guards.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_port_flow_state.py tests/test_non_dpf_node_documentation.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_port_flow_state.py tests/test_repo_owned_node_documentation.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_type_ui_projection.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_tree_ui.py tests/test_graph_surface_input_controls.py -k "dataflow or port_and_edge_authoring" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_flow_edge_labels.py tests/graph_track_b/scene_model_graph_scene_suite.py -k "active_data_wire or display_modes or request_rewire_edges" --ignore=venv -q

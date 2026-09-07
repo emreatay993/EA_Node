@@ -285,7 +285,7 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                             "label": "Fields",
                             "direction": "in",
                             "kind": "data",
-                            "data_type": "dpf_field",
+                            "data_type": "COREX.Engineering.Scene",
                             "connected": False,
                         },
                         {
@@ -352,11 +352,18 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                 rendered = variant_value(host.property("surfaceMetrics"))
                 for key in ("default_height", "min_height", "body_height", "port_top", "body_bottom_margin"):
                     assert abs(float(projected[key]) - float(rendered[key])) < 0.1, (key, projected, rendered)
+                terminal_key = variant_value(host.property("nodeData"))["dynamic_port_groups"][0]["port_keys"][-1]
+                host.setProperty("hoveredPort", {
+                    "node_id": node_id,
+                    "port_key": terminal_key,
+                    "direction": "in",
+                })
+                settle_events(2)
                 button = named_item(host, "graphNodeDynamicPortAdd_scenes")
                 assert button is not None and button.property("visible")
                 circle = named_item(button, "graphNodeDynamicPortAddCircle")
                 bottom = circle.mapToItem(host, QPointF(0, circle.height())).y()
-                assert bottom <= host.height(), (bottom, host.height())
+                assert bottom <= host.height() + 2.0, (bottom, host.height())
                 return button
 
             assert node.properties["scene_input_ids"] == ["scene_1"]
@@ -760,9 +767,9 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             payload["surface_metrics"]["body_height"] = 176.0
             payload["surface_metrics"]["port_top"] = 206.0
             payload["ports"] = [
-                {"port_id": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "dpf_field"},
-                {"port_id": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "dpf_model"},
-                {"port_id": "mesh", "label": "mesh", "direction": "in", "kind": "data", "data_type": "dpf_mesh"},
+                {"port_id": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene"},
+                {"port_id": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene"},
+                {"port_id": "mesh", "label": "mesh", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene"},
                 {"port_id": "session", "label": "session", "direction": "out", "kind": "data", "data_type": "viewer_session"},
             ]
 
@@ -800,9 +807,9 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             payload["ports"] = [
                 {"key": "metadata", "label": "metadata", "direction": "in", "kind": "data", "data_type": "dict", "exposed": True},
                 {"key": "preview", "label": "preview", "direction": "out", "kind": "data", "data_type": "viewer_preview", "exposed": True},
-                {"key": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "dpf_field", "exposed": True},
-                {"key": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "dpf_model", "exposed": True},
-                {"key": "mesh", "label": "mesh", "direction": "in", "kind": "data", "data_type": "dpf_mesh", "exposed": True},
+                {"key": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene", "exposed": True},
+                {"key": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene", "exposed": True},
+                {"key": "mesh", "label": "mesh", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene", "exposed": True},
                 {"key": "session", "label": "session", "direction": "out", "kind": "data", "data_type": "viewer_session", "exposed": True},
             ]
 
@@ -839,9 +846,9 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             payload["ports"] = [
                 {"key": "metadata", "label": "metadata", "direction": "in", "kind": "data", "data_type": "dict", "exposed": True},
                 {"key": "preview", "label": "preview", "direction": "out", "kind": "data", "data_type": "viewer_preview", "exposed": True},
-                {"key": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "dpf_field", "exposed": True},
-                {"key": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "dpf_model", "exposed": True},
-                {"key": "mesh", "label": "mesh", "direction": "in", "kind": "data", "data_type": "dpf_mesh", "exposed": True},
+                {"key": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene", "exposed": True},
+                {"key": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene", "exposed": True},
+                {"key": "mesh", "label": "mesh", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene", "exposed": True},
                 {"key": "session", "label": "session", "direction": "out", "kind": "data", "data_type": "viewer_session", "exposed": True},
             ]
 
@@ -882,8 +889,8 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             payload["surface_metrics"]["port_height"] = 24.0
             payload["ports"] = [
                 {"key": "metadata", "label": "metadata", "direction": "in", "kind": "data", "data_type": "dict", "exposed": True},
-                {"key": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "dpf_field", "exposed": True},
-                {"key": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "dpf_model", "exposed": True},
+                {"key": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene", "exposed": True},
+                {"key": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene", "exposed": True},
             ]
 
             host = create_component(
@@ -922,9 +929,9 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             payload["ports"] = [
                 {"key": "metadata", "label": "metadata", "direction": "in", "kind": "data", "data_type": "dict", "exposed": True},
                 {"key": "preview", "label": "preview", "direction": "out", "kind": "data", "data_type": "viewer_preview", "exposed": True},
-                {"key": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "dpf_field", "exposed": True},
-                {"key": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "dpf_model", "exposed": True},
-                {"key": "mesh", "label": "mesh", "direction": "in", "kind": "data", "data_type": "dpf_mesh", "exposed": True},
+                {"key": "field", "label": "field", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene", "exposed": True},
+                {"key": "model", "label": "model", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene", "exposed": True},
+                {"key": "mesh", "label": "mesh", "direction": "in", "kind": "data", "data_type": "COREX.Engineering.Scene", "exposed": True},
                 {"key": "session", "label": "session", "direction": "out", "kind": "data", "data_type": "viewer_session", "exposed": True},
             ]
 

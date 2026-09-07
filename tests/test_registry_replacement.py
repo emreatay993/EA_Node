@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from ea_node_editor.addons.ansys_dpf.metadata import ANSYS_DPF_ADDON_ID
+from ea_node_editor.addons.tabular_data.metadata import TABULAR_DATA_ADDON_ID
 from ea_node_editor.addons.catalog import AddOnRegistration
 from ea_node_editor.addons.mars import catalog as mars_catalog
 from ea_node_editor.addons.mars.metadata import MARS_ADDON_ID
@@ -31,7 +31,6 @@ from ea_node_editor.nodes.package_manager import (
 )
 from ea_node_editor.nodes.plugin_contracts import PluginAvailability
 from ea_node_editor.nodes.plugin_contracts import AddOnManifest
-from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.registry import NodeRegistry, PythonFunctionEntry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.execution.runtime import CorexRuntime
@@ -929,9 +928,9 @@ def test_addon_apply_uses_transaction_and_persists_preferences_last(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    current = _registry(addon_runtime_config=((ANSYS_DPF_ADDON_ID, True),))
-    candidate = _registry(addon_runtime_config=((ANSYS_DPF_ADDON_ID, False),))
-    replacement = _registry(addon_runtime_config=((ANSYS_DPF_ADDON_ID, False),))
+    current = _registry(addon_runtime_config=((TABULAR_DATA_ADDON_ID, True),))
+    candidate = _registry(addon_runtime_config=((TABULAR_DATA_ADDON_ID, False),))
+    replacement = _registry(addon_runtime_config=((TABULAR_DATA_ADDON_ID, False),))
     failure = _FailureController()
     host = _Host(current, replacement, _project(), failure)
     host.viewer_host_service = _ViewerHost(failure)
@@ -971,19 +970,18 @@ def test_addon_apply_uses_transaction_and_persists_preferences_last(
     )
 
     result = coordinator.apply_addon_enabled_state(
-        ANSYS_DPF_ADDON_ID,
+        TABULAR_DATA_ADDON_ID,
         enabled=False,
         app_preferences_controller=preferences_controller,
     )
 
     assert result.registry is replacement
     assert state_checks == [
-        (candidate, ANSYS_DPF_ADDON_ID, False),
-        (replacement, ANSYS_DPF_ADDON_ID, False),
+        (candidate, TABULAR_DATA_ADDON_ID, False),
+        (replacement, TABULAR_DATA_ADDON_ID, False),
     ]
     assert failure.calls == [
         "apply:runtime",
-        "apply:addon_viewer_services",
         "apply:graph_scene",
         "apply:host_registry",
         "apply:graph_interactions",
@@ -998,10 +996,10 @@ def test_addon_apply_uses_transaction_and_persists_preferences_last(
 def test_addon_request_rejects_matching_wrong_candidate_and_final_state(
     tmp_path: Path,
 ) -> None:
-    current = _registry(addon_runtime_config=((ANSYS_DPF_ADDON_ID, True),))
-    candidate = _registry(addon_runtime_config=((ANSYS_DPF_ADDON_ID, True),))
+    current = _registry(addon_runtime_config=((TABULAR_DATA_ADDON_ID, True),))
+    candidate = _registry(addon_runtime_config=((TABULAR_DATA_ADDON_ID, True),))
     final_registry = _registry(
-        addon_runtime_config=((ANSYS_DPF_ADDON_ID, True),)
+        addon_runtime_config=((TABULAR_DATA_ADDON_ID, True),)
     )
     assert candidate.contract_fingerprint() == final_registry.contract_fingerprint()
     failure = _FailureController()
@@ -1028,7 +1026,7 @@ def test_addon_request_rejects_matching_wrong_candidate_and_final_state(
             registries,
             build_calls=build_calls,
         ).apply_addon_enabled_state(
-            ANSYS_DPF_ADDON_ID,
+            TABULAR_DATA_ADDON_ID,
             enabled=False,
             app_preferences_controller=controller,
         )
@@ -1047,10 +1045,10 @@ def test_addon_request_rejects_matching_wrong_candidate_and_final_state(
 def test_addon_request_rejects_final_only_state_mismatch_before_publication(
     tmp_path: Path,
 ) -> None:
-    current = _registry(addon_runtime_config=((ANSYS_DPF_ADDON_ID, True),))
-    candidate = _registry(addon_runtime_config=((ANSYS_DPF_ADDON_ID, False),))
+    current = _registry(addon_runtime_config=((TABULAR_DATA_ADDON_ID, True),))
+    candidate = _registry(addon_runtime_config=((TABULAR_DATA_ADDON_ID, False),))
     final_registry = _registry(
-        addon_runtime_config=((ANSYS_DPF_ADDON_ID, True),)
+        addon_runtime_config=((TABULAR_DATA_ADDON_ID, True),)
     )
     failure = _FailureController()
     host = _Host(current, final_registry, _project(), failure)
@@ -1075,7 +1073,7 @@ def test_addon_request_rejects_final_only_state_mismatch_before_publication(
             [candidate, final_registry],
             build_calls=build_calls,
         ).apply_addon_enabled_state(
-            ANSYS_DPF_ADDON_ID,
+            TABULAR_DATA_ADDON_ID,
             enabled=False,
             app_preferences_controller=controller,
         )
@@ -1147,136 +1145,6 @@ def test_restart_required_addon_persists_pending_without_registry_build(
         "enabled": False,
         "pending_restart": True,
     }
-
-
-def test_real_coordinator_disables_and_reenables_dpf_registry_and_viewer_services(
-    tmp_path: Path,
-) -> None:
-    enabled_preferences = default_app_preferences_document()
-    disabled_preferences = set_addon_state(
-        enabled_preferences,
-        ANSYS_DPF_ADDON_ID,
-        enabled=False,
-        pending_restart=False,
-    )
-    canonical_root = tmp_path / "canonical"
-
-    def registry(preferences_document, root: Path) -> NodeRegistry:  # noqa: ANN001
-        return build_default_registry(
-            include_public_plugins=False,
-            preferences_document=preferences_document,
-            generation_root=root,
-        )
-
-    current = registry(enabled_preferences, canonical_root)
-    if current.spec_or_none(DPF_VIEWER_NODE_TYPE_ID) is None:
-        pytest.skip("DPF add-on is unavailable in this environment")
-
-    disabled_candidate = registry(
-        disabled_preferences,
-        tmp_path / "disable-candidate",
-    )
-    disabled_final = registry(disabled_preferences, canonical_root)
-    project = _project("plot.signal")
-    model = GraphModel(project)
-    scene = GraphSceneBridge()
-    scene.set_workspace(model, current, "ws")
-    assert {item["node_id"] for item in scene.nodes_model} == {"node"}
-
-    disable_failure = _FailureController()
-    disable_host = _Host(current, disabled_final, project, disable_failure)
-    disable_host.scene = scene
-    disable_host.viewer_host_service = _ViewerHost(disable_failure)
-    disabled = _coordinator(
-        tmp_path,
-        disable_host,
-        [disabled_candidate, disabled_final],
-    ).apply_addon_enabled_state(
-        ANSYS_DPF_ADDON_ID,
-        enabled=False,
-        preferences_document=enabled_preferences,
-    )
-
-    assert disabled.registry is disabled_final
-    assert disabled_final.spec_or_none(DPF_VIEWER_NODE_TYPE_ID) is None
-    assert {item["node_id"] for item in scene.nodes_model} == {"node"}
-    assert "node" in project.workspaces["ws"].nodes
-    assert disable_failure.calls.count("apply:addon_viewer_services") == 1
-
-    reenabled_candidate = registry(
-        enabled_preferences,
-        tmp_path / "reenable-candidate",
-    )
-    reenabled_final = registry(enabled_preferences, canonical_root)
-    reenable_failure = _FailureController()
-    reenable_host = _Host(
-        disabled_final,
-        reenabled_final,
-        project,
-        reenable_failure,
-    )
-    reenable_host.scene = scene
-    reenable_host.viewer_host_service = _ViewerHost(reenable_failure)
-    reenabled = _coordinator(
-        tmp_path,
-        reenable_host,
-        [reenabled_candidate, reenabled_final],
-    ).apply_addon_enabled_state(
-        ANSYS_DPF_ADDON_ID,
-        enabled=True,
-        preferences_document=disabled.preferences_document,
-    )
-
-    assert reenabled.registry is reenabled_final
-    assert reenabled_final.spec_or_none(DPF_VIEWER_NODE_TYPE_ID) is not None
-    assert {item["node_id"] for item in scene.nodes_model} == {"node"}
-    assert "node" in project.workspaces["ws"].nodes
-    assert reenable_failure.calls.count("apply:addon_viewer_services") == 1
-
-
-def test_real_coordinator_refuses_disabling_dpf_used_by_open_graph(
-    tmp_path: Path,
-) -> None:
-    enabled_preferences = default_app_preferences_document()
-    disabled_preferences = set_addon_state(
-        enabled_preferences,
-        ANSYS_DPF_ADDON_ID,
-        enabled=False,
-        pending_restart=False,
-    )
-
-    def registry(preferences_document, root: Path) -> NodeRegistry:  # noqa: ANN001
-        return build_default_registry(
-            include_public_plugins=False,
-            preferences_document=preferences_document,
-            generation_root=root,
-        )
-
-    current = registry(enabled_preferences, tmp_path / "canonical")
-    if current.spec_or_none(DPF_VIEWER_NODE_TYPE_ID) is None:
-        pytest.skip("DPF add-on is unavailable in this environment")
-    disabled_candidate = registry(
-        disabled_preferences,
-        tmp_path / "disable-candidate",
-    )
-    project = _project(DPF_VIEWER_NODE_TYPE_ID)
-    failure = _FailureController()
-    host = _Host(current, disabled_candidate, project, failure)
-
-    with pytest.raises(ValueError, match="dpf.viewer.*missing"):
-        _coordinator(
-            tmp_path,
-            host,
-            [disabled_candidate],
-        ).apply_addon_enabled_state(
-            ANSYS_DPF_ADDON_ID,
-            enabled=False,
-            preferences_document=enabled_preferences,
-        )
-
-    assert failure.calls == []
-    assert host.registry is current
-    assert project.workspaces["ws"].nodes["node"].type_id == DPF_VIEWER_NODE_TYPE_ID
 
 
 def test_mars_hot_apply_restores_exact_registry_and_open_graph(
@@ -1407,9 +1275,9 @@ def test_mars_hot_apply_restores_exact_registry_and_open_graph(
 def test_addon_preference_failure_restores_every_published_consumer(
     tmp_path: Path,
 ) -> None:
-    current = _registry(addon_runtime_config=((ANSYS_DPF_ADDON_ID, True),))
-    candidate = _registry(addon_runtime_config=((ANSYS_DPF_ADDON_ID, False),))
-    replacement = _registry(addon_runtime_config=((ANSYS_DPF_ADDON_ID, False),))
+    current = _registry(addon_runtime_config=((TABULAR_DATA_ADDON_ID, True),))
+    candidate = _registry(addon_runtime_config=((TABULAR_DATA_ADDON_ID, False),))
+    replacement = _registry(addon_runtime_config=((TABULAR_DATA_ADDON_ID, False),))
     failure = _FailureController()
     host = _Host(current, replacement, _project(), failure)
     host.viewer_host_service = _ViewerHost(failure)
@@ -1431,14 +1299,13 @@ def test_addon_preference_failure_restores_every_published_consumer(
 
     with pytest.raises(OSError, match="preference write failed"):
         coordinator.apply_addon_enabled_state(
-            ANSYS_DPF_ADDON_ID,
+            TABULAR_DATA_ADDON_ID,
             enabled=False,
             app_preferences_controller=FailingController(),
         )
 
     assert failure.calls == [
         "apply:runtime",
-        "apply:addon_viewer_services",
         "apply:graph_scene",
         "apply:host_registry",
         "apply:graph_interactions",
@@ -1451,7 +1318,6 @@ def test_addon_preference_failure_restores_every_published_consumer(
         "rollback:graph_interactions",
         "rollback:host_registry",
         "rollback:graph_scene",
-        "rollback:addon_viewer_services",
         "rollback:runtime",
     ]
     assert host.registry is current

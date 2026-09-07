@@ -12,11 +12,6 @@ from ea_node_editor.graph.effective_ports import (
     port_supports_outgoing_edge,
     target_port_has_capacity,
 )
-from ea_node_editor.graph.input_semantics import (
-    conflicting_target_input_keys,
-    higher_precedence_conflicting_target_input_keys,
-    mutually_exclusive_connect_message,
-)
 from ea_node_editor.graph.records import EdgeInstance, NodeInstance
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
@@ -114,22 +109,6 @@ class GraphInvariantKernel:
             memo.port_by_node_and_key[cache_key] = None
         return None
 
-    def _target_node_has_existing_input(
-        self,
-        *,
-        target_node_id: str,
-        target_port_keys: tuple[str, ...],
-        memo: RegistryValidationPassMemo | None = None,
-    ) -> bool:
-        if not target_port_keys:
-            return False
-        return any(
-            edge.enabled
-            and edge.target_node_id == target_node_id
-            and str(edge.target_port_key) in target_port_keys
-            for edge in self._workspace_edge_values(memo=memo)
-        )
-
     def resolve_registry_nodes(
         self,
         *,
@@ -213,15 +192,6 @@ class GraphInvariantKernel:
             )
             if not compatibility.is_compatible:
                 return None
-        if self._target_node_has_existing_input(
-            target_node_id=target_node_id,
-            target_port_keys=higher_precedence_conflicting_target_input_keys(
-                str(target_resolution.spec.type_id),
-                target_port_key,
-            ),
-            memo=memo,
-        ):
-            return None
         return RegistryEdgeResolution(
             source_node_id=source_node_id,
             source_port_key=source_port_key,
@@ -273,25 +243,6 @@ class GraphInvariantKernel:
             raise ValueError(f"Source port is hidden: {source_node_id}.{source_port_key}")
         if not target_port.exposed:
             raise ValueError(f"Target port is hidden: {target_node_id}.{target_port_key}")
-        conflicting_target_port_keys = conflicting_target_input_keys(str(target_spec.type_id), target_port_key)
-        if self._target_node_has_existing_input(
-            target_node_id=target_node_id,
-            target_port_keys=conflicting_target_port_keys,
-        ):
-            active_conflict_port_key = next(
-                (
-                    port_key
-                    for port_key in conflicting_target_port_keys
-                    if self._target_node_has_existing_input(
-                        target_node_id=target_node_id,
-                        target_port_keys=(port_key,),
-                    )
-                ),
-                conflicting_target_port_keys[0] if conflicting_target_port_keys else "",
-            )
-            raise ValueError(
-                mutually_exclusive_connect_message(str(target_port_key), active_conflict_port_key)
-            )
         if append_requested and str(target_port.kind) == "flow":
             if not target_port_has_capacity(
                 edges=self._workspace_edge_values(),

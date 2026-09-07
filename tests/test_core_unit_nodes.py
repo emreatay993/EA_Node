@@ -31,7 +31,7 @@ from ea_node_editor.nodes.function_plugin import (
 from ea_node_editor.nodes.plugin_declaration import discover_plugin_declarations
 from ea_node_editor.nodes.registry import PythonFunctionEntry
 from ea_node_editor.runtime_contracts import Interval1D, TypedInlineValue
-from tests.non_dpf_catalog_fixture import load_effective_non_dpf_catalog
+from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 
 CONSTRUCT_PATH_TYPE_ID = "data.construct_path"
 DECONSTRUCT_PATH_TYPE_ID = "data.deconstruct_path"
@@ -88,7 +88,7 @@ def _plugin(type_id: str):
 def test_specs_match_golden_and_use_function_entries(tmp_path: Path) -> None:
     expected = {
         item["spec"]["type_id"]: item["spec"]
-        for item in load_effective_non_dpf_catalog()
+        for item in load_current_repo_owned_catalog()
     }
     registry = build_builtin_registry(generation_root=tmp_path / "generations")
 

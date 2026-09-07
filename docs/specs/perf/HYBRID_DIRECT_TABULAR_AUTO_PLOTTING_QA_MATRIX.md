@@ -31,4 +31,4 @@
 - Unknown row counts use a bounded fallback row limit and warning rather than backend downsampling.
 - Streamlines require named `x/y/z/u/v/w` columns or explicit mapping.
 - Header-click column selection is intentionally lightweight; richer multi-select affordances can be layered on the same persisted property later.
-- Existing Ansys DPF package deprecation warnings remain unrelated to this plotting path.
+- Optional-package warnings outside the Tabular stack remain unrelated to this plotting path.

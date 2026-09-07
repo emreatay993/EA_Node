@@ -2021,20 +2021,6 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(endpoint_ids([string_edge, "missing"]), set())
         self.assertEqual(endpoint_ids([string_edge, other_number_edge]), set())
 
-        dpf_source = self.scene.add_node_from_type("dpf.result_file", 0.0, 360.0)
-        rewire_origin = self.scene.add_node_from_type("dpf.model", 320.0, 360.0)
-        exclusive_target = self.scene.add_node_from_type("dpf.model", 640.0, 600.0)
-        path_source = self.scene.add_node_from_type("dpf.result_file", 0.0, 480.0)
-        dpf_edge = self.scene.add_edge(
-            dpf_source, "result_file", rewire_origin, "result_file"
-        )
-        self.scene.add_edge(
-            path_source, "normalized_path", exclusive_target, "path"
-        )
-        self.assertNotIn(
-            (exclusive_target, "result_file"), endpoint_ids([dpf_edge])
-        )
-
     def test_request_rewire_edges_copies_one_selected_edge_with_one_history_entry(self) -> None:
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
@@ -3195,21 +3181,6 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertNotIn(first_edge_id, workspace.edges)
         self.assertIn(replacement_edge_id, workspace.edges)
         self.assertEqual(len(workspace.edges), 1)
-
-    def test_add_edge_rejects_mutually_exclusive_dpf_model_inputs_in_both_directions(self) -> None:
-        result_file_source_a = self.scene.add_node_from_type("dpf.result_file", 0.0, 0.0)
-        model_a = self.scene.add_node_from_type("dpf.model", 320.0, 30.0)
-        self.scene.add_edge(result_file_source_a, "normalized_path", model_a, "path")
-
-        with self.assertRaises(ValueError):
-            self.scene.add_edge(result_file_source_a, "result_file", model_a, "result_file")
-
-        result_file_source_b = self.scene.add_node_from_type("dpf.result_file", 0.0, 180.0)
-        model_b = self.scene.add_node_from_type("dpf.model", 320.0, 210.0)
-        self.scene.add_edge(result_file_source_b, "result_file", model_b, "result_file")
-
-        with self.assertRaises(ValueError):
-            self.scene.add_edge(result_file_source_b, "normalized_path", model_b, "path")
 
     def test_pin_kind_change_prunes_invalid_shell_edge_immediately(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
