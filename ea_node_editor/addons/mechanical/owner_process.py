@@ -30,6 +30,10 @@ from ea_node_editor.runtime_contracts.scientific_codec import (
     scientific_payload_size,
     scientific_to_payload,
 )
+from ea_node_editor.runtime_contracts.value_codec import (
+    deserialize_runtime_value,
+    serialize_runtime_value,
+)
 
 DEFAULT_OPERATION_TIMEOUT_SEC = 600.0
 COOPERATIVE_CLOSE_TIMEOUT_SEC = 5.0
@@ -211,6 +215,82 @@ def _write_bulk(root: Path, value: Any) -> dict[str, Any]:
     return {"kind": "scientific", "relative_name": name, "byte_length": len(encoded), "sha256": hashlib.sha256(encoded).hexdigest()}
 
 
+def _search_catalog():
+    from ea_node_editor.addons.mechanical.contracts import (
+        MECHANICAL_DATA_TYPE_FAMILY,
+        MECHANICAL_DATA_TYPES,
+        OBJECT_TYPE_ID,
+        PROPERTY_TYPE_ID,
+    )
+    from ea_node_editor.nodes.core_data_types import CORE_DATA_TYPE_FAMILIES, CORE_DATA_TYPES
+    from ea_node_editor.runtime_contracts import DataTypeCatalog, GRAPH_DATA_TYPE_ID, TABLE_VALUE_TYPE_ID
+
+    catalog = DataTypeCatalog()
+    catalog.register_many(
+        families=tuple(family for family in CORE_DATA_TYPE_FAMILIES if family.family_id in {"graph", "container"}),
+        types=tuple(spec for spec in CORE_DATA_TYPES if spec.type_id in {GRAPH_DATA_TYPE_ID, TABLE_VALUE_TYPE_ID}),
+        owner_id="corex.search.transport", owner_version="1", source_label="Mechanical search spool",
+    )
+    catalog.register_many(
+        families=(MECHANICAL_DATA_TYPE_FAMILY,),
+        types=tuple(spec for spec in MECHANICAL_DATA_TYPES if spec.type_id in {OBJECT_TYPE_ID, PROPERTY_TYPE_ID}),
+        owner_id="mechanical.corex", owner_version="1", source_label="Mechanical search spool",
+    )
+    catalog.freeze()
+    return catalog
+
+
+def _validate_search_result(value: object, identity: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    from ea_node_editor.addons.mechanical.contracts import (
+        SEARCH_DETAILS_COLUMNS,
+        validate_object,
+        validate_property,
+    )
+    from ea_node_editor.runtime_contracts import RuntimeArtifactRef, RuntimeHandleRef, TableValue, TypedInlineValue
+
+    if not isinstance(value, Mapping) or set(value) != {"objects", "properties", "details"}:
+        raise OwnerProtocolError("Mechanical search result schema is invalid")
+    objects, properties, details = value["objects"], value["properties"], value["details"]
+    if (
+        type(objects) is not list
+        or type(properties) is not list
+        or type(details) is not TableValue
+        or details.column_names != SEARCH_DETAILS_COLUMNS
+        or len(objects) + len(properties) > 100_000
+    ):
+        raise OwnerProtocolError("Mechanical search result carriers are invalid")
+    if any(isinstance(item, (RuntimeHandleRef, RuntimeArtifactRef)) for item in (*objects, *properties)):
+        raise OwnerProtocolError("Mechanical search result cannot contain live references")
+    try:
+        for item in objects:
+            if type(item) is not TypedInlineValue or not validate_object(item):
+                raise TypeError
+        for item in properties:
+            if type(item) is not TypedInlineValue or not validate_property(item):
+                raise TypeError
+    except (TypeError, ValueError) as exc:
+        raise OwnerProtocolError("Mechanical search result snapshot is invalid") from exc
+    if identity is not None:
+        fields = ("run_id", "session_id", "document_id", "source_key", "system_key", "model_revision")
+        for item in (*objects, *properties):
+            if any(item.payload[field] != identity[field] for field in fields):
+                raise OwnerProtocolError("Mechanical search result identity does not match its current Model")
+    return {"objects": objects, "properties": properties, "details": details}
+
+
+def _write_search_bulk(root: Path, value: object, identity: Mapping[str, Any]) -> dict[str, Any]:
+    catalog = _search_catalog()
+    checked = _validate_search_result(value, identity)
+    payload = serialize_runtime_value(checked, catalog=catalog)
+    _validate_search_result(deserialize_runtime_value(payload, catalog=catalog), identity)
+    encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
+    if len(encoded) > 384 * 1024 * 1024:
+        raise ValueError("mechanical.capacity_exceeded: search transport exceeds 384 MiB")
+    name = f"search-{uuid.uuid4().hex}.json"
+    (root / name).write_bytes(encoded)
+    return {"kind": "mechanical-search-v1", "relative_name": name, "byte_length": len(encoded), "sha256": hashlib.sha256(encoded).hexdigest()}
+
+
 def _read_bulk(root: Path, descriptor: object):
     if not isinstance(descriptor, Mapping) or set(descriptor) != {"kind", "relative_name", "byte_length", "sha256"}:
         raise OwnerProtocolError("Mechanical bulk descriptor schema is invalid")
@@ -248,6 +328,41 @@ def _read_bulk(root: Path, descriptor: object):
         scientific_payload_size(payload)
         check_scientific_budget(payload)
         return scientific_from_payload(payload)
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def _read_search_bulk(root: Path, descriptor: object, identity: Mapping[str, Any]):
+    if not isinstance(descriptor, Mapping) or set(descriptor) != {"kind", "relative_name", "byte_length", "sha256"}:
+        raise OwnerProtocolError("Mechanical search descriptor schema is invalid")
+    name, length, digest = descriptor["relative_name"], descriptor["byte_length"], descriptor["sha256"]
+    if (
+        descriptor["kind"] != "mechanical-search-v1"
+        or type(name) is not str or Path(name).name != name or not name.startswith("search-")
+        or type(length) is not int or not 0 <= length <= 384 * 1024 * 1024
+        or type(digest) is not str or len(digest) != 64
+    ):
+        raise OwnerProtocolError("Mechanical search descriptor kind/path is invalid")
+    candidate = root / name
+    try:
+        stat = candidate.lstat()
+    except OSError as exc:
+        raise OwnerProtocolError("Mechanical search bulk file is unavailable") from exc
+    reparse = bool(getattr(stat, "st_file_attributes", 0) & 0x400)
+    path = candidate.resolve()
+    if candidate.is_symlink() or reparse or path.parent != root.resolve() or not path.is_file():
+        raise OwnerProtocolError("Mechanical search bulk file is outside the owned spool")
+    if stat.st_size != length:
+        candidate.unlink(missing_ok=True)
+        raise OwnerProtocolError("Mechanical search bulk file length is invalid")
+    try:
+        data = path.read_bytes()
+        if len(data) != length or hashlib.sha256(data).hexdigest() != digest:
+            raise OwnerProtocolError("Mechanical search bulk file length/hash mismatch")
+        payload = json.loads(data)
+        return _validate_search_result(
+            deserialize_runtime_value(payload, catalog=_search_catalog()), identity
+        )
     finally:
         path.unlink(missing_ok=True)
 
@@ -291,6 +406,11 @@ def _child(port: int, token: str, spool_root: str) -> int:
                 if "rows" in result:
                     rows = result.pop("rows")
                     result["bulk"] = _write_bulk(Path(spool_root), rows)
+                if "search" in result:
+                    search = result.pop("search")
+                    result["search_bulk"] = _write_search_bulk(
+                        Path(spool_root), search, request["args"]["identity"]
+                    )
                 _send(
                     stream,
                     {"request_id": request["request_id"], "ok": True, "result": result},
@@ -459,6 +579,10 @@ class MechanicalOwnerProcess:
             raise OwnerProtocolError("Mechanical owner result must be a dictionary")
         if "bulk" in result:
             result["catalogue"] = _read_bulk(self._spool_root, result.pop("bulk"))
+        if "search_bulk" in result:
+            result["search"] = _read_search_bulk(
+                self._spool_root, result.pop("search_bulk"), payload["args"]["identity"]
+            )
         return result
 
     def close(self) -> None:
@@ -501,7 +625,7 @@ class MechanicalOwnerProcess:
             self._job.close()
             self._closed = True
             atexit.unregister(self.close)
-            for path in self._spool_root.glob("catalogue-*.json"):
+            for path in (*self._spool_root.glob("catalogue-*.json"), *self._spool_root.glob("search-*.json")):
                 if path.is_file() and not path.is_symlink():
                     path.unlink(missing_ok=True)
             if self._temporary_spool:

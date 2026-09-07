@@ -1,9 +1,10 @@
-# Purpose: Hold the inert decorated Open Mechanical Model declaration.
+# Purpose: Hold inert decorated Mechanical Open and Search declarations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_catalogue.py
+# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py
 
 SOURCE = r'''import corex
 from ea_node_editor.addons.mechanical.runtime import execute_open_model
+from ea_node_editor.addons.mechanical.runtime import execute_search_tree
 
 @corex.node(
     id="mechanical.open_model", name="Open Mechanical Model",
@@ -38,6 +39,41 @@ from ea_node_editor.addons.mechanical.runtime import execute_open_model
 @corex.output("info", value_type="COREX.DataTypes.TableValue", label="Info", description="Bounded session, system, object, property, table, and view descriptors.")
 def open_mechanical_model(ctx, settings):
     return execute_open_model(ctx, settings)
+
+@corex.node(
+    id="mechanical.search_tree", name="Search Mechanical Tree",
+    category=("FEA", "ANSYS", "Mechanical"),
+    description="Searches the current model snapshot with eleven COREX background data filters without changing the Mechanical Outline.",
+    keywords=("mechanical", "ansys", "tree", "search", "property"),
+    _solution_reuse_scope="never",
+)
+@corex.input("model", value_type="COREX.Mechanical.Model", required=True,
+    label="Model", description="Run-owned Mechanical model state.")
+@corex.dropdown("filter", default="name",
+    options=("name", "tag", "type", "state", "coordinate_system", "model", "graphics", "environment", "scoping", "property_name", "property_value"),
+    label="Filter", port=True, _inspector_editor="enum", _property_group="Search",
+    _port_value_type="COREX.DataTypes.String", _port_description="COREX background data-query category.")
+@corex.text("query", default="", label="Query", port=True,
+    _inspector_editor="text", _property_group="Search",
+    _port_value_type="COREX.DataTypes.String", _port_description="Text query or accepted typed picker identity.")
+@corex.dropdown("match", default="contains", options=("contains", "exact"), label="Match", port=True,
+    _inspector_editor="enum", _property_group="Match options",
+    _port_value_type="COREX.DataTypes.String", _port_description="Whole-query Contains or Exact matching.")
+@corex.switch("case_sensitive", default=False, label="Case sensitive", port=True,
+    _inspector_editor="toggle", _property_group="Match options",
+    _port_value_type="COREX.DataTypes.Bool", _port_description="Use case-sensitive text matching.")
+@corex.switch("include_hidden_properties", default=False, label="Include hidden properties", port=True,
+    _inspector_editor="toggle", _property_group="Match options",
+    _port_value_type="COREX.DataTypes.Bool", _port_description="Include non-visible properties without changing tree suppression.")
+@corex.switch("invert", default=False, label="Invert results", port=True,
+    _inspector_editor="toggle", _property_group="Match options",
+    _port_value_type="COREX.DataTypes.Bool", _port_description="Invert only complete available applicable predicates.")
+@corex.output("objects", value_type="COREX.Mechanical.Object", structure="list", label="Objects", description="Deduplicated matching objects in tree order.")
+@corex.output("properties", value_type="COREX.Mechanical.Property", structure="list", label="Properties", description="Matching or discoverable properties in object order.")
+@corex.output("found", value_type="COREX.DataTypes.Bool", label="Found", description="True when the complete search found an object or property.")
+@corex.output("details", value_type="COREX.DataTypes.TableValue", label="Details", description="One data-only row per search match.")
+def search_mechanical_tree(ctx, model, settings):
+    return execute_search_tree(ctx, model, settings)
 '''
 
 __all__ = ["SOURCE"]

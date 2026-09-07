@@ -39,7 +39,7 @@ These rows summarize whole-capability status. `PARTIAL` means accepted backend a
 
 ## Active Implementation Plans — No Implementation Proof
 
-- [COREX Mechanical Catalogue](../PLANS/MECHANICAL_CATALOGUE/PLAN.md) — `IN_PROGRESS — T01 ACCEPTED`; [task ledger](../PLANS/MECHANICAL_CATALOGUE/TASK_LEDGER.md), [approved visual baseline](../PLANS/MECHANICAL_CATALOGUE/VISUAL_BASELINE.md), [T01 capability qualification](perf/MECHANICAL_CATALOGUE_CAPABILITY_PROOF.md)
+- [COREX Mechanical Catalogue](../PLANS/MECHANICAL_CATALOGUE/PLAN.md) — `IN_PROGRESS — T01–T06 ACCEPTED`; [task ledger](../PLANS/MECHANICAL_CATALOGUE/TASK_LEDGER.md), [approved visual baseline](../PLANS/MECHANICAL_CATALOGUE/VISUAL_BASELINE.md), [T01 capability qualification](perf/MECHANICAL_CATALOGUE_CAPABILITY_PROOF.md)
 - [COREX Runtime, Registry, and Presentation Ownership Refactor](../PLAN_COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR.md) — `COMPLETED — T00–T26 ACCEPTED`; [QA ledger](perf/COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR_QA_MATRIX.md)
 
 ### Implemented Features With Remaining Acceptance Checks

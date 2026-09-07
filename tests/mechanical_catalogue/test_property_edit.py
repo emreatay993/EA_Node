@@ -58,8 +58,8 @@ def _model(*, revision=2, **changes):
     )
 
 
-def _project(provider, model_tree, *, key="objects", node_type="mechanical.export_image"):
-    node = SimpleNamespace(node_id="consumer", type_id=node_type, properties={})
+def _project(provider, model_tree, *, key="objects", node_type="mechanical.export_image", properties=None):
+    node = SimpleNamespace(node_id="consumer", type_id=node_type, properties=dict(properties or {}))
     edge = SimpleNamespace(
         target_node_id="consumer",
         target_port_key="model",
@@ -220,3 +220,83 @@ def test_canvas_and_inspector_use_the_same_registered_adapter_context() -> None:
     assert canvas["enum_values"] == inspector["enum_values"]
     assert canvas["enum_codes"] == inspector["enum_codes"]
     assert canvas["value"] == inspector["value"] == "unknown"
+
+
+def test_search_query_suggestions_preserve_difficult_mode_meanings_and_duplicate_scope_identity():
+    catalogue_id = "00000000-0000-0000-0000-000000000002"
+    rows = [
+        _row(catalogue_id=catalogue_id, system_key="system-1"),
+        _row(
+            "object", catalogue_id=catalogue_id, system_key="system-1",
+            object_id=7, object_path="Model/Load A", display_name="Load",
+            api_type="Ansys.ACT.Automation.Mechanical.BoundaryConditions.Force",
+            selector_code=_selector("object", 7, "Model/Load A"),
+        ),
+        _row(
+            "object", catalogue_id=catalogue_id, system_key="system-1",
+            object_id=8, object_path="Model/Load B", display_name="Load",
+            api_type="Ansys.ACT.Automation.Mechanical.BoundaryConditions.Force",
+            selector_code=_selector("object", 8, "Model/Load B"),
+        ),
+        _row(
+            "relation", catalogue_id=catalogue_id, system_key="system-1",
+            object_id=7, object_path="Model/Load A", display_name="Load",
+            api_type="Ansys.ACT.Automation.Mechanical.BoundaryConditions.Force",
+            relation_kind="coordinate_system", relation_role="CoordinateSystem",
+            related_label="Frame", related_object_id=20, relation_status="available",
+        ),
+        _row(
+            "relation", catalogue_id=catalogue_id, system_key="system-1",
+            object_id=7, object_path="Model/Load A", display_name="Load",
+            api_type="Ansys.ACT.Automation.Mechanical.BoundaryConditions.Force",
+            relation_kind="source_model", relation_role="source",
+            related_label="Current document", raw_source_id="Opaque::ID",
+            relation_status="available",
+        ),
+        _row(
+            "relation", catalogue_id=catalogue_id, system_key="system-1",
+            object_id=7, object_path="Model/Load A", display_name="Load",
+            api_type="Ansys.ACT.Automation.Mechanical.BoundaryConditions.Force",
+            relation_kind="body_visibility", relation_role="body",
+            body_hidden=True, relation_status="available",
+        ),
+        _row(
+            "relation", catalogue_id=catalogue_id, system_key="system-1",
+            object_id=7, object_path="Model/Load A", display_name="Load",
+            api_type="Ansys.ACT.Automation.Mechanical.BoundaryConditions.Force",
+            relation_kind="environment", relation_role="owner",
+            related_label="Analysis A", related_object_id=1,
+            activation_state="ObjectActive", relation_status="available",
+        ),
+        *[
+            _row(
+                "relation", catalogue_id=catalogue_id, system_key="system-1",
+                object_id=object_id, object_path=f"Model/Load {label}", display_name="Load",
+                api_type="Ansys.ACT.Automation.Mechanical.BoundaryConditions.Force",
+                relation_kind="scope", relation_role="primary",
+                related_label="Top face", related_object_id=9,
+                scope_kind="named_selection", scope_count=1, relation_status="available",
+            )
+            for object_id, label in ((7, "A"), (8, "B"))
+        ],
+    ]
+    table = catalogue_table(rows)
+    provider = lambda *_: DataTree({(0, 2): (table,)})
+    model = DataTree.from_item(_model())
+
+    def query(filter_code):
+        return _project(
+            provider, model, key="query", node_type="mechanical.search_tree",
+            properties={"filter": filter_code},
+        )
+
+    assert "Force" in query("type")["enum_codes"]
+    assert "Frame" in query("coordinate_system")["enum_codes"]
+    assert "Opaque::ID" in query("model")["enum_codes"]
+    assert "Hidden bodies" in query("graphics")["enum_codes"]
+    assert "Analysis A" in query("environment")["enum_codes"]
+    scoping = query("scoping")
+    assert scoping["enum_codes"].count("Top face") == 1
+    typed = [code for code in scoping["enum_codes"] if str(code).startswith("{")]
+    assert _selector("object", 7, "Model/Load A") in typed
+    assert _selector("object", 8, "Model/Load B") in typed

@@ -9,6 +9,7 @@ import time
 
 import pytest
 import psutil
+import pandas as pd
 
 from ea_node_editor.addons.mechanical.owner_process import (
     MechanicalOwnerProcess,
@@ -16,7 +17,17 @@ from ea_node_editor.addons.mechanical.owner_process import (
     _creation_time_for_pid,
     _owner_command,
     _read_bulk,
+    _read_search_bulk,
+    _validate_search_result,
+    _write_search_bulk,
 )
+from ea_node_editor.addons.mechanical.contracts import (
+    encode_selector,
+    object_value,
+    search_details_table,
+)
+from ea_node_editor.runtime_contracts import DataTree, RuntimeArtifactRef, RuntimeHandleRef, TypedInlineValue
+from ea_node_editor.runtime_contracts.scientific_values import snapshot_scientific_value
 
 
 def test_real_owner_process_has_exact_identity_and_bounded_protocol() -> None:
@@ -83,6 +94,85 @@ def test_bulk_reader_rejects_escape_and_deletes_bad_hash(tmp_path: Path) -> None
     with pytest.raises(OwnerProtocolError, match="hash"):
         _read_bulk(tmp_path, {"kind": "scientific", "relative_name": payload.name, "byte_length": 2, "sha256": "0" * 64})
     assert not payload.exists()
+
+
+def _search_identity():
+    return {
+        "run_id": "run", "session_id": "session", "document_id": "document",
+        "source_key": "source", "system_key": "system", "model_revision": 0,
+    }
+
+
+def _search_object(index: int, *, name: str = "Object"):
+    identity = _search_identity()
+    path = f"Model/{index}"
+    return object_value({
+        **identity, "object_id": index, "parent_id": None, "object_path": path,
+        "display_name": name, "api_type": "Native.Type", "category": "Type",
+        "analysis_id": None,
+        "selector_code": encode_selector(
+            "object", document_id=identity["document_id"], system_key=identity["system_key"],
+            object_path=path, native_id=index,
+        ),
+    })
+
+
+def test_search_spool_roundtrips_above_control_envelope_and_deletes_eagerly(tmp_path: Path) -> None:
+    result = {
+        "objects": [_search_object(index, name="x" * 600) for index in range(2_000)],
+        "properties": [],
+        "details": search_details_table([]),
+    }
+    descriptor = _write_search_bulk(tmp_path, result, _search_identity())
+    assert descriptor["kind"] == "mechanical-search-v1"
+    assert descriptor["byte_length"] > 1024 * 1024
+    path = tmp_path / descriptor["relative_name"]
+    restored = _read_search_bulk(tmp_path, descriptor, _search_identity())
+    assert len(restored["objects"]) == 2_000
+    assert not path.exists()
+
+
+def test_search_spool_rejects_extra_wrong_identity_and_live_carriers() -> None:
+    details = search_details_table([])
+    with pytest.raises(OwnerProtocolError, match="schema"):
+        _validate_search_result({"objects": [], "properties": [], "details": details, "extra": 1})
+    with pytest.raises(OwnerProtocolError, match="identity"):
+        _validate_search_result({"objects": [_search_object(1)], "properties": [], "details": details}, {**_search_identity(), "run_id": "other"})
+    handle = RuntimeHandleRef(
+        data_type_id="COREX.Mechanical.Model", schema_version=1, handle_id="h",
+        kind="mechanical.model", owner_scope="run", worker_generation=1, metadata={},
+    )
+    with pytest.raises(OwnerProtocolError, match="live references"):
+        _validate_search_result({"objects": [handle], "properties": [], "details": details})
+    artifact = RuntimeArtifactRef.staged(
+        "artifact", data_type_id="COREX.DataTypes.Path", schema_version=1,
+        format="file", size_bytes=0, sha256="0" * 64, provenance="test",
+    )
+    for bad in (
+        artifact,
+        DataTree.from_item(_search_object(1)),
+        TypedInlineValue("COREX.Mechanical.Property", 1, {}),
+    ):
+        with pytest.raises(OwnerProtocolError):
+            _validate_search_result({"objects": [bad], "properties": [], "details": details})
+    with pytest.raises(OwnerProtocolError, match="carriers"):
+        _validate_search_result({
+            "objects": [_search_object(1)] * 100_001,
+            "properties": [], "details": details,
+        })
+    with pytest.raises(OwnerProtocolError, match="carriers"):
+        _validate_search_result({
+            "objects": [], "properties": [],
+            "details": snapshot_scientific_value(pd.DataFrame({"wrong": [1]})),
+        })
+
+
+def test_owner_cleanup_removes_orphan_search_spool(tmp_path: Path) -> None:
+    owner = MechanicalOwnerProcess(work_root=tmp_path)
+    orphan = tmp_path / "search-orphan.json"
+    orphan.write_text("{}", encoding="utf-8")
+    owner.close()
+    assert not orphan.exists()
 
 
 def test_owner_transport_crash_is_detected_without_touching_other_processes() -> None:

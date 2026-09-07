@@ -25,13 +25,13 @@ from ea_node_editor.execution.registry_agreement import (
 )
 
 
-def test_open_model_is_the_only_t05_declaration_and_is_fully_typed() -> None:
+def test_open_and_search_are_the_current_mechanical_declarations_and_open_is_fully_typed() -> None:
     registry = build_default_registry(
         include_public_plugins=False,
         addon_runtime_config=(("mechanical.corex", True),),
     )
     spec = registry.get_spec("mechanical.open_model")
-    assert MECHANICAL_FUNCTION_TYPE_IDS == ("mechanical.open_model",)
+    assert MECHANICAL_FUNCTION_TYPE_IDS == ("mechanical.open_model", "mechanical.search_tree")
     assert spec.category_path == ("FEA", "ANSYS", "Mechanical")
     assert spec.solution_reuse_scope == "never"
     assert [(port.key, port.data_type) for port in spec.ports if port.direction == "in"] == [
@@ -54,7 +54,7 @@ def test_catalogue_availability_is_offline(monkeypatch) -> None:
     availability = get_mechanical_addon_availability()
     assert availability is not None
     assert (forbidden & set(sys.modules)) == before
-    assert MECHANICAL_PLUGIN_BACKEND.function_type_ids == ("mechanical.open_model",)
+    assert MECHANICAL_PLUGIN_BACKEND.function_type_ids == ("mechanical.open_model", "mechanical.search_tree")
     assert MECHANICAL_PLUGIN_BACKEND.provenance is not None
     assert MECHANICAL_PLUGIN_BACKEND.provenance.package_root.name == "mechanical"
 

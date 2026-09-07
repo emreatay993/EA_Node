@@ -161,7 +161,7 @@ def test_discovery_emits_table_and_type_aware_relation_descriptors(tmp_path: Pat
         ObjectId = 7; Name = "Body"; Parent = None; VisibleProperties = []
         Hidden = True
         TabularData = SimpleNamespace(Keys=["Time", "Value"])
-        def GetType(self): return SimpleNamespace(FullName="Ansys.Mechanical.Body")
+        def GetType(self): return SimpleNamespace(FullName="Ansys.ACT.Automation.Mechanical.Body")
     manager = SimpleNamespace(NumberOfViews=0)
     manager.ExportModelViews = lambda path: Path(path).write_text("<Views/>", encoding="utf-8")
     identity = {
@@ -173,9 +173,10 @@ def test_discovery_emits_table_and_type_aware_relation_descriptors(tmp_path: Pat
     }
     rows = collect_catalogue_rows(
         tree=SimpleNamespace(AllObjects=[Native()]),
-        graphics=SimpleNamespace(ModelViewManager=manager), identity=identity, systems=[],
+        graphics=SimpleNamespace(ModelViewManager=manager), identity=identity,
+        systems=[{"key": "SYS", "label": "Model"}],
     )
-    assert {row["record_kind"] for row in rows} == {"session", "object", "table", "relation", "view"}
+    assert {row["record_kind"] for row in rows} == {"session", "system", "object", "table", "relation", "view"}
     assert next(row for row in rows if row["record_kind"] == "view")["view_key"] == "current"
     relations = [row for row in rows if row["record_kind"] == "relation"]
     assert {row["relation_kind"] for row in relations} == {

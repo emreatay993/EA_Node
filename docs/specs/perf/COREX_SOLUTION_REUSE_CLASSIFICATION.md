@@ -31,12 +31,12 @@ IDs joined by LF with a final LF.
 | --- | ---: |
 | `durable` | 29 |
 | `session` | 27 |
-| `never` | 45 |
-| Executable subtotal | 101 |
+| `never` | 47 |
+| Executable subtotal | 103 |
 | Excluded passive | 35 |
 | Excluded compile-only | 3 |
 | Excluded subtotal | 38 |
-| Repo-owned total | 139 |
+| Repo-owned total | 141 |
 
 ## Scope Meanings
 
@@ -156,6 +156,7 @@ locations, and package paths are deliberately absent from this tracked artifact.
 | `mars.run_job` | MARS Run Job | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mars/function_nodes.py` | MARS | `never` | `external_toolchain_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_mars_function_migration.py` |
 | `mars.time_history` | MARS Time History | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mars/function_nodes.py` | MARS | `never` | `external_toolchain_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_mars_function_migration.py` |
 | `mechanical.open_model` | Open Mechanical Model | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mechanical/function_nodes.py` | FEA | `never` | `read_only_external` | `not_required_never` | `not_used_never` | `not_reusable` | `run_owned_native_session` | `runtime_handle_generation_bound` | `tests/mechanical_catalogue/test_catalogue.py` |
+| `mechanical.search_tree` | Search Mechanical Tree | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mechanical/function_nodes.py` | FEA | `never` | `read_only_external` | `not_required_never` | `not_used_never` | `not_reusable` | `run_owned_native_session` | `runtime_handle_generation_bound` | `tests/mechanical_catalogue/test_search_tree.py` |
 | `math.bounding_interval_2d` | Bounding Interval 2D | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/spatial.py` | Math/Interval | `durable` | `pure` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys` | `durable_catalog_codec` | `none` | `pure_portable_codec` | `tests/test_spatial_values.py` |
 | `math.construct_interval` | Construct Interval | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/unit_math.py` | Math/Interval | `durable` | `pure` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys` | `durable_catalog_codec` | `none` | `pure_portable_codec` | `tests/test_interval_nodes.py` |
 | `math.deconstruct_interval` | Deconstruct Interval | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/unit_math.py` | Math/Interval | `durable` | `pure` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys` | `durable_catalog_codec` | `none` | `pure_portable_codec` | `tests/test_interval_nodes.py` |

@@ -1,6 +1,6 @@
-# Purpose: Open native Mechanical models and execute allowlisted owner operations.
+# Purpose: Open native Mechanical models and execute allowlisted Open/Search owner operations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_owner_protocol.py
+# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py
 
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from ea_node_editor.addons.mechanical.inspection import collect_catalogue_rows
+from ea_node_editor.addons.mechanical.inspection import collect_catalogue_rows, search_tree
 
-LIFECYCLE_OPERATIONS = frozenset({"health", "open", "close"})
+LIFECYCLE_OPERATIONS = frozenset({"health", "open", "search", "close"})
 
 
 def _data_script(data: Mapping[str, Any], body: str) -> str:
@@ -28,6 +28,7 @@ def _data_script(data: Mapping[str, Any], body: str) -> str:
 class MechanicalOwnerBackend:
     def __init__(self) -> None:
         self.app = self.mechanical = self.workbench = None
+        self.tree = self.model = self.data_model = None
         self.system_name = ""
         self.interactive_model = False
         self.native_identities: list[dict[str, int]] = []
@@ -58,7 +59,38 @@ class MechanicalOwnerBackend:
             if operation == "close":
                 self.close()
             return {"status": "ready" if operation == "health" else "closed"}
-        return self.open(args)
+        if operation == "open":
+            return self.open(args)
+        return self.search(args)
+
+    def search(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        required = {
+            "filter", "query", "match", "case_sensitive", "include_hidden_properties",
+            "invert", "identity", "typed_selector",
+        }
+        if set(args) != required or self.tree is None or self.model is None:
+            raise ValueError("Mechanical search arguments or session state are invalid")
+        tree = (
+            _RemoteTree(self.mechanical, include_hidden_properties=bool(args["include_hidden_properties"]))
+            if isinstance(self.tree, _RemoteTree)
+            else self.tree
+        )
+        return {
+            "status": "searched",
+            "search": search_tree(
+                tree=tree,
+                model=self.model,
+                data_model=self.data_model,
+                identity=dict(args["identity"]),
+                filter_code=str(args["filter"]),
+                query=str(args["query"]),
+                match_mode=str(args["match"]),
+                case_sensitive=bool(args["case_sensitive"]),
+                include_hidden_properties=bool(args["include_hidden_properties"]),
+                invert=bool(args["invert"]),
+                typed_selector=args["typed_selector"],
+            ),
+        }
 
     def open(self, args: Mapping[str, Any]) -> dict[str, Any]:
         required = {"source_path", "work_path", "mode", "release_code", "system", "catalogue_identity", "view_export_path", "timeout_sec"}
@@ -91,7 +123,10 @@ class MechanicalOwnerBackend:
             return {"status": "system_required", "rows": rows, "systems": systems}
         return {
             "status": "opened",
-            "rows": collect_catalogue_rows(tree=tree, graphics=graphics, identity=identity, systems=systems),
+            "rows": collect_catalogue_rows(
+                tree=tree, graphics=graphics, identity=identity, systems=systems,
+                model=self.model, data_model=self.data_model,
+            ),
             "systems": systems,
             "system_key": selected,
         }
@@ -116,7 +151,9 @@ class MechanicalOwnerBackend:
                 {"source": str(source), "work": str(work), "archive": source.suffix.casefold() == ".mechpz"},
                 "p=_corex_data\nDataModel.Project.Unarchive(p['source'],p['work'],False) if p['archive'] else (DataModel.Project.Open(p['source']),DataModel.Project.SaveAs(p['work'],False))\nstr(True)",
             ))
-            return [], _RemoteTree(self.mechanical), _RemoteGraphics(self.mechanical), "standalone"
+            self.tree = _RemoteTree(self.mechanical)
+            self.model = _RemoteModel(self.mechanical)
+            return [], self.tree, _RemoteGraphics(self.mechanical), "standalone"
         from ansys.mechanical.core import App, global_variables
         self.app = App(version=release)
         values = global_variables(self.app)
@@ -138,7 +175,8 @@ class MechanicalOwnerBackend:
         else:
             self.app.open(str(source))
             self.app.save_as(str(work), overwrite=False)
-        return [], values["Tree"], values["Graphics"], "standalone"
+        self.tree, self.model, self.data_model = values["Tree"], values["Model"], values["DataModel"]
+        return [], self.tree, values["Graphics"], "standalone"
 
     def _open_workbench(self, source: Path, work: Path, release: int, mode: str, requested: str, timeout_sec: float):
         self.workbench = self._launch_workbench(
@@ -227,7 +265,9 @@ class MechanicalOwnerBackend:
         from ansys.mechanical.core import connect_to_mechanical
         port = self.workbench.start_mechanical_server(system_name=self.system_name)
         self.mechanical = connect_to_mechanical(ip="127.0.0.1", port=port)
-        return public_choices, _RemoteTree(self.mechanical), _RemoteGraphics(self.mechanical), public_match["key"]
+        self.tree = _RemoteTree(self.mechanical)
+        self.model = _RemoteModel(self.mechanical)
+        return public_choices, self.tree, _RemoteGraphics(self.mechanical), public_match["key"]
 
     def _workbench_systems(self) -> list[dict[str, Any]]:
         raw = self.workbench.run_script_string(
@@ -301,60 +341,130 @@ def select_model_system(choices: list[dict[str, Any]], selected: str) -> dict[st
 
 class _Proxy:
     def __init__(self, **values: Any) -> None:
+        self._errors = dict(values.pop("_errors", {}))
         self.__dict__.update(values)
+    def __getattr__(self, name: str):
+        if name in self._errors:
+            raise RuntimeError(self._errors[name])
+        raise AttributeError(name)
     def GetType(self):
+        if "GetType" in self._errors:
+            raise RuntimeError(self._errors["GetType"])
         return _Proxy(FullName=self.api_type)
 
 
 class _RemoteTree:
-    def __init__(self, client: Any) -> None:
+    def __init__(self, client: Any, *, include_hidden_properties: bool = False) -> None:
         self.client = client
+        self.include_hidden_properties = include_hidden_properties
         self.metadata_errors: list[str] = []
     @property
     def AllObjects(self):
-        script = """import json
-def g(o,n,d=None):
- try:return getattr(o,n)
- except:return d
+        script = _data_script({"include_hidden": self.include_hidden_properties}, """import json
+def field(o,n,text=False):
+ try:v=getattr(o,n)
+ except AttributeError:return {'present':False,'error':'','value':None}
+ except Exception as x:return {'present':True,'error':type(x).__name__,'value':None}
+ try:return {'present':True,'error':'','value':str(v) if text else v}
+ except Exception as x:return {'present':True,'error':type(x).__name__,'value':None}
 rows=[]
+tags={};tags_available=True
+try:
+ for t in list(DataModel.ObjectTags):
+  for tagged in list(t.Objects):tags.setdefault(int(tagged.ObjectId),[]).append(str(t.Name))
+except:tags_available=False
 for o in list(Tree.AllObjects):
- p=g(o,'Parent'); props=[];props_error=''
+ oid=int(o.ObjectId);name=field(o,'Name',True);category=field(o,'DataModelObjectCategory',True)
+ try:api_type={'present':True,'error':'','value':str(o.GetType().FullName)}
+ except Exception as x:api_type={'present':True,'error':type(x).__name__,'value':None}
+ parent=field(o,'Parent');parent_value=parent['value']
+ try:parent_id=int(parent_value.ObjectId) if parent_value is not None else None
+ except:parent_id=None
+ props=[];props_error=''
  try:
-  for q in list(o.VisibleProperties):
-   try:v=str(q.StringValue);e=''
-   except Exception as x:v='';e=type(x).__name__
-   iv=g(q,'InternalValue'); field_inputs=None
-   if iv is not None and hasattr(iv,'Inputs') and hasattr(iv,'Output'):
-    try:field_inputs=len(list(iv.Inputs))
-    except:field_inputs=0
-   props.append({'APIName':str(g(q,'APIName','')),'Caption':str(g(q,'Caption','')),'StringValue':v,'error':e,'field_inputs':field_inputs})
+   for q in list(o.Properties if _corex_data['include_hidden'] else o.VisibleProperties):
+    api_name=field(q,'APIName',True);prop_name=field(q,'Name',True);caption=field(q,'Caption',True);string_value=field(q,'StringValue',True)
+    internal=field(q,'InternalValue');internal_error=internal['error'];iv=internal['value'];field_inputs=None;internal_fields=None;is_field=False;output_error=''
+    output=None
+    if iv is not None:
+     inputs_record=field(iv,'Inputs');output_record=field(iv,'Output')
+     if inputs_record['present'] or output_record['present']:
+      is_field=True;output_error=output_record['error']
+      if inputs_record['present'] and not inputs_record['error']:
+       try:field_inputs=len(list(inputs_record['value']))
+       except:field_inputs=None
+      if output_record['present'] and not output_record['error']:
+       out=output_record['value'];output={n:field(out,n,n!='DiscreteValueCount') for n in ('DefinitionType','DiscreteValueCount','Formula','Unit','QuantityName')}
+     else:
+      internal_fields={n:field(iv,n,n in ('Unit','QuantityName')) for n in ('Value','Unit','QuantityName')}
+      scalar=internal_fields['Value']
+      if scalar['present'] and not scalar['error'] and type(scalar['value']) not in (int,float):scalar['present']=False;scalar['value']=None
+    props.append({'APIName':api_name,'Name':prop_name,'Caption':caption,'StringValue':string_value,'internal_error':internal_error,'is_field':is_field,'output_error':output_error,'field_inputs':field_inputs,'output':output,'internal':internal_fields})
  except Exception as x:props_error=type(x).__name__
- table=g(o,'TabularData'); table_keys=None
- if table is not None:
+ table_field=field(o,'TabularData');table=table_field['value'];table_keys=None
+ if table_field['present'] and not table_field['error'] and table is not None:
   try:table_keys=[str(k) for k in table.Keys]
-  except Exception as x:table_keys=[]
- cs=g(o,'CoordinateSystem'); coordinate=None if cs is None else {'ObjectId':g(cs,'ObjectId'),'Name':str(g(cs,'Name',''))}
+  except:table_keys=[]
+ bindings={}
+ for attr in ('CoordinateSystem','Orientation'):
+   binding=field(o,attr)
+   if binding['present']:
+    if binding['error']:bindings[attr]={'error':binding['error']}
+    else:
+     cs=binding['value'];bindings[attr]=None if cs is None else {'ObjectId':field(cs,'ObjectId')['value'],'Name':field(cs,'Name',True)['value']}
  scopes={}
  for attr in ('Location','SourceLocation','TargetLocation'):
-  if hasattr(o,attr):
-   try:
-    s=getattr(o,attr);ids=g(s,'Ids',[]) or [];count=int(ids.Count) if hasattr(ids,'Count') else len(ids);scopes[attr]={'ObjectId':g(s,'ObjectId'),'Name':str(g(s,'Name','')),'ScopeCount':count}
-   except Exception as x:scopes[attr]={'error':type(x).__name__}
- rows.append({'ObjectId':int(g(o,'ObjectId',-1)),'Name':str(g(o,'Name','')),'api_type':str(o.GetType().FullName),'parent_id':int(g(p,'ObjectId')) if p is not None and g(p,'ObjectId') is not None else None,'props':props,'props_error':props_error,'table_keys':table_keys,'has_hidden':hasattr(o,'Hidden'),'Hidden':g(o,'Hidden'),'has_source':hasattr(o,'ImportableObjectSourceId'),'ImportableObjectSourceId':str(g(o,'ImportableObjectSourceId','')),'coordinate':coordinate,'scopes':scopes})
-json.dumps(rows)"""
+   scope=field(o,attr)
+   if scope['present']:
+    if scope['error']:scopes[attr]={'error':scope['error']}
+    elif scope['value'] is None:scopes[attr]=None
+    else:
+     s=scope['value'];scopes[attr]={n:field(s,n,n in ('Name','SelectionType','DataModelObjectCategory')) for n in ('ObjectId','Name','SelectionType','DataModelObjectCategory','TotalSelection')}
+     ids=field(s,'Ids')
+     if ids['present'] and not ids['error']:
+      try:ids['value']=list(ids['value'] or ())
+      except Exception as x:ids={'present':True,'error':type(x).__name__,'value':None}
+     scopes[attr]['Ids']=ids
+ rows.append({'ObjectId':oid,'Name':name,'api_type':api_type,'category':category,'parent_id':parent_id,'props':props,'props_error':props_error,'table_keys':table_keys,'hidden':field(o,'Hidden'),'source':field(o,'ImportableObjectSourceId',True),'state':field(o,'ObjectState',True),'suppressed':field(o,'Suppressed'),'bindings':bindings,'scopes':scopes,'direct_tags':tags.get(oid,[]),'tags_available':tags_available})
+json.dumps(rows)""")
         rows = json.loads(self.client.run_python_script(script))
         objects = {}
         for r in rows:
-            values = dict(ObjectId=r["ObjectId"], Name=r["Name"], api_type=r["api_type"], Parent=None, VisibleProperties=[_RemoteProperty(**p) for p in r["props"]])
+            properties = [_RemoteProperty(**p) for p in r["props"]]
+            values = dict(ObjectId=r["ObjectId"], Parent=None, _corex_direct_tags=r["direct_tags"], _corex_tags_available=r["tags_available"])
+            errors = {}
+            for key, field_name in (("Name", "Name"), ("api_type", "GetType"), ("category", "DataModelObjectCategory")):
+                item = r[key]
+                if item["error"]: errors[field_name] = item["error"]
+                elif item["present"]: values[field_name if field_name != "GetType" else "api_type"] = item["value"]
+            property_field = "Properties" if self.include_hidden_properties else "VisibleProperties"
+            if r["props_error"]: errors[property_field] = r["props_error"]
+            else: values[property_field] = properties
+            if not self.include_hidden_properties and not r["props_error"]: values["VisibleProperties"] = properties
             if r["table_keys"] is not None: values["TabularData"] = _Proxy(Keys=r["table_keys"])
-            if r["has_hidden"]: values["Hidden"] = r["Hidden"]
-            if r["has_source"]: values["ImportableObjectSourceId"] = r["ImportableObjectSourceId"]
-            if r["coordinate"] is not None: values["CoordinateSystem"] = _Proxy(**r["coordinate"])
+            for key, field_name in (("hidden", "Hidden"), ("source", "ImportableObjectSourceId"), ("state", "ObjectState"), ("suppressed", "Suppressed")):
+                item = r[key]
+                if item["error"]: errors[field_name] = item["error"]
+                elif item["present"]: values[field_name] = item["value"]
+            for name, binding in r["bindings"].items():
+                if isinstance(binding, dict) and "error" in binding:
+                    errors[name] = binding["error"]
+                    self.metadata_errors.append(f"{r['Name']}: {name}: {binding['error']}")
+                else: values[name] = None if binding is None else _Proxy(**binding)
             for name, scope in r["scopes"].items():
-                if "error" in scope: self.metadata_errors.append(f"{r['Name']}: {name}: {scope['error']}")
-                else: values[name] = _Proxy(**scope)
-            if r["props_error"]: self.metadata_errors.append(f"{r['Name']}: VisibleProperties: {r['props_error']}")
-            objects[r["ObjectId"]] = _Proxy(**values)
+                if scope is None:
+                    values[name] = None
+                elif "error" in scope:
+                    errors[name] = scope["error"]
+                    self.metadata_errors.append(f"{r['Name']}: {name}: {scope['error']}")
+                else:
+                    scope_values, scope_errors = {}, {}
+                    for field_name, item in scope.items():
+                        if item["error"]: scope_errors[field_name] = item["error"]
+                        elif item["present"]: scope_values[field_name] = item["value"]
+                    if "Ids" in scope_values: scope_values["Ids"] = list(scope_values["Ids"] or ())
+                    values[name] = _Proxy(_errors=scope_errors, **scope_values)
+            objects[r["ObjectId"]] = _Proxy(_errors=errors, **values)
         for row in rows:
             if row["parent_id"] in objects: objects[row["ObjectId"]].Parent = objects[row["parent_id"]]
         return list(objects.values())
@@ -362,13 +472,60 @@ json.dumps(rows)"""
 
 class _RemoteProperty(_Proxy):
     def __init__(self, **values: Any) -> None:
+        internal_error = values.pop("internal_error", "")
+        is_field = values.pop("is_field", False)
+        output_error = values.pop("output_error", "")
         field_inputs = values.pop("field_inputs", None)
-        super().__init__(**values)
-        self.InternalValue = None if field_inputs is None else _Proxy(Inputs=[None] * field_inputs, Output=True)
-    @property
-    def StringValue(self):
-        if self.error: raise ValueError(self.error)
-        return self.__dict__["StringValue"]
+        output_fields = values.pop("output", None)
+        internal_fields = values.pop("internal", None)
+        property_values, property_errors = {}, {}
+        for name, item in values.items():
+            if item["error"]: property_errors[name] = item["error"]
+            elif item["present"]: property_values[name] = item["value"]
+        if internal_error:
+            property_errors["InternalValue"] = internal_error
+        elif is_field:
+            internal_errors = {}
+            internal_values = {}
+            if field_inputs is None:
+                internal_errors["Inputs"] = "unavailable"
+            else:
+                internal_values["Inputs"] = [None] * field_inputs
+            if output_error:
+                internal_errors["Output"] = output_error
+            else:
+                output_values, output_errors = {}, {}
+                for name, item in (output_fields or {}).items():
+                    if item["error"]: output_errors[name] = item["error"]
+                    elif item["present"]: output_values[name] = item["value"]
+                internal_values["Output"] = _Proxy(
+                    _errors=output_errors, **output_values
+                )
+            property_values["InternalValue"] = _Proxy(
+                _errors=internal_errors, **internal_values
+            )
+        elif field_inputs is None:
+            if internal_fields is None:
+                property_values["InternalValue"] = None
+            else:
+                internal_values, internal_errors = {}, {}
+                for name, item in internal_fields.items():
+                    if item["error"]: internal_errors[name] = item["error"]
+                    elif item["present"]: internal_values[name] = item["value"]
+                property_values["InternalValue"] = _Proxy(
+                    _errors=internal_errors, **internal_values
+                )
+        super().__init__(_errors=property_errors, **property_values)
+
+
+class _RemoteModel:
+    def __init__(self, client: Any) -> None:
+        self.client = client
+    def GetActivationStatusForAnalysis(self, object_id: int, analysis_id: int):
+        return self.client.run_python_script(_data_script(
+            {"object_id": object_id, "analysis_id": analysis_id},
+            "str(Model.GetActivationStatusForAnalysis(_corex_data['object_id'],_corex_data['analysis_id']))",
+        ))
 
 
 class _RemoteViewManager:

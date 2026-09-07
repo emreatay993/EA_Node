@@ -1,6 +1,6 @@
 # Purpose: Define bounded data-only Mechanical semantic values and metadata tables.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_contracts.py
+# Tests: tests/mechanical_catalogue/test_contracts.py, tests/mechanical_catalogue/test_search_tree.py
 
 from __future__ import annotations
 
@@ -101,6 +101,27 @@ DEFINITIONS_COLUMNS = (
     "location",
     "coordinate_system",
     "notes",
+)
+SEARCH_DETAILS_COLUMNS = (
+    "object_id",
+    "object_path",
+    "display_name",
+    "api_type",
+    "property_key",
+    "property_caption",
+    "display_value",
+    "unit",
+    "definition_kind",
+    "has_tabular_data",
+    "relation_kind",
+    "relation_role",
+    "related_label",
+    "raw_source_id",
+    "scope_kind",
+    "scope_count",
+    "body_hidden",
+    "availability",
+    "diagnostic",
 )
 
 _CATALOGUE_KINDS = frozenset(
@@ -222,7 +243,7 @@ _CATALOGUE_FIELD_KINDS = {
     "object_path": frozenset({"object", "property", "table", "relation"}),
     "display_name": frozenset({"object", "property", "table", "relation"}),
     "api_type": frozenset({"object", "property", "table", "relation"}),
-    "property_key": frozenset({"property", "table"}),
+    "property_key": frozenset({"property", "table", "relation"}),
     "property_caption": frozenset({"property", "table"}),
     "display_value": frozenset({"property"}),
     "definition_kind": frozenset({"property", "table"}),
@@ -866,6 +887,35 @@ def definitions_table(rows: Sequence[Mapping[str, Any]]) -> TableValue:
     return _table(rows, DEFINITIONS_COLUMNS, catalogue=False)
 
 
+def search_details_table(rows: Sequence[Mapping[str, Any]]) -> TableValue:
+    normalized = []
+    for row in rows:
+        validate_payload_fields(
+            row, label="Mechanical search detail", required=frozenset(SEARCH_DETAILS_COLUMNS)
+        )
+        item = dict(row)
+        _nonnegative(item["object_id"], "object_id")
+        _nonnegative(item["scope_count"], "scope_count", nullable=True)
+        for field in SEARCH_DETAILS_COLUMNS:
+            if field not in {"object_id", "scope_count", "has_tabular_data", "body_hidden"}:
+                _text(item[field], field, empty=True)
+        for field in ("has_tabular_data", "body_hidden"):
+            if item[field] is not None and type(item[field]) is not bool:
+                raise TypeError(f"{field} must be Boolean or null")
+        normalized.append(item)
+    import pandas as pd
+
+    frame = pd.DataFrame(normalized, columns=SEARCH_DETAILS_COLUMNS)
+    for column in ("object_id", "scope_count"):
+        frame[column] = frame[column].astype("Int64")
+    for column in ("has_tabular_data", "body_hidden"):
+        frame[column] = frame[column].astype("boolean")
+    value = snapshot_scientific_value(frame)
+    if type(value) is not TableValue:
+        raise TypeError("Mechanical search details did not produce TableValue")
+    return value
+
+
 MECHANICAL_DATA_TYPE_FAMILY = DataTypeFamilySpec(
     family_id="corex.mechanical",
     display_name="Mechanical",
@@ -917,6 +967,7 @@ __all__ = [
     "CATALOGUE_MAX_ENCODED_BYTES",
     "CATALOGUE_MAX_ROWS",
     "DEFINITIONS_COLUMNS",
+    "SEARCH_DETAILS_COLUMNS",
     "MECHANICAL_CONTRACT_MANIFEST",
     "MECHANICAL_DATA_TYPES",
     "MODEL_HANDLE_KIND",
@@ -930,6 +981,7 @@ __all__ = [
     "encode_selector",
     "object_value",
     "property_value",
+    "search_details_table",
     "model_handle",
     "validate_camera_view",
     "validate_model",

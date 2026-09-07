@@ -1,6 +1,6 @@
-# Purpose: Execute Open Mechanical Model through the run-owned native session.
+# Purpose: Execute Mechanical Open and Search through the run-owned native session.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_open_model.py
+# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py
 
 from __future__ import annotations
 
@@ -10,8 +10,10 @@ import os
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
-from ea_node_editor.addons.mechanical.contracts import decode_selector
+from ea_node_editor.addons.mechanical.contracts import decode_selector, validate_object, validate_property
+from ea_node_editor.addons.mechanical.session import StaleMechanicalModelError
 from ea_node_editor.nodes.execution_context import NodeInputNotReadyError
+from ea_node_editor.runtime_contracts import RuntimeHandleRef, TableValue
 
 
 def discover_mechanical_releases() -> tuple[int, ...]:
@@ -139,4 +141,110 @@ def execute_open_model(ctx, settings=None):
     return outputs
 
 
-__all__ = ["discover_mechanical_releases", "execute_open_model"]
+def _search_selector(query: str, metadata) -> dict[str, object] | None:
+    try:
+        decoded = json.loads(query)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(decoded, dict) or not {
+        "schema_version", "kind", "document_id", "system_key", "object_path", "native_id"
+    } & set(decoded):
+        return None
+    selector = decode_selector(query)
+    if (
+        selector["kind"] not in {"object", "property"}
+        or selector["document_id"] != metadata["document_id"]
+        or selector["system_key"] != metadata["system_key"]
+    ):
+        raise ValueError("mechanical.selector_missing: query selector belongs to another model or kind")
+    return selector
+
+
+def execute_search_tree(ctx, model=None, settings=None):
+    if model is None:
+        raise NodeInputNotReadyError("Model requires a live Mechanical model from this run")
+    if not isinstance(model, RuntimeHandleRef):
+        raise TypeError("Search Mechanical Tree requires a Mechanical Model")
+    try:
+        session = ctx.mechanical_sessions.admit_model(
+            model, run_id=ctx.run_id, workspace_id=ctx.workspace_id
+        )
+    except StaleMechanicalModelError as exc:
+        raise ValueError(f"mechanical.stale_reference: {exc}") from exc
+    filter_code = str(_setting(ctx, settings, "filter", "name"))
+    if filter_code not in {
+        "name", "tag", "type", "state", "coordinate_system", "model", "graphics",
+        "environment", "scoping", "property_name", "property_value",
+    }:
+        raise ValueError(f"Unknown Mechanical search filter: {filter_code}")
+    query = _setting(ctx, settings, "query", "")
+    if type(query) is not str:
+        raise TypeError("Mechanical search Query must be text")
+    match_mode = str(_setting(ctx, settings, "match", "contains"))
+    if match_mode not in {"contains", "exact"}:
+        raise ValueError("Mechanical search Match must be contains or exact")
+    flags = {}
+    for key in ("case_sensitive", "include_hidden_properties", "invert"):
+        value = _setting(ctx, settings, key, False)
+        if type(value) is not bool:
+            raise TypeError(f"Mechanical search {key} must be Boolean")
+        flags[key] = value
+    metadata = model.metadata
+    selector = _search_selector(query, metadata)
+    identity = {
+        field: metadata[field]
+        for field in (
+            "run_id", "session_id", "document_id", "source_key", "system_key", "model_revision"
+        )
+    }
+    try:
+        result = ctx.mechanical_sessions.operate(
+            session,
+            expected_revision=metadata["model_revision"],
+            operation="search",
+            args={
+                "filter": filter_code,
+                "query": query,
+                "match": match_mode,
+                **flags,
+                "identity": identity,
+                "typed_selector": selector,
+            },
+        )["search"]
+    except StaleMechanicalModelError as exc:
+        raise ValueError(f"mechanical.stale_reference: {exc}") from exc
+    except Exception as exc:
+        message = str(exc)
+        if any(
+            code in message
+            for code in (
+                "mechanical.search_incomplete:",
+                "mechanical.capacity_exceeded:",
+                "mechanical.selector_missing:",
+            )
+        ):
+            raise ValueError(message[message.index("mechanical.") :]) from exc
+        raise RuntimeError(f"mechanical.operation_failed: Search Mechanical Tree: {message}") from exc
+    if (
+        not isinstance(result, dict)
+        or set(result) != {"objects", "properties", "details"}
+        or type(result["objects"]) is not list
+        or type(result["properties"]) is not list
+        or type(result["details"]) is not TableValue
+    ):
+        raise RuntimeError("mechanical.operation_failed: Search returned an invalid result")
+    for value in result["objects"]:
+        validate_object(value)
+        if any(value.payload[field] != identity[field] for field in identity):
+            raise ValueError("mechanical.cross_session_reference: Search object belongs to another Model")
+    for value in result["properties"]:
+        validate_property(value)
+        if any(value.payload[field] != identity[field] for field in identity):
+            raise ValueError("mechanical.cross_session_reference: Search property belongs to another Model")
+    return {
+        **result,
+        "found": bool(result["objects"] or result["properties"]),
+    }
+
+
+__all__ = ["discover_mechanical_releases", "execute_open_model", "execute_search_tree"]

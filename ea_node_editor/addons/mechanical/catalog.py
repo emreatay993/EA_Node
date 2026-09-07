@@ -25,7 +25,7 @@ from ea_node_editor.addons.mechanical.property_edit import (
 
 MECHANICAL_ADDON_ID = "mechanical.corex"
 _DEPENDENCIES = ("ansys-mechanical-core", "ansys-workbench-core", "numpy", "pandas")
-MECHANICAL_FUNCTION_TYPE_IDS = ("mechanical.open_model",)
+MECHANICAL_FUNCTION_TYPE_IDS = ("mechanical.open_model", "mechanical.search_tree")
 _DISCOVERED_RELEASES: tuple[int, ...] = ()
 _MECHANICAL_PACKAGE_ROOT = Path(__file__).resolve().parent
 
