@@ -1,0 +1,138 @@
+# Mechanical Catalogue — Task Ledger
+
+Overall status: **IN_PROGRESS — T01 ACCEPTED; NEXT T02**.
+
+On 2026-09-07 the user explicitly authorized implementation, required verification with disposable fixtures and available licensed Ansys installations, and separate local task commits. The earlier planning-only authorization is historical. T01 is accepted under the user-approved 261 result policies; production implementation starts at T02. Layout approval alone is not compatibility evidence.
+
+The user subsequently directed: **use 2026 R1 as the reference instead of 2025 R2**. The plan now requires 261 as the sole initial reference, minimum supported release and acceptance release. The former missing-252 block is superseded by this explicit scope change; 252 and earlier releases are outside initial support. All other task and acceptance requirements remain in force.
+
+Subsequent execution direction: new implementation workers and intermediate independent reviewers use **Sol**; the final T18 integration review uses **Astra**. The coordinator delegates detailed implementation and evidence review. The user's archive-inclusion amendment is recorded in the plan: `include_results`, `include_user_files`, and `include_external_imported_files` are typed Boolean input ports, default True, with format-specific applicability. Requested inclusion must be honored by the applicable native archive route.
+
+Latest user decision: **use native archiving, not `.dsdb`, update the plan and stop this session**. Workbench archives use native whole-project `.wbpz`; standalone Mechanical archives use native `.mechpz`. The previous required Workbench-to-standalone archive/result-transfer route is retired. Separate selected-model `.mechdb`/`.mechdat` exports remain model-only; their `.dsdb` bridge is never an archive or result-preservation route. This resolves the former scope question without accepting T01. Resume only in the fresh implementation session using the [full handoff prompt](IMPLEMENTATION_PROMPT.md).
+
+The user subsequently approved the recommended wording clarifications. Archive guarantees follow the native route and enabled inclusion choices; model-only exports have no result/dependency-transfer gate. Successful Interactive windows remain inspection-only until any next graph run starts in the same workspace, that workspace closes, or the app shuts down; other workspaces do not close them. Background, failed and cancelled runs close their owned processes, and expired handles remain unusable. Search now has an explicit Exact/Contains/quoted-operand grammar. The next session starts a fresh Sol T01 owner and reuses saved work; historical package/probe statements are not current prerequisites.
+
+Authority: read the **entire** [PLAN.md](PLAN.md), this entire ledger, and current repository AGENTS.md before work and after every compaction, restart, or coordinator handoff. The coordinator alone updates task status/ownership/acceptance. Do not create another ledger or infer completion from a worker's summary.
+
+## Current checkpoint
+
+- T01 is independently accepted under both explicit user amendments. ForceReaction requires an already-Time probe, restores DisplayTime without assigning By, and rejects other modes. Only the initial By=Time/SetNumber=0 case with native zero rejection may retain/report a valid changed SetNumber after exact By/DisplayTime/CalculateTimeHistory restoration; every other restoration failure remains fatal. Tree/camera/graphics restoration stays independently exact.
+- Accepted evidence: ignored `artifacts/verification_logs/mechanical_catalogue/T01/qualification_approved.json` (schema 3) validates against the unchanged raw native observations. Historical `qualification.json` and `qualification_v2.json` retain their failed former-policy outcomes. Source-family native archives, model-only exports, all eleven background queries, real imported IDs, cameras, definition/result/probe/worksheet tables, images, script scope and load-step snippets are qualified within T01's API boundary.
+- Verification: `venv/Scripts/python.exe -m pytest tests/mechanical_catalogue/test_probe_contract.py -q` passes 17 tests; actual approved-report validation with `--evidence-root artifacts/verification_logs/mechanical_catalogue/T01` passes. Compilation, traceability, canonical Markdown links and explicit plan-package link checks pass. Independent Sol reviewer `t01_acceptance_review` approved the amended contract, actual evidence and T08 execution brief with no remaining findings. Implementation owner was `t01_qualification` (Sol).
+- Reuse two retained solves: the original Workbench static fixture and one genuinely standalone modal solve authorized for the previously uncovered native standalone archive/modal family. No additional launch or solve was needed for policy acceptance. Exact cleanup reconciles 18 role/PID/creation identities with zero survivors. All 37 original top-level historical JSON report hashes were preserved. The task-created gRPC launch artifact was moved natively into ignored evidence after cleanup and is absent from the root.
+- Repository: `C:/Users/emre_/PycharmProjects/EA_Node_Editor`, branch `codex/mechanical-catalogue`, starting baseline `7f5304b47ade7d74ecfd2e4b32cb8f2b4ec1f253`. Each task gets its exact separate local commit; do not push. The T01 committed row uses its unique subject until the actual SHA can be carried by the next substantive task commit.
+- Preserved unrelated starting SHA-256 values: `scripts/Strain_Gage_Positioning/modular_version/run.py` = `810d32787545a44259e8104be00ec8f447c8899c452a95faaa696fd6761432ba`; `tests/fixtures/graph_canvas_surface_snapshot.json` = `a8bc0b674fb19f0a06437c19ad090ca3890fba8ca1b30b2ae9a186ad6608f92a`; `docs/PLAN_COREX_Physical_Simulation_Backend.md` = `f1709cd27cdd97141e354ab0644b3602f8ea43ebefbb294b0c5fa4578c6788f2`; strain candidate CSV beside the script = `468c04c09df327871ed6cd947ef58e8f26412d632a1e969c3c56303dfc44061b`. Preserve the unrelated Physical Simulation index entry and leave it unstaged.
+- Next: create/verify the dedicated T01 commit, then assign fresh Sol T02 ownership for bounded runtime value contracts. T02–T18 remain required in dependency order, with separate commits and independent reviews; final T18 review uses Astra. Reuse the existing plan, ledger, visual baseline, fixture/probe evidence and accepted tests; do not restart qualification. No current decision is unanswered.
+- T01 changes qualification helpers/docs only; application ownership is unchanged and needs no agent-map update. T02 and later source owners must update affected maps/COVERAGE as required.
+
+## Status and commit rules
+
+Allowed statuses: `NOT_STARTED`, `IN_PROGRESS`, `IN_REVIEW`, `BLOCKED`, `ACCEPTED`.
+
+Every task has its own dedicated commit after its required verification and independent review. Include implementation, tests, affected docs/maps and the ledger acceptance record together. Do not combine tasks, stage unrelated work, publish private provenance, squash task commits, or create metadata-only commits. See PLAN section 17 for the full sequence.
+
+After each task commit, record its exact SHA here. Its hash update may be carried in the next substantive task commit. A commit cannot contain its own SHA: for the last accepted task, the committed row may use its unique exact commit subject as a resolvable reference; report the actual SHA in the final response. Resolve that subject with Git and require exactly one match. Never invent a hash, leave a stale amended hash, or mark a task accepted merely to populate this table.
+
+Evidence paths below are planned destinations unless an actual retained artifact is identified. Existing planning/prerequisite artifacts are not task acceptance proof. Every accepted row must contain actual commands/outcomes and a concise reviewer result. Keep full logs in the neutral artifact directory, not in this table.
+
+## Task progress
+
+| Task | Deliverable | Dependencies | Status | Owner / reviewer | Accepted commit | Verification / next action |
+| --- | --- | --- | --- | --- | --- | --- |
+| T01 | Fixed background queries, native archive routes and fixtures | Fresh-session implementation authorization | ACCEPTED | t01_qualification (Sol) / t01_acceptance_review (Sol) | `T01 Validate Mechanical catalogue backend routes` | 17 tests, actual schema-3 evidence validation, docs/compile and independent review PASS. Both approved result policies validated against unchanged raw failures; 18 owned identities reconciled, no survivors. |
+| T02 | Mechanical semantic value and catalogue contracts | T01 | NOT_STARTED | — / — | — | Await accepted API schemas. |
+| T03 | Fresh-run owner process/session lifecycle | T01–T02 | NOT_STARTED | — / — | — | Prove terminal cleanup independent of retained leases; retire successful Interactive inspection instances before any same-workspace run, preserve other workspaces, and close on failure/cancellation/workspace or app shutdown. |
+| T04 | Shared canvas/inspector metadata selectors | T02–T03 | NOT_STARTED | — / — | — | Preserve Signal Plot behavior; no backend calls while typing. |
+| T05 | Open standalone and Workbench models | T01–T04 | NOT_STARTED | — / — | — | Implement true registration, isolation, system discovery and Info output. |
+| T06 | Eleven-mode tree/property search | T05 | NOT_STARTED | — / — | — | Implement the pinned Exact/Name+Contains/Property Value quoted-operand grammar, with identity codes resolved first. Tabular presence only; no cell or full-table search. |
+| T07 | Definition-table extraction | T06 | NOT_STARTED | — / — | — | Full-fidelity TableValue and Definitions with units. |
+| T08 | Result/probe/worksheet extraction | T07 | NOT_STARTED | — / — | — | Evaluate selected existing results, restore state, never auto-solve. |
+| T09 | Saved/current camera records | T05–T06 | NOT_STARTED | — / — | — | Use the proved enumeration/schema route and restore camera. |
+| T10 | Image capture and object/view batches | T08–T09 | NOT_STARTED | — / — | — | Preserve invocation/object branches and safe file publication. |
+| T11 | Per-analysis and model-once Python scripts | T03–T06 | NOT_STARTED | — / — | — | Revision invalidation and no retry after uncertain mutation. |
+| T12 | Owned APDL snippets by load step | T11 | NOT_STARTED | — / — | — | Preflight targets; preserve unowned snippets; no immediate solve. |
+| T13 | Explicit standalone save/archive | T11–T12 | NOT_STARTED | — / — | — | Staged publication, overwrite checks and source preservation. |
+| T14 | Whole Workbench save/archive | T13 | NOT_STARTED | — / — | — | Preserve topology, external/user files, reconnect identity. |
+| T15 | Selected Workbench model-only standalone export | T01, T14 | NOT_STARTED | — / — | — | Required `.mechdb`/`.mechdat` model-only export; no archive output or retained-result-transfer requirement. Workbench archives use `.wbpz`. |
+| T16 | Final shared controls, all ports and eight icons | T05–T15 | NOT_STARTED | — / — | — | Actual QML interactions and saved visual comparisons. |
+| T17 | Runnable workflows, help and ownership docs | T16 | NOT_STARTED | — / — | — | Original examples and current spec/map registration. |
+| T18 | 2026 R1 integration and final QA matrix | T01–T17 | NOT_STARTED | — / — | — | Final focused/fast/docs checks and independent integration review on 261. |
+
+## T01 prerequisite evidence and release amendment — 2026-09-07
+
+- Read all six handoff documents and reconciled root, branch and baseline. Created `codex/mechanical-catalogue` at `7f5304b4`; no task is accepted, no task commit exists, and nothing was pushed.
+- Command: `.\venv\Scripts\python.exe .\artifacts\verification_logs\mechanical_catalogue\T01\inspect_environment.py` completed successfully and wrote `environment_inventory.json` beside it. Both files are ignored by `.gitignore:29`. This is prerequisite evidence, not the planned capability-probe suite or implementation acceptance.
+- Checked process/user/machine installation variables, ordinary installation roots, vendor registry and official `ansys.tools.common.path` discovery. Available releases are 261 and 232; `find_mechanical(version=252)` raises `ValueError: Version 252 not found. Available versions are [261, 232]`. No 252 Mechanical/Workbench binaries were found. This bounded inventory is not an exhaustive disk/remote-host search and does not establish license access.
+- At the prerequisite check, project venv packages were PyMechanical 0.12.12, Mechanical stubs 0.1.12, tools-common 0.5.2, DPF 0.16.1; PyWorkbench was absent. That missing-package prerequisite was subsequently resolved by the retained 261 qualification using PyWorkbench 0.14.0; check current availability afresh rather than reinstalling from this historical note. The historical inventory collector targets the former 252 gate and must not be used as the revised acceptance check; binary presence never substitutes for package/license/API qualification.
+- Independent reviewer `t01_review` reproduced official discovery, explicit 252 rejection and executable/package checks; the former local-environment block was substantiated under the original scope. Neither worker nor reviewer initialized Mechanical/CLR, launched Ansys, attempted a license checkout, opened a model, solved, or changed packages during that check.
+- Reused retained 261 reports without rerunning probes. The retained `.dsdb` checksum matches its conversion report. Full model/result/dependency, query-adapter and restoration qualification on 261 remains unverified.
+- The initial prerequisite check preserved all five pre-existing dirty/untracked file checksums and changed only this ledger and ignored T01 evidence. The subsequent release amendment changes the four plan/reference documents and Open's version-label assets/manifest. Production ownership is unchanged, so no agent-map update is needed. No incomplete-task or metadata-only commit was made.
+- Closeout checks: `scripts/check_traceability.py` PASS; `scripts/check_markdown_links.py` PASS; explicit `audit_markdown_file` audit of all five plan-package Markdown files PASS (zero issues); `git diff --check` PASS.
+- User resolution: 261 replaces 252 as the sole initial reference/acceptance release. Active 252 gates were removed from the plan/reference package; Auto and explicit release discovery now require >=261. The saved Open label is `Auto · 2026 R1 or newer`; its layout is unchanged. All 18 task subjects and remaining gates are preserved. The earlier environment report remains historical evidence rather than a current blocker.
+- Amendment acceptance: `release_review` approved the actual document/visual changes against the saved baseline with no actionable findings; all 18 subjects/dependencies and non-release gates remain. All 18 visual-manifest entries match, the SVG change is label-only, the other three PNGs are byte-identical, and the updated Open PNG was inspected. Traceability, canonical Markdown links and explicit five-file plan-package links pass. This does not accept T01.
+- Before live qualification, read-only preparation identified documented model-level global Bolt Pretension activation as the non-beta shared-object fixture candidate. Its live behavior and enum binding were then unproved; the qualification evidence below supersedes that preliminary limit.
+- Retained qualification evidence: `artifacts/verification_logs/mechanical_catalogue/T01/qualification.json`. Stage A proves global Bolt Pretension activation and typed coordinate/scoping predicates, including reopening; 61 bounded checks pass. A small Workbench solve produced three retained result sets. The old selected `.dsdb` archive experiment preserved model/geometry/loads but no usable result file despite both archive flags True. That finding remains historical evidence for a retired route, not a current blocking gate or a passed test. Cached Solved state is not result-file proof. Full C–E qualification has not run.
+- Archive-control comparison: native Workbench `Archive` with `IncludeSkippedFiles=True` (results/solution files), `IncludeUserFiles=True`, `IncludeExternalImportedFiles=True` and `FailIfMissingFiles=True` retained the actual 589,824-byte RST. With both source projects unavailable, native `Unarchive(ArchivePath=..., ProjectPath=...)` reopened the archive and the native result reader returned sets 1/2/3. This proves whole-Workbench result inclusion; it does not repair files omitted earlier by selected-model `.dsdb` export. No new solve was run.
+- The plan, references, backend decisions, visual source/manifest, fixture recipe and probe option mapping now express the three user-controlled inclusion choices. Inapplicable controls retain their typed ports and are not consumed. `FailIfMissingFiles=True` and publication/data-loss safeguards remain. A narrow `.gitignore` exception makes the neutral [capability proof](../../specs/perf/MECHANICAL_CATALOGUE_CAPABILITY_PROOF.md) trackable; no ignored file was force-added, and the unrelated Physical Simulation index entry was preserved.
+- Final delta checks: 8 focused tests passed; qualification schema, traceability, canonical Markdown links, explicit six-document Markdown audit, all 18 visual-manifest entries and diff whitespace passed. Independent Sol review approved the archive-control contract and native archive proof, then verified exact Workbench/Mechanical process identities and later reconciliation showing all absent. The earlier immediate shutdown survivor is disclosed in the evidence rather than erased.
+- Handoff safety: owned Ansys processes closed, disposable source directories restored, and source/database/result hashes match. Reuse the retained solved project/results; repeat checks only for changed code, failures or unresolved concerns, and solve additional fixtures only for required uncovered families. The user resolved the archive route decision. No T01 acceptance, task commit or push exists; no production add-on/runtime/QML implementation has begun.
+- This session ends after the docs-only native-archive amendment and handoff review. The [fresh-session prompt](IMPLEMENTATION_PROMPT.md) expressly authorizes resumption there. Existing scripts/tests/fixture recipes and historical qualification JSON were not changed in this amendment; the next owner must align their active gates before accepting T01. Production ownership is unchanged, so no agent-map update is needed.
+- Native-archive handoff checks: independent Sol document review PASS; traceability PASS; canonical Markdown links PASS; explicit seven-document handoff link audit PASS; 18-task structure and diff whitespace PASS. No Ansys launch, runtime implementation, solve, task commit or push occurred in this docs-only amendment.
+- Approved clarification details: Exact compares the whole query; only Name+Contains uses Unicode-whitespace AND terms. Exact, ordinary Contains and bare Property Value operands preserve interior whitespace; only Property Value operands trim syntactic edge whitespace. Property Value splits the first `=` outside complete JSON-style double-quoted operands, preserves decoded quoted content and literal bare backslashes/apostrophes, and rejects malformed quotes/escapes. A name/value pair requires a nonempty caption; an explicit empty value matches only an available empty display in both Match modes. With no outside `=`, there is no caption restriction. Blank unquoted queries remain unrestricted; picker identities are resolved before text grammar. PLAN/T06 owns the full examples and normalization rules. Existing probe records do not prove newly clarified cases; add the necessary focused checks during implementation.
+- The four documentation corrections also make preservation conditional on requested archive inclusions, define workspace-scoped Interactive retention and fresh Sol handoff, and label old PyWorkbench-absence/no-solve statements as historical. The revised full prompt carries these rules. This correction changed documentation only; application code, probes, fixtures and historical qualification JSON remain untouched.
+- Clarification closeout: independent Sol documentation review PASS; traceability PASS; canonical Markdown links PASS; explicit seven-document handoff link audit PASS; 18 task headings/subjects and diff whitespace PASS. The complete handoff prompt explicitly delegates detailed work and keeps coordinator context compact. Execution remains paused for the user's fresh session; no Ansys launch, runtime check, task commit or push occurred.
+
+## Dedicated commit subjects
+
+| Task | Exact subject |
+| --- | --- |
+| T01 | `T01 Validate Mechanical catalogue backend routes` |
+| T02 | `T02 Add Mechanical runtime value contracts` |
+| T03 | `T03 Own Mechanical sessions within execution runs` |
+| T04 | `T04 Share metadata-driven node selectors` |
+| T05 | `T05 Add Mechanical model opening and discovery` |
+| T06 | `T06 Add Mechanical tree and property search` |
+| T07 | `T07 Extract Mechanical definition tables` |
+| T08 | `T08 Extract Mechanical result and worksheet tables` |
+| T09 | `T09 Add Mechanical camera view extraction` |
+| T10 | `T10 Add Mechanical viewport image batches` |
+| T11 | `T11 Add scoped Mechanical script execution` |
+| T12 | `T12 Add load-step Mechanical command snippets` |
+| T13 | `T13 Add explicit standalone Mechanical saving` |
+| T14 | `T14 Preserve Workbench projects during explicit save` |
+| T15 | `T15 Export selected Workbench models to standalone` |
+| T16 | `T16 Finalize Mechanical node controls and icons` |
+| T17 | `T17 Document Mechanical workflows and examples` |
+| T18 | `T18 Verify the complete Mechanical catalogue` |
+
+## Recovery checklist
+
+1. Read full PLAN.md and TASK_LEDGER.md, not only the current task subsection.
+2. Read current AGENTS guidance, check assigned working root/branch, inspect Git status/diff and active workers.
+3. Verify accepted task commits and evidence; reconcile any difference between Git and this ledger before writing.
+4. Locate the first incomplete task and its accepted prerequisites. Retain unresolved gates; do not default them away.
+5. Assign one fresh bounded implementation owner and the appropriate independent reviewer. Keep one writer in the shared checkout.
+6. Resume that task's next action. Do not rerun accepted heavy Ansys cohorts or recreate finished tasks unless changed evidence justifies it.
+
+## Planning validation
+
+The initial independent planning review approved the architecture after correcting catalogue identity, explicit run cleanup, discovery-only Info publication and image-branch isolation, and checked all 18 task rows/dependencies/commit subjects. A later backend refinement ran the limited 261 probes recorded in BACKEND_DECISIONS.md and adopted the user's COREX-owned background-query choice. Follow-up review corrected unknown-data matching, explicit time-based probe addressing, and the No explicit scope classification. These reviews/probes do not accept the full T01 implementation task. Saved visual files remain design references; production QML verification belongs to T16.
+
+Backend refinement outcome:
+
+- Native 261 Filter/Find/IsObjInTreeView is rejected for background matching; the selected Search uses the fixed eleven-category COREX data-query contract instead.
+- Basic native Workbench `.dsdb` conversion into `.mechdb`, distinct-name `.mechdat`, and archived `.mechpz` reopened with explicit Unarchive preserved the disposable marker.
+- Two saved camera names/indices and public numeric fields were read successfully in 261. Complete restoration/realistic fixture coverage remains unverified.
+- The result-table plan now distinguishes actual ITable columns, per-set configured-result summaries and time-based ForceReaction; no universal GUI history API is assumed.
+- At planning closeout T01 was NOT_STARTED. It now verifies these concrete designs and realistic data completeness on the user-selected reference release 261. It does not rediscover/retry the failed native batch-filter candidate. No user input decision remains pending for the backend direction or release target.
+
+Planning checks completed on 2026-09-07:
+
+- `scripts/check_traceability.py`: PASS.
+- `scripts/check_markdown_links.py`: PASS.
+- Explicit local-link audit of every Markdown file in this plan package: PASS.
+- Plan/ledger structure check: 18 ordered task sections, all required task fields, matching separate commit subjects and all implementation statuses NOT_STARTED: PASS.
+- Saved visual manifest: hashes/sizes checked; four PNG sheets and eight original SVG icon files present; rendered icon sheet visually inspected: PASS.
+- `git diff --check`: PASS. Existing unrelated dirty work retained; no application source files edited by this planning task.
+
+No agent-map update is needed for saving this package: current application ownership is unchanged. Implementation tasks explicitly require affected maps/COVERAGE updates when ownership or routes change. The spec index links this package as planned with no implementation proof.
