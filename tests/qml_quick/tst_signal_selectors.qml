@@ -153,4 +153,26 @@ TestCase {
         compare(chips.chipValues[0], 0);
         compare(chips.chipValues[1], "Current");
     }
+
+    function test_shared_filter_ranks_unicode_and_caps_after_filtering() {
+        var root = makeHarness();
+        var values = [];
+        for (var index = 0; index < 80; ++index)
+            values.push("Result " + String(index));
+        values.push("RÉSULTAT exact");
+        root.item = Object.assign({}, root.item, {"enum_values": values, "enum_codes": values});
+        var inspector = findChild(root, "inspectorEditableComboEditor");
+        inspector.editText = "résultat";
+        compare(inspector.filteredOptions.length, 1);
+        compare(inspector.filteredOptions[0].value, "RÉSULTAT exact");
+        inspector.editText = "result";
+        compare(inspector.filteredOptions.length, 50);
+
+        root.inlineControl.model = values;
+        root.inlineControl.optionCodes = values;
+        root.inlineControl.editText = "résultat";
+        compare(root.inlineControl.filteredOptions.length, 1);
+        root.inlineControl.editText = "result";
+        compare(root.inlineControl.filteredOptions.length, 50);
+    }
 }

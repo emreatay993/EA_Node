@@ -26,7 +26,10 @@ from ea_node_editor.graph.workspace_state import WorkspaceData
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.plugin_contracts import PluginProvenance
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
-from ea_node_editor.nodes.builtins.plot.signal_schema import enrich_signal_property_items
+from ea_node_editor.addons.property_edit_adapters import (
+    PropertyEditAdapterContext,
+    build_property_items_with_adapters,
+)
 from ea_node_editor.settings import (
     DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
 )
@@ -227,9 +230,10 @@ class _NodePresentationFacts:
 
 
 class _GraphSceneNodePayloadFactory:
-    def __init__(self, boundary_adapters: GraphBoundaryAdapters, current_input_provider: Any = None) -> None:
+    def __init__(self, boundary_adapters: GraphBoundaryAdapters, current_input_provider: Any = None, property_edit_adapters: Any = ()) -> None:
         self._boundary_adapters = boundary_adapters
         self._current_input_provider = current_input_provider
+        self._property_edit_adapters = tuple(property_edit_adapters or ())
 
     @staticmethod
     def _surface_metrics(
@@ -540,10 +544,17 @@ class _GraphSceneNodePayloadFactory:
             enabled_input_port_keys=enabled_input_port_keys,
             port_connection_counts=port_connection_counts,
         )
-        if spec.type_id == "plot.signal":
-            source = self._current_input_provider(node.node_id, "values") if self._current_input_provider else None
-            return enrich_signal_property_items(items, source)
-        return items
+        return build_property_items_with_adapters(
+            self._property_edit_adapters,
+            PropertyEditAdapterContext(
+                node=node,
+                spec=spec,
+                workspace_nodes=workspace_nodes,
+                workspace_edges=getattr(self, "_workspace_edges", ()),
+                current_output_provider=self._current_input_provider,
+            ),
+            items,
+        )
 
     @classmethod
     def view_visible_ports(
@@ -1098,6 +1109,7 @@ class _GraphSceneNodePayloadFactory:
         presentation_facts: _NodePresentationFacts | None = None,
         data_type_projection: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
+        self._workspace_edges = workspace.edges
         if presentation_facts is None:
             enabled_input_port_keys = {
                 str(edge.target_port_key)
@@ -1379,6 +1391,7 @@ class _GraphSceneNodePayloadFactory:
         inline_property_by_key: Mapping[str, Mapping[str, Any]] | None = None,
         data_type_projection: Mapping[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
+        self._workspace_edges = workspace.edges
         ports_payload: list[dict[str, Any]] = []
         availability_by_key = port_availability_for_node(
             workspace=workspace,

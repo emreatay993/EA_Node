@@ -16,6 +16,9 @@ from ea_node_editor.nodes.plugin_contracts import (
     PluginAvailability,
     PluginBackendDescriptor,
 )
+from ea_node_editor.addons.mechanical.property_edit import (
+    create_mechanical_property_edit_adapters,
+)
 
 MECHANICAL_ADDON_ID = "mechanical.corex"
 _DEPENDENCIES = ("ansys-mechanical-core", "ansys-workbench-core")
@@ -71,4 +74,5 @@ __all__ = [
     "MECHANICAL_PLUGIN_BACKEND",
     "PLUGIN_BACKENDS",
     "get_mechanical_addon_availability",
+    "create_mechanical_property_edit_adapters",
 ]

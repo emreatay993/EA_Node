@@ -73,11 +73,50 @@ def build_property_items_with_adapters(
     return resolved_items
 
 
+def create_property_edit_adapters(
+    *,
+    preferences_document: Any = None,
+    store: Any = None,
+) -> tuple[Any, ...]:
+    """Compose core and enabled add-on adapters for every UI projection."""
+    from ea_node_editor.addons.catalog import create_live_property_edit_adapters
+    from ea_node_editor.nodes.builtins.plot.property_edit_adapter import (
+        create_plot_property_edit_adapters,
+    )
+
+    return (
+        *create_plot_property_edit_adapters(),
+        *create_live_property_edit_adapters(
+            preferences_document=preferences_document,
+            store=store,
+        ),
+    )
+
+
+def selector_metadata_signature(items: Iterable[Mapping[str, Any]]) -> tuple[Any, ...]:
+    """Return only metadata that can change a selector while it is displayed."""
+    fields = (
+        "enum_values",
+        "enum_codes",
+        "list_item_enum_values",
+        "list_item_enum_codes",
+        "placeholder_text",
+        "metadata_notice",
+    )
+    return tuple(
+        (item.get("key"), *(repr(item.get(field)) for field in fields))
+        for item in items
+        if item.get("searchable") or item.get("exact_selectors")
+    )
+
+
 __all__ = [
     "AddOnPropertyEditAdapter",
     "PropertyEditAdapterContext",
     "PropertyEditRewrite",
     "PropertySourcePathResolver",
     "build_property_items_with_adapters",
+    "create_property_edit_adapters",
     "rewrite_property_edit_with_adapters",
+    "selector_metadata_signature",
 ]

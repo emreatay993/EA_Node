@@ -6,10 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ea_node_editor.addons.catalog import create_live_property_edit_adapters
-from ea_node_editor.nodes.builtins.plot.property_edit_adapter import (
-    create_plot_property_edit_adapters,
-)
+from ea_node_editor.addons.property_edit_adapters import create_property_edit_adapters
 
 
 def create_shell_property_edit_adapters(
@@ -17,12 +14,9 @@ def create_shell_property_edit_adapters(
     preferences_document: Any = None,
     store: Any = None,
 ) -> tuple[Any, ...]:
-    return (
-        *create_plot_property_edit_adapters(),
-        *create_live_property_edit_adapters(
-            preferences_document=preferences_document,
-            store=store,
-        ),
+    return create_property_edit_adapters(
+        preferences_document=preferences_document,
+        store=store,
     )
 
 

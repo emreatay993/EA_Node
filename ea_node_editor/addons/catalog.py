@@ -71,6 +71,7 @@ REGISTERED_ADDON_REGISTRATIONS = (
         backend_module="ea_node_editor.addons.mechanical.catalog",
         backend_id=MECHANICAL_ADDON_ID,
         node_backend_module="ea_node_editor.addons.mechanical.catalog",
+        property_edit_adapter_factory_attr="create_mechanical_property_edit_adapters",
     ),
 )
 

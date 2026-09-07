@@ -79,7 +79,7 @@ class GraphOutputModeUiTests(unittest.TestCase):
             "class _GraphSceneBackdropPartitioner:",
             (package_dir / "backdrop_partitioner.py").read_text(encoding="utf-8"),
         )
-        self.assertIn("self._node_payload_factory = _GraphSceneNodePayloadFactory(self.boundary_adapters, current_input_provider)", builder_text)
+        self.assertIn("self._node_payload_factory = _GraphSceneNodePayloadFactory(self.boundary_adapters, current_input_provider, property_edit_adapters)", builder_text)
         self.assertIn(
             "self._backdrop_partitioner = _GraphSceneBackdropPartitioner(self._node_payload_factory)",
             builder_text,

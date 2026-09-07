@@ -147,7 +147,7 @@ FocusScope {
                 containsMatches.push(option);
             }
         }
-        return exactMatches.concat(prefixMatches, containsMatches);
+        return exactMatches.concat(prefixMatches, containsMatches).slice(0, 50);
     }
 
     function _filteredIndexForSourceIndex(sourceIndex) {

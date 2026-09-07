@@ -1158,8 +1158,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         shell_adapter_source = (
             REPO_ROOT / "ea_node_editor/ui/shell/property_edit_adapters.py"
         ).read_text(encoding="utf-8")
-        self.assertIn("create_plot_property_edit_adapters", shell_adapter_source)
-        self.assertIn("create_live_property_edit_adapters", shell_adapter_source)
+        self.assertIn("create_property_edit_adapters", shell_adapter_source)
 
     def test_node_spec_validation_and_property_coercion_have_direct_owners(self) -> None:
         coercion_tree = parse_module("ea_node_editor/nodes/property_coercion.py")

@@ -102,6 +102,7 @@ Update when payload fields, compact data-type projection/catalog generation, com
 ## 2026-07-11 Performance Ownership
 
 - `GraphScenePayloadBuilder` creates one frozen presentation-facts record per invocation and reuses effective ports, metrics, bounds, icon/minimap facts, and endpoint anchors across node/backdrop/minimap/edge builders.
+- Canvas inline properties and Inspector properties use the same registered `PropertyEditAdapterContext` route. Accepted-output refresh compares only selector-facing metadata and defers publication while the corresponding editor has focus.
 - Stable title/position/connection payloads patch keyed cache slots. Single structural edge add/remove updates canonical sorted edge arrays and incident/pair/source-port/target-port indexes incrementally; bulk, endpoint, partial, identity, and builder-fallback cases reindex through the existing path.
 - Visible publication uses `replace_existing_payloads` only when IDs and visibility are stable; sparse comment/link badges are separate from the full visible-node model.
 

@@ -137,13 +137,15 @@ def test_registered_addon_catalog_exposes_tabular_property_edit_adapter_factory(
 
     assert [adapter.__class__.__name__ for adapter in adapters] == [
         "TabularDataPropertyEditAdapter",
+        "MechanicalPropertyEditAdapter",
     ]
     assert [
         adapter.__class__.__name__
         for adapter in create_shell_property_edit_adapters(
             preferences_document=default_app_preferences_document()
         )
-    ] == [
-        "PlotPropertyEditAdapter",
-        "TabularDataPropertyEditAdapter",
-    ]
+        ] == [
+            "PlotPropertyEditAdapter",
+            "TabularDataPropertyEditAdapter",
+            "MechanicalPropertyEditAdapter",
+        ]

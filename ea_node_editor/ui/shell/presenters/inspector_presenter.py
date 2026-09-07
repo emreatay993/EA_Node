@@ -26,8 +26,8 @@ from ea_node_editor.nodes.node_specs import property_inspector_editor
 from ea_node_editor.platform_open import open_path_with_default_handler
 from ea_node_editor.settings import DEFAULT_PROPERTY_PANE_VARIANT
 from ea_node_editor.ui.support.node_presentation import build_user_facing_node_instance_number, has_focused_selector
+from ea_node_editor.addons.property_edit_adapters import selector_metadata_signature
 from ea_node_editor.ui.support.solution_output_cache import current_output_value
-from ea_node_editor.nodes.builtins.plot.signal_schema import connected_signal_value, enrich_signal_property_items
 from ea_node_editor.ui.media_panel_source import media_panel_source_input_exposed
 from ea_node_editor.ui.shell.inspector_projection import (
     build_pin_data_type_options,
@@ -63,7 +63,7 @@ class ShellInspectorPresenter(QObject):
         self._pin_data_type_options_cache: list[str] = []
         host.selected_node_changed.connect(self._emit_selected_node_changed)
         host.workspace_state_changed.connect(self._emit_workspace_state_changed)
-        self._last_signal_schema = None
+        self._last_selector_metadata = None
         self._runtime_schema_pending = False
         host.node_execution_state_changed.connect(self._on_current_output_changed)
         app = QGuiApplication.instance()
@@ -77,38 +77,35 @@ class ShellInspectorPresenter(QObject):
 
     def _emit_selected_node_changed(self) -> None:
         self._runtime_schema_pending = False
-        self._last_signal_schema = None
+        self._last_selector_metadata = None
         self.selected_node_changed.emit()
         self.inspector_state_changed.emit()
 
     def _emit_workspace_state_changed(self) -> None:
         self._runtime_schema_pending = False
-        self._last_signal_schema = None
+        self._last_selector_metadata = None
         self.workspace_state_changed.emit()
         self.inspector_state_changed.emit()
 
-    def _signal_schema(self):
+    def _selector_metadata(self):
         selected = self._selected_node_context()
-        if selected is None or selected[0].type_id != "plot.signal":
+        if selected is None:
             return None
         workspace_id = self._host.workspace_manager.active_workspace_id()
-        workspace = self._host.model.project.workspaces.get(workspace_id)
-        source = connected_signal_value(
-            selected[0].node_id, workspace.edges if workspace else (),
-            lambda node, port: current_output_value(self._host.run_state, workspace_id, node, port),
+        return workspace_id, selected[0].node_id, selector_metadata_signature(
+            self._build_selected_node_property_items()
         )
-        return workspace_id, selected[0].node_id, enrich_signal_property_items([{"key": "x_column"}, {"key": "y_columns"}], source)
 
     def _on_current_output_changed(self) -> None:
-        schema = self._signal_schema()
-        if schema is None or schema == self._last_signal_schema:
+        schema = self._selector_metadata()
+        if schema is None or schema == self._last_selector_metadata:
             self._runtime_schema_pending = False
             return
         if has_focused_selector("inspectorPropertyEditor", "inspectorSelectorOptions"):
             self._runtime_schema_pending = True
             return
         self._runtime_schema_pending = False
-        self._last_signal_schema = schema
+        self._last_selector_metadata = schema
         self.inspector_state_changed.emit()
 
     def _on_editor_focus_changed(self, _focused: QObject | None) -> None:
@@ -189,6 +186,17 @@ class ShellInspectorPresenter(QObject):
 
     @property
     def selected_node_property_items(self) -> list[dict[str, Any]]:
+        items = self._build_selected_node_property_items()
+        selected = self._selected_node_context()
+        if selected is not None:
+            self._last_selector_metadata = (
+                self._host.workspace_manager.active_workspace_id(),
+                selected[0].node_id,
+                selector_metadata_signature(items),
+            )
+        return items
+
+    def _build_selected_node_property_items(self) -> list[dict[str, Any]]:
         selected = self._selected_node_context()
         if selected is None:
             return []
@@ -205,7 +213,6 @@ class ShellInspectorPresenter(QObject):
             port_connection_counts[source_key] = port_connection_counts.get(source_key, 0) + 1
             port_connection_counts[target_key] = port_connection_counts.get(target_key, 0) + 1
         metadata = self._host.model.project.metadata
-        self._last_signal_schema = self._signal_schema()
         return build_selected_node_property_items(
             node=node,
             spec=spec,

@@ -53,13 +53,32 @@ from ea_node_editor.ui_qml.graph_scene_payload.theme_inputs import (
 
 
 class GraphScenePayloadBuilder:
-    def __init__(self, boundary_adapters: GraphBoundaryAdapters | None = None, *, current_input_provider: Any = None) -> None:
+    def __init__(self, boundary_adapters: GraphBoundaryAdapters | None = None, *, current_input_provider: Any = None, property_edit_adapters: Any = ()) -> None:
         self.boundary_adapters = boundary_adapters or fallback_graph_boundary_adapters()
         self._theme_resolver = _GraphSceneThemeResolver()
-        self._node_payload_factory = _GraphSceneNodePayloadFactory(self.boundary_adapters, current_input_provider)
+        self._node_payload_factory = _GraphSceneNodePayloadFactory(self.boundary_adapters, current_input_provider, property_edit_adapters)
         self._backdrop_partitioner = _GraphSceneBackdropPartitioner(self._node_payload_factory)
         self._mutation_timing_enabled = False
         self._last_mutation_phase_timings_ms: dict[str, float] = {}
+
+    def build_inline_properties_payload(
+        self,
+        *,
+        node: Any,
+        spec: NodeTypeSpec,
+        workspace: WorkspaceData,
+        workspace_nodes: Mapping[str, Any],
+        enabled_input_port_keys: set[str] | frozenset[str],
+        port_connection_counts: Mapping[tuple[str, str], int],
+    ) -> list[dict[str, Any]]:
+        self._node_payload_factory._workspace_edges = workspace.edges
+        return self._node_payload_factory.build_inline_properties_payload(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace_nodes,
+            enabled_input_port_keys=enabled_input_port_keys,
+            port_connection_counts=port_connection_counts,
+        )
 
     @staticmethod
     def _presentation_sizes(
