@@ -1,6 +1,6 @@
 # Purpose: Open native Mechanical models and execute allowlisted Open/Search/table operations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py
+# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py
 
 from __future__ import annotations
 
@@ -79,7 +79,9 @@ class MechanicalOwnerBackend:
             "sources", "family", "table", "table_selector", "component", "units",
             "native_output_path",
         }
-        if set(args) != required or (self.app is None and self.mechanical is None):
+        if set(args) not in (required, required | {"sets"}) or (
+            self.app is None and self.mechanical is None
+        ):
             raise ValueError("Mechanical definition-table arguments or session state are invalid")
         if self.work_root is None:
             raise ValueError("Mechanical definition-table working root is unavailable")
@@ -119,10 +121,26 @@ class MechanicalOwnerBackend:
             data = output.read_bytes()
             if hashlib.sha256(data).hexdigest() != receipt["sha256"]:
                 raise RuntimeError("Mechanical definition extraction file hash is invalid")
+            payload = json.loads(data)
+            warnings = payload.pop("warnings", [])
+            if (
+                type(warnings) is not list
+                or len(warnings) > 100
+                or any(type(item) is not str or not item or len(item) > 2048 for item in warnings)
+            ):
+                raise RuntimeError("Mechanical table diagnostics are invalid")
             return {
                 "status": "extracted",
-                "definition_tables": build_definition_tables(json.loads(data)),
+                "definition_tables": build_definition_tables(payload),
+                "warnings": warnings,
             }
+        except Exception as exc:
+            if "mechanical.restore_failed:" in str(exc):
+                try:
+                    self.close()
+                except Exception as close_exc:
+                    raise RuntimeError(f"{exc}; native session retirement failed: {close_exc}") from exc
+            raise
         finally:
             output.unlink(missing_ok=True)
 

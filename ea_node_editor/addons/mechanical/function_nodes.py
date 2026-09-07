@@ -79,8 +79,8 @@ def search_mechanical_tree(ctx, model, settings):
 @corex.node(
     id="mechanical.fea_table", name="FEA Table",
     category=("FEA", "ANSYS", "Mechanical"),
-    description="Extracts supported Mechanical model definitions into immutable COREX tables without solving.",
-    keywords=("mechanical", "ansys", "fea", "table", "definition"),
+    description="Extracts supported Mechanical definitions, existing results, probes, and worksheets into immutable COREX tables without solving.",
+    keywords=("mechanical", "ansys", "fea", "table", "definition", "result", "worksheet"),
     _solution_reuse_scope="never",
 )
 @corex.input("model", value_type="COREX.Mechanical.Model", required=True,
@@ -92,7 +92,7 @@ def search_mechanical_tree(ctx, model, settings):
 @corex.dropdown("family", default="auto",
     options=("auto", "model_definition", "result_history_summary", "spatial_samples", "supported_worksheet"),
     label="Family", port=True, _inspector_editor="enum", _property_group="Table selection",
-    _port_value_type="COREX.DataTypes.String", _port_description="Table family; T07 supports Auto and Model definition.")
+    _port_value_type="COREX.DataTypes.String", _port_description="Automatic or explicit definition, result, spatial, or worksheet table family.")
 @corex.text("table", default="", label="Table / property", port=True,
     _inspector_editor="text", _property_group="Table selection",
     _port_value_type="COREX.DataTypes.String", _port_description="Exact table/property selector; empty requires one applicable table.")

@@ -1,6 +1,6 @@
 # Purpose: Build bounded discovery and complete data-only Search snapshots on the native owner thread.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py
+# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py
 
 from __future__ import annotations
 
@@ -815,20 +815,47 @@ def collect_catalogue_rows(
         )
         rows.append(row)
         context = contexts_by_id[object_id]
+        descriptors: list[tuple[str, str, str, int | None]] = []
         table = _safe(obj, "TabularData")
         if table is not None:
             try:
                 keys = [str(key) for key in table.Keys]
             except Exception:
                 keys = []
-            table_key = f"{object_id}:tabular_data"
+            descriptors.append((
+                f"{object_id}:tabular_data", "result_history_summary", "ITable", len(keys)
+            ))
+        api_type = _type_name(obj)
+        if api_type.endswith(".ForceReaction"):
+            descriptors.append((
+                f"{object_id}:force_reaction", "result_history_summary",
+                "ForceReaction RetrieveResult", 6,
+            ))
+        elif (
+            ".Results." in api_type
+            and ".ProbeResults." not in api_type
+            and not api_type.endswith(".Solution")
+        ):
+            descriptors.extend((
+                (f"{object_id}:configured_summary", "result_history_summary", "Stored-set summary", 5),
+                (f"{object_id}:plot_data", "spatial_samples", "PlotData", None),
+            ))
+        if api_type.endswith(".MeshControls.Mesh") or api_type.endswith(".MeshControlWorksheet"):
+            descriptors.append((
+                f"{object_id}:mesh_worksheet", "supported_worksheet", "Mesh-control worksheet", 5
+            ))
+        if api_type.endswith(".LayeredSection") or api_type.endswith(".LayeredSectionWorksheet"):
+            descriptors.append((
+                f"{object_id}:layered_section", "supported_worksheet", "Layered-section worksheet", 5
+            ))
+        for table_key, table_family, definition_kind, column_count in descriptors:
             trow = _blank(identity, "table")
             trow.update(
                 object_id=object_id, analysis_id=analysis_id,
                 object_path=object_path, display_name=str(_safe(obj, "Name", "")),
-                api_type=_type_name(obj), table_key=table_key,
-                table_family="api_native", definition_kind="ITable",
-                row_count=None, column_count=len(keys),
+                api_type=api_type, table_key=table_key,
+                table_family=table_family, definition_kind=definition_kind,
+                row_count=None, column_count=column_count,
             )
             trow["selector_code"] = encode_selector(
                 "table", document_id=identity["document_id"],

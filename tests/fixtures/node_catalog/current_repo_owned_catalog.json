@@ -14997,7 +14997,7 @@
           "side": "",
           "accepted_data_types": [],
           "display_tier": "",
-          "description": "Table family; T07 supports Auto and Model definition.",
+          "description": "Automatic or explicit definition, result, spatial, or worksheet table family.",
           "data_access": "item"
         },
         {
@@ -15270,7 +15270,7 @@
         }
       ],
       "collapsible": true,
-      "description": "Extracts supported Mechanical model definitions into immutable COREX tables without solving.",
+      "description": "Extracts supported Mechanical definitions, existing results, probes, and worksheets into immutable COREX tables without solving.",
       "is_async": false,
       "runtime_behavior": "active",
       "solution_reuse_scope": "never",
@@ -15288,7 +15288,9 @@
         "ansys",
         "fea",
         "table",
-        "definition"
+        "definition",
+        "result",
+        "worksheet"
       ],
       "settings_groups": [
         {
@@ -15357,7 +15359,7 @@
         "side": "",
         "accepted_data_types": [],
         "display_tier": "",
-        "description": "Table family; T07 supports Auto and Model definition.",
+        "description": "Automatic or explicit definition, result, spatial, or worksheet table family.",
         "data_access": "item"
       },
       {

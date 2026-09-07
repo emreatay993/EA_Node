@@ -1,6 +1,6 @@
 # Purpose: Execute Mechanical Open, Search, and FEA Table through the run-owned session.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py
+# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py
 
 from __future__ import annotations
 
@@ -311,22 +311,6 @@ def execute_fea_table(ctx, model=None, source=None, settings=None):
             raise ValueError(
                 "mechanical.cross_session_reference: FEA Table source belongs to another Model"
             )
-        api_type = str(value.payload.get("api_type", ""))
-        table_families = {
-            str(item.get("table_family", ""))
-            for item in value.payload.get("tables", ())
-            if isinstance(item, Mapping)
-        }
-        if (
-            ".Results." in api_type
-            or api_type.endswith(".Solution")
-            or api_type.endswith("Worksheet")
-            or any(family and family != "field_definition" for family in table_families)
-        ):
-            raise ValueError(
-                "mechanical.table_unsupported: result, probe, and worksheet sources "
-                "require the T08 adapters"
-            )
         sources.append(
             {
                 "kind": "object" if value.data_type_id == OBJECT_TYPE_ID else "property",
@@ -341,10 +325,11 @@ def execute_fea_table(ctx, model=None, source=None, settings=None):
         "supported_worksheet",
     }:
         raise ValueError(f"Unknown Mechanical table family: {family}")
-    if family not in {"auto", "model_definition"}:
+    if family not in {"auto", "model_definition"} and any(
+        value.data_type_id == PROPERTY_TYPE_ID for value in source
+    ):
         raise ValueError(
-            f"mechanical.table_unsupported: family {family!r} is not implemented; "
-            "T07 supports model definitions"
+            f"mechanical.table_unsupported: family {family!r} requires a Mechanical Object source"
         )
     table = _setting(ctx, settings, "table", "")
     component = _setting(ctx, settings, "component", "all")
@@ -356,23 +341,47 @@ def execute_fea_table(ctx, model=None, source=None, settings=None):
     if units not in {"source", "si"}:
         raise ValueError("FEA Table Units must be source or si")
     selector = _table_selector(table, metadata) if table else None
+    result_sources = [str(value.payload.get("api_type", "")) for value in source]
+    sets_active = family in {"result_history_summary", "spatial_samples"} or (
+        family == "auto"
+        and any(".Results." in value or value.endswith(".Solution") for value in result_sources)
+    )
+    sets: list[int] = []
+    if sets_active:
+        raw_sets = _setting(ctx, settings, "sets", [])
+        if type(raw_sets) not in {list, tuple}:
+            raise TypeError("FEA Table Rows / sets must be an integer list")
+        if any(type(value) is not int or value <= 0 for value in raw_sets) or len(set(raw_sets)) != len(raw_sets):
+            raise ValueError("FEA Table Rows / sets must contain unique positive stored-set IDs")
+        sets = list(raw_sets)
     try:
-        result = ctx.mechanical_sessions.operate(
+        args = {
+            "sources": sources,
+            "family": family,
+            "table": "" if selector is not None else table,
+            "table_selector": selector,
+            "component": component,
+            "units": units,
+            "native_output_path": str(
+                session.work_root / f"native-definitions-{uuid4().hex}.json"
+            ),
+        }
+        if sets_active:
+            args["sets"] = sets
+        response = ctx.mechanical_sessions.operate(
             session,
             expected_revision=metadata["model_revision"],
             operation="definition_tables",
-            args={
-                "sources": sources,
-                "family": family,
-                "table": "" if selector is not None else table,
-                "table_selector": selector,
-                "component": component,
-                "units": units,
-                "native_output_path": str(
-                    session.work_root / f"native-definitions-{uuid4().hex}.json"
-                ),
-            },
-        )["definition_tables"]
+            args=args,
+        )
+        result = response["definition_tables"]
+        warnings = response.get("warnings", [])
+        if type(warnings) is not list or any(type(value) is not str for value in warnings):
+            raise RuntimeError("Mechanical table diagnostics are invalid")
+        warn = getattr(ctx, "warn", None)
+        if callable(warn):
+            for warning in warnings:
+                warn(warning, code="mechanical.result_state_drift")
     except StaleMechanicalModelError as exc:
         raise ValueError(f"mechanical.stale_reference: {exc}") from exc
     except Exception as exc:
@@ -387,6 +396,9 @@ def execute_fea_table(ctx, model=None, source=None, settings=None):
             "mechanical.capacity_exceeded:",
             "mechanical.selector_missing:",
             "mechanical.selector_ambiguous:",
+            "mechanical.results_missing:",
+            "mechanical.restore_failed:",
+            "mechanical.capability_unproved:",
         ):
             if code in message:
                 raise ValueError(message[message.index(code) :]) from exc
