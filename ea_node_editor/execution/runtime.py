@@ -2054,6 +2054,10 @@ class CorexRuntime:
     ) -> int:
         return self._client.invalidate_viewer_requests(workspace_id, node_ids)
 
+    def retire_workspace(self, workspace_id: str) -> int:
+        with self._lifecycle_lock:
+            return int(self._client.retire_workspace(workspace_id))
+
     def shutdown(self) -> None:
         with self._lifecycle_lock:
             self._project_solution_binding_revision += 1

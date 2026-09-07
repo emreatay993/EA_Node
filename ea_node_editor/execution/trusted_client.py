@@ -123,6 +123,9 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
             )
             return False
 
+    def retire_workspace(self, workspace_id: str) -> int:
+        return self._worker_services.mechanical_session_service.retire_workspace(workspace_id)
+
     def _encode_run_preflight_command(self, command: WorkerCommand) -> dict[str, Any]:
         return self._encode_command(command)
 

@@ -11,6 +11,7 @@ import platform
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager
@@ -906,6 +907,11 @@ class ExecutionBackendClient:
         ):
             client._release_start_run(reservation.run_id)  # noqa: SLF001
             raise ValueError("prepared viewer invalidation reservation changed")
+        try:
+            self.retire_workspace(command.workspace_id)
+        except BaseException:
+            client._release_start_run(reservation.run_id)  # noqa: SLF001
+            raise
         with self._active_lock:
             self._active_clients[reservation.run_id] = client
             self._run_clients[reservation.run_id] = client
@@ -1913,6 +1919,7 @@ class ExecutionBackendClient:
         else:
             client = self._process_client
         self._client_selections[id(client)] = selection
+        self.retire_workspace(workspace_id)
         previous_catalog_generation = self._client_generation_token(client)
         run_id = client.start_run(
             project_path,
@@ -1960,6 +1967,42 @@ class ExecutionBackendClient:
                     )
                 self._trim_viewer_run_owners_locked()
         return run_id
+
+    def retire_workspace(self, workspace_id: str) -> int:
+        normalized = str(workspace_id or "").strip()
+        if not normalized:
+            raise ValueError("workspace_id is required")
+        results: list[int] = []
+        errors: list[BaseException] = []
+        result_lock = threading.Lock()
+
+        def retire(client: Any) -> None:
+            try:
+                count = client.retire_workspace(normalized)
+                with result_lock:
+                    results.append(count)
+            except BaseException as exc:  # noqa: BLE001
+                with result_lock:
+                    errors.append(exc)
+
+        threads = [
+            threading.Thread(target=retire, args=(client,), daemon=True)
+            for client in (
+                self._process_client,
+                self._trusted_client,
+                self._external_python_client,
+            )
+        ]
+        for thread in threads:
+            thread.start()
+        deadline = time.monotonic() + 11.0
+        for thread in threads:
+            thread.join(timeout=max(0.0, deadline - time.monotonic()))
+        if any(thread.is_alive() for thread in threads):
+            raise TimeoutError("Workspace retirement exceeded its shared bound")
+        if errors:
+            raise RuntimeError(f"Workspace retirement failed: {errors[0]}") from errors[0]
+        return sum(results)
 
     def _client_for_run(self, run_id: str) -> Any:
         with self._active_lock:

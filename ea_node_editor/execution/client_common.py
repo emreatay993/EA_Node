@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import time
+import threading
 import uuid
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager, nullcontext
@@ -30,6 +31,7 @@ from ea_node_editor.execution.run_messages import (
     ProtocolErrorEvent,
     ResumeRunCommand,
     StopRunCommand,
+    RetireWorkspaceCommand,
 )
 from ea_node_editor.execution.viewer_messages import (
     VIEWER_COMMAND_TYPES,
@@ -535,6 +537,19 @@ class _ExecutionClientCommon:
         generation_token: int | None = None,
     ) -> None:
         payload = event_to_dict(event, catalog=getattr(self, "_data_types", None))
+        if payload.get("type") == "workspace_retired":
+            waiters = getattr(self, "_workspace_retirement_waiters", {})
+            waiter = waiters.get(str(payload.get("request_id", "")))
+            if waiter is not None:
+                waiter[1]["count"] = int(payload.get("retired_count", "0"))
+                waiter[0].set()
+        elif payload.get("type") == "protocol_error":
+            waiters = getattr(self, "_workspace_retirement_waiters", {})
+            request_id = str(payload.get("request_id", ""))
+            matched = {request_id: waiters[request_id]} if request_id in waiters else {}
+            for waiter in matched.values():
+                waiter[1]["error"] = str(payload.get("error", "Protocol error"))
+                waiter[0].set()
         for callback in list(self._callbacks):
             try:
                 callback(dict(payload))
@@ -550,6 +565,36 @@ class _ExecutionClientCommon:
                 callback(dict(payload), token)
             except Exception:
                 continue
+
+    def _retire_workspace_via_transport(self, workspace_id: str, *, timeout_sec: float = 10.0) -> int:
+        normalized = str(workspace_id or "").strip()
+        if not normalized:
+            raise ValueError("workspace_id is required")
+        request_id = uuid.uuid4().hex
+        event = threading.Event()
+        result: dict[str, Any] = {}
+        waiters = getattr(self, "_workspace_retirement_waiters", None)
+        if waiters is None:
+            waiters = {}
+            self._workspace_retirement_waiters = waiters
+        waiters[request_id] = (event, result)
+        try:
+            if not self._post_command(RetireWorkspaceCommand(request_id=request_id, workspace_id=normalized)):
+                raise RuntimeError("Failed to dispatch workspace retirement")
+            if not event.wait(timeout_sec):
+                raise TimeoutError("Execution worker did not acknowledge workspace retirement")
+            if result.get("error"):
+                raise RuntimeError(str(result["error"]))
+            return result.get("count", 0)
+        finally:
+            waiters.pop(request_id, None)
+
+    def _fail_workspace_retirements(self, error: str) -> None:
+        for waiter in tuple(
+            getattr(self, "_workspace_retirement_waiters", {}).values()
+        ):
+            waiter[1]["error"] = str(error).strip() or "Execution transport closed"
+            waiter[0].set()
 
     def _notify_generation_change(
         self,

@@ -217,6 +217,18 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         success, _message = self._try_post_command(command)
         return success
 
+    def retire_workspace(self, workspace_id: str) -> int:
+        with self._start_lock:
+            with self._state_lock:
+                process = self._process
+            if (
+                process is None
+                or not process.is_alive()
+                or not isinstance(getattr(process, "pid", None), int)
+            ):
+                return 0
+            return self._retire_workspace_via_transport(workspace_id)
+
     def _encode_run_preflight_command(self, command: WorkerCommand) -> dict[str, Any]:
         return self._encode_command(command)
 
@@ -473,6 +485,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
             return
 
         process.join(timeout=0.1)
+        self._fail_workspace_retirements("Execution worker terminated unexpectedly")
         with self._state_lock:
             if (
                 self._process is not process
@@ -597,6 +610,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                 self._check_worker_health(process, generation_token)
                 continue
             except (EOFError, OSError):
+                self._fail_workspace_retirements("Execution worker transport closed")
                 self._check_worker_health(process, generation_token)
                 continue
 

@@ -319,6 +319,17 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         success, _message = self._try_post_command(command)
         return success
 
+    def retire_workspace(self, workspace_id: str) -> int:
+        with self._state_lock:
+            process = self._process
+        if (
+            process is None
+            or process.poll() is not None
+            or not isinstance(getattr(process, "pid", None), int)
+        ):
+            return 0
+        return self._retire_workspace_via_transport(workspace_id)
+
     def _encode_run_preflight_command(self, command: WorkerCommand) -> str:
         payload = self._encode_command(command)
         return json.dumps(payload, ensure_ascii=True, separators=(",", ":")) + "\n"
@@ -705,6 +716,10 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
                     generation_token=generation_token,
                 )
             return
+
+        self._fail_workspace_retirements(
+            "External Python workflow worker terminated unexpectedly"
+        )
 
         with self._state_lock:
             if (

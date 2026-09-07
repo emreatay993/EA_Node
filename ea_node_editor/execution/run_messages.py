@@ -96,6 +96,21 @@ class ShutdownCommand:
 
 
 @dataclass(frozen=True)
+class RetireWorkspaceCommand:
+    type: Literal["retire_workspace"] = "retire_workspace"
+    request_id: str = ""
+    workspace_id: str = ""
+
+
+@dataclass(frozen=True)
+class WorkspaceRetiredEvent:
+    type: Literal["workspace_retired"] = "workspace_retired"
+    request_id: str = ""
+    workspace_id: str = ""
+    retired_count: str = "0"
+
+
+@dataclass(frozen=True)
 class CommitRunPreflightCommand:
     type: Literal["commit_run_preflight"] = "commit_run_preflight"
     run_id: str = ""
@@ -274,6 +289,8 @@ __all__ = [
     "RunTransition",
     "ShutdownCommand",
     "StartRunCommand",
+    "RetireWorkspaceCommand",
+    "WorkspaceRetiredEvent",
     "StopRunCommand",
     "TriggerCaptureSettledEvent",
     "TriggerPublishedEvent",

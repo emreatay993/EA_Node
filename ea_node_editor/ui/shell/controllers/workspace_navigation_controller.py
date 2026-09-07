@@ -3,6 +3,7 @@
 # Tests: tests/test_workspace_navigation_controller.py
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QRectF
@@ -12,6 +13,8 @@ from ea_node_editor.ui.shell.controllers.workspace_view_nav_ops import Workspace
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
+
+logger = logging.getLogger(__name__)
 
 
 class WorkspaceNavigationController:
@@ -312,9 +315,21 @@ class WorkspaceNavigationController:
         except ValueError:
             QMessageBox.warning(self._dialog_parent(), "Workspace", "Cannot close the last workspace.")
             return
+        retirement_error = ""
+        try:
+            self._host.execution_client.retire_workspace(workspace_id)
+        except Exception as exc:  # noqa: BLE001
+            retirement_error = str(exc).strip() or "unknown cleanup error"
+            logger.exception("Workspace runtime retirement failed after close")
         self._host.runtime_history.clear_workspace(workspace_id)
         self.refresh_workspace_tabs()
         self.switch_workspace(self._host.workspace_manager.active_workspace_id())
+        if retirement_error:
+            QMessageBox.warning(
+                self._dialog_parent(),
+                "Workspace Cleanup",
+                f"The workspace closed, but runtime cleanup failed: {retirement_error}",
+            )
 
     def focus_failed_node(self, workspace_id: str, node_id: str) -> None:
         self._ops.focus_failed_node(workspace_id, node_id)

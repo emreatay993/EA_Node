@@ -7,9 +7,11 @@ from ea_node_editor.execution.run_messages import (
     PauseRunCommand,
     ResumeRunCommand,
     RunFailedEvent,
+    RetireWorkspaceCommand,
     ShutdownCommand,
     StartRunCommand,
     StopRunCommand,
+    WorkspaceRetiredEvent,
 )
 from ea_node_editor.execution.worker_protocol import (
     decode_command_payload,
@@ -57,6 +59,24 @@ def worker_main(
 
             if isinstance(command, ShutdownCommand):
                 break
+            if isinstance(command, RetireWorkspaceCommand):
+                retired = services.mechanical_session_service.retire_workspace(
+                    command.workspace_id
+                )
+                emit(
+                    event_queue,
+                    WorkspaceRetiredEvent(
+                        request_id=command.request_id,
+                        workspace_id=command.workspace_id,
+                        retired_count=str(retired),
+                    ),
+                    catalog=(
+                        services.data_types
+                        if services.handle_registry.is_catalog_bound
+                        else None
+                    ),
+                )
+                continue
             needs_final_reset = True
             if isinstance(command, StartRunCommand):
                 try:

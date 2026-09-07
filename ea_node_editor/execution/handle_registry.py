@@ -134,6 +134,11 @@ class HandleRegistry:
             return len(self._records)
 
     @property
+    def is_catalog_bound(self) -> bool:
+        with self._lock:
+            return self._data_types is not None
+
+    @property
     def active_lease_count(self) -> int:
         with self._lock:
             return sum(

@@ -51,6 +51,7 @@ from ea_node_editor.execution.run_messages import (
     PauseRunCommand,
     ProtocolErrorEvent,
     ResumeRunCommand,
+    RetireWorkspaceCommand,
     RunCompletedEvent,
     RunFailedEvent,
     RunPreflightAcceptedEvent,
@@ -60,6 +61,7 @@ from ea_node_editor.execution.run_messages import (
     ShutdownCommand,
     StartRunCommand,
     StopRunCommand,
+    WorkspaceRetiredEvent,
     TriggerCaptureSettledEvent,
     TriggerPublishedEvent,
     normalize_target_node_ids,
@@ -108,6 +110,7 @@ WorkerCommand: TypeAlias = (
     | ShutdownCommand
     | CommitRunPreflightCommand
     | CancelRunPreflightCommand
+    | RetireWorkspaceCommand
     | OpenViewerSessionCommand
     | UpdateViewerSessionCommand
     | CloseViewerSessionCommand
@@ -127,6 +130,7 @@ WorkerEvent: TypeAlias = (
     | TriggerPublishedEvent
     | LogEvent
     | ProtocolErrorEvent
+    | WorkspaceRetiredEvent
     | ViewerSessionOpenedEvent
     | ViewerSessionUpdatedEvent
     | ViewerSessionClosedEvent
@@ -155,6 +159,7 @@ _SCALAR_PROTOCOL_TYPES = frozenset(
         ShutdownCommand,
         CommitRunPreflightCommand,
         CancelRunPreflightCommand,
+        RetireWorkspaceCommand,
         RunPreflightAcceptedEvent,
         RunStartedEvent,
         RunStateEvent,
@@ -164,6 +169,7 @@ _SCALAR_PROTOCOL_TYPES = frozenset(
         NodeStartedEvent,
         LogEvent,
         ProtocolErrorEvent,
+        WorkspaceRetiredEvent,
         ViewerSessionFailedEvent,
     }
 )
@@ -1558,6 +1564,11 @@ def dict_to_command(
         return ResumeRunCommand(run_id=_string_field(payload, "run_id"))
     if command_type == "shutdown":
         return ShutdownCommand()
+    if command_type == "retire_workspace":
+        return RetireWorkspaceCommand(
+            request_id=_string_field(payload, "request_id", strip=True),
+            workspace_id=_string_field(payload, "workspace_id", strip=True),
+        )
     if command_type == "commit_run_preflight":
         return CommitRunPreflightCommand(
             run_id=_string_field(payload, "run_id", strip=True),
@@ -1720,6 +1731,12 @@ def dict_to_event(
                 payload.get("viewer_epoch_snapshot_digest", ""),
                 field_name="viewer_epoch_snapshot_digest",
             ),
+        )
+    if event_type == "workspace_retired":
+        return WorkspaceRetiredEvent(
+            request_id=_string_field(payload, "request_id", strip=True),
+            workspace_id=_string_field(payload, "workspace_id", strip=True),
+            retired_count=_string_field(payload, "retired_count", strip=True),
         )
     if event_type == "run_started":
         return RunStartedEvent(

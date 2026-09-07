@@ -59,6 +59,9 @@ class ExecutionHandleServices(Protocol):
         owner_scope: str,
     ) -> RuntimeHandleRef: ...
 
+    @property
+    def mechanical_session_service(self) -> Any: ...
+
 
 class RuntimeSnapshotPort(Protocol):
     metadata: Mapping[str, Any]
@@ -211,6 +214,10 @@ class ExecutionContext:
         if self.worker_services is None:
             raise RuntimeError("ExecutionContext does not have worker services.")
         return self.worker_services
+
+    @property
+    def mechanical_sessions(self) -> Any:
+        return self._require_worker_services().mechanical_session_service
 
     def register_handle(
         self,

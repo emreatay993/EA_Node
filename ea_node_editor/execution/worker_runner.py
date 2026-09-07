@@ -17,6 +17,7 @@ from ea_node_editor.execution.run_messages import (
     CommitRunPreflightCommand,
     PauseRunCommand,
     ResumeRunCommand,
+    RetireWorkspaceCommand,
     RunCompletedEvent,
     RunFailedEvent,
     RunPreflightAcceptedEvent,
@@ -25,6 +26,7 @@ from ea_node_editor.execution.run_messages import (
     ShutdownCommand,
     StartRunCommand,
     StopRunCommand,
+    WorkspaceRetiredEvent,
     TriggerCaptureSettledEvent,
     TriggerPublishedEvent,
 )
@@ -135,6 +137,7 @@ class RunControl:
         workspace_id: str,
         data_types: DataTypeCatalog | None = None,
         viewer_command_handler: Callable[[WorkerCommand], None] | None = None,
+        workspace_retirement_handler: Callable[[str], int] | None = None,
     ) -> None:
         self._command_queue = command_queue
         self._event_queue = event_queue
@@ -142,6 +145,7 @@ class RunControl:
         self.workspace_id = workspace_id
         self._data_types = data_types
         self._viewer_command_handler = viewer_command_handler
+        self._workspace_retirement_handler = workspace_retirement_handler
         self.paused = False
         self.stop_requested = False
         self.shutdown_requested = False
@@ -176,6 +180,29 @@ class RunControl:
             self.stop_requested = True
             self.stop_reason = "shutdown_requested"
             self._invoke_cancel_callbacks()
+            return
+
+        if isinstance(command, RetireWorkspaceCommand):
+            if self._workspace_retirement_handler is None:
+                emit_protocol_error(
+                    self._event_queue,
+                    "Workspace retirement handler is unavailable.",
+                    workspace_id=command.workspace_id,
+                    request_id=command.request_id,
+                    command=command.type,
+                    catalog=self._data_types,
+                )
+                return
+            retired = self._workspace_retirement_handler(command.workspace_id)
+            emit(
+                self._event_queue,
+                WorkspaceRetiredEvent(
+                    request_id=command.request_id,
+                    workspace_id=command.workspace_id,
+                    retired_count=str(retired),
+                ),
+                catalog=self._data_types,
+            )
             return
 
         if command_run_id and command_run_id != self.run_id:
@@ -1715,6 +1742,9 @@ class WorkflowRunner:
                 event_queue=event_queue,
                 worker_services=self._worker_services,
             ),
+            workspace_retirement_handler=(
+                self._worker_services.mechanical_session_service.retire_workspace
+            ),
         )
         self._publisher = RunEventPublisher(
             event_queue,
@@ -1997,7 +2027,12 @@ class WorkflowRunner:
             self._control._handle_command(command)  # noqa: SLF001
 
     def run(self) -> None:
+        succeeded = False
         try:
+            self._worker_services.mechanical_session_service.begin_run(
+                self._command.run_id,
+                self._command.workspace_id,
+            )
             if self._preflight_error is not None:
                 error, traceback_text, reason = self._preflight_error
                 self._publisher.emit_run_failed(
@@ -2102,6 +2137,7 @@ class WorkflowRunner:
                 return
             self._executor.publish_pending_trigger()
             self._publisher.emit_run_completed()
+            succeeded = True
         except Exception as exc:  # noqa: BLE001
             self._publisher.emit_run_failed(
                 node_id="",
@@ -2114,6 +2150,7 @@ class WorkflowRunner:
                 self._executor.clear_run_state()
             self._worker_services.cleanup_run(
                 self._command.run_id,
+                succeeded=succeeded,
                 warn=lambda message: self._publisher.emit_log(
                     "warning",
                     message,

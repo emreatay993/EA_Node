@@ -15,6 +15,7 @@ from ea_node_editor.runtime_contracts.value_refs import (
 from ea_node_editor.runtime_contracts import DataTypeCatalog
 
 if TYPE_CHECKING:
+    from ea_node_editor.addons.mechanical.session import MechanicalSessionService
     from ea_node_editor.execution.prepared_scene_runtime import PreparedSceneRuntime
     from ea_node_editor.execution.viewer_session_service import ViewerSessionService
 
@@ -25,11 +26,13 @@ class WorkerServices:
     _prepared_scene_runtime: PreparedSceneRuntime | None = field(default=None, init=False, repr=False)
     _viewer_backend_registry: ViewerBackendRegistry | None = field(default=None, init=False, repr=False)
     _viewer_session_service: ViewerSessionService | None = field(default=None, init=False, repr=False)
+    _mechanical_session_service: MechanicalSessionService | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_prepared_scene_runtime", None)
         object.__setattr__(self, "_viewer_backend_registry", None)
         object.__setattr__(self, "_viewer_session_service", None)
+        object.__setattr__(self, "_mechanical_session_service", None)
 
     @property
     def worker_generation(self) -> int:
@@ -60,6 +63,14 @@ class WorkerServices:
 
             self._viewer_session_service = ViewerSessionService(self)
         return self._viewer_session_service
+
+    @property
+    def mechanical_session_service(self) -> MechanicalSessionService:
+        if self._mechanical_session_service is None:
+            from ea_node_editor.addons.mechanical.session import MechanicalSessionService
+
+            self._mechanical_session_service = MechanicalSessionService(self)
+        return self._mechanical_session_service
 
     @staticmethod
     def run_owner_scope(run_id: str) -> str:
@@ -126,8 +137,15 @@ class WorkerServices:
         self,
         run_id: str,
         *,
+        succeeded: bool = False,
         warn: Callable[[str], None] | None = None,
     ) -> int:
+        if self._mechanical_session_service is not None:
+            self._mechanical_session_service.cleanup_run(
+                run_id,
+                succeeded=succeeded,
+                warn=warn,
+            )
         owner_scope = self.run_owner_scope(run_id)
         released_count = self.handle_registry.release_owner_scope(
             owner_scope,
@@ -149,6 +167,8 @@ class WorkerServices:
             released_count = self.handle_registry.active_handle_count
             if self._viewer_session_service is not None:
                 self._viewer_session_service.reset(warn=warn)
+            if self._mechanical_session_service is not None:
+                self._mechanical_session_service.reset(warn=warn)
             if self._prepared_scene_runtime is not None:
                 self._prepared_scene_runtime.reset(warn=warn)
             self.handle_registry.reset(warn=warn)
