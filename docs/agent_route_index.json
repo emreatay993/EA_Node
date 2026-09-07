@@ -121,6 +121,7 @@
         "mars",
         "mechanical",
         "inspection",
+        "tables",
         "builtin",
         "functions",
         "plot",
@@ -24065,6 +24066,7 @@
         "ea_node_editor/addons/mechanical/property_edit.py",
         "ea_node_editor/addons/mechanical/runtime.py",
         "ea_node_editor/addons/mechanical/session.py",
+        "ea_node_editor/addons/mechanical/tables.py",
         "ea_node_editor/addons/mechanical/workbench.py",
         "ea_node_editor/addons/property_edit_adapters.py",
         "ea_node_editor/addons/registry_contributions.py",
@@ -24127,6 +24129,8 @@
         "model",
         "search",
         "tree",
+        "fea",
+        "table",
         "private",
         "tests",
         "test",
@@ -24145,7 +24149,9 @@
         "nodes",
         "catalogue",
         "lifecycle",
-        "protocol"
+        "protocol",
+        "definition",
+        "tables"
       ],
       "aliases": [],
       "focused_verification": [
@@ -24156,6 +24162,7 @@
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_session_lifecycle.py tests/mechanical_catalogue/test_owner_protocol.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_open_model.py tests/mechanical_catalogue/test_catalogue.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_search_tree.py --ignore=venv -q",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_definition_tables.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_repo_owned_node_documentation.py --ignore=venv -q"
       ],
       "start_here": [

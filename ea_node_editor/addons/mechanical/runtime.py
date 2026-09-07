@@ -1,4 +1,4 @@
-# Purpose: Execute Mechanical Open and Search through the run-owned native session.
+# Purpose: Execute Mechanical Open, Search, and FEA Table through the run-owned session.
 # Map: subsystems/addons.md
 # Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py
 
@@ -7,13 +7,20 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
-from ea_node_editor.addons.mechanical.contracts import decode_selector, validate_object, validate_property
+from ea_node_editor.addons.mechanical.contracts import (
+    OBJECT_TYPE_ID,
+    PROPERTY_TYPE_ID,
+    decode_selector,
+    validate_object,
+    validate_property,
+)
 from ea_node_editor.addons.mechanical.session import StaleMechanicalModelError
 from ea_node_editor.nodes.execution_context import NodeInputNotReadyError
-from ea_node_editor.runtime_contracts import RuntimeHandleRef, TableValue
+from ea_node_editor.runtime_contracts import RuntimeHandleRef, TableValue, TypedInlineValue
 
 
 def discover_mechanical_releases() -> tuple[int, ...]:
@@ -247,4 +254,157 @@ def execute_search_tree(ctx, model=None, settings=None):
     }
 
 
-__all__ = ["discover_mechanical_releases", "execute_open_model", "execute_search_tree"]
+def _table_selector(value: str, metadata: Mapping[str, object]):
+    try:
+        decoded = json.loads(value)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(decoded, dict) or not {
+        "schema_version", "kind", "document_id", "system_key", "object_path", "native_id"
+    } & set(decoded):
+        return None
+    selector = decode_selector(value)
+    if (
+        selector["kind"] != "table"
+        or selector["document_id"] != metadata["document_id"]
+        or selector["system_key"] != metadata["system_key"]
+        or type(selector["native_id"]) is not str
+    ):
+        raise ValueError(
+            "mechanical.selector_missing: Table / property selector belongs to another model or kind"
+        )
+    return {
+        "object_path": selector["object_path"],
+        "native_id": selector["native_id"],
+    }
+
+
+def execute_fea_table(ctx, model=None, source=None, settings=None):
+    if model is None:
+        raise NodeInputNotReadyError("Model requires a live Mechanical model from this run")
+    if not isinstance(model, RuntimeHandleRef):
+        raise TypeError("FEA Table requires a Mechanical Model")
+    try:
+        session = ctx.mechanical_sessions.admit_model(
+            model, run_id=ctx.run_id, workspace_id=ctx.workspace_id
+        )
+    except StaleMechanicalModelError as exc:
+        raise ValueError(f"mechanical.stale_reference: {exc}") from exc
+    if source is None:
+        raise NodeInputNotReadyError("Source requires a Mechanical Object or Property")
+    if type(source) not in {list, tuple}:
+        raise TypeError("FEA Table Source must be a list")
+    if not source:
+        raise ValueError("FEA Table Source must contain at least one Object or Property")
+    metadata = model.metadata
+    identity_fields = (
+        "run_id", "session_id", "document_id", "source_key", "system_key", "model_revision"
+    )
+    sources = []
+    for value in source:
+        if type(value) is not TypedInlineValue or value.data_type_id not in {
+            OBJECT_TYPE_ID, PROPERTY_TYPE_ID
+        }:
+            raise TypeError("FEA Table Source accepts only Mechanical Object or Property values")
+        (validate_object if value.data_type_id == OBJECT_TYPE_ID else validate_property)(value)
+        if any(value.payload[field] != metadata[field] for field in identity_fields):
+            raise ValueError(
+                "mechanical.cross_session_reference: FEA Table source belongs to another Model"
+            )
+        api_type = str(value.payload.get("api_type", ""))
+        table_families = {
+            str(item.get("table_family", ""))
+            for item in value.payload.get("tables", ())
+            if isinstance(item, Mapping)
+        }
+        if (
+            ".Results." in api_type
+            or api_type.endswith(".Solution")
+            or api_type.endswith("Worksheet")
+            or any(family and family != "field_definition" for family in table_families)
+        ):
+            raise ValueError(
+                "mechanical.table_unsupported: result, probe, and worksheet sources "
+                "require the T08 adapters"
+            )
+        sources.append(
+            {
+                "kind": "object" if value.data_type_id == OBJECT_TYPE_ID else "property",
+                "object_id": value.payload["object_id"],
+                "object_path": value.payload["object_path"],
+                "property_key": value.payload.get("property_key", ""),
+            }
+        )
+    family = _setting(ctx, settings, "family", "auto")
+    if family not in {
+        "auto", "model_definition", "result_history_summary", "spatial_samples",
+        "supported_worksheet",
+    }:
+        raise ValueError(f"Unknown Mechanical table family: {family}")
+    if family not in {"auto", "model_definition"}:
+        raise ValueError(
+            f"mechanical.table_unsupported: family {family!r} is not implemented; "
+            "T07 supports model definitions"
+        )
+    table = _setting(ctx, settings, "table", "")
+    component = _setting(ctx, settings, "component", "all")
+    units = _setting(ctx, settings, "units", "source")
+    if type(table) is not str or type(component) is not str:
+        raise TypeError("FEA Table Table / property and Component must be text")
+    if not component:
+        raise ValueError("FEA Table Component must be 'all' or an exact component")
+    if units not in {"source", "si"}:
+        raise ValueError("FEA Table Units must be source or si")
+    selector = _table_selector(table, metadata) if table else None
+    try:
+        result = ctx.mechanical_sessions.operate(
+            session,
+            expected_revision=metadata["model_revision"],
+            operation="definition_tables",
+            args={
+                "sources": sources,
+                "family": family,
+                "table": "" if selector is not None else table,
+                "table_selector": selector,
+                "component": component,
+                "units": units,
+                "native_output_path": str(
+                    session.work_root / f"native-definitions-{uuid4().hex}.json"
+                ),
+            },
+        )["definition_tables"]
+    except StaleMechanicalModelError as exc:
+        raise ValueError(f"mechanical.stale_reference: {exc}") from exc
+    except Exception as exc:
+        message = str(exc)
+        if "Mechanical owner request exceeds encoded size limit" in message:
+            raise ValueError(
+                "mechanical.capacity_exceeded: source selection exceeds the owner request limit; "
+                "narrow Source, Table / property, or Component"
+            ) from exc
+        for code in (
+            "mechanical.table_unsupported:",
+            "mechanical.capacity_exceeded:",
+            "mechanical.selector_missing:",
+            "mechanical.selector_ambiguous:",
+        ):
+            if code in message:
+                raise ValueError(message[message.index(code) :]) from exc
+        raise RuntimeError(f"mechanical.operation_failed: FEA Table: {message}") from exc
+    if (
+        not isinstance(result, dict)
+        or set(result) != {"tables", "definitions"}
+        or type(result["tables"]) is not list
+        or any(type(value) is not TableValue for value in result["tables"])
+        or type(result["definitions"]) is not TableValue
+    ):
+        raise RuntimeError("mechanical.operation_failed: FEA Table returned invalid values")
+    return result
+
+
+__all__ = [
+    "discover_mechanical_releases",
+    "execute_fea_table",
+    "execute_open_model",
+    "execute_search_tree",
+]

@@ -32,6 +32,7 @@ _INVALID = object()
 class _CatalogueIndex:
     rows_by_kind: Mapping[str, tuple[tuple[Any, str], ...]]
     query_by_filter: Mapping[str, tuple[tuple[Any, str], ...]]
+    components: tuple[tuple[str, str], ...]
     complete: bool
     omitted_rows: int | None
     table: TableValue
@@ -95,6 +96,20 @@ def _catalogue_index(table: TableValue, rows: list[dict[str, Any]]) -> _Catalogu
         if path and path != visible:
             visible = f"{visible} — {path}"
         rows_by_kind.setdefault(kind, []).append((code, visible))
+        if kind == "object" and str(row.get("api_type") or "").endswith(
+            ".BoltPretension"
+        ):
+            table_key = f"{int(row['object_id'])}:bolt_step_states"
+            table_code = encode_selector(
+                "table",
+                document_id=str(row["document_id"]),
+                system_key=str(row["system_key"]),
+                object_path=path,
+                native_id=table_key,
+            )
+            rows_by_kind.setdefault("table", []).append(
+                (table_code, f"Bolt pretension step states — {path}")
+            )
     queries: dict[str, list[tuple[Any, str]]] = {}
     for row in rows[1:]:
         kind = str(row.get("record_kind") or "")
@@ -137,6 +152,16 @@ def _catalogue_index(table: TableValue, rows: list[dict[str, Any]]) -> _Catalogu
     result = _CatalogueIndex(
         rows_by_kind={kind: tuple(values) for kind, values in rows_by_kind.items()},
         query_by_filter={kind: tuple(values) for kind, values in queries.items()},
+        components=tuple(
+            dict.fromkeys(
+                ("Step state", "Step state")
+                if str(row.get("api_type") or "").endswith(".BoltPretension")
+                else (str(row.get("property_key") or ""), str(row.get("property_caption") or row.get("property_key") or ""))
+                for row in rows[1:]
+                if row.get("record_kind") == "property" and row.get("table_key")
+                or row.get("record_kind") == "object" and str(row.get("api_type") or "").endswith(".BoltPretension")
+            )
+        ),
         complete=bool(summary["catalogue_complete"]),
         omitted_rows=None if summary.get("omitted_rows") is None else int(summary["omitted_rows"]),
         table=table,
@@ -291,6 +316,34 @@ class MechanicalPropertyEditAdapter:
                         *(f"20{code // 10:02d} R{code % 10} ({code})" for code in releases),
                     ],
                     exact_selectors=True,
+                )
+                continue
+            if item_key == "family":
+                item.update(
+                    enum_codes=["auto", "model_definition", "result_history_summary", "spatial_samples", "supported_worksheet"],
+                    enum_values=["Auto", "Model definition", "Result history / summary", "Spatial samples", "Supported worksheet"],
+                    exact_selectors=True,
+                )
+                continue
+            if item_key == "units":
+                item.update(
+                    enum_codes=["source", "si"],
+                    enum_values=["Preserve source units", "SI"],
+                    exact_selectors=True,
+                )
+                continue
+            if item_key == "component":
+                components = list(dict.fromkeys(
+                    pair for index in indexes for pair in index.components
+                ))
+                item.update(
+                    enum_codes=["all", *(code for code, _label in components)],
+                    enum_values=["All", *(label for _code, label in components)],
+                    exact_selectors=True,
+                    searchable=True,
+                    placeholder_text=(
+                        "Accepted metadata unavailable" if not indexes else "All or an exact component"
+                    ),
                 )
                 continue
             kinds = _SELECTOR_KINDS.get(item_key)

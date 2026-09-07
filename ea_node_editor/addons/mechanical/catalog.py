@@ -25,7 +25,11 @@ from ea_node_editor.addons.mechanical.property_edit import (
 
 MECHANICAL_ADDON_ID = "mechanical.corex"
 _DEPENDENCIES = ("ansys-mechanical-core", "ansys-workbench-core", "numpy", "pandas")
-MECHANICAL_FUNCTION_TYPE_IDS = ("mechanical.open_model", "mechanical.search_tree")
+MECHANICAL_FUNCTION_TYPE_IDS = (
+    "mechanical.open_model",
+    "mechanical.search_tree",
+    "mechanical.fea_table",
+)
 _DISCOVERED_RELEASES: tuple[int, ...] = ()
 _MECHANICAL_PACKAGE_ROOT = Path(__file__).resolve().parent
 
@@ -37,7 +41,7 @@ MECHANICAL_ADDON_MANIFEST = AddOnManifest(
     vendor="COREX",
     version="1.0.0",
     summary="Use typed Mechanical models, objects, properties, views, and tables.",
-    details="Provides typed Mechanical model opening and data-only discovery.",
+    details="Provides typed Mechanical model opening, data-only discovery, and definition tables.",
     dependencies=_DEPENDENCIES,
     data_type_families=(MECHANICAL_DATA_TYPE_FAMILY,),
     data_types=MECHANICAL_DATA_TYPES,

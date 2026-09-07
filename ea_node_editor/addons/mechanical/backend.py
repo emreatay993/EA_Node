@@ -1,18 +1,26 @@
-# Purpose: Open native Mechanical models and execute allowlisted Open/Search owner operations.
+# Purpose: Open native Mechanical models and execute allowlisted Open/Search/table operations.
 # Map: subsystems/addons.md
 # Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py
 
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from ea_node_editor.addons.mechanical.inspection import collect_catalogue_rows, search_tree
+from ea_node_editor.addons.mechanical.tables import (
+    DEFINITION_ENCODED_MAX_BYTES,
+    DEFINITION_SCRIPT_BODY,
+    build_definition_tables,
+)
 
-LIFECYCLE_OPERATIONS = frozenset({"health", "open", "search", "close"})
+LIFECYCLE_OPERATIONS = frozenset(
+    {"health", "open", "search", "definition_tables", "close"}
+)
 
 
 def _data_script(data: Mapping[str, Any], body: str) -> str:
@@ -29,6 +37,7 @@ class MechanicalOwnerBackend:
     def __init__(self) -> None:
         self.app = self.mechanical = self.workbench = None
         self.tree = self.model = self.data_model = None
+        self.work_root: Path | None = None
         self.system_name = ""
         self.interactive_model = False
         self.native_identities: list[dict[str, int]] = []
@@ -61,7 +70,61 @@ class MechanicalOwnerBackend:
             return {"status": "ready" if operation == "health" else "closed"}
         if operation == "open":
             return self.open(args)
-        return self.search(args)
+        if operation == "search":
+            return self.search(args)
+        return self.definition_tables(args)
+
+    def definition_tables(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        required = {
+            "sources", "family", "table", "table_selector", "component", "units",
+            "native_output_path",
+        }
+        if set(args) != required or (self.app is None and self.mechanical is None):
+            raise ValueError("Mechanical definition-table arguments or session state are invalid")
+        if self.work_root is None:
+            raise ValueError("Mechanical definition-table working root is unavailable")
+        output = Path(str(args["native_output_path"]))
+        if (
+            output.parent.resolve() != self.work_root
+            or not output.name.startswith("native-definitions-")
+            or output.suffix != ".json"
+            or output.exists()
+        ):
+            raise ValueError("Mechanical definition-table output path is not run-owned")
+        script = _data_script(args, DEFINITION_SCRIPT_BODY)
+        try:
+            raw_receipt = (
+                self.app.execute_script(script)
+                if self.app is not None
+                else self.mechanical.run_python_script(script)
+            )
+            receipt = json.loads(raw_receipt) if type(raw_receipt) is str else None
+            if (
+                not isinstance(receipt, dict)
+                or set(receipt) != {"byte_length", "sha256"}
+                or type(receipt["byte_length"]) is not int
+                or not 0 <= receipt["byte_length"] <= DEFINITION_ENCODED_MAX_BYTES
+                or type(receipt["sha256"]) is not str
+                or len(receipt["sha256"]) != 64
+                or not output.is_file()
+                or output.is_symlink()
+            ):
+                raise RuntimeError("Mechanical definition extraction returned an invalid receipt")
+            stat = output.lstat()
+            if (
+                bool(getattr(stat, "st_file_attributes", 0) & 0x400)
+                or stat.st_size != receipt["byte_length"]
+            ):
+                raise RuntimeError("Mechanical definition extraction file is invalid")
+            data = output.read_bytes()
+            if hashlib.sha256(data).hexdigest() != receipt["sha256"]:
+                raise RuntimeError("Mechanical definition extraction file hash is invalid")
+            return {
+                "status": "extracted",
+                "definition_tables": build_definition_tables(json.loads(data)),
+            }
+        finally:
+            output.unlink(missing_ok=True)
 
     def search(self, args: Mapping[str, Any]) -> dict[str, Any]:
         required = {
@@ -100,6 +163,7 @@ class MechanicalOwnerBackend:
         work = Path(str(args["work_path"])).resolve()
         if work.exists():
             raise ValueError("Mechanical working destination already exists")
+        self.work_root = work.parent.resolve(strict=True)
         suffix = source.suffix.casefold()
         if suffix in {".wbpj", ".wbpz"}:
             systems, tree, graphics, selected = self._open_workbench(
@@ -314,6 +378,7 @@ class MechanicalOwnerBackend:
         if errors:
             # Failed clients remain referenced so the child's final cleanup retries once.
             raise RuntimeError("Mechanical native cleanup failed: " + "; ".join(str(exc) for exc in errors))
+        self.work_root = None
 
 
 def deduplicate_model_systems(systems: list[Mapping[str, Any]]) -> list[dict[str, Any]]:

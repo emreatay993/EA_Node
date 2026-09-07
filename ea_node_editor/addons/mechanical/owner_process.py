@@ -24,6 +24,7 @@ from typing import Any
 import psutil
 
 from ea_node_editor.common.payload_tools import copy_json_safe
+from ea_node_editor.addons.mechanical.tables import DEFINITION_ENCODED_MAX_BYTES
 from ea_node_editor.runtime_contracts.scientific_codec import (
     check_scientific_budget,
     scientific_from_payload,
@@ -291,6 +292,58 @@ def _write_search_bulk(root: Path, value: object, identity: Mapping[str, Any]) -
     return {"kind": "mechanical-search-v1", "relative_name": name, "byte_length": len(encoded), "sha256": hashlib.sha256(encoded).hexdigest()}
 
 
+def _validate_definition_result(value: object) -> dict[str, Any]:
+    from ea_node_editor.addons.mechanical.contracts import DEFINITIONS_COLUMNS
+    from ea_node_editor.runtime_contracts import (
+        DataTree,
+        RuntimeArtifactRef,
+        RuntimeHandleRef,
+        TableValue,
+    )
+
+    if not isinstance(value, Mapping) or set(value) != {"tables", "definitions"}:
+        raise OwnerProtocolError("Mechanical definition-table result schema is invalid")
+    tables, definitions = value["tables"], value["definitions"]
+    if (
+        type(tables) is not list
+        or any(type(item) is not TableValue for item in tables)
+        or type(definitions) is not TableValue
+        or definitions.column_names != DEFINITIONS_COLUMNS
+        or any(
+            isinstance(item, (DataTree, RuntimeHandleRef, RuntimeArtifactRef))
+            for item in (*tables, definitions)
+        )
+    ):
+        raise OwnerProtocolError("Mechanical definition-table carriers are invalid")
+    check_scientific_budget(value)
+    return {"tables": tables, "definitions": definitions}
+
+
+def _write_definition_bulk(root: Path, value: object) -> dict[str, Any]:
+    checked = _validate_definition_result(value)
+    payload = serialize_runtime_value(checked, catalog=_search_catalog())
+    _validate_definition_result(
+        deserialize_runtime_value(payload, catalog=_search_catalog())
+    )
+    encoded = json.dumps(
+        payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")
+    ).encode()
+    if len(encoded) > DEFINITION_ENCODED_MAX_BYTES:
+        raise ValueError(
+            "mechanical.capacity_exceeded: encoded definition output exceeds its "
+            "8x scientific-operation bound; "
+            "narrow Source, Table / property, or Component"
+        )
+    name = f"definitions-{uuid.uuid4().hex}.json"
+    (root / name).write_bytes(encoded)
+    return {
+        "kind": "mechanical-definitions-v1",
+        "relative_name": name,
+        "byte_length": len(encoded),
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+    }
+
+
 def _read_bulk(root: Path, descriptor: object):
     if not isinstance(descriptor, Mapping) or set(descriptor) != {"kind", "relative_name", "byte_length", "sha256"}:
         raise OwnerProtocolError("Mechanical bulk descriptor schema is invalid")
@@ -367,6 +420,54 @@ def _read_search_bulk(root: Path, descriptor: object, identity: Mapping[str, Any
         path.unlink(missing_ok=True)
 
 
+def _read_definition_bulk(root: Path, descriptor: object):
+    if not isinstance(descriptor, Mapping) or set(descriptor) != {
+        "kind", "relative_name", "byte_length", "sha256"
+    }:
+        raise OwnerProtocolError("Mechanical definition descriptor schema is invalid")
+    name, length, digest = (
+        descriptor["relative_name"],
+        descriptor["byte_length"],
+        descriptor["sha256"],
+    )
+    if (
+        descriptor["kind"] != "mechanical-definitions-v1"
+        or type(name) is not str
+        or Path(name).name != name
+        or not name.startswith("definitions-")
+        or type(length) is not int
+        or not 0 <= length <= DEFINITION_ENCODED_MAX_BYTES
+        or type(digest) is not str
+        or len(digest) != 64
+    ):
+        raise OwnerProtocolError("Mechanical definition descriptor kind/path is invalid")
+    candidate = root / name
+    try:
+        stat = candidate.lstat()
+    except OSError as exc:
+        raise OwnerProtocolError("Mechanical definition bulk file is unavailable") from exc
+    reparse = bool(getattr(stat, "st_file_attributes", 0) & 0x400)
+    path = candidate.resolve()
+    if (
+        candidate.is_symlink()
+        or reparse
+        or path.parent != root.resolve()
+        or not path.is_file()
+        or stat.st_size != length
+    ):
+        candidate.unlink(missing_ok=True)
+        raise OwnerProtocolError("Mechanical definition bulk file is invalid")
+    try:
+        data = path.read_bytes()
+        if len(data) != length or hashlib.sha256(data).hexdigest() != digest:
+            raise OwnerProtocolError("Mechanical definition bulk file length/hash mismatch")
+        return _validate_definition_result(
+            deserialize_runtime_value(json.loads(data), catalog=_search_catalog())
+        )
+    finally:
+        path.unlink(missing_ok=True)
+
+
 def _child(port: int, token: str, spool_root: str) -> int:
     connection = socket.create_connection(("127.0.0.1", port), timeout=10)
     stream = connection.makefile("rwb", buffering=0)
@@ -410,6 +511,11 @@ def _child(port: int, token: str, spool_root: str) -> int:
                     search = result.pop("search")
                     result["search_bulk"] = _write_search_bulk(
                         Path(spool_root), search, request["args"]["identity"]
+                    )
+                if "definition_tables" in result:
+                    definitions = result.pop("definition_tables")
+                    result["definition_bulk"] = _write_definition_bulk(
+                        Path(spool_root), definitions
                     )
                 _send(
                     stream,
@@ -583,6 +689,10 @@ class MechanicalOwnerProcess:
             result["search"] = _read_search_bulk(
                 self._spool_root, result.pop("search_bulk"), payload["args"]["identity"]
             )
+        if "definition_bulk" in result:
+            result["definition_tables"] = _read_definition_bulk(
+                self._spool_root, result.pop("definition_bulk")
+            )
         return result
 
     def close(self) -> None:
@@ -625,7 +735,11 @@ class MechanicalOwnerProcess:
             self._job.close()
             self._closed = True
             atexit.unregister(self.close)
-            for path in (*self._spool_root.glob("catalogue-*.json"), *self._spool_root.glob("search-*.json")):
+            for path in (
+                *self._spool_root.glob("catalogue-*.json"),
+                *self._spool_root.glob("search-*.json"),
+                *self._spool_root.glob("definitions-*.json"),
+            ):
                 if path.is_file() and not path.is_symlink():
                     path.unlink(missing_ok=True)
             if self._temporary_spool:
