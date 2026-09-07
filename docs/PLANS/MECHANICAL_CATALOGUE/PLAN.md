@@ -1,6 +1,6 @@
 # COREX Mechanical Catalogue — Detailed Implementation Plan
 
-Status: **IN_PROGRESS — T01 ACCEPTED; T02–T18 PENDING**. Implementation resumed on 2026-09-07. The user approved the two narrow 261 result-state amendments described below, and independent review accepted T01 against unchanged retained native evidence. TASK_LEDGER.md remains the authority for task acceptance and separate local commit status.
+Status: **IN_PROGRESS — SEE TASK_LEDGER.md FOR ACCEPTED TASKS AND CURRENT WORK**. Implementation resumed on 2026-09-07. The user approved the two narrow 261 result-state amendments described below, and independent review accepted T01 against unchanged retained native evidence. TASK_LEDGER.md remains the authority for task acceptance and separate local commit status.
 
 Planning baseline and execution amendment: 2026-09-07. The user approved the eight-node layout, then explicitly authorized implementation, required verification using disposable fixtures and available licensed installations, and separate local task commits. After T01 found no accessible 2025 R2 installation, the user replaced that release requirement with **2026 R1 (261) as the sole initial reference and acceptance release**. The former planning-only status and 252 gate are historical; all other scope and acceptance requirements remain in force. Current execution status belongs to TASK_LEDGER.md.
 
@@ -152,7 +152,7 @@ All data ports remain ordinary COREX `data` ports. Do not reintroduce execution/
 
 | Semantic type | Carrier | Required content and validation |
 | --- | --- | --- |
-| `COREX.Mechanical.Model` | `RuntimeHandleRef` | Run-owned Model-state wrapper; immutable session identity, run ID, selected source/system, expected revision, release code, backend mode and accepted catalogue locator. Validate handle generation and service membership before use. |
+| `COREX.Mechanical.Model` | `RuntimeHandleRef` | Run-owned Model-state wrapper; immutable workspace, run and session identity, selected source/system, expected revision, release code, backend mode and accepted catalogue locator. Validate handle generation and service membership before use. |
 | `COREX.Mechanical.Object` | `TypedInlineValue` | Schema 1; session/run/document identity, revision, ObjectId, parent ID, canonical tree path, visible name, API type/category and analysis identity where applicable. |
 | `COREX.Mechanical.Property` | `TypedInlineValue` | Schema 1; owning object identity plus exact property key, caption, definition kind, display text, scalar magnitude/unit or formula metadata, `has_tabular_data`, available table descriptors. No table cells. |
 | `COREX.Mechanical.CameraView` | `TypedInlineValue` | Schema 1; session/document/revision, kind (`current` or `saved`), name/index identity, focal point, up/view vectors, scene dimensions and their length unit; only documented/probed fields. |

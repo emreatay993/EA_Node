@@ -16,6 +16,10 @@ from ea_node_editor.addons.tabular_data.metadata import (
     TABULAR_DATA_ADDON_MANIFEST,
 )
 from ea_node_editor.addons.mars.metadata import MARS_ADDON_ID, MARS_ADDON_MANIFEST
+from ea_node_editor.addons.mechanical.catalog import (
+    MECHANICAL_ADDON_ID,
+    MECHANICAL_ADDON_MANIFEST,
+)
 from ea_node_editor.nodes.plugin_contracts import AddOnManifest
 from ea_node_editor.addons.contracts import AddOnRecord, AddOnState
 from ea_node_editor.nodes.plugin_contracts import PluginAvailability
@@ -61,6 +65,12 @@ REGISTERED_ADDON_REGISTRATIONS = (
         version_resolver_attr="resolve_mars_plugin_version",
         managed_runtime_package_ids=("mars",),
         default_enabled=False,
+    ),
+    AddOnRegistration(
+        manifest=MECHANICAL_ADDON_MANIFEST,
+        backend_module="ea_node_editor.addons.mechanical.catalog",
+        backend_id=MECHANICAL_ADDON_ID,
+        node_backend_module="ea_node_editor.addons.mechanical.catalog",
     ),
 )
 
@@ -417,6 +427,7 @@ def create_live_property_edit_adapters(
 
 __all__ = [
     "MARS_ADDON_ID",
+    "MECHANICAL_ADDON_ID",
     "TABULAR_DATA_ADDON_ID",
     "AddOnBackendCollection",
     "AddOnRegistration",
