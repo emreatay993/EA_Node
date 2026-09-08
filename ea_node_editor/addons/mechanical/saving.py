@@ -1,11 +1,12 @@
 # Purpose: Validate, stage, verify, and publish Mechanical and Workbench saves safely.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_save.py
+# Tests: tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_save.py, tests/mechanical_catalogue/test_workbench_model_export.py
 
 from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import shutil
 import tempfile
@@ -175,6 +176,79 @@ _corex_payload=json.dumps({'schema_version':1,'format':format_code,'reopen_verif
 with open(_corex_data['native_output_path'],'wb') as _corex_stream:_corex_stream.write(_corex_payload)
 import hashlib
 _corex_receipt=json.dumps({'byte_length':len(_corex_payload),'sha256':hashlib.sha256(_corex_payload).hexdigest()},separators=(',',':'))
+_corex_receipt'''
+
+
+MODEL_EXPORT_SNAPSHOT_BODY = r'''import hashlib,json,math
+from Ansys.Mechanical.DataModel.Enums import DataModelObjectCategory
+try:
+    unicode
+except NameError:
+    unicode=str
+def _corex_text(value):
+    return value if isinstance(value,unicode) else unicode(value)
+def _corex_row(item,index_by_id):
+    parent=getattr(item,'Parent',None)
+    parent_id=None if parent is None else int(parent.ObjectId)
+    return {'name':_corex_text(item.Name),'api_type':_corex_text(item.GetType().FullName),'parent_index':index_by_id.get(parent_id)}
+def _corex_quantity(item,name):
+    value=getattr(item,name)
+    number=float(value.Value)
+    if math.isnan(number) or math.isinf(number): raise RuntimeError('mechanical.capability_unproved: non-finite Body.'+name)
+    unit=_corex_text(value.Unit)
+    if not unit: raise RuntimeError('mechanical.capability_unproved: Body.'+name+' unit is unavailable')
+    return {'value':number,'unit':unit}
+objects=list(Tree.AllObjects)
+index_by_id=dict((int(item.ObjectId),index) for index,item in enumerate(objects))
+def _corex_items(category):
+    return list(DataModel.GetObjectsByType(category))
+tree=[_corex_row(item,index_by_id) for item in objects]
+analyses=[_corex_row(item,index_by_id) for item in Model.Analyses]
+bodies=[];geometry_ids={}
+for body_index,item in enumerate(_corex_items(DataModelObjectCategory.Body)):
+    geo=item.GetGeoBody();topology={}
+    geometry_ids[int(geo.Id)]={'body_index':body_index,'kind':'body','index':0}
+    for plural,kind in (('Faces','face'),('Edges','edge'),('Vertices','vertex')):
+        entities=list(getattr(geo,plural));topology[kind+'_count']=len(entities)
+        for entity_index,entity in enumerate(entities):
+            identity={'body_index':body_index,'kind':kind,'index':entity_index}
+            entity_id=int(entity.Id)
+            if entity_id in geometry_ids: raise RuntimeError('mechanical.capability_unproved: duplicate geometry entity identity')
+            geometry_ids[entity_id]=identity
+    geometry={'geometry_type':_corex_text(item.GeometryType),'topology':topology,'quantities':{}}
+    for name in ('Volume','SurfaceArea','LengthX','LengthY','LengthZ','CentroidX','CentroidY','CentroidZ'):
+        geometry['quantities'][name]=_corex_quantity(item,name)
+    bodies.append(dict(_corex_row(item,index_by_id),suppressed=bool(item.Suppressed),geometry=geometry))
+scopes=[]
+for owner_index,item in enumerate(objects):
+    for role in ('Location','SourceLocation','TargetLocation'):
+        try: scope=getattr(item,role)
+        except AttributeError: continue
+        except Exception as exc: raise RuntimeError('mechanical.capability_unproved: '+role+' is unreadable for '+_corex_text(item.Name))
+        if scope is None:
+            scopes.append({'owner_index':owner_index,'role':role,'selection_type':'none','identities':[]});continue
+        try: raw_ids=list(scope.Ids or ());selection_type=_corex_text(scope.SelectionType)
+        except AttributeError:
+            try: related_index=index_by_id[int(scope.ObjectId)]
+            except Exception: raise RuntimeError('mechanical.capability_unproved: '+role+' relation cannot be normalized')
+            scopes.append({'owner_index':owner_index,'role':role,'selection_type':'object','identities':[{'kind':'object','tree_index':related_index}]});continue
+        ids=[]
+        for raw_id in raw_ids:
+            entity_id=int(raw_id)
+            if entity_id in geometry_ids: ids.append(geometry_ids[entity_id])
+            elif 'Geometry' in selection_type: raise RuntimeError('mechanical.capability_unproved: geometry scope identity cannot be normalized')
+            else: ids.append({'kind':selection_type,'id':entity_id})
+        scopes.append({'owner_index':owner_index,'role':role,'selection_type':selection_type,'identities':ids})
+snippets=[]
+for item in objects:
+    if _corex_text(item.GetType().FullName)!='Ansys.ACT.Automation.Mechanical.CommandSnippet': continue
+    snippets.append(dict(_corex_row(item,index_by_id),input=_corex_text(item.Input),step_selection_mode=_corex_text(item.StepSelectionMode),step_number=int(item.StepNumber),issue_solve_command=bool(item.IssueSolveCommand)))
+snapshot={'schema_version':1,'native_owner_ids':[int(item.ObjectId) for item in objects],'tree':tree,'analyses':analyses,'bodies':bodies,'scopes':scopes,'snippets':snippets}
+encoded=json.dumps(snapshot,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+stream=open(_corex_data['native_output_path'],'wb')
+try: stream.write(encoded);stream.flush()
+finally: stream.close()
+_corex_receipt=json.dumps({'byte_length':len(encoded),'sha256':hashlib.sha256(encoded).hexdigest()},separators=(',',':'))
 _corex_receipt'''
 
 
@@ -471,6 +545,369 @@ def validate_native_save_receipt(
     validate_staged_bundle(staging, format_code=format_code)
     if staging.primary.stat().st_size != value["stage_bytes"]:
         raise RuntimeError("Mechanical standalone save receipt size changed")
+    return dict(value)
+
+
+def model_export_owner_identity(
+    tree: list[dict[str, Any]], owner_index: int,
+) -> dict[str, Any]:
+    if type(owner_index) is not int or not 0 <= owner_index < len(tree):
+        raise RuntimeError("mechanical.save_failed: selected-model owner index is invalid")
+    chain: list[int] = []
+    seen: set[int] = set()
+    current: int | None = owner_index
+    while current is not None:
+        if current in seen or not 0 <= current < len(tree):
+            raise RuntimeError("mechanical.save_failed: selected-model owner ancestry is invalid")
+        seen.add(current)
+        chain.append(current)
+        parent = tree[current].get("parent_index")
+        if parent is not None and type(parent) is not int:
+            raise RuntimeError("mechanical.save_failed: selected-model owner parent is invalid")
+        current = parent
+    chain.reverse()
+    return {
+        "owner_index": owner_index,
+        "owner_parent_index": tree[owner_index]["parent_index"],
+        "object_path": "tree:" + "/".join(str(index) for index in chain),
+    }
+
+
+def model_export_native_owner_map(
+    tree: list[dict[str, Any]], native_owner_ids: object,
+) -> dict[int, int]:
+    if (
+        type(native_owner_ids) is not list
+        or len(native_owner_ids) != len(tree)
+        or len(native_owner_ids) > 100_000
+        or any(type(object_id) is not int or object_id < 0 for object_id in native_owner_ids)
+        or len(set(native_owner_ids)) != len(native_owner_ids)
+    ):
+        raise RuntimeError(
+            "mechanical.save_failed: selected-model native owner mapping is invalid"
+        )
+    for index in range(len(tree)):
+        model_export_owner_identity(tree, index)
+    return {object_id: index for index, object_id in enumerate(native_owner_ids)}
+
+
+def validate_model_export_snapshot(
+    value: object, *, complete: bool = True,
+) -> dict[str, Any]:
+    base_fields = {"schema_version", "tree", "analyses", "bodies", "scopes", "snippets"}
+    semantic_fields = {
+        "settings", "definitions", "cameras", "unreadable_display_diagnostics",
+    }
+    fields = (
+        base_fields | semantic_fields
+        if complete
+        else base_fields | {"native_owner_ids"}
+    )
+    if (
+        not isinstance(value, dict)
+        or set(value) != fields
+        or value["schema_version"] != 1
+        or any(type(value[key]) is not list for key in fields - {"schema_version"})
+        or len(value["tree"]) > 100_000
+        or any(len(value[key]) > len(value["tree"]) for key in (
+            "analyses", "bodies", "snippets",
+        ))
+        or len(value["scopes"]) > 300_000
+    ):
+        raise RuntimeError("mechanical.save_failed: selected-model snapshot is invalid")
+    row_fields = {"name", "api_type", "parent_index"}
+    for key in ("tree", "analyses"):
+        if any(
+            not isinstance(row, dict)
+            or set(row) != row_fields
+            or any(type(row[field]) is not str or not row[field] for field in ("name", "api_type"))
+            or row["parent_index"] is not None
+            and (type(row["parent_index"]) is not int or not 0 <= row["parent_index"] < len(value["tree"]))
+            for row in value[key]
+        ):
+            raise RuntimeError(f"mechanical.save_failed: selected-model {key} snapshot is invalid")
+    for index in range(len(value["tree"])):
+        model_export_owner_identity(value["tree"], index)
+    typed_fields = {
+        "bodies": row_fields | {"suppressed", "geometry"},
+        "snippets": row_fields | {
+            "input", "step_selection_mode", "step_number", "issue_solve_command",
+        },
+    }
+    for key, expected in typed_fields.items():
+        if any(
+            not isinstance(row, dict)
+            or set(row) != expected
+            or any(type(row[field]) is not str or not row[field] for field in ("name", "api_type"))
+            or row["parent_index"] is not None
+            and (type(row["parent_index"]) is not int or not 0 <= row["parent_index"] < len(value["tree"]))
+            for row in value[key]
+        ):
+            raise RuntimeError(f"mechanical.save_failed: selected-model {key} snapshot is invalid")
+    if any(type(row["suppressed"]) is not bool for row in value["bodies"]):
+        raise RuntimeError("mechanical.save_failed: selected-model body state is invalid")
+    if any(
+        not isinstance(row["geometry"], dict)
+        or set(row["geometry"]) != {"geometry_type", "topology", "quantities"}
+        or type(row["geometry"]["geometry_type"]) is not str
+        or not row["geometry"]["geometry_type"]
+        or set(row["geometry"]["topology"])
+        != {"face_count", "edge_count", "vertex_count"}
+        or any(
+            type(count) is not int or count < 0
+            for count in row["geometry"]["topology"].values()
+        )
+        or set(row["geometry"]["quantities"])
+        != {
+            "Volume", "SurfaceArea", "LengthX", "LengthY", "LengthZ",
+            "CentroidX", "CentroidY", "CentroidZ",
+        }
+        or any(
+            not isinstance(quantity, dict)
+            or set(quantity) != {"value", "unit"}
+            or type(quantity["value"]) not in {int, float}
+            or not math.isfinite(quantity["value"])
+            or type(quantity["unit"]) is not str
+            or not quantity["unit"]
+            for quantity in row["geometry"]["quantities"].values()
+        )
+        for row in value["bodies"]
+    ):
+        raise RuntimeError("mechanical.save_failed: selected-model geometry fingerprint is invalid")
+    scope_fields = {"owner_index", "role", "selection_type", "identities"}
+    if any(
+        not isinstance(row, dict)
+        or set(row) != scope_fields
+        or type(row["owner_index"]) is not int
+        or not 0 <= row["owner_index"] < len(value["tree"])
+        or row["role"] not in {"Location", "SourceLocation", "TargetLocation"}
+        or type(row["selection_type"]) is not str
+        or not row["selection_type"]
+        or type(row["identities"]) is not list
+        or len(row["identities"]) > 100_000
+        or any(
+            not isinstance(identity, dict)
+            or identity.get("kind") == "object"
+            and set(identity) != {"kind", "tree_index"}
+            or identity.get("kind") in {"body", "face", "edge", "vertex"}
+            and set(identity) != {"body_index", "kind", "index"}
+            or identity.get("kind") not in {"object", "body", "face", "edge", "vertex"}
+            and set(identity) != {"kind", "id"}
+            for identity in row["identities"]
+        )
+        for row in value["scopes"]
+    ):
+        raise RuntimeError("mechanical.save_failed: selected-model scope fingerprint is invalid")
+    if any(
+        type(row["input"]) is not str
+        or type(row["step_selection_mode"]) is not str
+        or type(row["step_number"]) is not int
+        or row["step_number"] < 0
+        or type(row["issue_solve_command"]) is not bool
+        for row in value["snippets"]
+    ):
+        raise RuntimeError("mechanical.save_failed: selected-model snippet state is invalid")
+    if not complete:
+        model_export_native_owner_map(value["tree"], value["native_owner_ids"])
+        return dict(value)
+    if any(
+        not isinstance(row, dict)
+        or set(row) != {
+            "owner_index", "owner_parent_index", "object_path",
+            "property_key", "caption", "display_value",
+            "definition_kind", "scalar_value", "unit", "quantity_name",
+            "formula", "has_tabular_data", "tables",
+        }
+        or any(type(row[key]) is not str for key in (
+            "object_path", "property_key", "caption", "display_value",
+            "definition_kind", "unit", "quantity_name", "formula",
+        ))
+        or not row["object_path"]
+        or not row["property_key"]
+        or {
+            key: row[key]
+            for key in ("owner_index", "owner_parent_index", "object_path")
+        }
+        != model_export_owner_identity(value["tree"], row["owner_index"])
+        or row["scalar_value"] is not None
+        and (type(row["scalar_value"]) not in {int, float} or not math.isfinite(row["scalar_value"]))
+        or type(row["has_tabular_data"]) is not bool
+        or type(row["tables"]) is not list
+        for row in value["settings"]
+    ):
+        raise RuntimeError("mechanical.save_failed: selected-model settings fingerprint is invalid")
+    if any(type(item) is not str or not item for item in value["definitions"]):
+        raise RuntimeError("mechanical.save_failed: selected-model definition fingerprint is invalid")
+    for encoded in value["definitions"]:
+        try:
+            definition = json.loads(encoded)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                "mechanical.save_failed: selected-model definition fingerprint is malformed"
+            ) from exc
+        if (
+            not isinstance(definition, dict)
+            or set(definition) != {"sources", "tables", "definitions"}
+            or type(definition["sources"]) is not list
+            or type(definition["tables"]) is not list
+            or not isinstance(definition["definitions"], dict)
+        ):
+            raise RuntimeError("mechanical.save_failed: selected-model definition schema is invalid")
+        source_pairs: set[tuple[str, str]] = set()
+        for source in definition["sources"]:
+            if (
+                not isinstance(source, dict)
+                or set(source) != {
+                    "kind", "owner_index", "owner_parent_index", "object_path",
+                    "property_key",
+                }
+                or source["kind"] != "property"
+                or type(source["property_key"]) is not str
+                or not source["property_key"]
+                or {
+                    key: source[key]
+                    for key in ("owner_index", "owner_parent_index", "object_path")
+                }
+                != model_export_owner_identity(value["tree"], source["owner_index"])
+            ):
+                raise RuntimeError("mechanical.save_failed: selected-model definition owner is invalid")
+            pair = (source["object_path"], source["property_key"])
+            if pair in source_pairs:
+                raise RuntimeError("mechanical.save_failed: selected-model definition owner is ambiguous")
+            source_pairs.add(pair)
+        split = definition["definitions"]
+        if (
+            set(split) != {"columns", "index", "data"}
+            or type(split["columns"]) is not list
+            or type(split["data"]) is not list
+            or "object_path" not in split["columns"]
+            or "property_key" not in split["columns"]
+        ):
+            raise RuntimeError("mechanical.save_failed: selected-model Definitions table is invalid")
+        path_index = split["columns"].index("object_path")
+        property_index = split["columns"].index("property_key")
+        if any(
+            type(row) is not list
+            or len(row) != len(split["columns"])
+            or (row[path_index], row[property_index]) not in source_pairs
+            for row in split["data"]
+        ):
+            raise RuntimeError("mechanical.save_failed: selected-model Definitions owner is missing")
+    camera_fields = {
+        "kind", "name", "index", "focal_point", "view_vector", "up_vector",
+        "scene_width", "scene_height", "length_unit", "availability_notes",
+    }
+    if any(
+        not isinstance(row, dict)
+        or set(row) != camera_fields
+        or row["kind"] not in {"saved", "current"}
+        or type(row["name"]) is not str
+        or row["index"] is not None and (type(row["index"]) is not int or row["index"] < 0)
+        or any(
+            vector is not None
+            and (
+                type(vector) is not list
+                or len(vector) != 3
+                or any(type(item) not in {int, float} or not math.isfinite(item) for item in vector)
+            )
+            for vector in (row["focal_point"], row["view_vector"], row["up_vector"])
+        )
+        or any(
+            item is not None
+            and (type(item) not in {int, float} or not math.isfinite(item))
+            for item in (row["scene_width"], row["scene_height"])
+        )
+        or row["length_unit"] is not None and type(row["length_unit"]) is not str
+        or not isinstance(row["availability_notes"], dict)
+        for row in value["cameras"]
+    ):
+        raise RuntimeError("mechanical.save_failed: selected-model camera fingerprint is invalid")
+    if any(
+        not isinstance(row, dict)
+        or set(row) != {
+            "owner_index", "owner_parent_index", "object_path", "property_key", "reason"
+        }
+        or any(
+            type(row[key]) is not str or not row[key]
+            for key in ("object_path", "property_key", "reason")
+        )
+        or {
+            key: row[key]
+            for key in ("owner_index", "owner_parent_index", "object_path")
+        }
+        != model_export_owner_identity(value["tree"], row["owner_index"])
+        for row in value["unreadable_display_diagnostics"]
+    ):
+        raise RuntimeError("mechanical.save_failed: selected-model diagnostics are invalid")
+    return dict(value)
+
+
+def compare_model_export_snapshot(
+    expected: object, actual: object,
+) -> dict[str, Any]:
+    expected = validate_model_export_snapshot(expected)
+    actual = validate_model_export_snapshot(actual)
+    semantic_keys = (
+        "tree", "analyses", "bodies", "scopes", "snippets", "settings",
+        "definitions", "cameras",
+    )
+    if any(actual[key] != expected[key] for key in semantic_keys):
+        changed = [
+            key
+            for key in semantic_keys
+            if actual[key] != expected[key]
+        ]
+        raise RuntimeError(
+            "mechanical.save_failed: selected-model export changed " + ", ".join(changed)
+        )
+    return {
+        "tree_object_count": len(expected["tree"]),
+        "analysis_count": len(expected["analyses"]),
+        "body_count": len(expected["bodies"]),
+        "definition_count": len(expected["definitions"]),
+        "setting_count": len(expected["settings"]),
+        "scope_count": len(expected["scopes"]),
+        "snippet_count": len(expected["snippets"]),
+        "camera_count": len(expected["cameras"]),
+    }
+
+
+def validate_model_export_save_receipt(
+    value: object,
+    *,
+    format_code: str,
+    staging: SaveStaging,
+) -> dict[str, Any]:
+    count_fields = {
+        "tree_object_count", "analysis_count", "body_count", "definition_count",
+        "setting_count", "scope_count", "snippet_count", "camera_count",
+    }
+    required = {
+        "schema_version", "marker", "format", "reopen_verified",
+        "source_workbench_preserved", "bridge_bytes", "stage_bytes", *count_fields,
+    }
+    if (
+        not isinstance(value, dict)
+        or set(value) != required
+        or value["schema_version"] != 1
+        or value["marker"] != "corex-workbench-model-export-v1"
+        or value["format"] != format_code
+        or format_code not in _MODEL_FORMATS
+        or value["reopen_verified"] is not True
+        or value["source_workbench_preserved"] is not True
+        or type(value["bridge_bytes"]) is not int
+        or value["bridge_bytes"] < 1
+        or type(value["stage_bytes"]) is not int
+        or value["stage_bytes"] < 1
+        or any(type(value[key]) is not int or value[key] < 0 for key in count_fields)
+        or value["tree_object_count"] < 1
+        or value["analysis_count"] < 1
+        or value["body_count"] < 1
+    ):
+        raise RuntimeError("mechanical.save_failed: selected-model conversion receipt is invalid")
+    validate_staged_bundle(staging, format_code=format_code)
+    if staging.primary.stat().st_size != value["stage_bytes"]:
+        raise RuntimeError("mechanical.save_failed: selected-model staged size changed")
     return dict(value)
 
 
@@ -858,16 +1295,22 @@ def save_receipt_message(
 
 
 __all__ = [
+    "MODEL_EXPORT_SNAPSHOT_BODY",
     "STANDALONE_SAVE_BODY",
     "SAVE_FORMATS",
     "SaveStaging",
     "companion_path",
+    "compare_model_export_snapshot",
     "create_save_staging",
+    "model_export_owner_identity",
+    "model_export_native_owner_map",
     "preflight_save_destination",
     "publish_save",
     "resolve_save_format",
     "save_receipt_message",
     "validate_archive_inclusions",
+    "validate_model_export_save_receipt",
+    "validate_model_export_snapshot",
     "validate_native_save_receipt",
     "validate_staged_bundle",
     "validate_workbench_archive_structure",

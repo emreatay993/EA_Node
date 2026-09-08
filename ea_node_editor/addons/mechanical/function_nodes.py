@@ -1,6 +1,6 @@
 # Purpose: Hold inert decorated Mechanical Open, read, graphics, mutation, and save declarations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_save.py
+# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_save.py, tests/mechanical_catalogue/test_workbench_model_export.py
 
 SOURCE = r'''import corex
 from ea_node_editor.addons.mechanical.runtime import execute_open_model
@@ -261,7 +261,7 @@ def mechanical_apdl_snippet(ctx, source_model, settings):
 @corex.node(
     id="mechanical.save_model", name="Save Mechanical Model",
     category=("FEA", "ANSYS", "Mechanical"),
-    description="Explicitly saves a standalone Mechanical output or complete Workbench project/archive through staged rollback-protected publication.",
+    description="Explicitly saves standalone Mechanical outputs, complete Workbench projects/archives, or a selected Workbench model-only export through staged rollback-protected publication.",
     keywords=("mechanical", "ansys", "save", "archive", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz"),
     _solution_reuse_scope="never",
 )

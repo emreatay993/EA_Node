@@ -1,13 +1,14 @@
 # Purpose: Open native Mechanical models and execute allowlisted read, graphics, mutation, and save operations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_save.py
-# Landmarks: MechanicalOwnerBackend; snippet_preflight; run_snippet; standalone_save; workbench_save; open; close
+# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_save.py, tests/mechanical_catalogue/test_workbench_model_export.py
+# Landmarks: MechanicalOwnerBackend; snippet_preflight; run_snippet; standalone_save; workbench_save; workbench_model_export; convert_workbench_model; open; close
 
 from __future__ import annotations
 
 import base64
 import hashlib
 import json
+import os
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -31,14 +32,21 @@ from ea_node_editor.addons.mechanical.commands import (
     validate_snippet_preflight,
 )
 from ea_node_editor.addons.mechanical.graphics import (
+    CAMERA_IDENTITY_FIELDS,
     CAMERA_SCRIPT_BODY,
     IMAGE_PREFLIGHT_SCRIPT_BODY,
     IMAGE_SCRIPT_BODY,
     build_camera_views,
 )
 from ea_node_editor.addons.mechanical.saving import (
+    MODEL_EXPORT_SNAPSHOT_BODY,
     STANDALONE_SAVE_BODY,
+    compare_model_export_snapshot,
+    model_export_native_owner_map,
+    model_export_owner_identity,
     save_receipt_message,
+    validate_model_export_save_receipt,
+    validate_model_export_snapshot,
     validate_native_save_receipt,
     validate_staged_bundle,
     SaveStaging,
@@ -49,7 +57,10 @@ from ea_node_editor.addons.mechanical.saving import (
 )
 from ea_node_editor.addons.mechanical.workbench import (
     WORKBENCH_MODEL_COMPONENT_PREDICATE,
+    WORKBENCH_MODEL_EXPORT_BODY,
     WORKBENCH_SAVE_BODY,
+    validate_workbench_model_export_receipt,
+    validate_workbench_model_export_snapshots,
     validate_workbench_semantic_snapshots,
     validate_workbench_save_receipt,
 )
@@ -67,6 +78,7 @@ LIFECYCLE_OPERATIONS = frozenset(
         "image_export", "script_preflight", "run_script",
         "snippet_preflight", "run_snippet", "close",
         "standalone_save", "workbench_save",
+        "workbench_model_export", "convert_workbench_model",
     }
 )
 
@@ -200,6 +212,10 @@ class MechanicalOwnerBackend:
             return self.standalone_save(args)
         if operation == "workbench_save":
             return self.workbench_save(args)
+        if operation == "workbench_model_export":
+            return self.workbench_model_export(args)
+        if operation == "convert_workbench_model":
+            return self.convert_workbench_model(args)
         return self.definition_tables(args)
 
     def _execute_native_script(self, script: str) -> Any:
@@ -233,6 +249,312 @@ class MechanicalOwnerBackend:
             )
         finally:
             output.unlink(missing_ok=True)
+
+    def _model_export_semantics(
+        self,
+        identity: Mapping[str, Any],
+        *,
+        owner_tree: list[dict[str, Any]],
+        native_owner_ids: list[int],
+        label: str,
+    ) -> dict[str, Any]:
+        if self.tree is None or self.model is None or self.work_root is None:
+            raise RuntimeError(f"{label} model state is unavailable")
+        searched = search_tree(
+            tree=self.tree,
+            model=self.model,
+            data_model=self.data_model,
+            identity=identity,
+            filter_code="name",
+            query="",
+            match_mode="contains",
+            case_sensitive=False,
+            include_hidden_properties=False,
+            invert=False,
+        )
+        object_values = list(searched["objects"])
+        if not object_values or len(object_values) > 100_000:
+            raise RuntimeError(f"{label} tree-owner inventory is empty or exceeds its bound")
+        base_indices = model_export_native_owner_map(owner_tree, native_owner_ids)
+        object_rows: dict[int, Mapping[str, Any]] = {}
+        for item in object_values:
+            object_id = item.payload["object_id"]
+            if object_id in object_rows:
+                raise RuntimeError(f"{label} tree-owner identity is ambiguous")
+            object_rows[object_id] = item.payload
+        if set(object_rows) != set(base_indices):
+            raise RuntimeError(f"{label} tree-owner mapping is incomplete")
+        for object_id, payload in object_rows.items():
+            index = base_indices[object_id]
+            base = owner_tree[index]
+            if (
+                payload["display_name"] != base["name"]
+                or payload["api_type"] != base["api_type"]
+            ):
+                raise RuntimeError(f"{label} tree-owner mapping is misaligned")
+            parent_id = payload["parent_id"]
+            if parent_id is not None:
+                parent_index = base["parent_index"]
+                if (
+                    parent_index is None
+                    or native_owner_ids[parent_index] != parent_id
+                ):
+                    raise RuntimeError(f"{label} tree-owner parent mapping is misaligned")
+        owner_identities = {
+            object_id: model_export_owner_identity(owner_tree, index)
+            for object_id, index in base_indices.items()
+        }
+        native_objects: dict[int, Any] = {}
+        for obj in self.tree.AllObjects:
+            object_id = int(obj.ObjectId)
+            if object_id in native_objects:
+                raise RuntimeError(f"{label} native tree-owner identity is ambiguous")
+            native_objects[object_id] = obj
+        if set(native_objects) != set(object_rows):
+            raise RuntimeError(f"{label} native tree-owner mapping is incomplete")
+        settings: list[dict[str, Any]] = []
+        diagnostics: list[dict[str, Any]] = []
+        for item in searched["properties"]:
+            payload = item.payload
+            owner_id = payload["object_id"]
+            owner = object_rows[owner_id]
+            owner_identity = owner_identities[owner_id]
+            api_type = owner["api_type"]
+            required_definition = (
+                owner["analysis_id"] is not None
+                and owner["object_id"] != owner["analysis_id"]
+                and ".Results." not in api_type
+                and not api_type.endswith(".Solution")
+                and not api_type.endswith(".CommandSnippet")
+            )
+            if not required_definition:
+                continue
+            if payload["property_key"] == "SolverFilesDirectory":
+                analysis_id = owner["analysis_id"]
+                if (
+                    api_type
+                    != "Ansys.ACT.Automation.Mechanical.AnalysisSettings.ANSYSAnalysisSettings"
+                    or owner["parent_id"] != analysis_id
+                ):
+                    raise RuntimeError(
+                        f"{label} SolverFilesDirectory requires an exact direct Analysis Settings owner"
+                    )
+                analysis = object_rows.get(analysis_id)
+                native_analysis = native_objects.get(analysis_id)
+                if (
+                    type(analysis_id) is not int
+                    or analysis is None
+                    or native_analysis is None
+                    or not analysis["api_type"].endswith(".Analysis")
+                ):
+                    raise RuntimeError(
+                        f"{label} SolverFilesDirectory analysis owner is unavailable or ambiguous"
+                    )
+                try:
+                    working_dir = str(native_analysis.WorkingDir or "")
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"{label} native analysis WorkingDir is unavailable"
+                    ) from exc
+                if (
+                    not working_dir
+                    or payload["value_status"] != "available"
+                    or os.path.normcase(os.path.abspath(payload["display_value"]))
+                    != os.path.normcase(os.path.abspath(working_dir))
+                ):
+                    raise RuntimeError(
+                        f"{label} SolverFilesDirectory does not match its native analysis WorkingDir"
+                    )
+                diagnostics.append({
+                    **owner_identity,
+                    "property_key": payload["property_key"],
+                    "reason": "runtime_location:SolverFilesDirectory",
+                })
+                continue
+            if payload["value_status"] != "available":
+                diagnostics.append({
+                    **owner_identity,
+                    "property_key": payload["property_key"],
+                    "reason": payload["value_status"],
+                })
+                continue
+            settings.append({
+                **owner_identity,
+                "property_key": payload["property_key"],
+                "caption": payload["caption"],
+                "display_value": payload["display_value"],
+                "definition_kind": payload["definition_kind"],
+                "scalar_value": payload["scalar_value"],
+                "unit": payload["unit"],
+                "quantity_name": payload["quantity_name"],
+                "formula": payload["formula"],
+                "has_tabular_data": payload["has_tabular_data"],
+                "tables": [
+                    {
+                        key: descriptor[key]
+                        for key in (
+                            "table_family", "definition_kind", "row_count", "column_count"
+                        )
+                    }
+                    for descriptor in payload["tables"]
+                ],
+            })
+        field_sources: list[dict[str, Any]] = []
+        field_owners: list[dict[str, Any]] = []
+        for obj in native_objects.values():
+            object_id = int(obj.ObjectId)
+            owner = object_rows.get(object_id)
+            if owner is None:
+                continue
+            try:
+                properties = list(obj.VisibleProperties)
+            except Exception:
+                continue
+            for ordinal, prop in enumerate(properties):
+                keys = []
+                for name in ("APIName", "Name"):
+                    try:
+                        value = str(getattr(prop, name) or "")
+                    except Exception:
+                        value = ""
+                    if value and value != "None":
+                        keys.append(value)
+                key = keys[0] if keys else f"property:{ordinal}"
+                try:
+                    field = getattr(obj, key)
+                    is_field = field is not None and (
+                        hasattr(field, "Inputs") or hasattr(field, "Output")
+                    )
+                except Exception:
+                    is_field = False
+                if is_field:
+                    field_sources.append({
+                        "kind": "property",
+                        "object_id": object_id,
+                        "object_path": owner["object_path"],
+                        "property_key": key,
+                    })
+                    field_owners.append(owner_identities[object_id])
+        definitions: list[str] = []
+        if field_sources:
+            result = self.definition_tables({
+                "sources": field_sources,
+                "family": "model_definition",
+                "table": "",
+                "table_selector": None,
+                "component": "all",
+                "units": "source",
+                "native_output_path": str(
+                    self.work_root / f"native-definitions-export-{uuid4().hex}.json"
+                ),
+            })["definition_tables"]
+            source_owners: dict[tuple[str, str], dict[str, Any]] = {}
+            for source, owner_identity in zip(field_sources, field_owners, strict=True):
+                source_key = (source["object_path"], source["property_key"])
+                if source_key in source_owners:
+                    raise RuntimeError(f"{label} definition owner is ambiguous")
+                source_owners[source_key] = owner_identity
+            definitions_frame = result["definitions"].to_pandas().copy()
+            if not {"object_path", "property_key"}.issubset(definitions_frame.columns):
+                raise RuntimeError(f"{label} Definitions owner columns are unavailable")
+            normalized_paths = []
+            for object_path, property_key in zip(
+                definitions_frame["object_path"],
+                definitions_frame["property_key"],
+                strict=True,
+            ):
+                owner_identity = source_owners.get((str(object_path), str(property_key)))
+                if owner_identity is None:
+                    raise RuntimeError(f"{label} Definitions owner mapping is missing")
+                normalized_paths.append(owner_identity["object_path"])
+            definitions_frame["object_path"] = normalized_paths
+            definitions = [
+                json.dumps(
+                    {
+                        "sources": [
+                            {
+                                "kind": source["kind"],
+                                **owner_identity,
+                                "property_key": source["property_key"],
+                            }
+                            for source, owner_identity in zip(
+                                field_sources, field_owners, strict=True
+                            )
+                        ],
+                        "tables": [
+                            json.loads(
+                                table.to_pandas().to_json(
+                                    orient="split", double_precision=15, force_ascii=False
+                                )
+                            )
+                            for table in result["tables"]
+                        ],
+                        "definitions": json.loads(
+                            definitions_frame.to_json(
+                                orient="split", double_precision=15, force_ascii=False
+                            )
+                        ),
+                    },
+                    ensure_ascii=False,
+                    allow_nan=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+            ]
+        camera_identity = {
+            key: identity[key]
+            for key in CAMERA_IDENTITY_FIELDS
+        }
+        camera_result = self.camera_views({
+            "include": "saved_and_current",
+            "identity": camera_identity,
+            "export_path": str(
+                self.work_root / f"camera-views-export-{uuid4().hex}.xml"
+            ),
+            "restore_name": f"COREX restore {uuid4().hex}",
+        })["camera_views"]
+        camera_fields = (
+            "kind", "name", "index", "focal_point", "view_vector", "up_vector",
+            "scene_width", "scene_height", "length_unit", "availability_notes",
+        )
+        cameras = [
+            {key: item.payload[key] for key in camera_fields}
+            for item in camera_result["views"]
+        ]
+        return json.loads(json.dumps({
+            "settings": settings,
+            "definitions": definitions,
+            "cameras": cameras,
+            "unreadable_display_diagnostics": diagnostics,
+        }, ensure_ascii=False, allow_nan=False))
+
+    @staticmethod
+    def _write_model_export_snapshot(
+        path: Path,
+        base: object,
+        semantics: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        validated_base = validate_model_export_snapshot(base, complete=False)
+        snapshot = {
+            **{
+                key: value
+                for key, value in validated_base.items()
+                if key != "native_owner_ids"
+            },
+            **semantics,
+        }
+        encoded = json.dumps(
+            snapshot,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        if len(encoded) > 16 * 1024 * 1024:
+            raise RuntimeError(
+                "mechanical.save_failed: selected-model recovery snapshot exceeds its bound"
+            )
+        path.write_bytes(encoded)
+        return validate_model_export_snapshot(snapshot)
 
     def script_preflight(self, args: Mapping[str, Any]) -> dict[str, Any]:
         if set(args) != {"environments", "scope"} or (
@@ -764,6 +1086,361 @@ class MechanicalOwnerBackend:
                 )],
             ),
         }
+
+    def workbench_model_export(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        required = {
+            "format", "source_path", "destination_path", "work_path",
+            "bridge_path", "snapshot_path", "model_snapshot_path", "stage_path",
+            "stage_companion", "verify_path", "files", "overwrite",
+            "catalogue_identity", "view_export_path",
+        }
+        format_code = args.get("format")
+        if (
+            set(args) != required
+            or format_code not in {"mechdb", "mechdat"}
+            or self.workbench is None
+            or self.mechanical is None
+            or not self.system_name
+            or self.source_path is None
+            or self.work_path is None
+            or self.work_root is None
+            or self.source_path.suffix.casefold() not in {".wbpj", ".wbpz"}
+            or Path(str(args["source_path"])).resolve() != self.source_path
+            or Path(str(args["work_path"])).resolve() != self.work_path
+            or type(args["overwrite"]) is not bool
+            or type(args["files"]) is not list
+            or any(type(value) is not str for value in args["files"])
+        ):
+            raise ValueError("Mechanical Workbench model-export arguments or session state are invalid")
+        bridge = Path(str(args["bridge_path"])).resolve()
+        snapshot_path = Path(str(args["snapshot_path"])).resolve()
+        model_snapshot_path = Path(str(args["model_snapshot_path"])).resolve()
+        root = bridge.parent.parent
+        stage_path = Path(str(args["stage_path"])).resolve()
+        stage_companion = Path(str(args["stage_companion"])).resolve()
+        verify_path = Path(str(args["verify_path"])).resolve()
+        if (
+            bridge != root / "b" / "b.dsdb"
+            or snapshot_path != root / "w.json"
+            or model_snapshot_path != root / "m.json"
+            or stage_path.parent != root
+            or stage_companion != companion_path(stage_path, str(format_code))
+            or verify_path != root / "v" / "v.mechdb"
+            or bridge.exists()
+            or snapshot_path.exists()
+            or model_snapshot_path.exists()
+            or bridge.parent.exists()
+        ):
+            raise ValueError("Mechanical Workbench model-export staging paths are invalid")
+        bridge.parent.mkdir()
+        source_snapshot_receipt = self._execute_native_script(
+            _data_script(
+                {
+                    "native_output_path": str(model_snapshot_path),
+                    "view_export_path": str(args["view_export_path"]),
+                },
+                MODEL_EXPORT_SNAPSHOT_BODY,
+            )
+        )
+        source_base = validate_model_export_snapshot(
+            _read_native_json_file(
+                model_snapshot_path,
+                source_snapshot_receipt,
+                max_bytes=16 * 1024 * 1024,
+                label="Mechanical selected-model snapshot",
+            ),
+            complete=False,
+        )
+        source_snapshot = self._write_model_export_snapshot(
+            model_snapshot_path,
+            source_base,
+            self._model_export_semantics(
+                dict(args["catalogue_identity"]),
+                owner_tree=source_base["tree"],
+                native_owner_ids=source_base["native_owner_ids"],
+                label="Mechanical selected-model source",
+            ),
+        )
+        systems_before = self._workbench_systems()
+        was_interactive = self.interactive_model
+        self.workbench.stop_mechanical_server(system_name=self.system_name)
+        self.mechanical_server_started = False
+        self.mechanical = self.tree = self.model = self.data_model = self.graphics = None
+        raw = self.workbench.run_script_string(
+            _data_script(
+                {
+                    "format": format_code,
+                    "work_path": str(self.work_path),
+                    "bridge_path": str(bridge),
+                    "system": self.system_name,
+                    "snapshot_path": str(snapshot_path),
+                },
+                WORKBENCH_MODEL_EXPORT_BODY,
+            )
+        )
+        receipt = validate_workbench_model_export_receipt(
+            raw, format_code=str(format_code)
+        )
+        if (
+            bridge.stat().st_size != receipt["bridge_bytes"]
+            or hashlib.sha256(bridge.read_bytes()).hexdigest() != receipt["bridge_sha256"]
+        ):
+            raise RuntimeError("mechanical.save_failed: private model bridge changed after export")
+        workbench_proof = validate_workbench_model_export_snapshots(
+            snapshot_path,
+            receipt=receipt,
+            work_path=self.work_path,
+        )
+        self.interactive_model = False
+        if was_interactive:
+            self._edit_workbench_model()
+        self._connect_workbench_model()
+        systems_after = self._workbench_systems()
+        if systems_after != systems_before:
+            raise RuntimeError(
+                "mechanical.restore_failed: Workbench systems changed after selected-model export"
+            )
+        self.systems = systems_after
+        self.connection_generation += 1
+        source_after_base = self._execute_native_json(
+            {"view_export_path": str(args["view_export_path"])},
+            MODEL_EXPORT_SNAPSHOT_BODY,
+            prefix="model-export-source-after",
+            label="Mechanical selected-model source restoration",
+            max_bytes=16 * 1024 * 1024,
+        )
+        source_after_base = validate_model_export_snapshot(
+            source_after_base, complete=False
+        )
+        source_after = self._write_model_export_snapshot(
+            self.work_root / f"model-export-source-after-{uuid4().hex}.json",
+            source_after_base,
+            self._model_export_semantics(
+                dict(args["catalogue_identity"]),
+                owner_tree=source_after_base["tree"],
+                native_owner_ids=source_after_base["native_owner_ids"],
+                label="Mechanical selected-model restored source",
+            ),
+        )
+        model_proof = compare_model_export_snapshot(source_snapshot, source_after)
+        identity = dict(args["catalogue_identity"])
+        identity["view_export_path"] = str(args["view_export_path"])
+        omissions = [
+            "retained result files",
+            "user files",
+            "imported or external files",
+            "Workbench topology and shared links",
+            "Workbench design points and project dependencies",
+        ]
+        return {
+            "status": "exported",
+            "native_export": {
+                "bridge_bytes": receipt["bridge_bytes"],
+                "bridge_sha256": receipt["bridge_sha256"],
+                "snapshot_bytes": model_snapshot_path.stat().st_size,
+                "snapshot_sha256": hashlib.sha256(model_snapshot_path.read_bytes()).hexdigest(),
+            },
+            "connection_changed": True,
+            "connection_generation": self.connection_generation,
+            "rows": collect_catalogue_rows(
+                tree=self.tree,
+                graphics=self.graphics,
+                identity=identity,
+                systems=self.systems,
+                status="save_completed",
+                model=self.model,
+                data_model=self.data_model,
+                operations=[
+                    save_receipt_message(
+                        destination=Path(str(args["destination_path"])),
+                        source=self.source_path,
+                        format_code=str(format_code),
+                        files=[Path(value) for value in args["files"]],
+                        overwrite=bool(args["overwrite"]),
+                        archive_policy={
+                            "results_consumed": False,
+                            "user_files_consumed": False,
+                            "external_imported_files_consumed": False,
+                            "complete": False,
+                            "model_only": True,
+                            "omissions": omissions,
+                            "exclusions": omissions,
+                        },
+                        semantic_proof={
+                            **workbench_proof,
+                            **model_proof,
+                            "model_only": True,
+                            "conversion_owner": "separate_same_release_standalone",
+                        },
+                    )
+                ],
+            ),
+        }
+
+    def convert_workbench_model(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        required = {
+            "format", "release_code", "bridge_path", "bridge_bytes",
+            "bridge_sha256", "stage_path", "stage_companion", "verify_path",
+            "model_snapshot_path", "model_snapshot_bytes", "model_snapshot_sha256",
+        }
+        format_code = args.get("format")
+        if (
+            set(args) != required
+            or format_code not in {"mechdb", "mechdat"}
+            or type(args["release_code"]) is not int
+            or args["release_code"] < 261
+            or any(
+                type(args[key]) is not int or args[key] < 1
+                for key in ("bridge_bytes", "model_snapshot_bytes")
+            )
+            or any(
+                type(args[key]) is not str
+                or re.fullmatch(r"[0-9a-f]{64}", args[key]) is None
+                for key in ("bridge_sha256", "model_snapshot_sha256")
+            )
+            or self.app is not None
+            or self.mechanical is not None
+            or self.workbench is not None
+        ):
+            raise ValueError("Mechanical selected-model conversion arguments are invalid")
+        bridge = Path(str(args["bridge_path"])).resolve(strict=True)
+        stage_path = Path(str(args["stage_path"])).resolve()
+        stage_companion = Path(str(args["stage_companion"])).resolve()
+        verify_path = Path(str(args["verify_path"])).resolve()
+        snapshot_path = Path(str(args["model_snapshot_path"])).resolve(strict=True)
+        root = stage_path.parent
+        staging = SaveStaging(root, stage_path, stage_companion, verify_path)
+        if (
+            bridge != root / "b" / "b.dsdb"
+            or snapshot_path != root / "m.json"
+            or stage_companion != companion_path(stage_path, str(format_code))
+            or verify_path != root / "v" / "v.mechdb"
+            or not verify_path.parent.is_dir()
+            or any(verify_path.parent.iterdir())
+            or stage_path.exists()
+            or stage_companion.exists()
+            or bridge.stat().st_size != args["bridge_bytes"]
+            or snapshot_path.stat().st_size != args["model_snapshot_bytes"]
+            or hashlib.sha256(bridge.read_bytes()).hexdigest() != args["bridge_sha256"]
+            or hashlib.sha256(snapshot_path.read_bytes()).hexdigest()
+            != args["model_snapshot_sha256"]
+        ):
+            raise ValueError("Mechanical selected-model conversion staging identity is invalid")
+        expected_snapshot = validate_model_export_snapshot(
+            _read_native_json_file(
+                snapshot_path,
+                {
+                    "byte_length": args["model_snapshot_bytes"],
+                    "sha256": args["model_snapshot_sha256"],
+                },
+                max_bytes=16 * 1024 * 1024,
+                label="Mechanical selected-model conversion source",
+            )
+        )
+        self.work_root = root
+        conversion_identity = {
+            "schema_version": 1,
+            "model_revision": 0,
+            "producer_iteration": 0,
+            "catalogue_id": "00000000-0000-0000-0000-000000000001",
+            "producer_node_id": "conversion",
+            "producer_port": "report",
+            "producer_path": "[]",
+            "run_id": "conversion",
+            "session_id": "conversion",
+            "document_id": "conversion",
+            "source_key": "conversion",
+            "system_key": "standalone",
+        }
+        from ansys.mechanical.core import App, global_variables
+
+        app = App(version=int(args["release_code"]))
+        self.app = app
+        try:
+            values = global_variables(app)
+            if int(args["release_code"]) > 261 and (
+                not callable(getattr(app, "open", None))
+                or not callable(getattr(app, "save_as", None))
+                or values.get("Tree") is None
+                or values.get("Model") is None
+                or values.get("DataModel") is None
+                or values.get("Graphics") is None
+            ):
+                raise RuntimeError(
+                    "mechanical.capability_unproved: later standalone release lacks selected-model conversion operations"
+                )
+            app.open(str(bridge))
+            values = global_variables(app)
+            self.tree, self.model, self.data_model, self.graphics = (
+                values["Tree"], values["Model"], values["DataModel"], values["Graphics"]
+            )
+            bridge_base = self._execute_native_json(
+                {"view_export_path": str(root / "bridge-views.xml")},
+                MODEL_EXPORT_SNAPSHOT_BODY,
+                prefix="model-export-bridge",
+                label="Mechanical selected-model bridge verification",
+                max_bytes=16 * 1024 * 1024,
+            )
+            bridge_base = validate_model_export_snapshot(
+                bridge_base, complete=False
+            )
+            bridge_snapshot = self._write_model_export_snapshot(
+                root / "bridge-model.json",
+                bridge_base,
+                self._model_export_semantics(
+                    conversion_identity,
+                    owner_tree=bridge_base["tree"],
+                    native_owner_ids=bridge_base["native_owner_ids"],
+                    label="Mechanical selected-model bridge",
+                ),
+            )
+            proof = compare_model_export_snapshot(expected_snapshot, bridge_snapshot)
+            app.save_as(str(stage_path), overwrite=False)
+            validate_staged_bundle(staging, format_code=str(format_code))
+            app.open(str(stage_path))
+            values = global_variables(app)
+            self.tree, self.model, self.data_model, self.graphics = (
+                values["Tree"], values["Model"], values["DataModel"], values["Graphics"]
+            )
+            reopened_base = self._execute_native_json(
+                {"view_export_path": str(root / "reopen-views.xml")},
+                MODEL_EXPORT_SNAPSHOT_BODY,
+                prefix="model-export-reopen",
+                label="Mechanical selected-model independent reopen",
+                max_bytes=16 * 1024 * 1024,
+            )
+            reopened_base = validate_model_export_snapshot(
+                reopened_base, complete=False
+            )
+            reopened_snapshot = self._write_model_export_snapshot(
+                root / "reopen-model.json",
+                reopened_base,
+                self._model_export_semantics(
+                    conversion_identity,
+                    owner_tree=reopened_base["tree"],
+                    native_owner_ids=reopened_base["native_owner_ids"],
+                    label="Mechanical selected-model independent stage reopen",
+                ),
+            )
+            compare_model_export_snapshot(expected_snapshot, reopened_snapshot)
+            receipt = {
+                "schema_version": 1,
+                "marker": "corex-workbench-model-export-v1",
+                "format": format_code,
+                "reopen_verified": True,
+                "source_workbench_preserved": True,
+                "bridge_bytes": bridge.stat().st_size,
+                "stage_bytes": stage_path.stat().st_size,
+                **proof,
+            }
+            validate_model_export_save_receipt(
+                receipt, format_code=str(format_code), staging=staging
+            )
+            return {"status": "converted", "native_save": receipt}
+        finally:
+            app.close()
+            self.app = None
+            self.tree = self.model = self.data_model = self.graphics = None
 
     def image_export(self, args: Mapping[str, Any]) -> dict[str, Any]:
         required = {
@@ -1404,6 +2081,11 @@ for o in list(Tree.AllObjects):
  try:
    for q in list(o.Properties if _corex_data['include_hidden'] else o.VisibleProperties):
     api_name=field(q,'APIName',True);prop_name=field(q,'Name',True);caption=field(q,'Caption',True);string_value=field(q,'StringValue',True)
+    key=api_name['value'] if api_name['present'] and not api_name['error'] and api_name['value'] not in ('','None') else prop_name['value'] if prop_name['present'] and not prop_name['error'] and prop_name['value'] not in ('','None') else 'property:'+str(len(props))
+    object_field=field(o,key);object_is_field=False
+    if object_field['present'] and not object_field['error'] and object_field['value'] is not None:
+     object_inputs=field(object_field['value'],'Inputs');object_output=field(object_field['value'],'Output')
+     object_is_field=object_inputs['present'] or object_output['present']
     internal=field(q,'InternalValue');internal_error=internal['error'];iv=internal['value'];field_inputs=None;internal_fields=None;is_field=False;output_error=''
     output=None
     if iv is not None:
@@ -1419,7 +2101,7 @@ for o in list(Tree.AllObjects):
       internal_fields={n:field(iv,n,n in ('Unit','QuantityName')) for n in ('Value','Unit','QuantityName')}
       scalar=internal_fields['Value']
       if scalar['present'] and not scalar['error'] and type(scalar['value']) not in (int,float):scalar['present']=False;scalar['value']=None
-    props.append({'APIName':api_name,'Name':prop_name,'Caption':caption,'StringValue':string_value,'internal_error':internal_error,'is_field':is_field,'output_error':output_error,'field_inputs':field_inputs,'output':output,'internal':internal_fields})
+    props.append({'APIName':api_name,'Name':prop_name,'Caption':caption,'StringValue':string_value,'object_field_key':key if object_is_field else '','internal_error':internal_error,'is_field':is_field,'output_error':output_error,'field_inputs':field_inputs,'output':output,'internal':internal_fields})
  except Exception as x:props_error=type(x).__name__
  table_field=field(o,'TabularData');table=table_field['value'];table_keys=None
  if table_field['present'] and not table_field['error'] and table is not None:
@@ -1445,7 +2127,7 @@ for o in list(Tree.AllObjects):
       try:ids['value']=list(ids['value'] or ())
       except Exception as x:ids={'present':True,'error':type(x).__name__,'value':None}
      scopes[attr]['Ids']=ids
- rows.append({'ObjectId':oid,'Name':name,'api_type':api_type,'category':category,'parent_id':parent_id,'props':props,'props_error':props_error,'table_keys':table_keys,'hidden':field(o,'Hidden'),'source':field(o,'ImportableObjectSourceId',True),'state':field(o,'ObjectState',True),'suppressed':field(o,'Suppressed'),'bindings':bindings,'scopes':scopes,'direct_tags':tags.get(oid,[]),'tags_available':tags_available})
+ rows.append({'ObjectId':oid,'Name':name,'api_type':api_type,'category':category,'parent_id':parent_id,'props':props,'props_error':props_error,'table_keys':table_keys,'hidden':field(o,'Hidden'),'source':field(o,'ImportableObjectSourceId',True),'state':field(o,'ObjectState',True),'suppressed':field(o,'Suppressed'),'working_dir':field(o,'WorkingDir',True),'bindings':bindings,'scopes':scopes,'direct_tags':tags.get(oid,[]),'tags_available':tags_available})
 encoded=json.dumps(rows,ensure_ascii=False,separators=(',',':')).encode('utf-8')
 stream=open(_corex_data['output_path'],'wb')
 try:stream.write(encoded)
@@ -1466,6 +2148,11 @@ json.dumps({'marker':'corex-remote-tree-v1','byte_length':len(encoded),'sha256':
         for r in rows:
             properties = [_RemoteProperty(**p) for p in r["props"]]
             values = dict(ObjectId=r["ObjectId"], Parent=None, _corex_direct_tags=r["direct_tags"], _corex_tags_available=r["tags_available"])
+            values.update({
+                prop._object_field_key: _Proxy(Inputs=(), Output=_Proxy())
+                for prop in properties
+                if prop._object_field_key
+            })
             errors = {}
             for key, field_name in (("Name", "Name"), ("api_type", "GetType"), ("category", "DataModelObjectCategory")):
                 item = r[key]
@@ -1476,7 +2163,7 @@ json.dumps({'marker':'corex-remote-tree-v1','byte_length':len(encoded),'sha256':
             else: values[property_field] = properties
             if not self.include_hidden_properties and not r["props_error"]: values["VisibleProperties"] = properties
             if r["table_keys"] is not None: values["TabularData"] = _Proxy(Keys=r["table_keys"])
-            for key, field_name in (("hidden", "Hidden"), ("source", "ImportableObjectSourceId"), ("state", "ObjectState"), ("suppressed", "Suppressed")):
+            for key, field_name in (("hidden", "Hidden"), ("source", "ImportableObjectSourceId"), ("state", "ObjectState"), ("suppressed", "Suppressed"), ("working_dir", "WorkingDir")):
                 item = r[key]
                 if item["error"]: errors[field_name] = item["error"]
                 elif item["present"]: values[field_name] = item["value"]
@@ -1506,6 +2193,7 @@ json.dumps({'marker':'corex-remote-tree-v1','byte_length':len(encoded),'sha256':
 
 class _RemoteProperty(_Proxy):
     def __init__(self, **values: Any) -> None:
+        self._object_field_key = values.pop("object_field_key", "")
         internal_error = values.pop("internal_error", "")
         is_field = values.pop("is_field", False)
         output_error = values.pop("output_error", "")

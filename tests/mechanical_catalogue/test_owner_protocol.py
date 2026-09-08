@@ -79,6 +79,23 @@ def test_owner_protocol_rejects_non_data_arguments() -> None:
         owner.close()
 
 
+def test_owner_protocol_survives_handshake_timeout_while_idle() -> None:
+    owner = MechanicalOwnerProcess()
+    try:
+        request = dict(
+            run_id="run",
+            session_id="session",
+            workspace_id="workspace",
+            expected_revision=0,
+            operation="health",
+        )
+        assert owner.request(**request) == {"status": "ready"}
+        time.sleep(10.1)
+        assert owner.request(**request) == {"status": "ready"}
+    finally:
+        owner.close()
+
+
 def test_owner_commands_use_module_in_source_and_private_role_when_frozen(monkeypatch) -> None:
     monkeypatch.delattr(sys, "frozen", raising=False)
     assert _owner_command() == [sys.executable, "-m", "ea_node_editor.addons.mechanical.owner_process"]

@@ -104,7 +104,7 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
 - Open-session registry reload safety is shared by the graph compatibility checker,
   nodes candidate/package transaction, execution identity/admission guard, and the
   shell registry replacement coordinator; it is not a legacy compatibility layer.
-- Mechanical Workbench save validates the qualified HDF5 state pair only after all ordinary checks leave its working-to-stage SHA as the sole mismatch. This closed-schema comparison stays in `addons/mechanical/workbench.py` and the existing owner timeout; all other phases/files keep exact-byte validation.
+- Mechanical selected-model export keeps Workbench ownership and publication in the existing Save route, while a short-lived separate same-release Mechanical owner process alone opens the private `.dsdb` and validates the standalone `.mechdb`/`.mechdat` stage. Mechanical Workbench save validates the qualified HDF5 state pair only after all ordinary checks leave its working-to-stage SHA as the sole mismatch. This closed-schema comparison stays in `addons/mechanical/workbench.py` and the existing owner timeout; all other phases/files keep exact-byte validation.
 - Add-on state preparation is pure and add-on-owned in `addons/state_changes.py`;
   the shell registry replacement coordinator is the sole candidate, publication,
   persistence, notification, and reverse-rollback authority.

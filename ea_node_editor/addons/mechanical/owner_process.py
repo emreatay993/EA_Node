@@ -1,6 +1,6 @@
 # Purpose: Run bounded Mechanical lifecycle requests in one owned subprocess/thread.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py
+# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_model_export.py
 # Landmarks: _prepare_snippet_response; _owner_main; MechanicalOwnerProcess
 from __future__ import annotations
 
@@ -781,6 +781,7 @@ def _child(port: int, token: str, spool_root: str) -> int:
     )
     if _receive(stream) != {"type": "start", "token": token}:
         return 2
+    connection.settimeout(None)
     # Native imports happen only after the parent assigns the kill-on-close job.
     from ea_node_editor.addons.mechanical.backend import MechanicalOwnerBackend
 

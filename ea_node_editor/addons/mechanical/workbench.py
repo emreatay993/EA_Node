@@ -1,6 +1,6 @@
 # Purpose: Own local Workbench and verify native whole-project save preservation.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_workbench_save.py
+# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_workbench_save.py, tests/mechanical_catalogue/test_workbench_model_export.py
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ WORKBENCH_MODEL_COMPONENT_PREDICATE = r'''def _corex_has_model(component_ids):
 '''
 
 
-WORKBENCH_SAVE_BODY = r'''import hashlib,json,math,os,traceback
+_WORKBENCH_SNAPSHOT_PREFIX = r'''import hashlib,json,math,os,traceback
 try:
     unicode
 except NameError:
@@ -100,7 +100,10 @@ def _corex_snapshot():
         if math.isnan(update_order) or math.isinf(update_order): raise RuntimeError('native DesignPoint.UpdateOrder is not finite')
         design_points.append({'display_text':label,'exported':label in exported,'retained':label in retained,'with_files':label in with_files,'has_valid_retained_data':bool(point.HasValidRetainedData),'is_up_to_date':bool(point.IsUpToDate),'state_of_parameters':_corex_text(point.StateOfParameters),'update_order':update_order,'values':values})
     return {'project_file':_corex_text(GetProjectFile()),'project_directory':_corex_text(GetProjectDirectory()),'user_files_directory':_corex_text(GetUserFilesDirectory()),'files':sorted(files,key=lambda row:row['location_key']),'systems':sorted(systems,key=lambda row:row['user_id']),'models':sorted(models,key=lambda row:row['system_user_id']),'parameters':parameters,'design_points':sorted(design_points,key=lambda row:row['display_text'])}
-format_code=_corex_data['format'];work=_corex_text(_corex_data['work_path']);native_project=_corex_text(_corex_data['native_project']);stage=_corex_text(_corex_data['stage_path']);companion=_corex_text(_corex_data['stage_companion']);verify=_corex_text(_corex_data['verify_path']);system=_corex_text(_corex_data['system']);snapshot_path=_corex_text(_corex_data['snapshot_path'])
+'''
+
+
+WORKBENCH_SAVE_BODY = _WORKBENCH_SNAPSHOT_PREFIX + r'''format_code=_corex_data['format'];work=_corex_text(_corex_data['work_path']);native_project=_corex_text(_corex_data['native_project']);stage=_corex_text(_corex_data['stage_path']);companion=_corex_text(_corex_data['stage_companion']);verify=_corex_text(_corex_data['verify_path']);system=_corex_text(_corex_data['system']);snapshot_path=_corex_text(_corex_data['snapshot_path'])
 snapshots={};failure=None
 try:
     snapshots['before']=_corex_snapshot()
@@ -128,6 +131,25 @@ snapshot_stream=open(snapshot_path,'wb')
 try: snapshot_stream.write(snapshot_encoded);snapshot_stream.flush()
 finally: snapshot_stream.close()
 receipt={'schema_version':1,'marker':'corex-workbench-save-v1','ok':failure is None,'format':format_code,'snapshot_count':len(snapshots),'snapshot_bytes':len(snapshot_encoded),'snapshot_sha256':hashlib.sha256(snapshot_encoded).hexdigest(),'primary_exists':os.path.isfile(stage),'companion_exists':bool(companion and os.path.isdir(companion)),'error_type':'' if failure is None else failure[0],'error_digest':'' if failure is None else failure[1]}
+wb_script_result=json.dumps(receipt,ensure_ascii=True,separators=(',',':'))'''
+
+
+WORKBENCH_MODEL_EXPORT_BODY = _WORKBENCH_SNAPSHOT_PREFIX + r'''work=_corex_text(_corex_data['work_path']);bridge=_corex_text(_corex_data['bridge_path']);system=_corex_text(_corex_data['system']);snapshot_path=_corex_text(_corex_data['snapshot_path'])
+snapshots={};failure=None
+try:
+    container=GetSystem(Name=system).GetContainer(ComponentName='Model')
+    if container is None or not callable(getattr(container,'Exit',None)) or not callable(getattr(container,'Export',None)): raise RuntimeError('selected Model container lacks native Exit/Export lifecycle')
+    container.Exit(SaveDatabase=True);Save();snapshots['before']=_corex_snapshot();snapshots['working']=snapshots['before']
+    container.Export(FilePath=bridge)
+    if not os.path.isfile(bridge) or os.path.getsize(bridge)<1: raise RuntimeError('native selected Model export is missing')
+    snapshots['stage']=_corex_snapshot();snapshots['verify']=snapshots['stage'];snapshots['restore']=snapshots['stage']
+except Exception as exc:
+    failure=(type(exc).__name__,hashlib.sha256(_corex_text(traceback.format_exc()).encode('utf-8')).hexdigest())
+snapshot_encoded=json.dumps({'schema_version':2,'snapshots':snapshots},ensure_ascii=False,separators=(',',':')).encode('utf-8')
+snapshot_stream=open(snapshot_path,'wb')
+try: snapshot_stream.write(snapshot_encoded);snapshot_stream.flush()
+finally: snapshot_stream.close()
+receipt={'schema_version':1,'marker':'corex-workbench-model-export-v1','ok':failure is None,'format':_corex_data['format'],'snapshot_count':len(snapshots),'snapshot_bytes':len(snapshot_encoded),'snapshot_sha256':hashlib.sha256(snapshot_encoded).hexdigest(),'bridge_exists':os.path.isfile(bridge),'bridge_bytes':os.path.getsize(bridge) if os.path.isfile(bridge) else 0,'bridge_sha256':_corex_sha(bridge) if os.path.isfile(bridge) else '','error_type':'' if failure is None else failure[0],'error_digest':'' if failure is None else failure[1]}
 wb_script_result=json.dumps(receipt,ensure_ascii=True,separators=(',',':'))'''
 
 
@@ -173,6 +195,72 @@ def validate_workbench_save_receipt(value: object, *, format_code: str) -> dict[
         format_code == "wbpj" and value["companion_exists"] is not True
     ) or value["error_type"] or value["error_digest"]:
         raise RuntimeError("mechanical.save_failed: Workbench save receipt did not prove staging, reopen, and restore")
+    return dict(value)
+
+
+def validate_workbench_model_export_receipt(
+    value: object, *, format_code: str,
+) -> dict[str, Any]:
+    if type(value) is str:
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                "mechanical.save_failed: Workbench returned a malformed model-export receipt"
+            ) from exc
+    required = {
+        "schema_version", "marker", "ok", "format", "snapshot_count",
+        "snapshot_bytes", "snapshot_sha256", "bridge_exists", "bridge_bytes",
+        "bridge_sha256", "error_type", "error_digest",
+    }
+    if (
+        not isinstance(value, dict)
+        or set(value) != required
+        or len(json.dumps(value, ensure_ascii=True, separators=(",", ":"))) > 1024
+        or value["schema_version"] != 1
+        or value["marker"] != "corex-workbench-model-export-v1"
+        or value["format"] != format_code
+        or format_code not in {"mechdb", "mechdat"}
+        or type(value["ok"]) is not bool
+        or type(value["snapshot_count"]) is not int
+        or not 0 <= value["snapshot_count"] <= 5
+        or type(value["snapshot_bytes"]) is not int
+        or not 0 < value["snapshot_bytes"] <= 16 * 1024 * 1024
+        or type(value["bridge_exists"]) is not bool
+        or type(value["bridge_bytes"]) is not int
+        or value["bridge_bytes"] < 0
+        or any(
+            type(value[key]) is not str
+            for key in ("snapshot_sha256", "bridge_sha256", "error_type", "error_digest")
+        )
+    ):
+        raise RuntimeError(
+            "mechanical.save_failed: Workbench returned an invalid model-export receipt"
+        )
+    digests = (value["snapshot_sha256"], value["bridge_sha256"], value["error_digest"])
+    if (
+        re.fullmatch(r"[0-9a-f]{64}", digests[0]) is None
+        or digests[1] and re.fullmatch(r"[0-9a-f]{64}", digests[1]) is None
+        or digests[2] and re.fullmatch(r"[0-9a-f]{64}", digests[2]) is None
+        or value["ok"] is False and (not value["error_type"] or not value["error_digest"])
+    ):
+        raise RuntimeError("mechanical.save_failed: Workbench model-export digest is invalid")
+    if value["ok"] is not True:
+        raise RuntimeError(
+            "mechanical.save_failed: native Workbench Model.Export failed: "
+            f"{value['error_type']} receipt={value['error_digest']}"
+        )
+    if (
+        value["snapshot_count"] != 5
+        or value["bridge_exists"] is not True
+        or value["bridge_bytes"] < 1
+        or not value["bridge_sha256"]
+        or value["error_type"]
+        or value["error_digest"]
+    ):
+        raise RuntimeError(
+            "mechanical.save_failed: Workbench model export did not prove native staging"
+        )
     return dict(value)
 
 
@@ -739,6 +827,26 @@ def validate_workbench_semantic_snapshots(
     }
 
 
+def validate_workbench_model_export_snapshots(
+    path: Path,
+    *,
+    receipt: dict[str, Any],
+    work_path: Path,
+) -> dict[str, Any]:
+    proof = validate_workbench_semantic_snapshots(
+        path,
+        receipt=receipt,
+        format_code="wbpj",
+        work_path=work_path,
+        native_project=work_path,
+        stage_path=work_path,
+        verify_path=work_path,
+    )
+    proof.pop("results_authority")
+    proof.pop("state_file_logical_comparison")
+    return {**proof, "source_workbench_preserved": True}
+
+
 class OwnedWorkbench:
     def __init__(self, client: Any, process: subprocess.Popen[Any], job: _WindowsKillJob) -> None:
         self._client, self._process, self._job = client, process, job
@@ -853,8 +961,11 @@ def launch_workbench_owner(*, release_code: int, show_gui: bool, client_workdir:
 __all__ = [
     "OwnedWorkbench",
     "WORKBENCH_MODEL_COMPONENT_PREDICATE",
+    "WORKBENCH_MODEL_EXPORT_BODY",
     "WORKBENCH_SAVE_BODY",
     "launch_workbench_owner",
+    "validate_workbench_model_export_receipt",
+    "validate_workbench_model_export_snapshots",
     "validate_workbench_semantic_snapshots",
     "validate_workbench_save_receipt",
 ]

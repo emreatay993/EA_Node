@@ -18447,7 +18447,7 @@
         }
       ],
       "collapsible": true,
-      "description": "Explicitly saves a standalone Mechanical output or complete Workbench project/archive through staged rollback-protected publication.",
+      "description": "Explicitly saves standalone Mechanical outputs, complete Workbench projects/archives, or a selected Workbench model-only export through staged rollback-protected publication.",
       "is_async": false,
       "runtime_behavior": "active",
       "solution_reuse_scope": "never",

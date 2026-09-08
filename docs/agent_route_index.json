@@ -168,6 +168,9 @@
         "mainwindowshelltestbase",
         "sharedmainwindowshelltestbase",
         "cxpkg",
+        "dsdb",
+        "mechdb",
+        "mechdat",
         "changes",
         "plugin",
         "bundle",
@@ -24151,6 +24154,10 @@
         "apdl",
         "snippet",
         "save",
+        "mechdb",
+        "mechdat",
+        "mechanicalownerprocess",
+        "dsdb",
         "system",
         "components",
         "getprojectdirectory",
@@ -24205,6 +24212,7 @@
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_snippets.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_standalone_save.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_workbench_save.py --ignore=venv -q",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_workbench_model_export.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_repo_owned_node_documentation.py --ignore=venv -q"
       ],
       "start_here": [

@@ -1,6 +1,6 @@
 # Purpose: Execute Mechanical Open, read, graphics, mutation, and save operations through the run-owned session.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_save.py
+# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_save.py, tests/mechanical_catalogue/test_workbench_model_export.py
 # Landmarks: execute_open_model; execute_run_script; execute_apdl_snippet; execute_save_model; execute_image_export
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ from ea_node_editor.addons.mechanical.contracts import (
 )
 from ea_node_editor.addons.mechanical.commands import snippet_object_values
 from ea_node_editor.addons.mechanical.graphics import (
+    CAMERA_IDENTITY_FIELDS,
     IMAGE_CAPTURE_LIMIT,
     IMAGE_MAX_PIXELS,
     build_image_outputs,
@@ -39,11 +40,15 @@ from ea_node_editor.addons.mechanical.saving import (
     preflight_save_destination,
     publish_save,
     resolve_save_format,
+    validate_model_export_save_receipt,
     validate_native_save_receipt,
     validate_staged_bundle,
 )
 from ea_node_editor.addons.mechanical.workbench import validate_workbench_save_receipt
-from ea_node_editor.addons.mechanical.owner_process import OwnerProtocolError
+from ea_node_editor.addons.mechanical.owner_process import (
+    MechanicalOwnerProcess,
+    OwnerProtocolError,
+)
 from ea_node_editor.nodes.execution_context import NodeInputNotReadyError
 from ea_node_editor.runtime_contracts import (
     ImageValue,
@@ -550,17 +555,16 @@ def execute_save_model(ctx, model=None, settings=None):
         destination, _setting(ctx, settings, "format", "auto")
     )
     workbench_source = source_suffix in {".wbpj", ".wbpz"}
+    workbench_project_save = workbench_source and format_code in {"wbpj", "wbpz"}
+    workbench_model_export = workbench_source and format_code in {"mechdb", "mechdat"}
     if workbench_source:
         if format_code == "mechpz":
             raise ValueError(
                 "mechanical.save_failed: .mechpz is never valid for a Workbench source; "
                 "choose native whole-project .wbpz"
             )
-        if format_code not in {"wbpj", "wbpz"}:
-            raise ValueError(
-                "mechanical.save_failed: selected Workbench model export to .mechdb/.mechdat "
-                "is unsupported until T15"
-            )
+        if not workbench_project_save and not workbench_model_export:
+            raise ValueError("mechanical.save_failed: Workbench save format is unsupported")
     elif format_code in {"wbpj", "wbpz"}:
         raise ValueError("mechanical.save_failed: Workbench formats require a Workbench source")
     overwrite = _setting(ctx, settings, "overwrite", False)
@@ -618,7 +622,13 @@ def execute_save_model(ctx, model=None, settings=None):
                 "native_project": str(staging.native_project),
                 "snapshot_path": str(staging.root / "w.json"),
             }
-            if workbench_source
+            if workbench_project_save
+            else {
+                "bridge_path": str(staging.root / "b" / "b.dsdb"),
+                "snapshot_path": str(staging.root / "w.json"),
+                "model_snapshot_path": str(staging.root / "m.json"),
+            }
+            if workbench_model_export
             else {}
         ),
         "verify_path": str(staging.verify_project),
@@ -634,12 +644,65 @@ def execute_save_model(ctx, model=None, settings=None):
             session,
             metadata,
             expected_revision=expected_revision,
-            operation="workbench_save" if workbench_source else "standalone_save",
+            operation=(
+                "workbench_save"
+                if workbench_project_save
+                else "workbench_model_export"
+                if workbench_model_export
+                else "standalone_save"
+            ),
             timeout_sec=600.0,
             label="Save Mechanical Model",
             args=args,
             connection_change=workbench_source,
         )
+        if workbench_model_export:
+            exported = response.get("native_export")
+            if (
+                not isinstance(exported, Mapping)
+                or set(exported)
+                != {"bridge_bytes", "bridge_sha256", "snapshot_bytes", "snapshot_sha256"}
+            ):
+                raise RuntimeError(
+                    "mechanical.save_failed: Workbench export receipt is invalid"
+                )
+            conversion_owner = MechanicalOwnerProcess(
+                work_root=staging.root / "conversion-owner"
+            )
+            ctx.register_cancel(conversion_owner.close)
+            try:
+                if ctx.should_stop():
+                    raise RuntimeError("mechanical.operation_failed: selected-model conversion cancelled")
+                converted = conversion_owner.request(
+                    run_id=ctx.run_id,
+                    session_id=uuid4().hex,
+                    workspace_id=ctx.workspace_id,
+                    expected_revision=0,
+                    operation="convert_workbench_model",
+                    timeout_sec=600.0,
+                    args={
+                        "format": format_code,
+                        "release_code": metadata["release_code"],
+                        "bridge_path": args["bridge_path"],
+                        "bridge_bytes": exported["bridge_bytes"],
+                        "bridge_sha256": exported["bridge_sha256"],
+                        "stage_path": args["stage_path"],
+                        "stage_companion": args["stage_companion"],
+                        "verify_path": args["verify_path"],
+                        "model_snapshot_path": args["model_snapshot_path"],
+                        "model_snapshot_bytes": exported["snapshot_bytes"],
+                        "model_snapshot_sha256": exported["snapshot_sha256"],
+                    },
+                )
+            finally:
+                conversion_owner.close()
+            if ctx.should_stop():
+                raise RuntimeError("mechanical.operation_failed: selected-model conversion cancelled")
+            response = {
+                **response,
+                "status": "staged",
+                "native_save": converted.get("native_save"),
+            }
     except BaseException as exc:
         if staging.root.exists() and any(path.is_file() for path in staging.root.rglob("*")):
             raise RuntimeError(
@@ -650,27 +713,35 @@ def execute_save_model(ctx, model=None, settings=None):
     try:
         if response.get("status") != "staged":
             raise RuntimeError("Mechanical save did not return a staged result")
-        if workbench_source:
+        if workbench_project_save:
             native_receipt = response.get("native_save")
             validate_workbench_save_receipt(
                 native_receipt,
                 format_code=format_code,
             )
             validate_staged_bundle(staging, format_code=format_code)
-            if (
-                response.get("connection_changed") is not True
-                or response.get("connection_generation") != session.connection_generation
-            ):
-                raise RuntimeError("Mechanical Workbench reconnect identity is invalid")
+        elif workbench_model_export:
+            validate_model_export_save_receipt(
+                response.get("native_save"),
+                format_code=format_code,
+                staging=staging,
+            )
         else:
             validate_native_save_receipt(
                 response.get("native_save"),
                 format_code=format_code,
                 staging=staging,
             )
+        if workbench_source and (
+            response.get("connection_changed") is not True
+            or response.get("connection_generation") != session.connection_generation
+        ):
+            raise RuntimeError("Mechanical Workbench reconnect identity is invalid")
         report = response.get("catalogue")
         if session.revision != new_revision or type(report) is not TableValue:
             raise RuntimeError("Mechanical save revision or Report catalogue is invalid")
+        if ctx.should_stop():
+            raise RuntimeError("mechanical.operation_failed: Save cancelled before publication")
         publication = publish_save(
             staging,
             preflight=preflight,
@@ -1003,14 +1074,7 @@ def execute_camera_views(ctx, model=None, settings=None):
     metadata = model.metadata
     identity = {
         field: metadata[field]
-        for field in (
-            "run_id",
-            "session_id",
-            "document_id",
-            "source_key",
-            "system_key",
-            "model_revision",
-        )
+        for field in CAMERA_IDENTITY_FIELDS
     }
     try:
         result = ctx.mechanical_sessions.operate(

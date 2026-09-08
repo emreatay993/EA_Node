@@ -675,16 +675,13 @@ def test_generated_native_save_uses_no_internal_database_copy_or_dsdb() -> None:
     assert "copy" not in STANDALONE_SAVE_BODY.casefold()
 
 
-def test_workbench_source_is_rejected_before_any_native_or_staging_work(tmp_path: Path) -> None:
+def test_workbench_mechpz_is_rejected_before_any_native_or_staging_work(tmp_path: Path) -> None:
     source = tmp_path / "source.wbpj"
     source.write_bytes(b"source")
     sessions = _Sessions(tmp_path, source)
     destination = tmp_path / "saved.mechpz"
     ctx, invalidations = _context(tmp_path, sessions, destination)
     with pytest.raises(ValueError, match="never valid for a Workbench source"):
-        execute_save_model(ctx, _model(), SimpleNamespace(**ctx.properties))
-    ctx.properties["file"] = str(tmp_path / "saved.mechdb")
-    with pytest.raises(ValueError, match="unsupported until T15"):
         execute_save_model(ctx, _model(), SimpleNamespace(**ctx.properties))
     assert sessions.calls == [] and invalidations == []
 

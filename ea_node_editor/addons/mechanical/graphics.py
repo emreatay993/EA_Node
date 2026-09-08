@@ -76,7 +76,7 @@ _WINDOWS_RESERVED_NAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
 )
 
-_IDENTITY_FIELDS = (
+CAMERA_IDENTITY_FIELDS = (
     "run_id",
     "session_id",
     "document_id",
@@ -713,7 +713,7 @@ def build_camera_views(
 ) -> dict[str, Any]:
     if not isinstance(payload, Mapping) or set(payload) != {"views"}:
         raise ValueError("Mechanical camera extraction payload is invalid")
-    if set(identity) != set(_IDENTITY_FIELDS):
+    if set(identity) != set(CAMERA_IDENTITY_FIELDS):
         raise ValueError("Mechanical camera identity is invalid")
     raw_views = payload["views"]
     if type(raw_views) is not list:
@@ -792,6 +792,7 @@ def build_camera_views(
 
 
 __all__ = [
+    "CAMERA_IDENTITY_FIELDS",
     "CAMERA_DETAILS_COLUMNS",
     "CAMERA_SCRIPT_BODY",
     "IMAGE_CAPTURE_LIMIT",
