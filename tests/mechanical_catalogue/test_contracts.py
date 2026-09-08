@@ -41,7 +41,7 @@ from ea_node_editor.runtime_contracts.scientific_codec import (
     scientific_from_payload,
     scientific_to_payload,
 )
-from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.bootstrap import build_builtin_registry
 
 
 def _identity() -> dict[str, object]:
@@ -441,8 +441,8 @@ def test_catalog_validates_all_carriers_without_ansys_imports() -> None:
     catalog.validate_carrier(CAMERA_VIEW_TYPE_ID, camera_view_value(_camera_payload()))
 
 
-def test_mechanical_backend_registers_all_four_semantic_contracts() -> None:
-    registry = NodeRegistry()
+def test_mechanical_backend_registers_all_five_semantic_contracts() -> None:
+    registry = build_builtin_registry()
     assert register_plugin_backends(
         (MECHANICAL_PLUGIN_BACKEND,), registry, "mechanical"
     ) == [
@@ -450,6 +450,7 @@ def test_mechanical_backend_registers_all_four_semantic_contracts() -> None:
         "mechanical.search_tree",
         "mechanical.fea_table",
         "mechanical.camera_views",
+        "mechanical.export_image",
     ]
     assert {
         spec.type_id

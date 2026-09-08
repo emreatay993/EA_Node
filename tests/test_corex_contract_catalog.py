@@ -155,7 +155,7 @@ def test_builtin_registry_contains_retained_corex_contract_families() -> None:
 
 def test_current_repo_owned_catalog_matches_current() -> None:
     expected = load_current_repo_owned_catalog()
-    assert len(expected) == 143
+    assert len(expected) == 144
     assert _current_repo_owned_catalog() == expected
 
 
@@ -238,12 +238,12 @@ def test_solution_reuse_classification_matches_all_shipped_rows() -> None:
     executable = tuple(spec for spec in specs if spec.runtime_behavior == "active")
     excluded = tuple(spec for spec in specs if spec.runtime_behavior != "active")
 
-    assert len(specs) == 143
-    assert len(executable) == 105
+    assert len(specs) == 144
+    assert len(executable) == 106
     assert Counter(spec.solution_reuse_scope for spec in executable) == {
         "durable": 29,
         "session": 27,
-        "never": 49,
+        "never": 50,
     }
     assert Counter(spec.runtime_behavior for spec in excluded) == {
         "passive": 35,

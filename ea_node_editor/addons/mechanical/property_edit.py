@@ -1,6 +1,6 @@
 # Purpose: Project Mechanical selectors from accepted catalogue metadata only.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_property_edit.py, tests/mechanical_catalogue/test_search_tree.py
+# Tests: tests/mechanical_catalogue/test_property_edit.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_image_export.py
 
 from __future__ import annotations
 
@@ -340,6 +340,13 @@ class MechanicalPropertyEditAdapter:
                         "Saved views",
                         "Current view",
                     ],
+                    exact_selectors=True,
+                )
+                continue
+            if item_key == "background":
+                item.update(
+                    enum_codes=["white", "model"],
+                    enum_values=["White", "Model background"],
                     exact_selectors=True,
                 )
                 continue

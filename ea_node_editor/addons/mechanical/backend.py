@@ -1,6 +1,6 @@
-# Purpose: Open native Mechanical models and execute allowlisted Open/Search/table/camera operations.
+# Purpose: Open native Mechanical models and execute allowlisted Open/Search/table/graphics operations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py
+# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py
 
 from __future__ import annotations
 
@@ -14,8 +14,11 @@ from typing import Any
 from ea_node_editor.addons.mechanical.inspection import collect_catalogue_rows, search_tree
 from ea_node_editor.addons.mechanical.graphics import (
     CAMERA_SCRIPT_BODY,
+    IMAGE_PREFLIGHT_SCRIPT_BODY,
+    IMAGE_SCRIPT_BODY,
     build_camera_views,
 )
+from ea_node_editor.runtime_contracts import ImageValue
 from ea_node_editor.addons.mechanical.tables import (
     DEFINITION_ENCODED_MAX_BYTES,
     DEFINITION_SCRIPT_BODY,
@@ -23,7 +26,7 @@ from ea_node_editor.addons.mechanical.tables import (
 )
 
 LIFECYCLE_OPERATIONS = frozenset(
-    {"health", "open", "search", "definition_tables", "camera_views", "close"}
+    {"health", "open", "search", "definition_tables", "camera_views", "image_export", "close"}
 )
 
 
@@ -78,7 +81,162 @@ class MechanicalOwnerBackend:
             return self.search(args)
         if operation == "camera_views":
             return self.camera_views(args)
+        if operation == "image_export":
+            return self.image_export(args)
         return self.definition_tables(args)
+
+    def image_export(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        required = {
+            "objects", "views", "width", "height", "background", "fit_view",
+            "output_paths", "view_export_path", "restore_name", "preflight_only",
+        }
+        if set(args) != required or (self.app is None and self.mechanical is None):
+            raise ValueError("Mechanical image arguments or session state are invalid")
+        if self.work_root is None:
+            raise ValueError("Mechanical image working root is unavailable")
+        objects, views = args["objects"], args["views"]
+        width, height = args["width"], args["height"]
+        if (
+            type(objects) is not list
+            or type(views) is not list
+            or type(args["output_paths"]) is not list
+            or any(type(value) is not str for value in args["output_paths"])
+            or not objects
+            or not views
+            or len(objects) * len(views) > 256
+            or type(width) is not int
+            or type(height) is not int
+            or not 64 <= width <= 8192
+            or not 64 <= height <= 8192
+            or width * height > 33_554_432
+            or args["background"] not in {"white", "model"}
+            or type(args["fit_view"]) is not bool
+            or type(args["preflight_only"]) is not bool
+        ):
+            raise ValueError("Mechanical image dimensions, settings, or capture count are invalid")
+        for selector in objects:
+            if not isinstance(selector, dict) or (
+                selector.get("kind") == "current" and set(selector) != {"kind"}
+                or selector.get("kind") == "text" and (
+                    set(selector) != {"kind", "text"}
+                    or type(selector["text"]) is not str
+                    or not selector["text"].strip()
+                )
+                or selector.get("kind") == "typed" and (
+                    set(selector) != {"kind", "object_id", "object_path"}
+                    or type(selector["object_id"]) is not int
+                    or type(selector["object_path"]) is not str
+                    or not selector["object_path"]
+                )
+                or selector.get("kind") not in {"current", "text", "typed"}
+            ):
+                raise ValueError("Mechanical image object selector is invalid")
+        for selector in views:
+            if not isinstance(selector, dict) or (
+                selector.get("kind") == "current" and set(selector) != {"kind"}
+                or selector.get("kind") == "text" and (
+                    set(selector) != {"kind", "text"}
+                    or type(selector["text"]) is not str
+                    or not selector["text"].strip()
+                )
+                or selector.get("kind") == "typed" and (
+                    set(selector) != {"kind", "index", "name"}
+                    or type(selector["index"]) is not int
+                    or selector["index"] < 0
+                    or selector["name"] is not None and type(selector["name"]) is not str
+                )
+                or selector.get("kind") not in {"current", "text", "typed"}
+            ):
+                raise ValueError("Mechanical image view selector is invalid")
+        if (
+            type(args["restore_name"]) is not str
+            or not args["restore_name"].startswith("COREX restore ")
+            or len(args["restore_name"]) > 80
+        ):
+            raise ValueError("Mechanical image restore name is invalid")
+        paths = [Path(str(value)) for value in args["output_paths"]]
+        view_export = Path(str(args["view_export_path"]))
+        if (
+            len(paths) != len(objects) * len(views)
+            or len(paths) > 256
+            or len({path.name for path in paths}) != len(paths)
+            or any(
+                path.parent.resolve() != self.work_root
+                or not path.name.startswith("viewport-")
+                or path.suffix.casefold() != ".png"
+                or path.exists()
+                for path in paths
+            )
+            or view_export.parent.resolve() != self.work_root
+            or not view_export.name.startswith("image-views-")
+            or view_export.suffix.casefold() != ".xml"
+            or view_export.exists()
+        ):
+            raise ValueError("Mechanical image temporary paths are not run-owned")
+        try:
+            body = IMAGE_PREFLIGHT_SCRIPT_BODY if args["preflight_only"] else IMAGE_SCRIPT_BODY
+            raw = (
+                self.app.execute_script(_data_script(args, body))
+                if self.app is not None
+                else self.mechanical.run_python_script(_data_script(args, body))
+            )
+            payload = json.loads(raw) if type(raw) is str else None
+            records = payload.get("images") if isinstance(payload, dict) else None
+            if type(records) is not list or len(records) != len(paths):
+                raise RuntimeError("Mechanical image capture returned an invalid receipt")
+            if args["preflight_only"]:
+                expected = {
+                    "object_index", "object_name", "object_path", "object_id",
+                    "view_ordinal", "view_name", "view_kind", "view_index",
+                }
+                if any(not isinstance(record, dict) or set(record) != expected for record in records):
+                    raise RuntimeError("Mechanical image preflight returned invalid selectors")
+                if set(payload) != {"images"}:
+                    raise RuntimeError("Mechanical image preflight returned an invalid receipt")
+                return {"status": "validated", "image_preflight": {"images": records}}
+            warnings = payload.get("warnings") if isinstance(payload, dict) else None
+            if (
+                set(payload) != {"images", "warnings"}
+                or type(warnings) is not list
+                or len(warnings) > 256
+                or any(type(value) is not str or not value or len(value) > 2048 for value in warnings)
+            ):
+                raise RuntimeError("Mechanical image capture diagnostics are invalid")
+            result = []
+            for index, (record, expected) in enumerate(zip(records, paths, strict=True)):
+                if not isinstance(record, dict) or record.get("output_path") != str(expected):
+                    raise RuntimeError("Mechanical image capture path receipt is invalid")
+                stat = expected.lstat()
+                if expected.is_symlink() or bool(getattr(stat, "st_file_attributes", 0) & 0x400):
+                    raise RuntimeError("Mechanical image capture produced an unsafe file")
+                data = expected.read_bytes()
+                image = ImageValue.from_png(data)
+                result.append(
+                    {
+                        **{key: value for key, value in record.items() if key != "output_path"},
+                        "relative_name": expected.name,
+                        "byte_length": len(data),
+                        "sha256": hashlib.sha256(data).hexdigest(),
+                        "width": image.width,
+                        "height": image.height,
+                    }
+                )
+            return {
+                "status": "captured",
+                "image_export": {"images": result},
+                "warnings": warnings,
+            }
+        except Exception as exc:
+            if "mechanical.restore_failed:" in str(exc):
+                try:
+                    self.close()
+                except Exception as close_exc:
+                    raise RuntimeError(f"{exc}; native session retirement failed: {close_exc}") from exc
+            for path in paths:
+                path.unlink(missing_ok=True)
+            raise
+        finally:
+            view_export.unlink(missing_ok=True)
 
     def camera_views(self, args: Mapping[str, Any]) -> dict[str, Any]:
         required = {"include", "identity", "export_path", "restore_name"}

@@ -1,12 +1,13 @@
-# Purpose: Hold inert decorated Mechanical Open, Search, FEA Table, and camera declarations.
+# Purpose: Hold inert decorated Mechanical Open, Search, table, camera, and image declarations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py
+# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py, tests/mechanical_catalogue/test_image_export.py
 
 SOURCE = r'''import corex
 from ea_node_editor.addons.mechanical.runtime import execute_open_model
 from ea_node_editor.addons.mechanical.runtime import execute_search_tree
 from ea_node_editor.addons.mechanical.runtime import execute_fea_table
 from ea_node_editor.addons.mechanical.runtime import execute_camera_views
+from ea_node_editor.addons.mechanical.runtime import execute_image_export
 
 @corex.node(
     id="mechanical.open_model", name="Open Mechanical Model",
@@ -135,6 +136,55 @@ def fea_table(ctx, model, source, settings):
     description="Readable camera vectors, dimensions, units, availability, and source identity.")
 def mechanical_camera_views(ctx, model, settings):
     return execute_camera_views(ctx, model, settings)
+
+@corex.node(
+    id="mechanical.export_image", name="Export Mechanical Image",
+    category=("FEA", "ANSYS", "Mechanical"),
+    description="Captures deterministic object-by-view viewport PNG batches and optionally publishes them atomically.",
+    keywords=("mechanical", "ansys", "viewport", "image", "png", "capture"),
+    _solution_reuse_scope="never",
+)
+@corex.input("model", value_type="COREX.Mechanical.Model", structure="list", required=True,
+    label="Model", description="Exactly one run-owned Mechanical model per matched branch; graft multiple models.")
+@corex.list("objects", default=[], item_type=str, label="Objects", port=True,
+    _property_group="Selection", _port_structure="list",
+    _port_value_type="COREX.Mechanical.Object", _port_accepted_data_types=("COREX.DataTypes.String",),
+    _port_description="Mechanical objects or exact path/name selectors; empty keeps the current display.")
+@corex.list("views", default=[], item_type=str, label="Views", port=True,
+    _property_group="Selection", _port_structure="list",
+    _port_value_type="COREX.Mechanical.CameraView", _port_accepted_data_types=("COREX.DataTypes.String",),
+    _port_description="Saved/current camera records or exact view names; empty keeps the current camera.")
+@corex.number("width", default=1600, minimum=64, maximum=8192, step=1,
+    label="Width (px)", port=True, _property_group="Image options",
+    _property_type="int", _port_value_type="COREX.DataTypes.Int", _port_description="Viewport image width from 64 to 8192 pixels.")
+@corex.number("height", default=1000, minimum=64, maximum=8192, step=1,
+    label="Height (px)", port=True, _property_group="Image options",
+    _property_type="int", _port_value_type="COREX.DataTypes.Int", _port_description="Viewport image height from 64 to 8192 pixels; total area is bounded.")
+@corex.dropdown("background", default="white", options=("white", "model"),
+    label="Background", port=True, _inspector_editor="enum", _property_group="Image options",
+    _port_value_type="COREX.DataTypes.String", _port_description="White or current Mechanical model background.")
+@corex.switch("fit_view", default=False, label="Fit view", port=True,
+    _inspector_editor="toggle", _property_group="Image options",
+    _port_value_type="COREX.DataTypes.Bool", _port_description="Fit after applying the selected camera only when enabled.")
+@corex.path("folder", default="", label="Folder", port=True,
+    _inspector_editor="path", _property_group="Save to disk",
+    _port_value_type="COREX.DataTypes.Path", _port_required=False,
+    _port_description="Optional destination folder; empty returns images without writing user files.")
+@corex.text("file_name", default="{object}_{view}.png", label="File name", port=True,
+    _inspector_editor="text", _property_group="Save to disk",
+    _port_value_type="COREX.DataTypes.String",
+    _port_description="PNG template using object, view, object_index, view_index, or index tokens.")
+@corex.switch("overwrite", default=False, label="Overwrite", port=True,
+    _inspector_editor="toggle", _property_group="Save to disk",
+    _port_value_type="COREX.DataTypes.Bool", _port_description="Replace existing destination files as one rollback-protected batch.")
+@corex.output("images", value_type="COREX.DataTypes.Image", structure="tree",
+    label="Images", description="Object-grouped image tree with selected views in order.")
+@corex.output("files", value_type="COREX.DataTypes.Path", structure="list",
+    label="Files", description="Published PNG paths in flattened object-major order; empty when Folder is blank.")
+@corex.output("details", value_type="COREX.DataTypes.TableValue", label="Details",
+    description="Object/view identities, DataPaths, image ordinals, dimensions, and published paths.")
+def export_mechanical_image(ctx, model, settings):
+    return execute_image_export(ctx, model, settings.objects, settings.views, settings)
 '''
 
 __all__ = ["SOURCE"]

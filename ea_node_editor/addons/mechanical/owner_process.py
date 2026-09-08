@@ -1,6 +1,6 @@
 # Purpose: Run bounded Mechanical lifecycle requests in one owned subprocess/thread.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_owner_protocol.py
+# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_image_export.py
 from __future__ import annotations
 
 import atexit
@@ -431,6 +431,132 @@ def _write_camera_bulk(
     }
 
 
+_IMAGE_DESCRIPTOR_FIELDS = frozenset(
+    {
+        "object_index",
+        "object_name",
+        "object_path",
+        "object_id",
+        "view_ordinal",
+        "view_name",
+        "view_kind",
+        "view_index",
+        "relative_name",
+        "byte_length",
+        "sha256",
+        "width",
+        "height",
+    }
+)
+
+
+def _read_image_export(
+    root: Path,
+    descriptor: object,
+    expected_dimensions: tuple[int, int] | None = None,
+) -> dict[str, Any]:
+    from ea_node_editor.runtime_contracts import IMAGE_VALUE_MAX_ENCODED_BYTES, ImageValue
+
+    if not isinstance(descriptor, Mapping) or set(descriptor) != {"images"}:
+        raise OwnerProtocolError("Mechanical image descriptor schema is invalid")
+    records = descriptor["images"]
+    if type(records) is not list or not records or len(records) > 256:
+        raise OwnerProtocolError("Mechanical image descriptor count is invalid")
+    candidates: list[Path] = []
+    result = []
+    pairs = []
+    names: set[str] = set()
+    try:
+        for record in records:
+            if not isinstance(record, Mapping) or set(record) != _IMAGE_DESCRIPTOR_FIELDS:
+                raise OwnerProtocolError("Mechanical image item descriptor schema is invalid")
+            name, length, digest = (
+                record["relative_name"], record["byte_length"], record["sha256"]
+            )
+            object_index = record["object_index"]
+            view_ordinal = record["view_ordinal"]
+            if (
+                type(name) is not str
+                or Path(name).name != name
+                or not name.startswith("viewport-")
+                or Path(name).suffix.casefold() != ".png"
+                or type(length) is not int
+                or not 0 < length <= IMAGE_VALUE_MAX_ENCODED_BYTES
+                or type(digest) is not str
+                or len(digest) != 64
+                or name in names
+                or type(object_index) is not int
+                or object_index < 0
+                or type(view_ordinal) is not int
+                or view_ordinal < 0
+                or type(record["object_name"]) is not str
+                or not record["object_name"]
+                or len(record["object_name"]) > 512
+                or type(record["object_path"]) is not str
+                or record["object_id"] is not None
+                and (type(record["object_id"]) is not int or record["object_id"] < 0)
+                or type(record["view_name"]) is not str
+                or not record["view_name"]
+                or len(record["view_name"]) > 512
+                or record["view_kind"] not in {"current", "saved"}
+                or record["view_kind"] == "current"
+                and record["view_index"] is not None
+                or record["view_kind"] == "saved"
+                and (type(record["view_index"]) is not int or record["view_index"] < 0)
+                or type(record["width"]) is not int
+                or type(record["height"]) is not int
+                or expected_dimensions is not None
+                and (record["width"], record["height"]) != expected_dimensions
+            ):
+                raise OwnerProtocolError("Mechanical image item descriptor is invalid")
+            names.add(name)
+            pairs.append((object_index, view_ordinal))
+            candidate = root / name
+            candidates.append(candidate)
+            stat = candidate.lstat()
+            path = candidate.resolve()
+            if (
+                candidate.is_symlink()
+                or bool(getattr(stat, "st_file_attributes", 0) & 0x400)
+                or path.parent != root.resolve()
+                or not path.is_file()
+                or stat.st_size != length
+            ):
+                raise OwnerProtocolError("Mechanical image file is outside the owned spool")
+            data = path.read_bytes()
+            if len(data) != length or hashlib.sha256(data).hexdigest() != digest:
+                raise OwnerProtocolError("Mechanical image file length/hash mismatch")
+            image = ImageValue.from_png(data)
+            if (image.width, image.height) != (record["width"], record["height"]):
+                raise OwnerProtocolError("Mechanical image dimensions do not match the receipt")
+            result.append(
+                {
+                    **{
+                        key: value
+                        for key, value in record.items()
+                        if key not in {"relative_name", "byte_length", "sha256", "width", "height"}
+                    },
+                    "image": image,
+                }
+            )
+        view_count = max(view for _object, view in pairs) + 1
+        object_count = max(obj for obj, _view in pairs) + 1
+        if pairs != [
+            (object_index, view_ordinal)
+            for object_index in range(object_count)
+            for view_ordinal in range(view_count)
+        ]:
+            raise OwnerProtocolError("Mechanical image descriptors are not one ordered Cartesian batch")
+        return {"images": result}
+    except (OSError, ValueError, TypeError) as exc:
+        if isinstance(exc, OwnerProtocolError):
+            raise
+        raise OwnerProtocolError("Mechanical image output is invalid") from exc
+    finally:
+        for candidate in candidates:
+            candidate.unlink(missing_ok=True)
+
+
 def _read_bulk(root: Path, descriptor: object):
     if not isinstance(descriptor, Mapping) or set(descriptor) != {"kind", "relative_name", "byte_length", "sha256"}:
         raise OwnerProtocolError("Mechanical bulk descriptor schema is invalid")
@@ -846,6 +972,12 @@ class MechanicalOwnerProcess:
                 self._spool_root,
                 result.pop("camera_bulk"),
                 payload["args"]["identity"],
+            )
+        if "image_export" in result:
+            result["image_export"] = _read_image_export(
+                self._spool_root,
+                result["image_export"],
+                (payload["args"]["width"], payload["args"]["height"]),
             )
         return result
 

@@ -24136,7 +24136,10 @@
         "table",
         "camera",
         "views",
+        "export",
+        "image",
         "modelview",
+        "imagevalue",
         "private",
         "tests",
         "test",
@@ -24173,6 +24176,7 @@
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_definition_tables.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_result_tables.py tests/mechanical_catalogue/test_worksheet_tables.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_camera_views.py --ignore=venv -q",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_image_export.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_repo_owned_node_documentation.py --ignore=venv -q"
       ],
       "start_here": [

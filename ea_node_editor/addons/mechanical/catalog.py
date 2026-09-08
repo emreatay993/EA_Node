@@ -1,6 +1,6 @@
 # Purpose: Register Mechanical semantic contracts without loading Ansys runtimes.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_contracts.py
+# Tests: tests/mechanical_catalogue/test_contracts.py, tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_image_export.py
 
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ MECHANICAL_FUNCTION_TYPE_IDS = (
     "mechanical.search_tree",
     "mechanical.fea_table",
     "mechanical.camera_views",
+    "mechanical.export_image",
 )
 _DISCOVERED_RELEASES: tuple[int, ...] = ()
 _MECHANICAL_PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -41,8 +42,8 @@ MECHANICAL_ADDON_MANIFEST = AddOnManifest(
     apply_policy="hot_apply",
     vendor="COREX",
     version="1.0.0",
-    summary="Use typed Mechanical models, objects, properties, views, and tables.",
-    details="Provides typed Mechanical model opening, data-only discovery, tables, and camera snapshots.",
+    summary="Use typed Mechanical models, objects, properties, views, tables, and images.",
+    details="Provides typed Mechanical model opening, data-only discovery, tables, camera snapshots, and viewport images.",
     dependencies=_DEPENDENCIES,
     data_type_families=(MECHANICAL_DATA_TYPE_FAMILY,),
     data_types=MECHANICAL_DATA_TYPES,

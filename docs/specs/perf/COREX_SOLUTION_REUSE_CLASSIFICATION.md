@@ -18,9 +18,9 @@ downgrades the decision to recomputation.
 | Base HEAD | `86a5f562e7c5c9d7d52dad97f842a89631508a26` |
 | Plan SHA-256 | `4FFFCFC5B23BA1A2E755CE8222F9EE221B3AA108EAC9F63779310EEBF370A47F` |
 | Ledger SHA-256 at drafting start | `200388ABF798E86431103DEBD0E94ECF0C584617FC2D15E6499B6A03FA01A21E` |
-| Current repo-owned catalog SHA-256 | `5F8E0CE290AB333FB32EE5B527010566009E415831E6D8618BFB7EC8D7C8E9AC` |
+| Current repo-owned catalog SHA-256 | `97F5A35FD7BD79BC0E5602DBFB713D92B174AB7126F9F30313BC1C2190D877B0` |
 | Migration inventory SHA-256 | `A5E22F1DD5C0BE9E4BC069E934485EF37E6B78E9EBCEFFD1E35A0A88017FAEC5` |
-| Repo-owned type-ID list SHA-256 | `9494D2EF2222C1861EE62B8DB79239EE05AECAF326133E340E78DA5ED37BD7DD` |
+| Repo-owned type-ID list SHA-256 | `5A77E12B1C6B7DFE23BE89F5807D80FD2B5E06DE2379518A07E74FB6DD449B39` |
 
 The catalog hash is the committed JSON file hash. The type-ID hash is over sorted
 IDs joined by LF with a final LF.
@@ -31,12 +31,12 @@ IDs joined by LF with a final LF.
 | --- | ---: |
 | `durable` | 29 |
 | `session` | 27 |
-| `never` | 49 |
-| Executable subtotal | 105 |
+| `never` | 50 |
+| Executable subtotal | 106 |
 | Excluded passive | 35 |
 | Excluded compile-only | 3 |
 | Excluded subtotal | 38 |
-| Repo-owned total | 143 |
+| Repo-owned total | 144 |
 
 ## Scope Meanings
 
@@ -156,6 +156,7 @@ locations, and package paths are deliberately absent from this tracked artifact.
 | `mars.run_job` | MARS Run Job | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mars/function_nodes.py` | MARS | `never` | `external_toolchain_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_mars_function_migration.py` |
 | `mars.time_history` | MARS Time History | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mars/function_nodes.py` | MARS | `never` | `external_toolchain_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_mars_function_migration.py` |
 | `mechanical.camera_views` | Mechanical Camera Views | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mechanical/function_nodes.py` | FEA | `never` | `read_only_external` | `not_required_never` | `not_used_never` | `not_reusable` | `run_owned_native_session` | `runtime_handle_generation_bound` | `tests/mechanical_catalogue/test_camera_views.py` |
+| `mechanical.export_image` | Export Mechanical Image | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mechanical/function_nodes.py` | FEA | `never` | `external_side_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `external_output_or_effect` | `external_side_effect` | `tests/mechanical_catalogue/test_image_export.py` |
 | `mechanical.fea_table` | FEA Table | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mechanical/function_nodes.py` | FEA | `never` | `read_only_external` | `not_required_never` | `not_used_never` | `not_reusable` | `run_owned_native_session` | `runtime_handle_generation_bound` | `tests/mechanical_catalogue/test_definition_tables.py` |
 | `mechanical.open_model` | Open Mechanical Model | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mechanical/function_nodes.py` | FEA | `never` | `read_only_external` | `not_required_never` | `not_used_never` | `not_reusable` | `run_owned_native_session` | `runtime_handle_generation_bound` | `tests/mechanical_catalogue/test_catalogue.py` |
 | `mechanical.search_tree` | Search Mechanical Tree | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mechanical/function_nodes.py` | FEA | `never` | `read_only_external` | `not_required_never` | `not_used_never` | `not_reusable` | `run_owned_native_session` | `runtime_handle_generation_bound` | `tests/mechanical_catalogue/test_search_tree.py` |
@@ -279,9 +280,9 @@ the scheduler excludes them before solution-record classification.
 
 Review and implementation checks must prove all of the following:
 
-1. The executable table has exactly 101 unique repo-owned type IDs and the excluded
+1. The executable table has exactly 106 unique repo-owned type IDs and the excluded
    table has exactly 38 unique IDs with no overlap.
-2. Executable totals are exactly 29 `durable`, 27 `session`, and 45 `never`.
+2. Executable totals are exactly 29 `durable`, 27 `session`, and 50 `never`.
 3. The excluded table contains exactly 35 passive and 3 compile-only rows.
 4. Every executable row contains all fourteen required columns and every excluded
    row contains all seven required columns.
@@ -290,7 +291,7 @@ Review and implementation checks must prove all of the following:
 6. Runtime-discovered public declarations are hard-locked to `never` without
    recording private IDs or paths.
 7. `tests/fixtures/node_catalog/current_repo_owned_catalog.json` contains exactly
-   the 139 classified rows.
+   the 144 classified rows.
 
 This draft intentionally contains no implementation or acceptance claim. Metadata
 edits remain forbidden until independent classification review closes all findings
