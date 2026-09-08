@@ -81,6 +81,12 @@ def _read_node_state_unavailable(_node_id: str) -> Any | None:
     raise RuntimeError("ExecutionContext does not have run-scoped node state.")
 
 
+def _request_observation_invalidation_unavailable(
+    _root_node_id: str, _reason_code: str
+) -> None:
+    raise RuntimeError("ExecutionContext does not have runtime invalidation authority.")
+
+
 _PLUGIN_WARNING_CODE = re.compile(r"^[a-z][a-z0-9_.-]*$")
 
 
@@ -129,6 +135,10 @@ class ExecutionContext:
     )
     _read_node_state: Callable[[str], Any | None] = field(
         default=_read_node_state_unavailable,
+        repr=False,
+    )
+    _request_observation_invalidation: Callable[[str, str], None] = field(
+        default=_request_observation_invalidation_unavailable,
         repr=False,
     )
     _plugin_warnings: list[PluginWarning] = field(default_factory=list, repr=False)
@@ -198,6 +208,17 @@ class ExecutionContext:
         if normalized_node_id not in self.workspace_node_types:
             raise KeyError(f"Unknown workspace node ID: {normalized_node_id!r}")
         return self._read_node_state(normalized_node_id)
+
+    def request_observation_invalidation(
+        self, root_node_id: str, *, reason_code: str
+    ) -> None:
+        root = str(root_node_id or "").strip()
+        reason = str(reason_code or "").strip()
+        if root not in self.workspace_node_types:
+            raise KeyError(f"Unknown workspace node ID: {root!r}")
+        if not reason or len(reason) > 256:
+            raise ValueError("Observation invalidation reason must be bounded non-empty text")
+        self._request_observation_invalidation(root, reason)
 
     def runtime_artifact_ref(self, value: Any) -> RuntimeArtifactRef | None:
         return coerce_runtime_artifact_ref(value)

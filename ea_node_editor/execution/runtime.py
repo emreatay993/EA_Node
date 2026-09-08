@@ -115,6 +115,7 @@ RUN_SCOPED_EVENT_TYPES = frozenset(
         "run_stopped",
         "node_started",
         "node_settled",
+        "observation_invalidation_requested",
         "trigger_capture_settled",
         "trigger_published",
         "log",
@@ -1067,6 +1068,9 @@ class CorexRuntime:
         assert reservation is not None and command is not None
         started = False
         try:
+            # The reader must finish earlier runtime callbacks before it can
+            # receive the retirement ACK. Revalidate dispatch after this wait.
+            self.retire_workspace(reservation.workspace_id)
             with self._lifecycle_lock, self.registry_publication_guard():
                 envelope = prepared.dispatch_envelope
                 current_generation = self._client.execution_generation_snapshot(
@@ -1832,6 +1836,23 @@ class CorexRuntime:
         event: Mapping[str, Any],
         generation_snapshot: Any,
     ) -> None:
+        if str(event.get("type", "")) == "observation_invalidation_requested":
+            with self._lifecycle_lock:
+                result, released_leases = (
+                    self._solution_store.invalidate_current_observations(
+                        run_id=str(event.get("run_id", "")).strip(),
+                        workspace_id=str(event.get("workspace_id", "")).strip(),
+                        requesting_node_id=str(event.get("node_id", "")).strip(),
+                        root_node_id=str(event.get("root_node_id", "")).strip(),
+                        reason_code=str(event.get("reason_code", "")).strip(),
+                        generation_snapshot=generation_snapshot,
+                    )
+                )
+            self._release_resource_leases(released_leases)
+            if result is not None:
+                self._publish_solution_state_results((result,))
+            self._generation_event_local.forwarded = dict(event)
+            return
         backend_id = generation_snapshot.selection.backend_id
         solution_events: tuple[InvalidationResult, ...] = ()
         diagnostics: tuple[dict[str, Any], ...] = ()
@@ -2055,8 +2076,7 @@ class CorexRuntime:
         return self._client.invalidate_viewer_requests(workspace_id, node_ids)
 
     def retire_workspace(self, workspace_id: str) -> int:
-        with self._lifecycle_lock:
-            return int(self._client.retire_workspace(workspace_id))
+        return int(self._client.retire_workspace(workspace_id))
 
     def shutdown(self) -> None:
         with self._lifecycle_lock:

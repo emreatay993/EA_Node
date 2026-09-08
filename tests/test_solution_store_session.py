@@ -130,6 +130,10 @@ class _Client:
             self.snapshot,
         )
 
+    @staticmethod
+    def retire_workspace(_workspace_id):  # noqa: ANN001, ANN205
+        return 0
+
     def start_reserved_run(self, reservation, command):  # noqa: ANN001, ANN201
         self.runs[reservation.run_id] = (reservation, command)
         self.emit(
@@ -490,6 +494,142 @@ def test_late_settlement_is_node_revision_safe_and_unrelated_branch_stays_curren
     assert facts[downstream.node_id].freshness is SolutionFreshness.EXPIRED
     assert facts[unrelated.node_id].freshness is SolutionFreshness.CURRENT
     assert runtime.solution_store.stats()["records"] == 1
+
+
+def test_active_run_observation_invalidation_preserves_pending_settlement_revisions() -> None:
+    model = GraphModel()
+    workspace = model.active_workspace
+    root = model.add_node(workspace.workspace_id, "core.constant", "Root", 0, 0)
+    requester = model.add_node(workspace.workspace_id, "data.panel", "Mutator", 200, 0)
+    sibling = model.add_node(workspace.workspace_id, "data.panel", "Old reader", 200, 150)
+    downstream = model.add_node(workspace.workspace_id, "data.panel", "Reader", 400, 0)
+    unrelated = model.add_node(workspace.workspace_id, "core.constant", "Unrelated", 0, 200)
+    model.add_edge(workspace.workspace_id, root.node_id, "value", requester.node_id, "input")
+    model.add_edge(workspace.workspace_id, root.node_id, "value", sibling.node_id, "input")
+    model.add_edge(workspace.workspace_id, requester.node_id, "output", downstream.node_id, "input")
+    runtime, client, registry = _runtime(model)
+    snapshot = _snapshot(model, registry, workspace.workspace_id)
+    run_id = runtime.dispatch_prepared(
+        runtime.prepare_execution(
+            ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+        )
+    )
+    events = []
+    unsubscribe = runtime.subscribe(events.append)
+    _settle(client, run_id, root.node_id)
+    _settle(client, run_id, sibling.node_id, port_key="output", value="old")
+    _settle(client, run_id, unrelated.node_id)
+    client.emit(
+        run_id,
+        {
+            "type": "observation_invalidation_requested",
+            "node_id": requester.node_id,
+            "root_node_id": root.node_id,
+            "reason_code": "mechanical_model_mutated",
+        },
+    )
+    facts_after_invalidation = runtime.solution_facts(
+        model.project.project_id, workspace.workspace_id
+    )
+    revision_after_invalidation = runtime.solution_store.workspace_revision(
+        model.project.project_id, workspace.workspace_id
+    )
+    changed_count = len(
+        [event for event in events if event.get("type") == "solution_state_changed"]
+    )
+    for changes, generation in (
+        ({}, client.snapshot),
+        ({"run_id": "wrong"}, client.snapshot),
+        ({"workspace_id": "wrong"}, client.snapshot),
+        ({"node_id": "missing"}, client.snapshot),
+        ({"root_node_id": "missing"}, client.snapshot),
+        ({}, replace(client.snapshot, runtime_generation=2)),
+    ):
+        runtime._handle_generation_event(  # noqa: SLF001 - exact stale-event gate
+            {
+                "type": "observation_invalidation_requested",
+                "run_id": run_id,
+                "workspace_id": workspace.workspace_id,
+                "node_id": requester.node_id,
+                "root_node_id": root.node_id,
+                "reason_code": "mechanical_model_mutated",
+                **changes,
+            },
+            generation,
+        )
+    assert runtime.solution_facts(
+        model.project.project_id, workspace.workspace_id
+    ) == facts_after_invalidation
+    assert runtime.solution_store.workspace_revision(
+        model.project.project_id, workspace.workspace_id
+    ) == revision_after_invalidation
+    assert len(
+        [event for event in events if event.get("type") == "solution_state_changed"]
+    ) == changed_count
+    _settle(client, run_id, requester.node_id, port_key="output", value="mutated")
+    _settle(client, run_id, downstream.node_id, port_key="output", value="fresh")
+    _terminal(client, run_id)
+    unsubscribe()
+    facts = {
+        fact.node_id: fact
+        for fact in runtime.solution_facts(model.project.project_id, workspace.workspace_id)
+    }
+    assert facts[root.node_id].freshness is SolutionFreshness.EXPIRED
+    assert facts[root.node_id].expiration_reason_code == "mechanical_model_mutated"
+    assert facts[sibling.node_id].freshness is SolutionFreshness.EXPIRED
+    assert facts[requester.node_id].freshness is SolutionFreshness.CURRENT
+    assert facts[downstream.node_id].freshness is SolutionFreshness.CURRENT
+    assert facts[unrelated.node_id].freshness is SolutionFreshness.CURRENT
+    changed = [event for event in events if event.get("type") == "solution_state_changed"]
+    assert changed[-1]["expired_node_ids"] == [
+        root.node_id,
+        sibling.node_id,
+    ]
+    assert not any(event.get("type") == "observation_invalidation_requested" for event in events)
+
+
+def test_active_run_observation_invalidation_ignores_known_unscheduled_nodes() -> None:
+    model = GraphModel()
+    workspace = model.active_workspace
+    root = model.add_node(workspace.workspace_id, "core.constant", "Root", 0, 0)
+    requester = model.add_node(workspace.workspace_id, "data.panel", "Requester", 200, 0)
+    unscheduled = model.add_node(workspace.workspace_id, "core.constant", "Other", 0, 200)
+    model.add_edge(workspace.workspace_id, root.node_id, "value", requester.node_id, "input")
+    runtime, client, registry = _runtime(model)
+    snapshot = _snapshot(model, registry, workspace.workspace_id)
+    run_id = runtime.dispatch_prepared(
+        runtime.prepare_execution(
+            ExecutionRequest(
+                runtime_snapshot=snapshot,
+                workspace_id=workspace.workspace_id,
+                target_node_ids=(requester.node_id,),
+            )
+        )
+    )
+    _settle(client, run_id, root.node_id)
+    before = runtime.solution_facts(model.project.project_id, workspace.workspace_id)
+    revision = runtime.solution_store.workspace_revision(
+        model.project.project_id, workspace.workspace_id
+    )
+    for node_id, root_node_id in (
+        (requester.node_id, unscheduled.node_id),
+        (unscheduled.node_id, root.node_id),
+    ):
+        runtime._handle_generation_event(  # noqa: SLF001 - exact unscheduled-event gate
+            {
+                "type": "observation_invalidation_requested",
+                "run_id": run_id,
+                "workspace_id": workspace.workspace_id,
+                "node_id": node_id,
+                "root_node_id": root_node_id,
+                "reason_code": "mechanical_model_mutated",
+            },
+            client.snapshot,
+        )
+    assert runtime.solution_facts(model.project.project_id, workspace.workspace_id) == before
+    assert runtime.solution_store.workspace_revision(
+        model.project.project_id, workspace.workspace_id
+    ) == revision
 
 
 def test_late_reused_settlement_cannot_restore_current() -> None:

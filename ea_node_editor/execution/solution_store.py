@@ -12,7 +12,7 @@ import time
 import uuid
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from ea_node_editor.execution.prepared_execution import (
@@ -196,6 +196,7 @@ class _RunEntry:
     pre_dispatch_facts: dict[tuple[str, str, str], NodeSolutionFact]
     trigger_reservation_id: str = ""
     run_started_observed: bool = False
+    accepted_record_ids: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -952,6 +953,101 @@ class SolutionStore:
                 tuple(released_leases),
             )
 
+    def invalidate_current_observations(
+        self,
+        *,
+        run_id: str,
+        workspace_id: str,
+        requesting_node_id: str,
+        root_node_id: str,
+        reason_code: str,
+        generation_snapshot: Any,
+    ) -> tuple[InvalidationResult | None, tuple[Any, ...]]:
+        values = {
+            "run_id": str(run_id).strip(),
+            "workspace_id": str(workspace_id).strip(),
+            "requesting_node_id": str(requesting_node_id).strip(),
+            "root_node_id": str(root_node_id).strip(),
+            "reason_code": str(reason_code).strip(),
+        }
+        if any(not value or len(value) > 256 for value in values.values()):
+            return None, ()
+        with self._lock:
+            run = self._runs.get(values["run_id"])
+            if run is None or run.generation_snapshot != generation_snapshot:
+                return None, ()
+            envelope = run.preparation.prepared.dispatch_envelope
+            if envelope.workspace_id != values["workspace_id"]:
+                return None, ()
+            plan = run.preparation.plan
+            if (
+                values["requesting_node_id"] not in plan.scheduled_node_ids
+                or values["root_node_id"] not in plan.scheduled_node_ids
+            ):
+                return None, ()
+            closure = plan.affected_downstream_closure((values["root_node_id"],))
+            if values["requesting_node_id"] not in closure:
+                return None, ()
+            if values["requesting_node_id"] in run.accepted_record_ids:
+                return None, ()
+            affected = []
+            for node_id in plan.execution_order:
+                record_id = run.accepted_record_ids.get(node_id)
+                if node_id not in closure or record_id is None:
+                    continue
+                fact = self._facts.get(
+                    self._fact_key(envelope.project_id, values["workspace_id"], node_id)
+                )
+                if (
+                    fact is not None
+                    and fact.freshness is SolutionFreshness.CURRENT
+                    and fact.retained_record_id == record_id
+                ):
+                    affected.append(node_id)
+            if not affected:
+                return None, ()
+            released: list[Any] = []
+            project_id = envelope.project_id
+            for node_id in affected:
+                key = self._fact_key(project_id, values["workspace_id"], node_id)
+                previous = self._never_fact_locked(*key)
+                self._node_revisions[key] += 1
+                record_id = run.accepted_record_ids.pop(node_id)
+                entry = self._records.get(record_id)
+                if entry is not None:
+                    released.extend(entry.resource_leases)
+                    entry.resource_leases = ()
+                self._facts[key] = NodeSolutionFact(
+                    project_id=project_id,
+                    workspace_id=values["workspace_id"],
+                    node_id=node_id,
+                    freshness=SolutionFreshness.EXPIRED,
+                    revision=self._node_revisions[key],
+                    retained_record_id=previous.retained_record_id,
+                    retained_solution_key=previous.retained_solution_key,
+                    residency=previous.residency,
+                    expiration_reason_code=values["reason_code"],
+                    expiration_root_node_ids=closure[node_id],
+                    last_disposition=previous.last_disposition,
+                )
+            workspace_key = (project_id, values["workspace_id"])
+            self._workspace_revisions[workspace_key] += 1
+            run.preparation.adopted_workspace_revision = self._workspace_revisions[
+                workspace_key
+            ]
+            return (
+                InvalidationResult(
+                    project_id=project_id,
+                    workspace_id=values["workspace_id"],
+                    solution_revision=self._workspace_revisions[workspace_key],
+                    changed_root_node_ids=(values["root_node_id"],),
+                    expired_node_ids=tuple(affected),
+                    removed_node_ids=(),
+                    reason_code=values["reason_code"],
+                ),
+                tuple(released),
+            )
+
     def trigger_generation(
         self,
         project_id: str,
@@ -1172,6 +1268,10 @@ class SolutionStore:
                     artifact_context=artifact_context,
                 )
                 released_leases.extend(released)
+                if acceptance is not None:
+                    run.accepted_record_ids[
+                        str(event.get("node_id", "")).strip()
+                    ] = acceptance.record_id
                 if diagnostic is not None:
                     diagnostics.append(diagnostic)
             elif resource_leases:

@@ -1,6 +1,6 @@
-# Purpose: Hold inert decorated Mechanical Open, Search, table, camera, and image declarations.
+# Purpose: Hold inert decorated Mechanical Open, Search, table, camera, image, and script declarations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py, tests/mechanical_catalogue/test_image_export.py
+# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py
 
 SOURCE = r'''import corex
 from ea_node_editor.addons.mechanical.runtime import execute_open_model
@@ -8,6 +8,7 @@ from ea_node_editor.addons.mechanical.runtime import execute_search_tree
 from ea_node_editor.addons.mechanical.runtime import execute_fea_table
 from ea_node_editor.addons.mechanical.runtime import execute_camera_views
 from ea_node_editor.addons.mechanical.runtime import execute_image_export
+from ea_node_editor.addons.mechanical.runtime import execute_run_script
 
 @corex.node(
     id="mechanical.open_model", name="Open Mechanical Model",
@@ -185,6 +186,37 @@ def mechanical_camera_views(ctx, model, settings):
     description="Object/view identities, DataPaths, image ordinals, dimensions, and published paths.")
 def export_mechanical_image(ctx, model, settings):
     return execute_image_export(ctx, model, settings.objects, settings.views, settings)
+
+@corex.node(
+    id="mechanical.run_script", name="Run Mechanical Script",
+    category=("FEA", "ANSYS", "Mechanical"),
+    description="Runs authored IronPython-compatible Mechanical code in the isolated working model. Authored code may explicitly solve or save; the node adds neither operation.",
+    keywords=("mechanical", "ansys", "script", "ironpython", "environment"),
+    _solution_reuse_scope="never",
+)
+@corex.input("source_model", value_type="COREX.Mechanical.Model", required=True,
+    label="Model", description="Run-owned Mechanical model state to mutate.")
+@corex.list("environments", default=[], item_type=str, label="Environments", port=True,
+    _property_group="Script", _port_structure="list",
+    _port_value_type="COREX.Mechanical.Object", _port_accepted_data_types=("COREX.DataTypes.String",),
+    _port_description="Analysis objects or exact paths/names; empty selects every analysis in tree order.")
+@corex.dropdown("scope", default="each_environment", options=("each_environment", "model_once"),
+    label="Scope", port=True, _inspector_editor="enum", _property_group="Script",
+    _port_value_type="COREX.DataTypes.String", _port_description="Run once per selected analysis or once for the model.")
+@corex.text("code", default="", label="Code", port=True,
+    _inspector_editor="textarea", _property_group="Script",
+    _port_value_type="COREX.DataTypes.String", _port_required=True,
+    _port_description="Required IronPython-compatible Mechanical code.")
+@corex.number("timeout_s", default=600.0, minimum=1.0, maximum=86400.0, step=1.0,
+    label="Timeout (s)", port=True, _inspector_editor="text", _property_group="Script options",
+    _port_value_type="COREX.DataTypes.Double", _port_description="Script timeout from 1 to 86400 seconds.")
+@corex.switch("stop_on_error", default=True, label="Stop on error", port=True,
+    _inspector_editor="toggle", _property_group="Script options",
+    _port_value_type="COREX.DataTypes.Bool", _port_description="Stop after the first failed analysis; disabling still fails the node after all attempts.")
+@corex.output("model", value_type="COREX.Mechanical.Model", label="Model", description="New model revision after complete success.")
+@corex.output("report", value_type="COREX.DataTypes.TableValue", label="Report", description="Per-analysis receipts followed by refreshed discovery descriptors.")
+def run_mechanical_script(ctx, source_model, settings):
+    return execute_run_script(ctx, source_model, settings.environments, settings)
 '''
 
 __all__ = ["SOURCE"]

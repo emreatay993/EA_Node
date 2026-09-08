@@ -1,6 +1,6 @@
 # Purpose: Build bounded discovery and complete data-only Search snapshots on the native owner thread.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py
+# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_scripts.py
 
 from __future__ import annotations
 
@@ -202,7 +202,9 @@ def _relation(status: str, values=(), **metadata: Any) -> dict[str, Any]:
 def _object_contexts(objects: list[Any]) -> list[dict[str, Any]]:
     ids = {int(_safe(obj, "ObjectId", -1)): obj for obj in objects}
     analysis_ids = {
-        object_id for object_id, obj in ids.items() if object_id >= 0 and ".Analysis" in _type_name(obj)
+        object_id
+        for object_id, obj in ids.items()
+        if object_id >= 0 and _type_name(obj).endswith(".Analysis")
     }
     contexts = []
     for obj in objects:
@@ -760,6 +762,7 @@ def search_tree(
 def collect_catalogue_rows(
     *, tree: Any, graphics: Any, identity: dict[str, Any], systems: list[dict[str, str]],
     status: str = "opened", message: str = "", model: Any = None, data_model: Any = None,
+    operations: list[Mapping[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Read descriptors only; never inspect table cells or execute authored scripts."""
     rows: list[dict[str, Any]] = []
@@ -767,6 +770,10 @@ def collect_catalogue_rows(
     summary = _blank(identity, "session")
     summary.update(status=status, message=message, catalogue_complete=True, omitted_rows=0)
     rows.append(summary)
+    for operation in operations or ():
+        row = _blank(identity, "operation")
+        row.update(status=str(operation["status"]), message=str(operation["message"]))
+        rows.append(row)
     for system in systems:
         row = _blank(identity, "system")
         key, label = str(system["key"]), str(system["label"])
@@ -785,7 +792,7 @@ def collect_catalogue_rows(
     contexts_by_id = {context["object_id"]: context for context in contexts}
     analysis_ids = {
         int(_safe(item, "ObjectId")): int(_safe(item, "ObjectId"))
-        for item in objects if ".Analysis" in _type_name(item)
+        for item in objects if _type_name(item).endswith(".Analysis")
     }
     for obj in objects:
         object_id = int(_safe(obj, "ObjectId", -1))

@@ -17,6 +17,7 @@ from ea_node_editor.execution.run_messages import (
     CancelRunPreflightCommand,
     CommitRunPreflightCommand,
     NodeSettledEvent,
+    ObservationInvalidationRequestedEvent,
     ProtocolErrorEvent,
     RunCompletedEvent,
     RunFailedEvent,
@@ -365,6 +366,23 @@ class ProtocolCodecTests(unittest.TestCase):
         )
         restored_failed = dict_to_event(event_to_dict(failed_event))
         self.assertEqual(restored_failed.errors, failed_event.errors)
+
+    def test_observation_invalidation_event_round_trips_with_bounded_identity(self) -> None:
+        event = ObservationInvalidationRequestedEvent(
+            run_id="run",
+            workspace_id="workspace",
+            node_id="script",
+            root_node_id="open",
+            reason_code="mechanical_model_mutated",
+        )
+        self.assertEqual(dict_to_event(event_to_dict(event)), event)
+        with self.assertRaises(ValueError):
+            dict_to_event(
+                {
+                    **event_to_dict(event),
+                    "reason_code": "x" * 257,
+                }
+            )
 
     def test_query_options_and_strict_composite_fields_round_trip(self) -> None:
         command = QueryViewerSessionCommand(

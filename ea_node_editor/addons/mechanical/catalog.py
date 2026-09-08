@@ -31,6 +31,7 @@ MECHANICAL_FUNCTION_TYPE_IDS = (
     "mechanical.fea_table",
     "mechanical.camera_views",
     "mechanical.export_image",
+    "mechanical.run_script",
 )
 _DISCOVERED_RELEASES: tuple[int, ...] = ()
 _MECHANICAL_PACKAGE_ROOT = Path(__file__).resolve().parent

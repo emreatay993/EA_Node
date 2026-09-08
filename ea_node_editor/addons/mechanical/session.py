@@ -1,6 +1,6 @@
 # Purpose: Own Mechanical sessions by execution run, Open item, path, and workspace.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_session_lifecycle.py
+# Tests: tests/mechanical_catalogue/test_session_lifecycle.py, tests/mechanical_catalogue/test_scripts.py
 
 from __future__ import annotations
 
@@ -72,6 +72,12 @@ class _Session:
                 f"Mechanical working directory cleanup failed: {self.work_root}"
             )
         self.closed = True
+
+
+@dataclass(frozen=True, slots=True)
+class _ModelState:
+    session: _Session
+    revision: int
 
 
 class MechanicalSessionService:
@@ -189,7 +195,10 @@ class MechanicalSessionService:
         system_key: str,
         release_code: int,
         catalogue_id: str,
+        producer_node_id: str | None = None,
         producer_port: str = "info",
+        producer_path: DataPath | None = None,
+        producer_iteration: int | None = None,
     ) -> RuntimeHandleRef:
         with self._lock:
             self._require_live_session(session)
@@ -204,13 +213,20 @@ class MechanicalSessionService:
                 "release_code": int(release_code),
                 "backend_mode": session.backend_mode,
                 "catalogue_id": catalogue_id,
-                "producer_node_id": session.key.open_node_id,
+                "producer_node_id": _identity(
+                    producer_node_id or session.key.open_node_id,
+                    "producer_node_id",
+                ),
                 "producer_port": producer_port,
-                "producer_path": list(session.key.target_path),
-                "producer_iteration": session.key.target_iteration,
+                "producer_path": list(producer_path or session.key.target_path),
+                "producer_iteration": (
+                    session.key.target_iteration
+                    if producer_iteration is None
+                    else int(producer_iteration)
+                ),
             }
             return self._worker_services.register_handle(
-                session,
+                _ModelState(session, session.revision),
                 data_type_id=MODEL_TYPE_ID,
                 kind=MODEL_HANDLE_KIND,
                 run_id=session.key.run_id,
@@ -221,13 +237,14 @@ class MechanicalSessionService:
         if not validate_model(value):
             raise TypeError("value is not a Mechanical Model handle")
         assert isinstance(value, RuntimeHandleRef)
-        session = self._worker_services.resolve_handle(
+        state = self._worker_services.resolve_handle(
             value, expected_data_type=MODEL_TYPE_ID, expected_kind=MODEL_HANDLE_KIND
         )
-        if not isinstance(session, _Session):
+        if not isinstance(state, _ModelState):
             raise StaleMechanicalModelError(
                 "Mechanical Model handle has no live session"
             )
+        session = state.session
         with self._lock:
             self._require_live_session(session)
             metadata = value.metadata
@@ -235,6 +252,7 @@ class MechanicalSessionService:
                 metadata["run_id"] != _identity(run_id, "run_id")
                 or metadata["workspace_id"] != _identity(workspace_id, "workspace_id")
                 or metadata["session_id"] != session.session_id
+                or metadata["model_revision"] != state.revision
                 or metadata["model_revision"] != session.revision
             ):
                 raise StaleMechanicalModelError(
@@ -315,6 +333,13 @@ class MechanicalSessionService:
                 warn,
             )
             return len(owned)
+
+    def retire_session(self, session: _Session) -> None:
+        with self._lock:
+            if self._sessions.get(session.key) is session:
+                self._sessions.pop(session.key)
+            session.terminal = True
+        session.close()
 
     def retire_workspace(
         self, workspace_id: str, *, warn: Callable[[str], None] | None = None

@@ -451,6 +451,7 @@ def test_mechanical_backend_registers_all_five_semantic_contracts() -> None:
         "mechanical.fea_table",
         "mechanical.camera_views",
         "mechanical.export_image",
+        "mechanical.run_script",
     ]
     assert {
         spec.type_id

@@ -393,6 +393,8 @@ Implementation is authorized and uses large-plan execution. One coordinator owns
 
 Start a fresh Sol (`gpt-5.6-sol`) T01 implementation worker in the new session; reuse the existing files and retained evidence, but do not resume or address an old agent ID. Use fresh Sol workers for subsequent implementation and intermediate independent reviews, preserving the selected reasoning setting unless the user changes it. Use Astra (`gpt-6-astra`) for the final T18 independent integration review. Keep detailed implementation and verification with the task owners so the coordinator retains only compact acceptance evidence and decisions. This model routing changes none of the independent-review, acceptance, dependency or separate-commit requirements below.
 
+T11 routing exception approved by the user: use GPT-6 Astra at xhigh only for the worker-startup/workspace-retirement fix blocking production integration. Pause the Sol writer during that bounded handoff, retain independent Sol review, then return the remaining implementation to Sol. All other task routing remains unchanged.
+
 Every task below must follow this exact completion sequence:
 
 1. Re-read its full contract sections and predecessor evidence; verify `git rev-parse --show-toplevel`, current branch and dirty status. Use an implementation branch under `codex/` unless the user directs another branch. Preserve concurrent work; do not reset the repository or stage everything.

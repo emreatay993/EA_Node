@@ -8,10 +8,10 @@ implementation studies are intentionally excluded.
 | Source area | Primary map | Main responsibility |
 | --- | --- | --- |
 | `ea_node_editor/graph` | [Graph Domain](subsystems/graph_domain.md) | Graph records, invariants, mutation, transforms, and workspace state |
-| `ea_node_editor/execution` | [Execution](subsystems/execution.md) | Runtime snapshots, protocol, workers, and result transport |
+| `ea_node_editor/execution` | [Execution](subsystems/execution.md) | Runtime snapshots, protocol, workers, result transport, active-run observation invalidation, and workspace retirement before activation |
 | `ea_node_editor/persistence` | [Persistence](subsystems/persistence.md) | Project codecs, migrations, artifacts, and sessions |
 | `ea_node_editor/nodes` | [Nodes And Built-ins](subsystems/nodes_registry_builtins.md) | Registry, contracts, built-ins, packages, and plugins |
-| `ea_node_editor/addons` | [Add-ons](subsystems/addons.md) | Add-on records, dependency-gated catalogs, runtime helpers, and backend contributions |
+| `ea_node_editor/addons` | [Add-ons](subsystems/addons.md) | Add-on records, dependency-gated catalogs, runtime helpers, backend contributions, and Mechanical script mutation |
 | `ea_node_editor/common` | [Supporting Runtime Assets](subsystems/supporting_runtime_assets.md) | Dependency-light helpers shared across subsystem boundaries |
 | `ea_node_editor/ui` | [UI Shell](subsystems/ui_shell.md) | Shell composition, controllers, presenters, and native hosts |
 | `ea_node_editor/ui_qml` | [QML Shell And Bridges](subsystems/qml_shell_and_bridges.md) | QML components, bridges, payloads, and graph surfaces |
@@ -135,7 +135,7 @@ The surface loader retains action owners for active collapsed-node toolbars; hid
   `docs/PLUGIN_MIGRATION_GUIDE.md`. The old Signal Plot declaration is retained
   only as an internal visual fixture under `tests/fixtures/node_controls/`.
 - The exact current catalog is `tests/fixtures/node_catalog/current_repo_owned_catalog.json`;
-  `tests/repo_owned_catalog_fixture.py` loads its 144 rows for catalog, migration,
+  `tests/repo_owned_catalog_fixture.py` loads its 145 rows for catalog, migration,
   solution-reuse, and documentation checks. Closeout evidence lives in
   `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`.
 - Core integrations contribute eight reserved function entries plus the trusted

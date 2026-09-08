@@ -460,6 +460,23 @@ class RunEventPublisher:
             )
         )
 
+    def emit_observation_invalidation(
+        self, node_id: str, root_node_id: str, reason_code: str
+    ) -> None:
+        from ea_node_editor.execution.run_messages import (
+            ObservationInvalidationRequestedEvent,
+        )
+
+        self.emit(
+            ObservationInvalidationRequestedEvent(
+                run_id=self.run_id,
+                workspace_id=self.workspace_id,
+                node_id=node_id,
+                root_node_id=root_node_id,
+                reason_code=reason_code,
+            )
+        )
+
     def emit_trigger_capture_settled(
         self, node_id: str, result: SettledPortResult
     ) -> None:
@@ -558,6 +575,7 @@ class NodeExecutor:
                 for node_id, node in self._plan.nodes.items()
             }
         )
+
         self._semantic_links_by_node = {
             node_id: _immutable_semantic_links(node)
             for node_id, node in self._plan.nodes.items()
@@ -1533,6 +1551,11 @@ class NodeExecutor:
             workspace_node_types=self._workspace_node_types,
             _publish_node_state=self._publish_node_state,
             _read_node_state=self._read_node_state,
+            _request_observation_invalidation=lambda root_node_id, reason_code: (
+                self._publisher.emit_observation_invalidation(
+                    node_id, root_node_id, reason_code
+                )
+            ),
         )
 
     def _settle_empty(

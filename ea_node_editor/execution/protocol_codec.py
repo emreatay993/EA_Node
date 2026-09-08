@@ -48,6 +48,7 @@ from ea_node_editor.execution.run_messages import (
     LogEvent,
     NodeSettledEvent,
     NodeStartedEvent,
+    ObservationInvalidationRequestedEvent,
     PauseRunCommand,
     ProtocolErrorEvent,
     ResumeRunCommand,
@@ -126,6 +127,7 @@ WorkerEvent: TypeAlias = (
     | RunStoppedEvent
     | NodeStartedEvent
     | NodeSettledEvent
+    | ObservationInvalidationRequestedEvent
     | TriggerCaptureSettledEvent
     | TriggerPublishedEvent
     | LogEvent
@@ -167,6 +169,7 @@ _SCALAR_PROTOCOL_TYPES = frozenset(
         RunFailedEvent,
         RunStoppedEvent,
         NodeStartedEvent,
+        ObservationInvalidationRequestedEvent,
         LogEvent,
         ProtocolErrorEvent,
         WorkspaceRetiredEvent,
@@ -1825,6 +1828,22 @@ def dict_to_event(
             warnings=warnings,
             **identity_fields,
         )
+    if event_type == "observation_invalidation_requested":
+        values = {
+            field: _string_field(payload, field, strip=True)
+            for field in (
+                "run_id",
+                "workspace_id",
+                "node_id",
+                "root_node_id",
+                "reason_code",
+            )
+        }
+        if any(not value or len(value) > 256 for value in values.values()):
+            raise ValueError(
+                "observation invalidation identities must be bounded non-empty strings"
+            )
+        return ObservationInvalidationRequestedEvent(**values)
     if event_type in {"trigger_capture_settled", "trigger_published"}:
         event_type_args = {
             "run_id": _string_field(payload, "run_id"),

@@ -65,6 +65,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         self._catalog_generation_token = 0
         self._physical_generation_token = 0
         self._accepted_physical_generation_token = 0
+        self._physical_generation_run_dispatched = False
         self._run_generation_tokens: dict[str, int] = {}
         self._ctx = mp.get_context("spawn")
         self._command_queue: mp.Queue = self._ctx.Queue()
@@ -158,6 +159,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                 self._event_queue = event_queue
                 self._process = new_process
                 self._listener_thread = listener_thread
+                self._physical_generation_run_dispatched = False
             listener_thread.start()
 
     def _recycle_catalog_generation(self) -> None:
@@ -221,10 +223,13 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         with self._start_lock:
             with self._state_lock:
                 process = self._process
+                run_dispatched = self._physical_generation_run_dispatched
+            # A generation that has never received StartRun cannot own sessions.
             if (
                 process is None
                 or not process.is_alive()
                 or not isinstance(getattr(process, "pid", None), int)
+                or not run_dispatched
             ):
                 return 0
             return self._retire_workspace_via_transport(workspace_id)
@@ -412,6 +417,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                     workspace_id,
                 )
                 self._clear_active_node_state_locked()
+                self._physical_generation_run_dispatched = True
             if not self._post_command(command):
                 self._release_start_run(run_id)
                 return ""

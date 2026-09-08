@@ -844,6 +844,8 @@ class ExecutionBackendClient:
         reservation: ExecutionRunReservation,
         command: Any,
     ) -> str:
+        # CorexRuntime retires the workspace before taking its activation lock.
+        # Consume and validate the reservation only after that blocking sweep.
         from ea_node_editor.execution.run_messages import (
             StartRunCommand,
         )
@@ -907,11 +909,6 @@ class ExecutionBackendClient:
         ):
             client._release_start_run(reservation.run_id)  # noqa: SLF001
             raise ValueError("prepared viewer invalidation reservation changed")
-        try:
-            self.retire_workspace(command.workspace_id)
-        except BaseException:
-            client._release_start_run(reservation.run_id)  # noqa: SLF001
-            raise
         with self._active_lock:
             self._active_clients[reservation.run_id] = client
             self._run_clients[reservation.run_id] = client

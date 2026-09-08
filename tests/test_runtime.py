@@ -437,6 +437,10 @@ class _PreparedClient:
             self.emit(event, snapshot=reservation.generation_snapshot)
         return reservation.run_id
 
+    def retire_workspace(self, workspace_id: str) -> int:
+        self.operations.append("retire_workspace")
+        return 0
+
     def reserve_viewer_invalidation(
         self, run_reservation, preparation_id, node_ids  # noqa: ANN001, ANN201
     ):
@@ -909,6 +913,7 @@ def test_prepare_is_private_and_dispatch_registers_context_before_sync_events() 
         "publish_registry",
         "generation_snapshot",
         "reserve_run",
+        "retire_workspace",
         "generation_snapshot",
         "start_reserved_run",
     ]
@@ -1132,6 +1137,48 @@ def test_warm_reservation_rejects_a_successor_generation_before_start() -> None:
         runtime.dispatch_prepared(prepared)
     assert "start_reserved_run" not in client.operations
     assert runtime.solution_store.stats()["runs"] == 0
+
+
+@pytest.mark.parametrize("change", ["revision", "generation", "failure"])
+def test_retirement_revalidates_dispatch_and_releases_failed_reservations(
+    change: str,
+) -> None:
+    runtime, client, _registry, model, workspace, node, snapshot = (
+        _runtime_with_constant()
+    )
+    prepared = runtime.prepare_execution(
+        ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
+    )
+
+    def retire(workspace_id: str) -> int:
+        assert workspace_id == workspace.workspace_id
+        if change == "revision":
+            runtime.invalidate_solution(
+                model.project.project_id, workspace_id, snapshot,
+                (node.node_id,), "property_changed",
+            )
+        elif change == "generation":
+            client.snapshot = replace(
+                client.snapshot, backend_generation=2, runtime_generation=2,
+            )
+        else:
+            raise TimeoutError("retirement failed")
+        return 0
+
+    try:
+        with patch.object(client, "retire_workspace", retire):
+            with pytest.raises(
+                (ValueError, TimeoutError),
+                match="prepared_dispatch_changed_before_start|retirement failed",
+            ):
+                runtime.dispatch_prepared(prepared)
+        assert "start_reserved_run" not in client.operations
+        assert "release_reservation" in client.operations
+        assert not client.viewer_reservations
+        assert runtime.solution_store.stats()["runs"] == 0
+        assert not runtime._run_artifact_services  # noqa: SLF001
+    finally:
+        runtime.shutdown()
 
 
 def test_cold_successor_adopts_generation_before_synchronous_terminal() -> None:
@@ -2015,6 +2062,73 @@ def test_project_solution_factory_failure_falls_back_without_partial_binding() -
     assert runtime.solution_store.solution_namespace_id("project") == "project"
     assert runtime.solution_store.stats()["records"] == 0
     runtime.shutdown()
+
+
+@pytest.mark.parametrize(
+    "operation", ["dispatch", "retire", "cancel_reservation", "cancel_viewer"],
+)
+def test_workspace_retirement_allows_an_earlier_reader_callback(operation: str) -> None:
+    registry = build_default_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    model.add_node(workspace.workspace_id, "core.constant", "Constant", 0, 0)
+    request = ExecutionRequest(
+        runtime_snapshot=build_runtime_snapshot(
+            model.project, workspace_id=workspace.workspace_id, registry=registry,
+        ),
+        workspace_id=workspace.workspace_id,
+    )
+    runtime = CorexRuntime(registry=registry)
+    backend = runtime._client  # noqa: SLF001
+    process = backend._process_client  # noqa: SLF001
+    reader_entered = threading.Event()
+
+    def observe(event: dict[str, Any]) -> None:
+        if event.get("reason") == "retirement_reader_race":
+            reader_entered.set()
+
+    process.subscribe(observe)
+    retire = backend.retire_workspace
+    try:
+        first = runtime.run(request, timeout=30.0)
+        assert first.status == "completed"
+        _wait_for_backend_run_cleanup(runtime)
+
+        def retire_after_ordinary_event(workspace_id: str) -> int:
+            process._event_queue.put({  # noqa: SLF001
+                "type": "run_state",
+                "run_id": first.run_id,
+                "workspace_id": workspace_id,
+                "state": "ready",
+                "transition": "",
+                "reason": "retirement_reader_race",
+            })
+            assert reader_entered.wait(5.0)
+            count = retire(workspace_id)
+            if operation == "cancel_reservation":
+                reservation, _client = next(iter(backend._run_reservations.values()))  # noqa: SLF001
+                backend.release_run_reservation(reservation, "cancelled")
+            elif operation == "cancel_viewer":
+                reservation = next(iter(backend._viewer_invalidation_reservations.values()))  # noqa: SLF001
+                backend.cancel_viewer_invalidation(reservation)
+            return count
+
+        with patch.object(backend, "retire_workspace", retire_after_ordinary_event):
+            if operation == "dispatch":
+                assert runtime.run(request, timeout=30.0).status == "completed"
+            elif operation == "retire":
+                assert runtime.retire_workspace(workspace.workspace_id) == 0
+            else:
+                with patch.object(process, "start_run") as start_run:
+                    with pytest.raises(ValueError, match="reservation"):
+                        runtime.run(request, timeout=30.0)
+                start_run.assert_not_called()
+                assert not backend._run_reservations  # noqa: SLF001
+                assert not backend._viewer_invalidation_reservations  # noqa: SLF001
+                assert not process._active_run_id  # noqa: SLF001
+                assert runtime.solution_store.stats()["runs"] == 0
+    finally:
+        runtime.shutdown()
 
 
 def test_real_process_second_run_reuses_without_node_started() -> None:

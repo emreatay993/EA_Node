@@ -33,7 +33,7 @@ def test_current_mechanical_declarations_and_open_is_fully_typed() -> None:
     spec = registry.get_spec("mechanical.open_model")
     assert MECHANICAL_FUNCTION_TYPE_IDS == (
         "mechanical.open_model", "mechanical.search_tree", "mechanical.fea_table",
-        "mechanical.camera_views", "mechanical.export_image",
+        "mechanical.camera_views", "mechanical.export_image", "mechanical.run_script",
     )
     assert spec.category_path == ("FEA", "ANSYS", "Mechanical")
     assert spec.solution_reuse_scope == "never"
@@ -59,7 +59,7 @@ def test_catalogue_availability_is_offline(monkeypatch) -> None:
     assert (forbidden & set(sys.modules)) == before
     assert MECHANICAL_PLUGIN_BACKEND.function_type_ids == (
         "mechanical.open_model", "mechanical.search_tree", "mechanical.fea_table",
-        "mechanical.camera_views", "mechanical.export_image",
+        "mechanical.camera_views", "mechanical.export_image", "mechanical.run_script",
     )
     assert MECHANICAL_PLUGIN_BACKEND.provenance is not None
     assert MECHANICAL_PLUGIN_BACKEND.provenance.package_root.name == "mechanical"

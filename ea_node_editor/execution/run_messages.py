@@ -210,6 +210,33 @@ class NodeSettledEvent:
 
 
 @dataclass(frozen=True)
+class ObservationInvalidationRequestedEvent:
+    type: Literal["observation_invalidation_requested"] = (
+        "observation_invalidation_requested"
+    )
+    run_id: str = ""
+    workspace_id: str = ""
+    node_id: str = ""
+    root_node_id: str = ""
+    reason_code: str = ""
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "run_id",
+            "workspace_id",
+            "node_id",
+            "root_node_id",
+            "reason_code",
+        ):
+            value = getattr(self, field_name)
+            if not isinstance(value, str) or not value.strip() or len(value.strip()) > 256:
+                raise ValueError(
+                    "observation invalidation identities must be bounded non-empty strings"
+                )
+            object.__setattr__(self, field_name, value.strip())
+
+
+@dataclass(frozen=True)
 class TriggerCaptureSettledEvent:
     type: Literal["trigger_capture_settled"] = "trigger_capture_settled"
     run_id: str = ""
@@ -277,6 +304,7 @@ __all__ = [
     "NodeSettlementStatus",
     "NodeSettledEvent",
     "NodeStartedEvent",
+    "ObservationInvalidationRequestedEvent",
     "PauseRunCommand",
     "ProtocolErrorEvent",
     "ResumeRunCommand",

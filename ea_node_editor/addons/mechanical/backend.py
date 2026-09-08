@@ -1,6 +1,6 @@
-# Purpose: Open native Mechanical models and execute allowlisted Open/Search/table/graphics operations.
+# Purpose: Open native Mechanical models and execute allowlisted Open/Search/table/graphics/script operations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py
+# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py
 
 from __future__ import annotations
 
@@ -12,6 +12,13 @@ from pathlib import Path
 from typing import Any
 
 from ea_node_editor.addons.mechanical.inspection import collect_catalogue_rows, search_tree
+from ea_node_editor.addons.mechanical.commands import (
+    SCRIPT_EXECUTION_BODY,
+    SCRIPT_PREFLIGHT_BODY,
+    compact_failure_payload,
+    receipt_messages,
+    validate_script_payload,
+)
 from ea_node_editor.addons.mechanical.graphics import (
     CAMERA_SCRIPT_BODY,
     IMAGE_PREFLIGHT_SCRIPT_BODY,
@@ -26,7 +33,10 @@ from ea_node_editor.addons.mechanical.tables import (
 )
 
 LIFECYCLE_OPERATIONS = frozenset(
-    {"health", "open", "search", "definition_tables", "camera_views", "image_export", "close"}
+    {
+        "health", "open", "search", "definition_tables", "camera_views",
+        "image_export", "script_preflight", "run_script", "close",
+    }
 )
 
 
@@ -43,7 +53,8 @@ def _data_script(data: Mapping[str, Any], body: str) -> str:
 class MechanicalOwnerBackend:
     def __init__(self) -> None:
         self.app = self.mechanical = self.workbench = None
-        self.tree = self.model = self.data_model = None
+        self.tree = self.model = self.data_model = self.graphics = None
+        self.systems: list[dict[str, Any]] = []
         self.work_root: Path | None = None
         self.system_name = ""
         self.interactive_model = False
@@ -83,7 +94,116 @@ class MechanicalOwnerBackend:
             return self.camera_views(args)
         if operation == "image_export":
             return self.image_export(args)
+        if operation == "script_preflight":
+            return self.script_preflight(args)
+        if operation == "run_script":
+            return self.run_script(args)
         return self.definition_tables(args)
+
+    def _execute_native_script(self, script: str) -> Any:
+        return (
+            self.app.execute_script(script)
+            if self.app is not None
+            else self.mechanical.run_python_script(script)
+        )
+
+    def script_preflight(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        if set(args) != {"environments", "scope"} or (
+            self.app is None and self.mechanical is None
+        ):
+            raise ValueError("Mechanical script preflight arguments or session state are invalid")
+        environments = args["environments"]
+        if (
+            type(environments) is not list
+            or len(environments) > 256
+            or args["scope"] not in {"each_environment", "model_once"}
+        ):
+            raise ValueError("Mechanical script environment selection or Scope is invalid")
+        for selector in environments:
+            if not isinstance(selector, dict) or (
+                selector.get("kind") == "typed"
+                and (
+                    set(selector) != {"kind", "object_id", "object_path"}
+                    or type(selector["object_id"]) is not int
+                    or selector["object_id"] < 0
+                    or type(selector["object_path"]) is not str
+                    or not selector["object_path"]
+                )
+                or selector.get("kind") == "text"
+                and (
+                    set(selector) != {"kind", "text"}
+                    or type(selector["text"]) is not str
+                    or not selector["text"]
+                )
+                or selector.get("kind") not in {"typed", "text"}
+            ):
+                raise ValueError("Mechanical script Environment selector is invalid")
+        raw = self._execute_native_script(_data_script(args, SCRIPT_PREFLIGHT_BODY))
+        payload = json.loads(raw) if type(raw) is str else None
+        if (
+            not isinstance(payload, dict)
+            or set(payload) != {"analyses", "selected_ids"}
+            or type(payload["analyses"]) is not list
+            or type(payload["selected_ids"]) is not list
+            or len(payload["analyses"]) > 256
+            or any(
+                not isinstance(row, dict)
+                or set(row) != {"id", "name", "path"}
+                or type(row["id"]) is not int
+                or row["id"] < 0
+                or type(row["name"]) is not str
+                or type(row["path"]) is not str
+                for row in payload["analyses"]
+            )
+            or any(type(value) is not int or value < 0 for value in payload["selected_ids"])
+            or len(payload["selected_ids"]) != len(set(payload["selected_ids"]))
+        ):
+            raise RuntimeError("Mechanical script preflight returned an invalid result")
+        ordered_ids = [row["id"] for row in payload["analyses"]]
+        if payload["selected_ids"] != [
+            value for value in ordered_ids if value in payload["selected_ids"]
+        ]:
+            raise RuntimeError("Mechanical script preflight did not preserve tree order")
+        return {"status": "validated", "script_preflight": payload}
+
+    def run_script(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        required = {
+            "selected_ids", "scope", "code", "stop_on_error",
+            "catalogue_identity", "view_export_path",
+        }
+        if set(args) != required or (self.app is None and self.mechanical is None):
+            raise ValueError("Mechanical script arguments or session state are invalid")
+        if (
+            type(args["selected_ids"]) is not list
+            or len(args["selected_ids"]) > 256
+            or any(type(value) is not int or value < 0 for value in args["selected_ids"])
+            or len(args["selected_ids"]) != len(set(args["selected_ids"]))
+            or args["scope"] not in {"each_environment", "model_once"}
+            or type(args["code"]) is not str
+            or not args["code"].strip()
+            or type(args["stop_on_error"]) is not bool
+        ):
+            raise ValueError("Mechanical script inputs are invalid")
+        payload = validate_script_payload(
+            json.loads(self._execute_native_script(_data_script(args, SCRIPT_EXECUTION_BODY)))
+        )
+        if not payload["success"]:
+            return {"status": "failed", "script": compact_failure_payload(payload)}
+        identity = dict(args["catalogue_identity"])
+        identity["view_export_path"] = str(args["view_export_path"])
+        return {
+            "status": "executed",
+            "rows": collect_catalogue_rows(
+                tree=self.tree,
+                graphics=self.graphics,
+                identity=identity,
+                systems=self.systems,
+                status="script_completed",
+                model=self.model,
+                data_model=self.data_model,
+                operations=receipt_messages(payload["receipts"]),
+            ),
+        }
 
     def image_export(self, args: Mapping[str, Any]) -> dict[str, Any]:
         required = {
@@ -407,6 +527,8 @@ class MechanicalOwnerBackend:
             )
         else:
             raise ValueError("Unsupported Mechanical source extension")
+        self.systems = systems
+        self.graphics = graphics
         identity = dict(args["catalogue_identity"])
         identity["system_key"] = selected
         identity["view_export_path"] = str(args["view_export_path"])

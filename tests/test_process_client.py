@@ -53,6 +53,23 @@ from tests.execution_client_fixtures import (
 
 
 class ProcessClientContractTests(unittest.TestCase):
+    def test_fresh_physical_generation_skips_retirement_until_run_dispatch(self) -> None:
+        client = ProcessExecutionClient()
+        process = Mock(pid=123)
+        process.is_alive.return_value = True
+        retire = Mock(return_value=3)
+        try:
+            client._process = process  # noqa: SLF001
+            client._retire_workspace_via_transport = retire  # type: ignore[method-assign]  # noqa: SLF001
+            self.assertEqual(client.retire_workspace("workspace"), 0)
+            retire.assert_not_called()
+            client._physical_generation_run_dispatched = True  # noqa: SLF001
+            self.assertEqual(client.retire_workspace("workspace"), 3)
+            retire.assert_called_once_with("workspace")
+        finally:
+            client._process = None  # noqa: SLF001
+            client.shutdown()
+
     def test_process_viewer_command_captures_epoch_after_worker_ensure(self) -> None:
         client = ProcessExecutionClient()
         commands = []
@@ -133,6 +150,7 @@ class ProcessClientContractTests(unittest.TestCase):
             client._active_run_id = "run_first"  # noqa: SLF001
             client._active_workspace_id = "ws_first"  # noqa: SLF001
             client._run_generation_tokens["run_first"] = 1  # noqa: SLF001
+            client._physical_generation_run_dispatched = True  # noqa: SLF001
             first_process.alive = False
 
             request_id = client.open_viewer_session(
@@ -142,6 +160,7 @@ class ProcessClientContractTests(unittest.TestCase):
 
             self.assertEqual(client._catalog_generation_token, 2)  # noqa: SLF001
             self.assertEqual(client._physical_generation_token, 2)  # noqa: SLF001
+            self.assertFalse(client._physical_generation_run_dispatched)  # noqa: SLF001
             self.assertEqual(client._active_run_id, "")  # noqa: SLF001
             self.assertNotIn("run_first", client._run_generation_tokens)  # noqa: SLF001
             self.assertIsNot(client._process, first_process)  # noqa: SLF001
