@@ -124,6 +124,7 @@
         "tables",
         "graphics",
         "commands",
+        "saving",
         "builtin",
         "functions",
         "plot",
@@ -24069,6 +24070,7 @@
         "ea_node_editor/addons/mechanical/owner_process.py",
         "ea_node_editor/addons/mechanical/property_edit.py",
         "ea_node_editor/addons/mechanical/runtime.py",
+        "ea_node_editor/addons/mechanical/saving.py",
         "ea_node_editor/addons/mechanical/session.py",
         "ea_node_editor/addons/mechanical/tables.py",
         "ea_node_editor/addons/mechanical/workbench.py",
@@ -24117,6 +24119,7 @@
         "backend",
         "commands",
         "graphics",
+        "saving",
         "inspection",
         "runtime",
         "workbench",
@@ -24145,6 +24148,7 @@
         "script",
         "apdl",
         "snippet",
+        "save",
         "modelview",
         "imagevalue",
         "private",
@@ -24170,7 +24174,8 @@
         "tables",
         "result",
         "worksheet",
-        "snippets"
+        "snippets",
+        "standalone"
       ],
       "aliases": [],
       "focused_verification": [
@@ -24187,6 +24192,7 @@
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_image_export.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_scripts.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_snippets.py --ignore=venv -q",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_standalone_save.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_repo_owned_node_documentation.py --ignore=venv -q"
       ],
       "start_here": [
@@ -24202,6 +24208,7 @@
         "ea_node_editor/addons/mechanical/backend.py",
         "ea_node_editor/addons/mechanical/commands.py",
         "ea_node_editor/addons/mechanical/graphics.py",
+        "ea_node_editor/addons/mechanical/saving.py",
         "ea_node_editor/addons/mechanical/inspection.py",
         "ea_node_editor/addons/mechanical/runtime.py",
         "ea_node_editor/addons/mechanical/workbench.py",

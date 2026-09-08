@@ -1,7 +1,7 @@
-# Purpose: Execute Mechanical Open, read, graphics, script, and snippet operations through the run-owned session.
+# Purpose: Execute Mechanical Open, read, graphics, mutation, and save operations through the run-owned session.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py
-# Landmarks: execute_open_model; execute_run_script; execute_apdl_snippet; execute_image_export
+# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py
+# Landmarks: execute_open_model; execute_run_script; execute_apdl_snippet; execute_save_model; execute_image_export
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import hashlib
 import json
 import math
 import os
+import shutil
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -33,9 +34,22 @@ from ea_node_editor.addons.mechanical.graphics import (
     render_image_filenames,
 )
 from ea_node_editor.addons.mechanical.session import StaleMechanicalModelError
+from ea_node_editor.addons.mechanical.saving import (
+    create_save_staging,
+    preflight_standalone_destination,
+    publish_standalone_save,
+    resolve_standalone_save_format,
+    validate_native_save_receipt,
+)
 from ea_node_editor.addons.mechanical.owner_process import OwnerProtocolError
 from ea_node_editor.nodes.execution_context import NodeInputNotReadyError
-from ea_node_editor.runtime_contracts import ImageValue, RuntimeHandleRef, TableValue, TypedInlineValue
+from ea_node_editor.runtime_contracts import (
+    ImageValue,
+    RuntimeHandleRef,
+    TableValue,
+    TypedInlineValue,
+    serialize_runtime_value,
+)
 
 
 def discover_mechanical_releases() -> tuple[int, ...]:
@@ -505,6 +519,169 @@ def execute_apdl_snippet(ctx, model=None, environments=None, settings=None):
         "snippets": snippets,
         "report": response["catalogue"],
     }
+
+
+def execute_save_model(ctx, model=None, settings=None):
+    if model is None:
+        raise NodeInputNotReadyError("Model requires a live Mechanical model from this run")
+    if not isinstance(model, RuntimeHandleRef):
+        raise TypeError("Save Mechanical Model requires a Mechanical Model")
+    try:
+        session = ctx.mechanical_sessions.admit_model(
+            model, run_id=ctx.run_id, workspace_id=ctx.workspace_id
+        )
+    except StaleMechanicalModelError as exc:
+        raise ValueError(f"mechanical.stale_reference: {exc}") from exc
+    metadata = model.metadata
+    source = session.source_path.resolve(strict=True)
+    raw_destination = _setting(ctx, settings, "file", "")
+    if not str(raw_destination or "").strip():
+        raise NodeInputNotReadyError("File requires an explicit standalone save destination")
+    destination_value = ctx.resolve_path_value(raw_destination)
+    if destination_value is None:
+        raise ValueError("mechanical.save_failed: File did not resolve to a destination path")
+    destination = Path(destination_value).resolve(strict=False)
+    source_suffix = source.suffix.casefold()
+    if source_suffix in {".wbpj", ".wbpz"}:
+        if destination.suffix.casefold() == ".mechpz":
+            raise ValueError(
+                "mechanical.save_failed: .mechpz is never valid for a Workbench source; "
+                "whole-project .wbpz saving belongs to T14"
+            )
+        raise ValueError(
+            "mechanical.save_failed: Workbench project saving and selected-model "
+            "standalone export are unsupported until T14/T15"
+        )
+    format_code = resolve_standalone_save_format(
+        destination, _setting(ctx, settings, "format", "auto")
+    )
+    overwrite = _setting(ctx, settings, "overwrite", False)
+    if type(overwrite) is not bool:
+        raise TypeError("Overwrite existing must be Boolean")
+    if source_suffix not in {".mechdb", ".mechdat", ".mechpz"}:
+        raise ValueError("mechanical.save_failed: Model source is not standalone Mechanical")
+    preflight = preflight_standalone_destination(
+        destination,
+        source=source,
+        format_code=format_code,
+        overwrite=overwrite,
+    )
+    destination = preflight.destination
+    destination_companion = preflight.companion
+    archive_inputs: dict[str, bool] = {}
+    if format_code == "mechpz":
+        for key in ("include_results", "include_user_files"):
+            value = _setting(ctx, settings, key, True)
+            if type(value) is not bool:
+                raise TypeError(f"{key} must be Boolean")
+            archive_inputs[key] = value
+    staging = create_save_staging(destination, format_code)
+    expected_files = [destination, *([destination_companion] if destination_companion else [])]
+    catalogue_id = str(uuid4())
+    expected_revision = metadata["model_revision"]
+    new_revision = expected_revision + 1
+    identity = {
+        "schema_version": 1,
+        "model_revision": new_revision,
+        "producer_iteration": ctx.target_iteration,
+        "catalogue_id": catalogue_id,
+        "producer_node_id": ctx.node_id,
+        "producer_port": "report",
+        "producer_path": json.dumps(list(ctx.target_path), separators=(",", ":")),
+        "run_id": ctx.run_id,
+        "session_id": metadata["session_id"],
+        "document_id": metadata["document_id"],
+        "source_key": metadata["source_key"],
+        "system_key": metadata["system_key"],
+    }
+    args = {
+        "format": format_code,
+        "source_path": str(source),
+        "destination_path": str(destination),
+        "work_path": str(session.work_path),
+        "stage_path": str(staging.primary),
+        "stage_companion": "" if staging.companion is None else str(staging.companion),
+        "verify_path": str(staging.verify_project),
+        "files": [str(path) for path in expected_files],
+        "overwrite": overwrite,
+        "catalogue_identity": identity,
+        "view_export_path": str(session.work_root / f"save-views-{uuid4().hex}.xml"),
+        **archive_inputs,
+    }
+    try:
+        response = _execute_model_mutation(
+            ctx,
+            session,
+            metadata,
+            expected_revision=expected_revision,
+            operation="standalone_save",
+            timeout_sec=600.0,
+            label="Save Mechanical Model",
+            args=args,
+        )
+    except BaseException as exc:
+        if staging.root.exists() and any(path.is_file() for path in staging.root.rglob("*")):
+            raise RuntimeError(
+                f"mechanical.save_failed: native save failed; recovery_path={staging.root}; {exc}"
+            ) from exc
+        shutil.rmtree(staging.root, ignore_errors=True)
+        raise
+    try:
+        if response.get("status") != "staged":
+            raise RuntimeError("Mechanical standalone save did not return a staged result")
+        validate_native_save_receipt(
+            response.get("native_save"),
+            format_code=format_code,
+            staging=staging,
+        )
+        report = response.get("catalogue")
+        if session.revision != new_revision or type(report) is not TableValue:
+            raise RuntimeError("Mechanical standalone save revision or Report catalogue is invalid")
+        publication = publish_standalone_save(
+            staging,
+            preflight=preflight,
+            format_code=format_code,
+        )
+    except BaseException as exc:
+        if staging.root.exists() and any(path.is_file() for path in staging.root.rglob("*")):
+            if "mechanical.publication_recovery_required:" in str(exc):
+                raise
+            raise RuntimeError(
+                f"mechanical.save_failed: staged recovery retained at {staging.root}; {exc}"
+            ) from exc
+        shutil.rmtree(staging.root, ignore_errors=True)
+        raise
+    try:
+        if publication.files != expected_files or not all(
+            path.exists() for path in publication.files
+        ):
+            raise RuntimeError("mechanical.save_failed: published files are incomplete")
+        refreshed_model = ctx.mechanical_sessions.register_model(
+            session,
+            document_id=metadata["document_id"],
+            source_key=metadata["source_key"],
+            system_key=metadata["system_key"],
+            release_code=metadata["release_code"],
+            catalogue_id=catalogue_id,
+            producer_node_id=ctx.node_id,
+            producer_port="report",
+            producer_path=ctx.target_path,
+            producer_iteration=ctx.target_iteration,
+        )
+        outputs = {
+            "model": refreshed_model,
+            "files": [str(path) for path in publication.files],
+            "report": report,
+        }
+        serialize_runtime_value(outputs, catalog=ctx.worker_services.data_types)
+        publication.commit()
+        return outputs
+    except BaseException as exc:
+        try:
+            publication.rollback()
+        except RuntimeError as restore_exc:
+            raise restore_exc from exc
+        raise
 
 
 def _search_selector(query: str, metadata) -> dict[str, object] | None:
@@ -1119,5 +1296,6 @@ __all__ = [
     "execute_image_export",
     "execute_open_model",
     "execute_run_script",
+    "execute_save_model",
     "execute_search_tree",
 ]

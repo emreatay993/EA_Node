@@ -35,6 +35,7 @@ def test_current_mechanical_declarations_and_open_is_fully_typed() -> None:
         "mechanical.open_model", "mechanical.search_tree", "mechanical.fea_table",
         "mechanical.camera_views", "mechanical.export_image", "mechanical.run_script",
         "mechanical.apdl_snippet",
+        "mechanical.save_model",
     )
     assert spec.category_path == ("FEA", "ANSYS", "Mechanical")
     assert spec.solution_reuse_scope == "never"
@@ -62,6 +63,7 @@ def test_catalogue_availability_is_offline(monkeypatch) -> None:
         "mechanical.open_model", "mechanical.search_tree", "mechanical.fea_table",
         "mechanical.camera_views", "mechanical.export_image", "mechanical.run_script",
         "mechanical.apdl_snippet",
+        "mechanical.save_model",
     )
     assert MECHANICAL_PLUGIN_BACKEND.provenance is not None
     assert MECHANICAL_PLUGIN_BACKEND.provenance.package_root.name == "mechanical"

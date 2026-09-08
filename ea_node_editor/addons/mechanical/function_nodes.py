@@ -1,6 +1,6 @@
-# Purpose: Hold inert decorated Mechanical Open, read, graphics, script, and snippet declarations.
+# Purpose: Hold inert decorated Mechanical Open, read, graphics, mutation, and save declarations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py
+# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py
 
 SOURCE = r'''import corex
 from ea_node_editor.addons.mechanical.runtime import execute_open_model
@@ -10,6 +10,7 @@ from ea_node_editor.addons.mechanical.runtime import execute_camera_views
 from ea_node_editor.addons.mechanical.runtime import execute_image_export
 from ea_node_editor.addons.mechanical.runtime import execute_run_script
 from ea_node_editor.addons.mechanical.runtime import execute_apdl_snippet
+from ea_node_editor.addons.mechanical.runtime import execute_save_model
 
 @corex.node(
     id="mechanical.open_model", name="Open Mechanical Model",
@@ -256,6 +257,49 @@ def run_mechanical_script(ctx, source_model, settings):
 @corex.output("report", value_type="COREX.DataTypes.TableValue", label="Report", description="Per-target create/update receipts followed by refreshed discovery descriptors.")
 def mechanical_apdl_snippet(ctx, source_model, settings):
     return execute_apdl_snippet(ctx, source_model, settings.environments, settings)
+
+@corex.node(
+    id="mechanical.save_model", name="Save Mechanical Model",
+    category=("FEA", "ANSYS", "Mechanical"),
+    description="Explicitly saves a standalone Mechanical database, model export, or native archive through a staged rollback-protected publication.",
+    keywords=("mechanical", "ansys", "save", "archive", "mechdb", "mechdat", "mechpz"),
+    _solution_reuse_scope="never",
+)
+@corex.input("source_model", value_type="COREX.Mechanical.Model", required=True,
+    label="Model", description="Run-owned Mechanical model state after every intended mutation.")
+@corex.path("file", default="", label="File", port=True,
+    file_filter="Standalone Mechanical (*.mechdb *.mechdat *.mechpz);;All Files (*)",
+    _inspector_editor="path", _property_group="Destination",
+    _port_value_type="COREX.DataTypes.Path", _port_required=True,
+    _port_description="Required explicit standalone destination; no implicit source overwrite.")
+@corex.dropdown("format", default="auto", options=("auto", "mechdb", "mechdat", "mechpz"),
+    label="Format", port=True, _inspector_editor="enum", _property_group="Destination",
+    _port_value_type="COREX.DataTypes.String",
+    _port_description="Auto infers the exact destination extension; explicit format and extension must agree.")
+@corex.switch("include_results", default=True, label="Include result files", port=True,
+    _inspector_editor="toggle", _property_group="Save options",
+    _port_value_type="COREX.DataTypes.Bool",
+    _port_description="Native .mechpz result/solution inclusion; inactive and unconsumed for nonarchives.")
+@corex.switch("include_user_files", default=True, label="Include user files", port=True,
+    _inspector_editor="toggle", _property_group="Save options",
+    _port_value_type="COREX.DataTypes.Bool",
+    _port_description="Native .mechpz UserFiles inclusion; inactive and unconsumed for nonarchives.")
+@corex.switch("include_external_imported_files", default=True, label="Include external imported files", port=True,
+    _inspector_editor="toggle", _property_group="Save options",
+    _port_value_type="COREX.DataTypes.Bool",
+    _port_description="Workbench-only archive option; visible but inactive and unconsumed for standalone saves.")
+@corex.switch("overwrite", default=False, label="Overwrite existing", port=True,
+    _inspector_editor="toggle", _property_group="Save options",
+    _port_value_type="COREX.DataTypes.Bool",
+    _port_description="Replace the explicit destination only after complete native staging and rollback preflight.")
+@corex.output("model", value_type="COREX.Mechanical.Model", label="Model",
+    description="Fresh admissible Model revision restored to its run-owned working database.")
+@corex.output("files", value_type="COREX.DataTypes.Path", structure="list", label="Files",
+    description="Published primary file and required companion directory in dependency order.")
+@corex.output("report", value_type="COREX.DataTypes.TableValue", label="Report",
+    description="Publication, inclusion, source/destination, and refreshed discovery receipt.")
+def save_mechanical_model(ctx, source_model, settings):
+    return execute_save_model(ctx, source_model, settings)
 '''
 
 __all__ = ["SOURCE"]

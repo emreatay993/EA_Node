@@ -1,6 +1,6 @@
 # Purpose: Project Mechanical selectors from accepted catalogue metadata only.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_property_edit.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_image_export.py
+# Tests: tests/mechanical_catalogue/test_property_edit.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_standalone_save.py
 
 from __future__ import annotations
 
@@ -286,8 +286,41 @@ class MechanicalPropertyEditAdapter:
                     invalid = True
                 elif index is not None:
                     indexes.append(index)
+        save_node = getattr(context.node, "type_id", "") == "mechanical.save_model"
+        save_format = _first_value(_connected_value(context, "format"))
+        if save_format is None:
+            save_format = (getattr(context.node, "properties", {}) or {}).get(
+                "format", "auto"
+            )
+        save_file = _first_value(_connected_value(context, "file"))
+        if save_file is None:
+            save_file = (getattr(context.node, "properties", {}) or {}).get("file", "")
+        save_archive = str(save_format) == "mechpz" or (
+            str(save_format) == "auto" and str(save_file).casefold().endswith(".mechpz")
+        )
         for item in result:
             item_key = str(item.get("key") or "")
+            if save_node and item_key == "format":
+                item.update(
+                    enum_codes=["auto", "mechdb", "mechdat", "mechpz"],
+                    enum_values=["Auto", "Mechanical database", "Mechanical model export", "Mechanical archive"],
+                    exact_selectors=True,
+                )
+                continue
+            if save_node and (
+                item_key == "include_external_imported_files"
+                or item_key in {"include_results", "include_user_files"} and not save_archive
+            ):
+                item.update(
+                    condition_enabled=False,
+                    editor_enabled=False,
+                    editor_disabled_reason=(
+                        "Workbench archives only; standalone saves never consume this value."
+                        if item_key == "include_external_imported_files"
+                        else "Standalone .mechpz archives only; this value is not consumed."
+                    ),
+                )
+                continue
             if item_key == "filter":
                 codes = ["name", "tag", "type", "state", "coordinate_system", "model", "graphics", "environment", "scoping", "property_name", "property_value"]
                 item.update(

@@ -1,6 +1,6 @@
 # Purpose: Run bounded Mechanical lifecycle requests in one owned subprocess/thread.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_snippets.py
+# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py
 # Landmarks: _prepare_snippet_response; _owner_main; MechanicalOwnerProcess
 from __future__ import annotations
 

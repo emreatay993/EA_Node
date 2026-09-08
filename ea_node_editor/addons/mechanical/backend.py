@@ -1,7 +1,7 @@
-# Purpose: Open native Mechanical models and execute allowlisted read, graphics, script, and snippet operations.
+# Purpose: Open native Mechanical models and execute allowlisted read, graphics, mutation, and save operations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py
-# Landmarks: MechanicalOwnerBackend; snippet_preflight; run_snippet; open; close
+# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py
+# Landmarks: MechanicalOwnerBackend; snippet_preflight; run_snippet; standalone_save; open; close
 
 from __future__ import annotations
 
@@ -33,6 +33,14 @@ from ea_node_editor.addons.mechanical.graphics import (
     IMAGE_SCRIPT_BODY,
     build_camera_views,
 )
+from ea_node_editor.addons.mechanical.saving import (
+    STANDALONE_SAVE_BODY,
+    save_receipt_message,
+    validate_native_save_receipt,
+    SaveStaging,
+    companion_path,
+    validate_archive_inclusions,
+)
 from ea_node_editor.runtime_contracts import ImageValue
 from ea_node_editor.addons.mechanical.tables import (
     DEFINITION_ENCODED_MAX_BYTES,
@@ -45,6 +53,7 @@ LIFECYCLE_OPERATIONS = frozenset(
         "health", "open", "search", "definition_tables", "camera_views",
         "image_export", "script_preflight", "run_script",
         "snippet_preflight", "run_snippet", "close",
+        "standalone_save",
     }
 )
 
@@ -69,6 +78,9 @@ class MechanicalOwnerBackend:
         self.interactive_model = False
         self.native_identities: list[dict[str, int]] = []
         self._snippet_rollback_path: Path | None = None
+        self.source_path: Path | None = None
+        self.work_path: Path | None = None
+        self.release_code = 0
 
     def _launch_workbench(self, *, release: int, mode: str, workdir: Path, timeout_sec: float) -> Any:
         from ea_node_editor.addons.mechanical.workbench import launch_workbench_owner
@@ -112,6 +124,8 @@ class MechanicalOwnerBackend:
             return self.snippet_preflight(args)
         if operation == "run_snippet":
             return self.run_snippet(args)
+        if operation == "standalone_save":
+            return self.standalone_save(args)
         return self.definition_tables(args)
 
     def _execute_native_script(self, script: str) -> Any:
@@ -374,6 +388,110 @@ class MechanicalOwnerBackend:
             return
         path.unlink()
         self._snippet_rollback_path = None
+
+    def standalone_save(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        common = {
+            "format", "source_path", "destination_path", "work_path",
+            "stage_path", "stage_companion", "verify_path", "files",
+            "overwrite", "catalogue_identity", "view_export_path",
+        }
+        format_code = args.get("format")
+        required = common | (
+            {"include_results", "include_user_files"}
+            if format_code == "mechpz"
+            else set()
+        )
+        if (
+            set(args) != required
+            or format_code not in {"mechdb", "mechdat", "mechpz"}
+            or self.app is None and self.mechanical is None
+            or self.source_path is None
+            or self.work_path is None
+            or self.source_path.suffix.casefold() in {".wbpj", ".wbpz"}
+            or Path(str(args["source_path"])).resolve() != self.source_path
+            or Path(str(args["work_path"])).resolve() != self.work_path
+            or type(args["overwrite"]) is not bool
+            or type(args["files"]) is not list
+            or any(type(value) is not str for value in args["files"])
+        ):
+            raise ValueError("Mechanical standalone save arguments or session state are invalid")
+        if format_code == "mechpz" and (
+            type(args["include_results"]) is not bool
+            or type(args["include_user_files"]) is not bool
+        ):
+            raise ValueError("Mechanical standalone archive inclusion inputs are invalid")
+        stage_path = Path(str(args["stage_path"])).resolve()
+        stage_companion = (
+            Path(str(args["stage_companion"])).resolve()
+            if args["stage_companion"]
+            else None
+        )
+        verify_path = Path(str(args["verify_path"])).resolve()
+        if (
+            stage_path.parent != verify_path.parent.parent
+            or not verify_path.parent.is_dir()
+            or any(verify_path.parent.iterdir())
+            or stage_path.exists()
+            or verify_path.exists()
+            or stage_companion
+            != companion_path(stage_path, str(format_code))
+        ):
+            raise ValueError("Mechanical standalone native staging paths are invalid")
+        staging = SaveStaging(
+            stage_path.parent,
+            stage_path,
+            stage_companion,
+            verify_path,
+        )
+        native_args = {
+            key: args[key]
+            for key in (
+                "format", "work_path", "stage_path", "stage_companion",
+                "verify_path", "include_results", "include_user_files",
+            )
+            if key in args
+        }
+        raw = self._execute_native_script(_data_script(native_args, STANDALONE_SAVE_BODY))
+        payload = validate_native_save_receipt(
+            json.loads(raw) if type(raw) is str else None,
+            format_code=str(format_code),
+            staging=staging,
+        )
+        identity = dict(args["catalogue_identity"])
+        identity["view_export_path"] = str(args["view_export_path"])
+        policy = (
+            validate_archive_inclusions(
+                staging.primary,
+                work_path=self.work_path,
+                result_directories=payload["result_directories"],
+                user_directory=payload["user_directory"],
+                include_results=args["include_results"],
+                include_user_files=args["include_user_files"],
+            )
+            if format_code == "mechpz"
+            else None
+        )
+        return {
+            "status": "staged",
+            "native_save": payload,
+            "rows": collect_catalogue_rows(
+                tree=self.tree,
+                graphics=self.graphics,
+                identity=identity,
+                systems=self.systems,
+                status="save_completed",
+                model=self.model,
+                data_model=self.data_model,
+                operations=[save_receipt_message(
+                    destination=Path(str(args["destination_path"])),
+                    source=self.source_path,
+                    format_code=str(format_code),
+                    files=[Path(value) for value in args["files"]],
+                    overwrite=bool(args["overwrite"]),
+                    archive_policy=policy,
+                )],
+            ),
+        }
 
     def image_export(self, args: Mapping[str, Any]) -> dict[str, Any]:
         required = {
@@ -686,6 +804,9 @@ class MechanicalOwnerBackend:
         if work.exists():
             raise ValueError("Mechanical working destination already exists")
         self.work_root = work.parent.resolve(strict=True)
+        self.source_path = source
+        self.work_path = work
+        self.release_code = int(args["release_code"])
         suffix = source.suffix.casefold()
         if suffix in {".wbpj", ".wbpz"}:
             systems, tree, graphics, selected = self._open_workbench(
@@ -903,6 +1024,9 @@ class MechanicalOwnerBackend:
             # Failed clients remain referenced so the child's final cleanup retries once.
             raise RuntimeError("Mechanical native cleanup failed: " + "; ".join(str(exc) for exc in errors))
         self.work_root = None
+        self.source_path = None
+        self.work_path = None
+        self.release_code = 0
 
 
 def deduplicate_model_systems(systems: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
