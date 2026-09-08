@@ -54,7 +54,7 @@ def test_current_mechanical_declarations_and_open_is_fully_typed() -> None:
 
 
 def test_catalogue_availability_is_offline(monkeypatch) -> None:
-    forbidden = {"ansys.mechanical.core", "ansys.workbench.core"}
+    forbidden = {"ansys.mechanical.core", "ansys.workbench.core", "h5py"}
     before = forbidden & set(sys.modules)
     availability = get_mechanical_addon_availability()
     assert availability is not None
@@ -67,6 +67,29 @@ def test_catalogue_availability_is_offline(monkeypatch) -> None:
     )
     assert MECHANICAL_PLUGIN_BACKEND.provenance is not None
     assert MECHANICAL_PLUGIN_BACKEND.provenance.package_root.name == "mechanical"
+
+
+def test_mechanical_declares_hdf5_without_importing_it_for_discovery(monkeypatch):
+    import builtins
+    import ea_node_editor.addons.mechanical.catalog as catalogue
+
+    assert "h5py" in catalogue.MECHANICAL_ADDON_MANIFEST.dependencies
+    monkeypatch.setattr(catalogue, "distributions", lambda: [
+        SimpleNamespace(metadata={"Name": name})
+        for name in catalogue.MECHANICAL_ADDON_MANIFEST.dependencies if name != "h5py"
+    ])
+    original_import = builtins.__import__
+
+    def guarded(name, *args, **kwargs):
+        if name == "h5py" or name.startswith("h5py."):
+            pytest.fail("UI discovery imported HDF5")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded)
+    availability = get_mechanical_addon_availability()
+    assert availability == catalogue.PluginAvailability.missing_dependency(
+        "h5py", summary="Mechanical Python packages are unavailable; no Ansys process was started."
+    )
 
 
 def test_registered_function_forwards_unconnected_properties_as_settings(monkeypatch) -> None:

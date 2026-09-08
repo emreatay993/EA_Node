@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -154,6 +155,51 @@ def test_workbench_shared_model_keeps_each_stable_system_alias() -> None:
     assert select_model_system(choices, "SYS 1") is choices[0]
     assert select_model_system(choices, "SYS") is choices[0]
     assert select_model_system(choices, "") is None
+
+
+def test_workbench_inventory_skips_model_less_system_but_propagates_model_failure(
+    tmp_path: Path,
+) -> None:
+    class System:
+        def __init__(self, name: str, components: tuple[str, ...], *, fail: bool = False):
+            self.Name = name
+            self.DisplayText = name
+            self.Components = [SimpleNamespace(UserId=value) for value in components]
+            self.fail = fail
+            self.calls = 0
+
+        def GetContainer(self, *, ComponentName: str):
+            self.calls += 1
+            assert ComponentName == "Model"
+            if self.fail:
+                raise RuntimeError("applicable Model lookup failed")
+            return SimpleNamespace(Name="Model")
+
+    class Workbench:
+        def __init__(self, systems):
+            self.systems = systems
+
+        def run_script_string(self, script: str):
+            namespace = {"GetAllSystems": lambda: self.systems}
+            exec(compile(script, "<workbench-systems-test>", "exec"), namespace)
+            return json.loads(namespace["wb_script_result"])
+
+    external = System("External Model", ("Setup",))
+    mechanical = System("Static Structural", ("Engineering Data", "Model 1", "Setup 1"))
+    backend = MechanicalOwnerBackend()
+    backend.work_root = tmp_path
+    backend.workbench = Workbench([external, mechanical])
+    assert backend._workbench_systems() == [{
+        "key": "Static Structural",
+        "label": "Static Structural",
+        "model_key": "Model",
+        "system_keys": ["Static Structural"],
+    }]
+    assert external.calls == 0 and mechanical.calls == 1
+
+    backend.workbench = Workbench([System("Broken", ("Model",), fail=True)])
+    with pytest.raises(RuntimeError, match="applicable Model lookup failed"):
+        backend._workbench_systems()
 
 
 def test_discovery_emits_table_and_type_aware_relation_descriptors(tmp_path: Path) -> None:

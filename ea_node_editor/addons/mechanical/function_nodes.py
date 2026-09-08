@@ -1,6 +1,6 @@
 # Purpose: Hold inert decorated Mechanical Open, read, graphics, mutation, and save declarations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py
+# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_save.py
 
 SOURCE = r'''import corex
 from ea_node_editor.addons.mechanical.runtime import execute_open_model
@@ -261,33 +261,33 @@ def mechanical_apdl_snippet(ctx, source_model, settings):
 @corex.node(
     id="mechanical.save_model", name="Save Mechanical Model",
     category=("FEA", "ANSYS", "Mechanical"),
-    description="Explicitly saves a standalone Mechanical database, model export, or native archive through a staged rollback-protected publication.",
-    keywords=("mechanical", "ansys", "save", "archive", "mechdb", "mechdat", "mechpz"),
+    description="Explicitly saves a standalone Mechanical output or complete Workbench project/archive through staged rollback-protected publication.",
+    keywords=("mechanical", "ansys", "save", "archive", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz"),
     _solution_reuse_scope="never",
 )
 @corex.input("source_model", value_type="COREX.Mechanical.Model", required=True,
     label="Model", description="Run-owned Mechanical model state after every intended mutation.")
 @corex.path("file", default="", label="File", port=True,
-    file_filter="Standalone Mechanical (*.mechdb *.mechdat *.mechpz);;All Files (*)",
+    file_filter="Mechanical and Workbench (*.mechdb *.mechdat *.mechpz *.wbpj *.wbpz);;All Files (*)",
     _inspector_editor="path", _property_group="Destination",
     _port_value_type="COREX.DataTypes.Path", _port_required=True,
-    _port_description="Required explicit standalone destination; no implicit source overwrite.")
-@corex.dropdown("format", default="auto", options=("auto", "mechdb", "mechdat", "mechpz"),
+    _port_description="Required explicit destination; no implicit source overwrite.")
+@corex.dropdown("format", default="auto", options=("auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz"),
     label="Format", port=True, _inspector_editor="enum", _property_group="Destination",
     _port_value_type="COREX.DataTypes.String",
     _port_description="Auto infers the exact destination extension; explicit format and extension must agree.")
 @corex.switch("include_results", default=True, label="Include result files", port=True,
     _inspector_editor="toggle", _property_group="Save options",
     _port_value_type="COREX.DataTypes.Bool",
-    _port_description="Native .mechpz result/solution inclusion; inactive and unconsumed for nonarchives.")
+    _port_description="Native .mechpz/.wbpz result or solution inclusion; inactive and unconsumed for nonarchives.")
 @corex.switch("include_user_files", default=True, label="Include user files", port=True,
     _inspector_editor="toggle", _property_group="Save options",
     _port_value_type="COREX.DataTypes.Bool",
-    _port_description="Native .mechpz UserFiles inclusion; inactive and unconsumed for nonarchives.")
+    _port_description="Native .mechpz/.wbpz user-file inclusion; inactive and unconsumed for nonarchives.")
 @corex.switch("include_external_imported_files", default=True, label="Include external imported files", port=True,
     _inspector_editor="toggle", _property_group="Save options",
     _port_value_type="COREX.DataTypes.Bool",
-    _port_description="Workbench-only archive option; visible but inactive and unconsumed for standalone saves.")
+    _port_description="Native .wbpz external-import inclusion; inactive and unconsumed for other formats.")
 @corex.switch("overwrite", default=False, label="Overwrite existing", port=True,
     _inspector_editor="toggle", _property_group="Save options",
     _port_value_type="COREX.DataTypes.Bool",

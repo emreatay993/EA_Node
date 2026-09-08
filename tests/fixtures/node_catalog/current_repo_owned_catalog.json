@@ -18111,7 +18111,7 @@
             "COREX.DataTypes.String"
           ],
           "display_tier": "",
-          "description": "Required explicit standalone destination; no implicit source overwrite.",
+          "description": "Required explicit destination; no implicit source overwrite.",
           "data_access": "item"
         },
         {
@@ -18145,7 +18145,7 @@
           "side": "",
           "accepted_data_types": [],
           "display_tier": "",
-          "description": "Native .mechpz result/solution inclusion; inactive and unconsumed for nonarchives.",
+          "description": "Native .mechpz/.wbpz result or solution inclusion; inactive and unconsumed for nonarchives.",
           "data_access": "item"
         },
         {
@@ -18162,7 +18162,7 @@
           "side": "",
           "accepted_data_types": [],
           "display_tier": "",
-          "description": "Native .mechpz UserFiles inclusion; inactive and unconsumed for nonarchives.",
+          "description": "Native .mechpz/.wbpz user-file inclusion; inactive and unconsumed for nonarchives.",
           "data_access": "item"
         },
         {
@@ -18179,7 +18179,7 @@
           "side": "",
           "accepted_data_types": [],
           "display_tier": "",
-          "description": "Workbench-only archive option; visible but inactive and unconsumed for standalone saves.",
+          "description": "Native .wbpz external-import inclusion; inactive and unconsumed for other formats.",
           "data_access": "item"
         },
         {
@@ -18267,7 +18267,7 @@
           "inspector_editor": "path",
           "inspector_visible": true,
           "group": "Destination",
-          "file_filter": "Standalone Mechanical (*.mechdb *.mechdat *.mechpz);;All Files (*)",
+          "file_filter": "Mechanical and Workbench (*.mechdb *.mechdat *.mechpz *.wbpj *.wbpz);;All Files (*)",
           "enabled_when": null,
           "searchable": false,
           "interval_direction": "",
@@ -18293,7 +18293,9 @@
             "auto",
             "mechdb",
             "mechdat",
-            "mechpz"
+            "mechpz",
+            "wbpj",
+            "wbpz"
           ],
           "enum_codes": [],
           "minimum": null,
@@ -18445,7 +18447,7 @@
         }
       ],
       "collapsible": true,
-      "description": "Explicitly saves a standalone Mechanical database, model export, or native archive through a staged rollback-protected publication.",
+      "description": "Explicitly saves a standalone Mechanical output or complete Workbench project/archive through staged rollback-protected publication.",
       "is_async": false,
       "runtime_behavior": "active",
       "solution_reuse_scope": "never",
@@ -18465,7 +18467,9 @@
         "archive",
         "mechdb",
         "mechdat",
-        "mechpz"
+        "mechpz",
+        "wbpj",
+        "wbpz"
       ],
       "settings_groups": [],
       "readiness_requirements": [],
@@ -18506,7 +18510,7 @@
           "COREX.DataTypes.String"
         ],
         "display_tier": "",
-        "description": "Required explicit standalone destination; no implicit source overwrite.",
+        "description": "Required explicit destination; no implicit source overwrite.",
         "data_access": "item"
       },
       {
@@ -18540,7 +18544,7 @@
         "side": "",
         "accepted_data_types": [],
         "display_tier": "",
-        "description": "Native .mechpz result/solution inclusion; inactive and unconsumed for nonarchives.",
+        "description": "Native .mechpz/.wbpz result or solution inclusion; inactive and unconsumed for nonarchives.",
         "data_access": "item"
       },
       {
@@ -18557,7 +18561,7 @@
         "side": "",
         "accepted_data_types": [],
         "display_tier": "",
-        "description": "Native .mechpz UserFiles inclusion; inactive and unconsumed for nonarchives.",
+        "description": "Native .mechpz/.wbpz user-file inclusion; inactive and unconsumed for nonarchives.",
         "data_access": "item"
       },
       {
@@ -18574,7 +18578,7 @@
         "side": "",
         "accepted_data_types": [],
         "display_tier": "",
-        "description": "Workbench-only archive option; visible but inactive and unconsumed for standalone saves.",
+        "description": "Native .wbpz external-import inclusion; inactive and unconsumed for other formats.",
         "data_access": "item"
       },
       {

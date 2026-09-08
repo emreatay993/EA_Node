@@ -604,6 +604,7 @@ def _model():
         metadata={
             "workspace_id": "workspace",
             **IDENTITY,
+            "connection_generation": 0,
             "release_code": 261,
             "backend_mode": "background",
             "catalogue_id": str(uuid4()),

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -177,7 +178,8 @@ def run(filter_code, query, **options):
 def remote_objects(objects, *, include_hidden=False):
     class Client:
         def run_python_script(self, script):
-            compiled = script.rsplit("json.dumps(rows)", 1)[0] + "_result=json.dumps(rows)"
+            receipt = "json.dumps({'marker':'corex-remote-tree-v1','byte_length':len(encoded),'sha256':hashlib.sha256(encoded).hexdigest()},separators=(',',':'))"
+            compiled = script.replace(receipt, "_result=" + receipt)
             namespace = {
                 "Tree": SimpleNamespace(AllObjects=objects),
                 "DataModel": SimpleNamespace(ObjectTags=[]),
@@ -185,7 +187,22 @@ def remote_objects(objects, *, include_hidden=False):
             exec(compile(compiled, "<remote>", "exec"), namespace)
             return namespace["_result"]
 
-    return list(_RemoteTree(Client(), include_hidden_properties=include_hidden).AllObjects)
+    with tempfile.TemporaryDirectory() as root:
+        return list(
+            _RemoteTree(
+                Client(), Path(root), include_hidden_properties=include_hidden
+            ).AllObjects
+        )
+
+
+def test_remote_tree_utf8_file_transport_preserves_native_unicode_payload() -> None:
+    objects, _model, _data_model = fixture()
+    force = next(item for item in objects if item.ObjectId == 2)
+    expected = "3136.5485 mm³ · 22 °C · Ω · 漢字 · C:\\native\\path"
+    force.VisibleProperties.append(prop("Unicode", "Unicode", expected))
+    projected = remote_objects(objects)
+    value = next(item for item in projected if item.ObjectId == 2).VisibleProperties[-1]
+    assert value.StringValue == expected
 
 
 @pytest.mark.parametrize(
@@ -577,6 +594,7 @@ def _model_handle():
         metadata={
             "workspace_id": "workspace",
             **IDENTITY,
+            "connection_generation": 0,
             "release_code": 261,
             "backend_mode": "background",
             "catalogue_id": str(uuid4()),

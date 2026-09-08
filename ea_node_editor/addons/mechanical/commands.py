@@ -42,7 +42,10 @@ for selector in _corex_data['environments']:
     if matches[0]['id'] not in _corex_selected: _corex_selected.append(matches[0]['id'])
 if not _corex_data['environments']: _corex_selected=[row['id'] for row in _corex_records]
 else: _corex_selected=[row['id'] for row in _corex_records if row['id'] in _corex_selected]
-_corex_receipt=json.dumps({'analyses':_corex_records,'selected_ids':_corex_selected})
+_corex_payload=json.dumps({'analyses':_corex_records,'selected_ids':_corex_selected},ensure_ascii=False,separators=(',',':')).encode('utf-8')
+with open(_corex_data['native_output_path'],'wb') as _corex_stream:_corex_stream.write(_corex_payload)
+import hashlib
+_corex_receipt=json.dumps({'byte_length':len(_corex_payload),'sha256':hashlib.sha256(_corex_payload).hexdigest()},separators=(',',':'))
 _corex_receipt'''
 
 
@@ -117,7 +120,10 @@ for _corex_analysis in _corex_invocations:
         'status':'failed' if _corex_error else 'completed',
     })
     if _corex_error and _corex_data['stop_on_error']: break
-_corex_receipt=json.dumps({'success':not _corex_failed,'receipts':_corex_receipts})
+_corex_payload=json.dumps({'success':not _corex_failed,'receipts':_corex_receipts},ensure_ascii=False,separators=(',',':')).encode('utf-8')
+with open(_corex_data['native_output_path'],'wb') as _corex_stream:_corex_stream.write(_corex_payload)
+import hashlib
+_corex_receipt=json.dumps({'byte_length':len(_corex_payload),'sha256':hashlib.sha256(_corex_payload).hexdigest()},separators=(',',':'))
 _corex_receipt'''
 
 
@@ -216,7 +222,10 @@ if sum(len(target['entries']) for target in _corex_targets)>256:
     raise ValueError('mechanical.capacity_exceeded: Snippet supports at most 256 command objects per invocation')
 if not _corex_targets:
     raise ValueError('mechanical.capability_unproved: no supported Static Structural analysis is available')
-_corex_receipt=json.dumps({'targets':_corex_targets})
+_corex_payload=json.dumps({'targets':_corex_targets},ensure_ascii=False,separators=(',',':')).encode('utf-8')
+with open(_corex_data['native_output_path'],'wb') as _corex_stream:_corex_stream.write(_corex_payload)
+import hashlib
+_corex_receipt=json.dumps({'byte_length':len(_corex_payload),'sha256':hashlib.sha256(_corex_payload).hexdigest()},separators=(',',':'))
 _corex_receipt'''
 
 
@@ -269,7 +278,7 @@ def _corex_persist_rollback():
     for snapshot in _corex_updates:
         payload['updates'].append({'id':int(snapshot['item'].ObjectId),'name':snapshot['name'],'input':snapshot['input'],'mode':snapshot['mode'],'step_number':snapshot['step_number'],'issue_solve':snapshot['issue_solve']})
     with io.open(_corex_data['rollback_path'],'w',encoding='utf-8') as stream:
-        stream.write(json.dumps(payload,ensure_ascii=True,separators=(',',':')))
+        stream.write(json.dumps(payload,ensure_ascii=False,separators=(',',':')))
 _corex_by_id=dict((int(item.ObjectId),item) for item in list(Model.Analyses))
 _corex_resolved=[]
 for target in _corex_data['plan']['targets']:
@@ -318,7 +327,7 @@ try:
         except Exception: pass
         _corex_objects.append({'object_id':int(item.ObjectId),'parent_id':int(analysis.ObjectId),'analysis_id':int(analysis.ObjectId),'object_path':_corex_path(item),'display_name':_corex_text(item.Name),'api_type':_corex_type(item),'category':category})
         _corex_receipts.append({'analysis_id':int(analysis.ObjectId),'analysis_name':_corex_text(analysis.Name),'step_selection':entry['selection'],'step_number':entry['step'],'snippet_id':int(item.ObjectId),'snippet_name':_corex_text(item.Name),'action':entry['action'],'status':'completed','message':''})
-    _corex_receipt=json.dumps({'success':True,'rollback_verified':True,'error':'','receipts':_corex_receipts,'snippets':_corex_objects})
+    _corex_payload={'success':True,'rollback_verified':True,'error':'','receipts':_corex_receipts,'snippets':_corex_objects}
 except Exception:
     _corex_original=traceback.format_exc()[:4096]
     _corex_restore_errors=[]
@@ -337,7 +346,11 @@ except Exception:
     try:
         if os.path.exists(_corex_data['rollback_path']): os.remove(_corex_data['rollback_path'])
     except Exception: pass
-    _corex_receipt=json.dumps({'success':False,'rollback_verified':True,'error':_corex_original,'receipts':[],'snippets':[]})
+    _corex_payload={'success':False,'rollback_verified':True,'error':_corex_original,'receipts':[],'snippets':[]}
+_corex_encoded=json.dumps(_corex_payload,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+with open(_corex_data['native_output_path'],'wb') as _corex_stream:_corex_stream.write(_corex_encoded)
+import hashlib
+_corex_receipt=json.dumps({'byte_length':len(_corex_encoded),'sha256':hashlib.sha256(_corex_encoded).hexdigest()},separators=(',',':'))
 _corex_receipt'''
 
 

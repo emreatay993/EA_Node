@@ -126,6 +126,7 @@ def _model_metadata(**changes):
     payload = {
         **_identity(),
         "workspace_id": "workspace-1",
+        "connection_generation": 0,
         "release_code": 261,
         "backend_mode": "background",
         "catalogue_id": str(uuid4()),

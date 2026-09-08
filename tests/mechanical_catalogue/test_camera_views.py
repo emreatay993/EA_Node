@@ -82,6 +82,7 @@ def _model(**metadata_changes):
     metadata = {
         "workspace_id": "workspace",
         **IDENTITY,
+        "connection_generation": 0,
         "release_code": 261,
         "backend_mode": "background",
         "catalogue_id": "35ac84bc-7cd6-4b7c-8c4e-43db19709f51",

@@ -136,6 +136,7 @@ def test_optional_dependency_groups_wire_ansys_and_viewer_into_all_and_dev() -> 
         "ansys-dpf-core>=0.16,<0.17",
         "ansys-mechanical-core>=0.12.6",
         "ansys-workbench-core>=0.14.0",
+        "h5py>=3.16",
         "numpy>=2.0",
         "pandas>=2.3",
     }

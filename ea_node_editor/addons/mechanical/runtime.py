@@ -1,6 +1,6 @@
 # Purpose: Execute Mechanical Open, read, graphics, mutation, and save operations through the run-owned session.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py
+# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_save.py
 # Landmarks: execute_open_model; execute_run_script; execute_apdl_snippet; execute_save_model; execute_image_export
 
 from __future__ import annotations
@@ -36,11 +36,13 @@ from ea_node_editor.addons.mechanical.graphics import (
 from ea_node_editor.addons.mechanical.session import StaleMechanicalModelError
 from ea_node_editor.addons.mechanical.saving import (
     create_save_staging,
-    preflight_standalone_destination,
-    publish_standalone_save,
-    resolve_standalone_save_format,
+    preflight_save_destination,
+    publish_save,
+    resolve_save_format,
     validate_native_save_receipt,
+    validate_staged_bundle,
 )
+from ea_node_editor.addons.mechanical.workbench import validate_workbench_save_receipt
 from ea_node_editor.addons.mechanical.owner_process import OwnerProtocolError
 from ea_node_editor.nodes.execution_context import NodeInputNotReadyError
 from ea_node_editor.runtime_contracts import (
@@ -226,6 +228,7 @@ def _execute_model_mutation(
     args: Mapping[str, Any],
     timeout_sec: float,
     label: str,
+    connection_change: bool = False,
 ) -> dict[str, Any]:
     response = None
     operation_error: BaseException | None = None
@@ -235,6 +238,7 @@ def _execute_model_mutation(
             expected_revision=expected_revision,
             operation=operation,
             mutation=True,
+            connection_change=connection_change,
             timeout_sec=timeout_sec,
             args=args,
         )
@@ -536,31 +540,35 @@ def execute_save_model(ctx, model=None, settings=None):
     source = session.source_path.resolve(strict=True)
     raw_destination = _setting(ctx, settings, "file", "")
     if not str(raw_destination or "").strip():
-        raise NodeInputNotReadyError("File requires an explicit standalone save destination")
+        raise NodeInputNotReadyError("File requires an explicit save destination")
     destination_value = ctx.resolve_path_value(raw_destination)
     if destination_value is None:
         raise ValueError("mechanical.save_failed: File did not resolve to a destination path")
     destination = Path(destination_value).resolve(strict=False)
     source_suffix = source.suffix.casefold()
-    if source_suffix in {".wbpj", ".wbpz"}:
-        if destination.suffix.casefold() == ".mechpz":
-            raise ValueError(
-                "mechanical.save_failed: .mechpz is never valid for a Workbench source; "
-                "whole-project .wbpz saving belongs to T14"
-            )
-        raise ValueError(
-            "mechanical.save_failed: Workbench project saving and selected-model "
-            "standalone export are unsupported until T14/T15"
-        )
-    format_code = resolve_standalone_save_format(
+    format_code = resolve_save_format(
         destination, _setting(ctx, settings, "format", "auto")
     )
+    workbench_source = source_suffix in {".wbpj", ".wbpz"}
+    if workbench_source:
+        if format_code == "mechpz":
+            raise ValueError(
+                "mechanical.save_failed: .mechpz is never valid for a Workbench source; "
+                "choose native whole-project .wbpz"
+            )
+        if format_code not in {"wbpj", "wbpz"}:
+            raise ValueError(
+                "mechanical.save_failed: selected Workbench model export to .mechdb/.mechdat "
+                "is unsupported until T15"
+            )
+    elif format_code in {"wbpj", "wbpz"}:
+        raise ValueError("mechanical.save_failed: Workbench formats require a Workbench source")
     overwrite = _setting(ctx, settings, "overwrite", False)
     if type(overwrite) is not bool:
         raise TypeError("Overwrite existing must be Boolean")
-    if source_suffix not in {".mechdb", ".mechdat", ".mechpz"}:
+    if not workbench_source and source_suffix not in {".mechdb", ".mechdat", ".mechpz"}:
         raise ValueError("mechanical.save_failed: Model source is not standalone Mechanical")
-    preflight = preflight_standalone_destination(
+    preflight = preflight_save_destination(
         destination,
         source=source,
         format_code=format_code,
@@ -569,12 +577,16 @@ def execute_save_model(ctx, model=None, settings=None):
     destination = preflight.destination
     destination_companion = preflight.companion
     archive_inputs: dict[str, bool] = {}
-    if format_code == "mechpz":
-        for key in ("include_results", "include_user_files"):
-            value = _setting(ctx, settings, key, True)
-            if type(value) is not bool:
-                raise TypeError(f"{key} must be Boolean")
-            archive_inputs[key] = value
+    archive_keys = (
+        ("include_results", "include_user_files", "include_external_imported_files")
+        if format_code == "wbpz"
+        else ("include_results", "include_user_files") if format_code == "mechpz" else ()
+    )
+    for key in archive_keys:
+        value = _setting(ctx, settings, key, True)
+        if type(value) is not bool:
+            raise TypeError(f"{key} must be Boolean")
+        archive_inputs[key] = value
     staging = create_save_staging(destination, format_code)
     expected_files = [destination, *([destination_companion] if destination_companion else [])]
     catalogue_id = str(uuid4())
@@ -601,6 +613,14 @@ def execute_save_model(ctx, model=None, settings=None):
         "work_path": str(session.work_path),
         "stage_path": str(staging.primary),
         "stage_companion": "" if staging.companion is None else str(staging.companion),
+        **(
+            {
+                "native_project": str(staging.native_project),
+                "snapshot_path": str(staging.root / "w.json"),
+            }
+            if workbench_source
+            else {}
+        ),
         "verify_path": str(staging.verify_project),
         "files": [str(path) for path in expected_files],
         "overwrite": overwrite,
@@ -614,10 +634,11 @@ def execute_save_model(ctx, model=None, settings=None):
             session,
             metadata,
             expected_revision=expected_revision,
-            operation="standalone_save",
+            operation="workbench_save" if workbench_source else "standalone_save",
             timeout_sec=600.0,
             label="Save Mechanical Model",
             args=args,
+            connection_change=workbench_source,
         )
     except BaseException as exc:
         if staging.root.exists() and any(path.is_file() for path in staging.root.rglob("*")):
@@ -628,16 +649,29 @@ def execute_save_model(ctx, model=None, settings=None):
         raise
     try:
         if response.get("status") != "staged":
-            raise RuntimeError("Mechanical standalone save did not return a staged result")
-        validate_native_save_receipt(
-            response.get("native_save"),
-            format_code=format_code,
-            staging=staging,
-        )
+            raise RuntimeError("Mechanical save did not return a staged result")
+        if workbench_source:
+            native_receipt = response.get("native_save")
+            validate_workbench_save_receipt(
+                native_receipt,
+                format_code=format_code,
+            )
+            validate_staged_bundle(staging, format_code=format_code)
+            if (
+                response.get("connection_changed") is not True
+                or response.get("connection_generation") != session.connection_generation
+            ):
+                raise RuntimeError("Mechanical Workbench reconnect identity is invalid")
+        else:
+            validate_native_save_receipt(
+                response.get("native_save"),
+                format_code=format_code,
+                staging=staging,
+            )
         report = response.get("catalogue")
         if session.revision != new_revision or type(report) is not TableValue:
-            raise RuntimeError("Mechanical standalone save revision or Report catalogue is invalid")
-        publication = publish_standalone_save(
+            raise RuntimeError("Mechanical save revision or Report catalogue is invalid")
+        publication = publish_save(
             staging,
             preflight=preflight,
             format_code=format_code,

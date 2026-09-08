@@ -295,29 +295,32 @@ class MechanicalPropertyEditAdapter:
         save_file = _first_value(_connected_value(context, "file"))
         if save_file is None:
             save_file = (getattr(context.node, "properties", {}) or {}).get("file", "")
-        save_archive = str(save_format) == "mechpz" or (
-            str(save_format) == "auto" and str(save_file).casefold().endswith(".mechpz")
+        resolved_save_format = (
+            str(save_file).rsplit(".", 1)[-1].casefold()
+            if str(save_format) == "auto" and "." in str(save_file)
+            else str(save_format)
         )
         for item in result:
             item_key = str(item.get("key") or "")
             if save_node and item_key == "format":
                 item.update(
-                    enum_codes=["auto", "mechdb", "mechdat", "mechpz"],
-                    enum_values=["Auto", "Mechanical database", "Mechanical model export", "Mechanical archive"],
+                    enum_codes=["auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz"],
+                    enum_values=["Auto", "Mechanical database", "Mechanical model export", "Mechanical archive", "Workbench project", "Workbench archive"],
                     exact_selectors=True,
                 )
                 continue
             if save_node and (
-                item_key == "include_external_imported_files"
-                or item_key in {"include_results", "include_user_files"} and not save_archive
+                item_key == "include_external_imported_files" and resolved_save_format != "wbpz"
+                or item_key in {"include_results", "include_user_files"}
+                and resolved_save_format not in {"mechpz", "wbpz"}
             ):
                 item.update(
                     condition_enabled=False,
                     editor_enabled=False,
                     editor_disabled_reason=(
-                        "Workbench archives only; standalone saves never consume this value."
+                        "Workbench .wbpz archives only; other formats do not consume this value."
                         if item_key == "include_external_imported_files"
-                        else "Standalone .mechpz archives only; this value is not consumed."
+                        else ".mechpz/.wbpz archives only; this value is not consumed."
                     ),
                 )
                 continue

@@ -125,6 +125,7 @@
         "graphics",
         "commands",
         "saving",
+        "workbench",
         "builtin",
         "functions",
         "plot",
@@ -24094,6 +24095,7 @@
         "ea_node_editor/ui_qml/shell_addon_manager_bridge.py"
       ],
       "test_candidates": [
+        "tests/mechanical_catalogue/test_workbench_save.py",
         "tests/test_repo_owned_node_documentation.py"
       ],
       "qml_candidates": [],
@@ -24149,10 +24151,20 @@
         "apdl",
         "snippet",
         "save",
+        "system",
+        "components",
+        "getprojectdirectory",
+        "getuserfilesdirectory",
+        "user",
+        "files",
         "modelview",
         "imagevalue",
         "private",
+        "dp0",
+        "act",
+        "dat",
         "tests",
+        "catalogue",
         "test",
         "repo",
         "owned",
@@ -24167,7 +24179,6 @@
         "function",
         "migration",
         "nodes",
-        "catalogue",
         "lifecycle",
         "protocol",
         "definition",
@@ -24193,6 +24204,7 @@
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_scripts.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_snippets.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_standalone_save.py --ignore=venv -q",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_workbench_save.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_repo_owned_node_documentation.py --ignore=venv -q"
       ],
       "start_here": [

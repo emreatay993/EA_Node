@@ -253,6 +253,35 @@ def _run(backend, plan, *, commands="/prep7\n  ! exact  \n", issue_solve=False):
     return result
 
 
+def test_unicode_snippet_receipt_and_rollback_file_round_trip(
+    tmp_path: Path, monkeypatch
+) -> None:
+    backend, _tree, first, _thermal, _second, _modal = _backend(tmp_path, monkeypatch)
+    first.Name = "Static ³ ° Ω 漢字 \\ path"
+    name = "COREX ³ °"
+    plan = _preflight(backend, environments=[{"kind": "text", "text": first.Name}], name=name)
+    create_args = _mutation_args(backend, plan, commands="/prep7\n! 漢字 \\ original")
+    create_args["name"] = name
+    created = backend.run_snippet(create_args)
+    backend.commit_snippet_transaction()
+    assert created["snippet"]["receipts"][0]["analysis_name"] == first.Name
+    snippet = next(item for item in backend.tree.AllObjects if isinstance(item, _Snippet))
+    original = snippet.Input
+    update = _preflight(backend, environments=[{"kind": "text", "text": first.Name}], name=name)
+    update_args = _mutation_args(backend, update, commands="/prep7\n! 22 °C · changed")
+    update_args["name"] = name
+    changed = backend.run_snippet(update_args)
+    assert changed["status"] == "executed"
+    rollback = backend._snippet_rollback_path
+    assert rollback is not None
+    payload = json.loads(rollback.read_bytes().decode("utf-8"))
+    assert payload["updates"][0]["name"] == name
+    assert payload["updates"][0]["input"] == original
+    assert backend.rollback_snippet_transaction() is True
+    assert snippet.Input == original
+    assert not list(tmp_path.glob("snippet-*.json"))
+
+
 def test_registered_snippet_node_has_typed_exposed_ports() -> None:
     declaration = next(
         item

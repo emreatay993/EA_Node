@@ -24,7 +24,7 @@ from ea_node_editor.addons.mechanical.property_edit import (
 )
 
 MECHANICAL_ADDON_ID = "mechanical.corex"
-_DEPENDENCIES = ("ansys-mechanical-core", "ansys-workbench-core", "numpy", "pandas")
+_DEPENDENCIES = ("ansys-mechanical-core", "ansys-workbench-core", "h5py", "numpy", "pandas")
 MECHANICAL_FUNCTION_TYPE_IDS = (
     "mechanical.open_model",
     "mechanical.search_tree",
@@ -46,7 +46,7 @@ MECHANICAL_ADDON_MANIFEST = AddOnManifest(
     vendor="COREX",
     version="1.0.0",
     summary="Use typed Mechanical models, objects, properties, views, tables, and images.",
-    details="Provides typed Mechanical model opening, data-only discovery, tables, camera snapshots, viewport images, mutations, and explicit standalone saving.",
+    details="Provides typed Mechanical model opening, data-only discovery, tables, camera snapshots, viewport images, mutations, and explicit standalone or whole-Workbench saving.",
     dependencies=_DEPENDENCIES,
     data_type_families=(MECHANICAL_DATA_TYPE_FAMILY,),
     data_types=MECHANICAL_DATA_TYPES,

@@ -1,17 +1,20 @@
 # Purpose: Open native Mechanical models and execute allowlisted read, graphics, mutation, and save operations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py
-# Landmarks: MechanicalOwnerBackend; snippet_preflight; run_snippet; standalone_save; open; close
+# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py, tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_save.py
+# Landmarks: MechanicalOwnerBackend; snippet_preflight; run_snippet; standalone_save; workbench_save; open; close
 
 from __future__ import annotations
 
 import base64
 import hashlib
 import json
+import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
+from ea_node_editor.addons.mechanical.contracts import CATALOGUE_MAX_ENCODED_BYTES
 from ea_node_editor.addons.mechanical.inspection import collect_catalogue_rows, search_tree
 from ea_node_editor.addons.mechanical.commands import (
     SCRIPT_EXECUTION_BODY,
@@ -37,11 +40,21 @@ from ea_node_editor.addons.mechanical.saving import (
     STANDALONE_SAVE_BODY,
     save_receipt_message,
     validate_native_save_receipt,
+    validate_staged_bundle,
     SaveStaging,
     companion_path,
     validate_archive_inclusions,
+    validate_workbench_archive_structure,
+    validate_workbench_project_bundle,
+)
+from ea_node_editor.addons.mechanical.workbench import (
+    WORKBENCH_MODEL_COMPONENT_PREDICATE,
+    WORKBENCH_SAVE_BODY,
+    validate_workbench_semantic_snapshots,
+    validate_workbench_save_receipt,
 )
 from ea_node_editor.runtime_contracts import ImageValue
+from ea_node_editor.common.path_safety import is_reparse_point
 from ea_node_editor.addons.mechanical.tables import (
     DEFINITION_ENCODED_MAX_BYTES,
     DEFINITION_SCRIPT_BODY,
@@ -53,9 +66,30 @@ LIFECYCLE_OPERATIONS = frozenset(
         "health", "open", "search", "definition_tables", "camera_views",
         "image_export", "script_preflight", "run_script",
         "snippet_preflight", "run_snippet", "close",
-        "standalone_save",
+        "standalone_save", "workbench_save",
     }
 )
+
+
+WORKBENCH_SYSTEMS_BODY = r'''import hashlib,json
+try:
+    unicode
+except NameError:
+    unicode=str
+def _corex_text(value):
+    return value if isinstance(value,unicode) else unicode(value)
+''' + WORKBENCH_MODEL_COMPONENT_PREDICATE + r'''rows=[]
+for system in GetAllSystems():
+    component_ids=[_corex_text(component.UserId) for component in system.Components]
+    if not _corex_has_model(component_ids):
+        continue
+    container=system.GetContainer(ComponentName='Model')
+    rows.append({'key':_corex_text(system.Name),'label':_corex_text(system.DisplayText),'model_key':_corex_text(container.Name)})
+encoded=json.dumps(rows,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+stream=open(_corex_data['native_output_path'],'wb')
+try:stream.write(encoded)
+finally:stream.close()
+wb_script_result=json.dumps({'marker':'corex-workbench-systems-v1','byte_length':len(encoded),'sha256':hashlib.sha256(encoded).hexdigest()},separators=(',',':'))'''
 
 
 def _data_script(data: Mapping[str, Any], body: str) -> str:
@@ -66,6 +100,42 @@ def _data_script(data: Mapping[str, Any], body: str) -> str:
         + ").decode('utf-8'))\n"
         + body
     )
+
+
+def _read_native_json_file(
+    output: Path,
+    raw_receipt: object,
+    *,
+    max_bytes: int,
+    label: str,
+    expected: Mapping[str, object] | None = None,
+) -> Any:
+    receipt = (
+        json.loads(raw_receipt)
+        if type(raw_receipt) is str
+        else dict(raw_receipt) if isinstance(raw_receipt, Mapping) else None
+    )
+    expected = dict(expected or {})
+    if (
+        not isinstance(receipt, dict)
+        or set(receipt) != {"byte_length", "sha256", *expected}
+        or any(receipt[key] != value for key, value in expected.items())
+        or type(receipt["byte_length"]) is not int
+        or not 0 < receipt["byte_length"] <= max_bytes
+        or type(receipt["sha256"]) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", receipt["sha256"]) is None
+        or is_reparse_point(output)
+        or not output.is_file()
+        or output.lstat().st_size != receipt["byte_length"]
+    ):
+        raise RuntimeError(f"{label} returned an invalid native file receipt")
+    encoded = output.read_bytes()
+    if hashlib.sha256(encoded).hexdigest() != receipt["sha256"]:
+        raise RuntimeError(f"{label} native file digest changed")
+    try:
+        return json.loads(encoded.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"{label} native file is not valid UTF-8 JSON") from exc
 
 
 class MechanicalOwnerBackend:
@@ -81,6 +151,8 @@ class MechanicalOwnerBackend:
         self.source_path: Path | None = None
         self.work_path: Path | None = None
         self.release_code = 0
+        self.mechanical_server_started = False
+        self.connection_generation = 0
 
     def _launch_workbench(self, *, release: int, mode: str, workdir: Path, timeout_sec: float) -> Any:
         from ea_node_editor.addons.mechanical.workbench import launch_workbench_owner
@@ -126,6 +198,8 @@ class MechanicalOwnerBackend:
             return self.run_snippet(args)
         if operation == "standalone_save":
             return self.standalone_save(args)
+        if operation == "workbench_save":
+            return self.workbench_save(args)
         return self.definition_tables(args)
 
     def _execute_native_script(self, script: str) -> Any:
@@ -134,6 +208,31 @@ class MechanicalOwnerBackend:
             if self.app is not None
             else self.mechanical.run_python_script(script)
         )
+
+    def _execute_native_json(
+        self,
+        args: Mapping[str, Any],
+        body: str,
+        *,
+        prefix: str,
+        label: str,
+        max_bytes: int = 8 * 1024 * 1024,
+    ) -> Any:
+        if self.work_root is None:
+            raise RuntimeError(f"{label} working root is unavailable")
+        output = self.work_root / f"{prefix}-{uuid4().hex}.json"
+        try:
+            raw = self._execute_native_script(
+                _data_script({**dict(args), "native_output_path": str(output)}, body)
+            )
+            return _read_native_json_file(
+                output,
+                raw,
+                max_bytes=max_bytes,
+                label=label,
+            )
+        finally:
+            output.unlink(missing_ok=True)
 
     def script_preflight(self, args: Mapping[str, Any]) -> dict[str, Any]:
         if set(args) != {"environments", "scope"} or (
@@ -166,8 +265,12 @@ class MechanicalOwnerBackend:
                 or selector.get("kind") not in {"typed", "text"}
             ):
                 raise ValueError("Mechanical script Environment selector is invalid")
-        raw = self._execute_native_script(_data_script(args, SCRIPT_PREFLIGHT_BODY))
-        payload = json.loads(raw) if type(raw) is str else None
+        payload = self._execute_native_json(
+            args,
+            SCRIPT_PREFLIGHT_BODY,
+            prefix="script-preflight",
+            label="Mechanical script preflight",
+        )
         if (
             not isinstance(payload, dict)
             or set(payload) != {"analyses", "selected_ids"}
@@ -213,7 +316,12 @@ class MechanicalOwnerBackend:
         ):
             raise ValueError("Mechanical script inputs are invalid")
         payload = validate_script_payload(
-            json.loads(self._execute_native_script(_data_script(args, SCRIPT_EXECUTION_BODY)))
+            self._execute_native_json(
+                args,
+                SCRIPT_EXECUTION_BODY,
+                prefix="script-execution",
+                label="Mechanical script execution",
+            )
         )
         if not payload["success"]:
             return {"status": "failed", "script": compact_failure_payload(payload)}
@@ -274,8 +382,12 @@ class MechanicalOwnerBackend:
                 or selector.get("kind") not in {"typed", "text"}
             ):
                 raise ValueError("Mechanical snippet Environment selector is invalid")
-        raw = self._execute_native_script(_data_script(args, SNIPPET_PREFLIGHT_BODY))
-        payload = json.loads(raw) if type(raw) is str else None
+        payload = self._execute_native_json(
+            args,
+            SNIPPET_PREFLIGHT_BODY,
+            prefix="snippet-preflight",
+            label="Mechanical snippet preflight",
+        )
         return {
             "status": "validated",
             "snippet_preflight": validate_snippet_preflight(
@@ -313,11 +425,14 @@ class MechanicalOwnerBackend:
         rollback_path = Path(args["rollback_path"]).resolve()
         if rollback_path.parent != self.work_root.resolve() or rollback_path.exists():
             raise ValueError("Mechanical snippet rollback path is invalid")
-        raw = None
+        payload = None
         try:
             try:
-                raw = self._execute_native_script(
-                    _data_script(args, SNIPPET_EXECUTION_BODY)
+                payload = self._execute_native_json(
+                    args,
+                    SNIPPET_EXECUTION_BODY,
+                    prefix="snippet-execution",
+                    label="Mechanical snippet execution",
                 )
             finally:
                 if rollback_path.is_file():
@@ -326,7 +441,7 @@ class MechanicalOwnerBackend:
             self.rollback_snippet_transaction()
             raise
         try:
-            payload = validate_snippet_payload(json.loads(raw), plan)
+            payload = validate_snippet_payload(payload, plan)
         except Exception:
             self.rollback_snippet_transaction()
             raise
@@ -451,9 +566,13 @@ class MechanicalOwnerBackend:
             )
             if key in args
         }
-        raw = self._execute_native_script(_data_script(native_args, STANDALONE_SAVE_BODY))
         payload = validate_native_save_receipt(
-            json.loads(raw) if type(raw) is str else None,
+            self._execute_native_json(
+                native_args,
+                STANDALONE_SAVE_BODY,
+                prefix="standalone-save",
+                label="Mechanical standalone save",
+            ),
             format_code=str(format_code),
             staging=staging,
         )
@@ -489,6 +608,159 @@ class MechanicalOwnerBackend:
                     files=[Path(value) for value in args["files"]],
                     overwrite=bool(args["overwrite"]),
                     archive_policy=policy,
+                )],
+            ),
+        }
+
+    def workbench_save(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        common = {
+            "format", "source_path", "destination_path", "work_path",
+            "stage_path", "stage_companion", "native_project", "verify_path",
+            "snapshot_path", "files", "overwrite", "catalogue_identity", "view_export_path",
+        }
+        format_code = args.get("format")
+        required = common | (
+            {"include_results", "include_user_files", "include_external_imported_files"}
+            if format_code == "wbpz"
+            else set()
+        )
+        if (
+            set(args) != required
+            or format_code not in {"wbpj", "wbpz"}
+            or self.workbench is None
+            or self.mechanical is None
+            or not self.system_name
+            or self.source_path is None
+            or self.work_path is None
+            or self.source_path.suffix.casefold() not in {".wbpj", ".wbpz"}
+            or Path(str(args["source_path"])).resolve() != self.source_path
+            or Path(str(args["work_path"])).resolve() != self.work_path
+            or type(args["overwrite"]) is not bool
+            or type(args["files"]) is not list
+            or any(type(value) is not str for value in args["files"])
+        ):
+            raise ValueError("Mechanical Workbench save arguments or session state are invalid")
+        if format_code == "wbpz" and any(
+            type(args[key]) is not bool
+            for key in ("include_results", "include_user_files", "include_external_imported_files")
+        ):
+            raise ValueError("Mechanical Workbench archive inclusion inputs are invalid")
+        stage_path = Path(str(args["stage_path"])).resolve()
+        stage_companion = Path(str(args["stage_companion"])).resolve() if args["stage_companion"] else None
+        native_project = Path(str(args["native_project"])).resolve()
+        verify_path = Path(str(args["verify_path"])).resolve()
+        snapshot_path = Path(str(args["snapshot_path"])).resolve()
+        staging = SaveStaging(stage_path.parent, stage_path, stage_companion, verify_path, native_project)
+        if (
+            stage_path.exists()
+            or verify_path.exists()
+            or native_project.exists()
+            or verify_path.parent != stage_path.parent / "v"
+            or snapshot_path != stage_path.parent / "w.json"
+            or snapshot_path.exists()
+            or native_project != (stage_path if format_code == "wbpj" else stage_path.parent / "p" / "p.wbpj")
+            or stage_companion != companion_path(stage_path, str(format_code))
+            or not verify_path.parent.is_dir()
+            or any(verify_path.parent.iterdir())
+        ):
+            raise ValueError("Mechanical Workbench native staging paths are invalid")
+        systems_before = self._workbench_systems()
+        was_interactive = self.interactive_model
+        self.workbench.stop_mechanical_server(system_name=self.system_name)
+        self.mechanical_server_started = False
+        self.mechanical = self.tree = self.model = self.data_model = self.graphics = None
+        native_args = {
+            "format": format_code,
+            "work_path": str(self.work_path),
+            "stage_path": str(stage_path),
+            "stage_companion": "" if stage_companion is None else str(stage_companion),
+            "native_project": str(native_project),
+            "verify_path": str(verify_path),
+            "system": self.system_name,
+            "snapshot_path": str(snapshot_path),
+            **{
+                key: args[key]
+                for key in ("include_results", "include_user_files", "include_external_imported_files")
+                if key in args
+            },
+        }
+        raw = self.workbench.run_script_string(_data_script(native_args, WORKBENCH_SAVE_BODY))
+        receipt = validate_workbench_save_receipt(raw, format_code=str(format_code))
+        validate_staged_bundle(staging, format_code=str(format_code))
+        semantic_proof = validate_workbench_semantic_snapshots(
+            snapshot_path,
+            receipt=receipt,
+            format_code=str(format_code),
+            work_path=self.work_path,
+            native_project=native_project,
+            stage_path=stage_path,
+            verify_path=verify_path,
+            include_results=bool(args.get("include_results", True)),
+            include_user_files=bool(args.get("include_user_files", True)),
+            include_external_imported_files=bool(
+                args.get("include_external_imported_files", True)
+            ),
+        )
+        if format_code == "wbpj":
+            validate_workbench_project_bundle(staging)
+            policy = None
+        else:
+            policy = {
+                "results_requested": bool(args["include_results"]),
+                "user_files_requested": bool(args["include_user_files"]),
+                "external_imported_files_requested": bool(
+                    args["include_external_imported_files"]
+                ),
+                "complete": all(
+                    bool(args[key])
+                    for key in (
+                        "include_results", "include_user_files",
+                        "include_external_imported_files",
+                    )
+                ),
+                "exclusions": [
+                    label
+                    for key, label in (
+                        ("include_results", "result/solution files"),
+                        ("include_user_files", "user files"),
+                        ("include_external_imported_files", "external imported files"),
+                    )
+                    if not args[key]
+                ],
+                **validate_workbench_archive_structure(stage_path),
+            }
+        self.interactive_model = False
+        if was_interactive:
+            self._edit_workbench_model()
+        self._connect_workbench_model()
+        systems_after = self._workbench_systems()
+        if systems_after != systems_before:
+            raise RuntimeError("mechanical.restore_failed: Workbench systems changed after save reconnect")
+        self.systems = systems_after
+        self.connection_generation += 1
+        identity = dict(args["catalogue_identity"])
+        identity["view_export_path"] = str(args["view_export_path"])
+        return {
+            "status": "staged",
+            "native_save": receipt,
+            "connection_changed": True,
+            "connection_generation": self.connection_generation,
+            "rows": collect_catalogue_rows(
+                tree=self.tree,
+                graphics=self.graphics,
+                identity=identity,
+                systems=self.systems,
+                status="save_completed",
+                model=self.model,
+                data_model=self.data_model,
+                operations=[save_receipt_message(
+                    destination=Path(str(args["destination_path"])),
+                    source=self.source_path,
+                    format_code=str(format_code),
+                    files=[Path(value) for value in args["files"]],
+                    overwrite=bool(args["overwrite"]),
+                    archive_policy=policy,
+                    semantic_proof=semantic_proof,
                 )],
             ),
         }
@@ -722,28 +994,12 @@ class MechanicalOwnerBackend:
                 if self.app is not None
                 else self.mechanical.run_python_script(script)
             )
-            receipt = json.loads(raw_receipt) if type(raw_receipt) is str else None
-            if (
-                not isinstance(receipt, dict)
-                or set(receipt) != {"byte_length", "sha256"}
-                or type(receipt["byte_length"]) is not int
-                or not 0 <= receipt["byte_length"] <= DEFINITION_ENCODED_MAX_BYTES
-                or type(receipt["sha256"]) is not str
-                or len(receipt["sha256"]) != 64
-                or not output.is_file()
-                or output.is_symlink()
-            ):
-                raise RuntimeError("Mechanical definition extraction returned an invalid receipt")
-            stat = output.lstat()
-            if (
-                bool(getattr(stat, "st_file_attributes", 0) & 0x400)
-                or stat.st_size != receipt["byte_length"]
-            ):
-                raise RuntimeError("Mechanical definition extraction file is invalid")
-            data = output.read_bytes()
-            if hashlib.sha256(data).hexdigest() != receipt["sha256"]:
-                raise RuntimeError("Mechanical definition extraction file hash is invalid")
-            payload = json.loads(data)
+            payload = _read_native_json_file(
+                output,
+                raw_receipt,
+                max_bytes=DEFINITION_ENCODED_MAX_BYTES,
+                label="Mechanical definition extraction",
+            )
             warnings = payload.pop("warnings", [])
             if (
                 type(warnings) is not list
@@ -774,7 +1030,11 @@ class MechanicalOwnerBackend:
         if set(args) != required or self.tree is None or self.model is None:
             raise ValueError("Mechanical search arguments or session state are invalid")
         tree = (
-            _RemoteTree(self.mechanical, include_hidden_properties=bool(args["include_hidden_properties"]))
+            _RemoteTree(
+                self.mechanical,
+                self.work_root,
+                include_hidden_properties=bool(args["include_hidden_properties"]),
+            )
             if isinstance(self.tree, _RemoteTree)
             else self.tree
         )
@@ -860,7 +1120,7 @@ class MechanicalOwnerBackend:
                 {"source": str(source), "work": str(work), "archive": source.suffix.casefold() == ".mechpz"},
                 "p=_corex_data\nDataModel.Project.Unarchive(p['source'],p['work'],False) if p['archive'] else (DataModel.Project.Open(p['source']),DataModel.Project.SaveAs(p['work'],False))\nstr(True)",
             ))
-            self.tree = _RemoteTree(self.mechanical)
+            self.tree = _RemoteTree(self.mechanical, self.work_root)
             self.model = _RemoteModel(self.mechanical)
             return [], self.tree, _RemoteGraphics(self.mechanical), "standalone"
         from ansys.mechanical.core import App, global_variables
@@ -947,42 +1207,76 @@ class MechanicalOwnerBackend:
             raise RuntimeError("Unarchived Workbench Model identity does not match its source")
         self.system_name = target_match["system_keys"][0]
         if mode == "interactive":
-            capability = self.workbench.run_script_string(
+            self._edit_workbench_model()
+        self._connect_workbench_model()
+        return public_choices, self.tree, _RemoteGraphics(self.mechanical), public_match["key"]
+
+    def _edit_workbench_model(self) -> None:
+        capability = self.workbench.run_script_string(
+            _data_script(
+                {"system": self.system_name},
+                "c=GetSystem(Name=_corex_data['system']).GetContainer(ComponentName='Model')\n"
+                "wb_script_result=json.dumps(bool(callable(getattr(c,'Edit',None)) and callable(getattr(c,'Exit',None))))",
+            )
+        )
+        if capability is not True:
+            raise RuntimeError(
+                "mechanical.capability_unproved: selected Workbench Model lacks Edit/Exit"
+            )
+        self._require_receipt(
+            self.workbench.run_script_string(
                 _data_script(
                     {"system": self.system_name},
                     "c=GetSystem(Name=_corex_data['system']).GetContainer(ComponentName='Model')\n"
-                    "wb_script_result=json.dumps(bool(callable(getattr(c,'Edit',None)) and callable(getattr(c,'Exit',None))))",
+                    "c.Edit(Hidden=False,Interactive=True)\n"
+                    "wb_script_result=json.dumps(True)",
                 )
-            )
-            if capability is not True:
-                raise RuntimeError(
-                    "mechanical.capability_unproved: selected Workbench Model lacks Edit/Exit"
-                )
-            self._require_receipt(
-                self.workbench.run_script_string(
-                    _data_script(
-                        {"system": self.system_name},
-                        "s=GetSystem(Name=_corex_data['system'])\n"
-                        "c=s.GetContainer(ComponentName='Model')\n"
-                        "c.Edit(Hidden=False,Interactive=True)\n"
-                        "wb_script_result=json.dumps(True)",
-                    )
-                ),
-                "Model.Edit",
-            )
-            self.interactive_model = True
+            ),
+            "Model.Edit",
+        )
+        self.interactive_model = True
+
+    def _connect_workbench_model(self) -> None:
         from ansys.mechanical.core import connect_to_mechanical
+
         port = self.workbench.start_mechanical_server(system_name=self.system_name)
+        self.mechanical_server_started = True
         self.mechanical = connect_to_mechanical(ip="127.0.0.1", port=port)
-        self.tree = _RemoteTree(self.mechanical)
+        assert self.work_root is not None
+        self.tree = _RemoteTree(self.mechanical, self.work_root)
         self.model = _RemoteModel(self.mechanical)
-        return public_choices, self.tree, _RemoteGraphics(self.mechanical), public_match["key"]
+        self.graphics = _RemoteGraphics(self.mechanical)
 
     def _workbench_systems(self) -> list[dict[str, Any]]:
-        raw = self.workbench.run_script_string(
-            "import json\nwb_script_result=json.dumps([{'key':str(s.Name),'label':str(s.DisplayText),'model_key':str(s.GetContainer(ComponentName='Model').Name)} for s in GetAllSystems() if s.GetContainer(ComponentName='Model') is not None])"
-        )
-        systems = json.loads(raw) if isinstance(raw, str) else raw
+        if self.work_root is None:
+            raise RuntimeError("Workbench system inventory working root is unavailable")
+        output = self.work_root / f"workbench-systems-{uuid4().hex}.json"
+        try:
+            raw = self.workbench.run_script_string(_data_script(
+                {"native_output_path": str(output)},
+                WORKBENCH_SYSTEMS_BODY,
+            ))
+            systems = _read_native_json_file(
+                output,
+                raw,
+                max_bytes=1024 * 1024,
+                label="Workbench system inventory",
+                expected={"marker": "corex-workbench-systems-v1"},
+            )
+        finally:
+            output.unlink(missing_ok=True)
+        if (
+            type(systems) is not list
+            or not systems
+            or len(systems) > 256
+            or any(
+                not isinstance(item, dict)
+                or set(item) != {"key", "label", "model_key"}
+                or any(type(item[key]) is not str or not item[key] or len(item[key]) > 512 for key in item)
+                for item in systems
+            )
+        ):
+            raise RuntimeError("Workbench system inventory returned an invalid bounded receipt")
         return deduplicate_model_systems(systems)
 
     def close(self) -> None:
@@ -994,9 +1288,10 @@ class MechanicalOwnerBackend:
             except Exception as exc:
                 errors.append(exc)
         if self.workbench is not None:
-            if self.system_name:
+            if self.system_name and self.mechanical_server_started:
                 try:
                     self.workbench.stop_mechanical_server(system_name=self.system_name)
+                    self.mechanical_server_started = False
                 except Exception as exc:
                     errors.append(exc)
             if self.interactive_model:
@@ -1067,13 +1362,21 @@ class _Proxy:
 
 
 class _RemoteTree:
-    def __init__(self, client: Any, *, include_hidden_properties: bool = False) -> None:
+    def __init__(
+        self,
+        client: Any,
+        transport_root: Path,
+        *,
+        include_hidden_properties: bool = False,
+    ) -> None:
         self.client = client
+        self.transport_root = transport_root.resolve(strict=True)
         self.include_hidden_properties = include_hidden_properties
         self.metadata_errors: list[str] = []
     @property
     def AllObjects(self):
-        script = _data_script({"include_hidden": self.include_hidden_properties}, """import json
+        output = self.transport_root / f"remote-tree-{uuid4().hex}.json"
+        script = _data_script({"include_hidden": self.include_hidden_properties, "output_path": str(output)}, """import hashlib,json,os
 try:unicode
 except NameError:unicode=str
 def _corex_text(v):
@@ -1143,8 +1446,22 @@ for o in list(Tree.AllObjects):
       except Exception as x:ids={'present':True,'error':type(x).__name__,'value':None}
      scopes[attr]['Ids']=ids
  rows.append({'ObjectId':oid,'Name':name,'api_type':api_type,'category':category,'parent_id':parent_id,'props':props,'props_error':props_error,'table_keys':table_keys,'hidden':field(o,'Hidden'),'source':field(o,'ImportableObjectSourceId',True),'state':field(o,'ObjectState',True),'suppressed':field(o,'Suppressed'),'bindings':bindings,'scopes':scopes,'direct_tags':tags.get(oid,[]),'tags_available':tags_available})
-json.dumps(rows)""")
-        rows = json.loads(self.client.run_python_script(script))
+encoded=json.dumps(rows,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+stream=open(_corex_data['output_path'],'wb')
+try:stream.write(encoded)
+finally:stream.close()
+json.dumps({'marker':'corex-remote-tree-v1','byte_length':len(encoded),'sha256':hashlib.sha256(encoded).hexdigest()},separators=(',',':'))""")
+        try:
+            raw = self.client.run_python_script(script)
+            rows = _read_native_json_file(
+                output,
+                raw,
+                max_bytes=CATALOGUE_MAX_ENCODED_BYTES,
+                label="Mechanical remote tree",
+                expected={"marker": "corex-remote-tree-v1"},
+            )
+        finally:
+            output.unlink(missing_ok=True)
         objects = {}
         for r in rows:
             properties = [_RemoteProperty(**p) for p in r["props"]]

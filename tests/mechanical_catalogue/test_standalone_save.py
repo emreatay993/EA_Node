@@ -25,9 +25,9 @@ from ea_node_editor.addons.mechanical.saving import (
     SaveStaging,
     companion_path,
     create_save_staging,
-    preflight_standalone_destination,
-    publish_standalone_save,
-    resolve_standalone_save_format,
+    preflight_save_destination,
+    publish_save,
+    resolve_save_format,
     validate_archive_inclusions,
 )
 from ea_node_editor.addons.mechanical.session import StaleMechanicalModelError
@@ -76,7 +76,7 @@ def test_registered_save_node_has_every_typed_exposed_control() -> None:
     assert next(
         prop for prop in declaration.spec.properties if prop.key == "format"
     ).enum_values == (
-        "auto", "mechdb", "mechdat", "mechpz"
+        "auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz"
     )
     ports = {port.key: port for port in declaration.spec.ports}
     assert ports["source_model"].required is True
@@ -108,11 +108,11 @@ def test_archive_controls_remain_present_but_inactive_when_unconsumed() -> None:
 @pytest.mark.parametrize("suffix", ["mechdb", "mechdat", "mechpz"])
 def test_format_auto_and_explicit_extension_agreement(tmp_path: Path, suffix: str) -> None:
     destination = tmp_path / f"saved.{suffix}"
-    assert resolve_standalone_save_format(destination, "auto") == suffix
-    assert resolve_standalone_save_format(destination, suffix) == suffix
+    assert resolve_save_format(destination, "auto") == suffix
+    assert resolve_save_format(destination, suffix) == suffix
     other = "mechdb" if suffix != "mechdb" else "mechdat"
     with pytest.raises(ValueError, match="does not agree"):
-        resolve_standalone_save_format(destination, other)
+        resolve_save_format(destination, other)
 
 
 def test_preflight_requires_explicit_source_overwrite_and_checks_companion(
@@ -125,7 +125,7 @@ def test_preflight_requires_explicit_source_overwrite_and_checks_companion(
     companion.mkdir()
     (companion / "data.rst").write_bytes(b"result")
     with pytest.raises(FileExistsError, match="source overwrite requires"):
-        preflight_standalone_destination(
+        preflight_save_destination(
             source, source=source, format_code="mechdb", overwrite=False
         )
     checked = []
@@ -133,7 +133,7 @@ def test_preflight_requires_explicit_source_overwrite_and_checks_companion(
         "ea_node_editor.addons.mechanical.saving._assert_bundle_unlocked",
         lambda path: checked.append(path),
     )
-    preflight = preflight_standalone_destination(
+    preflight = preflight_save_destination(
         source, source=source, format_code="mechdb", overwrite=True
     )
     assert (preflight.destination, preflight.companion, preflight.source_destination) == (
@@ -148,7 +148,7 @@ def test_preflight_rejects_source_alias_and_locked_destination(tmp_path: Path, m
     alias = tmp_path / "alias.mechdb"
     os.link(source, alias)
     with pytest.raises(ValueError, match="aliases the source"):
-        preflight_standalone_destination(
+            preflight_save_destination(
             alias, source=source, format_code="mechdb", overwrite=True
         )
     destination = tmp_path / "destination.mechdb"
@@ -158,7 +158,7 @@ def test_preflight_rejects_source_alias_and_locked_destination(tmp_path: Path, m
         lambda path: (_ for _ in ()).throw(PermissionError(f"locked: {path}")),
     )
     with pytest.raises(PermissionError, match="locked"):
-        preflight_standalone_destination(
+        preflight_save_destination(
             destination, source=source, format_code="mechdb", overwrite=True
         )
 
@@ -178,10 +178,10 @@ def test_publication_moves_complete_native_bundle(tmp_path: Path) -> None:
     source.write_bytes(b"source")
     staging = _stage_bundle(tmp_path)
     destination = tmp_path / "saved.mechdb"
-    preflight = preflight_standalone_destination(
+    preflight = preflight_save_destination(
         destination, source=source, format_code="mechdb", overwrite=False
     )
-    publication = publish_standalone_save(
+    publication = publish_save(
         staging,
         preflight=preflight,
         format_code="mechdb",
@@ -204,12 +204,12 @@ def test_existing_bundle_survives_publication_failure(tmp_path: Path, monkeypatc
     old_companion.mkdir()
     (old_companion / "old.dat").write_bytes(b"old-companion")
     staging = _stage_bundle(tmp_path)
-    preflight = preflight_standalone_destination(
+    preflight = preflight_save_destination(
         destination, source=source, format_code="mechdb", overwrite=True
     )
     monkeypatch.setattr(os, "link", lambda *_args: (_ for _ in ()).throw(OSError("disk full")))
     with pytest.raises(OSError, match="disk full"):
-        publish_standalone_save(
+        publish_save(
             staging,
             preflight=preflight,
             format_code="mechdb",
@@ -229,7 +229,7 @@ def test_external_replacement_keeps_exact_recovery_bundle(tmp_path: Path, monkey
     old_companion.mkdir()
     (old_companion / "old.dat").write_bytes(b"old-companion")
     staging = _stage_bundle(tmp_path)
-    preflight = preflight_standalone_destination(
+    preflight = preflight_save_destination(
         destination, source=source, format_code="mechdb", overwrite=True
     )
 
@@ -239,7 +239,7 @@ def test_external_replacement_keeps_exact_recovery_bundle(tmp_path: Path, monkey
 
     monkeypatch.setattr(os, "link", fail_after_replacement)
     with pytest.raises(RuntimeError, match="publication_recovery_required") as raised:
-        publish_standalone_save(
+        publish_save(
             staging,
             preflight=preflight,
             format_code="mechdb",
@@ -258,7 +258,7 @@ def test_existing_single_file_uses_atomic_replace_and_rolls_back_until_commit(
     destination = tmp_path / "saved.mechpz"
     _archive(destination, {"old.mechdb": b"old"})
     old = destination.read_bytes()
-    preflight = preflight_standalone_destination(
+    preflight = preflight_save_destination(
         destination, source=source, format_code="mechpz", overwrite=True
     )
     staging = create_save_staging(destination, "mechpz")
@@ -271,7 +271,7 @@ def test_existing_single_file_uses_atomic_replace_and_rolls_back_until_commit(
         return real_replace(source_path, destination_path)
 
     monkeypatch.setattr(os, "replace", record_replace)
-    publication = publish_standalone_save(
+    publication = publish_save(
         staging, preflight=preflight, format_code="mechpz"
     )
     assert (staging.primary, destination) in replacements
@@ -683,8 +683,8 @@ def test_workbench_source_is_rejected_before_any_native_or_staging_work(tmp_path
     ctx, invalidations = _context(tmp_path, sessions, destination)
     with pytest.raises(ValueError, match="never valid for a Workbench source"):
         execute_save_model(ctx, _model(), SimpleNamespace(**ctx.properties))
-    ctx.properties["file"] = str(tmp_path / "saved.wbpz")
-    with pytest.raises(ValueError, match="unsupported until T14/T15"):
+    ctx.properties["file"] = str(tmp_path / "saved.mechdb")
+    with pytest.raises(ValueError, match="unsupported until T15"):
         execute_save_model(ctx, _model(), SimpleNamespace(**ctx.properties))
     assert sessions.calls == [] and invalidations == []
 
@@ -848,6 +848,8 @@ class _ArchiveProject(_NativeProject):
 def test_backend_archive_maps_only_two_native_flags_and_reports_exclusion(
     tmp_path: Path, monkeypatch
 ) -> None:
+    tmp_path = tmp_path / "native ³ ° Ω 漢字"
+    tmp_path.mkdir()
     mechanical_module = types.ModuleType("Ansys.ACT.Automation.Mechanical")
     mechanical_module.ArchiveSettings = _ArchiveSettings
     for name in ("Ansys", "Ansys.ACT", "Ansys.ACT.Automation"):
@@ -928,6 +930,7 @@ def test_backend_archive_maps_only_two_native_flags_and_reports_exclusion(
         "include_user_files": True,
     }
     result = backend.standalone_save(args)
+    assert result["native_save"]["user_directory"] == str(work_files / "UserFiles")
     archive_call = next(call for call in project.calls if call[0] == "Archive")
     assert archive_call[3].IncludeResultAndSolutionFiles is False
     assert archive_call[3].IncludeUserFiles is True

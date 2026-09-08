@@ -1,6 +1,6 @@
-# Purpose: Validate, stage, verify, and publish standalone Mechanical saves safely.
+# Purpose: Validate, stage, verify, and publish Mechanical and Workbench saves safely.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_standalone_save.py
+# Tests: tests/mechanical_catalogue/test_standalone_save.py, tests/mechanical_catalogue/test_workbench_save.py
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import os
 import shutil
 import tempfile
 import zipfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -17,8 +18,10 @@ from typing import Any, Mapping
 from ea_node_editor.common.path_safety import is_reparse_point
 
 
-STANDALONE_SAVE_FORMATS = ("auto", "mechdb", "mechdat", "mechpz")
+SAVE_FORMATS = ("auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz")
 _MODEL_FORMATS = frozenset({"mechdb", "mechdat"})
+_PROJECT_FORMATS = frozenset({"wbpj"})
+_BUNDLE_FORMATS = _MODEL_FORMATS | _PROJECT_FORMATS
 _WINDOWS_RESERVED_NAMES = {
     "CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
     *(f"LPT{i}" for i in range(1, 10)),
@@ -31,6 +34,7 @@ class SaveStaging:
     primary: Path
     companion: Path | None
     verify_project: Path
+    native_project: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,16 +171,21 @@ finally:
         raise RuntimeError('mechanical.restore_failed: '+restore_error+(('\nNative save failure:\n'+failure) if failure else ''))
 if failure:
     raise RuntimeError(failure)
-_corex_receipt=json.dumps({'schema_version':1,'format':format_code,'reopen_verified':True,'work_restored':True,'object_count':len(before_ids),'stage_bytes':os.path.getsize(stage),'analysis_states':analysis_states,'reopened_analysis_states':reopened_analysis_states,'result_directories':result_directories,'user_directory':user_directory,'user_directory_status':user_directory_status},separators=(',',':'))
+_corex_payload=json.dumps({'schema_version':1,'format':format_code,'reopen_verified':True,'work_restored':True,'object_count':len(before_ids),'stage_bytes':os.path.getsize(stage),'analysis_states':analysis_states,'reopened_analysis_states':reopened_analysis_states,'result_directories':result_directories,'user_directory':user_directory,'user_directory_status':user_directory_status},ensure_ascii=False,separators=(',',':')).encode('utf-8')
+with open(_corex_data['native_output_path'],'wb') as _corex_stream:_corex_stream.write(_corex_payload)
+import hashlib
+_corex_receipt=json.dumps({'byte_length':len(_corex_payload),'sha256':hashlib.sha256(_corex_payload).hexdigest()},separators=(',',':'))
 _corex_receipt'''
 
 
-def resolve_standalone_save_format(destination: Path, requested: object) -> str:
-    if type(requested) is not str or requested not in STANDALONE_SAVE_FORMATS:
-        raise ValueError("Format must be auto, mechdb, mechdat, or mechpz")
+def resolve_save_format(destination: Path, requested: object) -> str:
+    if type(requested) is not str or requested not in SAVE_FORMATS:
+        raise ValueError("Format must be auto, mechdb, mechdat, mechpz, wbpj, or wbpz")
     extension = destination.suffix.casefold().removeprefix(".")
-    if extension not in _MODEL_FORMATS | {"mechpz"}:
-        raise ValueError("Save File must end in .mechdb, .mechdat, or .mechpz")
+    if extension not in set(SAVE_FORMATS) - {"auto"}:
+        raise ValueError(
+            "Save File must end in .mechdb, .mechdat, .mechpz, .wbpj, or .wbpz"
+        )
     format_code = extension if requested == "auto" else requested
     if format_code != extension:
         raise ValueError(
@@ -186,11 +195,11 @@ def resolve_standalone_save_format(destination: Path, requested: object) -> str:
 
 
 def companion_path(primary: Path, format_code: str) -> Path | None:
-    return (
-        primary.with_name(primary.stem + "_Mech_Files")
-        if format_code in _MODEL_FORMATS
-        else None
-    )
+    if format_code in _MODEL_FORMATS:
+        return primary.with_name(primary.stem + "_Mech_Files")
+    if format_code in _PROJECT_FORMATS:
+        return primary.with_name(primary.stem + "_files")
+    return None
 
 
 def _normal(path: Path) -> str:
@@ -292,7 +301,7 @@ def _assert_bundle_unlocked(path: Path) -> None:
         _assert_unlocked(item)
 
 
-def preflight_standalone_destination(
+def preflight_save_destination(
     destination: Path,
     *,
     source: Path,
@@ -352,19 +361,24 @@ def preflight_standalone_destination(
 
 def create_save_staging(destination: Path, format_code: str) -> SaveStaging:
     root = Path(tempfile.mkdtemp(prefix=f".corex-{format_code}-", dir=destination.parent))
-    primary = root / f"s-{format_code}.{format_code}"
+    primary = root / f"s.{format_code}"
     companion = companion_path(primary, format_code)
     verify_directory = root / "v"
-    verify_project = verify_directory / "reopened.mechdb"
+    verify_project = verify_directory / ("v.wbpj" if format_code in {"wbpj", "wbpz"} else "v.mechdb")
+    native_project = root / "p" / "p.wbpj" if format_code == "wbpz" else (
+        primary if format_code == "wbpj" else None
+    )
     try:
-        for path in (primary, companion, verify_project):
+        for path in (primary, companion, verify_project, native_project):
             if path is not None:
                 _validate_windows_path(path)
         verify_directory.mkdir()
+        if native_project is not None and native_project != primary:
+            native_project.parent.mkdir()
     except Exception:
         shutil.rmtree(root, ignore_errors=True)
         raise
-    return SaveStaging(root, primary, companion, verify_project)
+    return SaveStaging(root, primary, companion, verify_project, native_project)
 
 
 def validate_native_save_receipt(
@@ -464,13 +478,42 @@ def validate_staged_bundle(staging: SaveStaging, *, format_code: str) -> None:
     _assert_normal_bundle(staging.primary, expected_directory=False)
     if not staging.primary.is_file() or staging.primary.stat().st_size < 1:
         raise RuntimeError("Mechanical native staged primary file is missing or empty")
-    if format_code in _MODEL_FORMATS:
+    if format_code in _BUNDLE_FORMATS:
         assert staging.companion is not None
         _assert_normal_bundle(staging.companion, expected_directory=True)
         if not staging.companion.is_dir():
             raise RuntimeError("Mechanical native staged companion directory is missing")
     elif not zipfile.is_zipfile(staging.primary):
         raise RuntimeError("Mechanical native staged archive is not a readable archive")
+
+
+def validate_workbench_project_bundle(staging: SaveStaging) -> None:
+    validate_staged_bundle(staging, format_code="wbpj")
+    try:
+        root = ET.parse(staging.primary).getroot()
+    except (ET.ParseError, OSError) as exc:
+        raise RuntimeError("mechanical.save_failed: staged Workbench project is not readable XML") from exc
+    assert staging.companion is not None
+    if root.tag != "Storage" or not any(path.is_file() for path in staging.companion.rglob("*")):
+        raise RuntimeError("mechanical.save_failed: staged Workbench project or companion is incomplete")
+
+
+def validate_workbench_archive_structure(archive: Path) -> dict[str, int]:
+    members: set[str] = set()
+    with zipfile.ZipFile(archive) as stream:
+        projects = [member.filename for member in stream.infolist() if not member.is_dir() and member.filename.casefold().endswith(".wbpj")]
+        if len(projects) != 1:
+            raise RuntimeError("mechanical.save_failed: native Workbench archive has no unique project")
+        prefix = projects[0][:-5] + "_files/"
+        for member in stream.infolist():
+            if member.is_dir():
+                continue
+            if member.filename in members:
+                raise RuntimeError("mechanical.save_failed: native Workbench archive has duplicate members")
+            members.add(member.filename)
+        if not any(name.startswith(prefix) for name in members):
+            raise RuntimeError("mechanical.save_failed: native Workbench archive companion is empty")
+    return {"archive_member_count": len(members)}
 
 
 def validate_archive_inclusions(
@@ -716,7 +759,7 @@ def _verify_destination_snapshot(preflight: DestinationPreflight) -> None:
             _assert_bundle_unlocked(target)
 
 
-def publish_standalone_save(
+def publish_save(
     staging: SaveStaging,
     *,
     preflight: DestinationPreflight,
@@ -781,6 +824,7 @@ def save_receipt_message(
     files: list[Path],
     overwrite: bool,
     archive_policy: Mapping[str, Any] | None,
+    semantic_proof: Mapping[str, Any] | None = None,
 ) -> dict[str, str]:
     policy = dict(archive_policy or {
         "results_consumed": False,
@@ -805,6 +849,7 @@ def save_receipt_message(
                 "overwrite": overwrite,
                 "publication": "complete",
                 "archive_policy": policy,
+                "semantic_proof": dict(semantic_proof or {}),
             },
             ensure_ascii=False,
             separators=(",", ":"),
@@ -814,15 +859,17 @@ def save_receipt_message(
 
 __all__ = [
     "STANDALONE_SAVE_BODY",
-    "STANDALONE_SAVE_FORMATS",
+    "SAVE_FORMATS",
     "SaveStaging",
     "companion_path",
     "create_save_staging",
-    "preflight_standalone_destination",
-    "publish_standalone_save",
-    "resolve_standalone_save_format",
+    "preflight_save_destination",
+    "publish_save",
+    "resolve_save_format",
     "save_receipt_message",
     "validate_archive_inclusions",
     "validate_native_save_receipt",
     "validate_staged_bundle",
+    "validate_workbench_archive_structure",
+    "validate_workbench_project_bundle",
 ]

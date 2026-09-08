@@ -746,7 +746,8 @@ def _registered_model():
         metadata={
             "workspace_id": "workspace", "run_id": "run", "session_id": "session",
             "document_id": "document", "source_key": "sha256:source",
-            "system_key": "standalone", "model_revision": 0, "release_code": 261,
+            "system_key": "standalone", "model_revision": 0, "connection_generation": 0,
+            "release_code": 261,
             "backend_mode": "background", "catalogue_id": "35ac84bc-7cd6-4b7c-8c4e-43db19709f51",
             "producer_node_id": "open", "producer_port": "info", "producer_path": [0],
             "producer_iteration": 0,

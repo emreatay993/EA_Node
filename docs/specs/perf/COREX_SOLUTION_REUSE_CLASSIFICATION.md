@@ -18,7 +18,7 @@ downgrades the decision to recomputation.
 | Base HEAD | `86a5f562e7c5c9d7d52dad97f842a89631508a26` |
 | Plan SHA-256 | `4FFFCFC5B23BA1A2E755CE8222F9EE221B3AA108EAC9F63779310EEBF370A47F` |
 | Ledger SHA-256 at drafting start | `200388ABF798E86431103DEBD0E94ECF0C584617FC2D15E6499B6A03FA01A21E` |
-| Current repo-owned catalog SHA-256 | `B6AB7B66FC35A01CECFEC90F7BA1CDAA95A5C5D369C10321CC973D2F8DD96D20` |
+| Current repo-owned catalog SHA-256 | `272FAFFEFCA7C8EEFEC0E8E5634E829B4142D24F2E2764D0AE8CDCD490A1ECF6` |
 | Migration inventory SHA-256 | `A5E22F1DD5C0BE9E4BC069E934485EF37E6B78E9EBCEFFD1E35A0A88017FAEC5` |
 | Repo-owned type-ID list SHA-256 | `DF2D6AA4042671D987C58C6F6D8AE84E178B1B3BCB81E5E9F3F2CDF4497B1827` |
 
@@ -276,7 +276,7 @@ the scheduler excludes them before solution-record classification.
   carrier.
 - `session` rows never publish durable records unless a later accepted
   classification revision supplies complete portable provenance and codecs.
-- Public declarations remain outside the 139-row repo-owned total and cannot
+- Public declarations remain outside the 147-row repo-owned total and cannot
   increase any total in this document.
 
 ## Validation Contract

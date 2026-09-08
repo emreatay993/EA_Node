@@ -1,6 +1,6 @@
 # Purpose: Own Mechanical sessions by execution run, Open item, path, and workspace.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_session_lifecycle.py, tests/mechanical_catalogue/test_scripts.py
+# Tests: tests/mechanical_catalogue/test_session_lifecycle.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_workbench_save.py
 
 from __future__ import annotations
 
@@ -52,6 +52,7 @@ class _Session:
     backend_mode: str
     owner: Any
     revision: int = 0
+    connection_generation: int = 0
     terminal: bool = False
     closed: bool = False
     operation_lock: threading.Lock = field(default_factory=threading.Lock)
@@ -78,6 +79,7 @@ class _Session:
 class _ModelState:
     session: _Session
     revision: int
+    connection_generation: int
 
 
 class MechanicalSessionService:
@@ -210,6 +212,7 @@ class MechanicalSessionService:
                 "source_key": _identity(source_key, "source_key"),
                 "system_key": _identity(system_key, "system_key"),
                 "model_revision": session.revision,
+                "connection_generation": session.connection_generation,
                 "release_code": int(release_code),
                 "backend_mode": session.backend_mode,
                 "catalogue_id": catalogue_id,
@@ -226,7 +229,7 @@ class MechanicalSessionService:
                 ),
             }
             return self._worker_services.register_handle(
-                _ModelState(session, session.revision),
+                _ModelState(session, session.revision, session.connection_generation),
                 data_type_id=MODEL_TYPE_ID,
                 kind=MODEL_HANDLE_KIND,
                 run_id=session.key.run_id,
@@ -254,6 +257,8 @@ class MechanicalSessionService:
                 or metadata["session_id"] != session.session_id
                 or metadata["model_revision"] != state.revision
                 or metadata["model_revision"] != session.revision
+                or metadata["connection_generation"] != state.connection_generation
+                or metadata["connection_generation"] != session.connection_generation
             ):
                 raise StaleMechanicalModelError(
                     "Mechanical Model handle is stale or belongs to another run/session"
@@ -268,6 +273,7 @@ class MechanicalSessionService:
         operation: str,
         args: Mapping[str, Any] | None = None,
         mutation: bool = False,
+        connection_change: bool = False,
         timeout_sec: float = 600.0,
     ) -> dict[str, Any]:
         with session.operation_lock:
@@ -277,8 +283,9 @@ class MechanicalSessionService:
                     raise StaleMechanicalModelError(
                         "Mechanical Model revision is stale"
                     )
+            succeeded = False
             try:
-                return session.owner.request(
+                response = session.owner.request(
                     run_id=session.key.run_id,
                     session_id=session.session_id,
                     workspace_id=session.workspace_id,
@@ -287,10 +294,15 @@ class MechanicalSessionService:
                     args=args,
                     timeout_sec=timeout_sec,
                 )
+                succeeded = True
+                return response
             finally:
-                if mutation:
+                if mutation or connection_change and succeeded:
                     with self._lock:
-                        session.revision += 1
+                        if mutation:
+                            session.revision += 1
+                        if connection_change and succeeded:
+                            session.connection_generation += 1
 
     def cleanup_run(
         self,

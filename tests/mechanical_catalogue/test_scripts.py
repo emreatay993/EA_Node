@@ -144,6 +144,26 @@ def _run(backend, tmp_path, *, selected_ids, scope, code, stop_on_error=True):
     )
 
 
+def test_native_script_receipts_round_trip_latin1_and_nested_unicode(tmp_path: Path) -> None:
+    backend, _app, first, _second = _backend(tmp_path)
+    first.Name = "Static ³ ° Ω 漢字 \\ path"
+    preflight = _preflight(backend)
+    assert preflight["analyses"][0]["name"] == first.Name
+    result = _run(
+        backend,
+        tmp_path,
+        selected_ids=[first.ObjectId],
+        scope="each_environment",
+        code='print("22 °C · mm³ · 漢字 \\\\ path")\nresult={"nested":"Ω"}',
+    )
+    operation = next(row for row in result["rows"] if row["record_kind"] == "operation")
+    payload = json.loads(operation["message"])
+    assert payload["environment_name"] == first.Name
+    assert payload["stdout"] == "22 °C · mm³ · 漢字 \\ path\n"
+    assert payload["result"] == "{'nested': 'Ω'}"
+    assert not list(tmp_path.glob("script-*.json"))
+
+
 def test_registered_script_node_has_typed_exposed_ports() -> None:
     declaration = next(
         item

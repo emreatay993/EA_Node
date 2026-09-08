@@ -69,6 +69,10 @@ Planning use: Input is the snippet source property. StepSelectionMode/StepNumber
 
 Planning use: retain Workbench as owner, use native Open/Unarchive, select a stable system/Model container and connect to its Mechanical server. Flush the owned editor and use Workbench Save/Archive for whole-project output. Workbench 261 exposes `IncludeSkippedFiles` for result/solution files (default True), `IncludeUserFiles` (default True), and `IncludeExternalImportedFiles` (default False). COREX exposes all three as Boolean ports and defaults them True while retaining `FailIfMissingFiles=True`. Unarchive uses `ArchivePath` and `ProjectPath`. The convenience archive download helper does not by itself establish the explicit inclusion policy required here.
 
+T14 preservation additionally uses [h5py datatype equality](https://api.h5py.org/h5t.html), [dataspace dimensions](https://api.h5py.org/h5s.html), [creation-property equality](https://api.h5py.org/h5p.html), and the [HDF5 object-time contract](https://support.hdfgroup.org/documentation/hdf5/latest/group___o_c_p_l.html). Installed h5py 3.16.0 exposes these APIs; the low-level online reference currently identifies a development version and is supplementary. The narrow closed-schema state-file rule and evidence limitation are recorded in BACKEND_DECISIONS.md. Logical equality is not proof of timestamp-only byte changes.
+
+The final native exclusion evidence distinguishes active registered external references from pre-existing unregistered internal copies, including equal-content files with the same basename. It supports identity-specific no-import/rebase and preserves unrelated internal assets; it is not a claim that every copy of the source bytes is absent. Failed historical aggregates and the first `.wbpj` producer's replayability limit remain explicit in BACKEND_DECISIONS.md and the retained T14 receipt.
+
 ## A08 — Standalone save and required cross-format export gate
 
 - [v261 standalone Project API](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/act_ref/item41515884641331155064551942059670254159175752181.html)

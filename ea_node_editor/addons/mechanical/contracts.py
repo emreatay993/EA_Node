@@ -1,6 +1,6 @@
 # Purpose: Define bounded data-only Mechanical semantic values and metadata tables.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_contracts.py, tests/mechanical_catalogue/test_search_tree.py
+# Tests: tests/mechanical_catalogue/test_contracts.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_workbench_save.py
 
 from __future__ import annotations
 
@@ -149,6 +149,7 @@ _MODEL_FIELDS = frozenset(
         "source_key",
         "system_key",
         "model_revision",
+        "connection_generation",
         "release_code",
         "backend_mode",
         "catalogue_id",
@@ -439,6 +440,7 @@ def validate_model(value: object) -> bool:
     payload = _mapping(value.metadata, "Mechanical Model metadata", _MODEL_FIELDS)
     _identity(payload)
     _text(payload["workspace_id"], "workspace_id")
+    _nonnegative(payload["connection_generation"], "connection_generation")
     _nonnegative(payload["release_code"], "release_code")
     if payload["release_code"] < 261:
         raise ValueError("release_code must be at least 261")
