@@ -123,6 +123,7 @@
         "inspection",
         "tables",
         "graphics",
+        "commands",
         "builtin",
         "functions",
         "plot",
@@ -24142,6 +24143,8 @@
         "image",
         "run",
         "script",
+        "apdl",
+        "snippet",
         "modelview",
         "imagevalue",
         "private",
@@ -24166,7 +24169,8 @@
         "definition",
         "tables",
         "result",
-        "worksheet"
+        "worksheet",
+        "snippets"
       ],
       "aliases": [],
       "focused_verification": [
@@ -24182,6 +24186,7 @@
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_camera_views.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_image_export.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_scripts.py --ignore=venv -q",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/mechanical_catalogue/test_snippets.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_repo_owned_node_documentation.py --ignore=venv -q"
       ],
       "start_here": [

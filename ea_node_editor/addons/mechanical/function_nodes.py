@@ -1,6 +1,6 @@
-# Purpose: Hold inert decorated Mechanical Open, Search, table, camera, image, and script declarations.
+# Purpose: Hold inert decorated Mechanical Open, read, graphics, script, and snippet declarations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py
+# Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py
 
 SOURCE = r'''import corex
 from ea_node_editor.addons.mechanical.runtime import execute_open_model
@@ -9,6 +9,7 @@ from ea_node_editor.addons.mechanical.runtime import execute_fea_table
 from ea_node_editor.addons.mechanical.runtime import execute_camera_views
 from ea_node_editor.addons.mechanical.runtime import execute_image_export
 from ea_node_editor.addons.mechanical.runtime import execute_run_script
+from ea_node_editor.addons.mechanical.runtime import execute_apdl_snippet
 
 @corex.node(
     id="mechanical.open_model", name="Open Mechanical Model",
@@ -217,6 +218,44 @@ def export_mechanical_image(ctx, model, settings):
 @corex.output("report", value_type="COREX.DataTypes.TableValue", label="Report", description="Per-analysis receipts followed by refreshed discovery descriptors.")
 def run_mechanical_script(ctx, source_model, settings):
     return execute_run_script(ctx, source_model, settings.environments, settings)
+
+@corex.node(
+    id="mechanical.apdl_snippet", name="Mechanical APDL Snippet",
+    category=("FEA", "ANSYS", "Mechanical"),
+    description="Creates or updates workflow-owned APDL command snippets in supported Static Structural analyses without solving or saving.",
+    keywords=("mechanical", "ansys", "apdl", "command", "snippet", "load step"),
+    _solution_reuse_scope="never",
+)
+@corex.input("source_model", value_type="COREX.Mechanical.Model", required=True,
+    label="Model", description="Run-owned Mechanical model state to mutate.")
+@corex.list("environments", default=[], item_type=str, label="Environments", port=True,
+    _property_group="Command snippet", _port_structure="list",
+    _port_value_type="COREX.Mechanical.Object", _port_accepted_data_types=("COREX.DataTypes.String",),
+    _port_description="Static Structural analysis objects or exact paths/names; empty selects every supported analysis in tree order.")
+@corex.text("name", default="COREX commands", label="Name", port=True,
+    _inspector_editor="text", _property_group="Command snippet",
+    _port_value_type="COREX.DataTypes.String", _port_required=True,
+    _port_description="Non-empty base name; selected steps append a deterministic step suffix.")
+@corex.text("commands", default="", label="Commands", port=True,
+    _inspector_editor="textarea", _property_group="Command snippet",
+    _port_value_type="COREX.DataTypes.String", _port_required=True,
+    _port_description="Required APDL source preserved exactly after the ownership marker.")
+@corex.dropdown("steps", default="all", options=("all", "selected"),
+    label="Steps", port=True, _inspector_editor="enum", _property_group="Solver placement",
+    _port_value_type="COREX.DataTypes.String", _port_description="Use the native all-load-step mode or one owned snippet per selected load step.")
+@corex.list("selected_steps", default=[1], item_type=int, label="Selected load steps", port=True,
+    _property_group="Solver placement",
+    _port_description="Positive unique load-step numbers; retained but unconsumed while Steps is All.")
+@corex.switch("issue_solve_command", default=False, label="Issue SOLVE command", port=True,
+    _inspector_editor="toggle", _property_group="Solver placement",
+    _port_value_type="COREX.DataTypes.Bool",
+    _port_description="Controls generated solver input only; running this node never launches a solve.")
+@corex.output("model", value_type="COREX.Mechanical.Model", label="Model", description="New model revision after complete success.")
+@corex.output("snippets", value_type="COREX.Mechanical.Object", structure="list",
+    label="Snippets", description="Owned snippets in analysis order, then selected load-step order.")
+@corex.output("report", value_type="COREX.DataTypes.TableValue", label="Report", description="Per-target create/update receipts followed by refreshed discovery descriptors.")
+def mechanical_apdl_snippet(ctx, source_model, settings):
+    return execute_apdl_snippet(ctx, source_model, settings.environments, settings)
 '''
 
 __all__ = ["SOURCE"]

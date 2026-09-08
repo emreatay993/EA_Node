@@ -1,6 +1,6 @@
 # Purpose: Register Mechanical semantic contracts without loading Ansys runtimes.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_contracts.py, tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_image_export.py
+# Tests: tests/mechanical_catalogue/test_contracts.py, tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_snippets.py
 
 from __future__ import annotations
 
@@ -32,6 +32,7 @@ MECHANICAL_FUNCTION_TYPE_IDS = (
     "mechanical.camera_views",
     "mechanical.export_image",
     "mechanical.run_script",
+    "mechanical.apdl_snippet",
 )
 _DISCOVERED_RELEASES: tuple[int, ...] = ()
 _MECHANICAL_PACKAGE_ROOT = Path(__file__).resolve().parent

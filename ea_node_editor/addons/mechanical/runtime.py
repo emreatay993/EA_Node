@@ -1,6 +1,7 @@
-# Purpose: Execute Mechanical Open, Search, table, camera, image, and script operations through the run-owned session.
+# Purpose: Execute Mechanical Open, read, graphics, script, and snippet operations through the run-owned session.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py
+# Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py
+# Landmarks: execute_open_model; execute_run_script; execute_apdl_snippet; execute_image_export
 
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ from ea_node_editor.addons.mechanical.contracts import (
     validate_object,
     validate_property,
 )
+from ea_node_editor.addons.mechanical.commands import snippet_object_values
 from ea_node_editor.addons.mechanical.graphics import (
     IMAGE_CAPTURE_LIMIT,
     IMAGE_MAX_PIXELS,
@@ -161,24 +163,26 @@ def execute_open_model(ctx, settings=None):
     return outputs
 
 
-def _script_environment(value: object, metadata: Mapping[str, Any]) -> dict[str, Any]:
+def _script_environment(
+    value: object, metadata: Mapping[str, Any], *, operation: str = "Run Mechanical Script"
+) -> dict[str, Any]:
     if type(value) is TypedInlineValue:
         if value.data_type_id != OBJECT_TYPE_ID or not validate_object(value):
-            raise TypeError("Run Mechanical Script Environments accepts Mechanical Object or Text values")
+            raise TypeError(f"{operation} Environments accepts Mechanical Object or Text values")
         identity_fields = (
             "run_id", "session_id", "document_id", "source_key", "system_key", "model_revision"
         )
         if any(value.payload[field] != metadata[field] for field in identity_fields):
             raise ValueError("mechanical.cross_session_reference: Environment belongs to another Model")
         if value.payload["analysis_id"] != value.payload["object_id"]:
-            raise ValueError("Mechanical Script Environment must identify an analysis tree object")
+            raise ValueError(f"{operation} Environment must identify an analysis tree object")
         return {
             "kind": "typed",
             "object_id": value.payload["object_id"],
             "object_path": value.payload["object_path"],
         }
     if type(value) is not str or not value.strip():
-        raise TypeError("Run Mechanical Script Environments must contain non-empty Object or Text values")
+        raise TypeError(f"{operation} Environments must contain non-empty Object or Text values")
     text = value.strip()
     if text.startswith("{"):
         selector = decode_selector(text)
@@ -196,6 +200,65 @@ def _script_environment(value: object, metadata: Mapping[str, Any]) -> dict[str,
             "object_path": selector["object_path"],
         }
     return {"kind": "text", "text": text}
+
+
+def _execute_model_mutation(
+    ctx,
+    session,
+    metadata: Mapping[str, Any],
+    *,
+    expected_revision: int,
+    operation: str,
+    args: Mapping[str, Any],
+    timeout_sec: float,
+    label: str,
+) -> dict[str, Any]:
+    response = None
+    operation_error: BaseException | None = None
+    try:
+        response = ctx.mechanical_sessions.operate(
+            session,
+            expected_revision=expected_revision,
+            operation=operation,
+            mutation=True,
+            timeout_sec=timeout_sec,
+            args=args,
+        )
+    except StaleMechanicalModelError as exc:
+        raise ValueError(f"mechanical.stale_reference: {exc}") from exc
+    except BaseException as exc:
+        operation_error = exc
+    invalidation_error: BaseException | None = None
+    try:
+        ctx.request_observation_invalidation(
+            str(metadata["producer_node_id"]),
+            reason_code="mechanical_model_mutated",
+        )
+    except BaseException as exc:
+        invalidation_error = exc
+    if isinstance(operation_error, (TimeoutError, OwnerProtocolError)):
+        retirement_error: BaseException | None = None
+        try:
+            ctx.mechanical_sessions.retire_session(session)
+        except Exception as close_exc:
+            retirement_error = close_exc
+        detail = str(operation_error)
+        if invalidation_error is not None:
+            detail += f"; observation invalidation failed: {invalidation_error}"
+        if retirement_error is not None:
+            detail += f"; session retirement failed: {retirement_error}"
+        raise RuntimeError(f"mechanical.operation_uncertain: {detail}") from operation_error
+    if operation_error is not None:
+        detail = str(operation_error)
+        if invalidation_error is not None:
+            detail += f"; observation invalidation failed: {invalidation_error}"
+        raise RuntimeError(f"mechanical.operation_failed: {label}: {detail}") from operation_error
+    if invalidation_error is not None:
+        raise RuntimeError(
+            f"mechanical.operation_failed: observation invalidation failed: {invalidation_error}"
+        ) from invalidation_error
+    assert isinstance(response, dict)
+    return response
 
 
 def execute_run_script(ctx, model=None, environments=None, settings=None):
@@ -268,58 +331,23 @@ def execute_run_script(ctx, model=None, environments=None, settings=None):
         "source_key": metadata["source_key"],
         "system_key": metadata["system_key"],
     }
-    response = None
-    operation_error: BaseException | None = None
-    try:
-        response = ctx.mechanical_sessions.operate(
-            session,
-            expected_revision=expected_revision,
-            operation="run_script",
-            mutation=True,
-            timeout_sec=float(timeout),
-            args={
-                "selected_ids": list(preflight["selected_ids"]),
-                "scope": scope,
-                "code": code,
-                "stop_on_error": stop_on_error,
-                "catalogue_identity": identity,
-                "view_export_path": str(session.work_root / f"script-views-{uuid4().hex}.xml"),
-            },
-        )
-    except StaleMechanicalModelError as exc:
-        raise ValueError(f"mechanical.stale_reference: {exc}") from exc
-    except BaseException as exc:
-        operation_error = exc
-    invalidation_error: BaseException | None = None
-    try:
-        ctx.request_observation_invalidation(
-            str(metadata["producer_node_id"]),
-            reason_code="mechanical_model_mutated",
-        )
-    except BaseException as exc:
-        invalidation_error = exc
-    if isinstance(operation_error, (TimeoutError, OwnerProtocolError)):
-        retirement_error: BaseException | None = None
-        try:
-            ctx.mechanical_sessions.retire_session(session)
-        except Exception as close_exc:
-            retirement_error = close_exc
-        detail = str(operation_error)
-        if invalidation_error is not None:
-            detail += f"; observation invalidation failed: {invalidation_error}"
-        if retirement_error is not None:
-            detail += f"; session retirement failed: {retirement_error}"
-        raise RuntimeError(f"mechanical.operation_uncertain: {detail}") from operation_error
-    if operation_error is not None:
-        detail = str(operation_error)
-        if invalidation_error is not None:
-            detail += f"; observation invalidation failed: {invalidation_error}"
-        raise RuntimeError(f"mechanical.operation_failed: Run Mechanical Script: {detail}") from operation_error
-    if invalidation_error is not None:
-        raise RuntimeError(
-            f"mechanical.operation_failed: observation invalidation failed: {invalidation_error}"
-        ) from invalidation_error
-    assert isinstance(response, dict)
+    response = _execute_model_mutation(
+        ctx,
+        session,
+        metadata,
+        expected_revision=expected_revision,
+        operation="run_script",
+        timeout_sec=float(timeout),
+        label="Run Mechanical Script",
+        args={
+            "selected_ids": list(preflight["selected_ids"]),
+            "scope": scope,
+            "code": code,
+            "stop_on_error": stop_on_error,
+            "catalogue_identity": identity,
+            "view_export_path": str(session.work_root / f"script-views-{uuid4().hex}.xml"),
+        },
+    )
     script_result = response.get("script")
     if response.get("status") != "executed":
         detail = json.dumps(script_result, ensure_ascii=False, separators=(",", ":"))
@@ -339,6 +367,142 @@ def execute_run_script(ctx, model=None, environments=None, settings=None):
             producer_path=ctx.target_path,
             producer_iteration=ctx.target_iteration,
         ),
+        "report": response["catalogue"],
+    }
+
+
+def execute_apdl_snippet(ctx, model=None, environments=None, settings=None):
+    if model is None:
+        raise NodeInputNotReadyError("Model requires a live Mechanical model from this run")
+    if not isinstance(model, RuntimeHandleRef):
+        raise TypeError("Mechanical APDL Snippet requires a Mechanical Model")
+    try:
+        session = ctx.mechanical_sessions.admit_model(
+            model, run_id=ctx.run_id, workspace_id=ctx.workspace_id
+        )
+    except StaleMechanicalModelError as exc:
+        raise ValueError(f"mechanical.stale_reference: {exc}") from exc
+    metadata = model.metadata
+    raw_environments = [] if environments is None else environments
+    if type(raw_environments) not in {list, tuple}:
+        raise TypeError("Mechanical APDL Snippet Environments must be a list")
+    selectors = [
+        _script_environment(value, metadata, operation="Mechanical APDL Snippet")
+        for value in raw_environments
+    ]
+    name = _setting(ctx, settings, "name", "COREX commands")
+    if type(name) is not str or not name.strip():
+        raise NodeInputNotReadyError("Name requires non-empty text")
+    commands = _setting(ctx, settings, "commands", "")
+    if type(commands) is not str or not commands.strip():
+        raise NodeInputNotReadyError("Commands requires non-empty APDL text")
+    steps = _setting(ctx, settings, "steps", "all")
+    if steps not in {"all", "selected"}:
+        raise ValueError("Steps must be all or selected")
+    selected_steps: list[int] = []
+    if steps == "selected":
+        raw_steps = _setting(ctx, settings, "selected_steps", [1])
+        if type(raw_steps) not in {list, tuple} or not raw_steps:
+            raise ValueError("Selected load steps requires a non-empty Integer List")
+        if any(type(step) is not int or step < 1 for step in raw_steps):
+            raise ValueError("Selected load steps must contain positive integers")
+        selected_steps = list(raw_steps)
+        if len(selected_steps) != len(set(selected_steps)):
+            raise ValueError("Selected load steps must be unique")
+    issue_solve = _setting(ctx, settings, "issue_solve_command", False)
+    if type(issue_solve) is not bool:
+        raise TypeError("Issue SOLVE command must be Boolean")
+    node_token = hashlib.sha256(str(ctx.node_id).encode("utf-8")).hexdigest()[:32]
+    expected_revision = metadata["model_revision"]
+    preflight_args = {
+        "environments": selectors,
+        "name": name,
+        "steps": steps,
+        "selected_steps": selected_steps,
+        "owner_node_token": node_token,
+    }
+    try:
+        preflight = ctx.mechanical_sessions.operate(
+            session,
+            expected_revision=expected_revision,
+            operation="snippet_preflight",
+            args=preflight_args,
+            timeout_sec=600.0,
+        )["snippet_preflight"]
+    except StaleMechanicalModelError as exc:
+        raise ValueError(f"mechanical.stale_reference: {exc}") from exc
+    except Exception as exc:
+        message = str(exc)
+        for code_name in (
+            "mechanical.selector_ambiguous:",
+            "mechanical.selector_missing:",
+            "mechanical.capacity_exceeded:",
+            "mechanical.capability_unproved:",
+            "mechanical.operation_failed:",
+        ):
+            if code_name in message:
+                raise ValueError(message[message.index(code_name):]) from exc
+        raise RuntimeError(f"mechanical.operation_failed: Snippet preflight: {message}") from exc
+    catalogue_id = str(uuid4())
+    new_revision = expected_revision + 1
+    identity = {
+        "schema_version": 1,
+        "model_revision": new_revision,
+        "producer_iteration": ctx.target_iteration,
+        "catalogue_id": catalogue_id,
+        "producer_node_id": ctx.node_id,
+        "producer_port": "report",
+        "producer_path": json.dumps(list(ctx.target_path), separators=(",", ":")),
+        "run_id": ctx.run_id,
+        "session_id": metadata["session_id"],
+        "document_id": metadata["document_id"],
+        "source_key": metadata["source_key"],
+        "system_key": metadata["system_key"],
+    }
+    response = _execute_model_mutation(
+        ctx,
+        session,
+        metadata,
+        expected_revision=expected_revision,
+        operation="run_snippet",
+        timeout_sec=600.0,
+        label="Mechanical APDL Snippet",
+        args={
+            "plan": preflight,
+            "owner_node_token": node_token,
+            "name": name,
+            "steps": steps,
+            "selected_steps": selected_steps,
+            "commands": commands,
+            "issue_solve_command": issue_solve,
+            "catalogue_identity": identity,
+            "view_export_path": str(session.work_root / f"snippet-views-{uuid4().hex}.xml"),
+            "rollback_path": str(session.work_root / f"snippet-rollback-{uuid4().hex}.json"),
+        },
+    )
+    snippet_result = response.get("snippet")
+    if response.get("status") != "executed":
+        detail = json.dumps(snippet_result, ensure_ascii=False, separators=(",", ":"))
+        raise ValueError(f"mechanical.snippet_failed: {detail}")
+    if session.revision != new_revision or type(response.get("catalogue")) is not TableValue:
+        raise RuntimeError("mechanical.operation_failed: Snippet revision or Report catalogue is invalid")
+    if not isinstance(snippet_result, Mapping):
+        raise RuntimeError("mechanical.operation_failed: Snippet receipt is invalid")
+    snippets = snippet_object_values(snippet_result["snippets"], identity)
+    return {
+        "model": ctx.mechanical_sessions.register_model(
+            session,
+            document_id=metadata["document_id"],
+            source_key=metadata["source_key"],
+            system_key=metadata["system_key"],
+            release_code=metadata["release_code"],
+            catalogue_id=catalogue_id,
+            producer_node_id=ctx.node_id,
+            producer_port="report",
+            producer_path=ctx.target_path,
+            producer_iteration=ctx.target_iteration,
+        ),
+        "snippets": snippets,
         "report": response["catalogue"],
     }
 
@@ -949,6 +1113,7 @@ def execute_image_export(ctx, model=None, objects=None, views=None, settings=Non
 
 __all__ = [
     "discover_mechanical_releases",
+    "execute_apdl_snippet",
     "execute_camera_views",
     "execute_fea_table",
     "execute_image_export",

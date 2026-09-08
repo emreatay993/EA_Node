@@ -1,6 +1,7 @@
 # Purpose: Run bounded Mechanical lifecycle requests in one owned subprocess/thread.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_image_export.py
+# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_snippets.py
+# Landmarks: _prepare_snippet_response; _owner_main; MechanicalOwnerProcess
 from __future__ import annotations
 
 import atexit
@@ -183,12 +184,41 @@ def _request(payload: Mapping[str, Any]) -> dict[str, Any]:
     return value
 
 
-def _send(stream: Any, payload: Mapping[str, Any]) -> None:
+def _encode(payload: Mapping[str, Any]) -> bytes:
     encoded = json.dumps(payload, allow_nan=False, separators=(",", ":")).encode()
     if len(encoded) > _MAX_BYTES:
         raise ValueError("Mechanical owner payload exceeds its bounded envelope")
+    return encoded
+
+
+def _send_encoded(stream: Any, encoded: bytes) -> None:
     stream.write(encoded + b"\n")
     stream.flush()
+
+
+def _send(stream: Any, payload: Mapping[str, Any]) -> None:
+    _send_encoded(stream, _encode(payload))
+
+
+def _prepare_snippet_response(
+    backend: Any, root: Path, request_id: str, result: dict[str, Any]
+) -> bytes:
+    try:
+        if "rows" in result:
+            result["bulk"] = _write_bulk(root, result.pop("rows"))
+        encoded = _encode(
+            {"request_id": request_id, "ok": True, "result": result}
+        )
+        backend.commit_snippet_transaction()
+        return encoded
+    except Exception as exc:
+        try:
+            backend.rollback_snippet_transaction()
+        except Exception as restore_exc:
+            raise RuntimeError(
+                f"mechanical.restore_failed: {restore_exc}"
+            ) from exc
+        raise
 
 
 def _receive(stream: Any) -> dict[str, Any]:
@@ -773,6 +803,15 @@ def _child(port: int, token: str, spool_root: str) -> int:
                             "Mechanical owner request identity does not match its session"
                         )
                 result = backend.execute(request["operation"], request["args"])
+                if request["operation"] == "run_snippet":
+                    encoded = _prepare_snippet_response(
+                        backend,
+                        Path(spool_root),
+                        request["request_id"],
+                        result,
+                    )
+                    _send_encoded(stream, encoded)
+                    continue
                 if "rows" in result:
                     rows = result.pop("rows")
                     result["bulk"] = _write_bulk(Path(spool_root), rows)
@@ -791,11 +830,18 @@ def _child(port: int, token: str, spool_root: str) -> int:
                     result["camera_bulk"] = _write_camera_bulk(
                         Path(spool_root), camera_views, request["args"]["identity"]
                     )
-                _send(
-                    stream,
-                    {"request_id": request["request_id"], "ok": True, "result": result},
-                )
+                response = {
+                    "request_id": request["request_id"],
+                    "ok": True,
+                    "result": result,
+                }
+                _send(stream, response)
             except Exception as exc:  # noqa: BLE001
+                if request["operation"] == "run_snippet":
+                    try:
+                        backend.rollback_snippet_transaction()
+                    except Exception as restore_exc:  # noqa: BLE001
+                        exc = RuntimeError(f"mechanical.restore_failed: {restore_exc}")
                 _send(
                     stream,
                     {

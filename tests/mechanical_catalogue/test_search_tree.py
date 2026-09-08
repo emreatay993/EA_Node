@@ -732,6 +732,38 @@ def test_remote_snapshot_script_executes_non_tabular_tabular_and_scoped_objects_
     assert remote_result["properties"][0].payload["unit"] == "N"
 
 
+def test_remote_snapshot_preserves_ironpython_unicode_em_dash_text():
+    class IronUnicode(str):
+        def __str__(self):
+            raise UnicodeEncodeError("unknown", "\0", 0, 1, "")
+
+    text = IronUnicode("COREX commands — Step 1")
+    property_value = SimpleNamespace(
+        APIName=text,
+        Name=text,
+        Caption=text,
+        StringValue=text,
+        InternalValue=None,
+    )
+    item = Native(
+        ObjectId=79,
+        Name=text,
+        Parent=None,
+        api_type=IronUnicode("Ansys.ACT.Automation.Mechanical.CommandSnippet"),
+        DataModelObjectCategory=IronUnicode("CommandSnippet — Owned"),
+        TabularData=SimpleNamespace(Keys=[IronUnicode("Load — Step")]),
+        VisibleProperties=[property_value],
+        Properties=[property_value],
+    )
+    detached = remote_objects([item])[0]
+    assert detached.Name == "COREX commands — Step 1"
+    assert detached.GetType().FullName == "Ansys.ACT.Automation.Mechanical.CommandSnippet"
+    assert detached.DataModelObjectCategory == "CommandSnippet — Owned"
+    assert detached.TabularData.Keys == ["Load — Step"]
+    assert detached.VisibleProperties[0].Caption == "COREX commands — Step 1"
+    assert detached.VisibleProperties[0].StringValue == "COREX commands — Step 1"
+
+
 def test_remote_snapshot_preserves_query_necessary_getter_failures():
     class BrokenFields:
         ObjectId = 80

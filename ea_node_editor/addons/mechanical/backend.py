@@ -1,6 +1,7 @@
-# Purpose: Open native Mechanical models and execute allowlisted Open/Search/table/graphics/script operations.
+# Purpose: Open native Mechanical models and execute allowlisted read, graphics, script, and snippet operations.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py
+# Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_scripts.py, tests/mechanical_catalogue/test_snippets.py
+# Landmarks: MechanicalOwnerBackend; snippet_preflight; run_snippet; open; close
 
 from __future__ import annotations
 
@@ -15,9 +16,16 @@ from ea_node_editor.addons.mechanical.inspection import collect_catalogue_rows, 
 from ea_node_editor.addons.mechanical.commands import (
     SCRIPT_EXECUTION_BODY,
     SCRIPT_PREFLIGHT_BODY,
+    SNIPPET_EXECUTION_BODY,
+    SNIPPET_PREFLIGHT_BODY,
+    SNIPPET_ROLLBACK_BODY,
     compact_failure_payload,
     receipt_messages,
+    snippet_object_values,
+    snippet_receipt_messages,
     validate_script_payload,
+    validate_snippet_payload,
+    validate_snippet_preflight,
 )
 from ea_node_editor.addons.mechanical.graphics import (
     CAMERA_SCRIPT_BODY,
@@ -35,7 +43,8 @@ from ea_node_editor.addons.mechanical.tables import (
 LIFECYCLE_OPERATIONS = frozenset(
     {
         "health", "open", "search", "definition_tables", "camera_views",
-        "image_export", "script_preflight", "run_script", "close",
+        "image_export", "script_preflight", "run_script",
+        "snippet_preflight", "run_snippet", "close",
     }
 )
 
@@ -59,6 +68,7 @@ class MechanicalOwnerBackend:
         self.system_name = ""
         self.interactive_model = False
         self.native_identities: list[dict[str, int]] = []
+        self._snippet_rollback_path: Path | None = None
 
     def _launch_workbench(self, *, release: int, mode: str, workdir: Path, timeout_sec: float) -> Any:
         from ea_node_editor.addons.mechanical.workbench import launch_workbench_owner
@@ -98,6 +108,10 @@ class MechanicalOwnerBackend:
             return self.script_preflight(args)
         if operation == "run_script":
             return self.run_script(args)
+        if operation == "snippet_preflight":
+            return self.snippet_preflight(args)
+        if operation == "run_snippet":
+            return self.run_snippet(args)
         return self.definition_tables(args)
 
     def _execute_native_script(self, script: str) -> Any:
@@ -204,6 +218,162 @@ class MechanicalOwnerBackend:
                 operations=receipt_messages(payload["receipts"]),
             ),
         }
+
+    def snippet_preflight(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        required = {"environments", "name", "steps", "selected_steps", "owner_node_token"}
+        if set(args) != required or (self.app is None and self.mechanical is None):
+            raise ValueError("Mechanical snippet preflight arguments or session state are invalid")
+        environments = args["environments"]
+        if (
+            type(environments) is not list
+            or len(environments) > 256
+            or type(args["name"]) is not str
+            or not args["name"].strip()
+            or args["steps"] not in {"all", "selected"}
+            or type(args["selected_steps"]) is not list
+            or any(type(step) is not int or step < 1 for step in args["selected_steps"])
+            or len(args["selected_steps"]) != len(set(args["selected_steps"]))
+            or (args["steps"] == "selected" and not args["selected_steps"])
+            or (args["steps"] == "all" and args["selected_steps"])
+            or type(args["owner_node_token"]) is not str
+            or not args["owner_node_token"]
+            or len(args["owner_node_token"]) > 512
+            or any(character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_" for character in args["owner_node_token"])
+        ):
+            raise ValueError("Mechanical snippet inputs are invalid")
+        for selector in environments:
+            if not isinstance(selector, dict) or (
+                selector.get("kind") == "typed"
+                and (
+                    set(selector) != {"kind", "object_id", "object_path"}
+                    or type(selector["object_id"]) is not int
+                    or selector["object_id"] < 0
+                    or type(selector["object_path"]) is not str
+                    or not selector["object_path"]
+                )
+                or selector.get("kind") == "text"
+                and (
+                    set(selector) != {"kind", "text"}
+                    or type(selector["text"]) is not str
+                    or not selector["text"]
+                )
+                or selector.get("kind") not in {"typed", "text"}
+            ):
+                raise ValueError("Mechanical snippet Environment selector is invalid")
+        raw = self._execute_native_script(_data_script(args, SNIPPET_PREFLIGHT_BODY))
+        payload = json.loads(raw) if type(raw) is str else None
+        return {
+            "status": "validated",
+            "snippet_preflight": validate_snippet_preflight(
+                payload,
+                owner_node_token=args["owner_node_token"],
+                name=args["name"],
+                steps=args["steps"],
+                selected_steps=args["selected_steps"],
+            ),
+        }
+
+    def run_snippet(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        required = {
+            "plan", "owner_node_token", "name", "steps", "selected_steps",
+            "commands", "issue_solve_command", "catalogue_identity", "view_export_path",
+            "rollback_path",
+        }
+        if set(args) != required or (self.app is None and self.mechanical is None):
+            raise ValueError("Mechanical snippet arguments or session state are invalid")
+        plan = validate_snippet_preflight(
+            args["plan"],
+            owner_node_token=args["owner_node_token"],
+            name=args["name"],
+            steps=args["steps"],
+            selected_steps=args["selected_steps"],
+        )
+        if (
+            type(args["commands"]) is not str
+            or not args["commands"].strip()
+            or type(args["issue_solve_command"]) is not bool
+        ):
+            raise ValueError("Mechanical snippet mutation inputs are invalid")
+        if self.work_root is None or self._snippet_rollback_path is not None:
+            raise ValueError("Mechanical snippet rollback state is unavailable")
+        rollback_path = Path(args["rollback_path"]).resolve()
+        if rollback_path.parent != self.work_root.resolve() or rollback_path.exists():
+            raise ValueError("Mechanical snippet rollback path is invalid")
+        raw = None
+        try:
+            try:
+                raw = self._execute_native_script(
+                    _data_script(args, SNIPPET_EXECUTION_BODY)
+                )
+            finally:
+                if rollback_path.is_file():
+                    self._snippet_rollback_path = rollback_path
+        except Exception:
+            self.rollback_snippet_transaction()
+            raise
+        try:
+            payload = validate_snippet_payload(json.loads(raw), plan)
+        except Exception:
+            self.rollback_snippet_transaction()
+            raise
+        if not payload["success"]:
+            self.rollback_snippet_transaction()
+            return {"status": "failed", "snippet": payload}
+        if self._snippet_rollback_path is None:
+            raise RuntimeError("mechanical.restore_failed: snippet rollback record is missing")
+        identity = dict(args["catalogue_identity"])
+        identity["view_export_path"] = str(args["view_export_path"])
+        try:
+            snippet_object_values(payload["snippets"], identity)
+            return {
+                "status": "executed",
+                "snippet": payload,
+                "rows": collect_catalogue_rows(
+                    tree=self.tree,
+                    graphics=self.graphics,
+                    identity=identity,
+                    systems=self.systems,
+                    status="snippet_completed",
+                    model=self.model,
+                    data_model=self.data_model,
+                    operations=snippet_receipt_messages(payload["receipts"]),
+                ),
+            }
+        except Exception as exc:
+            self.rollback_snippet_transaction()
+            return {
+                "status": "failed",
+                "snippet": {
+                    "success": False,
+                    "rollback_verified": True,
+                    "error": f"Report production failed: {exc}"[:4096],
+                    "receipts": [],
+                    "snippets": [],
+                },
+            }
+
+    def rollback_snippet_transaction(self) -> bool:
+        path = self._snippet_rollback_path
+        if path is None:
+            return False
+        try:
+            raw = self._execute_native_script(
+                _data_script({"rollback_path": str(path)}, SNIPPET_ROLLBACK_BODY)
+            )
+            payload = json.loads(raw) if type(raw) is str else None
+            if payload != {"restored": True} or path.exists():
+                raise RuntimeError("snippet rollback verification failed")
+        except Exception as exc:
+            raise RuntimeError(f"mechanical.restore_failed: {exc}") from exc
+        self._snippet_rollback_path = None
+        return True
+
+    def commit_snippet_transaction(self) -> None:
+        path = self._snippet_rollback_path
+        if path is None:
+            return
+        path.unlink()
+        self._snippet_rollback_path = None
 
     def image_export(self, args: Mapping[str, Any]) -> dict[str, Any]:
         required = {
@@ -780,21 +950,25 @@ class _RemoteTree:
     @property
     def AllObjects(self):
         script = _data_script({"include_hidden": self.include_hidden_properties}, """import json
+try:unicode
+except NameError:unicode=str
+def _corex_text(v):
+ return v if isinstance(v,unicode) else unicode(v)
 def field(o,n,text=False):
  try:v=getattr(o,n)
  except AttributeError:return {'present':False,'error':'','value':None}
  except Exception as x:return {'present':True,'error':type(x).__name__,'value':None}
- try:return {'present':True,'error':'','value':str(v) if text else v}
+ try:return {'present':True,'error':'','value':_corex_text(v) if text else v}
  except Exception as x:return {'present':True,'error':type(x).__name__,'value':None}
 rows=[]
 tags={};tags_available=True
 try:
- for t in list(DataModel.ObjectTags):
-  for tagged in list(t.Objects):tags.setdefault(int(tagged.ObjectId),[]).append(str(t.Name))
+  for t in list(DataModel.ObjectTags):
+   for tagged in list(t.Objects):tags.setdefault(int(tagged.ObjectId),[]).append(_corex_text(t.Name))
 except:tags_available=False
 for o in list(Tree.AllObjects):
  oid=int(o.ObjectId);name=field(o,'Name',True);category=field(o,'DataModelObjectCategory',True)
- try:api_type={'present':True,'error':'','value':str(o.GetType().FullName)}
+ try:api_type={'present':True,'error':'','value':_corex_text(o.GetType().FullName)}
  except Exception as x:api_type={'present':True,'error':type(x).__name__,'value':None}
  parent=field(o,'Parent');parent_value=parent['value']
  try:parent_id=int(parent_value.ObjectId) if parent_value is not None else None
@@ -822,7 +996,7 @@ for o in list(Tree.AllObjects):
  except Exception as x:props_error=type(x).__name__
  table_field=field(o,'TabularData');table=table_field['value'];table_keys=None
  if table_field['present'] and not table_field['error'] and table is not None:
-  try:table_keys=[str(k) for k in table.Keys]
+  try:table_keys=[_corex_text(k) for k in table.Keys]
   except:table_keys=[]
  bindings={}
  for attr in ('CoordinateSystem','Orientation'):
