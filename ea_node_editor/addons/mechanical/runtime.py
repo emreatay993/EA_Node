@@ -1,4 +1,4 @@
-# Purpose: Execute Mechanical Open, Search, and FEA Table through the run-owned session.
+# Purpose: Execute Mechanical Open, Search, FEA Table, and camera views through the run-owned session.
 # Map: subsystems/addons.md
 # Tests: tests/mechanical_catalogue/test_open_model.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py
 
@@ -12,9 +12,11 @@ from pathlib import Path
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from ea_node_editor.addons.mechanical.contracts import (
+    CAMERA_VIEW_TYPE_ID,
     OBJECT_TYPE_ID,
     PROPERTY_TYPE_ID,
     decode_selector,
+    validate_camera_view,
     validate_object,
     validate_property,
 )
@@ -414,8 +416,98 @@ def execute_fea_table(ctx, model=None, source=None, settings=None):
     return result
 
 
+def execute_camera_views(ctx, model=None, settings=None):
+    if model is None:
+        raise NodeInputNotReadyError(
+            "Model requires a live Mechanical model from this run"
+        )
+    if not isinstance(model, RuntimeHandleRef):
+        raise TypeError("Mechanical Camera Views requires a Mechanical Model")
+    try:
+        session = ctx.mechanical_sessions.admit_model(
+            model, run_id=ctx.run_id, workspace_id=ctx.workspace_id
+        )
+    except StaleMechanicalModelError as exc:
+        raise ValueError(f"mechanical.stale_reference: {exc}") from exc
+    include = _setting(ctx, settings, "include", "saved_and_current")
+    if include not in {"saved_and_current", "saved", "current"}:
+        raise ValueError("Mechanical Camera Views Include is invalid")
+    metadata = model.metadata
+    identity = {
+        field: metadata[field]
+        for field in (
+            "run_id",
+            "session_id",
+            "document_id",
+            "source_key",
+            "system_key",
+            "model_revision",
+        )
+    }
+    try:
+        result = ctx.mechanical_sessions.operate(
+            session,
+            expected_revision=metadata["model_revision"],
+            operation="camera_views",
+            args={
+                "include": include,
+                "identity": identity,
+                "export_path": str(
+                    session.work_root / f"camera-views-{uuid4().hex}.xml"
+                ),
+                "restore_name": f"COREX restore {uuid4().hex}",
+            },
+        )["camera_views"]
+    except StaleMechanicalModelError as exc:
+        raise ValueError(f"mechanical.stale_reference: {exc}") from exc
+    except Exception as exc:
+        message = str(exc)
+        for code in (
+            "mechanical.camera_schema_invalid:",
+            "mechanical.capacity_exceeded:",
+            "mechanical.restore_failed:",
+            "mechanical.capability_unproved:",
+        ):
+            if code in message:
+                raise ValueError(message[message.index(code) :]) from exc
+        raise RuntimeError(
+            f"mechanical.operation_failed: Mechanical Camera Views: {message}"
+        ) from exc
+    if (
+        not isinstance(result, dict)
+        or set(result) != {"views", "names", "details"}
+        or type(result["views"]) is not list
+        or type(result["names"]) is not list
+        or len(result["views"]) != len(result["names"])
+        or type(result["details"]) is not TableValue
+        or result["details"].row_count != len(result["views"])
+    ):
+        raise RuntimeError(
+            "mechanical.operation_failed: Mechanical Camera Views returned invalid values"
+        )
+    for index, value in enumerate(result["views"]):
+        if (
+            type(value) is not TypedInlineValue
+            or value.data_type_id != CAMERA_VIEW_TYPE_ID
+        ):
+            raise RuntimeError(
+                "mechanical.operation_failed: Mechanical Camera Views returned an invalid camera"
+            )
+        validate_camera_view(value)
+        if any(value.payload[field] != identity[field] for field in identity):
+            raise ValueError(
+                "mechanical.cross_session_reference: Camera view belongs to another Model"
+            )
+        if value.payload["name"] != result["names"][index]:
+            raise RuntimeError(
+                "mechanical.operation_failed: Camera names do not match their views"
+            )
+    return result
+
+
 __all__ = [
     "discover_mechanical_releases",
+    "execute_camera_views",
     "execute_fea_table",
     "execute_open_model",
     "execute_search_tree",

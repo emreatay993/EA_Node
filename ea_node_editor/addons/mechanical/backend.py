@@ -1,4 +1,4 @@
-# Purpose: Open native Mechanical models and execute allowlisted Open/Search/table operations.
+# Purpose: Open native Mechanical models and execute allowlisted Open/Search/table/camera operations.
 # Map: subsystems/addons.md
 # Tests: tests/mechanical_catalogue/test_owner_protocol.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_result_tables.py
 
@@ -12,6 +12,10 @@ from pathlib import Path
 from typing import Any
 
 from ea_node_editor.addons.mechanical.inspection import collect_catalogue_rows, search_tree
+from ea_node_editor.addons.mechanical.graphics import (
+    CAMERA_SCRIPT_BODY,
+    build_camera_views,
+)
 from ea_node_editor.addons.mechanical.tables import (
     DEFINITION_ENCODED_MAX_BYTES,
     DEFINITION_SCRIPT_BODY,
@@ -19,7 +23,7 @@ from ea_node_editor.addons.mechanical.tables import (
 )
 
 LIFECYCLE_OPERATIONS = frozenset(
-    {"health", "open", "search", "definition_tables", "close"}
+    {"health", "open", "search", "definition_tables", "camera_views", "close"}
 )
 
 
@@ -72,7 +76,59 @@ class MechanicalOwnerBackend:
             return self.open(args)
         if operation == "search":
             return self.search(args)
+        if operation == "camera_views":
+            return self.camera_views(args)
         return self.definition_tables(args)
+
+    def camera_views(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        required = {"include", "identity", "export_path", "restore_name"}
+        if set(args) != required or (self.app is None and self.mechanical is None):
+            raise ValueError("Mechanical camera arguments or session state are invalid")
+        if self.work_root is None:
+            raise ValueError("Mechanical camera working root is unavailable")
+        output = Path(str(args["export_path"]))
+        if (
+            output.parent.resolve() != self.work_root
+            or not output.name.startswith("camera-views-")
+            or output.suffix.casefold() != ".xml"
+            or output.exists()
+        ):
+            raise ValueError("Mechanical camera export path is not run-owned")
+        if args["include"] not in {"saved_and_current", "saved", "current"}:
+            raise ValueError("Mechanical camera Include is invalid")
+        restore_name = args["restore_name"]
+        if (
+            type(restore_name) is not str
+            or not restore_name.startswith("COREX restore ")
+            or len(restore_name) > 80
+        ):
+            raise ValueError("Mechanical camera restore name is invalid")
+        try:
+            raw = (
+                self.app.execute_script(_data_script(args, CAMERA_SCRIPT_BODY))
+                if self.app is not None
+                else self.mechanical.run_python_script(
+                    _data_script(args, CAMERA_SCRIPT_BODY)
+                )
+            )
+            payload = json.loads(raw) if type(raw) is str else None
+            return {
+                "status": "extracted",
+                "camera_views": build_camera_views(
+                    payload, identity=dict(args["identity"])
+                ),
+            }
+        except Exception as exc:
+            if "mechanical.restore_failed:" in str(exc):
+                try:
+                    self.close()
+                except Exception as close_exc:
+                    raise RuntimeError(
+                        f"{exc}; native session retirement failed: {close_exc}"
+                    ) from exc
+            raise
+        finally:
+            output.unlink(missing_ok=True)
 
     def definition_tables(self, args: Mapping[str, Any]) -> dict[str, Any]:
         required = {

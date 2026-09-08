@@ -16,6 +16,7 @@ Use this for repo-local add-on discovery, dependency-gated availability, persist
 - `ea_node_editor/addons/mechanical/session.py`
 - `ea_node_editor/addons/mechanical/owner_process.py`
 - `ea_node_editor/addons/mechanical/backend.py`
+- `ea_node_editor/addons/mechanical/graphics.py`
 - `ea_node_editor/addons/mechanical/inspection.py`
 - `ea_node_editor/addons/mechanical/runtime.py`
 - `ea_node_editor/addons/mechanical/workbench.py`
@@ -28,15 +29,15 @@ Use this for repo-local add-on discovery, dependency-gated availability, persist
 - `addons/contracts.py` owns `AddOnState` and `AddOnRecord`; `addons/catalog.py` owns dependency-gated construction and lookup.
 - `addons/registry_contributions.py` atomically contributes add-on semantic types, descriptors, and static function bundles. Conflicts reject the complete contribution.
 - `addons/state_changes.py` only prepares normalized requested state. `RegistryReplacementCoordinator` owns compatibility checks, registry/service publication, persistence, notification, and rollback.
-- The repo catalog contains Tabular Data, MARS, and Mechanical. Mechanical contributes dependency-gated semantic contracts and the real `mechanical.open_model`, `mechanical.search_tree`, and `mechanical.fea_table` declarations.
+- The repo catalog contains Tabular Data, MARS, and Mechanical. Mechanical contributes dependency-gated semantic contracts and the real `mechanical.open_model`, `mechanical.search_tree`, `mechanical.fea_table`, and `mechanical.camera_views` declarations.
 - Tabular owns seven function declarations, property editing, native preload, compact refs, preview/query behavior, and one shared loader cache service.
 - Mechanical property editing resolves immutable accepted Info/Report catalogue tables through each Model locator. It caches detached descriptor choices by catalogue identity/revision and never opens a source or resolves the live handle while projecting selectors.
 - MARS owns three function declarations plus managed-package/toolchain/artifact metadata and JSONL subprocess execution.
 - Mechanical contracts and run ownership are isolated in `addons/mechanical/`: `contracts.py` owns transient Model handles and bounded inline/table values, while `session.py` and `owner_process.py` own workspace-identified run sessions, source copies, revision admission, and a dedicated bounded subprocess protocol. On Windows the owner is assigned to a kill-on-close Job Object before backend imports, so worker death cannot orphan the owned process tree.
 - Mechanical working copies use native Open/SaveAs or source-family Archive/Unarchive routes; Workbench projects retain their dependency structure. The 1 MiB owner request limit is control-only, while accepted catalogues use a hashed owner-spool descriptor and the existing bounded scientific codec.
-- Mechanical Search re-reads the admitted current model through the owner process, applies eleven COREX data predicates without native Outline filter calls or table-cell reads, and transfers typed Object/Property lists plus Details through the hashed `mechanical-search-v1` runtime-value spool. FEA Table separately reads actual Field/Variable values, bolt-pretension step states, native ITable columns, configured-result summaries, qualified PlotData/ForceReaction data, and mesh/layered worksheet rows, then publishes immutable scientific tables and Definitions through the same bounded codec contract. Result evaluation never solves, restores native result addressing under the qualified zero-sentinel exception, requires tree/graphics state to remain unchanged, and retires the session on drift.
+- Mechanical Search re-reads the admitted current model through the owner process, applies eleven COREX data predicates without native Outline filter calls or table-cell reads, and transfers typed Object/Property lists plus Details through the hashed `mechanical-search-v1` runtime-value spool. FEA Table separately reads actual Field/Variable values, bolt-pretension step states, native ITable columns, configured-result summaries, qualified PlotData/ForceReaction data, and mesh/layered worksheet rows, then publishes immutable scientific tables and Definitions through the same bounded codec contract. Camera Views reads saved names/original indices from direct exported `ModelView` children, snapshots public camera fields, and restores and verifies camera/active-object state before returning typed values through that codec. Result and camera verification failures retire the native session.
 - The Mechanical owner launcher uses module execution in source/dev and the statically allowlisted `--private-mechanical-owner` bootstrap role when frozen.
-- Repo-owned declarations require authored node keywords and descriptions for every declared port; `tests/test_repo_owned_node_documentation.py` covers the exact 142-row catalog.
+- Repo-owned declarations require authored node keywords and descriptions for every declared port; `tests/test_repo_owned_node_documentation.py` covers the exact 143-row catalog.
 - Public plugin loading imports no add-on backend types. Add-on package IDs and apply policy remain private registry facts.
 
 ## Focused Verification
@@ -51,6 +52,7 @@ Use this for repo-local add-on discovery, dependency-gated availability, persist
 .\venv\Scripts\python.exe -m pytest tests/mechanical_catalogue/test_search_tree.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/mechanical_catalogue/test_definition_tables.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/mechanical_catalogue/test_result_tables.py tests/mechanical_catalogue/test_worksheet_tables.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/mechanical_catalogue/test_camera_views.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_repo_owned_node_documentation.py --ignore=venv -q
 ```
 

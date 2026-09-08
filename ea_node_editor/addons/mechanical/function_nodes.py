@@ -1,4 +1,4 @@
-# Purpose: Hold inert decorated Mechanical Open, Search, and FEA Table declarations.
+# Purpose: Hold inert decorated Mechanical Open, Search, FEA Table, and camera declarations.
 # Map: subsystems/addons.md
 # Tests: tests/mechanical_catalogue/test_catalogue.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_definition_tables.py
 
@@ -6,6 +6,7 @@ SOURCE = r'''import corex
 from ea_node_editor.addons.mechanical.runtime import execute_open_model
 from ea_node_editor.addons.mechanical.runtime import execute_search_tree
 from ea_node_editor.addons.mechanical.runtime import execute_fea_table
+from ea_node_editor.addons.mechanical.runtime import execute_camera_views
 
 @corex.node(
     id="mechanical.open_model", name="Open Mechanical Model",
@@ -111,6 +112,29 @@ def search_mechanical_tree(ctx, model, settings):
     description="Column units, identities, formulas, locations, and definition metadata.")
 def fea_table(ctx, model, source, settings):
     return execute_fea_table(ctx, model, source, settings)
+
+@corex.node(
+    id="mechanical.camera_views", name="Mechanical Camera Views",
+    category=("FEA", "ANSYS", "Mechanical"),
+    description="Extracts saved and current Mechanical cameras as data-only snapshots and a readable details table.",
+    keywords=("mechanical", "ansys", "camera", "view", "saved"),
+    _solution_reuse_scope="never",
+)
+@corex.input("model", value_type="COREX.Mechanical.Model", required=True,
+    label="Model", description="Run-owned Mechanical model state.")
+@corex.dropdown("include", default="saved_and_current",
+    options=("saved_and_current", "saved", "current"), label="Include", port=True,
+    _inspector_editor="enum", _property_group="View selection",
+    _port_value_type="COREX.DataTypes.String",
+    _port_description="Saved views plus current, saved views only, or current view only.")
+@corex.output("views", value_type="COREX.Mechanical.CameraView", structure="list",
+    label="Views", description="Saved camera snapshots in native order, followed by current when requested.")
+@corex.output("names", value_type="COREX.DataTypes.String", structure="list",
+    label="Names", description="Camera labels in the same order as Views.")
+@corex.output("details", value_type="COREX.DataTypes.TableValue", label="Details",
+    description="Readable camera vectors, dimensions, units, availability, and source identity.")
+def mechanical_camera_views(ctx, model, settings):
+    return execute_camera_views(ctx, model, settings)
 '''
 
 __all__ = ["SOURCE"]

@@ -445,7 +445,12 @@ def test_mechanical_backend_registers_all_four_semantic_contracts() -> None:
     registry = NodeRegistry()
     assert register_plugin_backends(
         (MECHANICAL_PLUGIN_BACKEND,), registry, "mechanical"
-    ) == ["mechanical.open_model", "mechanical.search_tree", "mechanical.fea_table"]
+    ) == [
+        "mechanical.open_model",
+        "mechanical.search_tree",
+        "mechanical.fea_table",
+        "mechanical.camera_views",
+    ]
     assert {
         spec.type_id
         for spec in registry.data_types.all_specs()

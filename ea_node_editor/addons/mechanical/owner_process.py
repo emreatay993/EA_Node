@@ -218,6 +218,7 @@ def _write_bulk(root: Path, value: Any) -> dict[str, Any]:
 
 def _search_catalog():
     from ea_node_editor.addons.mechanical.contracts import (
+        CAMERA_VIEW_TYPE_ID,
         MECHANICAL_DATA_TYPE_FAMILY,
         MECHANICAL_DATA_TYPES,
         OBJECT_TYPE_ID,
@@ -234,7 +235,11 @@ def _search_catalog():
     )
     catalog.register_many(
         families=(MECHANICAL_DATA_TYPE_FAMILY,),
-        types=tuple(spec for spec in MECHANICAL_DATA_TYPES if spec.type_id in {OBJECT_TYPE_ID, PROPERTY_TYPE_ID}),
+        types=tuple(
+            spec
+            for spec in MECHANICAL_DATA_TYPES
+            if spec.type_id in {OBJECT_TYPE_ID, PROPERTY_TYPE_ID, CAMERA_VIEW_TYPE_ID}
+        ),
         owner_id="mechanical.corex", owner_version="1", source_label="Mechanical search spool",
     )
     catalog.freeze()
@@ -338,6 +343,88 @@ def _write_definition_bulk(root: Path, value: object) -> dict[str, Any]:
     (root / name).write_bytes(encoded)
     return {
         "kind": "mechanical-definitions-v1",
+        "relative_name": name,
+        "byte_length": len(encoded),
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+    }
+
+
+def _validate_camera_result(
+    value: object,
+    identity: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    from ea_node_editor.addons.mechanical.contracts import validate_camera_view
+    from ea_node_editor.addons.mechanical.graphics import CAMERA_DETAILS_COLUMNS
+    from ea_node_editor.runtime_contracts import (
+        RuntimeArtifactRef,
+        RuntimeHandleRef,
+        TableValue,
+        TypedInlineValue,
+    )
+
+    if not isinstance(value, Mapping) or set(value) != {"views", "names", "details"}:
+        raise OwnerProtocolError("Mechanical camera result schema is invalid")
+    views, names, details = value["views"], value["names"], value["details"]
+    if (
+        type(views) is not list
+        or type(names) is not list
+        or len(views) != len(names)
+        or len(views) > 100_000
+        or any(type(name) is not str for name in names)
+        or type(details) is not TableValue
+        or details.column_names != CAMERA_DETAILS_COLUMNS
+        or details.row_count != len(views)
+        or any(isinstance(item, (RuntimeHandleRef, RuntimeArtifactRef)) for item in views)
+    ):
+        raise OwnerProtocolError("Mechanical camera result carriers are invalid")
+    try:
+        for index, item in enumerate(views):
+            if type(item) is not TypedInlineValue or not validate_camera_view(item):
+                raise TypeError
+            if item.payload["name"] != names[index]:
+                raise ValueError
+    except (TypeError, ValueError) as exc:
+        raise OwnerProtocolError("Mechanical camera snapshot is invalid") from exc
+    if identity is not None:
+        fields = (
+            "run_id",
+            "session_id",
+            "document_id",
+            "source_key",
+            "system_key",
+            "model_revision",
+        )
+        if any(
+            item.payload[field] != identity[field]
+            for item in views
+            for field in fields
+        ):
+            raise OwnerProtocolError(
+                "Mechanical camera result identity does not match its current Model"
+            )
+    check_scientific_budget(value)
+    return {"views": views, "names": names, "details": details}
+
+
+def _write_camera_bulk(
+    root: Path,
+    value: object,
+    identity: Mapping[str, Any],
+) -> dict[str, Any]:
+    checked = _validate_camera_result(value, identity)
+    payload = serialize_runtime_value(checked, catalog=_search_catalog())
+    _validate_camera_result(
+        deserialize_runtime_value(payload, catalog=_search_catalog()), identity
+    )
+    encoded = json.dumps(
+        payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")
+    ).encode()
+    if len(encoded) > 384 * 1024 * 1024:
+        raise ValueError("mechanical.capacity_exceeded: camera transport exceeds 384 MiB")
+    name = f"camera-views-result-{uuid.uuid4().hex}.json"
+    (root / name).write_bytes(encoded)
+    return {
+        "kind": "mechanical-camera-views-v1",
         "relative_name": name,
         "byte_length": len(encoded),
         "sha256": hashlib.sha256(encoded).hexdigest(),
@@ -468,6 +555,62 @@ def _read_definition_bulk(root: Path, descriptor: object):
         path.unlink(missing_ok=True)
 
 
+def _read_camera_bulk(
+    root: Path,
+    descriptor: object,
+    identity: Mapping[str, Any],
+):
+    if not isinstance(descriptor, Mapping) or set(descriptor) != {
+        "kind",
+        "relative_name",
+        "byte_length",
+        "sha256",
+    }:
+        raise OwnerProtocolError("Mechanical camera descriptor schema is invalid")
+    name, length, digest = (
+        descriptor["relative_name"],
+        descriptor["byte_length"],
+        descriptor["sha256"],
+    )
+    if (
+        descriptor["kind"] != "mechanical-camera-views-v1"
+        or type(name) is not str
+        or Path(name).name != name
+        or not name.startswith("camera-views-result-")
+        or type(length) is not int
+        or not 0 <= length <= 384 * 1024 * 1024
+        or type(digest) is not str
+        or len(digest) != 64
+    ):
+        raise OwnerProtocolError("Mechanical camera descriptor kind/path is invalid")
+    candidate = root / name
+    try:
+        stat = candidate.lstat()
+    except OSError as exc:
+        raise OwnerProtocolError("Mechanical camera bulk file is unavailable") from exc
+    reparse = bool(getattr(stat, "st_file_attributes", 0) & 0x400)
+    path = candidate.resolve()
+    if (
+        candidate.is_symlink()
+        or reparse
+        or path.parent != root.resolve()
+        or not path.is_file()
+        or stat.st_size != length
+    ):
+        candidate.unlink(missing_ok=True)
+        raise OwnerProtocolError("Mechanical camera bulk file is invalid")
+    try:
+        data = path.read_bytes()
+        if len(data) != length or hashlib.sha256(data).hexdigest() != digest:
+            raise OwnerProtocolError("Mechanical camera bulk file length/hash mismatch")
+        return _validate_camera_result(
+            deserialize_runtime_value(json.loads(data), catalog=_search_catalog()),
+            identity,
+        )
+    finally:
+        path.unlink(missing_ok=True)
+
+
 def _child(port: int, token: str, spool_root: str) -> int:
     connection = socket.create_connection(("127.0.0.1", port), timeout=10)
     stream = connection.makefile("rwb", buffering=0)
@@ -516,6 +659,11 @@ def _child(port: int, token: str, spool_root: str) -> int:
                     definitions = result.pop("definition_tables")
                     result["definition_bulk"] = _write_definition_bulk(
                         Path(spool_root), definitions
+                    )
+                if "camera_views" in result:
+                    camera_views = result.pop("camera_views")
+                    result["camera_bulk"] = _write_camera_bulk(
+                        Path(spool_root), camera_views, request["args"]["identity"]
                     )
                 _send(
                     stream,
@@ -693,6 +841,12 @@ class MechanicalOwnerProcess:
             result["definition_tables"] = _read_definition_bulk(
                 self._spool_root, result.pop("definition_bulk")
             )
+        if "camera_bulk" in result:
+            result["camera_views"] = _read_camera_bulk(
+                self._spool_root,
+                result.pop("camera_bulk"),
+                payload["args"]["identity"],
+            )
         return result
 
     def close(self) -> None:
@@ -739,6 +893,7 @@ class MechanicalOwnerProcess:
                 *self._spool_root.glob("catalogue-*.json"),
                 *self._spool_root.glob("search-*.json"),
                 *self._spool_root.glob("definitions-*.json"),
+                *self._spool_root.glob("camera-views-result-*.json"),
             ):
                 if path.is_file() and not path.is_symlink():
                     path.unlink(missing_ok=True)

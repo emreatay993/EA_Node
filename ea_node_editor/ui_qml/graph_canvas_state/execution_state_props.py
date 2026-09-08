@@ -60,6 +60,7 @@ _INLINE_VALUE_DATA_TYPE_IDS = frozenset(
         "COREX.DataTypes.ColorMap",
         "COREX.DataTypes.NodeVisual",
         "COREX.DataTypes.MultiAgentSystem.AgentModel",
+        "COREX.Mechanical.CameraView",
     }
 )
 _SENSITIVE_RUNTIME_MARKERS = frozenset({"secret_data", "ssh_sftp_host_data"})
@@ -305,6 +306,23 @@ def _inline_value_preview(
     value: TypedInlineValue,
 ) -> tuple[str, dict[str, Any]] | None:
     payload = value.payload
+    if value.data_type_id == "COREX.Mechanical.CameraView":
+        if type(payload) is not dict:
+            return None
+        kind = payload.get("kind")
+        name = payload.get("name")
+        index = payload.get("index")
+        if (
+            kind not in {"saved", "current"}
+            or type(name) is not str
+            or not name
+            or (kind == "saved" and (type(index) is not int or index < 0))
+            or (kind == "current" and index is not None)
+        ):
+            return None
+        suffix = f" (saved index {index})" if kind == "saved" else ""
+        text = _bounded_preview_text(f"Mechanical Camera View: {name}{suffix}")
+        return text, _text_rich_preview(text)
     if value.data_type_id == "COREX.DataTypes.Plane":
         origin = _plane_preview_origin(payload)
         if origin is None:

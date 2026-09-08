@@ -332,6 +332,17 @@ class MechanicalPropertyEditAdapter:
                     exact_selectors=True,
                 )
                 continue
+            if item_key == "include":
+                item.update(
+                    enum_codes=["saved_and_current", "saved", "current"],
+                    enum_values=[
+                        "Saved views + current view",
+                        "Saved views",
+                        "Current view",
+                    ],
+                    exact_selectors=True,
+                )
+                continue
             if item_key == "component":
                 components = list(dict.fromkeys(
                     pair for index in indexes for pair in index.components

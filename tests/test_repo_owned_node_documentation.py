@@ -47,8 +47,8 @@ def test_all_repo_owned_nodes_have_authored_documentation() -> None:
     specs = REPO_OWNED_NODE_SPECS
     resolved_ports = tuple((spec, resolve_instance_ports(spec, {})) for spec in specs)
 
-    assert len(specs) == 142
-    assert sum(len(ports) for _, ports in resolved_ports) == 570
+    assert len(specs) == 143
+    assert sum(len(ports) for _, ports in resolved_ports) == 575
     assert len({spec.type_id for spec in specs}) == len(specs)
 
     missing_node_descriptions = [spec.type_id for spec in specs if not spec.description.strip()]
@@ -66,4 +66,4 @@ def test_all_repo_owned_nodes_have_authored_documentation() -> None:
 
 
 def test_repo_owned_catalog_fixture_has_exact_scope() -> None:
-    assert len(load_current_repo_owned_catalog()) == 142
+    assert len(load_current_repo_owned_catalog()) == 143

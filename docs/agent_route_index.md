@@ -19,7 +19,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 
 | Route key | Kind | Map | Source | Tests | QML | Keywords |
 | --- | --- | --- | ---: | ---: | ---: | --- |
-| `coverage:coverage` | `coverage` | `docs/agent_maps/COVERAGE.md` | 14 | 4 | - | `agent`, `map`, `coverage`, `node`, `editor`, `graph`, `execution`, `persistence`, `nodes`, `addons`, ... +162 more |
+| `coverage:coverage` | `coverage` | `docs/agent_maps/COVERAGE.md` | 14 | 4 | - | `agent`, `map`, `coverage`, `node`, `editor`, `graph`, `execution`, `persistence`, `nodes`, `addons`, ... +163 more |
 | `feature_route:feature-routes-addon-manager` | `feature_route` | `docs/agent_maps/feature_routes/addon_manager.md` | 11 | 2 | 1 | `add`, `manager`, `addon`, `node`, `editor`, `addons`, `contracts`, `catalog`, `registry`, `contributions`, ... +53 more |
 | `feature_route:feature-routes-clipboard-undo-redo-mutation-history` | `feature_route` | `docs/agent_maps/feature_routes/clipboard_undo_redo_mutation_history.md` | 15 | 1 | - | `clipboard`, `undo`, `redo`, `and`, `mutation`, `history`, `node`, `editor`, `qml`, `graph`, ... +324 more |
 | `feature_route:feature-routes-core-integrations-file-process-email-spreadsheet` | `feature_route` | `docs/agent_maps/feature_routes/core_integrations_file_process_email_spreadsheet.md` | 15 | 5 | - | `core`, `integrations`, `file`, `process`, `email`, `spreadsheet`, `node`, `editor`, `nodes`, `builtin`, ... +31 more |
@@ -63,7 +63,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 | `feature_route:feature-routes-workspace-tabs-library-context-menus` | `feature_route` | `docs/agent_maps/feature_routes/workspace_tabs_library_context_menus.md` | 13 | 2 | 7 | `workspace`, `tabs`, `and`, `library`, `context`, `menus`, `node`, `editor`, `qml`, `components`, ... +75 more |
 | `index:index` | `index` | `docs/agent_maps/INDEX.md` | 3 | - | - | `agent`, `map`, `atlas`, `index`, `venv`, `scripts`, `python`, `exe`, `nav`, `find`, ... +21 more |
 | `maintenance:maintenance` | `maintenance` | `docs/agent_maps/MAINTENANCE.md` | - | - | - | `agent`, `map`, `maintenance`, `docs`, `specs` |
-| `subsystem:subsystems-addons` | `subsystem` | `docs/agent_maps/subsystems/addons.md` | 41 | 1 | - | `add`, `ons`, `addons`, `node`, `editor`, `contracts`, `catalog`, `registry`, `contributions`, `state`, ... +52 more |
+| `subsystem:subsystems-addons` | `subsystem` | `docs/agent_maps/subsystems/addons.md` | 42 | 1 | - | `add`, `ons`, `addons`, `node`, `editor`, `contracts`, `catalog`, `registry`, `contributions`, `state`, ... +56 more |
 | `subsystem:subsystems-app-preferences-settings-platform-paths` | `subsystem` | `docs/agent_maps/subsystems/app_preferences_settings_platform_paths.md` | 8 | - | - | `app`, `preferences`, `settings`, `and`, `platform`, `paths`, `node`, `editor`, `open`, `graph`, ... +86 more |
 | `subsystem:subsystems-assets-icons-theme` | `subsystem` | `docs/agent_maps/subsystems/assets_icons_theme.md` | 11 | - | 1 | `assets`, `icons`, `title`, `and`, `theme`, `node`, `editor`, `nodes`, `builtins`, `icon`, ... +84 more |
 | `subsystem:subsystems-execution` | `subsystem` | `docs/agent_maps/subsystems/execution.md` | 50 | 33 | - | `execution`, `snapshot`, `client`, `worker`, `and`, `protocol`, `runtime`, `handle`, `lease`, `owner`, ... +278 more |

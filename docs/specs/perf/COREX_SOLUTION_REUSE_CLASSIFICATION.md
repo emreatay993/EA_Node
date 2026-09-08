@@ -18,9 +18,9 @@ downgrades the decision to recomputation.
 | Base HEAD | `86a5f562e7c5c9d7d52dad97f842a89631508a26` |
 | Plan SHA-256 | `4FFFCFC5B23BA1A2E755CE8222F9EE221B3AA108EAC9F63779310EEBF370A47F` |
 | Ledger SHA-256 at drafting start | `200388ABF798E86431103DEBD0E94ECF0C584617FC2D15E6499B6A03FA01A21E` |
-| Current repo-owned catalog SHA-256 | `B6C047C7545C9FE21929882C3691876B42F62FF0DCE69DAC55AE3C25950A4869` |
+| Current repo-owned catalog SHA-256 | `5F8E0CE290AB333FB32EE5B527010566009E415831E6D8618BFB7EC8D7C8E9AC` |
 | Migration inventory SHA-256 | `A5E22F1DD5C0BE9E4BC069E934485EF37E6B78E9EBCEFFD1E35A0A88017FAEC5` |
-| Repo-owned type-ID list SHA-256 | `F54153CD8730A104F3B8D91AC0B219B3686B5AB389A68EF5E74FAC77A4DE02B8` |
+| Repo-owned type-ID list SHA-256 | `9494D2EF2222C1861EE62B8DB79239EE05AECAF326133E340E78DA5ED37BD7DD` |
 
 The catalog hash is the committed JSON file hash. The type-ID hash is over sorted
 IDs joined by LF with a final LF.
@@ -31,12 +31,12 @@ IDs joined by LF with a final LF.
 | --- | ---: |
 | `durable` | 29 |
 | `session` | 27 |
-| `never` | 48 |
-| Executable subtotal | 104 |
+| `never` | 49 |
+| Executable subtotal | 105 |
 | Excluded passive | 35 |
 | Excluded compile-only | 3 |
 | Excluded subtotal | 38 |
-| Repo-owned total | 142 |
+| Repo-owned total | 143 |
 
 ## Scope Meanings
 
@@ -155,6 +155,7 @@ locations, and package paths are deliberately absent from this tracked artifact.
 | `mars.batch_solve` | MARS Batch Solve | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mars/function_nodes.py` | MARS | `never` | `external_toolchain_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_mars_function_migration.py` |
 | `mars.run_job` | MARS Run Job | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mars/function_nodes.py` | MARS | `never` | `external_toolchain_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_mars_function_migration.py` |
 | `mars.time_history` | MARS Time History | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mars/function_nodes.py` | MARS | `never` | `external_toolchain_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_mars_function_migration.py` |
+| `mechanical.camera_views` | Mechanical Camera Views | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mechanical/function_nodes.py` | FEA | `never` | `read_only_external` | `not_required_never` | `not_used_never` | `not_reusable` | `run_owned_native_session` | `runtime_handle_generation_bound` | `tests/mechanical_catalogue/test_camera_views.py` |
 | `mechanical.fea_table` | FEA Table | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mechanical/function_nodes.py` | FEA | `never` | `read_only_external` | `not_required_never` | `not_used_never` | `not_reusable` | `run_owned_native_session` | `runtime_handle_generation_bound` | `tests/mechanical_catalogue/test_definition_tables.py` |
 | `mechanical.open_model` | Open Mechanical Model | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mechanical/function_nodes.py` | FEA | `never` | `read_only_external` | `not_required_never` | `not_used_never` | `not_reusable` | `run_owned_native_session` | `runtime_handle_generation_bound` | `tests/mechanical_catalogue/test_catalogue.py` |
 | `mechanical.search_tree` | Search Mechanical Tree | `active` | `PythonFunctionEntry` | `ea_node_editor/addons/mechanical/function_nodes.py` | FEA | `never` | `read_only_external` | `not_required_never` | `not_used_never` | `not_reusable` | `run_owned_native_session` | `runtime_handle_generation_bound` | `tests/mechanical_catalogue/test_search_tree.py` |
