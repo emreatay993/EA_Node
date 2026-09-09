@@ -15,30 +15,81 @@ ShellCollapsibleSidePane {
     property string editingPortKey: ""
     property string editingPortLabel: ""
     readonly property bool hasSelectedNode: !!root.inspectorBridgeRef && root.inspectorBridgeRef.has_selected_node
-    readonly property bool isPinInspector: !!root.inspectorBridgeRef && root.inspectorBridgeRef.selected_node_is_subnode_pin
+    readonly property bool isPinInspector: !!root._content.selected_node_is_subnode_pin
     readonly property bool showPortSection: root.hasSelectedNode && !root.isPinInspector
-    readonly property bool canManageSubnodePorts: !!root.inspectorBridgeRef && root.inspectorBridgeRef.selected_node_is_subnode_shell
+    readonly property bool canManageSubnodePorts: !!root._content.selected_node_is_subnode_shell
     readonly property bool canEditPortLabels: root.hasSelectedNode && !root.isPinInspector
-    readonly property string selectedNodeTitle: root.inspectorBridgeRef ? root.inspectorBridgeRef.selected_node_title : ""
-    readonly property string selectedNodeSubtitle: root.inspectorBridgeRef ? root.inspectorBridgeRef.selected_node_subtitle : ""
+    readonly property string selectedNodeTitle: root._contentReady ? root._content.selected_node_title : ""
+    readonly property string selectedNodeSubtitle: root._contentReady ? root._content.selected_node_subtitle : ""
     readonly property string selectedNodeId: root.inspectorBridgeRef ? root.inspectorBridgeRef.selected_node_id : ""
     readonly property string selectedNodeWorkspaceId: root.inspectorBridgeRef ? root.inspectorBridgeRef.selected_node_workspace_id : ""
-    readonly property bool selectedNodeCollapsible: !!root.inspectorBridgeRef && root.inspectorBridgeRef.selected_node_collapsible
-    readonly property bool selectedNodeCollapsed: !!root.inspectorBridgeRef && root.inspectorBridgeRef.selected_node_collapsed
-    readonly property var selectedNodePortItems: root.inspectorBridgeRef ? (root.inspectorBridgeRef.selected_node_port_items || []) : []
-    readonly property var selectedNodeHeaderItems: root.inspectorBridgeRef ? (root.inspectorBridgeRef.selected_node_header_items || []) : []
-    readonly property var propertyPresentationLookup: root.graphCanvasStateBridgeRef
+    readonly property bool selectedNodeCollapsible: !!root._content.selected_node_collapsible
+    readonly property bool selectedNodeCollapsed: !!root._content.selected_node_collapsed
+    readonly property var selectedNodePortItems: root._contentReady ? (root._content.selected_node_port_items || []) : []
+    readonly property var selectedNodeHeaderItems: root._contentReady ? (root._content.selected_node_header_items || []) : []
+    readonly property var propertyPresentationLookup: root.propertiesRequested && root.graphCanvasStateBridgeRef
         && typeof root.graphCanvasStateBridgeRef.property_presentation_lookup !== "undefined"
         ? root.graphCanvasStateBridgeRef.property_presentation_lookup
         : ({})
-    readonly property var selectedNodePropertyItems: root._propertyItemsWithPresentation(
-        root.inspectorBridgeRef ? (root.inspectorBridgeRef.selected_node_property_items || []) : []
-    )
-    readonly property var selectedNodeLinkItems: root.inspectorBridgeRef ? (root.inspectorBridgeRef.selected_node_link_items || []) : []
-    readonly property var selectedNodeCommentItems: root.inspectorBridgeRef ? (root.inspectorBridgeRef.selected_node_comment_items || []) : []
-    readonly property var selectedNodeLinkNodeOptions: root.inspectorBridgeRef ? (root.inspectorBridgeRef.selected_node_link_node_options || []) : []
-    readonly property var selectedNodeLinkWorkspaceOptions: root.inspectorBridgeRef ? (root.inspectorBridgeRef.selected_node_link_workspace_options || []) : []
-    readonly property var pinDataTypeOptions: root.inspectorBridgeRef ? (root.inspectorBridgeRef.pin_data_type_options || []) : []
+    property var selectedNodePropertyItems: []
+    readonly property var selectedNodeLinkItems: root._contentReady ? (root._content.selected_node_link_items || []) : []
+    readonly property var selectedNodeCommentItems: root._contentReady ? (root._content.selected_node_comment_items || []) : []
+    readonly property var selectedNodeLinkNodeOptions: root._contentReady ? (root._content.selected_node_link_node_options || []) : []
+    readonly property var selectedNodeLinkWorkspaceOptions: root._contentReady ? (root._content.selected_node_link_workspace_options || []) : []
+    readonly property var pinDataTypeOptions: root._contentReady ? (root._content.pin_data_type_options || []) : []
+    readonly property bool propertiesRequested: visible && !paneCollapsed && activeTabIndex === 0
+    property var _content: ({})
+    property bool _contentReady: false
+    property string _contentNodeId: ""
+    property string _contentWorkspaceId: ""
+
+    function refreshPropertyPresentation() {
+        if (propertiesRequested && _contentReady)
+            selectedNodePropertyItems = _propertyItemsWithPresentation(_content.selected_node_property_items || [])
+    }
+
+    function refreshContent() {
+        var bridge = root.inspectorBridgeRef
+        if (bridge)
+            bridge.set_content_active(root.propertiesRequested)
+        var nodeId = bridge ? String(bridge.selected_node_id || "") : ""
+        var workspaceId = bridge ? String(bridge.selected_node_workspace_id || "") : ""
+        if (nodeId !== _contentNodeId || workspaceId !== _contentWorkspaceId) {
+            // Retire the old context before publishing values for another node.
+            _contentReady = false
+            _contentNodeId = nodeId
+            _contentWorkspaceId = workspaceId
+            _content = ({})
+            selectedNodePropertyItems = []
+        }
+        if (!propertiesRequested || !nodeId.length || !bridge)
+            return
+        var next = {
+            selected_node_title: bridge.selected_node_title,
+            selected_node_subtitle: bridge.selected_node_subtitle,
+            selected_node_is_subnode_pin: bridge.selected_node_is_subnode_pin,
+            selected_node_is_subnode_shell: bridge.selected_node_is_subnode_shell,
+            selected_node_collapsible: bridge.selected_node_collapsible,
+            selected_node_collapsed: bridge.selected_node_collapsed,
+            selected_node_port_items: bridge.selected_node_port_items,
+            selected_node_header_items: bridge.selected_node_header_items,
+            selected_node_property_items: bridge.selected_node_property_items,
+            selected_node_link_items: bridge.selected_node_link_items,
+            selected_node_comment_items: bridge.selected_node_comment_items,
+            selected_node_link_node_options: bridge.selected_node_link_node_options,
+            selected_node_link_workspace_options: bridge.selected_node_link_workspace_options
+        }
+        next.pin_data_type_options = next.selected_node_is_subnode_pin ? bridge.pin_data_type_options : []
+        _content = next
+        selectedNodePropertyItems = _propertyItemsWithPresentation(next.selected_node_property_items || [])
+        _contentReady = true
+    }
+
+    onPropertiesRequestedChanged: refreshContent()
+    onInspectorBridgeRefChanged: refreshContent()
+    onPropertyPresentationLookupChanged: refreshPropertyPresentation()
+    Component.onCompleted: refreshContent()
+
     readonly property var visiblePortItems: root.portItemsForDirection(activePortDirection)
     readonly property int inputPortCount: root.portItemsForDirection("in").length
     readonly property int outputPortCount: root.portItemsForDirection("out").length
@@ -373,7 +424,9 @@ ShellCollapsibleSidePane {
                                 width: inspectorColumn.width
                                 height: item ? item.implicitHeight : 0
                                 visible: root.hasSelectedNode
-                                active: root.hasSelectedNode
+                                active: root.hasSelectedNode && root._contentReady
+                                    && root._contentNodeId === root.selectedNodeId
+                                    && root._contentWorkspaceId === root.selectedNodeWorkspaceId
 
                                 property var paneRef: root
                                 property var propertyItems: root.selectedNodePropertyItems
@@ -449,7 +502,8 @@ ShellCollapsibleSidePane {
 
     Connections {
         target: root.inspectorBridgeRef
-        function onInspectorStateChanged() {
+        function onInspector_state_changed() {
+            root.refreshContent()
             root.syncSelectedPortSelection()
         }
     }

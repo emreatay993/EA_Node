@@ -252,6 +252,9 @@ class _ShellInspectorHostStub(QObject):
             "mark_selected_node_comments_read": True,
         }
 
+    def set_content_active(self, active: bool) -> None:
+        self._record("set_content_active", active)
+
     def _record(self, name: str, *args):
         self.calls.append((name, args))
         return self._return_values.get(name)
@@ -888,6 +891,13 @@ def test_bridge_nested_category_library_payload_preserves_row_and_quick_insert_m
 
 
 class ShellInspectorBridgeTests(unittest.TestCase):
+    def test_bridge_forwards_inspector_content_demand(self) -> None:
+        host = _ShellInspectorHostStub()
+        bridge = ShellInspectorBridge(inspector_source=host)
+        bridge.set_content_active(False)
+        bridge.set_content_active(True)
+        self.assertEqual(host.calls, [("set_content_active", (False,)), ("set_content_active", (True,))])
+
     def test_bridge_forwards_shell_inspector_state_and_actions(self) -> None:
         host = _ShellInspectorHostStub()
         bridge = ShellInspectorBridge(shell_window=host, inspector_source=host)

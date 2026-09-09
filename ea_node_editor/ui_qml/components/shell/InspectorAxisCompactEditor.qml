@@ -6,6 +6,7 @@ import "../common/TooltipCopy.js" as TooltipCopy
 Column {
     id: root
     property var pane
+    signal commitRequested(string key, var value)
     property var propertyItem: ({})
     property bool overriddenByInput: false
     readonly property string propertyKey: String(propertyItem ? propertyItem.key || "" : "")
@@ -58,7 +59,7 @@ Column {
         var key = _fieldKey(role)
         if (!key.length || !root.pane || !root.pane.inspectorBridgeRef)
             return
-        root.pane.inspectorBridgeRef.set_selected_node_property(key, value)
+        root.commitRequested(key, value)
     }
 
     function resetAxis() {

@@ -33,6 +33,8 @@ class _ShellInspectorSource(Protocol):
     pin_data_type_options: list[str]
     property_pane_variant: str
 
+    def set_content_active(self, active: bool) -> None: ...
+
     def set_selected_node_property(self, key: str, value: Any) -> None: ...
 
     def upsert_selected_node_link(
@@ -254,6 +256,10 @@ class ShellInspectorBridge(QObject):
     @pyqtProperty(str, notify=inspector_state_changed)
     def property_pane_variant(self) -> str:
         return str(getattr(self._inspector_source, "property_pane_variant", "") or "")
+
+    @pyqtSlot(bool)
+    def set_content_active(self, active: bool) -> None:
+        self._inspector_source.set_content_active(active)
 
     @pyqtSlot(str, "QVariant")
     def set_selected_node_property(self, key: str, value) -> None:

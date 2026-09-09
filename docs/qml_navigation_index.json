@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 175,
+    "qml_files": 180,
     "repeater_constructs": 87,
-    "loader_constructs": 25,
-    "signal_handlers": 893,
-    "connections": 48,
-    "property_bindings": 7562,
-    "local_component_refs": 281
+    "loader_constructs": 27,
+    "signal_handlers": 919,
+    "connections": 49,
+    "property_bindings": 7629,
+    "local_component_refs": 290
   },
   "entries": [
     {
@@ -4896,6 +4896,10 @@
           "name": "liveNodeGeometry"
         },
         {
+          "kind": "bool",
+          "name": "_settingsGroupGeometryActive"
+        },
+        {
           "kind": "var",
           "name": "selectedNodeIds"
         },
@@ -5794,6 +5798,12 @@
           "kind": "property",
           "name": "liveNodeGeometry",
           "detail": "var"
+        },
+        {
+          "anchor": "EdgeLayerPropertySettingsGroupGeometryActive",
+          "kind": "property",
+          "name": "_settingsGroupGeometryActive",
+          "detail": "bool"
         },
         {
           "anchor": "EdgeLayerPropertySelectedNodeIds",
@@ -12555,6 +12565,9 @@
           "name": "cardHoverHandler"
         },
         {
+          "name": "settingsGroupWidthAnimation"
+        },
+        {
           "name": "settingsGroupHeightAnimation"
         },
         {
@@ -12618,6 +12631,9 @@
         },
         {
           "name": "graphNodeElapsedTimer"
+        },
+        {
+          "name": "graphNodePortsAnimationClip"
         },
         {
           "name": "graphNodePathPointerDropArea"
@@ -13547,6 +13563,26 @@
           "name": "_settingsGroupAnimationArmed"
         },
         {
+          "kind": "real",
+          "name": "_settingsGroupStartWidth"
+        },
+        {
+          "kind": "real",
+          "name": "_settingsGroupStartHeight"
+        },
+        {
+          "kind": "var",
+          "name": "_settingsGroupStartHeaders"
+        },
+        {
+          "kind": "var",
+          "name": "_settingsGroupStartPorts"
+        },
+        {
+          "kind": "var",
+          "name": "_settingsGroupStartVisiblePorts"
+        },
+        {
           "kind": "int",
           "name": "settingsGroupAnimationDuration"
         },
@@ -13557,6 +13593,18 @@
         {
           "kind": "real",
           "name": "settingsGroupLayoutHeight"
+        },
+        {
+          "kind": "real",
+          "name": "_settingsGroupAnimationRemaining"
+        },
+        {
+          "kind": "var",
+          "name": "settingsGroupOffsets"
+        },
+        {
+          "kind": "var",
+          "name": "settingsGroupPortOffsets"
         },
         {
           "kind": "bool",
@@ -13797,6 +13845,10 @@
         {
           "kind": "int",
           "name": "nodeTextRenderType"
+        },
+        {
+          "kind": "var",
+          "name": "_settingsGroupPortPresentation"
         },
         {
           "kind": "var",
@@ -14057,6 +14109,9 @@
           "name": "persistWebPageBrowserState"
         },
         {
+          "name": "settingsGroupContentBottom"
+        },
+        {
           "name": "_emptyPathPointerDropData"
         },
         {
@@ -14082,6 +14137,9 @@
         },
         {
           "name": "localPortPointForPort"
+        },
+        {
+          "name": "localPortLayoutPointForPort"
         },
         {
           "name": "portScenePos"
@@ -14331,6 +14389,10 @@
       ],
       "dynamic_refs": [],
       "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onSettingsGroupAnimationsEnabledChanged"
+        },
         {
           "kind": "handler",
           "name": "onToolbarActiveSourceChanged"
@@ -14744,6 +14806,31 @@
           "name": "surfaceVariant",
           "targets": [
             "card.surfaceVariant"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x"
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "card.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "card.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "clip",
+          "targets": [
+            "card.settingsGroupAnimationRunning"
           ]
         },
         {
@@ -16327,6 +16414,36 @@
           "detail": "bool"
         },
         {
+          "anchor": "GraphNodeHostPropertySettingsGroupStartWidth",
+          "kind": "property",
+          "name": "_settingsGroupStartWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeHostPropertySettingsGroupStartHeight",
+          "kind": "property",
+          "name": "_settingsGroupStartHeight",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeHostPropertySettingsGroupStartHeaders",
+          "kind": "property",
+          "name": "_settingsGroupStartHeaders",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeHostPropertySettingsGroupStartPorts",
+          "kind": "property",
+          "name": "_settingsGroupStartPorts",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeHostPropertySettingsGroupStartVisiblePorts",
+          "kind": "property",
+          "name": "_settingsGroupStartVisiblePorts",
+          "detail": "var"
+        },
+        {
           "anchor": "GraphNodeHostPropertySettingsGroupAnimationDuration",
           "kind": "property",
           "name": "settingsGroupAnimationDuration",
@@ -16343,6 +16460,24 @@
           "kind": "property",
           "name": "settingsGroupLayoutHeight",
           "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeHostPropertySettingsGroupAnimationRemaining",
+          "kind": "property",
+          "name": "_settingsGroupAnimationRemaining",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeHostPropertySettingsGroupOffsets",
+          "kind": "property",
+          "name": "settingsGroupOffsets",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeHostPropertySettingsGroupPortOffsets",
+          "kind": "property",
+          "name": "settingsGroupPortOffsets",
+          "detail": "var"
         },
         {
           "anchor": "GraphNodeHostPropertyBodyRegionSurface",
@@ -16703,6 +16838,12 @@
           "kind": "property",
           "name": "nodeTextRenderType",
           "detail": "int"
+        },
+        {
+          "anchor": "GraphNodeHostPropertySettingsGroupPortPresentation",
+          "kind": "property",
+          "name": "_settingsGroupPortPresentation",
+          "detail": "var"
         },
         {
           "anchor": "GraphNodeHostPropertyInputPorts",
@@ -17099,6 +17240,11 @@
           "name": "persistWebPageBrowserState"
         },
         {
+          "anchor": "GraphNodeHostFunctionSettingsGroupContentBottom",
+          "kind": "function",
+          "name": "settingsGroupContentBottom"
+        },
+        {
           "anchor": "GraphNodeHostFunctionEmptyPathPointerDropData",
           "kind": "function",
           "name": "_emptyPathPointerDropData"
@@ -17142,6 +17288,11 @@
           "anchor": "GraphNodeHostFunctionLocalPortPointForPort",
           "kind": "function",
           "name": "localPortPointForPort"
+        },
+        {
+          "anchor": "GraphNodeHostFunctionLocalPortLayoutPointForPort",
+          "kind": "function",
+          "name": "localPortLayoutPointForPort"
         },
         {
           "anchor": "GraphNodeHostFunctionPortScenePos",
@@ -17447,6 +17598,11 @@
           "anchor": "GraphNodeHostFunctionSyncElapsedState",
           "kind": "function",
           "name": "_syncElapsedState"
+        },
+        {
+          "anchor": "GraphNodeHostHandlerOnSettingsGroupAnimationsEnabledChanged",
+          "kind": "handler",
+          "name": "onSettingsGroupAnimationsEnabledChanged"
         },
         {
           "anchor": "GraphNodeHostHandlerOnToolbarActiveSourceChanged",
@@ -20199,6 +20355,10 @@
           "name": "portPoint"
         },
         {
+          "kind": "var",
+          "name": "portLayoutPoint"
+        },
+        {
           "kind": "real",
           "name": "dotDiameter"
         },
@@ -21500,6 +21660,12 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphNodePortRowPropertyPortLayoutPoint",
+          "kind": "property",
+          "name": "portLayoutPoint",
+          "detail": "var"
+        },
+        {
           "anchor": "GraphNodePortRowPropertyDotDiameter",
           "kind": "property",
           "name": "dotDiameter",
@@ -22234,6 +22400,10 @@
           "name": "connectedCount"
         },
         {
+          "kind": "real",
+          "name": "animationYOffset"
+        },
+        {
           "kind": "bool",
           "name": "nodeFacingEdgeOnRight"
         },
@@ -22941,7 +23111,17 @@
           "kind": "binding",
           "name": "height",
           "targets": [
-            "inputPortRow.height"
+            "root.host",
+            "root.host.settingsGroupAnimationRunning"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "clip",
+          "targets": [
+            "Boolean",
+            "root.host",
+            "root.host.settingsGroupAnimationRunning"
           ]
         },
         {
@@ -23489,6 +23669,12 @@
           "kind": "property",
           "name": "connectedCount",
           "detail": "int"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyAnimationYOffset",
+          "kind": "property",
+          "name": "animationYOffset",
+          "detail": "real"
         },
         {
           "anchor": "GraphNodePortsLayerPropertyNodeFacingEdgeOnRight",
@@ -24552,6 +24738,10 @@
         },
         {
           "kind": "real",
+          "name": "animationYOffset"
+        },
+        {
+          "kind": "real",
           "name": "interactiveGeometryKey"
         },
         {
@@ -24702,7 +24892,17 @@
           "kind": "binding",
           "name": "height",
           "targets": [
-            "root.height"
+            "root.host",
+            "root.host.settingsGroupAnimationRunning"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "clip",
+          "targets": [
+            "Boolean",
+            "root.host",
+            "root.host.settingsGroupAnimationRunning"
           ]
         },
         {
@@ -24719,7 +24919,8 @@
           "targets": [
             "Number",
             "groupItem.headerData.y",
-            "root.bandYOffset"
+            "root.bandYOffset",
+            "groupItem.animationYOffset"
           ]
         },
         {
@@ -24999,7 +25200,8 @@
           "targets": [
             "Number",
             "itemData.y",
-            "root.bandYOffset"
+            "root.bandYOffset",
+            "groupItem.animationYOffset"
           ]
         },
         {
@@ -25134,6 +25336,12 @@
           "kind": "property",
           "name": "expanded",
           "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeSettingsGroupsLayerPropertyAnimationYOffset",
+          "kind": "property",
+          "name": "animationYOffset",
+          "detail": "real"
         },
         {
           "anchor": "GraphNodeSettingsGroupsLayerPropertyInteractiveGeometryKey",
@@ -26907,6 +27115,10 @@
         {
           "kind": "real",
           "name": "surfaceContentMargin"
+        },
+        {
+          "kind": "real",
+          "name": "surfaceBodyBottomMargin"
         }
       ],
       "signals": [],
@@ -26974,6 +27186,12 @@
           "anchor": "GraphSurfaceBasePropertySurfaceContentMargin",
           "kind": "property",
           "name": "surfaceContentMargin",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSurfaceBasePropertySurfaceBodyBottomMargin",
+          "kind": "property",
+          "name": "surfaceBodyBottomMargin",
           "detail": "real"
         },
         {
@@ -93504,12 +93722,19 @@
           "name": "backdropInputOverlay"
         },
         {
+          "kind": "string",
+          "name": "_settingsGroupGeometryNodeId"
+        },
+        {
           "kind": "bool",
           "name": "_groupBackdropNode"
         }
       ],
       "signals": [],
       "functions": [
+        {
+          "name": "_syncSettingsGroupGeometry"
+        },
         {
           "name": "_graphActionBridge"
         },
@@ -93539,6 +93764,30 @@
       ],
       "dynamic_refs": [],
       "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onWidthChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onHeightChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onSettingsGroupPortOffsetsChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onSettingsGroupAnimationRunningChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onNodeIdChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onDestruction"
+        },
         {
           "kind": "handler",
           "name": "onNodeClicked"
@@ -93830,10 +94079,21 @@
           "detail": "bool"
         },
         {
+          "anchor": "GraphCanvasNodeDelegatePropertySettingsGroupGeometryNodeId",
+          "kind": "property",
+          "name": "_settingsGroupGeometryNodeId",
+          "detail": "string"
+        },
+        {
           "anchor": "GraphCanvasNodeDelegatePropertyGroupBackdropNode",
           "kind": "property",
           "name": "_groupBackdropNode",
           "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasNodeDelegateFunctionSyncSettingsGroupGeometry",
+          "kind": "function",
+          "name": "_syncSettingsGroupGeometry"
         },
         {
           "anchor": "GraphCanvasNodeDelegateFunctionGraphActionBridge",
@@ -93869,6 +94129,36 @@
           "anchor": "GraphCanvasNodeDelegateFunctionOnLiveNodeGeometryChanged",
           "kind": "function",
           "name": "onLiveNodeGeometryChanged"
+        },
+        {
+          "anchor": "GraphCanvasNodeDelegateHandlerOnWidthChanged",
+          "kind": "handler",
+          "name": "onWidthChanged"
+        },
+        {
+          "anchor": "GraphCanvasNodeDelegateHandlerOnHeightChanged",
+          "kind": "handler",
+          "name": "onHeightChanged"
+        },
+        {
+          "anchor": "GraphCanvasNodeDelegateHandlerOnSettingsGroupPortOffsetsChanged",
+          "kind": "handler",
+          "name": "onSettingsGroupPortOffsetsChanged"
+        },
+        {
+          "anchor": "GraphCanvasNodeDelegateHandlerOnSettingsGroupAnimationRunningChanged",
+          "kind": "handler",
+          "name": "onSettingsGroupAnimationRunningChanged"
+        },
+        {
+          "anchor": "GraphCanvasNodeDelegateHandlerOnNodeIdChanged",
+          "kind": "handler",
+          "name": "onNodeIdChanged"
+        },
+        {
+          "anchor": "GraphCanvasNodeDelegateHandlerComponentOnDestruction",
+          "kind": "handler",
+          "name": "Component.onDestruction"
         },
         {
           "anchor": "GraphCanvasNodeDelegateHandlerOnNodeClicked",
@@ -109292,6 +109582,9 @@
           "name": "groupRepeater"
         },
         {
+          "name": "groupsModel"
+        },
+        {
           "name": "groupCard"
         },
         {
@@ -109302,6 +109595,9 @@
         },
         {
           "name": "localFilterBar"
+        },
+        {
+          "name": "propertyModel"
         }
       ],
       "object_names": [
@@ -109389,6 +109685,10 @@
         {
           "kind": "bool",
           "name": "groupOpen"
+        },
+        {
+          "kind": "bool",
+          "name": "bodyCreated"
         }
       ],
       "signals": [],
@@ -109421,19 +109721,13 @@
         {
           "kind": "model",
           "targets": [
-            "body._visibleGroups"
+            "InspectorRowsModel"
           ]
         },
         {
           "kind": "delegate",
           "targets": [
             "Rectangle"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "groupCard.groupItems"
           ]
         },
         {
@@ -109451,6 +109745,14 @@
         {
           "kind": "handler",
           "name": "onScopeChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onGroupOpenChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onCompleted"
         },
         {
           "kind": "handler",
@@ -109694,9 +109996,18 @@
         },
         {
           "kind": "binding",
+          "name": "rows",
+          "targets": [
+            "groupCard.bodyCreated",
+            "groupCard.groupItems"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "propertyItem",
           "targets": [
-            "modelData"
+            "propertyModel.rowsByKey",
+            "rowKey"
           ]
         }
       ],
@@ -109821,6 +110132,12 @@
           "detail": "bool"
         },
         {
+          "anchor": "InspectorAccordionCardsBodyPropertyBodyCreated",
+          "kind": "property",
+          "name": "bodyCreated",
+          "detail": "bool"
+        },
+        {
           "anchor": "InspectorAccordionCardsBodyFunctionIsGroupOpen",
           "kind": "function",
           "name": "isGroupOpen"
@@ -109844,6 +110161,16 @@
           "anchor": "InspectorAccordionCardsBodyHandlerOnScopeChanged",
           "kind": "handler",
           "name": "onScopeChanged"
+        },
+        {
+          "anchor": "InspectorAccordionCardsBodyHandlerOnGroupOpenChanged",
+          "kind": "handler",
+          "name": "onGroupOpenChanged"
+        },
+        {
+          "anchor": "InspectorAccordionCardsBodyHandlerComponentOnCompleted",
+          "kind": "handler",
+          "name": "Component.onCompleted"
         },
         {
           "anchor": "InspectorAccordionCardsBodyHandlerOnToggleRequested",
@@ -109954,7 +110281,11 @@
           "name": "hasManualAxis"
         }
       ],
-      "signals": [],
+      "signals": [
+        {
+          "name": "commitRequested"
+        }
+      ],
       "functions": [
         {
           "name": "_fieldByRole"
@@ -110337,6 +110668,11 @@
           "kind": "property",
           "name": "hasManualAxis",
           "detail": "bool"
+        },
+        {
+          "anchor": "InspectorAxisCompactEditorSignalCommitRequested",
+          "kind": "signal",
+          "name": "commitRequested"
         },
         {
           "anchor": "InspectorAxisCompactEditorFunctionFieldByRole",
@@ -111215,6 +111551,625 @@
       ]
     },
     {
+      "path": "ea_node_editor/ui_qml/components/shell/InspectorChipsPropertyEditor.qml",
+      "component_name": "InspectorChipsPropertyEditor",
+      "aliases": [
+        "InspectorChipsPropertyEditor",
+        "InspectorChipsPropertyEditor.qml",
+        "ea_node_editor/ui_qml/components/shell/InspectorChipsPropertyEditor.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\InspectorChipsPropertyEditor.qml"
+      ],
+      "root_component": "Column",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Layouts 1.15"
+      ],
+      "ids": [
+        {
+          "name": "chipListContainer"
+        },
+        {
+          "name": "chipRow"
+        },
+        {
+          "name": "chipListEditor"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "inspectorChipListContainer"
+        },
+        {
+          "name": "inspectorChipListEditor"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "editorContext"
+        },
+        {
+          "kind": "var",
+          "name": "chipValues"
+        },
+        {
+          "kind": "int",
+          "name": "chipIndex"
+        },
+        {
+          "kind": "string",
+          "name": "propertyKey"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "commitChip"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "Flow"
+        },
+        {
+          "name": "Repeater"
+        },
+        {
+          "name": "Rectangle"
+        },
+        {
+          "name": "Row"
+        },
+        {
+          "name": "Text"
+        },
+        {
+          "name": "InspectorButton"
+        },
+        {
+          "name": "InspectorEditableComboBox"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "Repeater"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "chipListContainer.chipValues"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "editorContext.propertyItem",
+            "editorContext.propertyItem.enum_values"
+          ]
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "onValueActivated"
+        },
+        {
+          "kind": "handler",
+          "name": "onAccepted"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "chipListContainer.chipValues.length"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius"
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "Qt.alpha",
+            "editorContext.pane.themePalette.accent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width"
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "Qt.alpha",
+            "editorContext.pane.themePalette.accent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth",
+          "targets": [
+            "chipRow.implicitWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight",
+          "targets": [
+            "chipRow.implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.centerIn",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "editorContext.exactSelectors"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "editorContext.pane.themePalette.input_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize"
+        },
+        {
+          "kind": "binding",
+          "name": "pane",
+          "targets": [
+            "editorContext.pane"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "compact"
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "editorContext.editorEnabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderText",
+          "targets": [
+            "String"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectedValue"
+        },
+        {
+          "kind": "binding",
+          "name": "optionCodes",
+          "targets": [
+            "editorContext.propertyItem.enum_codes"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "exactSelectors",
+          "targets": [
+            "editorContext.exactSelectors"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "InspectorButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorButton.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorEditableComboBox",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorEditableComboBox.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "InspectorChipsPropertyEditorPropertyEditorContext",
+          "kind": "property",
+          "name": "editorContext",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorChipsPropertyEditorPropertyChipValues",
+          "kind": "property",
+          "name": "chipValues",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorChipsPropertyEditorPropertyChipIndex",
+          "kind": "property",
+          "name": "chipIndex",
+          "detail": "int"
+        },
+        {
+          "anchor": "InspectorChipsPropertyEditorPropertyPropertyKey",
+          "kind": "property",
+          "name": "propertyKey",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorChipsPropertyEditorFunctionCommitChip",
+          "kind": "function",
+          "name": "commitChip"
+        },
+        {
+          "anchor": "InspectorChipsPropertyEditorHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "InspectorChipsPropertyEditorHandlerOnValueActivated",
+          "kind": "handler",
+          "name": "onValueActivated"
+        },
+        {
+          "anchor": "InspectorChipsPropertyEditorHandlerOnAccepted",
+          "kind": "handler",
+          "name": "onAccepted"
+        },
+        {
+          "anchor": "InspectorChipsPropertyEditorLocalComponentInspectorButton",
+          "kind": "localComponent",
+          "name": "InspectorButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorButton.qml"
+        },
+        {
+          "anchor": "InspectorChipsPropertyEditorLocalComponentInspectorEditableComboBox",
+          "kind": "localComponent",
+          "name": "InspectorEditableComboBox",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorEditableComboBox.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/InspectorChoicePropertyEditor.qml",
+      "component_name": "InspectorChoicePropertyEditor",
+      "aliases": [
+        "InspectorChoicePropertyEditor",
+        "InspectorChoicePropertyEditor.qml",
+        "ea_node_editor/ui_qml/components/shell/InspectorChoicePropertyEditor.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\InspectorChoicePropertyEditor.qml"
+      ],
+      "root_component": "Loader",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Layouts 1.15",
+        "\"../common/FontFamilyOptions.js\" as FontFamilyOptions"
+      ],
+      "ids": [
+        {
+          "name": "choices"
+        },
+        {
+          "name": "choice8"
+        },
+        {
+          "name": "searchableEnumEditor"
+        },
+        {
+          "name": "choice10"
+        },
+        {
+          "name": "pinDataTypeEditor"
+        },
+        {
+          "name": "choice11"
+        },
+        {
+          "name": "editableComboEditor"
+        },
+        {
+          "name": "choice12"
+        },
+        {
+          "name": "fontFamilyEditor"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "inspectorSearchableEnumEditor"
+        },
+        {
+          "name": "inspectorEditableComboEditor"
+        },
+        {
+          "name": "inspectorFontFamilyEditor"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "editorContext"
+        },
+        {
+          "kind": "string",
+          "name": "propertyKey"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "commitDeclaredValue"
+        },
+        {
+          "name": "commitDisplayValue"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "Component"
+        },
+        {
+          "name": "InspectorEditableComboBox"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "Loader"
+        },
+        {
+          "kind": "sourceComponent"
+        },
+        {
+          "kind": "Component"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "editorContext.propertyItem",
+            "editorContext.propertyItem.enum_values"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "editorContext.pane.pinDataTypeOptions"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "FontFamilyOptions.withDefault"
+          ]
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onValueActivated"
+        },
+        {
+          "kind": "handler",
+          "name": "onAccepted"
+        },
+        {
+          "kind": "handler",
+          "name": "onActiveFocusChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "kind": "handler",
+          "name": "onVisibleChanged"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "item",
+            "item.implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "default"
+        },
+        {
+          "kind": "binding",
+          "name": "pane",
+          "targets": [
+            "editorContext.pane"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "editorContext.editorEnabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectedValue",
+          "targets": [
+            "editorContext.propertyValueText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectedValue",
+          "targets": [
+            "String",
+            "editorContext.propertyItem",
+            "editorContext.propertyItem.value",
+            "toLowerCase"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderText",
+          "targets": [
+            "String"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "optionCodes",
+          "targets": [
+            "editorContext.propertyItem.enum_codes"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "exactSelectors",
+          "targets": [
+            "editorContext.exactSelectors"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectedValue",
+          "targets": [
+            "editorContext.exactSelectors",
+            "editorContext.displayValue",
+            "editorContext.propertyValueText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderText"
+        },
+        {
+          "kind": "binding",
+          "name": "selectedValue",
+          "targets": [
+            "FontFamilyOptions.displayName",
+            "editorContext.propertyValueText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "previewValueAsFontFamily"
+        },
+        {
+          "kind": "binding",
+          "name": "defaultFontFamilyLabel",
+          "targets": [
+            "FontFamilyOptions.DEFAULT_FONT_FAMILY_LABEL"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "InspectorEditableComboBox",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorEditableComboBox.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "InspectorChoicePropertyEditorPropertyEditorContext",
+          "kind": "property",
+          "name": "editorContext",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorChoicePropertyEditorPropertyPropertyKey",
+          "kind": "property",
+          "name": "propertyKey",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorChoicePropertyEditorFunctionCommitDeclaredValue",
+          "kind": "function",
+          "name": "commitDeclaredValue"
+        },
+        {
+          "anchor": "InspectorChoicePropertyEditorFunctionCommitDisplayValue",
+          "kind": "function",
+          "name": "commitDisplayValue"
+        },
+        {
+          "anchor": "InspectorChoicePropertyEditorHandlerOnValueActivated",
+          "kind": "handler",
+          "name": "onValueActivated"
+        },
+        {
+          "anchor": "InspectorChoicePropertyEditorHandlerOnAccepted",
+          "kind": "handler",
+          "name": "onAccepted"
+        },
+        {
+          "anchor": "InspectorChoicePropertyEditorHandlerOnActiveFocusChanged",
+          "kind": "handler",
+          "name": "onActiveFocusChanged"
+        },
+        {
+          "anchor": "InspectorChoicePropertyEditorHandlerComponentOnCompleted",
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "anchor": "InspectorChoicePropertyEditorHandlerOnVisibleChanged",
+          "kind": "handler",
+          "name": "onVisibleChanged"
+        },
+        {
+          "anchor": "InspectorChoicePropertyEditorLocalComponentInspectorEditableComboBox",
+          "kind": "localComponent",
+          "name": "InspectorEditableComboBox",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorEditableComboBox.qml"
+        }
+      ]
+    },
+    {
       "path": "ea_node_editor/ui_qml/components/shell/InspectorColorField.qml",
       "component_name": "InspectorColorField",
       "aliases": [
@@ -111282,7 +112237,11 @@
           "name": "tooltipPolicyBridge"
         }
       ],
-      "signals": [],
+      "signals": [
+        {
+          "name": "commitRequested"
+        }
+      ],
       "functions": [
         {
           "name": "_normalizedText"
@@ -111589,6 +112548,11 @@
           "kind": "property",
           "name": "tooltipPolicyBridge",
           "detail": "var"
+        },
+        {
+          "anchor": "InspectorColorFieldSignalCommitRequested",
+          "kind": "signal",
+          "name": "commitRequested"
         },
         {
           "anchor": "InspectorColorFieldFunctionNormalizedText",
@@ -115851,6 +116815,9 @@
           "name": "rowRepeater"
         },
         {
+          "name": "propertiesModel"
+        },
+        {
           "name": "paletteRow"
         },
         {
@@ -116011,7 +116978,7 @@
         {
           "kind": "model",
           "targets": [
-            "body._filteredItems"
+            "InspectorRowsModel"
           ]
         },
         {
@@ -116854,6 +117821,26 @@
           "name": "pinDataTypeOptions"
         },
         {
+          "kind": "bool",
+          "name": "propertiesRequested"
+        },
+        {
+          "kind": "var",
+          "name": "_content"
+        },
+        {
+          "kind": "bool",
+          "name": "_contentReady"
+        },
+        {
+          "kind": "string",
+          "name": "_contentNodeId"
+        },
+        {
+          "kind": "string",
+          "name": "_contentWorkspaceId"
+        },
+        {
           "kind": "var",
           "name": "visiblePortItems"
         },
@@ -116899,6 +117886,12 @@
         }
       ],
       "functions": [
+        {
+          "name": "refreshPropertyPresentation"
+        },
+        {
+          "name": "refreshContent"
+        },
         {
           "name": "portItemsForDirection"
         },
@@ -116954,7 +117947,7 @@
           "name": "onHelp_tab_requested"
         },
         {
-          "name": "onInspectorStateChanged"
+          "name": "onInspector_state_changed"
         }
       ],
       "instantiated_components": [
@@ -117051,6 +118044,22 @@
       "signal_handlers": [
         {
           "kind": "handler",
+          "name": "onPropertiesRequestedChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onInspectorBridgeRefChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onPropertyPresentationLookupChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "kind": "handler",
           "name": "onVisiblePortItemsChanged"
         },
         {
@@ -117092,6 +118101,97 @@
             "inspector.pane.collapse",
             "TooltipCopy.category",
             "tooltipCopyBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_title",
+          "targets": [
+            "bridge.selected_node_title"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_subtitle",
+          "targets": [
+            "bridge.selected_node_subtitle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_is_subnode_pin",
+          "targets": [
+            "bridge.selected_node_is_subnode_pin"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_is_subnode_shell",
+          "targets": [
+            "bridge.selected_node_is_subnode_shell"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_collapsible",
+          "targets": [
+            "bridge.selected_node_collapsible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_collapsed",
+          "targets": [
+            "bridge.selected_node_collapsed"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_port_items",
+          "targets": [
+            "bridge.selected_node_port_items"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_header_items",
+          "targets": [
+            "bridge.selected_node_header_items"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_property_items",
+          "targets": [
+            "bridge.selected_node_property_items"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_link_items",
+          "targets": [
+            "bridge.selected_node_link_items"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_comment_items",
+          "targets": [
+            "bridge.selected_node_comment_items"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_link_node_options",
+          "targets": [
+            "bridge.selected_node_link_node_options"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_link_workspace_options",
+          "targets": [
+            "bridge.selected_node_link_workspace_options"
           ]
         },
         {
@@ -117324,7 +118424,8 @@
           "kind": "binding",
           "name": "active",
           "targets": [
-            "root.hasSelectedNode"
+            "root.hasSelectedNode",
+            "root._contentReady"
           ]
         },
         {
@@ -117581,6 +118682,36 @@
           "detail": "var"
         },
         {
+          "anchor": "InspectorPanePropertyPropertiesRequested",
+          "kind": "property",
+          "name": "propertiesRequested",
+          "detail": "bool"
+        },
+        {
+          "anchor": "InspectorPanePropertyContent",
+          "kind": "property",
+          "name": "_content",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorPanePropertyContentReady",
+          "kind": "property",
+          "name": "_contentReady",
+          "detail": "bool"
+        },
+        {
+          "anchor": "InspectorPanePropertyContentNodeId",
+          "kind": "property",
+          "name": "_contentNodeId",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorPanePropertyContentWorkspaceId",
+          "kind": "property",
+          "name": "_contentWorkspaceId",
+          "detail": "string"
+        },
+        {
           "anchor": "InspectorPanePropertyVisiblePortItems",
           "kind": "property",
           "name": "visiblePortItems",
@@ -117643,6 +118774,16 @@
           "anchor": "InspectorPaneSignalLinkTargetPickCancelled",
           "kind": "signal",
           "name": "linkTargetPickCancelled"
+        },
+        {
+          "anchor": "InspectorPaneFunctionRefreshPropertyPresentation",
+          "kind": "function",
+          "name": "refreshPropertyPresentation"
+        },
+        {
+          "anchor": "InspectorPaneFunctionRefreshContent",
+          "kind": "function",
+          "name": "refreshContent"
         },
         {
           "anchor": "InspectorPaneFunctionPortItemsForDirection",
@@ -117737,7 +118878,27 @@
         {
           "anchor": "InspectorPaneFunctionOnInspectorStateChanged",
           "kind": "function",
-          "name": "onInspectorStateChanged"
+          "name": "onInspector_state_changed"
+        },
+        {
+          "anchor": "InspectorPaneHandlerOnPropertiesRequestedChanged",
+          "kind": "handler",
+          "name": "onPropertiesRequestedChanged"
+        },
+        {
+          "anchor": "InspectorPaneHandlerOnInspectorBridgeRefChanged",
+          "kind": "handler",
+          "name": "onInspectorBridgeRefChanged"
+        },
+        {
+          "anchor": "InspectorPaneHandlerOnPropertyPresentationLookupChanged",
+          "kind": "handler",
+          "name": "onPropertyPresentationLookupChanged"
+        },
+        {
+          "anchor": "InspectorPaneHandlerComponentOnCompleted",
+          "kind": "handler",
+          "name": "Component.onCompleted"
         },
         {
           "anchor": "InspectorPaneHandlerOnVisiblePortItemsChanged",
@@ -117832,6 +118993,406 @@
           "kind": "localComponent",
           "name": "HelpPane",
           "detail": "ea_node_editor/ui_qml/components/shell/HelpPane.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/InspectorPathPropertyEditor.qml",
+      "component_name": "InspectorPathPropertyEditor",
+      "aliases": [
+        "InspectorPathPropertyEditor",
+        "InspectorPathPropertyEditor.qml",
+        "ea_node_editor/ui_qml/components/shell/InspectorPathPropertyEditor.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\InspectorPathPropertyEditor.qml"
+      ],
+      "root_component": "Column",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Layouts 1.15"
+      ],
+      "ids": [
+        {
+          "name": "pathBody"
+        },
+        {
+          "name": "pathEditor"
+        },
+        {
+          "name": "sourceStorageCombo"
+        },
+        {
+          "name": "issueColumn"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "inspectorPathEditor"
+        },
+        {
+          "name": "inspectorPathBrowseButton"
+        },
+        {
+          "name": "inspectorPathSourceStorageComboBox"
+        },
+        {
+          "name": "inspectorPathRepairButton"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "editorContext"
+        },
+        {
+          "kind": "string",
+          "name": "propertyKey"
+        },
+        {
+          "kind": "string",
+          "name": "pathDialogMode"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "_selectedPathSourceMode"
+        },
+        {
+          "name": "_pathSourceModeIndex"
+        },
+        {
+          "name": "_syncSourceStorageCombo"
+        },
+        {
+          "name": "_browseAndCommitPath"
+        },
+        {
+          "name": "onPathCurrentSourceModeChanged"
+        },
+        {
+          "name": "onPathSourceModeChoicesVisibleChanged"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "RowLayout"
+        },
+        {
+          "name": "InspectorTextField"
+        },
+        {
+          "name": "InspectorButton"
+        },
+        {
+          "name": "Text"
+        },
+        {
+          "name": "InspectorComboBox"
+        },
+        {
+          "name": "Rectangle"
+        },
+        {
+          "name": "Connections"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "model"
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onAccepted"
+        },
+        {
+          "kind": "handler",
+          "name": "onEditingFinished"
+        },
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        }
+      ],
+      "connections": [
+        {
+          "kind": "target",
+          "name": "editorContext"
+        }
+      ],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "pane",
+          "targets": [
+            "editorContext.pane"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "editorContext.editorEnabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "editorContext._displayEditorText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "compact"
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "iconName"
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "editorContext.pathSourceModeChoicesVisible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.alignment",
+          "targets": [
+            "Qt.AlignVCenter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "editorContext.pane.themePalette.muted_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize"
+        },
+        {
+          "kind": "binding",
+          "name": "elide",
+          "targets": [
+            "Text.ElideRight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "currentIndex"
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "editorContext.propertyItem",
+            "editorContext.propertyItem.file_issue_active"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius"
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "Qt.alpha",
+            "editorContext.pane.themePalette.accent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width"
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "Qt.alpha",
+            "editorContext.pane.themePalette.accent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight",
+          "targets": [
+            "issueColumn.implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.margins"
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "String",
+            "editorContext.propertyItem",
+            "editorContext.propertyItem.file_issue_message"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "editorContext.pane.themePalette.input_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "wrapMode",
+          "targets": [
+            "Text.Wrap"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "InspectorTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextField.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorButton.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorComboBox",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorComboBox.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "InspectorPathPropertyEditorPropertyEditorContext",
+          "kind": "property",
+          "name": "editorContext",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorPropertyPropertyKey",
+          "kind": "property",
+          "name": "propertyKey",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorPropertyPathDialogMode",
+          "kind": "property",
+          "name": "pathDialogMode",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorFunctionSelectedPathSourceMode",
+          "kind": "function",
+          "name": "_selectedPathSourceMode"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorFunctionPathSourceModeIndex",
+          "kind": "function",
+          "name": "_pathSourceModeIndex"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorFunctionSyncSourceStorageCombo",
+          "kind": "function",
+          "name": "_syncSourceStorageCombo"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorFunctionBrowseAndCommitPath",
+          "kind": "function",
+          "name": "_browseAndCommitPath"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorFunctionOnPathCurrentSourceModeChanged",
+          "kind": "function",
+          "name": "onPathCurrentSourceModeChanged"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorFunctionOnPathSourceModeChoicesVisibleChanged",
+          "kind": "function",
+          "name": "onPathSourceModeChoicesVisibleChanged"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorHandlerOnAccepted",
+          "kind": "handler",
+          "name": "onAccepted"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorHandlerOnEditingFinished",
+          "kind": "handler",
+          "name": "onEditingFinished"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorHandlerComponentOnCompleted",
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorTargetEditorContext",
+          "kind": "target",
+          "name": "editorContext"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorLocalComponentInspectorTextField",
+          "kind": "localComponent",
+          "name": "InspectorTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextField.qml"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorLocalComponentInspectorButton",
+          "kind": "localComponent",
+          "name": "InspectorButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorButton.qml"
+        },
+        {
+          "anchor": "InspectorPathPropertyEditorLocalComponentInspectorComboBox",
+          "kind": "localComponent",
+          "name": "InspectorComboBox",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorComboBox.qml"
         }
       ]
     },
@@ -118818,7 +120379,6 @@
         "QtQuick.Controls 2.15",
         "QtQuick.Layouts 1.15",
         "\"../common\" as Common",
-        "\"../common/FontFamilyOptions.js\" as FontFamilyOptions",
         "\"../graph/surface_controls\" as SurfaceControls"
       ],
       "ids": [
@@ -118832,49 +120392,52 @@
           "name": "inactiveChipText"
         },
         {
+          "name": "editorLoader"
+        },
+        {
+          "name": "secretComponent"
+        },
+        {
+          "name": "toggleComponent"
+        },
+        {
           "name": "boolToggle"
         },
         {
-          "name": "searchableEnumEditor"
+          "name": "enumComponent"
+        },
+        {
+          "name": "interval_sliderComponent"
         },
         {
           "name": "intervalEditor"
         },
         {
-          "name": "pinDataTypeEditor"
+          "name": "colorComponent"
         },
         {
-          "name": "editableComboEditor"
-        },
-        {
-          "name": "fontFamilyEditor"
-        },
-        {
-          "name": "textareaEditorGroup"
-        },
-        {
-          "name": "textareaEditor"
-        },
-        {
-          "name": "pathEditor"
-        },
-        {
-          "name": "sourceStorageCombo"
-        },
-        {
-          "name": "issueColumn"
-        },
-        {
-          "name": "chipListContainer"
-        },
-        {
-          "name": "chipRow"
-        },
-        {
-          "name": "chipListEditor"
+          "name": "summaryComponent"
         },
         {
           "name": "summaryText"
+        },
+        {
+          "name": "axis_compactComponent"
+        },
+        {
+          "name": "textComponent"
+        },
+        {
+          "name": "textareaComponent"
+        },
+        {
+          "name": "pathComponent"
+        },
+        {
+          "name": "chip_listComponent"
+        },
+        {
+          "name": "choiceComponent"
         }
       ],
       "object_names": [
@@ -118888,49 +120451,16 @@
           "name": "inspectorPropertyStatusChip"
         },
         {
-          "name": "inspectorSecretEditor"
-        },
-        {
           "name": "inspectorPropertyInactiveChip"
         },
         {
-          "name": "inspectorSearchableEnumEditor"
+          "name": "inspectorTypedEditorLoader"
+        },
+        {
+          "name": "inspectorSecretEditor"
         },
         {
           "name": "inspectorIntervalSlider"
-        },
-        {
-          "name": "inspectorEditableComboEditor"
-        },
-        {
-          "name": "inspectorFontFamilyEditor"
-        },
-        {
-          "name": "inspectorTextareaEditor"
-        },
-        {
-          "name": "inspectorTextareaApplyButton"
-        },
-        {
-          "name": "inspectorTextareaResetButton"
-        },
-        {
-          "name": "inspectorPathEditor"
-        },
-        {
-          "name": "inspectorPathBrowseButton"
-        },
-        {
-          "name": "inspectorPathSourceStorageComboBox"
-        },
-        {
-          "name": "inspectorPathRepairButton"
-        },
-        {
-          "name": "inspectorChipListContainer"
-        },
-        {
-          "name": "inspectorChipListEditor"
         },
         {
           "name": "inspectorPropertySummaryValue"
@@ -119019,53 +120549,38 @@
         },
         {
           "kind": "string",
-          "name": "committedText"
+          "name": "effectiveEditorMode"
         },
         {
           "kind": "string",
-          "name": "draftText"
+          "name": "_contextNodeId"
+        },
+        {
+          "kind": "string",
+          "name": "_contextWorkspaceId"
+        },
+        {
+          "kind": "string",
+          "name": "_contextPropertyKey"
         },
         {
           "kind": "bool",
-          "name": "draftDirty"
-        },
-        {
-          "kind": "var",
-          "name": "chipValues"
-        },
-        {
-          "kind": "int",
-          "name": "chipIndex"
+          "name": "_ready"
         }
       ],
       "signals": [],
       "functions": [
         {
-          "name": "_selectedPathSourceMode"
+          "name": "currentNodeId"
         },
         {
-          "name": "_pathSourceModeIndex"
+          "name": "canCommit"
         },
         {
-          "name": "_syncSourceStorageCombo"
+          "name": "currentWorkspaceId"
         },
         {
-          "name": "_browseAndCommitPath"
-        },
-        {
-          "name": "commitDeclaredValue"
-        },
-        {
-          "name": "commitDisplayValue"
-        },
-        {
-          "name": "syncDraftToCommitted"
-        },
-        {
-          "name": "commitDraft"
-        },
-        {
-          "name": "commitChip"
+          "name": "commitValue"
         },
         {
           "name": "_intervalEndpoint"
@@ -119082,10 +120597,16 @@
           "name": "Rectangle"
         },
         {
-          "name": "Common.SecretEditor"
+          "name": "Row"
         },
         {
-          "name": "Row"
+          "name": "Loader"
+        },
+        {
+          "name": "Component"
+        },
+        {
+          "name": "Common.SecretEditor"
         },
         {
           "name": "InspectorCheckBox"
@@ -119094,81 +120615,56 @@
           "name": "InspectorComboBox"
         },
         {
-          "name": "InspectorEditableComboBox"
-        },
-        {
           "name": "SurfaceControls.GraphSurfaceIntervalSlider"
-        },
-        {
-          "name": "InspectorTextArea"
-        },
-        {
-          "name": "RowLayout"
-        },
-        {
-          "name": "InspectorButton"
-        },
-        {
-          "name": "InspectorTextField"
         },
         {
           "name": "InspectorColorField"
         },
         {
-          "name": "Flow"
-        },
-        {
-          "name": "Repeater"
-        },
-        {
           "name": "InspectorAxisCompactEditor"
+        },
+        {
+          "name": "InspectorTextField"
+        },
+        {
+          "name": "InspectorTextareaPropertyEditor"
+        },
+        {
+          "name": "InspectorPathPropertyEditor"
+        },
+        {
+          "name": "InspectorChipsPropertyEditor"
+        },
+        {
+          "name": "InspectorChoicePropertyEditor"
         }
       ],
       "dynamic_refs": [
+        {
+          "kind": "Loader"
+        },
+        {
+          "kind": "sourceComponent"
+        },
+        {
+          "kind": "Component"
+        },
         {
           "kind": "model",
           "targets": [
             "propertyEditor.propertyItem",
             "propertyEditor.propertyItem.enum_values"
           ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "propertyEditor.pane.pinDataTypeOptions"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "FontFamilyOptions.withDefault"
-          ]
-        },
-        {
-          "kind": "model"
-        },
-        {
-          "kind": "Repeater"
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "chipListContainer.chipValues"
-          ]
         }
       ],
       "signal_handlers": [
         {
           "kind": "handler",
-          "name": "onPathCurrentSourceModeChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onPathSourceModeChoicesVisibleChanged"
-        },
-        {
-          "kind": "handler",
           "name": "Component.onCompleted"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onDestruction"
         },
         {
           "kind": "handler",
@@ -119188,39 +120684,11 @@
         },
         {
           "kind": "handler",
-          "name": "onValueActivated"
-        },
-        {
-          "kind": "handler",
-          "name": "onAccepted"
-        },
-        {
-          "kind": "handler",
-          "name": "onActiveFocusChanged"
-        },
-        {
-          "kind": "handler",
           "name": "onCommitRequested"
         },
         {
           "kind": "handler",
-          "name": "onVisibleChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onCommittedTextChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onTextChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "Keys.onPressed"
-        },
-        {
-          "kind": "handler",
-          "name": "onClicked"
+          "name": "onAccepted"
         },
         {
           "kind": "handler",
@@ -119403,9 +120871,54 @@
           "kind": "binding",
           "name": "visible",
           "targets": [
-            "pinDataTypeEditor.visible",
-            "propertyEditor.editorMode"
+            "propertyEditor.overriddenByInput"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth",
+          "targets": [
+            "inactiveChipText.implicitWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight",
+          "targets": [
+            "inactiveChipText.implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "Qt.alpha",
+            "propertyEditor.pane.themePalette.accent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "Qt.alpha",
+            "propertyEditor.pane.themePalette.accent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "item",
+            "item.implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "default"
         },
         {
           "kind": "binding",
@@ -119464,47 +120977,6 @@
           "targets": [
             "propertyEditor.pane.themePalette.accent"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "propertyEditor.overriddenByInput"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitWidth",
-          "targets": [
-            "inactiveChipText.implicitWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "inactiveChipText.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "Qt.alpha",
-            "propertyEditor.pane.themePalette.accent"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "Qt.alpha",
-            "propertyEditor.pane.themePalette.accent"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text"
         },
         {
           "kind": "binding",
@@ -119591,24 +121063,9 @@
         },
         {
           "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "propertyEditor.editorMode",
-            "propertyEditor.searchableEnum"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "placeholderText",
           "targets": [
             "propertyEditor.displayValueAvailable"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "selectedValue",
-          "targets": [
-            "propertyEditor.propertyValueText"
           ]
         },
         {
@@ -119699,184 +121156,6 @@
         },
         {
           "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "propertyEditor.pane.isPinInspector"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "selectedValue",
-          "targets": [
-            "String",
-            "propertyEditor.propertyItem",
-            "propertyEditor.propertyItem.value",
-            "toLowerCase"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "placeholderText",
-          "targets": [
-            "String"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "optionCodes",
-          "targets": [
-            "propertyEditor.propertyItem.enum_codes"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "exactSelectors",
-          "targets": [
-            "propertyEditor.exactSelectors"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "selectedValue",
-          "targets": [
-            "propertyEditor.exactSelectors",
-            "propertyEditor.displayValue",
-            "propertyEditor.propertyValueText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "placeholderText"
-        },
-        {
-          "kind": "binding",
-          "name": "selectedValue",
-          "targets": [
-            "FontFamilyOptions.displayName",
-            "propertyEditor.propertyValueText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "previewValueAsFontFamily"
-        },
-        {
-          "kind": "binding",
-          "name": "defaultFontFamilyLabel",
-          "targets": [
-            "FontFamilyOptions.DEFAULT_FONT_FAMILY_LABEL"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "textareaEditorGroup.draftText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "compact"
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "propertyEditor.editorEnabled",
-            "textareaEditorGroup.draftDirty"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "Layout.fillWidth"
-        },
-        {
-          "kind": "binding",
-          "name": "verticalAlignment",
-          "targets": [
-            "Text.AlignVCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "textareaEditorGroup.draftDirty"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "pinDataTypeEditor.visible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "propertyEditor._displayEditorText"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "iconName"
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "propertyEditor.pathSourceModeChoicesVisible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "Layout.alignment",
-          "targets": [
-            "Qt.AlignVCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "currentIndex"
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "propertyEditor.propertyItem",
-            "propertyEditor.propertyItem.file_issue_active"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "issueColumn.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.fill",
-          "targets": [
-            "parent"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.margins"
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "String",
-            "propertyEditor.propertyItem",
-            "propertyEditor.propertyItem.file_issue_message"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "tooltipCategory"
         },
         {
@@ -119892,38 +121171,6 @@
           "targets": [
             "propertyEditor._displayEditorText"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "chipListContainer.chipValues.length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitWidth",
-          "targets": [
-            "chipRow.implicitWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "chipRow.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "propertyEditor.exactSelectors"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "selectedValue"
         },
         {
           "kind": "binding",
@@ -119944,6 +121191,13 @@
           "name": "implicitHeight",
           "targets": [
             "summaryText.implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "propertyEditor._displayEditorText"
           ]
         },
         {
@@ -119979,28 +121233,8 @@
         },
         {
           "kind": "localComponent",
-          "name": "InspectorEditableComboBox",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorEditableComboBox.qml"
-        },
-        {
-          "kind": "localComponent",
           "name": "SurfaceControls.GraphSurfaceIntervalSlider",
           "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "InspectorTextArea",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextArea.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "InspectorButton",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorButton.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "InspectorTextField",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextField.qml"
         },
         {
           "kind": "localComponent",
@@ -120011,6 +121245,31 @@
           "kind": "localComponent",
           "name": "InspectorAxisCompactEditor",
           "detail": "ea_node_editor/ui_qml/components/shell/InspectorAxisCompactEditor.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextField.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorTextareaPropertyEditor",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextareaPropertyEditor.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorPathPropertyEditor",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorPathPropertyEditor.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorChipsPropertyEditor",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorChipsPropertyEditor.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorChoicePropertyEditor",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorChoicePropertyEditor.qml"
         }
       ],
       "symbol_anchors": [
@@ -120135,79 +121394,54 @@
           "detail": "string"
         },
         {
-          "anchor": "InspectorPropertyEditorPropertyCommittedText",
+          "anchor": "InspectorPropertyEditorPropertyEffectiveEditorMode",
           "kind": "property",
-          "name": "committedText",
+          "name": "effectiveEditorMode",
           "detail": "string"
         },
         {
-          "anchor": "InspectorPropertyEditorPropertyDraftText",
+          "anchor": "InspectorPropertyEditorPropertyContextNodeId",
           "kind": "property",
-          "name": "draftText",
+          "name": "_contextNodeId",
           "detail": "string"
         },
         {
-          "anchor": "InspectorPropertyEditorPropertyDraftDirty",
+          "anchor": "InspectorPropertyEditorPropertyContextWorkspaceId",
           "kind": "property",
-          "name": "draftDirty",
+          "name": "_contextWorkspaceId",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorPropertyEditorPropertyContextPropertyKey",
+          "kind": "property",
+          "name": "_contextPropertyKey",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorPropertyEditorPropertyReady",
+          "kind": "property",
+          "name": "_ready",
           "detail": "bool"
         },
         {
-          "anchor": "InspectorPropertyEditorPropertyChipValues",
-          "kind": "property",
-          "name": "chipValues",
-          "detail": "var"
-        },
-        {
-          "anchor": "InspectorPropertyEditorPropertyChipIndex",
-          "kind": "property",
-          "name": "chipIndex",
-          "detail": "int"
-        },
-        {
-          "anchor": "InspectorPropertyEditorFunctionSelectedPathSourceMode",
+          "anchor": "InspectorPropertyEditorFunctionCurrentNodeId",
           "kind": "function",
-          "name": "_selectedPathSourceMode"
+          "name": "currentNodeId"
         },
         {
-          "anchor": "InspectorPropertyEditorFunctionPathSourceModeIndex",
+          "anchor": "InspectorPropertyEditorFunctionCanCommit",
           "kind": "function",
-          "name": "_pathSourceModeIndex"
+          "name": "canCommit"
         },
         {
-          "anchor": "InspectorPropertyEditorFunctionSyncSourceStorageCombo",
+          "anchor": "InspectorPropertyEditorFunctionCurrentWorkspaceId",
           "kind": "function",
-          "name": "_syncSourceStorageCombo"
+          "name": "currentWorkspaceId"
         },
         {
-          "anchor": "InspectorPropertyEditorFunctionBrowseAndCommitPath",
+          "anchor": "InspectorPropertyEditorFunctionCommitValue",
           "kind": "function",
-          "name": "_browseAndCommitPath"
-        },
-        {
-          "anchor": "InspectorPropertyEditorFunctionCommitDeclaredValue",
-          "kind": "function",
-          "name": "commitDeclaredValue"
-        },
-        {
-          "anchor": "InspectorPropertyEditorFunctionCommitDisplayValue",
-          "kind": "function",
-          "name": "commitDisplayValue"
-        },
-        {
-          "anchor": "InspectorPropertyEditorFunctionSyncDraftToCommitted",
-          "kind": "function",
-          "name": "syncDraftToCommitted"
-        },
-        {
-          "anchor": "InspectorPropertyEditorFunctionCommitDraft",
-          "kind": "function",
-          "name": "commitDraft"
-        },
-        {
-          "anchor": "InspectorPropertyEditorFunctionCommitChip",
-          "kind": "function",
-          "name": "commitChip"
+          "name": "commitValue"
         },
         {
           "anchor": "InspectorPropertyEditorFunctionIntervalEndpoint",
@@ -120220,19 +121454,14 @@
           "name": "_displayEditorText"
         },
         {
-          "anchor": "InspectorPropertyEditorHandlerOnPathCurrentSourceModeChanged",
-          "kind": "handler",
-          "name": "onPathCurrentSourceModeChanged"
-        },
-        {
-          "anchor": "InspectorPropertyEditorHandlerOnPathSourceModeChoicesVisibleChanged",
-          "kind": "handler",
-          "name": "onPathSourceModeChoicesVisibleChanged"
-        },
-        {
           "anchor": "InspectorPropertyEditorHandlerComponentOnCompleted",
           "kind": "handler",
           "name": "Component.onCompleted"
+        },
+        {
+          "anchor": "InspectorPropertyEditorHandlerComponentOnDestruction",
+          "kind": "handler",
+          "name": "Component.onDestruction"
         },
         {
           "anchor": "InspectorPropertyEditorHandlerOnReplaceRequested",
@@ -120255,49 +121484,14 @@
           "name": "onActivated"
         },
         {
-          "anchor": "InspectorPropertyEditorHandlerOnValueActivated",
-          "kind": "handler",
-          "name": "onValueActivated"
-        },
-        {
-          "anchor": "InspectorPropertyEditorHandlerOnAccepted",
-          "kind": "handler",
-          "name": "onAccepted"
-        },
-        {
-          "anchor": "InspectorPropertyEditorHandlerOnActiveFocusChanged",
-          "kind": "handler",
-          "name": "onActiveFocusChanged"
-        },
-        {
           "anchor": "InspectorPropertyEditorHandlerOnCommitRequested",
           "kind": "handler",
           "name": "onCommitRequested"
         },
         {
-          "anchor": "InspectorPropertyEditorHandlerOnVisibleChanged",
+          "anchor": "InspectorPropertyEditorHandlerOnAccepted",
           "kind": "handler",
-          "name": "onVisibleChanged"
-        },
-        {
-          "anchor": "InspectorPropertyEditorHandlerOnCommittedTextChanged",
-          "kind": "handler",
-          "name": "onCommittedTextChanged"
-        },
-        {
-          "anchor": "InspectorPropertyEditorHandlerOnTextChanged",
-          "kind": "handler",
-          "name": "onTextChanged"
-        },
-        {
-          "anchor": "InspectorPropertyEditorHandlerKeysOnPressed",
-          "kind": "handler",
-          "name": "Keys.onPressed"
-        },
-        {
-          "anchor": "InspectorPropertyEditorHandlerOnClicked",
-          "kind": "handler",
-          "name": "onClicked"
+          "name": "onAccepted"
         },
         {
           "anchor": "InspectorPropertyEditorHandlerOnEditingFinished",
@@ -120323,34 +121517,10 @@
           "detail": "ea_node_editor/ui_qml/components/shell/InspectorComboBox.qml"
         },
         {
-          "anchor": "InspectorPropertyEditorLocalComponentInspectorEditableComboBox",
-          "kind": "localComponent",
-          "name": "InspectorEditableComboBox",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorEditableComboBox.qml"
-        },
-        {
           "anchor": "InspectorPropertyEditorLocalComponentSurfaceControlsGraphSurfaceIntervalSlider",
           "kind": "localComponent",
           "name": "SurfaceControls.GraphSurfaceIntervalSlider",
           "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml"
-        },
-        {
-          "anchor": "InspectorPropertyEditorLocalComponentInspectorTextArea",
-          "kind": "localComponent",
-          "name": "InspectorTextArea",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextArea.qml"
-        },
-        {
-          "anchor": "InspectorPropertyEditorLocalComponentInspectorButton",
-          "kind": "localComponent",
-          "name": "InspectorButton",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorButton.qml"
-        },
-        {
-          "anchor": "InspectorPropertyEditorLocalComponentInspectorTextField",
-          "kind": "localComponent",
-          "name": "InspectorTextField",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextField.qml"
         },
         {
           "anchor": "InspectorPropertyEditorLocalComponentInspectorColorField",
@@ -120363,6 +121533,135 @@
           "kind": "localComponent",
           "name": "InspectorAxisCompactEditor",
           "detail": "ea_node_editor/ui_qml/components/shell/InspectorAxisCompactEditor.qml"
+        },
+        {
+          "anchor": "InspectorPropertyEditorLocalComponentInspectorTextField",
+          "kind": "localComponent",
+          "name": "InspectorTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextField.qml"
+        },
+        {
+          "anchor": "InspectorPropertyEditorLocalComponentInspectorTextareaPropertyEditor",
+          "kind": "localComponent",
+          "name": "InspectorTextareaPropertyEditor",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextareaPropertyEditor.qml"
+        },
+        {
+          "anchor": "InspectorPropertyEditorLocalComponentInspectorPathPropertyEditor",
+          "kind": "localComponent",
+          "name": "InspectorPathPropertyEditor",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorPathPropertyEditor.qml"
+        },
+        {
+          "anchor": "InspectorPropertyEditorLocalComponentInspectorChipsPropertyEditor",
+          "kind": "localComponent",
+          "name": "InspectorChipsPropertyEditor",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorChipsPropertyEditor.qml"
+        },
+        {
+          "anchor": "InspectorPropertyEditorLocalComponentInspectorChoicePropertyEditor",
+          "kind": "localComponent",
+          "name": "InspectorChoicePropertyEditor",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorChoicePropertyEditor.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/InspectorRowsModel.qml",
+      "component_name": "InspectorRowsModel",
+      "aliases": [
+        "InspectorRowsModel",
+        "InspectorRowsModel.qml",
+        "ea_node_editor/ui_qml/components/shell/InspectorRowsModel.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\InspectorRowsModel.qml"
+      ],
+      "root_component": "ListModel",
+      "imports": [
+        "QtQuick 2.15"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        }
+      ],
+      "object_names": [],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "rows"
+        },
+        {
+          "kind": "string",
+          "name": "keyRole"
+        },
+        {
+          "kind": "var",
+          "name": "rowsByKey"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "synchronize"
+        }
+      ],
+      "instantiated_components": [],
+      "dynamic_refs": [],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onRowsChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onKeyRoleChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "InspectorRowsModelPropertyRows",
+          "kind": "property",
+          "name": "rows",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorRowsModelPropertyKeyRole",
+          "kind": "property",
+          "name": "keyRole",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorRowsModelPropertyRowsByKey",
+          "kind": "property",
+          "name": "rowsByKey",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorRowsModelFunctionSynchronize",
+          "kind": "function",
+          "name": "synchronize"
+        },
+        {
+          "anchor": "InspectorRowsModelHandlerOnRowsChanged",
+          "kind": "handler",
+          "name": "onRowsChanged"
+        },
+        {
+          "anchor": "InspectorRowsModelHandlerOnKeyRoleChanged",
+          "kind": "handler",
+          "name": "onKeyRoleChanged"
+        },
+        {
+          "anchor": "InspectorRowsModelHandlerComponentOnCompleted",
+          "kind": "handler",
+          "name": "Component.onCompleted"
         }
       ]
     },
@@ -121588,19 +122887,31 @@
           "name": "smartRepeater"
         },
         {
+          "name": "smartModel"
+        },
+        {
           "name": "smartSection"
         },
         {
           "name": "smartSectionBody"
         },
         {
+          "name": "smartPropertyModel"
+        },
+        {
           "name": "staticRepeater"
+        },
+        {
+          "name": "staticModel"
         },
         {
           "name": "staticSection"
         },
         {
           "name": "staticSectionBody"
+        },
+        {
+          "name": "staticPropertyModel"
         }
       ],
       "object_names": [
@@ -121681,6 +122992,10 @@
           "name": "sectionOpen"
         },
         {
+          "kind": "bool",
+          "name": "bodyCreated"
+        },
+        {
           "kind": "var",
           "name": "groupData"
         },
@@ -121736,7 +123051,7 @@
         {
           "kind": "model",
           "targets": [
-            "body._smartSections"
+            "InspectorRowsModel"
           ]
         },
         {
@@ -121746,27 +123061,9 @@
           ]
         },
         {
-          "kind": "model",
-          "targets": [
-            "smartSection.sectionItems"
-          ]
-        },
-        {
           "kind": "delegate",
           "targets": [
             "InspectorPropertyEditor"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "body._staticGroups"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "staticSection.groupItems"
           ]
         }
       ],
@@ -121789,7 +123086,15 @@
         },
         {
           "kind": "handler",
+          "name": "onSectionOpenChanged"
+        },
+        {
+          "kind": "handler",
           "name": "onToggleRequested"
+        },
+        {
+          "kind": "handler",
+          "name": "onGroupOpenChanged"
         }
       ],
       "connections": [],
@@ -121921,6 +123226,14 @@
         },
         {
           "kind": "binding",
+          "name": "rows",
+          "targets": [
+            "smartSection.bodyCreated",
+            "smartSection.sectionItems"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "width",
           "targets": [
             "smartSectionBody.width",
@@ -121932,7 +123245,8 @@
           "kind": "binding",
           "name": "propertyItem",
           "targets": [
-            "modelData"
+            "smartPropertyModel.rowsByKey",
+            "rowKey"
           ]
         },
         {
@@ -121986,11 +123300,27 @@
         },
         {
           "kind": "binding",
+          "name": "rows",
+          "targets": [
+            "staticSection.bodyCreated",
+            "staticSection.groupItems"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "width",
           "targets": [
             "staticSectionBody.width",
             "staticSectionBody.leftPadding",
             "staticSectionBody.rightPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "propertyItem",
+          "targets": [
+            "staticPropertyModel.rowsByKey",
+            "rowKey"
           ]
         }
       ],
@@ -122097,6 +123427,12 @@
           "detail": "bool"
         },
         {
+          "anchor": "InspectorSmartGroupsBodyPropertyBodyCreated",
+          "kind": "property",
+          "name": "bodyCreated",
+          "detail": "bool"
+        },
+        {
           "anchor": "InspectorSmartGroupsBodyPropertyGroupData",
           "kind": "property",
           "name": "groupData",
@@ -122171,9 +123507,19 @@
           "name": "onScopeChanged"
         },
         {
+          "anchor": "InspectorSmartGroupsBodyHandlerOnSectionOpenChanged",
+          "kind": "handler",
+          "name": "onSectionOpenChanged"
+        },
+        {
           "anchor": "InspectorSmartGroupsBodyHandlerOnToggleRequested",
           "kind": "handler",
           "name": "onToggleRequested"
+        },
+        {
+          "anchor": "InspectorSmartGroupsBodyHandlerOnGroupOpenChanged",
+          "kind": "handler",
+          "name": "onGroupOpenChanged"
         },
         {
           "anchor": "InspectorSmartGroupsBodyLocalComponentInspectorFilterBar",
@@ -122307,6 +123653,278 @@
           "kind": "property",
           "name": "pane",
           "detail": "var"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/InspectorTextareaPropertyEditor.qml",
+      "component_name": "InspectorTextareaPropertyEditor",
+      "aliases": [
+        "InspectorTextareaPropertyEditor",
+        "InspectorTextareaPropertyEditor.qml",
+        "ea_node_editor/ui_qml/components/shell/InspectorTextareaPropertyEditor.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\InspectorTextareaPropertyEditor.qml"
+      ],
+      "root_component": "Column",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Layouts 1.15"
+      ],
+      "ids": [
+        {
+          "name": "textareaEditorGroup"
+        },
+        {
+          "name": "textareaEditor"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "inspectorTextareaEditor"
+        },
+        {
+          "name": "inspectorTextareaApplyButton"
+        },
+        {
+          "name": "inspectorTextareaResetButton"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "editorContext"
+        },
+        {
+          "kind": "string",
+          "name": "propertyKey"
+        },
+        {
+          "kind": "string",
+          "name": "committedText"
+        },
+        {
+          "kind": "string",
+          "name": "draftText"
+        },
+        {
+          "kind": "bool",
+          "name": "draftDirty"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "syncDraftToCommitted"
+        },
+        {
+          "name": "commitDraft"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "InspectorTextArea"
+        },
+        {
+          "name": "RowLayout"
+        },
+        {
+          "name": "InspectorButton"
+        },
+        {
+          "name": "Text"
+        }
+      ],
+      "dynamic_refs": [],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onCommittedTextChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onTextChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "pane",
+          "targets": [
+            "editorContext.pane"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "editorContext.editorEnabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "textareaEditorGroup.draftText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "compact"
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "editorContext.editorEnabled",
+            "textareaEditorGroup.draftDirty"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "verticalAlignment",
+          "targets": [
+            "Text.AlignVCenter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "textareaEditorGroup.draftDirty"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "editorContext.pane.themePalette.muted_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize"
+        },
+        {
+          "kind": "binding",
+          "name": "elide",
+          "targets": [
+            "Text.ElideRight"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "InspectorTextArea",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextArea.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorButton.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "InspectorTextareaPropertyEditorPropertyEditorContext",
+          "kind": "property",
+          "name": "editorContext",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorTextareaPropertyEditorPropertyPropertyKey",
+          "kind": "property",
+          "name": "propertyKey",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorTextareaPropertyEditorPropertyCommittedText",
+          "kind": "property",
+          "name": "committedText",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorTextareaPropertyEditorPropertyDraftText",
+          "kind": "property",
+          "name": "draftText",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorTextareaPropertyEditorPropertyDraftDirty",
+          "kind": "property",
+          "name": "draftDirty",
+          "detail": "bool"
+        },
+        {
+          "anchor": "InspectorTextareaPropertyEditorFunctionSyncDraftToCommitted",
+          "kind": "function",
+          "name": "syncDraftToCommitted"
+        },
+        {
+          "anchor": "InspectorTextareaPropertyEditorFunctionCommitDraft",
+          "kind": "function",
+          "name": "commitDraft"
+        },
+        {
+          "anchor": "InspectorTextareaPropertyEditorHandlerOnCommittedTextChanged",
+          "kind": "handler",
+          "name": "onCommittedTextChanged"
+        },
+        {
+          "anchor": "InspectorTextareaPropertyEditorHandlerOnTextChanged",
+          "kind": "handler",
+          "name": "onTextChanged"
+        },
+        {
+          "anchor": "InspectorTextareaPropertyEditorHandlerKeysOnPressed",
+          "kind": "handler",
+          "name": "Keys.onPressed"
+        },
+        {
+          "anchor": "InspectorTextareaPropertyEditorHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "InspectorTextareaPropertyEditorLocalComponentInspectorTextArea",
+          "kind": "localComponent",
+          "name": "InspectorTextArea",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextArea.qml"
+        },
+        {
+          "anchor": "InspectorTextareaPropertyEditorLocalComponentInspectorButton",
+          "kind": "localComponent",
+          "name": "InspectorButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorButton.qml"
         }
       ]
     },

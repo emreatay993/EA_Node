@@ -65,6 +65,7 @@ class ShellInspectorPresenter(QObject):
         host.workspace_state_changed.connect(self._emit_workspace_state_changed)
         self._last_selector_metadata = None
         self._runtime_schema_pending = False
+        self._content_active = True
         host.node_execution_state_changed.connect(self._on_current_output_changed)
         app = QGuiApplication.instance()
         self._gui_app = app if isinstance(app, QGuiApplication) else None
@@ -97,6 +98,8 @@ class ShellInspectorPresenter(QObject):
         )
 
     def _on_current_output_changed(self) -> None:
+        if not self._content_active:
+            return
         schema = self._selector_metadata()
         if schema is None or schema == self._last_selector_metadata:
             self._runtime_schema_pending = False
@@ -107,6 +110,12 @@ class ShellInspectorPresenter(QObject):
         self._runtime_schema_pending = False
         self._last_selector_metadata = schema
         self.inspector_state_changed.emit()
+
+    def set_content_active(self, active: bool) -> None:
+        """The visible Properties view owns demand for runtime schema projection."""
+        self._content_active = bool(active)
+        if not self._content_active:
+            self._runtime_schema_pending = False
 
     def _on_editor_focus_changed(self, _focused: QObject | None) -> None:
         if self._runtime_schema_pending:

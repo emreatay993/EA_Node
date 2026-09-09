@@ -23,6 +23,7 @@ Lookup aliases: `stress_1200_nodes`, `notched port rendering`, `benchmark report
 
 ## Current Measurement Ownership
 
+- `scripts/profile_canvas_lag.py --selection` delegates to `scripts/canvas_selection_profile.py` for production canvas mouse clicks in a composed shell with isolated preferences and an inert execution client. It measures dispatch and click-to-QML-render completion separately, verifies selection bindings before the accepted render, and records cleared inspector visual counts across collapsed, Smart Groups, Accordion, and Palette modes. The Windows/D3D11 p95 gate is `<100 ms`; `afterRendering` excludes widget composition, GPU completion, and display presentation. See [Inspector Selection Performance](../../specs/perf/INSPECTOR_SELECTION_PERFORMANCE_QA.md).
 - State-side `visible_node_model_update_ms` is the sole visible-publication timing source. Harness-forced exact refresh, Qt event drain, render callback, readback, and post-readback drain are separate non-additive phases.
 - Fast-pan retained-row publication is coalesced to one refresh per GUI frame while the exact viewport remains inside the current retained region. A strict-viewport escape forces an immediate refresh; stress evidence should therefore report both bounded delegate counts and visible-host continuity rather than treating offscreen timing alone as UX acceptance.
 - The canonical drag control uses `12` offsets and reports first offset, steady offsets, full gesture, and end/clear separately. The legacy single-offset value is continuity-only; the selected three-node control is supplemental diagnostic evidence and never replaces formal display gates.
@@ -45,6 +46,7 @@ Lookup aliases: `stress_1200_nodes`, `notched port rendering`, `benchmark report
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m ea_node_editor.ui.perf.performance_harness --help
+.\venv\Scripts\python.exe scripts/profile_canvas_lag.py --selection --qt-platform windows --qsg-rhi-backend d3d11 --samples 20 --warmup 3 --output-path artifacts/canvas_lag_profiling/inspector_selection/windows_d3d11.json
 .\venv\Scripts\python.exe -m pytest tests/test_track_h_perf_harness.py --ignore=venv -q
 .\venv\Scripts\python.exe -m ea_node_editor.ui.perf.performance_harness --scenario node_insertions --nodes 200 --edges 320 --seed 1337 --node-insertion-samples 40 --node-insertion-warmup-samples 3 --baseline-runs 1 --baseline-mode interactive --qt-platform windows --qsg-rhi-backend d3d11 --report-dir artifacts/perf_benchmarks/node_insert_typical
 .\venv\Scripts\python.exe -m ea_node_editor.ui.perf.performance_harness --scenario node_insertions --stress-fixture real --node-insertion-samples 40 --node-insertion-warmup-samples 3 --baseline-runs 1 --baseline-mode interactive --qt-platform windows --qsg-rhi-backend d3d11 --report-dir artifacts/perf_benchmarks/node_insert_stress

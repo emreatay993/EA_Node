@@ -16,6 +16,68 @@ class MainWindowShellPassivePropertyEditorsTests(SharedMainWindowShellTestBase):
         super().setUp()
         register_passive_editor_fixture(self.window.registry)
 
+    def test_collapsed_inspector_skips_selection_and_runtime_property_projection(self) -> None:
+        pane = self._find_qml_item("inspectorPane")
+        pane.setProperty("paneCollapsed", True)
+        node_ids = [
+            self.window.scene.create_node_from_type(
+                type_id=type_id, x=index * 250, y=0,
+                parent_node_id=None, select_node=False,
+            )
+            for index, type_id in enumerate(("plot.signal", "core.constant"))
+        ]
+        self.window.scene.clear_selection()
+        self.app.processEvents()
+        presenter = self.window.shell_inspector_presenter
+        try:
+            with patch.object(
+                presenter, "_build_selected_node_property_items",
+                wraps=presenter._build_selected_node_property_items,
+            ) as projection:
+                for node_id in node_ids * 3:
+                    self.window.scene.select_node(node_id)
+                    presenter._on_current_output_changed()
+                    self.app.processEvents()
+                    self.assertFalse(any(
+                        item.objectName() == "inspectorPropertyEditor"
+                        for item in self._walk_items(pane)
+                    ))
+                projection.assert_not_called()
+                pane.setProperty("paneCollapsed", False)
+                self.app.processEvents()
+                self.assertGreater(projection.call_count, 0)
+                self.assertEqual(pane.property("selectedNodeId"), node_ids[-1])
+        finally:
+            pane.setProperty("paneCollapsed", False)
+
+    def test_inspector_hide_retains_draft_and_hidden_selection_retires_context(self) -> None:
+        first_id = self.window.scene.add_node_from_type("tests.passive_editor_fixture", 0, 0)
+        self.window.scene.focus_node(first_id)
+        textarea = self._inspector_property_object("inspectorTextareaEditor", "notes_blob")
+        textarea.setProperty("text", "unfinished draft")
+        pane = self._find_qml_item("inspectorPane")
+        try:
+            for property_name, hidden, shown in (("paneCollapsed", True, False), ("activeTabIndex", 1, 0)):
+                pane.setProperty(property_name, hidden)
+                self.app.processEvents()
+                self.window.shell_inspector_presenter._on_current_output_changed()
+                pane.setProperty(property_name, shown)
+                self.app.processEvents()
+                self.assertEqual(self._find_qml_item("inspectorTextareaEditor"), textarea)
+                self.assertEqual(textarea.property("text"), "unfinished draft")
+            pane.setProperty("paneCollapsed", True)
+            second_id = self.window.scene.add_node_from_type("tests.passive_editor_fixture", 250, 0)
+            self.window.scene.focus_node(second_id)
+            self.app.processEvents()
+            self.assertIsNone(self._find_qml_item("inspectorTextareaEditor"))
+            pane.setProperty("paneCollapsed", False)
+            self.app.processEvents()
+            replacement = self._inspector_property_object("inspectorTextareaEditor", "notes_blob")
+            self.assertNotEqual(replacement.property("text"), "unfinished draft")
+        finally:
+            pane.setProperty("activeTabIndex", 0)
+            pane.setProperty("paneCollapsed", False)
+
     def test_qml_textarea_editor_uses_explicit_apply_commit(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("tests.passive_editor_fixture", x=120.0, y=80.0)

@@ -124,18 +124,21 @@ Column {
 
     Repeater {
         id: smartRepeater
-        model: body._smartSections
+        model: InspectorRowsModel { id: smartModel; rows: body._smartSections; keyRole: "kind" }
 
         delegate: Column {
             id: smartSection
             width: body.width
             spacing: 0
 
-            readonly property var sectionData: modelData
+            readonly property var sectionData: smartModel.rowsByKey[rowKey] || ({})
             readonly property string sectionKind: String(sectionData ? sectionData.kind : "")
             readonly property string sectionLabel: String(sectionData ? sectionData.label : "")
             readonly property var sectionItems: sectionData && sectionData.items ? sectionData.items : []
             readonly property bool sectionOpen: body.isGroupOpen(sectionKind, sectionLabel)
+            property bool bodyCreated: false
+            onSectionOpenChanged: { if (sectionOpen) bodyCreated = true }
+            Component.onCompleted: { if (sectionOpen) bodyCreated = true }
 
             InspectorSmartGroupHeader {
                 objectName: "inspectorSmartGroupHeader_" + smartSection.sectionKind
@@ -162,12 +165,15 @@ Column {
                 rightPadding: 12
 
                 Repeater {
-                    model: smartSection.sectionItems
+                    model: InspectorRowsModel {
+                        id: smartPropertyModel
+                        rows: smartSection.bodyCreated ? smartSection.sectionItems : []
+                    }
 
                     delegate: InspectorPropertyEditor {
                         pane: body.pane
                         width: smartSectionBody.width - smartSectionBody.leftPadding - smartSectionBody.rightPadding
-                        propertyItem: modelData
+                        propertyItem: smartPropertyModel.rowsByKey[rowKey] || ({})
                     }
                 }
             }
@@ -176,17 +182,20 @@ Column {
 
     Repeater {
         id: staticRepeater
-        model: body._staticGroups
+        model: InspectorRowsModel { id: staticModel; rows: body._staticGroups; keyRole: "name" }
 
         delegate: Column {
             id: staticSection
             width: body.width
             spacing: 0
 
-            readonly property var groupData: modelData
+            readonly property var groupData: staticModel.rowsByKey[rowKey] || ({})
             readonly property string groupName: String(groupData ? groupData.name : "")
             readonly property var groupItems: groupData && groupData.items ? groupData.items : []
             readonly property bool groupOpen: body.isGroupOpen("static", staticSection.groupName)
+            property bool bodyCreated: false
+            onGroupOpenChanged: { if (groupOpen) bodyCreated = true }
+            Component.onCompleted: { if (groupOpen) bodyCreated = true }
 
             InspectorSmartGroupHeader {
                 objectName: "inspectorStaticGroupHeader_" + staticSection.groupName
@@ -211,12 +220,15 @@ Column {
                 rightPadding: 12
 
                 Repeater {
-                    model: staticSection.groupItems
+                    model: InspectorRowsModel {
+                        id: staticPropertyModel
+                        rows: staticSection.bodyCreated ? staticSection.groupItems : []
+                    }
 
                     delegate: InspectorPropertyEditor {
                         pane: body.pane
                         width: staticSectionBody.width - staticSectionBody.leftPadding - staticSectionBody.rightPadding
-                        propertyItem: modelData
+                        propertyItem: staticPropertyModel.rowsByKey[rowKey] || ({})
                     }
                 }
             }

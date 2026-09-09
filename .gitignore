@@ -350,6 +350,7 @@ docs/specs/requirements/*
 !docs/specs/requirements/TRACEABILITY_MATRIX.md
 !docs/specs/perf/
 docs/specs/perf/*
+!docs/specs/perf/INSPECTOR_SELECTION_PERFORMANCE_QA.md
 !docs/specs/perf/SIGNAL_PLOT_SCIENTIFIC_INPUTS_QA.md
 !docs/specs/perf/COREX_MAINTAINABILITY_OWNERSHIP_REFACTOR_QA_MATRIX.md
 !docs/specs/perf/COREX_SOLUTION_REUSE_CLASSIFICATION.md

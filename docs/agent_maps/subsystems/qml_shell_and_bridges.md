@@ -12,6 +12,13 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - `ea_node_editor/ui_qml/components/shell/ShellRunToolbar.qml`
 - `ea_node_editor/ui_qml/components/shell/WorkspaceCenterPane.qml`
 - `ea_node_editor/ui_qml/components/shell/InspectorPane.qml`
+- `ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml`
+- `ea_node_editor/ui_qml/components/shell/InspectorChoicePropertyEditor.qml`
+- `ea_node_editor/ui_qml/components/shell/InspectorTextareaPropertyEditor.qml`
+- `ea_node_editor/ui_qml/components/shell/InspectorPathPropertyEditor.qml`
+- `ea_node_editor/ui_qml/components/shell/InspectorChipsPropertyEditor.qml`
+- `ea_node_editor/ui_qml/components/shell/InspectorRowsModel.qml`
+- `tests/qml_quick/tst_inspector_lifecycle.qml`
 - `ea_node_editor/ui_qml/components/shell/NodeLibraryPane.qml`
 - `ea_node_editor/ui_qml/components/shell/NodeBrowserOverlay.qml`
 - `ea_node_editor/ui_qml/components/shell/ConnectionQuickInsertOverlay.qml`
@@ -88,6 +95,8 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - `InspectorNodeLinksSection.qml` consumes selected-node link rows/actions and node/workspace picker options from `ShellInspectorBridge`; keep it bridge-first and avoid `mainWindowRef` helper calls for link commands.
 - `InspectorNodeCommentsSection.qml` consumes selected-node comment rows/actions from `ShellInspectorBridge`; keep it bridge-first and synchronized with canvas comment popover mutations.
 - `InspectorPropertyEditor.qml` shares declared property metadata with the graph surface: scalar and `interval_slider` editors consume authored/display facts, `PropertyConditionSpec` enablement, and `interval_direction`; `searchable=True` selects `InspectorEditableComboBox` while ordinary enums use `InspectorComboBox`. Inspector rendering must not mutate the authored property merely to show an upstream value.
+- Inspector rows instantiate only their effective editor mode. Stateful choice, textarea, path, and chip bodies have focused owners; color/axis controls emit commit requests to the row's workspace/node/property guard. Chip values must be arrays so a scalar can never become a QML Repeater count.
+- `InspectorRowsModel.qml` retains group/property delegate identities across value refreshes. Smart/Accordion groups create editors on first expansion and retain them while the same selection context lives, preserving explicit-Apply drafts. `InspectorPane.qml` owns demand-driven detail snapshots: collapsed Properties and the Help tab suspend projection; same-selection hiding retains editors, while selection replacement retires them. Its `set_content_active` bridge call also suspends presenter runtime-schema work. Reopening projects current metadata. The lifecycle QML tests and `tests/main_window_shell/passive_property_editors.py` own these boundaries.
 - `SecretEditor.qml` is the shared masked Replace/Clear control used by graph inline properties and `InspectorPropertyEditor.qml`. It receives redacted state only; QML never receives ciphertext or existing plaintext, and both callers use the dedicated graph-scene secret command path.
 - `MainShell.qml` owns node-link pick mode. `WorkspaceCenterPane.qml` intercepts workspace tabs while picking, and `GraphCanvas.qml` reports picked nodes back to the inspector without auto-saving.
 - Regenerate `docs/qml_navigation_index.md` and `docs/qml_navigation_index.json` when QML files are added, renamed, or structurally changed so agents can route to QML owners by component name, filename alias, path, property, signal, function, or dynamic construct.

@@ -1,8 +1,10 @@
+// Purpose: Property row presentation and exactly one active typed editor.
+// Map: docs/agent_maps/subsystems/qml_shell_and_bridges.md
+// Tests: tests/main_window_shell/passive_property_editors.py, tests/qml_quick/tst_signal_selectors.qml
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "../common" as Common
-import "../common/FontFamilyOptions.js" as FontFamilyOptions
 import "../graph/surface_controls" as SurfaceControls
 
 Column {
@@ -60,47 +62,45 @@ Column {
             )
     )
 
+    readonly property string effectiveEditorMode: pane && pane.isPinInspector && propertyKey === "data_type"
+        ? "pin_data_type" : (editorMode === "enum" && searchableEnum ? "searchable_enum" : editorMode)
+    property string _contextNodeId: ""
+    property string _contextWorkspaceId: ""
+    property string _contextPropertyKey: ""
+    property bool _ready: false
+
+    function currentNodeId() {
+        var bridge = pane ? pane.inspectorBridgeRef : null
+        return bridge && typeof bridge.selected_node_id !== "undefined" ? String(bridge.selected_node_id) : ""
+    }
+
+    function canCommit() {
+        return _ready && editorEnabled && pane && pane.inspectorBridgeRef
+            && _contextNodeId === currentNodeId() && _contextWorkspaceId === currentWorkspaceId()
+            && _contextPropertyKey === propertyKey
+    }
+
+    function currentWorkspaceId() {
+        var bridge = pane ? pane.inspectorBridgeRef : null
+        return bridge && typeof bridge.selected_node_workspace_id !== "undefined"
+            ? String(bridge.selected_node_workspace_id) : ""
+    }
+
+    function commitValue(key, value) {
+        if (canCommit())
+            propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(key, value)
+    }
+
+    Component.onCompleted: {
+        _contextNodeId = currentNodeId()
+        _contextWorkspaceId = currentWorkspaceId()
+        _contextPropertyKey = propertyKey
+        _ready = true
+    }
+    Component.onDestruction: _ready = false
+
     width: parent ? parent.width : implicitWidth
     spacing: 4
-
-    function _selectedPathSourceMode() {
-        if (!propertyEditor.pathSourceModeChoicesVisible)
-            return ""
-        return sourceStorageCombo.currentIndex === 1 ? "managed_copy" : "external_link"
-    }
-
-    function _pathSourceModeIndex(sourceMode) {
-        return String(sourceMode || "").trim().toLowerCase() === "managed_copy" ? 1 : 0
-    }
-
-    function _syncSourceStorageCombo() {
-        sourceStorageCombo.currentIndex = propertyEditor._pathSourceModeIndex(propertyEditor.pathCurrentSourceMode)
-    }
-
-    function _browseAndCommitPath(currentPath, sourceMode) {
-        if (!propertyEditor.pane.inspectorBridgeRef)
-            return
-        var normalizedSourceMode = String(sourceMode || "").trim()
-        var selectedPath = normalizedSourceMode.length > 0
-            ? propertyEditor.pane.inspectorBridgeRef.browse_selected_node_property_path(
-                propertyEditor.propertyKey,
-                currentPath,
-                normalizedSourceMode
-            )
-            : propertyEditor.pane.inspectorBridgeRef.browse_selected_node_property_path(
-                propertyEditor.propertyKey,
-                currentPath
-            )
-        if (!String(selectedPath || "").length)
-            return
-        pathEditor.text = String(selectedPath)
-        propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, pathEditor.text)
-    }
-
-    onPathCurrentSourceModeChanged: Qt.callLater(_syncSourceStorageCombo)
-    onPathSourceModeChoicesVisibleChanged: Qt.callLater(_syncSourceStorageCombo)
-
-    Component.onCompleted: _syncSourceStorageCombo()
 
     Text {
         width: parent.width
@@ -153,36 +153,6 @@ Column {
         }
     }
 
-    Common.SecretEditor {
-        objectName: "inspectorSecretEditor"
-        width: parent.width
-        visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "secret"
-        editorEnabled: propertyEditor.editorEnabled
-        hasValue: Boolean(
-            propertyEditor.displayValue
-            && propertyEditor.displayValue.has_value
-        )
-        accessibleName: String(propertyEditor.propertyItem.label || propertyEditor.propertyKey)
-        textColor: propertyEditor.pane.themePalette.input_fg
-        mutedTextColor: propertyEditor.pane.themePalette.muted_fg
-        fieldColor: propertyEditor.pane.themePalette.input_bg
-        borderColor: propertyEditor.pane.themePalette.input_border
-        accentColor: propertyEditor.pane.themePalette.accent
-        onReplaceRequested: function(plaintext) {
-            if (propertyEditor.pane.inspectorBridgeRef)
-                propertyEditor.pane.inspectorBridgeRef.set_selected_node_secret(
-                    propertyEditor.propertyKey,
-                    plaintext
-                )
-        }
-        onClearRequested: {
-            if (propertyEditor.pane.inspectorBridgeRef)
-                propertyEditor.pane.inspectorBridgeRef.clear_selected_node_secret(
-                    propertyEditor.propertyKey
-                )
-        }
-    }
-
     Row {
         width: parent.width
         visible: propertyEditor.overriddenByInput
@@ -209,654 +179,266 @@ Column {
         }
     }
 
-    Rectangle {
+    Loader {
+        id: editorLoader
+        objectName: "inspectorTypedEditorLoader"
         width: parent.width
-        visible: propertyEditor.editorMode === "toggle"
-        radius: 10
-        color: propertyEditor.pane.themePalette.input_bg
-        border.color: propertyEditor.pane.themePalette.input_border
-        border.width: 1
-        implicitHeight: 38
-
-        Row {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 8
-
-            InspectorCheckBox {
-                id: boolToggle
-                pane: propertyEditor.pane
-                enabled: propertyEditor.editorEnabled
-                checked: propertyEditor.displayValueAvailable && !!propertyEditor.displayValue
-                onToggled: {
-                    if (propertyEditor.pane.inspectorBridgeRef)
-                        propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, checked)
-                }
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: boolToggle.checked ? "Enabled" : "Disabled"
-                color: propertyEditor.pane.themePalette.input_fg
-                font.pixelSize: 11
+        height: item ? item.implicitHeight : 0
+        sourceComponent: {
+            switch (propertyEditor.effectiveEditorMode) {
+            case "secret": return secretComponent
+            case "toggle": return toggleComponent
+            case "enum": return enumComponent
+            case "interval_slider": return interval_sliderComponent
+            case "color": return colorComponent
+            case "summary": return summaryComponent
+            case "axis_compact": return axis_compactComponent
+            case "text": return textComponent
+            case "textarea": return textareaComponent
+            case "path": return pathComponent
+            case "chip_list": return chip_listComponent
+            case "searchable_enum":
+            case "pin_data_type":
+            case "editable_combo":
+            case "font_family": return choiceComponent
+            default: return null
             }
         }
     }
 
-    InspectorComboBox {
-        width: parent.width
-        pane: propertyEditor.pane
-        visible: propertyEditor.editorMode === "enum" && !propertyEditor.searchableEnum
-        enabled: propertyEditor.editorEnabled
-        placeholderText: propertyEditor.displayValueAvailable ? "" : "\u2014"
-        model: propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values ? propertyEditor.propertyItem.enum_values : []
-        currentIndex: {
-            var values = propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
-                ? propertyEditor.propertyItem.enum_values
-                : []
-            if (!propertyEditor.displayValueAvailable)
-                return -1
-            var value = propertyEditor.propertyValueText
-            var codes = propertyEditor.propertyItem.enum_codes || []
-            var index = codes.length === values.length && codes.length > 0
-                ? codes.indexOf(propertyEditor.displayValue) : values.indexOf(value)
-            return index >= 0 ? index : 0
-        }
-        onActivated: {
-            var values = propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
-                ? propertyEditor.propertyItem.enum_values
-                : []
-            if (!propertyEditor.pane.inspectorBridgeRef || currentIndex < 0 || currentIndex >= values.length)
-                return
-            propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
-                propertyEditor.propertyKey,
-                (propertyEditor.propertyItem.enum_codes || []).length === values.length
-                    ? propertyEditor.propertyItem.enum_codes[currentIndex] : String(values[currentIndex])
+    Component {
+        id: secretComponent
+        Common.SecretEditor {
+            objectName: "inspectorSecretEditor"
+            width: parent.width
+            editorEnabled: propertyEditor.editorEnabled
+            hasValue: Boolean(
+                propertyEditor.displayValue
+                && propertyEditor.displayValue.has_value
             )
-        }
-    }
-
-    InspectorEditableComboBox {
-        id: searchableEnumEditor
-        pane: propertyEditor.pane
-        objectName: "inspectorSearchableEnumEditor"
-        property string propertyKey: propertyEditor.propertyKey
-        width: parent.width
-        visible: propertyEditor.editorMode === "enum" && propertyEditor.searchableEnum
-        enabled: propertyEditor.editorEnabled
-        model: propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
-            ? propertyEditor.propertyItem.enum_values
-            : []
-        selectedValue: propertyEditor.propertyValueText
-
-        function commitDeclaredValue(value) {
-            var candidate = String(value || "")
-            var values = propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
-                ? propertyEditor.propertyItem.enum_values
-                : []
-            for (var index = 0; index < values.length; ++index) {
-                if (String(values[index]) !== candidate)
-                    continue
-                if (propertyEditor.pane.inspectorBridgeRef)
-                    propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
+            accessibleName: String(propertyEditor.propertyItem.label || propertyEditor.propertyKey)
+            textColor: propertyEditor.pane.themePalette.input_fg
+            mutedTextColor: propertyEditor.pane.themePalette.muted_fg
+            fieldColor: propertyEditor.pane.themePalette.input_bg
+            borderColor: propertyEditor.pane.themePalette.input_border
+            accentColor: propertyEditor.pane.themePalette.accent
+            onReplaceRequested: function(plaintext) {
+                if (propertyEditor.canCommit())
+                    propertyEditor.pane.inspectorBridgeRef.set_selected_node_secret(
                         propertyEditor.propertyKey,
-                        candidate
+                        plaintext
                     )
-                return
             }
-            editText = propertyEditor.propertyValueText
-        }
-
-        onValueActivated: function(value) { commitDeclaredValue(value) }
-        onAccepted: commitDeclaredValue(editText)
-        onActiveFocusChanged: {
-            if (!activeFocus)
-                editText = propertyEditor.propertyValueText
-        }
-    }
-
-    SurfaceControls.GraphSurfaceIntervalSlider {
-        id: intervalEditor
-        objectName: "inspectorIntervalSlider"
-        property string propertyKey: propertyEditor.propertyKey
-        width: parent.width
-        visible: propertyEditor.editorMode === "interval_slider"
-        enabled: propertyEditor.editorEnabled
-        from: isFinite(Number(propertyEditor.propertyItem.minimum))
-            ? Number(propertyEditor.propertyItem.minimum)
-            : 0
-        to: isFinite(Number(propertyEditor.propertyItem.maximum))
-            ? Number(propertyEditor.propertyItem.maximum)
-            : 1
-        stepSize: Math.max(0, Number(propertyEditor.propertyItem.step || 0))
-        semanticStart: propertyEditor._intervalEndpoint("start", from)
-        semanticEnd: propertyEditor._intervalEndpoint("end", to)
-        displayValueAvailable: propertyEditor.displayValueAvailable
-        intervalDirection: String(propertyEditor.propertyItem.interval_direction || "increasing")
-        accentColor: propertyEditor.pane.themePalette.accent
-        trackColor: propertyEditor.pane.themePalette.input_border
-        handleFillColor: propertyEditor.pane.themePalette.input_bg
-        handleBorderColor: propertyEditor.pane.themePalette.input_fg
-        textColor: propertyEditor.pane.themePalette.input_fg
-        disabledColor: propertyEditor.pane.themePalette.muted_fg
-        onCommitRequested: function(value) {
-            if (propertyEditor.editorEnabled && propertyEditor.pane.inspectorBridgeRef)
-                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
-                    propertyEditor.propertyKey,
-                    value
-                )
-        }
-    }
-
-    InspectorEditableComboBox {
-        id: pinDataTypeEditor
-        pane: propertyEditor.pane
-        width: parent.width
-        visible: propertyEditor.pane.isPinInspector
-            && propertyEditor.propertyKey === "data_type"
-        enabled: propertyEditor.editorEnabled
-        model: propertyEditor.pane.pinDataTypeOptions
-        selectedValue: String(propertyEditor.propertyItem && propertyEditor.propertyItem.value || "").toLowerCase()
-        onValueActivated: function(value) {
-            if (!propertyEditor.pane.inspectorBridgeRef)
-                return
-            propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
-                propertyEditor.propertyKey,
-                String(value || "")
-            )
-        }
-        onAccepted: {
-            if (propertyEditor.pane.inspectorBridgeRef)
-                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, editText)
-        }
-        onActiveFocusChanged: {
-            if (!activeFocus && propertyEditor.pane.inspectorBridgeRef)
-                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, editText)
-        }
-        Component.onCompleted: editText = propertyEditor.propertyValueText
-        onVisibleChanged: {
-            if (visible && !activeFocus)
-                editText = propertyEditor.propertyValueText
-        }
-    }
-
-    InspectorEditableComboBox {
-        id: editableComboEditor
-        objectName: "inspectorEditableComboEditor"
-        property string propertyKey: propertyEditor.propertyKey
-        pane: propertyEditor.pane
-        width: parent.width
-        visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "editable_combo"
-        enabled: propertyEditor.editorEnabled
-        placeholderText: String(
-            propertyEditor.propertyItem && propertyEditor.propertyItem.placeholder_text
-                ? propertyEditor.propertyItem.placeholder_text
-                : ""
-        )
-        model: propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
-            ? propertyEditor.propertyItem.enum_values
-            : []
-        optionCodes: propertyEditor.propertyItem.enum_codes || []
-        exactSelectors: propertyEditor.exactSelectors
-        selectedValue: propertyEditor.exactSelectors ? propertyEditor.displayValue : propertyEditor.propertyValueText
-        onValueActivated: function(value) {
-            if (!propertyEditor.pane.inspectorBridgeRef)
-                return
-            propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
-                propertyEditor.propertyKey,
-                propertyEditor.exactSelectors ? value : String(value || "")
-            )
-        }
-        onAccepted: {
-            if (propertyEditor.pane.inspectorBridgeRef)
-                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, valueForText(editText))
-        }
-        onActiveFocusChanged: {
-            if (!activeFocus && !popupInteractionActive && propertyEditor.pane.inspectorBridgeRef)
-                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, valueForText(editText))
-        }
-        Component.onCompleted: _syncSelectionFromValue()
-        onVisibleChanged: {
-            if (visible && !activeFocus)
-                _syncSelectionFromValue()
-        }
-    }
-
-    InspectorEditableComboBox {
-        id: fontFamilyEditor
-        pane: propertyEditor.pane
-        objectName: "inspectorFontFamilyEditor"
-        property string propertyKey: propertyEditor.propertyKey
-        width: parent.width
-        visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "font_family"
-        enabled: propertyEditor.editorEnabled
-        placeholderText: "Search fonts"
-        model: FontFamilyOptions.withDefault()
-        selectedValue: FontFamilyOptions.displayName(propertyEditor.propertyValueText)
-        previewValueAsFontFamily: true
-        defaultFontFamilyLabel: FontFamilyOptions.DEFAULT_FONT_FAMILY_LABEL
-
-        function commitDisplayValue(value) {
-            if (!propertyEditor.pane.inspectorBridgeRef)
-                return
-            var display = String(value || "").trim()
-            if (!display.length) {
-                editText = selectedValue
-                return
-            }
-            var family = FontFamilyOptions.canonicalFamily(display)
-            if (!family.length && display.toLowerCase() !== FontFamilyOptions.DEFAULT_FONT_FAMILY_LABEL.toLowerCase()) {
-                editText = selectedValue
-                return
-            }
-            propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
-                propertyEditor.propertyKey,
-                family
-            )
-            editText = FontFamilyOptions.displayName(family)
-        }
-
-        onValueActivated: function(value) {
-            commitDisplayValue(value)
-        }
-        onAccepted: commitDisplayValue(editText)
-        onActiveFocusChanged: {
-            if (!activeFocus)
-                commitDisplayValue(editText)
-        }
-        Component.onCompleted: editText = selectedValue
-        onVisibleChanged: {
-            if (visible && !activeFocus)
-                editText = selectedValue
-        }
-    }
-
-    Column {
-        id: textareaEditorGroup
-        width: parent.width
-        visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "textarea"
-        spacing: 6
-        property string propertyKey: propertyEditor.propertyKey
-        property string committedText: propertyEditor._displayEditorText()
-        property string draftText: committedText
-        property bool draftDirty: draftText !== committedText
-
-        function syncDraftToCommitted() {
-            draftText = committedText
-            if (textareaEditor.text !== committedText)
-                textareaEditor.text = committedText
-        }
-
-        function commitDraft() {
-            if (!propertyEditor.pane.inspectorBridgeRef)
-                return
-            propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyKey, draftText)
-        }
-
-        onCommittedTextChanged: {
-            if (!textareaEditor.activeFocus || !draftDirty)
-                syncDraftToCommitted()
-        }
-
-        InspectorTextArea {
-            id: textareaEditor
-            pane: propertyEditor.pane
-            objectName: "inspectorTextareaEditor"
-            property string propertyKey: textareaEditorGroup.propertyKey
-            width: parent.width
-            enabled: propertyEditor.editorEnabled
-            text: textareaEditorGroup.draftText
-            onTextChanged: {
-                if (textareaEditorGroup.draftText !== text)
-                    textareaEditorGroup.draftText = text
-            }
-            Keys.onPressed: function(event) {
-                if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
-                        && (event.modifiers & Qt.ControlModifier)) {
-                    textareaEditorGroup.commitDraft()
-                    event.accepted = true
-                } else if (event.key === Qt.Key_Escape) {
-                    textareaEditorGroup.syncDraftToCommitted()
-                    event.accepted = true
-                }
-            }
-        }
-
-        RowLayout {
-            width: parent.width
-            spacing: 6
-
-            InspectorButton {
-                pane: propertyEditor.pane
-                objectName: "inspectorTextareaApplyButton"
-                property string propertyKey: textareaEditorGroup.propertyKey
-                compact: true
-                enabled: propertyEditor.editorEnabled && textareaEditorGroup.draftDirty
-                text: "Apply"
-                onClicked: textareaEditorGroup.commitDraft()
-            }
-
-            InspectorButton {
-                pane: propertyEditor.pane
-                objectName: "inspectorTextareaResetButton"
-                property string propertyKey: textareaEditorGroup.propertyKey
-                compact: true
-                enabled: propertyEditor.editorEnabled && textareaEditorGroup.draftDirty
-                text: "Reset"
-                onClicked: textareaEditorGroup.syncDraftToCommitted()
-            }
-
-            Text {
-                Layout.fillWidth: true
-                verticalAlignment: Text.AlignVCenter
-                text: textareaEditorGroup.draftDirty
-                    ? "Ctrl+Enter to commit"
-                    : "Committed"
-                color: propertyEditor.pane.themePalette.muted_fg
-                font.pixelSize: 10
-                elide: Text.ElideRight
-            }
-        }
-    }
-
-    Column {
-        width: parent.width
-        visible: !pinDataTypeEditor.visible
-            && propertyEditor.editorMode === "path"
-        spacing: 6
-
-        RowLayout {
-            width: parent.width
-            spacing: 6
-
-            InspectorTextField {
-                id: pathEditor
-                pane: propertyEditor.pane
-                objectName: "inspectorPathEditor"
-                property string propertyKey: propertyEditor.propertyKey
-                property string pathDialogMode: propertyEditor.pathDialogMode
-                Layout.fillWidth: true
-                enabled: propertyEditor.editorEnabled
-                text: propertyEditor._displayEditorText()
-                onAccepted: {
-                    if (propertyEditor.pane.inspectorBridgeRef)
-                        propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, text)
-                }
-                onEditingFinished: {
-                    if (propertyEditor.pane.inspectorBridgeRef)
-                        propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, text)
-                }
-            }
-
-            InspectorButton {
-                pane: propertyEditor.pane
-                objectName: "inspectorPathBrowseButton"
-                property string propertyKey: propertyEditor.propertyKey
-                property string pathDialogMode: propertyEditor.pathDialogMode
-                compact: true
-                enabled: propertyEditor.editorEnabled
-                text: "Browse"
-                iconName: "folder-open"
-                onClicked: {
-                    propertyEditor._browseAndCommitPath(
-                        pathEditor.text,
-                        propertyEditor._selectedPathSourceMode()
+            onClearRequested: {
+                if (propertyEditor.canCommit())
+                    propertyEditor.pane.inspectorBridgeRef.clear_selected_node_secret(
+                        propertyEditor.propertyKey
                     )
-                }
             }
         }
+    }
 
-        RowLayout {
-            width: parent.width
-            spacing: 6
-            visible: propertyEditor.pathSourceModeChoicesVisible
-
-            Text {
-                Layout.alignment: Qt.AlignVCenter
-                text: "Source storage"
-                color: propertyEditor.pane.themePalette.muted_fg
-                font.pixelSize: 10
-                elide: Text.ElideRight
-            }
-
-            InspectorComboBox {
-                id: sourceStorageCombo
-                pane: propertyEditor.pane
-                objectName: "inspectorPathSourceStorageComboBox"
-                property string propertyKey: propertyEditor.propertyKey
-                Layout.fillWidth: true
-                enabled: propertyEditor.editorEnabled
-                model: ["External", "Internal"]
-                currentIndex: 0
-            }
-        }
-
+    Component {
+        id: toggleComponent
         Rectangle {
             width: parent.width
-            visible: !!(propertyEditor.propertyItem && propertyEditor.propertyItem.file_issue_active)
-            radius: 8
-            color: Qt.alpha(propertyEditor.pane.themePalette.accent, 0.12)
+            radius: 10
+            color: propertyEditor.pane.themePalette.input_bg
+            border.color: propertyEditor.pane.themePalette.input_border
             border.width: 1
-            border.color: Qt.alpha(propertyEditor.pane.themePalette.accent, 0.48)
-            implicitHeight: issueColumn.implicitHeight + 12
+            implicitHeight: 38
 
-            Column {
-                id: issueColumn
-                anchors.fill: parent
-                anchors.margins: 6
-                spacing: 6
+            Row {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                spacing: 8
+
+                InspectorCheckBox {
+                    id: boolToggle
+                    pane: propertyEditor.pane
+                    enabled: propertyEditor.editorEnabled
+                    checked: propertyEditor.displayValueAvailable && !!propertyEditor.displayValue
+                    onToggled: {
+                        if (propertyEditor.canCommit())
+                            propertyEditor.commitValue(propertyEditor.propertyKey, checked)
+                    }
+                }
 
                 Text {
-                    width: parent.width
-                    text: String(propertyEditor.propertyItem && propertyEditor.propertyItem.file_issue_message || "")
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: boolToggle.checked ? "Enabled" : "Disabled"
                     color: propertyEditor.pane.themePalette.input_fg
-                    font.pixelSize: 10
-                    wrapMode: Text.Wrap
-                }
-
-                InspectorButton {
-                    pane: propertyEditor.pane
-                    objectName: "inspectorPathRepairButton"
-                    property string propertyKey: propertyEditor.propertyKey
-                    compact: true
-                    text: "Repair file..."
-                    onClicked: {
-                        if (!propertyEditor.pane.inspectorBridgeRef)
-                            return
-                        var repairedPath = propertyEditor.pane.inspectorBridgeRef.browse_selected_node_property_path(
-                            propertyEditor.propertyKey,
-                            String(propertyEditor.propertyItem && propertyEditor.propertyItem.file_issue_request || "")
-                        )
-                        if (!String(repairedPath || "").length)
-                            return
-                        pathEditor.text = String(repairedPath)
-                        propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, pathEditor.text)
-                    }
+                    font.pixelSize: 11
                 }
             }
         }
     }
 
-    InspectorColorField {
-        pane: propertyEditor.pane
-        width: parent.width
-        tooltipCategory: "general"
-        visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "color"
-        enabled: propertyEditor.editorEnabled
-        propertyKey: propertyEditor.propertyKey
-        committedText: propertyEditor._displayEditorText()
-    }
-
-    Column {
-        width: parent.width
-        visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "chip_list"
-        id: chipListContainer
-        objectName: "inspectorChipListContainer"
-        spacing: 6
-        property var chipValues: propertyEditor.exactSelectors
-            ? (propertyEditor.displayValueAvailable ? propertyEditor.displayValue || [] : [])
-            : propertyEditor.propertyItem && propertyEditor.propertyItem.value
-            ? propertyEditor.propertyItem.value
-            : []
-
-        Flow {
+    Component {
+        id: enumComponent
+        InspectorComboBox {
             width: parent.width
-            spacing: 6
-            visible: chipListContainer.chipValues.length > 0
-
-            Repeater {
-                model: chipListContainer.chipValues
-
-                Rectangle {
-                    property int chipIndex: index
-                    radius: 8
-                    color: Qt.alpha(propertyEditor.pane.themePalette.accent, 0.14)
-                    border.width: 1
-                    border.color: Qt.alpha(propertyEditor.pane.themePalette.accent, 0.36)
-                    implicitWidth: chipRow.implicitWidth + 10
-                    implicitHeight: chipRow.implicitHeight + 6
-
-                    Row {
-                        id: chipRow
-                        anchors.centerIn: parent
-                        spacing: 4
-
-                        Text {
-                            text: propertyEditor.exactSelectors
-                                ? chipListEditor.labelForValue(modelData) : String(modelData || "")
-                            color: propertyEditor.pane.themePalette.input_fg
-                            font.pixelSize: 10
-                        }
-
-                        InspectorButton {
-                            pane: propertyEditor.pane
-                            compact: true
-                            text: "x"
-                            enabled: propertyEditor.editorEnabled
-                            onClicked: {
-                                if (!propertyEditor.pane.inspectorBridgeRef)
-                                    return
-                                var values = []
-                                for (var row = 0; row < chipListContainer.chipValues.length; ++row) {
-                                    if (row !== chipIndex)
-                                        values.push(propertyEditor.exactSelectors ? chipListContainer.chipValues[row] : String(chipListContainer.chipValues[row] || ""))
-                                }
-                                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
-                                    propertyEditor.propertyKey,
-                                    values
-                                )
-                            }
-                        }
-                    }
-                }
+            pane: propertyEditor.pane
+            enabled: propertyEditor.editorEnabled
+            placeholderText: propertyEditor.displayValueAvailable ? "" : "\u2014"
+            model: propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values ? propertyEditor.propertyItem.enum_values : []
+            currentIndex: {
+                var values = propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
+                    ? propertyEditor.propertyItem.enum_values
+                    : []
+                if (!propertyEditor.displayValueAvailable)
+                    return -1
+                var value = propertyEditor.propertyValueText
+                var codes = propertyEditor.propertyItem.enum_codes || []
+                var index = codes.length === values.length && codes.length > 0
+                    ? codes.indexOf(propertyEditor.displayValue) : values.indexOf(value)
+                return index >= 0 ? index : 0
+            }
+            onActivated: {
+                var values = propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
+                    ? propertyEditor.propertyItem.enum_values
+                    : []
+                if (!propertyEditor.canCommit() || currentIndex < 0 || currentIndex >= values.length)
+                    return
+                propertyEditor.commitValue(
+                    propertyEditor.propertyKey,
+                    (propertyEditor.propertyItem.enum_codes || []).length === values.length
+                        ? propertyEditor.propertyItem.enum_codes[currentIndex] : String(values[currentIndex])
+                )
             }
         }
+    }
 
-        InspectorEditableComboBox {
-            id: chipListEditor
-            objectName: "inspectorChipListEditor"
+    Component {
+        id: interval_sliderComponent
+        SurfaceControls.GraphSurfaceIntervalSlider {
+            id: intervalEditor
+            objectName: "inspectorIntervalSlider"
             property string propertyKey: propertyEditor.propertyKey
+            width: parent.width
+            enabled: propertyEditor.editorEnabled
+            from: isFinite(Number(propertyEditor.propertyItem.minimum))
+                ? Number(propertyEditor.propertyItem.minimum)
+                : 0
+            to: isFinite(Number(propertyEditor.propertyItem.maximum))
+                ? Number(propertyEditor.propertyItem.maximum)
+                : 1
+            stepSize: Math.max(0, Number(propertyEditor.propertyItem.step || 0))
+            semanticStart: propertyEditor._intervalEndpoint("start", from)
+            semanticEnd: propertyEditor._intervalEndpoint("end", to)
+            displayValueAvailable: propertyEditor.displayValueAvailable
+            intervalDirection: String(propertyEditor.propertyItem.interval_direction || "increasing")
+            accentColor: propertyEditor.pane.themePalette.accent
+            trackColor: propertyEditor.pane.themePalette.input_border
+            handleFillColor: propertyEditor.pane.themePalette.input_bg
+            handleBorderColor: propertyEditor.pane.themePalette.input_fg
+            textColor: propertyEditor.pane.themePalette.input_fg
+            disabledColor: propertyEditor.pane.themePalette.muted_fg
+            onCommitRequested: function(value) {
+                if (propertyEditor.editorEnabled && propertyEditor.canCommit())
+                    propertyEditor.commitValue(
+                        propertyEditor.propertyKey,
+                        value
+                    )
+            }
+        }
+    }
+
+    Component {
+        id: colorComponent
+        InspectorColorField {
+            pane: propertyEditor.pane
+            width: parent.width
+            tooltipCategory: "general"
+            enabled: propertyEditor.editorEnabled
+            onCommitRequested: function(key, value) { propertyEditor.commitValue(key, value) }
+            propertyKey: propertyEditor.propertyKey
+            committedText: propertyEditor._displayEditorText()
+        }
+    }
+
+    Component {
+        id: summaryComponent
+        Rectangle {
+            width: parent.width
+            radius: 10
+            color: propertyEditor.attentionRequired
+                ? Qt.alpha(propertyEditor.pane.themePalette.inspector_danger_border, 0.12)
+                : Qt.alpha(propertyEditor.pane.themePalette.accent, 0.10)
+            border.color: propertyEditor.attentionRequired
+                ? propertyEditor.pane.themePalette.inspector_danger_border
+                : Qt.alpha(propertyEditor.pane.themePalette.accent, 0.34)
+            border.width: 1
+            implicitHeight: summaryText.implicitHeight + 16
+
+            Text {
+                id: summaryText
+                objectName: "inspectorPropertySummaryValue"
+                property string propertyKey: propertyEditor.propertyKey
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                text: propertyEditor._displayEditorText()
+                color: propertyEditor.pane.themePalette.input_fg
+                font.pixelSize: 11
+                wrapMode: Text.Wrap
+            }
+        }
+    }
+
+    Component {
+        id: axis_compactComponent
+        InspectorAxisCompactEditor {
             pane: propertyEditor.pane
             width: parent.width
             enabled: propertyEditor.editorEnabled
-            placeholderText: String(
-                propertyEditor.propertyItem && propertyEditor.propertyItem.placeholder_text
-                    ? propertyEditor.propertyItem.placeholder_text
-                    : "Add value"
-            )
-            model: propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
-                ? propertyEditor.propertyItem.enum_values
-                : []
-            selectedValue: ""
-            optionCodes: propertyEditor.propertyItem.enum_codes || []
-            exactSelectors: propertyEditor.exactSelectors
-
-            function commitChip(value) {
-                if (!propertyEditor.pane.inspectorBridgeRef)
-                    return
-                var text = propertyEditor.exactSelectors ? value : String(value || "").trim()
-                if (text === "")
-                    return
-                var values = []
-                var normalized = propertyEditor.exactSelectors ? text : text.toLowerCase()
-                var seen = false
-                for (var index = 0; index < chipListContainer.chipValues.length; ++index) {
-                    var existing = propertyEditor.exactSelectors ? chipListContainer.chipValues[index] : String(chipListContainer.chipValues[index] || "")
-                    values.push(existing)
-                    if ((propertyEditor.exactSelectors ? existing : existing.toLowerCase()) === normalized)
-                        seen = true
-                }
-                if (!seen)
-                    values.push(text)
-                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
-                    propertyEditor.propertyKey,
-                    values
-                )
-                editText = ""
-            }
-
-            onValueActivated: function(value) {
-                commitChip(value)
-            }
-            onAccepted: commitChip(valueForText(editText))
+            onCommitRequested: function(key, value) { propertyEditor.commitValue(key, value) }
+            propertyItem: propertyEditor.propertyItem
+            overriddenByInput: propertyEditor.overriddenByInput
         }
     }
 
-    Rectangle {
-        width: parent.width
-        visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "summary"
-        radius: 10
-        color: propertyEditor.attentionRequired
-            ? Qt.alpha(propertyEditor.pane.themePalette.inspector_danger_border, 0.12)
-            : Qt.alpha(propertyEditor.pane.themePalette.accent, 0.10)
-        border.color: propertyEditor.attentionRequired
-            ? propertyEditor.pane.themePalette.inspector_danger_border
-            : Qt.alpha(propertyEditor.pane.themePalette.accent, 0.34)
-        border.width: 1
-        implicitHeight: summaryText.implicitHeight + 16
-
-        Text {
-            id: summaryText
-            objectName: "inspectorPropertySummaryValue"
-            property string propertyKey: propertyEditor.propertyKey
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
+    Component {
+        id: textComponent
+        InspectorTextField {
+            pane: propertyEditor.pane
+            width: parent.width
+            enabled: propertyEditor.editorEnabled
             text: propertyEditor._displayEditorText()
-            color: propertyEditor.pane.themePalette.input_fg
-            font.pixelSize: 11
-            wrapMode: Text.Wrap
+            onAccepted: {
+                if (propertyEditor.canCommit())
+                    propertyEditor.commitValue(propertyEditor.propertyKey, text)
+            }
+            onEditingFinished: {
+                if (propertyEditor.canCommit())
+                    propertyEditor.commitValue(propertyEditor.propertyKey, text)
+            }
         }
     }
 
-    InspectorAxisCompactEditor {
-        pane: propertyEditor.pane
-        width: parent.width
-        visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "axis_compact"
-        enabled: propertyEditor.editorEnabled
-        propertyItem: propertyEditor.propertyItem
-        overriddenByInput: propertyEditor.overriddenByInput
+    Component {
+        id: textareaComponent
+        InspectorTextareaPropertyEditor { editorContext: propertyEditor }
     }
 
-    InspectorTextField {
-        pane: propertyEditor.pane
-        width: parent.width
-        visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "text"
-        enabled: propertyEditor.editorEnabled
-        text: propertyEditor._displayEditorText()
-        onAccepted: {
-            if (propertyEditor.pane.inspectorBridgeRef)
-                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, text)
-        }
-        onEditingFinished: {
-            if (propertyEditor.pane.inspectorBridgeRef)
-                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, text)
-        }
+    Component {
+        id: pathComponent
+        InspectorPathPropertyEditor { editorContext: propertyEditor }
+    }
+
+    Component {
+        id: chip_listComponent
+        InspectorChipsPropertyEditor { editorContext: propertyEditor }
+    }
+
+    Component {
+        id: choiceComponent
+        InspectorChoicePropertyEditor { editorContext: propertyEditor }
     }
 
     function _intervalEndpoint(endpoint, fallback) {

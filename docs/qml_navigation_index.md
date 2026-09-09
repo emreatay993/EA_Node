@@ -17,13 +17,13 @@ This compact index gives agents deterministic aliases for QML components, symbol
 
 | Metric | Count |
 | --- | ---: |
-| QML files | 175 |
+| QML files | 180 |
 | Repeater constructs | 87 |
-| Loader constructs | 25 |
-| Signal handlers | 893 |
-| Connections targets | 48 |
-| Property bindings | 7562 |
-| Local component refs | 281 |
+| Loader constructs | 27 |
+| Signal handlers | 919 |
+| Connections targets | 49 |
+| Property bindings | 7629 |
+| Local component refs | 290 |
 
 ## Component Families
 
@@ -40,7 +40,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `components/graph/tabular` | 3 |
 | `components/graph/viewer` | 6 |
 | `components/graph_canvas` | 21 |
-| `components/shell` | 48 |
+| `components/shell` | 53 |
 | `components/web` | 7 |
 | `ea_node_editor/ui_qml` | 2 |
 
@@ -177,6 +177,8 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `InspectorButton.qml` | `ea_node_editor/ui_qml/components/shell/InspectorButton.qml` | `Button` | `Common.ManagedToolTip`, `Row`, `Image`, `Text` | `source` |
 | `InspectorCheckBox.qml` | `ea_node_editor/ui_qml/components/shell/InspectorCheckBox.qml` | `CheckBox` | `Text` | _None_ |
 | `InspectorChevron.qml` | `ea_node_editor/ui_qml/components/shell/InspectorChevron.qml` | `Item` | `Image`, `NumberAnimation` | `source` |
+| `InspectorChipsPropertyEditor.qml` | `ea_node_editor/ui_qml/components/shell/InspectorChipsPropertyEditor.qml` | `Column` | `Flow`, `Repeater`, `Rectangle`, `Row`, `Text`, `InspectorButton`, `InspectorEditableComboBox` | `Repeater`, `model` |
+| `InspectorChoicePropertyEditor.qml` | `ea_node_editor/ui_qml/components/shell/InspectorChoicePropertyEditor.qml` | `Loader` | `Component`, `InspectorEditableComboBox` | `Loader`, `sourceComponent`, `Component`, `model` |
 | `InspectorColorField.qml` | `ea_node_editor/ui_qml/components/shell/InspectorColorField.qml` | `Item` | `RowLayout`, `Button`, `Common.ManagedToolTip`, `Rectangle`, `InspectorTextField` | _None_ |
 | `InspectorComboBox.qml` | `ea_node_editor/ui_qml/components/shell/InspectorComboBox.qml` | `ComboBox` | _None_ | `delegate`, `model` |
 | `InspectorEditableComboBox.qml` | `ea_node_editor/ui_qml/components/shell/InspectorEditableComboBox.qml` | `FocusScope` | `Rectangle`, `TextField`, `Text`, `MouseArea`, `Popup` | `model`, `delegate` |
@@ -188,15 +190,18 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `InspectorOverrideBadge.qml` | `ea_node_editor/ui_qml/components/shell/InspectorOverrideBadge.qml` | `Rectangle` | `Row`, `Text` | _None_ |
 | `InspectorPaletteBody.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPaletteBody.qml` | `Column` | `Rectangle`, `InspectorFilterBar`, `Repeater`, `MouseArea`, `RowLayout`, `Text`, `InspectorOverrideBadge`, `InspectorPropertyEditor`, ... +1 more | `Repeater`, `model`, `delegate` |
 | `InspectorPane.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPane.qml` | `ShellCollapsibleSidePane` | `ColumnLayout`, `RowLayout`, `Repeater`, `Text`, `MouseArea`, `StackLayout`, `Rectangle`, `TapHandler`, ... +14 more | `Repeater`, `model`, `delegate`, `Loader`, `sourceComponent`, `Component` |
+| `InspectorPathPropertyEditor.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPathPropertyEditor.qml` | `Column` | `RowLayout`, `InspectorTextField`, `InspectorButton`, `Text`, `InspectorComboBox`, `Rectangle`, `Connections` | `model` |
 | `InspectorPortManagementSection.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPortManagementSection.qml` | `Rectangle` | `Column`, `InspectorSmartGroupHeader`, `InspectorButton`, `Row`, `InspectorSegmentButton`, `Text`, `Repeater` | `Repeater`, `model`, `delegate` |
 | `InspectorPortRow.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPortRow.qml` | `Rectangle` | `RowLayout`, `InspectorCheckBox`, `ColumnLayout`, `Item`, `Text`, `TextField`, `MouseArea`, `TapHandler` | _None_ |
-| `InspectorPropertyEditor.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml` | `Column` | `Text`, `Rectangle`, `Common.SecretEditor`, `Row`, `InspectorCheckBox`, `InspectorComboBox`, `InspectorEditableComboBox`, `SurfaceControls.GraphSurfaceIntervalSlider`, ... +8 more | `model`, `Repeater` |
+| `InspectorPropertyEditor.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml` | `Column` | `Text`, `Rectangle`, `Row`, `Loader`, `Component`, `Common.SecretEditor`, `InspectorCheckBox`, `InspectorComboBox`, ... +8 more | `Loader`, `sourceComponent`, `Component`, `model` |
+| `InspectorRowsModel.qml` | `ea_node_editor/ui_qml/components/shell/InspectorRowsModel.qml` | `ListModel` | _None_ | _None_ |
 | `InspectorScopeToggle.qml` | `ea_node_editor/ui_qml/components/shell/InspectorScopeToggle.qml` | `Rectangle` | `Row`, `Repeater`, `Text`, `MouseArea` | `Repeater`, `model`, `delegate` |
 | `InspectorSectionCard.qml` | `ea_node_editor/ui_qml/components/shell/InspectorSectionCard.qml` | `Rectangle` | `Column`, `Text`, `Item` | _None_ |
 | `InspectorSegmentButton.qml` | `ea_node_editor/ui_qml/components/shell/InspectorSegmentButton.qml` | `Button` | _None_ | _None_ |
 | `InspectorSmartGroupHeader.qml` | `ea_node_editor/ui_qml/components/shell/InspectorSmartGroupHeader.qml` | `Rectangle` | `Row`, `InspectorChevron`, `Text`, `MouseArea` | _None_ |
 | `InspectorSmartGroupsBody.qml` | `ea_node_editor/ui_qml/components/shell/InspectorSmartGroupsBody.qml` | `Column` | `InspectorFilterBar`, `Repeater`, `InspectorSmartGroupHeader` | `Repeater`, `model`, `delegate` |
 | `InspectorTextArea.qml` | `ea_node_editor/ui_qml/components/shell/InspectorTextArea.qml` | `TextArea` | _None_ | _None_ |
+| `InspectorTextareaPropertyEditor.qml` | `ea_node_editor/ui_qml/components/shell/InspectorTextareaPropertyEditor.qml` | `Column` | `InspectorTextArea`, `RowLayout`, `InspectorButton`, `Text` | _None_ |
 | `InspectorTextField.qml` | `ea_node_editor/ui_qml/components/shell/InspectorTextField.qml` | `TextField` | _None_ | _None_ |
 | `LibraryNodeVisual.qml` | `ea_node_editor/ui_qml/components/shell/LibraryNodeVisual.qml` | `Item` | `GraphPassiveComponents.FlowchartShapeCanvas`, `Image`, `Rectangle`, `Text` | `source` |
 | `LibraryWorkflowContextPopup.qml` | `ea_node_editor/ui_qml/components/shell/LibraryWorkflowContextPopup.qml` | `Item` | `ShellContextPopup` | _None_ |
@@ -396,7 +401,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `QtQml 2.15`, `"EdgeMath.js" as EdgeMath`, `"EdgePaintPolicy.js" as EdgePaintPolicy`, `"EdgeSnapshotCache.js" as EdgeSnapshotCache`, `"EdgeViewportMath.js" as EdgeViewportMath`, `"GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics`
 - IDs: `root`, `edgeCanvasLayer`, `edgeRetainedLayer`, `edgeScenegraphLayer`, `flowLabelLayer`, `edgeHitTestOverlay`
 - Object names: _None_
-- Properties: `edgePalette: var`, `shellPalette: var`, `portKindPalette: var`, `viewBridge: var`, `sceneBridge: var`, `edges: var`, `edgeTopologyDelta: var`, `nodeDeltaPayload: var`, `nodes: var`, `dragNodeLookup: var`, `dragDx: real`, `dragDy: real`, `dragRevision: int`, `liveNodeGeometry: var`, `selectedNodeIds: var`, `selectedEdgeIds: var`, `visibleSceneRectPayload: var`, `previewEdgeId: string`, ... +111 more
+- Properties: `edgePalette: var`, `shellPalette: var`, `portKindPalette: var`, `viewBridge: var`, `sceneBridge: var`, `edges: var`, `edgeTopologyDelta: var`, `nodeDeltaPayload: var`, `nodes: var`, `dragNodeLookup: var`, `dragDx: real`, `dragDy: real`, `dragRevision: int`, `liveNodeGeometry: var`, `_settingsGroupGeometryActive: bool`, `selectedNodeIds: var`, `selectedEdgeIds: var`, `visibleSceneRectPayload: var`, ... +112 more
 - Signals: `edgeClicked`, `edgeDoubleClicked`, `edgeContextRequested`
 - Functions: `neutralActiveStrokeColor`, `requestRedraw`, `requestImmediateRedraw`, `_normalizeEdgeRendererKind`, `_retainedFallbackReason`, `_rendererFallbackReasonFor`, `_dispatchEdgeRenderer`, `markEdgeTopologyDirty`, `applyStructuralEdgePayloadDelta`, `replaceEdgePayload`, `markNodeGeometryDirty`, `markActiveNodeGeometryDirty`, `markViewportDirty`, `markSelectionDirty`, `markCrossingStyleDirty`, `markThemeDirty`, `markScheduledRedrawDirty`, `markViewStateRedrawDirty`, ... +37 more
 - Instantiates: `EdgeCanvasLayer`, `EdgeRetainedLayer`, `EdgeScenegraphLayer`, `EdgeFlowLabelLayer`, `EdgeHitTestOverlay`
@@ -520,16 +525,16 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Root component: `Item`
 - Agent route aliases: `GraphNodeHost`, `GraphNodeHost.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`, `ea_node_editor\ui_qml\components\graph\GraphNodeHost.qml`
 - Imports: `QtQuick 2.15`, `"GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics`, `"GraphActionPresentation.js" as GraphActionPresentation`
-- IDs: `card`, `webPageBrowserStateSink`, `themeState`, `sharedTypographyState`, `chromeLayout`, `renderQualityState`, `sceneAccess`, `interactionState`, `cardHoverHandler`, `settingsGroupHeightAnimation`, `chromeBackground`, `elapsedTimerBadge`, `elapsedTimerLabel`, `hostGestureLayer`, `surfaceLayer`, `surfaceLoader`, `headerLayer`, `portsLayer`, ... +9 more
-- Object names: `graphNodeCard`, `graphNodeElapsedTimerBadge`, `graphNodeElapsedTimer`, `graphNodePathPointerDropArea`, `graphNodePathPointerDropFeedback`, `graphNodeLockedOverlay`
-- Properties: `nodeData: var`, `nodeId: string`, `hasNodeIdentity: bool`, `worldOffset: real`, `canvasItem: Item`, `frameScheduler: var`, `renderActivationSceneRectPayload: var`, `visibleSceneRectPayload: var`, `contextTargetNodeId: string`, `hoveredPort: var`, `previewPort: var`, `pendingPort: var`, `dragSourcePort: var`, `liveDragDx: real`, `liveDragDy: real`, `showShadow: bool`, `shadowStrength: int`, `shadowSoftness: int`, ... +318 more
+- IDs: `card`, `webPageBrowserStateSink`, `themeState`, `sharedTypographyState`, `chromeLayout`, `renderQualityState`, `sceneAccess`, `interactionState`, `cardHoverHandler`, `settingsGroupWidthAnimation`, `settingsGroupHeightAnimation`, `chromeBackground`, `elapsedTimerBadge`, `elapsedTimerLabel`, `hostGestureLayer`, `surfaceLayer`, `surfaceLoader`, `headerLayer`, ... +10 more
+- Object names: `graphNodeCard`, `graphNodeElapsedTimerBadge`, `graphNodeElapsedTimer`, `graphNodePortsAnimationClip`, `graphNodePathPointerDropArea`, `graphNodePathPointerDropFeedback`, `graphNodeLockedOverlay`
+- Properties: `nodeData: var`, `nodeId: string`, `hasNodeIdentity: bool`, `worldOffset: real`, `canvasItem: Item`, `frameScheduler: var`, `renderActivationSceneRectPayload: var`, `visibleSceneRectPayload: var`, `contextTargetNodeId: string`, `hoveredPort: var`, `previewPort: var`, `pendingPort: var`, `dragSourcePort: var`, `liveDragDx: real`, `liveDragDy: real`, `showShadow: bool`, `shadowStrength: int`, `shadowSoftness: int`, ... +327 more
 - Signals: `nodeClicked`, `nodeOpenRequested`, `nodeContextRequested`, `dragOffsetChanged`, `dragFinished`, `dragCanceled`, `resizePreviewChanged`, `resizeFinished`, `inlineTextFitRequested`, `portClicked`, `portDragStarted`, `portDragMoved`, `portDragFinished`, `portDragCanceled`, `surfaceControlInteractionStarted`, `inlinePropertyCommitted`, `sensitivePropertyReplaceRequested`, `sensitivePropertyClearRequested`, ... +6 more
-- Functions: `browserStatePersistenceEnabled`, `persistWebPageBrowserState`, `_emptyPathPointerDropData`, `beginSettingsGroupAnimation`, `cancelSettingsGroupAnimation`, `_finishSettingsGroupAnimation`, `_updatePathPointerDropData`, `_clearPathPointerDropPreview`, `_finishPathPointerDrop`, `localPortPoint`, `localPortPointForPort`, `portScenePos`, `portScenePosForPort`, `portLabelWidth`, `basePortColor`, `portTypeAccentColor`, `resolvedPortFlowState`, `portFlowFillColor`, ... +54 more
+- Functions: `browserStatePersistenceEnabled`, `persistWebPageBrowserState`, `settingsGroupContentBottom`, `_emptyPathPointerDropData`, `beginSettingsGroupAnimation`, `cancelSettingsGroupAnimation`, `_finishSettingsGroupAnimation`, `_updatePathPointerDropData`, `_clearPathPointerDropPreview`, `_finishPathPointerDrop`, `localPortPoint`, `localPortPointForPort`, `localPortLayoutPointForPort`, `portScenePos`, `portScenePosForPort`, `portLabelWidth`, `basePortColor`, `portTypeAccentColor`, ... +56 more
 - Instantiates: `QtObject`, `GraphNodeHostTheme`, `GraphSharedTypography`, `GraphNodeHostLayout`, `GraphNodeHostRenderQuality`, `GraphNodeHostSceneAccess`, `GraphNodeHostInteractionState`, `HoverHandler`, `NumberAnimation`, `GraphNodeChromeBackground`, `Rectangle`, `Text`, `GraphNodeHostGestureLayer`, `GraphNodeSurfaceLoader`, `GraphNodeHeaderLayer`, `GraphNodePortsLayer`, `GraphNodeSettingsGroupsLayer`, `DropArea`, ... +2 more
 - Dynamic constructs: _None_
-- Signal handlers: `handler` `onToolbarActiveSourceChanged`; `handler` `onHoverActiveChanged`; `handler` `Component.onCompleted`; `handler` `onToolbarActiveChanged`; `handler` `onAuthorLockedChanged`; `handler` `Component.onDestruction`; `handler` `onRunningChanged`; `handler` `onLiveElapsedActiveChanged`; `handler` `onStartedAtMsChanged`; `handler` `onCollapsedTitleRequiredWidthChanged`; `handler` `onExpansionRequested`; `handler` `onEntered`; `handler` `onPositionChanged`; `handler` `onExited`; `handler` `onDropped`; `handler` `onPressed`; `handler` `onClicked`; `handler` `onDoubleClicked`; ... +1 more
+- Signal handlers: `handler` `onSettingsGroupAnimationsEnabledChanged`; `handler` `onToolbarActiveSourceChanged`; `handler` `onHoverActiveChanged`; `handler` `Component.onCompleted`; `handler` `onToolbarActiveChanged`; `handler` `onAuthorLockedChanged`; `handler` `Component.onDestruction`; `handler` `onRunningChanged`; `handler` `onLiveElapsedActiveChanged`; `handler` `onStartedAtMsChanged`; `handler` `onCollapsedTitleRequiredWidthChanged`; `handler` `onExpansionRequested`; `handler` `onEntered`; `handler` `onPositionChanged`; `handler` `onExited`; `handler` `onDropped`; `handler` `onPressed`; `handler` `onClicked`; ... +2 more
 - Connections: _None_
-- Property bindings: `binding` `host` -> `card`; `binding` `graphLabelPixelSize` -> `card.effectiveGraphLabelPixelSize`; `binding` `graphNodeIconPixelSize` -> `card.effectiveNodeTitleIconPixelSize`; `binding` `surfaceLoader` -> `surfaceLoader`; `binding` `headerLayer` -> `headerLayer`; `binding` `settingsGroupsLayer` -> `settingsGroupsLayer`; `binding` `portsLayer` -> `portsLayer`; `binding` `visible` -> `card.hasNodeIdentity`; `binding` `enabled` -> `card.hasNodeIdentity`, `card.authorLocked`, `card.lockedInteractionEnabled`; `binding` `z` -> `card.authorLocked`; `binding` `x` -> `card._liveGeometryActive`, `card._liveX`, `card.nodeData`, `card.nodeData.x`, `card.worldOffset`; `binding` `y` -> `card._liveGeometryActive`, `card._liveY`, `card.nodeData`, `card.nodeData.y`, `card.worldOffset`; `binding` `transform` -> `Translate`; `binding` `x` -> `card.liveDragDx`; `binding` `y` -> `card.liveDragDy`; `binding` `width` -> `card._resolvedNodeWidth`; `binding` `height` -> `card._resolvedNodeHeight`; `binding` `enabled` -> `card._settingsGroupAnimationArmed`; ... +51 more
+- Property bindings: `binding` `host` -> `card`; `binding` `graphLabelPixelSize` -> `card.effectiveGraphLabelPixelSize`; `binding` `graphNodeIconPixelSize` -> `card.effectiveNodeTitleIconPixelSize`; `binding` `surfaceLoader` -> `surfaceLoader`; `binding` `headerLayer` -> `headerLayer`; `binding` `settingsGroupsLayer` -> `settingsGroupsLayer`; `binding` `portsLayer` -> `portsLayer`; `binding` `visible` -> `card.hasNodeIdentity`; `binding` `enabled` -> `card.hasNodeIdentity`, `card.authorLocked`, `card.lockedInteractionEnabled`; `binding` `z` -> `card.authorLocked`; `binding` `x` -> `card._liveGeometryActive`, `card._liveX`, `card.nodeData`, `card.nodeData.x`, `card.worldOffset`; `binding` `y` -> `card._liveGeometryActive`, `card._liveY`, `card.nodeData`, `card.nodeData.y`, `card.worldOffset`; `binding` `transform` -> `Translate`; `binding` `x` -> `card.liveDragDx`; `binding` `y` -> `card.liveDragDy`; `binding` `width` -> `card._resolvedNodeWidth`; `binding` `height` -> `card._resolvedNodeHeight`; `binding` `enabled` -> `card._settingsGroupAnimationArmed`; ... +55 more
 - Local component refs: `localComponent` `GraphNodeHostTheme`: `ea_node_editor/ui_qml/components/graph/GraphNodeHostTheme.qml`; `localComponent` `GraphSharedTypography`: `ea_node_editor/ui_qml/components/graph/GraphSharedTypography.qml`; `localComponent` `GraphNodeHostLayout`: `ea_node_editor/ui_qml/components/graph/GraphNodeHostLayout.qml`; `localComponent` `GraphNodeHostRenderQuality`: `ea_node_editor/ui_qml/components/graph/GraphNodeHostRenderQuality.qml`; `localComponent` `GraphNodeHostSceneAccess`: `ea_node_editor/ui_qml/components/graph/GraphNodeHostSceneAccess.qml`; `localComponent` `GraphNodeHostInteractionState`: `ea_node_editor/ui_qml/components/graph/GraphNodeHostInteractionState.qml`; `localComponent` `GraphNodeChromeBackground`: `ea_node_editor/ui_qml/components/graph/GraphNodeChromeBackground.qml`; `localComponent` `GraphNodeHostGestureLayer`: `ea_node_editor/ui_qml/components/graph/GraphNodeHostGestureLayer.qml`; `localComponent` `GraphNodeSurfaceLoader`: `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceLoader.qml`; `localComponent` `GraphNodeHeaderLayer`: `ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml`; `localComponent` `GraphNodePortsLayer`: `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml`; `localComponent` `GraphNodeSettingsGroupsLayer`: `ea_node_editor/ui_qml/components/graph/GraphNodeSettingsGroupsLayer.qml`; `localComponent` `GraphNodeResizeHandle`: `ea_node_editor/ui_qml/components/graph/GraphNodeResizeHandle.qml`
 
 ### `GraphNodeHostGestureLayer.qml`
@@ -666,7 +671,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `"../common" as Common`, `"../common/TooltipPolicy.js" as TooltipPolicy`, `"surface_controls" as SurfaceControls`, `"surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry`
 - IDs: `row`, `portDot`, `portMouse`, `removeButton`, `labelContainer`, `labelText`, `labelMouse`, `labelEditor`
 - Object names: `graphNodeDynamicPortRemove_`, `graphNodeDynamicPortRemoveCircle`
-- Properties: `portsLayer: Item`, `modelData: var`, `index: int`, `direction: string`, `defaultPropertyItem: Item`, `isInput: bool`, `host: Item`, `portData: var`, `rowIndex: int`, `propertyKey: string`, `handleVisible: bool`, `labelOwnedBySettings: bool`, `interactionDirection: string`, `placeholderLockedState: bool`, `inactiveState: bool`, `lockedState: bool`, `defaultProperty: var`, `defaultEditorVisible: bool`, ... +59 more
+- Properties: `portsLayer: Item`, `modelData: var`, `index: int`, `direction: string`, `defaultPropertyItem: Item`, `isInput: bool`, `host: Item`, `portData: var`, `rowIndex: int`, `propertyKey: string`, `handleVisible: bool`, `labelOwnedBySettings: bool`, `interactionDirection: string`, `placeholderLockedState: bool`, `inactiveState: bool`, `lockedState: bool`, `defaultProperty: var`, `defaultEditorVisible: bool`, ... +60 more
 - Signals: _None_
 - Functions: `currentEmbeddedInteractiveRects`, `refocusLabelEditor`, `paintPadlock`, `drawShackle`, `drawBody`, `updateHoverState`
 - Instantiates: `Image`, `Rectangle`, `MouseArea`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceButton`, `Text`, `SurfaceControls.GraphSurfaceTextField`
@@ -684,14 +689,14 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `"../common" as Common`, `"../common/TooltipPolicy.js" as TooltipPolicy`, `"../graph_canvas/CanvasBackgroundStyle.js" as CanvasBackgroundStyle`, `"GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics`, `"surface_controls" as SurfaceControls`, `"surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry`
 - IDs: `root`, `settingsGroupAggregate`, `inputPortsRepeater`, `inputPortRow`, `inputLockGlyph`, `defaultPropertyLayer`, `outputPortsRepeater`, `outputPortRow`, `outputLockGlyphLoader`, `outputLockGlyph`, `dynamicPortGroupRepeater`, `dynamicPortAddButton`, `portContextMenu`
 - Object names: `graphNodePortsLayer`, `graphNodeSettingsGroupAggregateNotch`, `graphNodeSettingsGroupAggregateSocket`, `graphNodeInputPortInactiveSlash`, `graphNodeInputPortPadlock`, `graphNodeInputDefaultProperty`, `graphNodeOutputPortPadlock`, `graphNodeDynamicPortAdd_`, `graphNodeDynamicPortAddCircle`
-- Properties: `host: Item`, `editingPortKey: string`, `editingPortDirection: string`, `portLabelEditError: string`, `contextPortData: var`, `contextNodeId: string`, `graphSharedTypography: var`, `tooltipPolicyBridge: var`, `tooltipThemePalette: var`, `portHelpMutedColor: string`, `portHelpDividerColor: string`, `nodeTooltipPlacement: string`, `nodeTooltipAnchorScale: real`, `hostLockedPlaceholder: bool`, `standardRestPortDiameter: real`, `standardActivePortDiameter: real`, `dynamicPortControlCenterInterval: real`, `dynamicPortTargetDiameter: real`, ... +40 more
+- Properties: `host: Item`, `editingPortKey: string`, `editingPortDirection: string`, `portLabelEditError: string`, `contextPortData: var`, `contextNodeId: string`, `graphSharedTypography: var`, `tooltipPolicyBridge: var`, `tooltipThemePalette: var`, `portHelpMutedColor: string`, `portHelpDividerColor: string`, `nodeTooltipPlacement: string`, `nodeTooltipAnchorScale: real`, `hostLockedPlaceholder: bool`, `standardRestPortDiameter: real`, `standardActivePortDiameter: real`, `dynamicPortControlCenterInterval: real`, `dynamicPortTargetDiameter: real`, ... +41 more
 - Signals: `dynamicPortGroupsApplied`
 - Functions: `onNodeDataChanged`, `onNodes_changed`, `onScene_nodes_changed`, `_copyDynamicPortGroups`, `_payloadHasDynamicPortGroups`, `_scheduleDynamicPortGroupSync`, `_retainDynamicPortGroupsFromSceneDelta`, `_applyScheduledDynamicPortGroupSync`, `_colorChannel`, `_svgOpacity`, `_svgNumber`, `_svgColor`, `_notchSvgSource`, `_portFlowOutlineColor`, `_dynamicPortGroupById`, `_dynamicPortGroupForPort`, `_dynamicPortOrdinal`, `_dynamicPortCanRemove`, ... +47 more
 - Instantiates: `Connections`, `Repeater`, `Image`, `Rectangle`, `Canvas`, `GraphInlinePropertiesLayer`, `Common.ManagedToolTip`, `Loader`, `Text`, `GraphNodePortContextMenu`
 - Dynamic constructs: `Repeater`; `model` -> `root.settingsGroups`; `delegate` -> `Item`; `source` -> `root.notchSvgSource`; `model` -> `root._visibleInputPorts`; `delegate` -> `GraphNodePortRow`; `model` -> `root._visibleOutputPorts`; `Loader`; `sourceComponent` -> `Component`; `model` -> `root.dynamicPortGroups`; `delegate` -> `SurfaceControls.GraphSurfaceButton`
 - Signal handlers: `handler` `onHostChanged`; `handler` `onContextNodeIdChanged`; `handler` `Component.onCompleted`; `handler` `onPaint`; `handler` `onVisibleChanged`; `handler` `onLockedStateChanged`; `handler` `onPlaceholderLockedStateChanged`; `handler` `onWidthChanged`; `handler` `onHeightChanged`; `handler` `onControlStarted`; `handler` `onClicked`
 - Connections: `target` `root.host`; `target` `root.host && root.host.canvasItem`
-- Property bindings: `binding` `z`; `binding` `ignoreUnknownSignals`; `binding` `visible` -> `root.host`, `root.host.nodeData`, `root.host.nodeData.collapsed`; `binding` `visible` -> `Boolean`, `anchor`, `groupData.expanded`; `binding` `width` -> `root.width`; `binding` `height` -> `root.height`; `binding` `visible` -> `root.notchedPortsEffective`; `binding` `width` -> `root.notchDiameter`; `binding` `height` -> `root.notchDiameter`; `binding` `x` -> `settingsGroupAggregate.anchor`, `Number`, `settingsGroupAggregate.anchor.x`; `binding` `y` -> `settingsGroupAggregate.anchor`; `binding` `sourceSize` -> `root.notchSourceSize`; `binding` `cache`; `binding` `asynchronous`; `binding` `smooth`; `binding` `mipmap`; `binding` `fillMode` -> `Image.Stretch`; `binding` `x` -> `settingsGroupAggregate.anchor`; ... +69 more
+- Property bindings: `binding` `z`; `binding` `ignoreUnknownSignals`; `binding` `visible` -> `root.host`, `root.host.nodeData`, `root.host.nodeData.collapsed`; `binding` `visible` -> `Boolean`, `anchor`, `groupData.expanded`; `binding` `width` -> `root.width`; `binding` `height` -> `root.height`; `binding` `visible` -> `root.notchedPortsEffective`; `binding` `width` -> `root.notchDiameter`; `binding` `height` -> `root.notchDiameter`; `binding` `x` -> `settingsGroupAggregate.anchor`, `Number`, `settingsGroupAggregate.anchor.x`; `binding` `y` -> `settingsGroupAggregate.anchor`; `binding` `sourceSize` -> `root.notchSourceSize`; `binding` `cache`; `binding` `asynchronous`; `binding` `smooth`; `binding` `mipmap`; `binding` `fillMode` -> `Image.Stretch`; `binding` `x` -> `settingsGroupAggregate.anchor`; ... +70 more
 - Local component refs: `localComponent` `GraphInlinePropertiesLayer`: `ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml`; `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`; `localComponent` `GraphNodePortContextMenu`: `ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml`; `localComponent` `GraphNodePortRow`: `ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml`; `localComponent` `SurfaceControls.GraphSurfaceButton`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml`
 
 ### `GraphNodeResizeHandle.qml`
@@ -720,14 +725,14 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `"GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics`, `"surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry`
 - IDs: `root`, `groupRepeater`, `groupItem`, `headerRow`, `groupLabel`, `chevron`, `headerMouse`, `itemRepeater`, `settingsItem`, `propertyLayer`
 - Object names: `graphNodeSettingsGroupsLayer`, `graphNodeSettingsGroupHeader`, `graphNodeSettingsGroupLabel`, `graphNodeSettingsGroupDivider`, `graphNodeSettingsGroupChevron`, `graphNodeSettingsGroupChevronGlyph`, `graphNodeSettingsGroupToggleArea`, `graphNodeSettingsGroupInlineProperty`
-- Properties: `host: Item`, `settingsGroups: var`, `settingsBand: var`, `bandYOffset: real`, `interactionLocked: bool`, `contentInteractionLocked: bool`, `_interactiveRectGeometryKey: real`, `embeddedInteractiveRects: var`, `groupData: var`, `headerData: var`, `expanded: bool`, `interactiveGeometryKey: real`, `groupId: string`, `expandedState: bool`, `direction: string`, `decorationColor: color`, `strokeColor: color`, `itemData: var`, ... +1 more
+- Properties: `host: Item`, `settingsGroups: var`, `settingsBand: var`, `bandYOffset: real`, `interactionLocked: bool`, `contentInteractionLocked: bool`, `_interactiveRectGeometryKey: real`, `embeddedInteractiveRects: var`, `groupData: var`, `headerData: var`, `expanded: bool`, `animationYOffset: real`, `interactiveGeometryKey: real`, `groupId: string`, `expandedState: bool`, `direction: string`, `decorationColor: color`, `strokeColor: color`, ... +2 more
 - Signals: `expansionRequested`
 - Functions: `currentInteractiveRects`, `requestExpansion`
 - Instantiates: `Repeater`, `Rectangle`, `Text`, `Canvas`, `MouseArea`, `GraphInlinePropertiesLayer`
 - Dynamic constructs: `Repeater`; `model` -> `root.settingsGroups`; `delegate` -> `Item`; `model` -> `groupItem.groupData.items`
 - Signal handlers: `handler` `onPaint`; `handler` `onExpandedStateChanged`; `handler` `onStrokeColorChanged`; `handler` `Component.onCompleted`; `handler` `onPressed`; `handler` `onClicked`; `handler` `Keys.onPressed`
 - Connections: _None_
-- Property bindings: `binding` `visible` -> `settingsGroups.length`; `binding` `z`; `binding` `clip` -> `Boolean`, `host`, `host.settingsGroupAnimationRunning`; `binding` `width` -> `root.width`; `binding` `height` -> `root.height`; `binding` `x` -> `Number`, `groupItem.headerData.x`; `binding` `y` -> `Number`, `groupItem.headerData.y`, `root.bandYOffset`; `binding` `height` -> `Math.max`, `Number`, `groupItem.headerData.height`; `binding` `Accessible.name` -> `String`, `groupItem.groupData.label`, `groupItem.groupData.group_id`; `binding` `Accessible.description` -> `groupItem.expanded`; `binding` `anchors.fill` -> `parent`; `binding` `color`; `binding` `border.width` -> `headerMouse.activeFocus`; `binding` `border.color` -> `root.host`, `root.host.selectedOutlineColor`; `binding` `radius`; `binding` `anchors.left` -> `parent.left`; `binding` `anchors.leftMargin`; `binding` `anchors.verticalCenter` -> `parent.verticalCenter`; ... +39 more
+- Property bindings: `binding` `visible` -> `settingsGroups.length`; `binding` `z`; `binding` `clip` -> `Boolean`, `host`, `host.settingsGroupAnimationRunning`; `binding` `width` -> `root.width`; `binding` `height` -> `root.host`, `root.host.settingsGroupAnimationRunning`; `binding` `clip` -> `Boolean`, `root.host`, `root.host.settingsGroupAnimationRunning`; `binding` `x` -> `Number`, `groupItem.headerData.x`; `binding` `y` -> `Number`, `groupItem.headerData.y`, `root.bandYOffset`, `groupItem.animationYOffset`; `binding` `height` -> `Math.max`, `Number`, `groupItem.headerData.height`; `binding` `Accessible.name` -> `String`, `groupItem.groupData.label`, `groupItem.groupData.group_id`; `binding` `Accessible.description` -> `groupItem.expanded`; `binding` `anchors.fill` -> `parent`; `binding` `color`; `binding` `border.width` -> `headerMouse.activeFocus`; `binding` `border.color` -> `root.host`, `root.host.selectedOutlineColor`; `binding` `radius`; `binding` `anchors.left` -> `parent.left`; `binding` `anchors.leftMargin`; ... +40 more
 - Local component refs: `localComponent` `GraphInlinePropertiesLayer`: `ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml`
 
 ### `GraphNodeSurfaceLoader.qml`
@@ -792,7 +797,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`
 - IDs: `surfaceBase`
 - Object names: _None_
-- Properties: `host: Item`, `nodeProperties: var`, `chromeToggleAvailable: bool`, `surfaceShowTitle: bool`, `surfaceShowFrame: bool`, `surfaceContentOnly: bool`, `surfaceContentMargin: real`
+- Properties: `host: Item`, `nodeProperties: var`, `chromeToggleAvailable: bool`, `surfaceShowTitle: bool`, `surfaceShowFrame: bool`, `surfaceContentOnly: bool`, `surfaceContentMargin: real`, `surfaceBodyBottomMargin: real`
 - Signals: _None_
 - Functions: `propRaw`, `propValue`, `propString`, `propBool`, `propNumber`
 - Instantiates: _None_
@@ -2142,12 +2147,12 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `"../graph" as GraphComponents`, `"GraphCanvasLogic.js" as GraphCanvasLogic`
 - IDs: `nodeCard`
 - Object names: _None_
-- Properties: `backdropInputOverlay: bool`, `_groupBackdropNode: bool`
+- Properties: `backdropInputOverlay: bool`, `_settingsGroupGeometryNodeId: string`, `_groupBackdropNode: bool`
 - Signals: _None_
-- Functions: `_graphActionBridge`, `_canvasActionRouter`, `_findFrameScheduler`, `_frameScheduler`, `_flushFrameScheduler`, `_triggerGraphAction`, `onLiveNodeGeometryChanged`
+- Functions: `_syncSettingsGroupGeometry`, `_graphActionBridge`, `_canvasActionRouter`, `_findFrameScheduler`, `_frameScheduler`, `_flushFrameScheduler`, `_triggerGraphAction`, `onLiveNodeGeometryChanged`
 - Instantiates: `Connections`
 - Dynamic constructs: _None_
-- Signal handlers: `handler` `onNodeClicked`; `handler` `onNodeContextRequested`; `handler` `onNodeOpenRequested`; `handler` `onDragOffsetChanged`; `handler` `onDragFinished`; `handler` `onDragCanceled`; `handler` `onResizePreviewChanged`; `handler` `onResizeFinished`; `handler` `onPortClicked`; `handler` `onPortDragStarted`; `handler` `onPortDragMoved`; `handler` `onPortDragFinished`; `handler` `onPortDragCanceled`; `handler` `onPortHoverChanged`; `handler` `onSurfaceControlInteractionStarted`; `handler` `onInlinePropertyCommitted`; `handler` `onSensitivePropertyReplaceRequested`; `handler` `onSensitivePropertyClearRequested`; ... +5 more
+- Signal handlers: `handler` `onWidthChanged`; `handler` `onHeightChanged`; `handler` `onSettingsGroupPortOffsetsChanged`; `handler` `onSettingsGroupAnimationRunningChanged`; `handler` `onNodeIdChanged`; `handler` `Component.onDestruction`; `handler` `onNodeClicked`; `handler` `onNodeContextRequested`; `handler` `onNodeOpenRequested`; `handler` `onDragOffsetChanged`; `handler` `onDragFinished`; `handler` `onDragCanceled`; `handler` `onResizePreviewChanged`; `handler` `onResizeFinished`; `handler` `onPortClicked`; `handler` `onPortDragStarted`; `handler` `onPortDragMoved`; `handler` `onPortDragFinished`; ... +11 more
 - Connections: `target` `nodeCard.canvasItem`
 - Property bindings: `binding` `nodeData` -> `modelData`; `binding` `worldOffset` -> `canvasItem`, `canvasItem.worldOffset`; `binding` `frameScheduler` -> `canvasItem`, `canvasItem.frameSchedulerRef`; `binding` `hoveredPort` -> `canvasItem`, `canvasItem.hoveredPort`; `binding` `previewPort` -> `canvasItem`, `canvasItem.dropPreviewPort`; `binding` `pendingPort` -> `canvasItem`, `canvasItem.pendingConnectionPort`; `binding` `dragSourcePort` -> `canvasItem`, `canvasItem.wireDragSourcePort`; `binding` `liveDragDx`; `binding` `liveDragDy`; `binding` `showShadow` -> `nodeCard._groupBackdropNode`; `binding` `shadowStrength` -> `Number`, `prefs`, `prefs.shadowStrength`; `binding` `shadowSoftness` -> `Number`, `prefs`, `prefs.shadowSoftness`; `binding` `shadowOffset` -> `Number`, `prefs`, `prefs.shadowOffset`; `binding` `viewportInteractionCacheActive` -> `canvasItem`, `canvasItem.viewportInteractionWorldCacheActive`; `binding` `edgeHitPassthroughEnabled` -> `nodeCard.backdropInputOverlay`; `binding` `renderActivationSceneRectPayload` -> `canvasItem`, `canvasItem.nodeRenderActivationSceneRectPayload`; `binding` `visibleSceneRectPayload` -> `canvasItem`, `canvasItem.visibleSceneRectPayload`; `binding` `contextTargetNodeId` -> `canvasItem`, `canvasItem.nodeContextNodeId`; ... +6 more
 - Local component refs: _None_
@@ -2464,16 +2469,16 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Root component: `Column`
 - Agent route aliases: `InspectorAccordionCardsBody`, `InspectorAccordionCardsBody.qml`, `ea_node_editor/ui_qml/components/shell/InspectorAccordionCardsBody.qml`, `ea_node_editor\ui_qml\components\shell\InspectorAccordionCardsBody.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"InspectorFilter.js" as InspectorFilter`
-- IDs: `body`, `filterBar`, `groupRepeater`, `groupCard`, `cardColumn`, `cardBody`, `localFilterBar`
+- IDs: `body`, `filterBar`, `groupRepeater`, `groupsModel`, `groupCard`, `cardColumn`, `cardBody`, `localFilterBar`, `propertyModel`
 - Object names: `inspectorAccordionCardsBody`, `inspectorAccordionCardsFilterBar`, `inspectorAccordionCardHeader_`, `inspectorAccordionCardBody_`, `inspectorAccordionCardLocalFilter_`
-- Properties: `pane: var`, `propertyItems: var`, `filterQuery: string`, `filterScope: string`, `expandedMap: var`, `groupQueryMap: var`, `_allGroups: var`, `_globalActive: bool`, `_visibleGroups: var`, `groupData: var`, `groupName: string`, `groupItems: var`, `groupAllCount: int`, `groupMatchCount: int`, `groupLocalQuery: string`, `groupShowLocalFilter: bool`, `groupOpen: bool`
+- Properties: `pane: var`, `propertyItems: var`, `filterQuery: string`, `filterScope: string`, `expandedMap: var`, `groupQueryMap: var`, `_allGroups: var`, `_globalActive: bool`, `_visibleGroups: var`, `groupData: var`, `groupName: string`, `groupItems: var`, `groupAllCount: int`, `groupMatchCount: int`, `groupLocalQuery: string`, `groupShowLocalFilter: bool`, `groupOpen: bool`, `bodyCreated: bool`
 - Signals: _None_
 - Functions: `isGroupOpen`, `toggleGroup`, `setGroupQuery`
 - Instantiates: `InspectorFilterBar`, `Repeater`, `InspectorSmartGroupHeader`
-- Dynamic constructs: `Repeater`; `model` -> `body._visibleGroups`; `delegate` -> `Rectangle`; `model` -> `groupCard.groupItems`; `delegate` -> `InspectorPropertyEditor`
-- Signal handlers: `handler` `onQueryChanged`; `handler` `onScopeChanged`; `handler` `onToggleRequested`
+- Dynamic constructs: `Repeater`; `model` -> `InspectorRowsModel`; `delegate` -> `Rectangle`; `delegate` -> `InspectorPropertyEditor`
+- Signal handlers: `handler` `onQueryChanged`; `handler` `onScopeChanged`; `handler` `onGroupOpenChanged`; `handler` `Component.onCompleted`; `handler` `onToggleRequested`
 - Connections: _None_
-- Property bindings: `binding` `name` -> `groupName`; `binding` `items` -> `filtered`; `binding` `allCount` -> `allItems.length`; `binding` `matchCount` -> `filtered.length`; `binding` `localQuery` -> `localQ`; `binding` `showLocalFilter` -> `allItems.length`, `globalActive`; `binding` `width` -> `parent`, `parent.width`, `implicitWidth`; `binding` `spacing`; `binding` `pane` -> `body.pane`; `binding` `width` -> `parent.width`; `binding` `query` -> `body.filterQuery`; `binding` `scope` -> `body.filterScope`; `binding` `placeholder`; `binding` `width` -> `body.width`; `binding` `color` -> `body.pane`, `body.pane.themePalette.panel_bg`; `binding` `border.color` -> `body.pane`, `body.pane.themePalette.border`; `binding` `border.width`; `binding` `radius`; ... +19 more
+- Property bindings: `binding` `name` -> `groupName`; `binding` `items` -> `filtered`; `binding` `allCount` -> `allItems.length`; `binding` `matchCount` -> `filtered.length`; `binding` `localQuery` -> `localQ`; `binding` `showLocalFilter` -> `allItems.length`, `globalActive`; `binding` `width` -> `parent`, `parent.width`, `implicitWidth`; `binding` `spacing`; `binding` `pane` -> `body.pane`; `binding` `width` -> `parent.width`; `binding` `query` -> `body.filterQuery`; `binding` `scope` -> `body.filterScope`; `binding` `placeholder`; `binding` `width` -> `body.width`; `binding` `color` -> `body.pane`, `body.pane.themePalette.panel_bg`; `binding` `border.color` -> `body.pane`, `body.pane.themePalette.border`; `binding` `border.width`; `binding` `radius`; ... +20 more
 - Local component refs: `localComponent` `InspectorFilterBar`: `ea_node_editor/ui_qml/components/shell/InspectorFilterBar.qml`; `localComponent` `InspectorSmartGroupHeader`: `ea_node_editor/ui_qml/components/shell/InspectorSmartGroupHeader.qml`; `localComponent` `InspectorPropertyEditor`: `ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml`
 
 ### `InspectorAxisCompactEditor.qml`
@@ -2485,7 +2490,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - IDs: `root`, `axisRow`, `minEditor`, `maxEditor`, `scaleToggle`
 - Object names: `inspectorAxisCompactEditor`, `inspectorAxisCompactMinEditor`, `inspectorAxisCompactMaxEditor`, `inspectorAxisCompactLogToggle`, `inspectorAxisCompactResetButton`
 - Properties: `pane: var`, `propertyItem: var`, `overriddenByInput: bool`, `propertyKey: string`, `axisLabel: string`, `fields: var`, `logScale: bool`, `hasManualAxis: bool`
-- Signals: _None_
+- Signals: `commitRequested`
 - Functions: `_fieldByRole`, `_fieldKey`, `_fieldText`, `_fieldBool`, `_fieldPlaceholder`, `_commitField`, `resetAxis`
 - Instantiates: `RowLayout`, `Text`, `ColumnLayout`, `InspectorTextField`, `Rectangle`, `Repeater`, `MouseArea`, `InspectorButton`
 - Dynamic constructs: `Repeater`; `model`; `delegate` -> `Rectangle`
@@ -2548,6 +2553,42 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Property bindings: `binding` `implicitWidth` -> `glyphSize`; `binding` `implicitHeight` -> `glyphSize`; `binding` `width` -> `implicitWidth`; `binding` `height` -> `implicitHeight`; `binding` `anchors.centerIn` -> `parent`; `binding` `sourceSize.width` -> `chevron.glyphSize`; `binding` `sourceSize.height` -> `chevron.glyphSize`; `binding` `width` -> `chevron.glyphSize`; `binding` `height` -> `chevron.glyphSize`; `binding` `smooth`; `binding` `rotation` -> `chevron.open`; `binding` `transformOrigin` -> `Item.Center`
 - Local component refs: _None_
 
+### `InspectorChipsPropertyEditor.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/InspectorChipsPropertyEditor.qml`
+- Root component: `Column`
+- Agent route aliases: `InspectorChipsPropertyEditor`, `InspectorChipsPropertyEditor.qml`, `ea_node_editor/ui_qml/components/shell/InspectorChipsPropertyEditor.qml`, `ea_node_editor\ui_qml\components\shell\InspectorChipsPropertyEditor.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`
+- IDs: `chipListContainer`, `chipRow`, `chipListEditor`
+- Object names: `inspectorChipListContainer`, `inspectorChipListEditor`
+- Properties: `editorContext: var`, `chipValues: var`, `chipIndex: int`, `propertyKey: string`
+- Signals: _None_
+- Functions: `commitChip`
+- Instantiates: `Flow`, `Repeater`, `Rectangle`, `Row`, `Text`, `InspectorButton`, `InspectorEditableComboBox`
+- Dynamic constructs: `Repeater`; `model` -> `chipListContainer.chipValues`; `model` -> `editorContext.propertyItem`, `editorContext.propertyItem.enum_values`
+- Signal handlers: `handler` `onClicked`; `handler` `onValueActivated`; `handler` `onAccepted`
+- Connections: _None_
+- Property bindings: `binding` `width` -> `parent.width`; `binding` `spacing`; `binding` `visible` -> `chipListContainer.chipValues.length`; `binding` `radius`; `binding` `color` -> `Qt.alpha`, `editorContext.pane.themePalette.accent`; `binding` `border.width`; `binding` `border.color` -> `Qt.alpha`, `editorContext.pane.themePalette.accent`; `binding` `implicitWidth` -> `chipRow.implicitWidth`; `binding` `implicitHeight` -> `chipRow.implicitHeight`; `binding` `anchors.centerIn` -> `parent`; `binding` `text` -> `editorContext.exactSelectors`; `binding` `color` -> `editorContext.pane.themePalette.input_fg`; `binding` `font.pixelSize`; `binding` `pane` -> `editorContext.pane`; `binding` `compact`; `binding` `text`; `binding` `enabled` -> `editorContext.editorEnabled`; `binding` `placeholderText` -> `String`; ... +3 more
+- Local component refs: `localComponent` `InspectorButton`: `ea_node_editor/ui_qml/components/shell/InspectorButton.qml`; `localComponent` `InspectorEditableComboBox`: `ea_node_editor/ui_qml/components/shell/InspectorEditableComboBox.qml`
+
+### `InspectorChoicePropertyEditor.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/InspectorChoicePropertyEditor.qml`
+- Root component: `Loader`
+- Agent route aliases: `InspectorChoicePropertyEditor`, `InspectorChoicePropertyEditor.qml`, `ea_node_editor/ui_qml/components/shell/InspectorChoicePropertyEditor.qml`, `ea_node_editor\ui_qml\components\shell\InspectorChoicePropertyEditor.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"../common/FontFamilyOptions.js" as FontFamilyOptions`
+- IDs: `choices`, `choice8`, `searchableEnumEditor`, `choice10`, `pinDataTypeEditor`, `choice11`, `editableComboEditor`, `choice12`, `fontFamilyEditor`
+- Object names: `inspectorSearchableEnumEditor`, `inspectorEditableComboEditor`, `inspectorFontFamilyEditor`
+- Properties: `editorContext: var`, `propertyKey: string`
+- Signals: _None_
+- Functions: `commitDeclaredValue`, `commitDisplayValue`
+- Instantiates: `Component`, `InspectorEditableComboBox`
+- Dynamic constructs: `Loader`; `sourceComponent`; `Component`; `model` -> `editorContext.propertyItem`, `editorContext.propertyItem.enum_values`; `model` -> `editorContext.pane.pinDataTypeOptions`; `model` -> `FontFamilyOptions.withDefault`
+- Signal handlers: `handler` `onValueActivated`; `handler` `onAccepted`; `handler` `onActiveFocusChanged`; `handler` `Component.onCompleted`; `handler` `onVisibleChanged`
+- Connections: _None_
+- Property bindings: `binding` `height` -> `item`, `item.implicitHeight`; `binding` `default`; `binding` `pane` -> `editorContext.pane`; `binding` `width` -> `parent.width`; `binding` `enabled` -> `editorContext.editorEnabled`; `binding` `selectedValue` -> `editorContext.propertyValueText`; `binding` `selectedValue` -> `String`, `editorContext.propertyItem`, `editorContext.propertyItem.value`, `toLowerCase`; `binding` `placeholderText` -> `String`; `binding` `optionCodes` -> `editorContext.propertyItem.enum_codes`; `binding` `exactSelectors` -> `editorContext.exactSelectors`; `binding` `selectedValue` -> `editorContext.exactSelectors`, `editorContext.displayValue`, `editorContext.propertyValueText`; `binding` `placeholderText`; `binding` `selectedValue` -> `FontFamilyOptions.displayName`, `editorContext.propertyValueText`; `binding` `previewValueAsFontFamily`; `binding` `defaultFontFamilyLabel` -> `FontFamilyOptions.DEFAULT_FONT_FAMILY_LABEL`
+- Local component refs: `localComponent` `InspectorEditableComboBox`: `ea_node_editor/ui_qml/components/shell/InspectorEditableComboBox.qml`
+
 ### `InspectorColorField.qml`
 
 - Path: `ea_node_editor/ui_qml/components/shell/InspectorColorField.qml`
@@ -2557,7 +2598,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - IDs: `root`, `editorRow`, `pickButton`, `colorField`
 - Object names: `inspectorColorPickerButton`, `inspectorColorEditor`
 - Properties: `pane: var`, `propertyKey: string`, `committedText: string`, `tooltipCategory: string`, `tooltipTextFormat: int`, `text: string`, `tooltipPolicyBridge: var`
-- Signals: _None_
+- Signals: `commitRequested`
 - Functions: `_normalizedText`, `_hasValidColor`, `_swatchFillColor`, `_swatchBorderColor`, `syncTextToCommitted`, `commitText`, `pickColor`
 - Instantiates: `RowLayout`, `Button`, `Common.ManagedToolTip`, `Rectangle`, `InspectorTextField`
 - Dynamic constructs: _None_
@@ -2716,13 +2757,13 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Root component: `Column`
 - Agent route aliases: `InspectorPaletteBody`, `InspectorPaletteBody.qml`, `ea_node_editor/ui_qml/components/shell/InspectorPaletteBody.qml`, `ea_node_editor\ui_qml\components\shell\InspectorPaletteBody.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"InspectorFilter.js" as InspectorFilter`
-- IDs: `body`, `headerCard`, `headerColumn`, `filterBar`, `listColumn`, `rowRepeater`, `paletteRow`, `rowHover`, `rowContent`, `metaRow`, `groupChip`, `chipLabel`, `rowLabel`, `enterPill`, `enterPillText`, `emptyState`, `footerStrip`, `footerRow`, ... +1 more
+- IDs: `body`, `headerCard`, `headerColumn`, `filterBar`, `listColumn`, `rowRepeater`, `propertiesModel`, `paletteRow`, `rowHover`, `rowContent`, `metaRow`, `groupChip`, `chipLabel`, `rowLabel`, `enterPill`, `enterPillText`, `emptyState`, `footerStrip`, ... +2 more
 - Object names: `inspectorPaletteBody`, `inspectorPaletteHeader`, `inspectorPaletteFilterBar`, `inspectorPaletteList`, `inspectorPaletteRow_`, `inspectorPaletteEmptyState`, `inspectorPaletteFooter`
 - Properties: `pane: var`, `propertyItems: var`, `filterQuery: string`, `filterScope: string`, `activeIndex: int`, `_filterMatcher: var`, `_filteredItems: var`, `_clampedActive: int`, `rowItem: var`, `rowKey: string`, `isActive: bool`, `chipText: string`
 - Signals: _None_
 - Functions: `setActive`, `moveActive`, `clearQuery`
 - Instantiates: `Rectangle`, `InspectorFilterBar`, `Repeater`, `MouseArea`, `RowLayout`, `Text`, `InspectorOverrideBadge`, `InspectorPropertyEditor`, `Row`
-- Dynamic constructs: `Repeater`; `model` -> `body._filteredItems`; `delegate` -> `Rectangle`; `model`; `delegate` -> `Row`
+- Dynamic constructs: `Repeater`; `model` -> `InspectorRowsModel`; `delegate` -> `Rectangle`; `model`; `delegate` -> `Row`
 - Signal handlers: `handler` `Keys.onUpPressed`; `handler` `Keys.onDownPressed`; `handler` `Keys.onEscapePressed`; `handler` `Keys.onReturnPressed`; `handler` `Keys.onEnterPressed`; `handler` `onQueryChanged`; `handler` `onScopeChanged`; `handler` `onEntered`; `handler` `onClicked`
 - Connections: _None_
 - Property bindings: `binding` `width` -> `parent`, `parent.width`, `implicitWidth`; `binding` `spacing`; `binding` `focus`; `binding` `width` -> `parent.width`; `binding` `color` -> `body.pane`, `body.pane.themePalette.toolbar_bg`; `binding` `implicitHeight` -> `headerColumn.implicitHeight`; `binding` `height`; `binding` `anchors.bottom` -> `parent.bottom`; `binding` `color` -> `body.pane`, `body.pane.themePalette.border`; `binding` `anchors.horizontalCenter` -> `parent.horizontalCenter`; `binding` `anchors.verticalCenter` -> `parent.verticalCenter`; `binding` `pane` -> `body.pane`; `binding` `query` -> `body.filterQuery`; `binding` `scope` -> `body.filterScope`; `binding` `placeholder` -> `body.filterScope`; `binding` `topPadding`; `binding` `bottomPadding`; `binding` `leftPadding`; ... +50 more
@@ -2736,15 +2777,33 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"../common/TooltipCopy.js" as TooltipCopy`
 - IDs: `root`, `inspectorScroll`, `inspectorColumn`, `nodeLinksSection`, `nodeCommentsSection`, `inspectorPropertyVariantLoader`, `smartGroupsBodyComponent`, `accordionCardsBodyComponent`, `paletteBodyComponent`
 - Object names: `inspectorPane`, `inspectorContentSurface`, `inspectorScrollView`, `inspectorEmptyStateCard`, `inspectorPropertyVariantLoader`, `inspectorHelpSurface`
-- Properties: `inspectorBridgeRef: var`, `helpBridgeRef: var`, `activeTabIndex: int`, `activePortDirection: string`, `selectedPortKey: string`, `editingPortKey: string`, `editingPortLabel: string`, `hasSelectedNode: bool`, `isPinInspector: bool`, `showPortSection: bool`, `canManageSubnodePorts: bool`, `canEditPortLabels: bool`, `selectedNodeTitle: string`, `selectedNodeSubtitle: string`, `selectedNodeId: string`, `selectedNodeWorkspaceId: string`, `selectedNodeCollapsible: bool`, `selectedNodeCollapsed: bool`, ... +18 more
+- Properties: `inspectorBridgeRef: var`, `helpBridgeRef: var`, `activeTabIndex: int`, `activePortDirection: string`, `selectedPortKey: string`, `editingPortKey: string`, `editingPortLabel: string`, `hasSelectedNode: bool`, `isPinInspector: bool`, `showPortSection: bool`, `canManageSubnodePorts: bool`, `canEditPortLabels: bool`, `selectedNodeTitle: string`, `selectedNodeSubtitle: string`, `selectedNodeId: string`, `selectedNodeWorkspaceId: string`, `selectedNodeCollapsible: bool`, `selectedNodeCollapsed: bool`, ... +23 more
 - Signals: `linkTargetPickRequested`, `linkTargetPickCancelled`
-- Functions: `portItemsForDirection`, `_propertyItemsWithPresentation`, `hasVisiblePort`, `portItemByKey`, `syncSelectedPortSelection`, `addSubnodePort`, `selectPort`, `beginPortLabelEdit`, `commitPortLabelEdit`, `cancelPortLabelEdit`, `focusInspectorBackground`, `deleteSelectedPort`, `openCommentsForSelectedNode`, `beginAddCommentForSelectedNode`, `applyLinkTargetPick`, `cancelLinkTargetPick`, `onHelp_visible_changed`, `onHelp_tab_requested`, ... +1 more
+- Functions: `refreshPropertyPresentation`, `refreshContent`, `portItemsForDirection`, `_propertyItemsWithPresentation`, `hasVisiblePort`, `portItemByKey`, `syncSelectedPortSelection`, `addSubnodePort`, `selectPort`, `beginPortLabelEdit`, `commitPortLabelEdit`, `cancelPortLabelEdit`, `focusInspectorBackground`, `deleteSelectedPort`, `openCommentsForSelectedNode`, `beginAddCommentForSelectedNode`, `applyLinkTargetPick`, `cancelLinkTargetPick`, ... +3 more
 - Instantiates: `ColumnLayout`, `RowLayout`, `Repeater`, `Text`, `MouseArea`, `StackLayout`, `Rectangle`, `TapHandler`, `ScrollView`, `Column`, `InspectorSectionCard`, `InspectorNodeDefinitionSection`, `InspectorNodeLinksSection`, `InspectorNodeCommentsSection`, `Loader`, `Component`, `InspectorSmartGroupsBody`, `InspectorAccordionCardsBody`, ... +4 more
 - Dynamic constructs: `Repeater`; `model`; `delegate` -> `Rectangle`; `Loader`; `sourceComponent`; `Component`
-- Signal handlers: `handler` `onVisiblePortItemsChanged`; `handler` `onShowPortSectionChanged`; `handler` `onClicked`; `handler` `onTapped`; `handler` `onPickTargetRequested`; `handler` `onPickTargetCancelled`
+- Signal handlers: `handler` `onPropertiesRequestedChanged`; `handler` `onInspectorBridgeRefChanged`; `handler` `onPropertyPresentationLookupChanged`; `handler` `Component.onCompleted`; `handler` `onVisiblePortItemsChanged`; `handler` `onShowPortSectionChanged`; `handler` `onClicked`; `handler` `onTapped`; `handler` `onPickTargetRequested`; `handler` `onPickTargetCancelled`
 - Connections: `target` `root.helpBridgeRef`; `target` `root.inspectorBridgeRef`
-- Property bindings: `binding` `tooltipCategory` -> `inspector.pane.collapse`, `TooltipCopy.category`, `tooltipCopyBridge`; `binding` `paneTitle`; `binding` `side`; `binding` `persistedPanelId`; `binding` `expandedWidth`; `binding` `contentSpacing`; `binding` `collapseButtonTooltip` -> `inspector.pane.collapse`, `TooltipCopy.text`, `tooltipCopyBridge`; `binding` `expandHandleTooltip` -> `inspector.pane.expand`, `TooltipCopy.text`, `tooltipCopyBridge`; `binding` `contentData`; `binding` `Layout.fillWidth`; `binding` `Layout.fillHeight`; `binding` `spacing`; `binding` `Layout.preferredHeight`; `binding` `color` -> `root.activeTabIndex`, `modelData.index`; `binding` `border.color` -> `root.themePalette.border`; `binding` `anchors.centerIn` -> `parent`; `binding` `text` -> `modelData.label`; `binding` `font.pixelSize`; ... +29 more
+- Property bindings: `binding` `tooltipCategory` -> `inspector.pane.collapse`, `TooltipCopy.category`, `tooltipCopyBridge`; `binding` `selected_node_title` -> `bridge.selected_node_title`; `binding` `selected_node_subtitle` -> `bridge.selected_node_subtitle`; `binding` `selected_node_is_subnode_pin` -> `bridge.selected_node_is_subnode_pin`; `binding` `selected_node_is_subnode_shell` -> `bridge.selected_node_is_subnode_shell`; `binding` `selected_node_collapsible` -> `bridge.selected_node_collapsible`; `binding` `selected_node_collapsed` -> `bridge.selected_node_collapsed`; `binding` `selected_node_port_items` -> `bridge.selected_node_port_items`; `binding` `selected_node_header_items` -> `bridge.selected_node_header_items`; `binding` `selected_node_property_items` -> `bridge.selected_node_property_items`; `binding` `selected_node_link_items` -> `bridge.selected_node_link_items`; `binding` `selected_node_comment_items` -> `bridge.selected_node_comment_items`; `binding` `selected_node_link_node_options` -> `bridge.selected_node_link_node_options`; `binding` `selected_node_link_workspace_options` -> `bridge.selected_node_link_workspace_options`; `binding` `paneTitle`; `binding` `side`; `binding` `persistedPanelId`; `binding` `expandedWidth`; ... +42 more
 - Local component refs: `localComponent` `InspectorSectionCard`: `ea_node_editor/ui_qml/components/shell/InspectorSectionCard.qml`; `localComponent` `InspectorNodeDefinitionSection`: `ea_node_editor/ui_qml/components/shell/InspectorNodeDefinitionSection.qml`; `localComponent` `InspectorNodeLinksSection`: `ea_node_editor/ui_qml/components/shell/InspectorNodeLinksSection.qml`; `localComponent` `InspectorNodeCommentsSection`: `ea_node_editor/ui_qml/components/shell/InspectorNodeCommentsSection.qml`; `localComponent` `InspectorSmartGroupsBody`: `ea_node_editor/ui_qml/components/shell/InspectorSmartGroupsBody.qml`; `localComponent` `InspectorAccordionCardsBody`: `ea_node_editor/ui_qml/components/shell/InspectorAccordionCardsBody.qml`; `localComponent` `InspectorPaletteBody`: `ea_node_editor/ui_qml/components/shell/InspectorPaletteBody.qml`; `localComponent` `InspectorPortManagementSection`: `ea_node_editor/ui_qml/components/shell/InspectorPortManagementSection.qml`; `localComponent` `HelpPane`: `ea_node_editor/ui_qml/components/shell/HelpPane.qml`
+
+### `InspectorPathPropertyEditor.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/InspectorPathPropertyEditor.qml`
+- Root component: `Column`
+- Agent route aliases: `InspectorPathPropertyEditor`, `InspectorPathPropertyEditor.qml`, `ea_node_editor/ui_qml/components/shell/InspectorPathPropertyEditor.qml`, `ea_node_editor\ui_qml\components\shell\InspectorPathPropertyEditor.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`
+- IDs: `pathBody`, `pathEditor`, `sourceStorageCombo`, `issueColumn`
+- Object names: `inspectorPathEditor`, `inspectorPathBrowseButton`, `inspectorPathSourceStorageComboBox`, `inspectorPathRepairButton`
+- Properties: `editorContext: var`, `propertyKey: string`, `pathDialogMode: string`
+- Signals: _None_
+- Functions: `_selectedPathSourceMode`, `_pathSourceModeIndex`, `_syncSourceStorageCombo`, `_browseAndCommitPath`, `onPathCurrentSourceModeChanged`, `onPathSourceModeChoicesVisibleChanged`
+- Instantiates: `RowLayout`, `InspectorTextField`, `InspectorButton`, `Text`, `InspectorComboBox`, `Rectangle`, `Connections`
+- Dynamic constructs: `model`
+- Signal handlers: `handler` `onAccepted`; `handler` `onEditingFinished`; `handler` `onClicked`; `handler` `Component.onCompleted`
+- Connections: `target` `editorContext`
+- Property bindings: `binding` `width` -> `parent.width`; `binding` `spacing`; `binding` `pane` -> `editorContext.pane`; `binding` `Layout.fillWidth`; `binding` `enabled` -> `editorContext.editorEnabled`; `binding` `text` -> `editorContext._displayEditorText`; `binding` `compact`; `binding` `text`; `binding` `iconName`; `binding` `visible` -> `editorContext.pathSourceModeChoicesVisible`; `binding` `Layout.alignment` -> `Qt.AlignVCenter`; `binding` `color` -> `editorContext.pane.themePalette.muted_fg`; `binding` `font.pixelSize`; `binding` `elide` -> `Text.ElideRight`; `binding` `currentIndex`; `binding` `visible` -> `editorContext.propertyItem`, `editorContext.propertyItem.file_issue_active`; `binding` `radius`; `binding` `color` -> `Qt.alpha`, `editorContext.pane.themePalette.accent`; ... +8 more
+- Local component refs: `localComponent` `InspectorTextField`: `ea_node_editor/ui_qml/components/shell/InspectorTextField.qml`; `localComponent` `InspectorButton`: `ea_node_editor/ui_qml/components/shell/InspectorButton.qml`; `localComponent` `InspectorComboBox`: `ea_node_editor/ui_qml/components/shell/InspectorComboBox.qml`
 
 ### `InspectorPortManagementSection.qml`
 
@@ -2787,18 +2846,36 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Path: `ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml`
 - Root component: `Column`
 - Agent route aliases: `InspectorPropertyEditor`, `InspectorPropertyEditor.qml`, `ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml`, `ea_node_editor\ui_qml\components\shell\InspectorPropertyEditor.qml`
-- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"../common" as Common`, `"../common/FontFamilyOptions.js" as FontFamilyOptions`, `"../graph/surface_controls" as SurfaceControls`
-- IDs: `propertyEditor`, `propertyStatusText`, `inactiveChipText`, `boolToggle`, `searchableEnumEditor`, `intervalEditor`, `pinDataTypeEditor`, `editableComboEditor`, `fontFamilyEditor`, `textareaEditorGroup`, `textareaEditor`, `pathEditor`, `sourceStorageCombo`, `issueColumn`, `chipListContainer`, `chipRow`, `chipListEditor`, `summaryText`
-- Object names: `inspectorPropertyEditor`, `inspectorPropertyOverrideReason`, `inspectorPropertyStatusChip`, `inspectorSecretEditor`, `inspectorPropertyInactiveChip`, `inspectorSearchableEnumEditor`, `inspectorIntervalSlider`, `inspectorEditableComboEditor`, `inspectorFontFamilyEditor`, `inspectorTextareaEditor`, `inspectorTextareaApplyButton`, `inspectorTextareaResetButton`, `inspectorPathEditor`, `inspectorPathBrowseButton`, `inspectorPathSourceStorageComboBox`, `inspectorPathRepairButton`, `inspectorChipListContainer`, `inspectorChipListEditor`, ... +1 more
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"../common" as Common`, `"../graph/surface_controls" as SurfaceControls`
+- IDs: `propertyEditor`, `propertyStatusText`, `inactiveChipText`, `editorLoader`, `secretComponent`, `toggleComponent`, `boolToggle`, `enumComponent`, `interval_sliderComponent`, `intervalEditor`, `colorComponent`, `summaryComponent`, `summaryText`, `axis_compactComponent`, `textComponent`, `textareaComponent`, `pathComponent`, `chip_listComponent`, ... +1 more
+- Object names: `inspectorPropertyEditor`, `inspectorPropertyOverrideReason`, `inspectorPropertyStatusChip`, `inspectorPropertyInactiveChip`, `inspectorTypedEditorLoader`, `inspectorSecretEditor`, `inspectorIntervalSlider`, `inspectorPropertySummaryValue`
 - Properties: `pane: var`, `propertyItem: var`, `propertyKey: string`, `editorMode: string`, `pathDialogMode: string`, `pathSupportsManagedCopy: bool`, `pathSupportsExternalLink: bool`, `pathCurrentSourceMode: string`, `pathSourceModeChoicesVisible: bool`, `overriddenByInput: bool`, `displayValueAvailable: bool`, `displayValue: var`, `editorEnabled: bool`, `editorDisabledReason: string`, `searchableEnum: bool`, `exactSelectors: bool`, `attentionRequired: bool`, `metadataStatusText: string`, ... +7 more
 - Signals: _None_
-- Functions: `_selectedPathSourceMode`, `_pathSourceModeIndex`, `_syncSourceStorageCombo`, `_browseAndCommitPath`, `commitDeclaredValue`, `commitDisplayValue`, `syncDraftToCommitted`, `commitDraft`, `commitChip`, `_intervalEndpoint`, `_displayEditorText`
-- Instantiates: `Text`, `Rectangle`, `Common.SecretEditor`, `Row`, `InspectorCheckBox`, `InspectorComboBox`, `InspectorEditableComboBox`, `SurfaceControls.GraphSurfaceIntervalSlider`, `InspectorTextArea`, `RowLayout`, `InspectorButton`, `InspectorTextField`, `InspectorColorField`, `Flow`, `Repeater`, `InspectorAxisCompactEditor`
-- Dynamic constructs: `model` -> `propertyEditor.propertyItem`, `propertyEditor.propertyItem.enum_values`; `model` -> `propertyEditor.pane.pinDataTypeOptions`; `model` -> `FontFamilyOptions.withDefault`; `model`; `Repeater`; `model` -> `chipListContainer.chipValues`
-- Signal handlers: `handler` `onPathCurrentSourceModeChanged`; `handler` `onPathSourceModeChoicesVisibleChanged`; `handler` `Component.onCompleted`; `handler` `onReplaceRequested`; `handler` `onClearRequested`; `handler` `onToggled`; `handler` `onActivated`; `handler` `onValueActivated`; `handler` `onAccepted`; `handler` `onActiveFocusChanged`; `handler` `onCommitRequested`; `handler` `onVisibleChanged`; `handler` `onCommittedTextChanged`; `handler` `onTextChanged`; `handler` `Keys.onPressed`; `handler` `onClicked`; `handler` `onEditingFinished`
+- Functions: `currentNodeId`, `canCommit`, `currentWorkspaceId`, `commitValue`, `_intervalEndpoint`, `_displayEditorText`
+- Instantiates: `Text`, `Rectangle`, `Row`, `Loader`, `Component`, `Common.SecretEditor`, `InspectorCheckBox`, `InspectorComboBox`, `SurfaceControls.GraphSurfaceIntervalSlider`, `InspectorColorField`, `InspectorAxisCompactEditor`, `InspectorTextField`, `InspectorTextareaPropertyEditor`, `InspectorPathPropertyEditor`, `InspectorChipsPropertyEditor`, `InspectorChoicePropertyEditor`
+- Dynamic constructs: `Loader`; `sourceComponent`; `Component`; `model` -> `propertyEditor.propertyItem`, `propertyEditor.propertyItem.enum_values`
+- Signal handlers: `handler` `Component.onCompleted`; `handler` `Component.onDestruction`; `handler` `onReplaceRequested`; `handler` `onClearRequested`; `handler` `onToggled`; `handler` `onActivated`; `handler` `onCommitRequested`; `handler` `onAccepted`; `handler` `onEditingFinished`
 - Connections: _None_
-- Property bindings: `binding` `width` -> `parent`, `parent.width`, `implicitWidth`; `binding` `spacing`; `binding` `width` -> `parent.width`; `binding` `visible` -> `propertyEditor.editorMode`; `binding` `text` -> `String`, `propertyEditor.propertyItem.label`; `binding` `color` -> `propertyEditor.pane.themePalette.group_title_fg`; `binding` `font.pixelSize`; `binding` `font.bold`; `binding` `elide` -> `Text.ElideRight`; `binding` `visible` -> `propertyEditor.editorEnabled`, `propertyEditor.editorDisabledReason.length`; `binding` `text` -> `propertyEditor.editorDisabledReason`; `binding` `color` -> `propertyEditor.pane.themePalette.muted_fg`; `binding` `visible` -> `String`, `propertyEditor.propertyItem`, `propertyEditor.propertyItem.help_text`, `length`; `binding` `text` -> `String`, `propertyEditor.propertyItem`, `propertyEditor.propertyItem.help_text`; `binding` `wrapMode` -> `Text.Wrap`; `binding` `visible` -> `propertyEditor.metadataStatusText.length`; `binding` `radius`; `binding` `implicitWidth` -> `propertyStatusText.implicitWidth`; ... +89 more
-- Local component refs: `localComponent` `Common.SecretEditor`: `ea_node_editor/ui_qml/components/common/SecretEditor.qml`; `localComponent` `InspectorCheckBox`: `ea_node_editor/ui_qml/components/shell/InspectorCheckBox.qml`; `localComponent` `InspectorComboBox`: `ea_node_editor/ui_qml/components/shell/InspectorComboBox.qml`; `localComponent` `InspectorEditableComboBox`: `ea_node_editor/ui_qml/components/shell/InspectorEditableComboBox.qml`; `localComponent` `SurfaceControls.GraphSurfaceIntervalSlider`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml`; `localComponent` `InspectorTextArea`: `ea_node_editor/ui_qml/components/shell/InspectorTextArea.qml`; `localComponent` `InspectorButton`: `ea_node_editor/ui_qml/components/shell/InspectorButton.qml`; `localComponent` `InspectorTextField`: `ea_node_editor/ui_qml/components/shell/InspectorTextField.qml`; `localComponent` `InspectorColorField`: `ea_node_editor/ui_qml/components/shell/InspectorColorField.qml`; `localComponent` `InspectorAxisCompactEditor`: `ea_node_editor/ui_qml/components/shell/InspectorAxisCompactEditor.qml`
+- Property bindings: `binding` `width` -> `parent`, `parent.width`, `implicitWidth`; `binding` `spacing`; `binding` `width` -> `parent.width`; `binding` `visible` -> `propertyEditor.editorMode`; `binding` `text` -> `String`, `propertyEditor.propertyItem.label`; `binding` `color` -> `propertyEditor.pane.themePalette.group_title_fg`; `binding` `font.pixelSize`; `binding` `font.bold`; `binding` `elide` -> `Text.ElideRight`; `binding` `visible` -> `propertyEditor.editorEnabled`, `propertyEditor.editorDisabledReason.length`; `binding` `text` -> `propertyEditor.editorDisabledReason`; `binding` `color` -> `propertyEditor.pane.themePalette.muted_fg`; `binding` `visible` -> `String`, `propertyEditor.propertyItem`, `propertyEditor.propertyItem.help_text`, `length`; `binding` `text` -> `String`, `propertyEditor.propertyItem`, `propertyEditor.propertyItem.help_text`; `binding` `wrapMode` -> `Text.Wrap`; `binding` `visible` -> `propertyEditor.metadataStatusText.length`; `binding` `radius`; `binding` `implicitWidth` -> `propertyStatusText.implicitWidth`; ... +57 more
+- Local component refs: `localComponent` `Common.SecretEditor`: `ea_node_editor/ui_qml/components/common/SecretEditor.qml`; `localComponent` `InspectorCheckBox`: `ea_node_editor/ui_qml/components/shell/InspectorCheckBox.qml`; `localComponent` `InspectorComboBox`: `ea_node_editor/ui_qml/components/shell/InspectorComboBox.qml`; `localComponent` `SurfaceControls.GraphSurfaceIntervalSlider`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml`; `localComponent` `InspectorColorField`: `ea_node_editor/ui_qml/components/shell/InspectorColorField.qml`; `localComponent` `InspectorAxisCompactEditor`: `ea_node_editor/ui_qml/components/shell/InspectorAxisCompactEditor.qml`; `localComponent` `InspectorTextField`: `ea_node_editor/ui_qml/components/shell/InspectorTextField.qml`; `localComponent` `InspectorTextareaPropertyEditor`: `ea_node_editor/ui_qml/components/shell/InspectorTextareaPropertyEditor.qml`; `localComponent` `InspectorPathPropertyEditor`: `ea_node_editor/ui_qml/components/shell/InspectorPathPropertyEditor.qml`; `localComponent` `InspectorChipsPropertyEditor`: `ea_node_editor/ui_qml/components/shell/InspectorChipsPropertyEditor.qml`; `localComponent` `InspectorChoicePropertyEditor`: `ea_node_editor/ui_qml/components/shell/InspectorChoicePropertyEditor.qml`
+
+### `InspectorRowsModel.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/InspectorRowsModel.qml`
+- Root component: `ListModel`
+- Agent route aliases: `InspectorRowsModel`, `InspectorRowsModel.qml`, `ea_node_editor/ui_qml/components/shell/InspectorRowsModel.qml`, `ea_node_editor\ui_qml\components\shell\InspectorRowsModel.qml`
+- Imports: `QtQuick 2.15`
+- IDs: `root`
+- Object names: _None_
+- Properties: `rows: var`, `keyRole: string`, `rowsByKey: var`
+- Signals: _None_
+- Functions: `synchronize`
+- Instantiates: _None_
+- Dynamic constructs: _None_
+- Signal handlers: `handler` `onRowsChanged`; `handler` `onKeyRoleChanged`; `handler` `Component.onCompleted`
+- Connections: _None_
+- Property bindings: _None_
+- Local component refs: _None_
 
 ### `InspectorScopeToggle.qml`
 
@@ -2878,16 +2955,16 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Root component: `Column`
 - Agent route aliases: `InspectorSmartGroupsBody`, `InspectorSmartGroupsBody.qml`, `ea_node_editor/ui_qml/components/shell/InspectorSmartGroupsBody.qml`, `ea_node_editor\ui_qml\components\shell\InspectorSmartGroupsBody.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"InspectorFilter.js" as InspectorFilter`
-- IDs: `body`, `filterBar`, `smartRepeater`, `smartSection`, `smartSectionBody`, `staticRepeater`, `staticSection`, `staticSectionBody`
+- IDs: `body`, `filterBar`, `smartRepeater`, `smartModel`, `smartSection`, `smartSectionBody`, `smartPropertyModel`, `staticRepeater`, `staticModel`, `staticSection`, `staticSectionBody`, `staticPropertyModel`
 - Object names: `inspectorSmartGroupsBody`, `inspectorSmartGroupsFilterBar`, `inspectorSmartGroupHeader_`, `inspectorSmartGroupBody_`, `inspectorStaticGroupHeader_`, `inspectorStaticGroupBody_`
-- Properties: `pane: var`, `propertyItems: var`, `filterQuery: string`, `filterScope: string`, `expandedMap: var`, `_filterMatcher: var`, `_filteredItems: var`, `_smartSections: var`, `_staticGroups: var`, `sectionData: var`, `sectionKind: string`, `sectionLabel: string`, `sectionItems: var`, `sectionOpen: bool`, `groupData: var`, `groupName: string`, `groupItems: var`, `groupOpen: bool`
+- Properties: `pane: var`, `propertyItems: var`, `filterQuery: string`, `filterScope: string`, `expandedMap: var`, `_filterMatcher: var`, `_filteredItems: var`, `_smartSections: var`, `_staticGroups: var`, `sectionData: var`, `sectionKind: string`, `sectionLabel: string`, `sectionItems: var`, `sectionOpen: bool`, `bodyCreated: bool`, `groupData: var`, `groupName: string`, `groupItems: var`, ... +1 more
 - Signals: _None_
 - Functions: `_groupKey`, `isGroupOpen`, `seedDefaultOpenGroups`, `toggleGroup`, `_accentColorForKind`, `_labelColorForKind`
 - Instantiates: `InspectorFilterBar`, `Repeater`, `InspectorSmartGroupHeader`
-- Dynamic constructs: `Repeater`; `model` -> `body._smartSections`; `delegate` -> `Column`; `model` -> `smartSection.sectionItems`; `delegate` -> `InspectorPropertyEditor`; `model` -> `body._staticGroups`; `model` -> `staticSection.groupItems`
-- Signal handlers: `handler` `onPropertyItemsChanged`; `handler` `Component.onCompleted`; `handler` `onQueryChanged`; `handler` `onScopeChanged`; `handler` `onToggleRequested`
+- Dynamic constructs: `Repeater`; `model` -> `InspectorRowsModel`; `delegate` -> `Column`; `delegate` -> `InspectorPropertyEditor`
+- Signal handlers: `handler` `onPropertyItemsChanged`; `handler` `Component.onCompleted`; `handler` `onQueryChanged`; `handler` `onScopeChanged`; `handler` `onSectionOpenChanged`; `handler` `onToggleRequested`; `handler` `onGroupOpenChanged`
 - Connections: _None_
-- Property bindings: `binding` `width` -> `parent`, `parent.width`, `implicitWidth`; `binding` `spacing`; `binding` `pane` -> `body.pane`; `binding` `width` -> `parent.width`; `binding` `query` -> `body.filterQuery`; `binding` `scope` -> `body.filterScope`; `binding` `width` -> `body.width`; `binding` `width` -> `smartSection.width`; `binding` `label` -> `smartSection.sectionLabel`; `binding` `count` -> `smartSection.sectionItems.length`; `binding` `open` -> `smartSection.sectionOpen`; `binding` `uppercase`; `binding` `accentColor` -> `body._accentColorForKind`, `smartSection.sectionKind`; `binding` `labelColor` -> `body._labelColorForKind`, `smartSection.sectionKind`; `binding` `visible` -> `smartSection.sectionOpen`; `binding` `topPadding` -> `smartSection.sectionOpen`; `binding` `bottomPadding` -> `smartSection.sectionOpen`; `binding` `leftPadding`; ... +11 more
+- Property bindings: `binding` `width` -> `parent`, `parent.width`, `implicitWidth`; `binding` `spacing`; `binding` `pane` -> `body.pane`; `binding` `width` -> `parent.width`; `binding` `query` -> `body.filterQuery`; `binding` `scope` -> `body.filterScope`; `binding` `width` -> `body.width`; `binding` `width` -> `smartSection.width`; `binding` `label` -> `smartSection.sectionLabel`; `binding` `count` -> `smartSection.sectionItems.length`; `binding` `open` -> `smartSection.sectionOpen`; `binding` `uppercase`; `binding` `accentColor` -> `body._accentColorForKind`, `smartSection.sectionKind`; `binding` `labelColor` -> `body._labelColorForKind`, `smartSection.sectionKind`; `binding` `visible` -> `smartSection.sectionOpen`; `binding` `topPadding` -> `smartSection.sectionOpen`; `binding` `bottomPadding` -> `smartSection.sectionOpen`; `binding` `leftPadding`; ... +14 more
 - Local component refs: `localComponent` `InspectorFilterBar`: `ea_node_editor/ui_qml/components/shell/InspectorFilterBar.qml`; `localComponent` `InspectorSmartGroupHeader`: `ea_node_editor/ui_qml/components/shell/InspectorSmartGroupHeader.qml`; `localComponent` `InspectorPropertyEditor`: `ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml`
 
 ### `InspectorTextArea.qml`
@@ -2907,6 +2984,24 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Connections: _None_
 - Property bindings: `binding` `implicitHeight`; `binding` `padding`; `binding` `selectByMouse`; `binding` `wrapMode` -> `TextEdit.Wrap`; `binding` `color` -> `pane.themePalette.input_fg`; `binding` `selectionColor` -> `pane.selectedSurfaceColor`; `binding` `selectedTextColor` -> `pane.themePalette.panel_title_fg`; `binding` `background` -> `Rectangle`; `binding` `radius`; `binding` `color` -> `control.pane.themePalette.input_bg`; `binding` `border.color` -> `control.activeFocus`, `control.pane.themePalette.accent`, `control.pane.themePalette.input_border`; `binding` `border.width`
 - Local component refs: _None_
+
+### `InspectorTextareaPropertyEditor.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/InspectorTextareaPropertyEditor.qml`
+- Root component: `Column`
+- Agent route aliases: `InspectorTextareaPropertyEditor`, `InspectorTextareaPropertyEditor.qml`, `ea_node_editor/ui_qml/components/shell/InspectorTextareaPropertyEditor.qml`, `ea_node_editor\ui_qml\components\shell\InspectorTextareaPropertyEditor.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`
+- IDs: `textareaEditorGroup`, `textareaEditor`
+- Object names: `inspectorTextareaEditor`, `inspectorTextareaApplyButton`, `inspectorTextareaResetButton`
+- Properties: `editorContext: var`, `propertyKey: string`, `committedText: string`, `draftText: string`, `draftDirty: bool`
+- Signals: _None_
+- Functions: `syncDraftToCommitted`, `commitDraft`
+- Instantiates: `InspectorTextArea`, `RowLayout`, `InspectorButton`, `Text`
+- Dynamic constructs: _None_
+- Signal handlers: `handler` `onCommittedTextChanged`; `handler` `onTextChanged`; `handler` `Keys.onPressed`; `handler` `onClicked`
+- Connections: _None_
+- Property bindings: `binding` `width` -> `parent.width`; `binding` `spacing`; `binding` `pane` -> `editorContext.pane`; `binding` `enabled` -> `editorContext.editorEnabled`; `binding` `text` -> `textareaEditorGroup.draftText`; `binding` `compact`; `binding` `enabled` -> `editorContext.editorEnabled`, `textareaEditorGroup.draftDirty`; `binding` `text`; `binding` `Layout.fillWidth`; `binding` `verticalAlignment` -> `Text.AlignVCenter`; `binding` `text` -> `textareaEditorGroup.draftDirty`; `binding` `color` -> `editorContext.pane.themePalette.muted_fg`; `binding` `font.pixelSize`; `binding` `elide` -> `Text.ElideRight`
+- Local component refs: `localComponent` `InspectorTextArea`: `ea_node_editor/ui_qml/components/shell/InspectorTextArea.qml`; `localComponent` `InspectorButton`: `ea_node_editor/ui_qml/components/shell/InspectorButton.qml`
 
 ### `InspectorTextField.qml`
 

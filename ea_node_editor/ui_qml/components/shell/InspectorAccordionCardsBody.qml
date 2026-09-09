@@ -92,7 +92,7 @@ Column {
         width: parent.width
         query: body.filterQuery
         scope: body.filterScope
-        placeholder: "Filter across all groups…"
+        placeholder: "Filter across all groups\u2026"
         onQueryChanged: {
             if (body.filterQuery !== query)
                 body.filterQuery = query
@@ -105,7 +105,7 @@ Column {
 
     Repeater {
         id: groupRepeater
-        model: body._visibleGroups
+        model: InspectorRowsModel { id: groupsModel; rows: body._visibleGroups; keyRole: "name" }
 
         delegate: Rectangle {
             id: groupCard
@@ -116,7 +116,7 @@ Column {
             radius: 8
             clip: true
 
-            readonly property var groupData: modelData
+            readonly property var groupData: groupsModel.rowsByKey[rowKey] || ({})
             readonly property string groupName: String(groupData ? groupData.name : "")
             readonly property var groupItems: groupData && groupData.items ? groupData.items : []
             readonly property int groupAllCount: groupData ? groupData.allCount || 0 : 0
@@ -124,6 +124,9 @@ Column {
             readonly property string groupLocalQuery: String(groupData ? groupData.localQuery || "" : "")
             readonly property bool groupShowLocalFilter: !!(groupData && groupData.showLocalFilter)
             readonly property bool groupOpen: body.isGroupOpen(groupName)
+            property bool bodyCreated: false
+            onGroupOpenChanged: { if (groupOpen) bodyCreated = true }
+            Component.onCompleted: { if (groupOpen) bodyCreated = true }
 
             implicitHeight: cardColumn.implicitHeight
             height: implicitHeight
@@ -164,7 +167,7 @@ Column {
                         pane: body.pane
                         width: cardBody.width - cardBody.leftPadding - cardBody.rightPadding
                         compact: true
-                        placeholder: "Filter within " + groupCard.groupName + "…"
+                        placeholder: "Filter within " + groupCard.groupName + "\u2026"
                         query: groupCard.groupLocalQuery
                         scope: body.filterScope
                         onQueryChanged: body.setGroupQuery(groupCard.groupName, query)
@@ -175,12 +178,15 @@ Column {
                     }
 
                     Repeater {
-                        model: groupCard.groupItems
+                        model: InspectorRowsModel {
+                            id: propertyModel
+                            rows: groupCard.bodyCreated ? groupCard.groupItems : []
+                        }
 
                         delegate: InspectorPropertyEditor {
                             pane: body.pane
                             width: cardBody.width - cardBody.leftPadding - cardBody.rightPadding
-                            propertyItem: modelData
+                            propertyItem: propertyModel.rowsByKey[rowKey] || ({})
                         }
                     }
                 }

@@ -130,11 +130,11 @@ Column {
 
         Repeater {
             id: rowRepeater
-            model: body._filteredItems
+            model: InspectorRowsModel { id: propertiesModel; rows: body._filteredItems }
 
             delegate: Rectangle {
                 id: paletteRow
-                readonly property var rowItem: modelData
+                readonly property var rowItem: propertiesModel.rowsByKey[model.rowKey] || ({})
                 readonly property string rowKey: String(rowItem && rowItem.key ? rowItem.key : index)
                 readonly property bool isActive: index === body._clampedActive
 

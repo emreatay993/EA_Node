@@ -3448,6 +3448,10 @@ def _write_markdown_report(
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Canvas pan/zoom lag profiler")
     parser.add_argument(
+        "--selection", action="store_true",
+        help="Measure composed-shell canvas clicks and inspector lifecycle with isolated preferences.",
+    )
+    parser.add_argument(
         "--mode",
         choices=("orchestrate", "scenario", "overlay-sync"),
         default="orchestrate",
@@ -3512,6 +3516,10 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     if args.capture_qsg_info:
         os.environ["QSG_INFO"] = "1"
+    if args.selection:
+        from scripts.canvas_selection_profile import run_selection_profile
+
+        return run_selection_profile(args)
     if args.mode == "scenario":
         if not args.scenario:
             sys.stderr.write("--scenario required in scenario mode\n")

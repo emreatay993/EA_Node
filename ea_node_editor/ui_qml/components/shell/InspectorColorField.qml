@@ -6,6 +6,7 @@ import "../common" as Common
 Item {
     id: root
     property var pane
+    signal commitRequested(string key, var value)
     property string propertyKey: ""
     property string committedText: ""
     property string tooltipCategory: "general"
@@ -43,7 +44,7 @@ Item {
 
     function commitText(value) {
         if (root.pane.inspectorBridgeRef)
-            root.pane.inspectorBridgeRef.set_selected_node_property(root.propertyKey, String(value || ""));
+            root.commitRequested(root.propertyKey, String(value || ""));
     }
 
     function pickColor() {

@@ -64,6 +64,7 @@ Work-packet manifests, status ledgers, and per-phase wrap-up documents formerly 
 
 ## Retained Work-Packet QA Evidence
 
+- [Inspector Selection Performance](perf/INSPECTOR_SELECTION_PERFORMANCE_QA.md) - shared lazy editor lifecycle, hidden projection guards, and Windows/D3D11 selection-to-render evidence.
 - [Signal Plot Scientific Inputs](perf/SIGNAL_PLOT_SCIENTIFIC_INPUTS_QA.md) - scientific transport, direct plotting, runnable examples, and runtime/reuse-budget evidence.
 - [COREX Maintainability And Ownership Refactor QA Matrix](perf/COREX_MAINTAINABILITY_OWNERSHIP_REFACTOR_QA_MATRIX.md) - retained T00–T08 task, migration, review, correctness, and advisory performance closeout evidence.
 - [Verification Speed QA Matrix](perf/VERIFICATION_SPEED_QA_MATRIX.md)
