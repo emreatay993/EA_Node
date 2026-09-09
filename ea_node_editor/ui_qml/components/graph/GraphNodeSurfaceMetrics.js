@@ -856,7 +856,7 @@ function _groupBackdropSurfaceMetrics(node, source, graphLabelPixelSize, heightO
     };
 }
 
-function _mediaSurfaceMetrics(node, source, heightOverride) {
+function _mediaSurfaceMetrics(node, source, heightOverride, graphLabelPixelSize) {
     var layout = _mediaVariantLayout(node && node.surface_variant);
     var passive = _passiveContract();
     var portCount = _visiblePortCounts(node).portCount;
@@ -1081,7 +1081,7 @@ function surfaceMetrics(node, widthOverride, heightOverride, graphLabelPixelSize
     if (family === "group_backdrop")
         return _groupBackdropSurfaceMetrics(node, source, graphLabelPixelSize, heightOverride);
     if (family === "media")
-        return _mediaSurfaceMetrics(node, source, heightOverride);
+        return _mediaSurfaceMetrics(node, source, heightOverride, graphLabelPixelSize);
     if (family === "viewer")
         return _viewerSurfaceMetrics(node, source, widthOverride, heightOverride, graphLabelPixelSize);
     return _standardSurfaceMetrics(node, source, graphLabelPixelSize, heightOverride);

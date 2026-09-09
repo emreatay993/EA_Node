@@ -107,7 +107,7 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
             >= 0
         )
 
-    def test_exposed_source_port_stays_below_the_rendered_media_viewport(self) -> None:
+    def test_exposed_source_port_stays_below_the_viewport_with_a_full_hit_target(self) -> None:
         self._run_qml_probe(
             "media-panel-exposed-source-port-body-spacing",
             """
@@ -165,8 +165,28 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
             try:
                 settle_events(10)
                 viewport = named_item(host, "graphNodeMediaPreviewViewport")
+                source_dot = named_item(host, "graphNodeInputPortDot", "source")
+                source_mouse = named_item(host, "graphNodeInputPortMouseArea", "source")
                 viewport_bottom = viewport.mapToItem(host, QPointF(0.0, viewport.height())).y()
+                source_top = source_dot.mapToItem(host, QPointF(0.0, 0.0)).y()
+                source_center = source_dot.mapToItem(
+                    host,
+                    QPointF(source_dot.width() * 0.5, source_dot.height() * 0.5),
+                )
                 assert abs(viewport_bottom - float(payload["surface_metrics"]["port_top"])) < 0.1
+                assert viewport_bottom <= source_top
+                assert source_center.y() > host.height() * 0.75
+                assert source_mouse.property("enabled")
+                assert source_mouse.width() >= 24.0
+                assert source_mouse.height() >= 24.0
+                clicked_ports = []
+                host.portClicked.connect(
+                    lambda _node_id, port_key, direction, *_rest: clicked_ports.append(
+                        (port_key, direction)
+                    )
+                )
+                mouse_click(window, item_scene_point(source_mouse))
+                assert clicked_ports == [("source", "in")]
             finally:
                 dispose_host_window(host, window)
             """,
