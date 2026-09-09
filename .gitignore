@@ -50,6 +50,9 @@ examples/ansys_transient_extraction/ansys_transient_extraction_v2026R1.wbpz
 !examples/corex_plot_live_line.cxproj
 !examples/corex_plot_render_request.cxproj
 !examples/corex_plot_archive_exports.cxproj
+!examples/mechanical_table_to_signal_plot.cxproj
+!examples/mechanical_camera_image_workflows.cxproj
+!examples/mechanical_mutate_snippet_save.cxproj
 !examples/project_review_deck_airworthiness/rotor_llp_review_showcase.cxproj
 !examples/engineering_viewer/engineering_viewer_capabilities.cxproj
 !tests/fixtures/

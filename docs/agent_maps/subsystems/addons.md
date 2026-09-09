@@ -22,6 +22,10 @@ Use this for repo-local add-on discovery, dependency-gated availability, persist
 - `ea_node_editor/addons/mechanical/inspection.py`
 - `ea_node_editor/addons/mechanical/runtime.py`
 - `ea_node_editor/addons/mechanical/workbench.py`
+- `scripts/mechanical_catalogue/generate_examples.py`
+- `examples/mechanical_*.cxproj`
+- `docs/MECHANICAL_CATALOGUE.md`
+- `tests/mechanical_catalogue/test_examples.py`
 - `ea_node_editor/ui/shell/registry_replacement.py`
 - `ea_node_editor/ui/shell/presenters/addon_manager_presenter.py`
 - `ea_node_editor/ui_qml/shell_addon_manager_bridge.py`
@@ -35,6 +39,7 @@ Use this for repo-local add-on discovery, dependency-gated availability, persist
 - Tabular owns seven function declarations, property editing, native preload, compact refs, preview/query behavior, and one shared loader cache service.
 - Mechanical property editing resolves immutable accepted Info/Report catalogue tables through each Model locator. It caches detached descriptor choices by catalogue identity/revision and never opens a source or resolves the live handle while projecting selectors.
 - Mechanical's eight declarations expose 52 typed inputs and 22 outputs through the shared named-settings-group controls. Each declaration expands its primary group on fresh creation and leaves advanced groups collapsed. `tests/mechanical_catalogue/test_controls.py` owns the exact section/order/default/condition inventory; `test_visuals.py` owns production GraphCanvas interactions and font/theme/scale captures without launching Ansys.
+- `scripts/mechanical_catalogue/generate_examples.py` owns the three fixed-ID blank-path Mechanical `.cxproj` workflows and derives fresh section expansion from the current registry before normal serializer publication/reload. `docs/MECHANICAL_CATALOGUE.md` owns the user/developer contract; `tests/mechanical_catalogue/test_examples.py` pins its registry-exact ports/groups and each example's invariant-compatible edges without launching Ansys.
 - Selected Workbench `.mechdb`/`.mechdat` model-only exports flush and reconnect the source owner around native Model-container Export. A short-lived separate same-release `MechanicalOwnerProcess` alone opens the private `.dsdb`, SaveAs/reopens the standalone stage, verifies tree/geometry/load/selection/snippet/view snapshots, and closes before publication; archive controls remain unconsumed and the returned Model remains Workbench-owned.
 - MARS owns three function declarations plus managed-package/toolchain/artifact metadata and JSONL subprocess execution.
 - Mechanical contracts and run ownership are isolated in `addons/mechanical/`: `contracts.py` owns transient Model handles and bounded inline/table values, while `session.py` and `owner_process.py` own workspace-identified run sessions, source copies, revision admission, and a dedicated bounded subprocess protocol. On Windows the owner is assigned to a kill-on-close Job Object before backend imports, so worker death cannot orphan the owned process tree.
@@ -65,6 +70,7 @@ Use this for repo-local add-on discovery, dependency-gated availability, persist
 .\venv\Scripts\python.exe -m pytest tests/mechanical_catalogue/test_workbench_save.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/mechanical_catalogue/test_workbench_model_export.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/mechanical_catalogue/test_controls.py tests/mechanical_catalogue/test_visuals.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/mechanical_catalogue/test_examples.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_repo_owned_node_documentation.py --ignore=venv -q
 ```
 
@@ -76,4 +82,4 @@ Use this for repo-local add-on discovery, dependency-gated availability, persist
 
 ## Update Triggers
 
-Update when add-on discovery, dependencies, semantic-type/function contributions, persisted state, property edit adapters, Mechanical session ownership, Tabular/MARS metadata, or Add-On Manager behavior changes.
+Update when add-on discovery, dependencies, semantic-type/function contributions, persisted state, property edit adapters, Mechanical session ownership/examples/help, Tabular/MARS metadata, or Add-On Manager behavior changes.

@@ -51,4 +51,4 @@ Workspace-scoped Interactive lifetime, graph-run cleanup, stale handles, and pro
 .\venv\Scripts\python.exe .\scripts\check_markdown_links.py
 ```
 
-The focused contract suite passes 16 tests. No agent-map update is needed because T01 adds qualification helpers and proof only; application ownership is unchanged.
+The focused contract suite passes 17 tests. No agent-map update is needed because T01 adds qualification helpers and proof only; application ownership is unchanged.

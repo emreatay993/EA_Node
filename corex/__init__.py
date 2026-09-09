@@ -1,6 +1,6 @@
 # Purpose: Provide the dependency-free public function-plugin authoring surface.
 # Map: subsystems/nodes_registry_builtins.md
-# Tests: tests/test_plugin_declaration.py
+# Tests: tests/test_plugin_declaration.py, tests/mechanical_catalogue/test_catalogue.py
 
 from __future__ import annotations
 
@@ -39,6 +39,7 @@ def node(function=None, **_metadata: object):
         _metadata,
         {
             "_collapsible",
+            "_default_expanded_settings_group_ids",
             "_property_output_collisions",
             "_readiness_requirements",
             "_render_quality_tiers",
