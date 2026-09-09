@@ -1,3 +1,8 @@
+# Purpose: Verify registry validation, graph mutation, normalization, compatibility, and metadata contracts.
+# Map: subsystems/nodes_registry_builtins.md
+# Tests: this file
+# Landmarks: _factory; RegistryValidationTests; test_settings_group_contract_and_registry_validation; test_default_registry_has_canonical_type_inventory_and_declared_special_cases
+
 from __future__ import annotations
 
 import unittest
@@ -538,6 +543,7 @@ class RegistryValidationTests(unittest.TestCase):
             ports=(width_port, title_port, image_port),
             properties=(width_property, title_property),
             settings_groups=(general_group, plot_group),
+            default_expanded_settings_group_ids=("general",),
         )
 
         registry = NodeRegistry()
@@ -545,6 +551,10 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(
             registry.get_spec(valid_spec.type_id).settings_groups,
             (general_group, plot_group),
+        )
+        self.assertEqual(
+            registry.get_spec(valid_spec.type_id).default_expanded_settings_group_ids,
+            ("general",),
         )
 
         invalid_specs = {
@@ -646,6 +656,19 @@ class RegistryValidationTests(unittest.TestCase):
                     ),
                 ),
             ),
+            "known default expanded ids": replace(
+                valid_spec,
+                default_expanded_settings_group_ids=("missing",),
+            ),
+            "default expanded declaration order": replace(
+                valid_spec,
+                default_expanded_settings_group_ids=("plot.options", "general"),
+            ),
+            "default expanded requires groups": replace(
+                valid_spec,
+                settings_groups=(),
+                default_expanded_settings_group_ids=("general",),
+            ),
         }
         for case, invalid_spec in invalid_specs.items():
             with self.subTest(case=case), self.assertRaises((TypeError, ValueError)):
@@ -666,6 +689,7 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(plain_port.description, "")
         self.assertEqual(plain_spec.keywords, ())
         self.assertEqual(plain_spec.settings_groups, ())
+        self.assertEqual(plain_spec.default_expanded_settings_group_ids, ())
 
         documented_port = PortSpec(
             "value",

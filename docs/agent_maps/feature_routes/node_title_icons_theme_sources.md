@@ -13,6 +13,7 @@ Use this for built-in node title icon metadata, theme-aware icon rendering, icon
 ## Notes
 - Passive flowchart nodes are shape-backed, not icon-backed. Keep `passive.flowchart.*` out of `icon_catalog.py`; their visuals route through `surface_family="flowchart"` and `surface_variant`.
 - SSH/SFTP uses six owned SVGs under `assets/node_title_icons/ssh_sftp/`; no active `hpc/*` catalog entries or assets remain.
+- Mechanical uses eight COREX-owned SVG masks under `assets/node_title_icons/mechanical/`. `node_title_icon_sources.py` admits that central path only for trusted registry provenance rooted under COREX's own add-on package tree and a matching catalog entry; external file/package provenance never gains central fallback by matching an ID.
 - Public function-package title icons use registry provenance rooted at the verified immutable generation. `graph_scene_payload/builder.py` and `backdrop_partitioner.py` project that provenance without synthesizing a public descriptor; the resolver still rejects path escape and unsupported suffixes.
 
 ## Focused Verification

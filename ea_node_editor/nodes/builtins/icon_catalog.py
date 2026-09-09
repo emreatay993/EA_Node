@@ -118,6 +118,14 @@ BUILTIN_NODE_ICONS: Mapping[str, str] = {
     "passive.annotation.text": "text_fields",
     "passive.annotation.group_backdrop": "comment",
     "media.panel": "image",
+    "mechanical.open_model": "mechanical/open.svg",
+    "mechanical.search_tree": "mechanical/search.svg",
+    "mechanical.fea_table": "mechanical/table.svg",
+    "mechanical.camera_views": "mechanical/views.svg",
+    "mechanical.export_image": "mechanical/image.svg",
+    "mechanical.run_script": "mechanical/script.svg",
+    "mechanical.apdl_snippet": "mechanical/snippet.svg",
+    "mechanical.save_model": "mechanical/save.svg",
     "passive.media.mail_panel": "mail",
     "web.page_viewer": "globe",
     "excalidraw.board": "draw",
@@ -169,6 +177,7 @@ def builtin_node_type(
     surface_variant: str = "",
     render_quality: Any = None,
     settings_groups: tuple[SettingsGroupSpec, ...] | list[SettingsGroupSpec] = (),
+    default_expanded_settings_group_ids: tuple[str, ...] | list[str] = (),
     readiness_requirements: tuple[ReadinessRequirementSpec, ...] | list[ReadinessRequirementSpec] = (),
     solution_reuse_scope: str = "never",
 ) -> Callable[[type[Any]], type[Any]]:
@@ -188,6 +197,7 @@ def builtin_node_type(
         surface_variant=surface_variant,
         render_quality=render_quality,
         settings_groups=settings_groups,
+        default_expanded_settings_group_ids=default_expanded_settings_group_ids,
         readiness_requirements=readiness_requirements,
         solution_reuse_scope=solution_reuse_scope,  # type: ignore[arg-type]
     )

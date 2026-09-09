@@ -1,3 +1,8 @@
+# Purpose: Apply graph-scene node, edge, property, scope, link, and comment mutations with history.
+# Map: feature_routes/clipboard_undo_redo_mutation_history.md
+# Tests: tests/graph_track_b/scene_model_graph_scene_suite.py, tests/mechanical_catalogue/test_controls.py, tests/mechanical_catalogue/test_visuals.py
+# Landmarks: _create_node_from_type; request_rewire_edges; set_node_settings_group_expanded; set_node_property; insert_dynamic_port; link_parameter_setup; upsert_node_link; upsert_node_comment
+
 from __future__ import annotations
 
 import copy
@@ -359,6 +364,7 @@ def _create_node_from_type(
         parent_node_id=parent_node_id,
         custom_width=custom_width,
         custom_height=custom_height,
+        expanded_settings_group_ids=spec.default_expanded_settings_group_ids,
     )
     selected_before = list(self._scope_selection.selected_node_ids)
 

@@ -10,6 +10,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `corex/__init__.py`
 - `ea_node_editor/nodes/bootstrap.py`
 - `ea_node_editor/nodes/registry.py`
+- `ea_node_editor/nodes/node_specs.py`
 - `ea_node_editor/nodes/core_data_types.py`
 - `ea_node_editor/nodes/spec_validation.py`
 - `ea_node_editor/nodes/property_coercion.py`
@@ -79,6 +80,7 @@ Use this for node definitions, registry validation, built-in node families, data
   Its input/output dynamic groups reference those resolved plain ports and use
   the trusted `property_editor` callback to edit source spans and input parameters.
   They never normalize source into JSON name lists; default-backed controls stay static.
+- `NodeTypeSpec.default_expanded_settings_group_ids` declares fresh type-creation defaults in settings-group declaration order. Normal scene creation applies them once; persisted, pasted, duplicated, and loaded `expanded_settings_group_ids` remain authored state and are not replaced by defaults.
 - Model Viewer reuses the existing dynamic input group with an exact trusted
   function-spec overlay. Ordered scene IDs and per-ID styles are ordinary hidden
   properties; the function adapter reads resolved inputs from ExecutionContext.

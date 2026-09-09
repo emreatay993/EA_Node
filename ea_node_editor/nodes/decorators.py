@@ -274,6 +274,7 @@ def node_type(
     render_quality: NodeRenderQualitySpec | dict[str, Any] | None = None,
     dynamic_port_groups: tuple[DynamicPortGroupSpec, ...] | list[DynamicPortGroupSpec] = (),
     settings_groups: tuple[SettingsGroupSpec, ...] | list[SettingsGroupSpec] = (),
+    default_expanded_settings_group_ids: tuple[str, ...] | list[str] = (),
     readiness_requirements: tuple[ReadinessRequirementSpec, ...] | list[ReadinessRequirementSpec] = (),
 ) -> Callable[[type[NodePlugin]], type[NodePlugin]]:
     resolved_category_path = category_path
@@ -300,6 +301,9 @@ def node_type(
         surface_variant=surface_variant,
         render_quality=render_quality,  # type: ignore[arg-type]
         settings_groups=tuple(settings_groups),
+        default_expanded_settings_group_ids=tuple(
+            default_expanded_settings_group_ids
+        ),
         readiness_requirements=tuple(readiness_requirements),
     )
 

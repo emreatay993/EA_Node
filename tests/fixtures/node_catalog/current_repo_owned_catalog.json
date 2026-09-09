@@ -262,6 +262,7 @@
         "sqlite"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -506,6 +507,7 @@
         "sqlite"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -730,6 +732,7 @@
         "Configuration"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -852,6 +855,7 @@
         "database"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -1245,6 +1249,7 @@
         "python"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -1419,6 +1424,7 @@
         "json"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -1560,6 +1566,7 @@
         "branch"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -1750,6 +1757,7 @@
         "diagnostics"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -1867,6 +1875,7 @@
         "code"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": true
@@ -2042,6 +2051,7 @@
         "switch"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [
         {
@@ -2162,6 +2172,7 @@
         "container"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -2379,6 +2390,7 @@
         "pin"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -2614,6 +2626,7 @@
         "pin"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -2707,6 +2720,7 @@
         "block"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -2827,6 +2841,7 @@
         "switch"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -2918,6 +2933,7 @@
         "construct"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -3079,6 +3095,7 @@
         "alpha"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -3238,6 +3255,7 @@
         "deconstruct"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -3363,6 +3381,7 @@
         "row"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -3632,6 +3651,7 @@
         "control"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -3909,6 +3929,7 @@
         "watch"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -4071,6 +4092,7 @@
         "option"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -4237,6 +4259,7 @@
         "import"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -4420,6 +4443,7 @@
         "import"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -4623,6 +4647,7 @@
         "whiteboard"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -4834,6 +4859,7 @@
         "vector"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -5010,6 +5036,7 @@
         "pass through"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -5117,6 +5144,7 @@
         "chain"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -5259,6 +5287,7 @@
         "tolerance"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -5449,6 +5478,7 @@
         "construct"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -5609,6 +5639,7 @@
         "OCP"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -5799,6 +5830,7 @@
         "deconstruct"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -5923,6 +5955,7 @@
         "unchain"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -6033,6 +6066,7 @@
         "file system"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -6273,6 +6307,7 @@
         "extension"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -6604,6 +6639,7 @@
         "search"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -6847,6 +6883,7 @@
         "recursive"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -7042,6 +7079,7 @@
         "extension"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -7219,6 +7257,7 @@
         "remove"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -7624,6 +7663,7 @@
         "notification"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [
         {
           "any_of_ports": [],
@@ -7854,6 +7894,7 @@
         "spreadsheet"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -8009,6 +8050,7 @@
         "export"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -8170,6 +8212,7 @@
         "text"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -8373,6 +8416,7 @@
         "json"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -8528,6 +8572,7 @@
         "browse"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -8714,6 +8759,7 @@
         "png"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -8892,6 +8938,7 @@
         "png"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -9186,6 +9233,7 @@
         "overwrite"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -9475,6 +9523,7 @@
         "folder"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -10056,6 +10105,7 @@
         "subprocess"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -10312,6 +10362,7 @@
         "random"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -11759,6 +11810,7 @@
         "envelope"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [
         {
           "any_of_ports": [],
@@ -12449,6 +12501,7 @@
         "json"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -13673,6 +13726,7 @@
         "response"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -13934,6 +13988,7 @@
         "coordinates"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -14127,6 +14182,7 @@
         "end"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -14274,6 +14330,7 @@
         "end"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -14415,6 +14472,7 @@
         "deconstruct"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -14556,6 +14614,7 @@
         "dimensions"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -14680,6 +14739,7 @@
         "container"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -14788,6 +14848,7 @@
         "units"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -14895,6 +14956,7 @@
         "container"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -14945,7 +15007,7 @@
         "ANSYS",
         "Mechanical"
       ],
-      "icon": "",
+      "icon": "mechanical/snippet.svg",
       "ports": [
         {
           "key": "source_model",
@@ -15194,7 +15256,7 @@
           "minimum": null,
           "maximum": null,
           "step": 0.0,
-          "inline_editor": "text",
+          "inline_editor": "textarea",
           "inspector_editor": "textarea",
           "inspector_visible": true,
           "group": "Command snippet",
@@ -15335,7 +15397,47 @@
         "snippet",
         "load step"
       ],
-      "settings_groups": [],
+      "settings_groups": [
+        {
+          "group_id": "command_snippet",
+          "label": "Command snippet",
+          "items": [
+            {
+              "port_key": "environments",
+              "property_key": "environments"
+            },
+            {
+              "port_key": "name",
+              "property_key": "name"
+            },
+            {
+              "port_key": "commands",
+              "property_key": "commands"
+            }
+          ]
+        },
+        {
+          "group_id": "solver_placement",
+          "label": "Solver placement",
+          "items": [
+            {
+              "port_key": "steps",
+              "property_key": "steps"
+            },
+            {
+              "port_key": "selected_steps",
+              "property_key": "selected_steps"
+            },
+            {
+              "port_key": "issue_solve_command",
+              "property_key": "issue_solve_command"
+            }
+          ]
+        }
+      ],
+      "default_expanded_settings_group_ids": [
+        "command_snippet"
+      ],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -15524,7 +15626,7 @@
         "ANSYS",
         "Mechanical"
       ],
-      "icon": "",
+      "icon": "mechanical/views.svg",
       "ports": [
         {
           "key": "model",
@@ -15670,7 +15772,21 @@
         "view",
         "saved"
       ],
-      "settings_groups": [],
+      "settings_groups": [
+        {
+          "group_id": "view_selection",
+          "label": "View selection",
+          "items": [
+            {
+              "port_key": "include",
+              "property_key": "include"
+            }
+          ]
+        }
+      ],
+      "default_expanded_settings_group_ids": [
+        "view_selection"
+      ],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -15772,7 +15888,7 @@
         "ANSYS",
         "Mechanical"
       ],
-      "icon": "",
+      "icon": "mechanical/image.svg",
       "ports": [
         {
           "key": "model",
@@ -16308,7 +16424,65 @@
         "png",
         "capture"
       ],
-      "settings_groups": [],
+      "settings_groups": [
+        {
+          "group_id": "selection",
+          "label": "Selection",
+          "items": [
+            {
+              "port_key": "objects",
+              "property_key": "objects"
+            },
+            {
+              "port_key": "views",
+              "property_key": "views"
+            }
+          ]
+        },
+        {
+          "group_id": "image_options",
+          "label": "Image options",
+          "items": [
+            {
+              "port_key": "width",
+              "property_key": "width"
+            },
+            {
+              "port_key": "height",
+              "property_key": "height"
+            },
+            {
+              "port_key": "background",
+              "property_key": "background"
+            },
+            {
+              "port_key": "fit_view",
+              "property_key": "fit_view"
+            }
+          ]
+        },
+        {
+          "group_id": "save_to_disk",
+          "label": "Save to disk",
+          "items": [
+            {
+              "port_key": "folder",
+              "property_key": "folder"
+            },
+            {
+              "port_key": "file_name",
+              "property_key": "file_name"
+            },
+            {
+              "port_key": "overwrite",
+              "property_key": "overwrite"
+            }
+          ]
+        }
+      ],
+      "default_expanded_settings_group_ids": [
+        "selection"
+      ],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -16552,7 +16726,7 @@
         "ANSYS",
         "Mechanical"
       ],
-      "icon": "",
+      "icon": "mechanical/table.svg",
       "ports": [
         {
           "key": "model",
@@ -16907,9 +17081,38 @@
             {
               "port_key": "source",
               "property_key": ""
+            },
+            {
+              "port_key": "family",
+              "property_key": "family"
+            },
+            {
+              "port_key": "table",
+              "property_key": "table"
+            },
+            {
+              "port_key": "component",
+              "property_key": "component"
+            }
+          ]
+        },
+        {
+          "group_id": "values_and_units",
+          "label": "Values and units",
+          "items": [
+            {
+              "port_key": "units",
+              "property_key": "units"
+            },
+            {
+              "port_key": "sets",
+              "property_key": "sets"
             }
           ]
         }
+      ],
+      "default_expanded_settings_group_ids": [
+        "table_selection"
       ],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
@@ -17082,7 +17285,7 @@
         "ANSYS",
         "Mechanical"
       ],
-      "icon": "",
+      "icon": "mechanical/open.svg",
       "ports": [
         {
           "key": "file",
@@ -17442,7 +17645,47 @@
         "model",
         "open"
       ],
-      "settings_groups": [],
+      "settings_groups": [
+        {
+          "group_id": "open_options",
+          "label": "Open options",
+          "items": [
+            {
+              "port_key": "file",
+              "property_key": "file"
+            },
+            {
+              "port_key": "system",
+              "property_key": "system"
+            },
+            {
+              "port_key": "mode",
+              "property_key": "mode"
+            },
+            {
+              "port_key": "version",
+              "property_key": "version"
+            }
+          ]
+        },
+        {
+          "group_id": "session_options",
+          "label": "Session options",
+          "items": [
+            {
+              "port_key": "working_folder",
+              "property_key": "working_folder"
+            },
+            {
+              "port_key": "timeout_s",
+              "property_key": "timeout_s"
+            }
+          ]
+        }
+      ],
+      "default_expanded_settings_group_ids": [
+        "open_options"
+      ],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -17599,7 +17842,7 @@
         "ANSYS",
         "Mechanical"
       ],
-      "icon": "",
+      "icon": "mechanical/script.svg",
       "ports": [
         {
           "key": "source_model",
@@ -17817,7 +18060,7 @@
           "minimum": null,
           "maximum": null,
           "step": 0.0,
-          "inline_editor": "text",
+          "inline_editor": "textarea",
           "inspector_editor": "textarea",
           "inspector_visible": true,
           "group": "Script",
@@ -17851,7 +18094,7 @@
           "inline_editor": "number",
           "inspector_editor": "text",
           "inspector_visible": true,
-          "group": "Script options",
+          "group": "Execution options",
           "file_filter": "",
           "enabled_when": null,
           "searchable": false,
@@ -17882,7 +18125,7 @@
           "inline_editor": "toggle",
           "inspector_editor": "toggle",
           "inspector_visible": true,
-          "group": "Script options",
+          "group": "Execution options",
           "file_filter": "",
           "enabled_when": null,
           "searchable": false,
@@ -17921,7 +18164,43 @@
         "ironpython",
         "environment"
       ],
-      "settings_groups": [],
+      "settings_groups": [
+        {
+          "group_id": "script",
+          "label": "Script",
+          "items": [
+            {
+              "port_key": "environments",
+              "property_key": "environments"
+            },
+            {
+              "port_key": "scope",
+              "property_key": "scope"
+            },
+            {
+              "port_key": "code",
+              "property_key": "code"
+            }
+          ]
+        },
+        {
+          "group_id": "execution_options",
+          "label": "Execution options",
+          "items": [
+            {
+              "port_key": "timeout_s",
+              "property_key": "timeout_s"
+            },
+            {
+              "port_key": "stop_on_error",
+              "property_key": "stop_on_error"
+            }
+          ]
+        }
+      ],
+      "default_expanded_settings_group_ids": [
+        "script"
+      ],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -18076,7 +18355,7 @@
         "ANSYS",
         "Mechanical"
       ],
-      "icon": "",
+      "icon": "mechanical/save.svg",
       "ports": [
         {
           "key": "source_model",
@@ -18471,7 +18750,47 @@
         "wbpj",
         "wbpz"
       ],
-      "settings_groups": [],
+      "settings_groups": [
+        {
+          "group_id": "destination",
+          "label": "Destination",
+          "items": [
+            {
+              "port_key": "file",
+              "property_key": "file"
+            },
+            {
+              "port_key": "format",
+              "property_key": "format"
+            }
+          ]
+        },
+        {
+          "group_id": "save_options",
+          "label": "Save options",
+          "items": [
+            {
+              "port_key": "include_results",
+              "property_key": "include_results"
+            },
+            {
+              "port_key": "include_user_files",
+              "property_key": "include_user_files"
+            },
+            {
+              "port_key": "include_external_imported_files",
+              "property_key": "include_external_imported_files"
+            },
+            {
+              "port_key": "overwrite",
+              "property_key": "overwrite"
+            }
+          ]
+        }
+      ],
+      "default_expanded_settings_group_ids": [
+        "destination"
+      ],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -18660,7 +18979,7 @@
         "ANSYS",
         "Mechanical"
       ],
-      "icon": "",
+      "icon": "mechanical/search.svg",
       "ports": [
         {
           "key": "model",
@@ -19074,7 +19393,47 @@
         "search",
         "property"
       ],
-      "settings_groups": [],
+      "settings_groups": [
+        {
+          "group_id": "search",
+          "label": "Search",
+          "items": [
+            {
+              "port_key": "filter",
+              "property_key": "filter"
+            },
+            {
+              "port_key": "query",
+              "property_key": "query"
+            }
+          ]
+        },
+        {
+          "group_id": "match_options",
+          "label": "Match options",
+          "items": [
+            {
+              "port_key": "match",
+              "property_key": "match"
+            },
+            {
+              "port_key": "case_sensitive",
+              "property_key": "case_sensitive"
+            },
+            {
+              "port_key": "include_hidden_properties",
+              "property_key": "include_hidden_properties"
+            },
+            {
+              "port_key": "invert",
+              "property_key": "invert"
+            }
+          ]
+        }
+      ],
+      "default_expanded_settings_group_ids": [
+        "search"
+      ],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -20093,6 +20452,7 @@
         "preview"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -20254,6 +20614,7 @@
         "indices"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -20901,6 +21262,7 @@
         "finite element"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [
         {
@@ -21125,6 +21487,7 @@
         "response"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -21333,6 +21696,7 @@
         "variable"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -21542,6 +21906,7 @@
         "constraint"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -21718,6 +22083,7 @@
         "values"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -21843,6 +22209,7 @@
         "design space"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -21934,6 +22301,7 @@
         "values"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -22619,6 +22987,7 @@
         "note"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -22826,6 +23195,7 @@
         "backdrop"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -23562,6 +23932,7 @@
         "annotation"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -24298,6 +24669,7 @@
         "comment"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -25022,6 +25394,7 @@
         "annotation"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -25758,6 +26131,7 @@
         "role"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -26494,6 +26868,7 @@
         "flowchart"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -27230,6 +27605,7 @@
         "flowchart"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -27966,6 +28342,7 @@
         "flowchart"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -28702,6 +29079,7 @@
         "flowchart"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -29438,6 +29816,7 @@
         "flowchart"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -30174,6 +30553,7 @@
         "flowchart"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -30910,6 +31290,7 @@
         "artifact"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -31646,6 +32027,7 @@
         "terminator"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -32382,6 +32764,7 @@
         "flowchart"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -34178,6 +34561,7 @@
         "flowchart"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -34914,6 +35298,7 @@
         "flowchart"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -35650,6 +36035,7 @@
         "flowchart"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -36386,6 +36772,7 @@
         "flowchart"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -37122,6 +37509,7 @@
         "step"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -37858,6 +38246,7 @@
         "flowchart"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -38594,6 +38983,7 @@
         "terminator"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -39330,6 +39720,7 @@
         "complete"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -39598,6 +39989,7 @@
         "time"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -40334,6 +40726,7 @@
         "blocked"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -40603,6 +40996,7 @@
         "preview"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -41405,6 +41799,7 @@
         "outcome"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -42207,6 +42602,7 @@
         "delivery"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -43010,6 +43406,7 @@
         "mitigation"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -43844,6 +44241,7 @@
         "status"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -44518,6 +44916,7 @@
         "categories"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -45237,6 +45636,7 @@
         "colormap"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -45954,6 +46354,7 @@
         "colormap"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -46634,6 +47035,7 @@
         "bins"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -47352,6 +47754,7 @@
         "scatter"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -48031,6 +48434,7 @@
         "correlation"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -49601,6 +50005,7 @@
           ]
         }
       ],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -50720,6 +51125,7 @@
         "flow"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -51436,6 +51842,7 @@
         "colormap"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -51618,6 +52025,7 @@
         "axes"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -51793,6 +52201,7 @@
         "coordinates"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -51968,6 +52377,7 @@
         "coordinates"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -52143,6 +52553,7 @@
         "coordinates"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -52318,6 +52729,7 @@
         "coordinates"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -52519,6 +52931,7 @@
         "Coordinate System"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -52624,6 +53037,7 @@
         "Flip"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -52732,6 +53146,7 @@
         "amplitude"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -52840,6 +53255,7 @@
         "reference"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -52997,6 +53413,7 @@
         "reporting"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -53253,6 +53670,7 @@
         "reporting"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -53428,6 +53846,7 @@
         "user"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -53657,6 +54076,7 @@
         "Transfer"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -54069,6 +54489,7 @@
         "HPC"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -54369,6 +54790,7 @@
         "HPC"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -54657,6 +55079,7 @@
         "HPC"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -54882,6 +55305,7 @@
         "Credentials"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -55094,6 +55518,7 @@
         "Transfer"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -55410,6 +55835,7 @@
         "2d"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -55982,6 +56408,7 @@
         "array"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -56105,6 +56532,7 @@
         "values"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -56211,6 +56639,7 @@
         "rows"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -56473,6 +56902,7 @@
         "window"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -56628,6 +57058,7 @@
         "export"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -56800,6 +57231,7 @@
         "csv"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -57413,6 +57845,7 @@
         "construct"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -57775,6 +58208,7 @@
         "deconstruct"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -58138,6 +58572,7 @@
         "deconstruct"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null
@@ -58654,6 +59089,7 @@
         "website"
       ],
       "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
       "readiness_requirements": [],
       "dynamic_port_groups": [],
       "instance_spec_resolver": null

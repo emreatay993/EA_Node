@@ -1,6 +1,6 @@
 # Purpose: Validate node specifications against an explicit semantic data-type catalog.
 # Map: subsystems/nodes_registry_builtins.md
-# Tests: tests/test_spec_validation.py, tests/test_registry_validation.py
+# Tests: tests/test_spec_validation.py, tests/test_registry_validation.py, tests/mechanical_catalogue/test_controls.py
 # Landmarks: _SpecValidator; validate_node_spec
 
 from __future__ import annotations
@@ -662,6 +662,10 @@ class _SpecValidator:
 
     def _validate_settings_groups(self, spec: NodeTypeSpec) -> None:
         if not spec.settings_groups:
+            if spec.default_expanded_settings_group_ids:
+                raise ValueError(
+                    f"Node {spec.type_id} default expanded settings groups require settings_groups"
+                )
             return
         if spec.runtime_behavior != "active":
             raise ValueError(
@@ -759,6 +763,16 @@ class _SpecValidator:
                             f"Node {spec.type_id} settings group {group.group_id} pairs unrelated port/property keys: "
                             f"{port_key}/{property_key}"
                         )
+
+        declared_defaults = tuple(
+            group.group_id
+            for group in spec.settings_groups
+            if group.group_id in spec.default_expanded_settings_group_ids
+        )
+        if declared_defaults != spec.default_expanded_settings_group_ids:
+            raise ValueError(
+                f"Node {spec.type_id} default expanded settings groups must be unique declared IDs in declaration order"
+            )
 
     def _validate_property(self, type_id: str, prop: PropertySpec) -> None:
         if not isinstance(prop, PropertySpec):

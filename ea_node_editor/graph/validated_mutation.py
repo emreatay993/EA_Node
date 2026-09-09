@@ -1,3 +1,8 @@
+# Purpose: Apply invariant-checked graph mutations through graph-owned record writers.
+# Map: subsystems/graph_domain.md
+# Tests: tests/test_registry_validation.py, tests/test_dataflow_graph_persistence.py, tests/mechanical_catalogue/test_controls.py
+# Landmarks: ValidatedGraphMutation; add_node; rewire_edges; set_node_properties; dynamic-port mutation; edge pruning
+
 from __future__ import annotations
 
 import copy
@@ -68,8 +73,21 @@ class ValidatedGraphMutation:
         parent_node_id: str | None = None,
         custom_width: float | None = None,
         custom_height: float | None = None,
+        expanded_settings_group_ids: tuple[str, ...] = (),
     ) -> NodeInstance:
         spec = self.registry.get_spec(type_id)
+        requested_expanded_group_ids = tuple(
+            str(group_id) for group_id in expanded_settings_group_ids
+        )
+        normalized_expanded_group_ids = tuple(
+            group.group_id
+            for group in spec.settings_groups
+            if group.group_id in requested_expanded_group_ids
+        )
+        if normalized_expanded_group_ids != requested_expanded_group_ids:
+            raise ValueError(
+                "Expanded settings groups must be unique declared IDs in declaration order"
+            )
         normalized_title = str(title or "").strip()
         if not normalized_title and not any(prop.key == "title" for prop in spec.properties):
             normalized_title = spec.display_name
@@ -101,6 +119,7 @@ class ValidatedGraphMutation:
             ),
             custom_width=custom_width,
             custom_height=custom_height,
+            expanded_settings_group_ids=normalized_expanded_group_ids,
         )
         node.parent_node_id = self._validated_parent_node_id(node.node_id, parent_node_id)
         node.exposed_ports = self._normalized_exposed_ports(node.node_id)

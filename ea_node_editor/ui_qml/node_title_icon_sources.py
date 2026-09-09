@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
+from ea_node_editor.nodes.builtins.icon_catalog import BUILTIN_NODE_ICONS
 from ea_node_editor.nodes.plugin_contracts import PluginProvenance
 
 NODE_TITLE_ICON_ASSET_ROOT = Path(__file__).resolve().parents[1] / "assets" / "node_title_icons"
@@ -58,7 +59,10 @@ def title_icon_source_for_node_payload(
     # style passive nodes can opt back in via ``NodeTypeSpec.show_title_icon``.
     if not _title_icon_payload_eligible(spec):
         return ""
-    return resolve_node_title_icon_source(spec.icon, provenance=provenance)
+    return resolve_node_title_icon_source(
+        spec.icon,
+        provenance=_effective_icon_provenance(spec, provenance),
+    )
 
 
 def title_icon_presentation_for_node_payload(
@@ -68,13 +72,17 @@ def title_icon_presentation_for_node_payload(
 ) -> NodeTitleIconPresentation:
     if not _title_icon_payload_eligible(spec):
         return NodeTitleIconPresentation(source="", theme_aware=False)
-    source = resolve_node_title_icon_source(spec.icon, provenance=provenance)
+    effective_provenance = _effective_icon_provenance(spec, provenance)
+    source = resolve_node_title_icon_source(
+        spec.icon,
+        provenance=effective_provenance,
+    )
     authored_path = Path(str(spec.icon or "").strip())
     return NodeTitleIconPresentation(
         source=source,
         theme_aware=bool(
             source
-            and provenance is None
+            and effective_provenance is None
             and not authored_path.is_absolute()
             and authored_path.suffix.casefold() == ".svg"
         ),
@@ -89,6 +97,7 @@ def title_icon_theme_aware_for_node_payload(
 ) -> bool:
     if not _title_icon_payload_eligible(spec):
         return False
+    provenance = _effective_icon_provenance(spec, provenance)
     if provenance is not None:
         return False
 
@@ -111,6 +120,30 @@ def _title_icon_payload_eligible(spec: NodeTypeSpec) -> bool:
     return spec.runtime_behavior in TITLE_ICON_RUNTIME_BEHAVIORS or bool(
         getattr(spec, "show_title_icon", False)
     )
+
+
+def _effective_icon_provenance(
+    spec: NodeTypeSpec,
+    provenance: PluginProvenance | None,
+) -> PluginProvenance | None:
+    if provenance is None:
+        return None
+    if (
+        provenance.kind != "package"
+        or provenance.source_path is None
+        or provenance.package_root is None
+        or BUILTIN_NODE_ICONS.get(spec.type_id) != str(spec.icon or "").strip()
+    ):
+        return provenance
+    addon_root = NODE_TITLE_ICON_ASSET_ROOT.parents[1] / "addons"
+    package_root = provenance.package_root.resolve(strict=False)
+    source_path = provenance.source_path.resolve(strict=False)
+    if _is_relative_to(package_root, addon_root.resolve(strict=False)) and _is_relative_to(
+        source_path,
+        package_root,
+    ):
+        return None
+    return provenance
 
 
 def _relative_icon_root(

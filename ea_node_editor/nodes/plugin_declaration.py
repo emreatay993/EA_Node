@@ -1,6 +1,7 @@
 # Purpose: Discover novice function-plugin declarations statically without importing source.
 # Map: subsystems/nodes_registry_builtins.md
-# Tests: tests/test_plugin_declaration.py
+# Tests: tests/test_plugin_declaration.py, tests/mechanical_catalogue/test_controls.py
+# Landmarks: _node_metadata; _readiness_requirements; _parse_function; discover_plugin_declarations
 
 from __future__ import annotations
 
@@ -33,6 +34,7 @@ _NODE_FIELDS = frozenset(
 )
 _INTERNAL_NODE_FIELDS = _NODE_FIELDS | {
     "_collapsible",
+    "_default_expanded_settings_group_ids",
     "_property_output_collisions",
     "_readiness_requirements",
     "_render_quality_tiers",
@@ -354,6 +356,12 @@ def _node_metadata(
         fail=fail,
         node=decorator,
     )
+    default_expanded_settings_group_ids = _key_tuple(
+        values.get("_default_expanded_settings_group_ids", ()),
+        field="_default_expanded_settings_group_ids",
+        fail=fail,
+        node=decorator,
+    )
     return {
         "type_id": type_id,
         "display_name": display_name,
@@ -362,6 +370,7 @@ def _node_metadata(
         "keywords": tuple(keywords),
         "icon": icon,
         "collapsible": collapsible,
+        "default_expanded_settings_group_ids": default_expanded_settings_group_ids,
         "property_output_collisions": property_output_collisions,
         "readiness_requirements": values.get("_readiness_requirements", ()),
         "render_quality_tiers": tuple(render_quality_tiers),
@@ -910,6 +919,9 @@ def _parse_function(
             ),
             keywords=metadata["keywords"],
             settings_groups=settings_groups,
+            default_expanded_settings_group_ids=metadata[
+                "default_expanded_settings_group_ids"
+            ],
             readiness_requirements=readiness_requirements,
         ),
         function_name=function.name,

@@ -23,6 +23,7 @@ Use this for app assets, app icons, shell/ui icon registry assets, node title ic
 ## Common Changes
 - Keep icon catalog, asset files, QML source projection, and tests aligned.
 - SSH/SFTP built-ins own six title icons under `assets/node_title_icons/ssh_sftp/`. The retired HPC icon directory is absent; COREX's `HPC` connector keywords do not restore an HPC asset family.
+- The trusted Mechanical add-on owns eight central theme-aware SVG masks under `assets/node_title_icons/mechanical/`. Central fallback requires registry provenance rooted inside COREX's own add-on package tree plus the matching central catalog entry; external packages remain confined to their verified asset/generation root even when they spoof a reserved type ID.
 - Branded add-on title icons stay with their owning package. MARS resolves `addons/mars/icons/mars_icon_64.png`, the 64 px frame from its official ICO, through package provenance so Qt displays the complete executable artwork without SVG text/clip loss or monochrome tinting.
 - Public schema-2 plugin icons are declared, hashed package assets resolved through `PythonFunctionEntry` provenance rooted at the immutable generation. Do not resolve them from mutable author/install paths; loose plugins use the default icon.
 - Passive flowchart nodes intentionally do not use the icon catalog or title-icon assets; their library and canvas visuals come from `surface_family="flowchart"` plus `surface_variant`.

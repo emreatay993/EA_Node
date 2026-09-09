@@ -110,6 +110,9 @@ Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction Silent
 .\venv\Scripts\python.exe -m pytest tests/graph_surface/passive_host_interaction_suite.py --ignore=venv -q
 ```
 
+Mechanical's production adoption is locked by `tests/mechanical_catalogue/test_controls.py` (52 typed inputs, 22 outputs, named groups and contextual disabled states) and `tests/mechanical_catalogue/test_visuals.py` (real GraphCanvas/GraphSceneBridge clicks, connected anchors, keyboard editors and display-attached render matrices).
+Fresh grouped-node expansion defaults are declaration metadata on `NodeTypeSpec`; the normal type-creation path initializes them once, while graph persistence/fragments retain explicit instance state. Mechanical expands each primary section and keeps each advanced section collapsed without QML or type-ID branches.
+
 ## Breadcrumbs
 - [Passive Surface Loading And Contracts](passive_surface_loading_contracts.md)
 - [Graph Canvas Input Layers](graph_canvas_input_layers.md)

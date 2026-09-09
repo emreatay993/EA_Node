@@ -38,6 +38,7 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 - `tests/test_content_fullscreen_bridge_lifecycle.py`
 - `tests/test_shell_window_lifecycle_isolated.py`
 - `tests/test_corex_node_controls_visual.py`
+- `tests/mechanical_catalogue/test_visuals.py`
 - `tests/fixtures/node_controls/signal_plot_style_node_controls.py`
 
 ## Common Changes
@@ -60,6 +61,7 @@ Use this for graph surface, QML bridge, passive host, inline input, pointer, mod
 - Use `tests/test_graph_scene_bridge_bind_regression.py` when scene mutation helpers are retargeted to direct graph mutation operations.
 - Use `tests/test_mutation_ui_effects.py` for direct shell post-mutation effect semantics; keep scene payload/delta assertions in graph-track tests.
 - Keep `QT_QPA_PLATFORM=offscreen` for QML-heavy focused gates.
+- Mechanical control acceptance additionally runs `tests/mechanical_catalogue/test_visuals.py` directly in isolated Windows processes at observed effective DPR 1.0 and 1.5. It uses the production GraphCanvas/GraphSceneBridge state+command route, physical window-coordinate clicks, asserted fresh primary/advanced expansion defaults, QML font metrics, and retained captures; its ordinary pytest case remains the offscreen regression smoke.
 - `tests/qml_quick/tst_graph_node_host.qml` owns pure `GraphNodeHost` component behavior: surface loading, text rendering, helper-layer stacking, render quality, port visibility, standard data-grip hover growth/compatible-target halo, shadow keys, resize-handle hover, flowchart variants, timestamp actions, planning/annotation host rendering, the library flowchart preview, and Group backdrop title/chrome behavior. It replaces the matching probes from the passive-host, planning, flowchart, and Group Python suites; do not recreate those checks in `run_qml_probe()`.
 - T21 extends `tests/qml_quick/tst_graph_node_host.qml` with the direct `GraphNodePortRow` owner contract: normalized descendant/parent topology, exact geometry and Item/Loader/Canvas counts across unlocked and locked input/output rows, direction-only child identity, default override, flow/type/accessibility consumption, and dynamic remove/label-edit geometry. Python graph-surface tests retain scene projection, real mutations/history, host shadow/notch integration, and loaded-surface ownership rather than duplicating the row-local markup checks.
 - `tests/qml_quick/tst_graph_node_port_context_menu.qml` owns the direct port Menu root/order/check state, open/close, modifier/Principal/dynamic layer calls, data visibility, and read-only guards. `tests/test_graph_surface_input_controls.py`, `tests/test_data_tree_ui.py`, and `tests/test_dataflow_graph_persistence.py` retain real command, mutation/history, Principal exclusivity, sparse-state cleanup, and persistence behavior.

@@ -1,6 +1,6 @@
 # Purpose: Project Mechanical selectors from accepted catalogue metadata only.
 # Map: subsystems/addons.md
-# Tests: tests/mechanical_catalogue/test_property_edit.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_standalone_save.py
+# Tests: tests/mechanical_catalogue/test_property_edit.py, tests/mechanical_catalogue/test_controls.py, tests/mechanical_catalogue/test_search_tree.py, tests/mechanical_catalogue/test_image_export.py, tests/mechanical_catalogue/test_standalone_save.py
 
 from __future__ import annotations
 
@@ -280,7 +280,17 @@ class MechanicalPropertyEditAdapter:
                         if summary.get("producer_node_id") == context.node.node_id and summary.get("producer_port") == "info":
                             indexes.append(_catalogue_index(table, rows))
         else:
-            for model in _model_values(_connected_value(context, "model")):
+            model_port_key = (
+                "source_model"
+                if getattr(context.node, "type_id", "")
+                in {
+                    "mechanical.run_script",
+                    "mechanical.apdl_snippet",
+                    "mechanical.save_model",
+                }
+                else "model"
+            )
+            for model in _model_values(_connected_value(context, model_port_key)):
                 index = _catalogue_for_model(model, context.current_output_provider)
                 if index is _INVALID:
                     invalid = True
@@ -300,8 +310,67 @@ class MechanicalPropertyEditAdapter:
             if str(save_format) == "auto" and "." in str(save_file)
             else str(save_format)
         )
+        node_type = str(getattr(context.node, "type_id", ""))
+        properties = getattr(context.node, "properties", {}) or {}
+        open_file = _first_value(_connected_value(context, "file"))
+        if open_file is None:
+            open_file = properties.get("file", "")
+        family = _first_value(_connected_value(context, "family"))
+        if family is None:
+            family = properties.get("family", "auto")
+        steps = _first_value(_connected_value(context, "steps"))
+        if steps is None:
+            steps = properties.get("steps", "all")
         for item in result:
             item_key = str(item.get("key") or "")
+            if (
+                node_type == "mechanical.open_model"
+                and item_key == "system"
+                and str(open_file).strip().casefold().endswith(
+                    (".mechdb", ".mechdat", ".mechpz")
+                )
+            ):
+                reason = (
+                    "Workbench projects and archives only; standalone sources do not consume this value."
+                )
+                item.update(
+                    adapter_condition_enabled=False,
+                    adapter_condition_reason=reason,
+                    condition_enabled=False,
+                    editor_enabled=False,
+                    editor_disabled_reason=reason,
+                )
+                continue
+            if (
+                node_type == "mechanical.fea_table"
+                and item_key == "sets"
+                and str(family) in {"model_definition", "supported_worksheet"}
+            ):
+                reason = (
+                    "Stored result sets do not apply to model definitions or worksheets."
+                )
+                item.update(
+                    adapter_condition_enabled=False,
+                    adapter_condition_reason=reason,
+                    condition_enabled=False,
+                    editor_enabled=False,
+                    editor_disabled_reason=reason,
+                )
+                continue
+            if (
+                node_type == "mechanical.apdl_snippet"
+                and item_key == "selected_steps"
+                and str(steps) != "selected"
+            ):
+                reason = "Select Selected load steps before editing this list."
+                item.update(
+                    adapter_condition_enabled=False,
+                    adapter_condition_reason=reason,
+                    condition_enabled=False,
+                    editor_enabled=False,
+                    editor_disabled_reason=reason,
+                )
+                continue
             if save_node and item_key == "format":
                 item.update(
                     enum_codes=["auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz"],
@@ -314,14 +383,17 @@ class MechanicalPropertyEditAdapter:
                 or item_key in {"include_results", "include_user_files"}
                 and resolved_save_format not in {"mechpz", "wbpz"}
             ):
+                reason = (
+                    "Workbench .wbpz archives only; other formats do not consume this value."
+                    if item_key == "include_external_imported_files"
+                    else ".mechpz/.wbpz archives only; this value is not consumed."
+                )
                 item.update(
+                    adapter_condition_enabled=False,
+                    adapter_condition_reason=reason,
                     condition_enabled=False,
                     editor_enabled=False,
-                    editor_disabled_reason=(
-                        "Workbench .wbpz archives only; other formats do not consume this value."
-                        if item_key == "include_external_imported_files"
-                        else ".mechpz/.wbpz archives only; this value is not consumed."
-                    ),
+                    editor_disabled_reason=reason,
                 )
                 continue
             if item_key == "filter":
@@ -383,6 +455,20 @@ class MechanicalPropertyEditAdapter:
                 item.update(
                     enum_codes=["white", "model"],
                     enum_values=["White", "Model background"],
+                    exact_selectors=True,
+                )
+                continue
+            if item_key == "scope":
+                item.update(
+                    enum_codes=["each_environment", "model_once"],
+                    enum_values=["Each selected environment", "Model once"],
+                    exact_selectors=True,
+                )
+                continue
+            if item_key == "steps":
+                item.update(
+                    enum_codes=["all", "selected"],
+                    enum_values=["All load steps", "Selected load steps"],
                     exact_selectors=True,
                 )
                 continue

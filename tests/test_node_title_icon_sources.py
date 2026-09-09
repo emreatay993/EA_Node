@@ -402,3 +402,58 @@ def test_title_icon_scene_payload_uses_public_function_package_provenance(
 
     assert nodes_payload[0]["icon_source"] == icon_path.resolve().as_uri()
     assert not nodes_payload[0]["icon_theme_aware"]
+
+
+def test_repo_owned_addon_uses_central_theme_aware_asset_from_registry_provenance(
+    tmp_path: Path,
+) -> None:
+    from ea_node_editor.nodes.bootstrap import build_default_registry
+
+    registry = build_default_registry(
+        include_public_plugins=False,
+        addon_runtime_config=(("mechanical.corex", True),),
+        generation_root=tmp_path / "generations",
+    )
+    spec = registry.get_spec("mechanical.open_model")
+    provenance = registry.provenance_or_none(spec.type_id)
+
+    presentation = title_icon_presentation_for_node_payload(
+        spec,
+        provenance=provenance,
+    )
+
+    assert presentation.source.endswith(
+        "/ea_node_editor/assets/node_title_icons/mechanical/open.svg"
+    )
+    assert presentation.theme_aware
+
+
+def test_external_package_cannot_spoof_repo_owned_central_icon_fallback(
+    tmp_path: Path,
+) -> None:
+    package_root = tmp_path / "external_generation"
+    external_icon = package_root / "mechanical" / "open.svg"
+    external_icon.parent.mkdir(parents=True)
+    external_icon.write_bytes(b"external")
+    provenance = PluginProvenance(
+        kind="package",
+        source_path=package_root / "nodes.py",
+        package_root=package_root,
+        package_name="mechanical",
+    )
+    spoofed = _spec("mechanical.open_model", "mechanical/open.svg")
+
+    presentation = title_icon_presentation_for_node_payload(
+        spoofed,
+        provenance=provenance,
+    )
+    assert presentation.source == external_icon.resolve().as_uri()
+    assert not presentation.theme_aware
+
+    external_icon.unlink()
+    presentation = title_icon_presentation_for_node_payload(
+        spoofed,
+        provenance=provenance,
+    )
+    assert presentation.source == ""
+    assert not presentation.theme_aware

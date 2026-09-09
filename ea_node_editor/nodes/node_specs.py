@@ -1,6 +1,6 @@
 # Purpose: Define node, port, and property metadata records.
 # Map: subsystems/nodes_registry_builtins.md
-# Tests: tests/test_registry_validation.py
+# Tests: tests/test_registry_validation.py, tests/mechanical_catalogue/test_controls.py
 
 from __future__ import annotations
 
@@ -364,6 +364,7 @@ class NodeTypeSpec:
     show_title_icon: bool = False
     keywords: tuple[str, ...] = ()
     settings_groups: tuple[SettingsGroupSpec, ...] = ()
+    default_expanded_settings_group_ids: tuple[str, ...] = ()
     readiness_requirements: tuple[ReadinessRequirementSpec, ...] = ()
     dynamic_port_groups: tuple[DynamicPortGroupSpec, ...] = ()
     instance_spec_resolver: Callable[
@@ -390,6 +391,15 @@ class NodeTypeSpec:
             _normalize_string_tuple(
                 "NodeTypeSpec.keywords",
                 self.keywords,
+                allow_empty=True,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "default_expanded_settings_group_ids",
+            _normalize_string_tuple(
+                "NodeTypeSpec.default_expanded_settings_group_ids",
+                self.default_expanded_settings_group_ids,
                 allow_empty=True,
             ),
         )

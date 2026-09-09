@@ -1,7 +1,7 @@
 # Purpose: Project shell execution state into QML-ready graph-canvas facts,
 #          including runtime data-port flow state.
 # Map: feature_routes/node_execution_visualization
-# Tests: tests/test_port_flow_state.py
+# Tests: tests/test_port_flow_state.py, tests/mechanical_catalogue/test_controls.py
 # Landmarks: safe rich-preview projection; resolve_runtime_property_presentations; ExecutionStateProps; Panel display/copy
 from __future__ import annotations
 
@@ -1046,7 +1046,10 @@ def resolve_runtime_property_presentations(
         for property_key, property_item in property_items.items():
             presentation = node_lookup[property_key]
             condition = property_item.get("enabled_when")
-            condition_enabled = True
+            adapter_condition_enabled = bool(
+                property_item.get("adapter_condition_enabled", True)
+            )
+            declarative_condition_enabled = True
             if isinstance(condition, Mapping):
                 source_key = str(condition.get("property_key", "") or "").strip()
                 source_presentation = node_lookup.get(source_key)
@@ -1077,16 +1080,22 @@ def resolve_runtime_property_presentations(
                     if isinstance(allowed_values, (list, tuple))
                     else ()
                 )
-                condition_enabled = bool(
+                declarative_condition_enabled = bool(
                     source_presentation.get("display_value_available", False)
                     and source_presentation.get("display_value") in allowed_values
                 )
+            condition_enabled = (
+                adapter_condition_enabled and declarative_condition_enabled
+            )
             canvas_enabled = bool(
                 property_item.get("canvas_interaction_enabled", True)
             )
             overridden = bool(presentation.get("overridden_by_input", False))
             condition_reason = str(
                 property_item.get("condition_reason", "") or ""
+            )
+            adapter_reason = str(
+                property_item.get("adapter_condition_reason", "") or ""
             )
             presentation.update(
                 {
@@ -1097,7 +1106,11 @@ def resolve_runtime_property_presentations(
                     "editor_disabled_reason": (
                         "Value supplied by connected input."
                         if overridden
-                        else condition_reason if not condition_enabled else ""
+                        else adapter_reason
+                        if not adapter_condition_enabled
+                        else condition_reason
+                        if not declarative_condition_enabled or not canvas_enabled
+                        else ""
                     ),
                 }
             )
