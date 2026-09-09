@@ -3,6 +3,7 @@ from __future__ import annotations
 import textwrap
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from PyQt6.QtCore import QUrl
 from PyQt6.QtQml import QQmlComponent, QQmlEngine
@@ -79,11 +80,31 @@ class GraphOutputModeUiTests(unittest.TestCase):
             "class _GraphSceneBackdropPartitioner:",
             (package_dir / "backdrop_partitioner.py").read_text(encoding="utf-8"),
         )
-        self.assertIn("self._node_payload_factory = _GraphSceneNodePayloadFactory(self.boundary_adapters, current_input_provider, property_edit_adapters)", builder_text)
-        self.assertIn(
-            "self._backdrop_partitioner = _GraphSceneBackdropPartitioner(self._node_payload_factory)",
-            builder_text,
-        )
+        current_input_provider = object()
+        property_edit_adapters = (object(),)
+        keep_width_provider = lambda: True
+        with (
+            patch(
+                "ea_node_editor.ui_qml.graph_scene_payload.builder._GraphSceneNodePayloadFactory",
+                autospec=True,
+            ) as factory,
+            patch(
+                "ea_node_editor.ui_qml.graph_scene_payload.builder._GraphSceneBackdropPartitioner",
+                autospec=True,
+            ) as partitioner,
+        ):
+            builder = GraphScenePayloadBuilder(
+                current_input_provider=current_input_provider,
+                property_edit_adapters=property_edit_adapters,
+                keep_expanded_node_width_provider=keep_width_provider,
+            )
+            factory.assert_called_once_with(
+                builder.boundary_adapters,
+                current_input_provider,
+                property_edit_adapters,
+                keep_expanded_node_width_provider=keep_width_provider,
+            )
+            partitioner.assert_called_once_with(factory.return_value)
         self.assertIn("self._backdrop_partitioner.build_payload_models(", builder_text)
         self.assertIn(
             "self._last_mutation_phase_timings_ms = self._backdrop_partitioner.mutation_phase_timings_ms()",

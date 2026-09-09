@@ -160,7 +160,10 @@ class COREXNodeControlsVisualTests(PassiveGraphSurfaceHostTestBase):
                     bottom_right.y(),
                     host.height(),
                 )
-                assert not bool(item.property("truncated")), label
+                assert not bool(item.property("truncated")), (
+                    label, item.property("text"), item.width(),
+                    item.property("contentWidth"), host.width(),
+                )
 
             def mutate_wired_presentation(payload, *, settled):
                 ports = {port["key"]: port for port in payload["ports"]}
@@ -354,6 +357,8 @@ class COREXNodeControlsVisualTests(PassiveGraphSurfaceHostTestBase):
                         workspace_id=workspace.workspace_id,
                         scope_path=(),
                         graph_theme_bridge=active_graph_theme_bridge,
+                        graph_label_pixel_size=pixel_size,
+                        graph_node_icon_pixel_size=pixel_size,
                     )
                 )
                 payload_by_id = {
