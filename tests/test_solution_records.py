@@ -97,8 +97,8 @@ def _record(
         workspace_id="workspace-1",
         node_id="node-1",
         solution_key=_A,
-        workflow_interface_revision=1,
-        workflow_interface_digest=_B,
+        node_interface_revision=1,
+        node_interface_digest=_B,
         node_contract_digest=_C,
         dependency_solution_keys=(),
         input_provenance_digest=_A,
@@ -503,14 +503,6 @@ def test_settled_tree_and_output_count_limits(monkeypatch) -> None:  # noqa: ANN
 
 
 def test_prepared_decision_payload_and_frozen_output_semantics() -> None:
-    decision = PreparedNodeDecision(
-        node_id="node",
-        action=PreparedAction.REUSE,
-        reason_code="record_valid",
-        solution_key=_A,
-        dependency_solution_keys=(_B,),
-        accepted_record_id="record",
-    )
     accepted = AcceptedOutputPayload(
         node_id="node",
         record_id="record",
@@ -524,6 +516,15 @@ def test_prepared_decision_payload_and_frozen_output_semantics() -> None:
                 status="value", value=DataTree.from_item("cached")
             )
         },
+    )
+    decision = PreparedNodeDecision(
+        node_id="node",
+        action=PreparedAction.REUSE,
+        reason_code="record_valid",
+        solution_key=_A,
+        dependency_solution_keys=(_B,),
+        accepted_record_id="record",
+        accepted_payload_digest=accepted.commitment_digest(),
     )
     assert PreparedNodeDecision.from_payload(decision.to_payload()) == decision
     with pytest.raises(TypeError):
@@ -690,21 +691,6 @@ def test_complete_prepared_execution_roundtrip_and_cross_binding_rejection(
     monkeypatch,
 ) -> None:  # noqa: ANN001
     envelope, registry, snapshot = _dispatch_envelope()
-    reuse = PreparedNodeDecision(
-        node_id="reuse-node",
-        action=PreparedAction.REUSE,
-        reason_code="record_valid",
-        solution_key=_A,
-        dependency_solution_keys=(),
-        accepted_record_id="record",
-    )
-    execute = PreparedNodeDecision(
-        node_id="execute-node",
-        action=PreparedAction.EXECUTE,
-        reason_code="record_missing",
-        solution_key=_B,
-        dependency_solution_keys=(_A,),
-    )
     accepted = AcceptedOutputPayload(
         node_id="reuse-node",
         record_id="record",
@@ -718,6 +704,22 @@ def test_complete_prepared_execution_roundtrip_and_cross_binding_rejection(
                 status="value", value=DataTree.from_item("cached")
             )
         },
+    )
+    reuse = PreparedNodeDecision(
+        node_id="reuse-node",
+        action=PreparedAction.REUSE,
+        reason_code="record_valid",
+        solution_key=_A,
+        dependency_solution_keys=(),
+        accepted_record_id="record",
+        accepted_payload_digest=accepted.commitment_digest(),
+    )
+    execute = PreparedNodeDecision(
+        node_id="execute-node",
+        action=PreparedAction.EXECUTE,
+        reason_code="record_missing",
+        solution_key=_B,
+        dependency_solution_keys=(_A,),
     )
     prepared = PreparedExecution(
         preparation_id="preparation",

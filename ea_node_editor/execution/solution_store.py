@@ -1,6 +1,6 @@
 # Purpose: Own session solution facts, records, preparations, and registered runs.
 # Map: subsystems/execution.md
-# Tests: tests/test_solution_store_session.py
+# Tests: tests/test_solution_store_session.py, tests/test_runtime_current_results.py
 # Landmarks: SolutionStore; register_preparation; consume_preparation; handle_event
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from ea_node_editor.execution.prepared_execution import (
     PreparedAction,
     PreparedExecution,
     validate_accepted_output_payload,
+    validate_current_output_payload,
 )
 from ea_node_editor.execution.project_solution import (
     MAX_PROJECT_SOLUTION_SUPPLEMENTAL_RECORDS,
@@ -136,8 +137,8 @@ class CapturedNodeSolution:
     solution_key: str
     captured_revision: int
     dependency_solution_keys: tuple[str, ...]
-    workflow_interface_revision: int
-    workflow_interface_digest: str
+    node_interface_revision: int
+    node_interface_digest: str
     node_contract_digest: str
     input_provenance_digest: str
     execution_policy_digest: str
@@ -700,6 +701,57 @@ class SolutionStore:
             self._last_durable_reason_code = result.reason_code
         return result.record
 
+    def current_outputs(
+        self,
+        *,
+        solution_key: str,
+        project_id: str,
+        workspace_id: str,
+        node_id: str,
+        runtime_generation: int,
+        catalog: DataTypeCatalog,
+        port_keys: tuple[str, ...],
+        artifact_context: Any = None,
+    ) -> tuple[SolutionRecord, AcceptedOutputPayload] | None:
+        """Read the exact CURRENT detached result, without changing reuse policy."""
+        key = self._fact_key(project_id, workspace_id, node_id)
+        with self._lock:
+            fact = self._facts.get(key)
+            if (
+                fact is None
+                or fact.freshness is not SolutionFreshness.CURRENT
+                or fact.retained_solution_key != solution_key
+            ):
+                return None
+            entry = self._records.get(fact.retained_record_id or "")
+            record = entry.record if entry is not None else None
+        if record is None:
+            record = self.select_record(
+                solution_key=solution_key,
+                project_id=project_id,
+                workspace_id=workspace_id,
+                node_id=node_id,
+                runtime_generation=runtime_generation,
+                catalog=catalog,
+            )
+        if record is None or record.record_id != fact.retained_record_id:
+            return None
+        payload = self.accepted_outputs(
+            record,
+            catalog=catalog,
+            runtime_generation=runtime_generation,
+            artifact_context=artifact_context,
+        )
+        payload = payload.select_ports(port_keys, catalog=catalog)
+        validate_current_output_payload(payload, catalog=catalog, port_keys=port_keys)
+        with self._lock:
+            if (
+                self._facts.get(key) != fact
+                or self._records.get(record.record_id) is None
+            ):
+                return None
+        return record, payload
+
     def accepted_outputs(
         self,
         record_id: str | SolutionRecord,
@@ -1123,7 +1175,7 @@ class SolutionStore:
             pinned_record_ids = {
                 decision.accepted_record_id
                 for decision in prepared.node_decisions
-                if decision.action is PreparedAction.REUSE
+                if decision.action.uses_accepted_output
                 and decision.accepted_record_id is not None
             }
             self._preparations[prepared.preparation_id] = _PreparationEntry(
@@ -1326,6 +1378,8 @@ class SolutionStore:
             return None, resource_leases, None
         status = str(event.get("status", "")).strip()
         disposition = str(event.get("disposition", "")).strip()
+        if decision.action in {PreparedAction.PRUNE, PreparedAction.READ_CURRENT}:
+            return None, resource_leases, None
         if decision.action is PreparedAction.REUSE:
             if disposition != SolutionDisposition.REUSED.value:
                 return None, resource_leases, None
@@ -1440,8 +1494,8 @@ class SolutionStore:
             workspace_id=envelope.workspace_id,
             node_id=node_id,
             solution_key=capture.solution_key,
-            workflow_interface_revision=capture.workflow_interface_revision,
-            workflow_interface_digest=capture.workflow_interface_digest,
+            node_interface_revision=capture.node_interface_revision,
+            node_interface_digest=capture.node_interface_digest,
             node_contract_digest=capture.node_contract_digest,
             dependency_solution_keys=capture.dependency_solution_keys,
             input_provenance_digest=capture.input_provenance_digest,
@@ -1986,22 +2040,26 @@ class SolutionStore:
                 != generation_snapshot.environment_digest
             ):
                 raise ValueError("prepared_execution_environment_changed")
-            decisions = {
-                item.node_id: item for item in entry.prepared.node_decisions
-            }
+            decisions = {item.node_id: item for item in entry.prepared.node_decisions}
             unavailable_reasons = {
                 "execution_generation_unavailable",
                 "execution_environment_unavailable",
             }
-            entry.captured_nodes = {
-                node_id: replace(
-                    capture,
-                    identity_reuse_eligible=(
-                        decisions[node_id].reason_code in unavailable_reasons
-                    ),
+            reusable_keys: dict[str, bool] = {}
+            for node_id in entry.plan.execution_order:
+                capture = entry.captured_nodes.get(node_id)
+                if capture is None:
+                    continue
+                eligible = decisions[
+                    node_id
+                ].reason_code in unavailable_reasons and all(
+                    reusable_keys.get(key, False)
+                    for key in capture.dependency_solution_keys
                 )
-                for node_id, capture in entry.captured_nodes.items()
-            }
+                entry.captured_nodes[node_id] = replace(
+                    capture, identity_reuse_eligible=eligible
+                )
+                reusable_keys[capture.solution_key] = eligible
             entry.generation_snapshot = generation_snapshot
 
     def shutdown(self) -> None:

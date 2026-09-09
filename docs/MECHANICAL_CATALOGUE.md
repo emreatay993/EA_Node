@@ -1,6 +1,6 @@
 # COREX Mechanical Catalogue
 
-The Mechanical catalogue provides eight typed nodes under **FEA > ANSYS > Mechanical**. It opens a fresh isolated working model for each graph run, exposes data-only model observations, supports explicit mutations, and writes only through **Save Mechanical Model** or user-authored code.
+The Mechanical catalogue provides eight typed nodes under **FEA > ANSYS > Mechanical**. It opens a fresh isolated working model whenever a run requires Mechanical operations, exposes data-only model observations, supports explicit mutations, and writes only through **Save Mechanical Model** or user-authored code.
 
 Initial support and live acceptance target Ansys 2026 R1 (`261`) on Windows. Release `252` and earlier are unsupported. A later installed release is offered only after its required Mechanical or Workbench capability handshake succeeds; that is capability-checked operation, not full release certification.
 
@@ -43,6 +43,14 @@ For retained live fixtures, tests or T18 tooling may call `inject_fixture_paths(
 - Mutation workflow: run twice from the unchanged 500 N source into distinct destinations. Each run must read the fresh value and write 600 N, never 700 N; both outputs retain the owned snippet, the source hash stays unchanged, and no implicit solve occurs. A fixed 600 N assignment would not prove freshness.
 
 T17 proves structure, persistence, registry compatibility, and documentation without launching Ansys. T18 owns the live executions above.
+
+## Current data and fresh Mechanical operations
+
+Adding a consumer to a completed Image or Table does not require reopening Mechanical. Auto and Run Selected can consume the requested current data ports directly from the execution-owned SolutionStore. This also applies to data ports on a node that separately returns a live Model: unused Model handles are not transferred or revived.
+
+Current-result consumption does not execute or republish the producer. Changes to its relevant inputs expire downstream results as before. Missing, expired, evicted, or incompatible data requires recomputation. Explicitly requesting a Mechanical operation, a full graph run, or Force Recompute still follows the fresh-source lifecycle. An operation required by another executing branch or an ordering dependency cannot be replaced with a current-data read. Live Models and run-bound object/camera selectors remain subject to session and revision checks.
+
+This is shared execution behavior, so future FEA nodes can use the same typed data and lifetime contracts. The UI's preview cache is never execution authority.
 
 ## Exact node and port contract
 

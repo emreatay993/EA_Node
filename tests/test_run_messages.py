@@ -236,18 +236,10 @@ def _typed_snapshot() -> RuntimeSnapshot:
 class RunMessageTests(unittest.TestCase):
     def test_prepared_start_roundtrip_and_legacy_prepared_field_rejection(self) -> None:
         catalog = _catalog()
-        decision = PreparedNodeDecision(
-            node_id="node_protocol",
-            action=PreparedAction.REUSE,
-            reason_code="reusable_record_accepted",
-            solution_key="a" * 64,
-            dependency_solution_keys=(),
-            accepted_record_id="record_protocol",
-        )
         accepted = AcceptedOutputPayload(
-            node_id=decision.node_id,
+            node_id="node_protocol",
             record_id="record_protocol",
-            solution_key=decision.solution_key,
+            solution_key="a" * 64,
             settlement_status="completed",
             result_digest="b" * 64,
             residency=SolutionResidency.SESSION,
@@ -259,6 +251,15 @@ class RunMessageTests(unittest.TestCase):
                 )
             },
             catalog=catalog,
+        )
+        decision = PreparedNodeDecision(
+            node_id="node_protocol",
+            action=PreparedAction.REUSE,
+            reason_code="reusable_record_accepted",
+            solution_key="a" * 64,
+            dependency_solution_keys=(),
+            accepted_record_id="record_protocol",
+            accepted_payload_digest=accepted.commitment_digest(),
         )
         command = StartRunCommand(
             run_id="run_prepared",

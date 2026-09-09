@@ -1,3 +1,7 @@
+# Purpose: Validate prepared execution and run demanded nodes or current data reads.
+# Map: subsystems/execution.md
+# Tests: tests/test_execution_worker.py, tests/test_runtime_current_results.py
+# Landmarks: NodeExecutor; WorkflowRunner; _validate_prepared_command
 from __future__ import annotations
 
 import asyncio
@@ -46,6 +50,8 @@ from ea_node_editor.execution.prepared_execution import (
     AcceptedOutputPayload,
     PreparedAction,
     PreparedNodeDecision,
+    RecomputeMode,
+    validate_current_output_payload,
 )
 from ea_node_editor.execution.solution_identity import (
     assemble_node_solution,
@@ -616,6 +622,8 @@ class NodeExecutor:
     def validate_reused_output(
         self,
         payload: AcceptedOutputPayload,
+        *,
+        port_keys: tuple[str, ...] | None = None,
     ) -> tuple[dict[str, SettledPortResult], dict[str, SettledPortResult]]:
         node_id = payload.node_id
         expected_ports = {
@@ -623,6 +631,10 @@ class NodeExecutor:
             for port in self._plan.output_ports(node_id)
             if port.kind == "data"
         }
+        if port_keys is not None:
+            if not set(port_keys).issubset(expected_ports):
+                raise ValueError("current result has unknown output ports")
+            expected_ports = {key: expected_ports[key] for key in port_keys}
         event_outputs = payload.decode_outputs(catalog=self._data_types)
         if payload.settlement_status == "completed":
             if set(event_outputs) != set(expected_ports):
@@ -684,7 +696,7 @@ class NodeExecutor:
         )
         return installed_outputs, event_outputs
 
-    def install_reused_output(
+    def install_accepted_output(
         self,
         decision: PreparedNodeDecision,
         payload: AcceptedOutputPayload,
@@ -698,6 +710,9 @@ class NodeExecutor:
             raise ValueError("reused node was installed more than once")
         self.node_outputs[decision.node_id] = dict(installed_outputs)
         self.executed.add(decision.node_id)
+        if decision.action is PreparedAction.READ_CURRENT:
+            # Reading data does not republish or refresh its producer's current fact.
+            return "ok"
         self._publisher.emit_node_settled(
             decision.node_id,
             payload.settlement_status,
@@ -973,7 +988,10 @@ class NodeExecutor:
                 continue
             edges = self._plan.incoming_edges_for(node_id, "input")
             if not edges or any(
-                edge.source_node_id not in self.executed for edge in edges
+                edge.source_node_id not in self.executed
+                or edge.source_port_key
+                not in self.node_outputs.get(edge.source_node_id, {})
+                for edge in edges
             ):
                 continue
             try:
@@ -1706,6 +1724,7 @@ class WorkflowRunner:
         self._viewer_invalidation_node_ids: tuple[str, ...] | None = ()
         self._buffered_preflight_commands: list[WorkerCommand] = []
         self._viewer_workspace_context: tuple[str, RuntimeSnapshot, RuntimeSnapshotContext] | None = None
+        self._pruned_node_ids: set[str] = set()
         self._reused_outputs: dict[
             str,
             tuple[
@@ -1849,10 +1868,7 @@ class WorkflowRunner:
         assert self._plan is not None
         assert self._executor is not None
         registry = prepared.registry
-        if (
-            registry.contract_fingerprint()
-            != command.registry_contract_fingerprint
-        ):
+        if registry.contract_fingerprint() != command.registry_contract_fingerprint:
             raise ValueError("prepared registry contract fingerprint changed")
         if (
             canonical_digest(
@@ -1875,22 +1891,73 @@ class WorkflowRunner:
         ):
             raise ValueError("prepared workflow interface changed")
         expected_trigger_ids = tuple(
-            sorted(node_id for node_id in self._plan.nodes if self._plan.is_trigger(node_id))
+            sorted(
+                node_id
+                for node_id in self._plan.nodes
+                if self._plan.is_trigger(node_id)
+            )
         )
-        if tuple(
-            node_id
-            for node_id, _generation in command.trigger_publication_generations
-        ) != expected_trigger_ids:
+        if (
+            tuple(
+                node_id
+                for node_id, _generation in command.trigger_publication_generations
+            )
+            != expected_trigger_ids
+        ):
             raise ValueError("prepared trigger publication generations changed")
         scheduled_node_ids = tuple(
             node_id
             for node_id in self._plan.execution_order
             if self._plan.node_specs[node_id].runtime_behavior == "active"
         )
-        if tuple(decision.node_id for decision in command.node_decisions) != scheduled_node_ids:
+        if (
+            tuple(decision.node_id for decision in command.node_decisions)
+            != scheduled_node_ids
+        ):
             raise ValueError("prepared decisions do not match scheduled node order")
         keys_by_node: dict[str, str] = {}
         actions_by_node: dict[str, PreparedAction] = {}
+        reusable_keys: dict[str, bool] = {}
+        executing_ancestry: dict[str, bool] = {}
+        force_recompute = (
+            RecomputeMode(command.recompute_mode) is RecomputeMode.FORCE_RECOMPUTE
+        )
+        boundaries = frozenset(
+            item.node_id
+            for item in command.node_decisions
+            if item.action is PreparedAction.READ_CURRENT
+        )
+        if boundaries and (
+            not self._plan.target_nodes
+            or self._plan.clicked_trigger_node_id
+            or force_recompute
+        ):
+            raise ValueError("current results require a partial consumer run")
+        if any(
+            node_id in self._plan.target_nodes or self._plan.is_trigger(node_id)
+            for node_id in boundaries
+        ):
+            raise ValueError(
+                "explicit targets and triggers cannot read current results"
+            )
+        required = self._plan.required_node_ids(boundaries)
+        current_ports = self._plan.current_result_ports(boundaries)
+        expected_pruned = set(scheduled_node_ids).difference(required)
+        self._pruned_node_ids = {
+            item.node_id
+            for item in command.node_decisions
+            if item.action is PreparedAction.PRUNE
+        }
+        if self._pruned_node_ids != expected_pruned:
+            raise ValueError(
+                "pruned decisions do not match current-result dependencies"
+            )
+        if force_recompute and any(
+            item.action is not PreparedAction.EXECUTE for item in command.node_decisions
+        ):
+            raise ValueError(
+                "force recompute requires execution of every scheduled node"
+            )
         trigger_generations = dict(command.trigger_publication_generations)
         for decision in command.node_decisions:
             assembled = assemble_node_solution(
@@ -1903,12 +1970,8 @@ class WorkflowRunner:
                 registry=registry,
                 node_id=decision.node_id,
                 keys_by_node=keys_by_node,
-                execution_environment_digest=(
-                    command.execution_environment_digest
-                ),
+                execution_environment_digest=(command.execution_environment_digest),
                 trigger_publication_generations=trigger_generations,
-                workflow_interface_revision=command.workflow_interface_revision,
-                workflow_interface_digest=command.workflow_interface_digest,
             )
             if (
                 assembled.solution_key != decision.solution_key
@@ -1916,15 +1979,21 @@ class WorkflowRunner:
                 != decision.dependency_solution_keys
             ):
                 raise ValueError("prepared node solution identity changed")
-            if decision.action is PreparedAction.REUSE and (
-                assembled.reason_code
-                or self._plan.node_specs[decision.node_id].solution_reuse_scope
-                == "never"
-            ):
+            reusable_lineage = (
+                not assembled.reason_code
+                and self._plan.node_specs[decision.node_id].solution_reuse_scope
+                != "never"
+                and all(
+                    reusable_keys[key] for key in assembled.dependency_solution_keys
+                )
+            )
+            reusable_keys[assembled.solution_key] = reusable_lineage
+            if decision.action is PreparedAction.REUSE and not reusable_lineage:
                 raise ValueError("prepared node is not eligible for reuse")
+            if decision.action is PreparedAction.READ_CURRENT and assembled.reason_code:
+                raise ValueError("current result identity is unavailable")
             upstream_execute = any(
-                actions_by_node.get(edge.source_node_id)
-                is PreparedAction.EXECUTE
+                actions_by_node.get(edge.source_node_id) is PreparedAction.EXECUTE
                 for edge in self._plan.incoming_edges_for(decision.node_id)
                 if not self._plan.is_trigger(edge.source_node_id)
             ) or any(
@@ -1932,14 +2001,37 @@ class WorkflowRunner:
                 and actions_by_node.get(source) is PreparedAction.EXECUTE
                 for source, target in self._plan.hidden_ordering_pairs
             )
+            ancestor_execute = (
+                upstream_execute
+                or any(
+                    executing_ancestry.get(edge.source_node_id, False)
+                    for edge in self._plan.incoming_edges_for(decision.node_id)
+                    if not self._plan.is_trigger(edge.source_node_id)
+                )
+                or any(
+                    target == decision.node_id and executing_ancestry.get(source, False)
+                    for source, target in self._plan.hidden_ordering_pairs
+                )
+            )
+            executing_ancestry[decision.node_id] = ancestor_execute
+            if decision.action.uses_accepted_output and ancestor_execute:
+                raise ValueError("retained output has a recomputing dependency")
             reason = decision.reason_code
-            if decision.action is PreparedAction.REUSE:
+            if force_recompute:
+                reason_valid = reason == "force_recompute"
+            elif decision.action is PreparedAction.PRUNE:
+                reason_valid = reason == "dependency_not_required"
+            elif decision.action is PreparedAction.READ_CURRENT:
+                reason_valid = reason == "current_result_accepted"
+            elif decision.action is PreparedAction.REUSE:
                 reason_valid = reason == "reusable_record_accepted"
             elif reason == "force_recompute":
-                reason_valid = True
+                reason_valid = False
             elif assembled.reason_code:
                 reason_valid = reason == assembled.reason_code
-            elif self._plan.node_specs[decision.node_id].solution_reuse_scope == "never":
+            elif (
+                self._plan.node_specs[decision.node_id].solution_reuse_scope == "never"
+            ):
                 reason_valid = reason == "solution_reuse_scope_never"
             elif reason in {
                 "execution_generation_unavailable",
@@ -1948,6 +2040,8 @@ class WorkflowRunner:
                 reason_valid = True
             elif upstream_execute:
                 reason_valid = reason == "upstream_recompute_required"
+            elif not reusable_lineage:
+                reason_valid = reason == "volatile_dependency"
             else:
                 reason_valid = reason in {
                     "no_reusable_record",
@@ -1966,9 +2060,25 @@ class WorkflowRunner:
             for item in command.accepted_output_payloads
         }
         for decision in command.node_decisions:
-            if decision.action is not PreparedAction.REUSE:
+            if not decision.action.uses_accepted_output:
                 continue
             payload = accepted_by_node[decision.node_id]
+            if (
+                payload.record_id != decision.accepted_record_id
+                or payload.solution_key != decision.solution_key
+                or payload.commitment_digest() != decision.accepted_payload_digest
+            ):
+                raise ValueError(
+                    "accepted output does not match its decision commitments"
+                )
+            if decision.action is PreparedAction.READ_CURRENT:
+                validate_current_output_payload(
+                    payload,
+                    catalog=registry.data_types,
+                    port_keys=current_ports[decision.node_id],
+                )
+            elif payload.output_digest != payload.result_digest:
+                raise ValueError("computation reuse requires complete recorded outputs")
             outputs_payload = settled_outputs_to_payload(
                 payload.decode_outputs(catalog=registry.data_types),
                 catalog=registry.data_types,
@@ -1982,9 +2092,12 @@ class WorkflowRunner:
                     sort_keys=True,
                 ).encode("utf-8")
             ).hexdigest()
-            if result_digest != payload.result_digest:
+            if result_digest != payload.output_digest:
                 raise ValueError("prepared accepted output digest changed")
-            installed, event_outputs = self._executor.validate_reused_output(payload)
+            installed, event_outputs = self._executor.validate_reused_output(
+                payload,
+                port_keys=current_ports.get(decision.node_id),
+            )
             self._reused_outputs[decision.node_id] = (
                 decision,
                 payload,
@@ -2141,9 +2254,11 @@ class WorkflowRunner:
                 ),
             )
             for node_id in self._plan.execution_order:
+                if node_id in self._pruned_node_ids:
+                    continue
                 reused = self._reused_outputs.get(node_id)
                 status = (
-                    self._executor.install_reused_output(*reused)
+                    self._executor.install_accepted_output(*reused)
                     if reused is not None
                     else self._executor.run_node(node_id)
                 )

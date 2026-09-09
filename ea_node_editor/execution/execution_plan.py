@@ -1,6 +1,6 @@
 # Purpose: Build and fingerprint the executable dependency topology for one run.
 # Map: subsystems/execution.md
-# Tests: tests/test_execution_plan.py
+# Tests: tests/test_execution_plan.py, tests/test_runtime_current_results.py
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from ea_node_editor.execution.solution_identity import canonical_digest
 
 _TRIGGER_TYPE_ID = "core.trigger"
 _FINGERPRINT_SCHEMA_VERSION = 1
-WORKFLOW_INTERFACE_REVISION = 1
+WORKFLOW_INTERFACE_REVISION = 2
 
 
 class _ExecutionCycleError(ValueError):
@@ -252,6 +252,12 @@ class ExecutionPlan:
         return node is not None and node.type_id == _TRIGGER_TYPE_ID
 
     def _build_scheduled_nodes(self) -> set[str]:
+        return self.required_node_ids()
+
+    def required_node_ids(
+        self, result_boundaries: frozenset[str] = frozenset()
+    ) -> set[str]:
+        """Resolve execution demand while retaining the full plan for attestation."""
         if not self._has_explicit_target_filter:
             return set(self.nodes)
         targets = set(self._resolved_target_nodes)
@@ -261,6 +267,8 @@ class ExecutionPlan:
         pending = list(targets)
         while pending:
             current = pending.pop()
+            if current in result_boundaries:
+                continue
             if self.is_trigger(current):
                 if (
                     current == self.clicked_trigger_node_id
@@ -303,6 +311,27 @@ class ExecutionPlan:
             if edge.source_node_id in self.scheduled_node_ids
             and not self.is_trigger(node_id)
         )
+
+    def current_result_ports(
+        self, boundaries: frozenset[str]
+    ) -> dict[str, tuple[str, ...]]:
+        """Return only ports actually consumed past the current-result boundaries."""
+        consumers = self.required_node_ids(boundaries).difference(boundaries)
+        if any(
+            source in boundaries and target in consumers
+            for source, target in self.hidden_ordering_pairs
+        ):
+            raise ValueError("an ordering dependency cannot consume a current result")
+        ports = {node_id: set() for node_id in boundaries}
+        for source in boundaries:
+            ports[source].update(
+                edge.source_port_key
+                for edge in self.data_outgoing.get(source, ())
+                if edge.target_node_id in consumers
+            )
+        if any(not values for values in ports.values()):
+            raise ValueError("a current-result boundary needs a data-port consumer")
+        return {node_id: tuple(sorted(values)) for node_id, values in ports.items()}
 
     def _topological_order(self) -> tuple[str, ...]:
         validated_order = self._topological_subset(self.scheduled_node_ids)
@@ -469,6 +498,15 @@ class ExecutionPlan:
             for node_id in declaration_order
             if node_id in contributing
         }
+
+    def node_solution_interface_digest(self, node_id: str) -> str:
+        """Identify this producer's interface, independently of its consumers."""
+        return canonical_digest(
+            {
+                "revision": WORKFLOW_INTERFACE_REVISION,
+                "node": self._workflow_node_interface(node_id),
+            }
+        )
 
     def _workflow_interface_digest(self) -> str:
         return canonical_digest(

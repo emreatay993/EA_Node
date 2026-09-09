@@ -1,12 +1,13 @@
 # Purpose: Define immutable execution preparation and dispatch contracts.
 # Map: subsystems/execution.md
-# Tests: tests/test_solution_records.py
+# Tests: tests/test_solution_records.py, tests/test_runtime_current_results.py
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import InitVar, dataclass
+from dataclasses import InitVar, dataclass, fields
 from enum import Enum
+import hashlib
 import json
 from typing import TYPE_CHECKING, Any
 
@@ -59,7 +60,13 @@ _RUNTIME_VALUE_MARKER_KEY = "__ea_runtime_value__"
 
 class PreparedAction(str, Enum):
     REUSE = "reuse"
+    READ_CURRENT = "read_current"
     EXECUTE = "execute"
+    PRUNE = "prune"
+
+    @property
+    def uses_accepted_output(self) -> bool:
+        return self in {PreparedAction.REUSE, PreparedAction.READ_CURRENT}
 
 
 class RecomputeMode(str, Enum):
@@ -218,7 +225,8 @@ def _reject_durable_session_carriers(
                 )
             if not isinstance(data_type_id, str):
                 raise ValueError("durable typed carriers require data_type_id")
-            if catalog.require(data_type_id).persistence == "never":
+            spec = catalog.require(data_type_id)
+            if spec.persistence == "never" or spec.sensitivity != "normal":
                 raise ValueError(
                     "durable accepted outputs cannot contain session-only carriers"
                 )
@@ -296,7 +304,9 @@ class PreparedDispatchEnvelope:
         )
         for field_name in ("project_id", "workspace_id"):
             object.__setattr__(
-                self, field_name, _text(getattr(self, field_name), field_name=field_name)
+                self,
+                field_name,
+                _text(getattr(self, field_name), field_name=field_name),
             )
         if isinstance(self.trigger, bytes):
             trigger_payload = _json_from_bytes(self.trigger, field_name="trigger")
@@ -408,7 +418,9 @@ class PreparedDispatchEnvelope:
         seen_addons: set[str] = set()
         for index, pair in enumerate(self.addon_runtime_config):
             if not isinstance(pair, (list, tuple)) or len(pair) != 2:
-                raise TypeError(f"addon_runtime_config[{index}] must be an id/bool pair")
+                raise TypeError(
+                    f"addon_runtime_config[{index}] must be an id/bool pair"
+                )
             addon_id = _text(pair[0], field_name=f"addon_runtime_config[{index}].id")
             if not isinstance(pair[1], bool):
                 raise TypeError(
@@ -436,6 +448,7 @@ class PreparedDispatchEnvelope:
                 runtime_snapshot=runtime_snapshot,
                 execution_backend=self.execution_backend,
                 target_node_ids=self.target_node_ids,
+                recompute_mode=self.recompute_mode.value,
                 clicked_trigger_node_id=self.clicked_trigger_node_id,
                 trigger_publications=self.decode_trigger_publications(
                     catalog=catalog
@@ -549,7 +562,7 @@ class PreparedDispatchEnvelope:
         command_payload = {
             key: value
             for key, value in payload.items()
-            if key not in {"project_id", "trigger_capture_node_ids", "recompute_mode"}
+            if key not in {"project_id", "trigger_capture_node_ids"}
         }
         command_payload.update({"type": "start_run", "run_id": "prepared"})
         command = dict_to_command(command_payload, catalog=catalog)
@@ -591,6 +604,7 @@ class PreparedNodeDecision:
     solution_key: str
     dependency_solution_keys: tuple[str, ...]
     accepted_record_id: str | None = None
+    accepted_payload_digest: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "node_id", _text(self.node_id, field_name="node_id"))
@@ -609,10 +623,20 @@ class PreparedNodeDecision:
             if self.accepted_record_id is None
             else _text(self.accepted_record_id, field_name="accepted_record_id")
         )
-        if action is PreparedAction.REUSE and accepted_record_id is None:
+        if action.uses_accepted_output and accepted_record_id is None:
             raise ValueError("reuse decisions require accepted_record_id")
-        if action is PreparedAction.EXECUTE and accepted_record_id is not None:
-            raise ValueError("execute decisions forbid accepted_record_id")
+        if not action.uses_accepted_output and accepted_record_id is not None:
+            raise ValueError("execute/prune decisions forbid accepted_record_id")
+        if action.uses_accepted_output:
+            object.__setattr__(
+                self,
+                "accepted_payload_digest",
+                _digest(
+                    self.accepted_payload_digest, field_name="accepted_payload_digest"
+                ),
+            )
+        elif self.accepted_payload_digest is not None:
+            raise ValueError("execute/prune decisions forbid output commitments")
         object.__setattr__(self, "action", action)
         object.__setattr__(self, "reason_code", reason)
         object.__setattr__(self, "dependency_solution_keys", dependencies)
@@ -626,6 +650,7 @@ class PreparedNodeDecision:
             "solution_key": self.solution_key,
             "dependency_solution_keys": list(self.dependency_solution_keys),
             "accepted_record_id": self.accepted_record_id,
+            "accepted_payload_digest": self.accepted_payload_digest,
         }
 
     def to_payload(self) -> dict[str, Any]:
@@ -639,6 +664,11 @@ class PreparedNodeDecision:
 
 @dataclass(slots=True, frozen=True, kw_only=True)
 class AcceptedOutputPayload:
+    """Transferred outputs, bound to their original complete result record.
+
+    result_digest identifies the complete record; output_digest authenticates
+    the transferred mapping, which may be a port subset for READ_CURRENT.
+    """
     node_id: str
     record_id: str
     solution_key: str
@@ -647,12 +677,15 @@ class AcceptedOutputPayload:
     residency: SolutionResidency
     runtime_generation: int | None
     outputs: Mapping[str, SettledPortResult] | bytes
+    output_digest: str | None = None
     catalog: InitVar[DataTypeCatalog | None] = None
 
     def __post_init__(self, catalog: DataTypeCatalog | None) -> None:
         for field_name in ("node_id", "record_id"):
             object.__setattr__(
-                self, field_name, _text(getattr(self, field_name), field_name=field_name)
+                self,
+                field_name,
+                _text(getattr(self, field_name), field_name=field_name),
             )
         object.__setattr__(
             self, "solution_key", _digest(self.solution_key, field_name="solution_key")
@@ -663,7 +696,19 @@ class AcceptedOutputPayload:
         if settlement_status not in {"completed", "empty"}:
             raise ValueError("accepted outputs must be completed or empty")
         object.__setattr__(
-            self, "result_digest", _digest(self.result_digest, field_name="result_digest")
+            self,
+            "result_digest",
+            _digest(self.result_digest, field_name="result_digest"),
+        )
+        object.__setattr__(
+            self,
+            "output_digest",
+            _digest(
+                self.result_digest
+                if self.output_digest is None
+                else self.output_digest,
+                field_name="output_digest",
+            ),
         )
         residency = _enum(self.residency, SolutionResidency, field_name="residency")
         if residency is SolutionResidency.SESSION:
@@ -692,8 +737,7 @@ class AcceptedOutputPayload:
                 )
             )
         elif isinstance(self.outputs, Mapping) and all(
-            isinstance(result, SettledPortResult)
-            for result in self.outputs.values()
+            isinstance(result, SettledPortResult) for result in self.outputs.values()
         ):
             if len(self.outputs) > MAX_OUTPUTS_PER_NODE:
                 raise ValueError(
@@ -724,8 +768,10 @@ class AcceptedOutputPayload:
             result.status != "empty" for result in outputs.values()
         ):
             raise ValueError("empty settlements cannot contain value port results")
-        if settlement_status == "completed" and outputs and not any(
-            result.status == "value" for result in outputs.values()
+        if (
+            settlement_status == "completed"
+            and outputs
+            and not any(result.status == "value" for result in outputs.values())
         ):
             raise ValueError(
                 "completed accepted outputs with ports require a value result"
@@ -756,6 +802,51 @@ class AcceptedOutputPayload:
             raise ValueError("accepted outputs must decode to a mapping")
         return len(payload)
 
+    def commitment_digest(self) -> str:
+        """Bind output bytes and their identity, status, and lifetime metadata."""
+        metadata = {
+            field.name: getattr(self, field.name)
+            for field in fields(self)
+            if field.name != "outputs"
+        }
+        return hashlib.sha256(
+            _canonical_json_bytes(metadata, field_name="accepted output commitment")
+        ).hexdigest()
+
+    def select_ports(
+        self,
+        port_keys: tuple[str, ...],
+        *,
+        catalog: DataTypeCatalog,
+    ) -> AcceptedOutputPayload:
+        ports = _string_tuple(
+            port_keys, field_name="current output ports", limit=MAX_OUTPUTS_PER_NODE
+        )
+        if not ports:
+            raise ValueError("current results require a data-port dependency")
+        original = _json_from_bytes(self.outputs, field_name="accepted outputs")
+        if self.settlement_status == "empty" and not original:
+            selected = {}
+        else:
+            if not set(ports).issubset(original):
+                raise ValueError("current output port is unavailable")
+            selected = {key: original[key] for key in ports}
+        encoded = _canonical_json_bytes(selected, field_name="current outputs")
+        return AcceptedOutputPayload(
+            node_id=self.node_id,
+            record_id=self.record_id,
+            solution_key=self.solution_key,
+            settlement_status="completed"
+            if any(item["status"] == "value" for item in selected.values())
+            else "empty",
+            result_digest=self.result_digest,
+            residency=self.residency,
+            runtime_generation=self.runtime_generation,
+            outputs=encoded,
+            output_digest=hashlib.sha256(encoded).hexdigest(),
+            catalog=catalog,
+        )
+
     def decode_outputs(
         self,
         *,
@@ -781,6 +872,7 @@ class AcceptedOutputPayload:
             "solution_key": self.solution_key,
             "settlement_status": self.settlement_status,
             "result_digest": self.result_digest,
+            "output_digest": self.output_digest,
             "residency": self.residency.value,
             "runtime_generation": self.runtime_generation,
             "outputs": _json_from_bytes(
@@ -844,6 +936,8 @@ def validate_accepted_output_payload(
         raise ValueError(
             "accepted output port keys and statuses must match solution descriptors"
         )
+    if payload.output_digest != payload.result_digest:
+        raise ValueError("computation reuse requires the complete recorded outputs")
     if record.residency is SolutionResidency.DURABLE and artifact_context is not None:
         if catalog is None:
             raise ValueError("durable accepted outputs require a data-type catalog")
@@ -855,6 +949,29 @@ def validate_accepted_output_payload(
         )
         if not validation.eligible:
             raise ValueError(validation.reason_code)
+
+
+def validate_current_output_payload(
+    payload: AcceptedOutputPayload,
+    *,
+    catalog: DataTypeCatalog,
+    port_keys: tuple[str, ...],
+) -> None:
+    """Require detached data; currentness is separately owned by SolutionStore.
+
+    Reading a retained result must not revive handles, private working files,
+    secrets, or session-bound typed snapshots after their producing run ends.
+    This is a consumption check, not permission to persist the result.
+    """
+    outputs = payload.to_payload(catalog=catalog)["outputs"]
+    if not port_keys or (
+        set(outputs) != set(port_keys)
+        and not (payload.settlement_status == "empty" and not outputs)
+    ):
+        raise ValueError("current outputs must match the required data ports")
+    if hashlib.sha256(payload.outputs).hexdigest() != payload.output_digest:
+        raise ValueError("current output payload digest is invalid")
+    _reject_durable_session_carriers(outputs, catalog=catalog)
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)
@@ -955,7 +1072,9 @@ class PreparedExecution:
             )
         accepted_by_node = {item.node_id: item for item in accepted}
         if len(accepted_by_node) != len(accepted):
-            raise ValueError("accepted_output_payloads must not contain duplicate nodes")
+            raise ValueError(
+                "accepted_output_payloads must not contain duplicate nodes"
+            )
         accepted_record_ids = tuple(item.record_id for item in accepted)
         if len(accepted_record_ids) != len(set(accepted_record_ids)):
             raise ValueError("accepted_output_payloads must not duplicate record IDs")
@@ -965,7 +1084,7 @@ class PreparedExecution:
                 "accepted_output_payloads cannot share cross-node solution keys"
             )
         reuse_node_ids = {
-            item.node_id for item in decisions if item.action is PreparedAction.REUSE
+            item.node_id for item in decisions if item.action.uses_accepted_output
         }
         if set(accepted_by_node) != reuse_node_ids:
             raise ValueError(
@@ -979,15 +1098,18 @@ class PreparedExecution:
             )
         for decision in decisions:
             payload = accepted_by_node.get(decision.node_id)
-            if decision.action is PreparedAction.EXECUTE:
+            if not decision.action.uses_accepted_output:
                 if payload is not None:
-                    raise ValueError("execute decisions cannot have accepted outputs")
+                    raise ValueError(
+                        "execute/prune decisions cannot have accepted outputs"
+                    )
                 continue
             if payload is None:
                 raise ValueError("reuse decisions require one accepted output payload")
             if (
                 payload.record_id != decision.accepted_record_id
                 or payload.solution_key != decision.solution_key
+                or payload.commitment_digest() != decision.accepted_payload_digest
             ):
                 raise ValueError(
                     "accepted output payload must match decision record and solution key"
@@ -1001,7 +1123,7 @@ class PreparedExecution:
             item.node_id for item in decisions if item.action is PreparedAction.EXECUTE
         )
         expected_reused = tuple(
-            item.node_id for item in decisions if item.action is PreparedAction.REUSE
+            item.node_id for item in decisions if item.action.uses_accepted_output
         )
         if recompute != expected_recompute or reused != expected_reused:
             raise ValueError("prepared recompute/reused node IDs must match decisions")
@@ -1155,7 +1277,9 @@ class InvalidationResult:
     def __post_init__(self) -> None:
         for field_name in ("project_id", "workspace_id", "reason_code"):
             object.__setattr__(
-                self, field_name, _text(getattr(self, field_name), field_name=field_name)
+                self,
+                field_name,
+                _text(getattr(self, field_name), field_name=field_name),
             )
         _integer(self.solution_revision, field_name="solution_revision")
         if self.solution_revision < 0:
@@ -1211,7 +1335,9 @@ class SolutionStateChangedEvent:
     def __post_init__(self) -> None:
         for field_name in ("project_id", "workspace_id", "reason_code"):
             object.__setattr__(
-                self, field_name, _text(getattr(self, field_name), field_name=field_name)
+                self,
+                field_name,
+                _text(getattr(self, field_name), field_name=field_name),
             )
         _integer(self.solution_revision, field_name="solution_revision")
         if self.solution_revision < 0:
@@ -1294,4 +1420,5 @@ __all__ = [
     "SolutionStateChangedEvent",
     "normalize_trigger_publication_generations",
     "validate_accepted_output_payload",
+    "validate_current_output_payload",
 ]

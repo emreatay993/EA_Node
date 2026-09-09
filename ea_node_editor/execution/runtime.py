@@ -1,6 +1,6 @@
 # Purpose: Own the Qt-free CorexRuntime lifecycle, preparation/dispatch, solution state, and viewer forwarding.
 # Map: subsystems/execution.md
-# Tests: tests/test_runtime.py
+# Tests: tests/test_runtime.py, tests/test_runtime_current_results.py
 # Landmarks: CorexRuntime; prepare_execution; dispatch_prepared; run
 """Qt-free Corex runtime API and CLI entry point."""
 
@@ -13,6 +13,7 @@ import queue
 import threading
 import time
 import uuid
+from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
@@ -489,12 +490,6 @@ class CorexRuntime:
                     trigger_publication_generations=dict(
                         trigger_publication_generations
                     ),
-                    workflow_interface_revision=(
-                        interface_plan.workflow_interface_revision
-                    ),
-                    workflow_interface_digest=(
-                        interface_plan.workflow_interface_digest
-                    ),
                     artifact_service=RuntimeArtifactService(
                         runtime_context=RuntimeSnapshotContext.from_snapshot(
                             runtime_snapshot,
@@ -538,7 +533,7 @@ class CorexRuntime:
                     reused_node_ids=tuple(
                         item.node_id
                         for item in decisions
-                        if item.action is PreparedAction.REUSE
+                        if item.action.uses_accepted_output
                     ),
                 )
                 encoded_size = len(
@@ -631,8 +626,6 @@ class CorexRuntime:
         generation_snapshot: Any,
         recompute_mode: RecomputeMode,
         trigger_publication_generations: Mapping[str, int],
-        workflow_interface_revision: int,
-        workflow_interface_digest: str,
         artifact_service: RuntimeArtifactService,
     ) -> tuple[
         tuple[PreparedNodeDecision, ...],
@@ -641,21 +634,16 @@ class CorexRuntime:
     ]:
         workspace_id = plan.workspace.workspace_id
         solution_revision = self._solution_store.workspace_revision(
-            project_id,
-            workspace_id,
+            project_id, workspace_id
         )
-        decisions: list[PreparedNodeDecision] = []
-        accepted: list[Any] = []
-        captures: list[CapturedNodeSolution] = []
+        captures: dict[str, CapturedNodeSolution] = {}
+        identity_reasons: dict[str, str] = {}
         keys_by_node: dict[str, str] = {}
-        actions_by_node: dict[str, PreparedAction] = {}
-        accepted_port_count = 0
-        accepted_payload_bytes = 0
+        reusable_keys: dict[str, bool] = {}
         for node_id in plan.execution_order:
-            spec = plan.node_specs[node_id]
-            if spec.runtime_behavior != "active":
+            if plan.node_specs[node_id].runtime_behavior != "active":
                 continue
-            capture, identity_reason = self._captured_node_solution(
+            capture, identity_reasons[node_id] = self._captured_node_solution(
                 preparation_id=preparation_id,
                 namespace_id=namespace_id,
                 project_id=project_id,
@@ -666,97 +654,237 @@ class CorexRuntime:
                 generation_snapshot=generation_snapshot,
                 solution_revision=solution_revision,
                 trigger_publication_generations=trigger_publication_generations,
-                workflow_interface_revision=workflow_interface_revision,
-                workflow_interface_digest=workflow_interface_digest,
             )
+            # Volatile lineage cannot promise repeatable computations. Its detached
+            # completed values remain available as CURRENT observations.
+            capture = replace(
+                capture,
+                identity_reuse_eligible=(
+                    capture.identity_reuse_eligible
+                    and all(
+                        reusable_keys[key] for key in capture.dependency_solution_keys
+                    )
+                ),
+            )
+            captures[node_id] = capture
             keys_by_node[node_id] = capture.solution_key
-            captures.append(capture)
-            upstream_execute = any(
-                actions_by_node.get(edge.source_node_id) is PreparedAction.EXECUTE
-                for edge in plan.incoming_edges_for(node_id)
-                if not plan.is_trigger(edge.source_node_id)
-            ) or any(
-                target == node_id
-                and actions_by_node.get(source) is PreparedAction.EXECUTE
-                for source, target in plan.hidden_ordering_pairs
-            )
-            reason = identity_reason
-            action = PreparedAction.EXECUTE
-            record_id: str | None = None
-            output_payload = None
-            if recompute_mode is RecomputeMode.FORCE_RECOMPUTE:
-                reason = "force_recompute"
-            elif reason:
-                pass
-            elif spec.solution_reuse_scope == "never":
-                reason = "solution_reuse_scope_never"
-            elif not generation_snapshot.available:
-                reason = (
-                    generation_snapshot.reason or "execution_generation_unavailable"
-                )
-            elif upstream_execute:
-                reason = "upstream_recompute_required"
+            reusable_keys[capture.solution_key] = capture.identity_reuse_eligible
+
+        dependencies = {node_id: [] for node_id in plan.execution_order}
+        successors = {node_id: [] for node_id in plan.execution_order}
+        for target in plan.execution_order:
+            for edge in plan.incoming_edges_for(target):
+                if edge.source_node_id in dependencies:
+                    dependencies[target].append(
+                        (edge.source_node_id, edge.source_port_key)
+                    )
+                    if not plan.is_trigger(edge.source_node_id):
+                        successors[edge.source_node_id].append(target)
+        for source, target in plan.hidden_ordering_pairs:
+            if source in dependencies and target in dependencies:
+                dependencies[target].append((source, None))
+                successors[source].append(target)
+        for node_id in dependencies:
+            if plan.is_trigger(node_id) and (
+                node_id != plan.clicked_trigger_node_id
+                and node_id not in plan.target_nodes
+                or node_id == plan.clicked_trigger_node_id
+                and node_id in plan.trigger_capture_node_ids
+            ):
+                dependencies[node_id] = []
+
+        allow_current = (
+            bool(plan.target_nodes)
+            and not plan.clicked_trigger_node_id
+            and recompute_mode is RecomputeMode.REUSE_VALID
+        )
+        pending = deque()
+        queued: set[str] = set()
+        requested_ports: dict[str, set[str]] = {}
+        effect_required: set[str] = set()
+        recomputed = deque()
+        required: set[str] = set()
+        tainted: set[str] = set()
+        actions: dict[str, PreparedAction] = {}
+        reasons: dict[str, str] = {}
+        accepted: dict[str, Any] = {}
+        sizes: dict[str, int] = {}
+        accepted_ports = 0
+        accepted_bytes = 0
+
+        def require(node_id: str, port_key: str | None = None) -> None:
+            if port_key is None:
+                changed = node_id not in effect_required
+                effect_required.add(node_id)
             else:
-                record = self._solution_store.select_record(
-                    solution_key=capture.solution_key,
-                    project_id=project_id,
-                    workspace_id=workspace_id,
-                    node_id=node_id,
-                    runtime_generation=generation_snapshot.runtime_generation,
-                    catalog=registry.data_types,
-                )
-                if record is None:
-                    reason = "no_reusable_record"
-                else:
+                ports = requested_ports.setdefault(node_id, set())
+                changed = port_key not in ports
+                ports.add(port_key)
+            if (changed or node_id not in required) and node_id not in queued:
+                queued.add(node_id)
+                pending.append(node_id)
+
+        def require_dependencies(node_id: str) -> None:
+            for source, port_key in dependencies[node_id]:
+                require(source, port_key)
+
+        for node_id in plan.target_nodes if allow_current else plan.execution_order:
+            if node_id in dependencies:
+                require(node_id)
+
+        def discard_output(node_id: str) -> None:
+            nonlocal accepted_ports, accepted_bytes
+            payload = accepted.pop(node_id, None)
+            if payload is not None:
+                accepted_ports -= payload.output_count
+                accepted_bytes -= sizes.pop(node_id)
+
+        def retain_output(node_id: str, payload: Any) -> bool:
+            nonlocal accepted_ports, accepted_bytes
+            self._validate_prepared_artifacts(
+                payload,
+                artifact_service=artifact_service,
+                catalog=registry.data_types,
+            )
+            size = len(
+                json.dumps(
+                    payload.to_payload(catalog=registry.data_types),
+                    allow_nan=False,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ).encode("utf-8")
+            )
+            if (
+                len(accepted) + 1 > MAX_ACCEPTED_NODE_PAYLOADS_PER_PREPARATION
+                or accepted_ports + payload.output_count
+                > MAX_ACCEPTED_PORT_RESULTS_PER_PREPARATION
+                or accepted_bytes + size > MAX_ACCEPTED_OUTPUT_PAYLOAD_BYTES
+            ):
+                return False
+            accepted[node_id] = payload
+            sizes[node_id] = size
+            accepted_ports += payload.output_count
+            accepted_bytes += size
+            return True
+
+        def execution_reason(node_id: str) -> str:
+            if recompute_mode is RecomputeMode.FORCE_RECOMPUTE:
+                return "force_recompute"
+            if identity_reasons[node_id]:
+                return identity_reasons[node_id]
+            if plan.node_specs[node_id].solution_reuse_scope == "never":
+                return "solution_reuse_scope_never"
+            if not generation_snapshot.available:
+                return generation_snapshot.reason or "execution_generation_unavailable"
+            if node_id in tainted:
+                return "upstream_recompute_required"
+            if not captures[node_id].identity_reuse_eligible:
+                return "volatile_dependency"
+            return ""
+
+        # Demand moves upstream; recomputation moves downstream. Each flag changes
+        # once, so a shared executing branch deoptimizes boundaries without rescans.
+        while pending or recomputed:
+            if recomputed:
+                node_id = recomputed.popleft()
+                if node_id in tainted:
+                    continue
+                tainted.add(node_id)
+                recomputed.extend(successors[node_id])
+                if node_id in required and node_id in captures:
+                    if actions[node_id] is PreparedAction.READ_CURRENT:
+                        require_dependencies(node_id)
+                    discard_output(node_id)
+                    actions[node_id] = PreparedAction.EXECUTE
+                continue
+            node_id = pending.popleft()
+            queued.discard(node_id)
+            if (
+                node_id in required
+                and actions.get(node_id) is not PreparedAction.READ_CURRENT
+            ):
+                continue
+            required.add(node_id)
+            if node_id not in captures:
+                require_dependencies(node_id)
+                continue
+            discard_output(node_id)
+            capture = captures[node_id]
+            lookup = dict(
+                solution_key=capture.solution_key,
+                project_id=project_id,
+                workspace_id=workspace_id,
+                node_id=node_id,
+                runtime_generation=generation_snapshot.runtime_generation,
+                catalog=registry.data_types,
+            )
+            if (
+                allow_current
+                and node_id not in effect_required
+                and not plan.is_trigger(node_id)
+                and node_id not in tainted
+                and generation_snapshot.available
+                and not identity_reasons[node_id]
+            ):
+                try:
+                    current = self._solution_store.current_outputs(
+                        **lookup,
+                        artifact_context=artifact_service.store,
+                        port_keys=tuple(sorted(requested_ports[node_id])),
+                    )
+                    if current is not None and retain_output(node_id, current[1]):
+                        actions[node_id] = PreparedAction.READ_CURRENT
+                        continue
+                except (KeyError, OSError, TypeError, ValueError):
+                    pass  # Invalid or evicted observations require ordinary execution.
+            require_dependencies(node_id)
+            reason = execution_reason(node_id)
+            if not reason:
+                record = self._solution_store.select_record(**lookup)
+                reason = "no_reusable_record"
+                if record is not None:
                     try:
-                        output_payload = self._solution_store.accepted_outputs(
+                        payload = self._solution_store.accepted_outputs(
                             record,
                             catalog=registry.data_types,
                             runtime_generation=generation_snapshot.runtime_generation,
                             artifact_context=artifact_service.store,
                         )
-                        if record.residency is SolutionResidency.SESSION:
-                            self._validate_prepared_artifacts(
-                                output_payload,
-                                artifact_service=artifact_service,
-                                catalog=registry.data_types,
-                            )
-                    except (
-                        FileNotFoundError,
-                        KeyError,
-                        OSError,
-                        TypeError,
-                        ValueError,
-                    ):
+                        if retain_output(node_id, payload):
+                            actions[node_id] = PreparedAction.REUSE
+                            continue
+                        reason = "reuse_payload_budget_exceeded"
+                    except (KeyError, OSError, TypeError, ValueError):
                         reason = "accepted_output_invalid"
-                    else:
-                        payload_bytes = len(
-                            json.dumps(
-                                output_payload.to_payload(catalog=registry.data_types),
-                                allow_nan=False,
-                                ensure_ascii=False,
-                                separators=(",", ":"),
-                                sort_keys=True,
-                            ).encode("utf-8")
-                        )
-                        if (
-                            len(accepted) + 1
-                            > MAX_ACCEPTED_NODE_PAYLOADS_PER_PREPARATION
-                            or accepted_port_count + output_payload.output_count
-                            > MAX_ACCEPTED_PORT_RESULTS_PER_PREPARATION
-                            or accepted_payload_bytes + payload_bytes
-                            > MAX_ACCEPTED_OUTPUT_PAYLOAD_BYTES
-                        ):
-                            reason = "reuse_payload_budget_exceeded"
-                            output_payload = None
-                        else:
-                            action = PreparedAction.REUSE
-                            reason = "reusable_record_accepted"
-                            record_id = record.record_id
-                            accepted.append(output_payload)
-                            accepted_port_count += output_payload.output_count
-                            accepted_payload_bytes += payload_bytes
-            actions_by_node[node_id] = action
+            actions[node_id] = PreparedAction.EXECUTE
+            reasons[node_id] = reason
+            recomputed.extend(successors[node_id])
+
+        boundaries = frozenset(
+            node_id
+            for node_id, action in actions.items()
+            if action is PreparedAction.READ_CURRENT
+        )
+        if required != plan.required_node_ids(boundaries):
+            raise RuntimeError(
+                "current-result demand does not match the execution plan"
+            )
+        if plan.current_result_ports(boundaries) != {
+            node_id: tuple(sorted(requested_ports[node_id])) for node_id in boundaries
+        }:
+            raise RuntimeError("current-result ports do not match execution demand")
+        decisions = []
+        for node_id, capture in captures.items():
+            action = actions.get(node_id, PreparedAction.PRUNE)
+            if action is PreparedAction.READ_CURRENT:
+                reason = "current_result_accepted"
+            elif action is PreparedAction.REUSE:
+                reason = "reusable_record_accepted"
+            elif action is PreparedAction.PRUNE:
+                reason = "dependency_not_required"
+            else:
+                reason = execution_reason(node_id) or reasons[node_id]
             decisions.append(
                 PreparedNodeDecision(
                     node_id=node_id,
@@ -764,10 +892,19 @@ class CorexRuntime:
                     reason_code=reason,
                     solution_key=capture.solution_key,
                     dependency_solution_keys=capture.dependency_solution_keys,
-                    accepted_record_id=record_id,
+                    accepted_record_id=accepted[node_id].record_id
+                    if node_id in accepted
+                    else None,
+                    accepted_payload_digest=accepted[node_id].commitment_digest()
+                    if node_id in accepted
+                    else None,
                 )
             )
-        return tuple(decisions), tuple(accepted), tuple(captures)
+        return (
+            tuple(decisions),
+            tuple(accepted[node_id] for node_id in captures if node_id in accepted),
+            tuple(captures.values()),
+        )
 
     @staticmethod
     def _validate_prepared_artifacts(
@@ -813,8 +950,6 @@ class CorexRuntime:
         generation_snapshot: Any,
         solution_revision: int,
         trigger_publication_generations: Mapping[str, int],
-        workflow_interface_revision: int,
-        workflow_interface_digest: str,
     ) -> tuple[CapturedNodeSolution, str]:
         spec = plan.node_specs[node_id]
         assembled = assemble_node_solution(
@@ -827,8 +962,6 @@ class CorexRuntime:
             keys_by_node=keys_by_node,
             execution_environment_digest=generation_snapshot.environment_digest,
             trigger_publication_generations=trigger_publication_generations,
-            workflow_interface_revision=workflow_interface_revision,
-            workflow_interface_digest=workflow_interface_digest,
         )
         return (
             CapturedNodeSolution(
@@ -840,8 +973,8 @@ class CorexRuntime:
                     node_id,
                 ),
                 dependency_solution_keys=assembled.dependency_solution_keys,
-                workflow_interface_revision=assembled.workflow_interface_revision,
-                workflow_interface_digest=assembled.workflow_interface_digest,
+                node_interface_revision=assembled.node_interface_revision,
+                node_interface_digest=assembled.node_interface_digest,
                 node_contract_digest=assembled.node_contract_digest,
                 input_provenance_digest=assembled.input_provenance_digest,
                 execution_policy_digest=assembled.execution_policy_digest,
@@ -985,6 +1118,7 @@ class CorexRuntime:
                         runtime_snapshot=runtime_snapshot,
                         execution_backend=envelope.execution_backend,
                         target_node_ids=envelope.target_node_ids,
+                        recompute_mode=envelope.recompute_mode.value,
                         trigger_publications=envelope.decode_trigger_publications(
                             catalog=candidate_registry.data_types
                         ),

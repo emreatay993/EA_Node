@@ -37,6 +37,7 @@ class StartRunCommand:
         default_factory=ExecutionBackendSelection
     )
     target_node_ids: tuple[str, ...] = ()
+    recompute_mode: str = "reuse_valid"
     trigger_publications: dict[str, _settled.SettledPortResult] = field(
         default_factory=dict
     )

@@ -1587,7 +1587,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                 temporary_root_parent=temp_dir,
             )
             trigger_id = "trigger"
-            edge = SimpleNamespace(source_node_id="source")
+            edge = SimpleNamespace(source_node_id="source", source_port_key="output")
             node = SimpleNamespace(
                 type_id="core.trigger",
                 properties={"path": managed_ref.ref},
@@ -1613,6 +1613,9 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
             executor._artifact_service = service
             executor._publisher = Mock()
             executor.executed = {"source"}
+            executor.node_outputs = {
+                "source": {"output": SettledPortResult(status="empty")}
+            }
             captured_properties: list[Mapping[str, object]] = []
 
             def input_result(_node_id, _port, properties):  # noqa: ANN001, ANN202
@@ -1631,6 +1634,14 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                 [{"path": managed_ref}],
             )
             executor._publisher.emit_trigger_capture_settled.assert_called_once()
+
+            # Reading another current output must not overwrite this capture.
+            executor.node_outputs = {"source": {}}
+            executor._publisher.reset_mock()
+            captured_properties.clear()
+            executor.refresh_trigger_captures()
+            self.assertEqual(captured_properties, [])
+            executor._publisher.emit_trigger_capture_settled.assert_not_called()
 
     def test_runtime_artifact_service_rejects_missing_saved_descriptor(
         self,

@@ -23,6 +23,7 @@ from ea_node_editor.execution.prepared_execution import (
     AcceptedOutputPayload,
     PreparedAction,
     PreparedNodeDecision,
+    RecomputeMode,
     normalize_trigger_publication_generations,
 )
 from ea_node_editor.execution.registry_agreement import (
@@ -618,7 +619,7 @@ def _normalize_prepared_start_fields(
     if len(accepted_by_node) != len(accepted):
         raise ValueError("accepted_output_payloads must not contain duplicate nodes")
     reuse_node_ids = {
-        item.node_id for item in decisions if item.action is PreparedAction.REUSE
+        item.node_id for item in decisions if item.action.uses_accepted_output
     }
     if set(accepted_by_node) != reuse_node_ids:
         raise ValueError(
@@ -631,6 +632,7 @@ def _normalize_prepared_start_fields(
         if (
             payload.record_id != decision.accepted_record_id
             or payload.solution_key != decision.solution_key
+            or payload.commitment_digest() != decision.accepted_payload_digest
         ):
             raise ValueError(
                 "accepted output payload must match decision record and solution key"
@@ -711,6 +713,7 @@ def command_to_dict(
             "runtime_snapshot": command.runtime_snapshot.to_document(catalog=catalog),
             "execution_backend": execution_backend.to_payload(),
             "target_node_ids": list(command.target_node_ids),
+            "recompute_mode": RecomputeMode(command.recompute_mode).value,
             "trigger_publications": _settled_outputs_to_dict(
                 command.trigger_publications,
                 catalog=catalog,
@@ -1319,6 +1322,7 @@ def _start_run_command_from_payload(
         runtime_snapshot=runtime_snapshot,
         execution_backend=_execution_backend_from_payload(payload),
         target_node_ids=normalize_target_node_ids(payload.get("target_node_ids", ())),
+        recompute_mode=RecomputeMode(payload.get("recompute_mode", "reuse_valid")).value,
         trigger_publications=_settled.settled_output_mapping_from_payload(
             payload.get("trigger_publications", {}),
             catalog=catalog,
@@ -1422,6 +1426,7 @@ def coerce_start_run_command(
             runtime_snapshot=command.runtime_snapshot,
             execution_backend=command.execution_backend,
             target_node_ids=normalize_target_node_ids(command.target_node_ids),
+            recompute_mode=RecomputeMode(command.recompute_mode).value,
             trigger_publications=_settled.normalize_settled_output_mapping(
                 command.trigger_publications,
                 catalog=catalog,
@@ -1521,6 +1526,7 @@ def coerce_start_run_command(
         runtime_snapshot=runtime_snapshot,
         execution_backend=_execution_backend_from_payload(command),
         target_node_ids=normalize_target_node_ids(command.get("target_node_ids", ())),
+        recompute_mode=RecomputeMode(command.get("recompute_mode", "reuse_valid")).value,
         trigger_publications=_settled.normalize_settled_output_mapping(
             command.get("trigger_publications", {}),
             catalog=catalog,

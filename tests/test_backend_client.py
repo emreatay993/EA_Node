@@ -2662,6 +2662,16 @@ class PreparedRunReservationTests(unittest.TestCase):
                 stale_generation = (
                     generation_reservation.generation_snapshot.runtime_generation + 1
                 )
+                accepted = AcceptedOutputPayload(
+                    node_id="node",
+                    record_id="record",
+                    solution_key="4" * 64,
+                    settlement_status="completed",
+                    result_digest="5" * 64,
+                    residency=SolutionResidency.SESSION,
+                    runtime_generation=stale_generation,
+                    outputs={},
+                )
                 reused = PreparedNodeDecision(
                     node_id="node",
                     action=PreparedAction.REUSE,
@@ -2669,16 +2679,7 @@ class PreparedRunReservationTests(unittest.TestCase):
                     solution_key="4" * 64,
                     dependency_solution_keys=(),
                     accepted_record_id="record",
-                )
-                accepted = AcceptedOutputPayload(
-                    node_id="node",
-                    record_id="record",
-                    solution_key=reused.solution_key,
-                    settlement_status="completed",
-                    result_digest="5" * 64,
-                    residency=SolutionResidency.SESSION,
-                    runtime_generation=stale_generation,
-                    outputs={},
+                    accepted_payload_digest=accepted.commitment_digest(),
                 )
                 with self.assertRaisesRegex(ValueError, "generation does not match"):
                     backend.start_reserved_run(

@@ -397,8 +397,8 @@ class SolutionRecord:
     workspace_id: str
     node_id: str
     solution_key: str
-    workflow_interface_revision: int
-    workflow_interface_digest: str
+    node_interface_revision: int
+    node_interface_digest: str
     node_contract_digest: str
     dependency_solution_keys: tuple[str, ...]
     input_provenance_digest: str
@@ -440,7 +440,7 @@ class SolutionRecord:
             )
         for field_name in (
             "solution_key",
-            "workflow_interface_digest",
+            "node_interface_digest",
             "node_contract_digest",
             "input_provenance_digest",
             "execution_policy_digest",
@@ -454,8 +454,8 @@ class SolutionRecord:
                 _digest(getattr(self, field_name), field_name=field_name),
             )
         _integer(
-            self.workflow_interface_revision,
-            field_name="workflow_interface_revision",
+            self.node_interface_revision,
+            field_name="node_interface_revision",
         )
         dependencies = _string_tuple(
             self.dependency_solution_keys,
@@ -604,8 +604,8 @@ class SolutionRecord:
             "workspace_id": self.workspace_id,
             "node_id": self.node_id,
             "solution_key": self.solution_key,
-            "workflow_interface_revision": self.workflow_interface_revision,
-            "workflow_interface_digest": self.workflow_interface_digest,
+            "node_interface_revision": self.node_interface_revision,
+            "node_interface_digest": self.node_interface_digest,
             "node_contract_digest": self.node_contract_digest,
             "dependency_solution_keys": list(self.dependency_solution_keys),
             "input_provenance_digest": self.input_provenance_digest,

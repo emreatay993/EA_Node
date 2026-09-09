@@ -8,7 +8,7 @@ implementation studies are intentionally excluded.
 | Source area | Primary map | Main responsibility |
 | --- | --- | --- |
 | `ea_node_editor/graph` | [Graph Domain](subsystems/graph_domain.md) | Graph records, invariants, mutation, transforms, and workspace state |
-| `ea_node_editor/execution` | [Execution](subsystems/execution.md) | Runtime snapshots, protocol, workers, result transport, active-run observation invalidation, and workspace retirement before activation |
+| `ea_node_editor/execution` | [Execution](subsystems/execution.md) | Runtime snapshots, protocol, workers, node-scoped result identity, current data-port consumption, invalidation, and workspace retirement |
 | `ea_node_editor/persistence` | [Persistence](subsystems/persistence.md) | Project codecs, migrations, artifacts, and sessions |
 | `ea_node_editor/nodes` | [Nodes And Built-ins](subsystems/nodes_registry_builtins.md) | Registry, contracts, built-ins, packages, and plugins |
 | `ea_node_editor/addons` | [Add-ons](subsystems/addons.md) | Add-on records, dependency-gated catalogs, runtime helpers, backend contributions, and Mechanical runtime/examples/help with nullable catalogue projection |

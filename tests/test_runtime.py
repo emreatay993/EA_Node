@@ -2426,11 +2426,8 @@ def test_selected_and_diamond_reuse_preserve_plan_order() -> None:
         ]
         assert second.status == "completed", second.events
         assert not any(event.get("type") == "node_started" for event in second.events)
-        assert [event["node_id"] for event in second_settled] == [
-            event["node_id"]
-            for event in first.events
-            if event.get("type") == "node_settled"
-        ]
+        # Current inputs are consumed without republishing their producer facts.
+        assert [event["node_id"] for event in second_settled] == [point.node_id]
         assert all(event["disposition"] == "reused" for event in second_settled)
         assert second_settled[-1]["outputs"] == first_point["outputs"]
 
@@ -2440,7 +2437,7 @@ def test_selected_and_diamond_reuse_preserve_plan_order() -> None:
             (item.node_id, item.action.value, item.reason_code)
             for item in selected_probe.node_decisions
         ] == [
-            (source.node_id, "reuse", "reusable_record_accepted"),
+            (source.node_id, "read_current", "current_result_accepted"),
             (left.node_id, "execute", "no_reusable_record"),
         ]
         runtime.solution_store.discard_preparation(
@@ -2458,6 +2455,6 @@ def test_selected_and_diamond_reuse_preserve_plan_order() -> None:
             (event["node_id"], event["disposition"])
             for event in selected.events
             if event.get("type") == "node_settled"
-        ] == [(source.node_id, "reused"), (left.node_id, "recomputed")]
+        ] == [(left.node_id, "recomputed")]
     finally:
         runtime.shutdown()

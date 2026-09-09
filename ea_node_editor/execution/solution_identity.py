@@ -1,6 +1,6 @@
 # Purpose: Build deterministic solution identities and bounded external provenance.
 # Map: subsystems/execution.md
-# Tests: tests/test_solution_identity.py
+# Tests: tests/test_solution_identity.py, tests/test_runtime_current_results.py
 # Landmarks: canonical_identity_bytes; ProvenanceHashPolicy; corex_build_digest; solution_key
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 _SHA256_CHARS = frozenset("0123456789abcdef")
 _CANONICAL_SCHEMA_VERSION = 1
-_SOLUTION_KEY_SCHEMA_VERSION = 1
+_SOLUTION_KEY_SCHEMA_VERSION = 2
 _BUILD_DIGEST_SCHEMA_VERSION = 1
 _HASH_CHUNK_SIZE = 1024 * 1024
 MAX_CANONICAL_DEPTH = 32
@@ -1030,8 +1030,8 @@ class NodeSolutionIdentity:
     workspace_id: str
     node_id: str
     node_type_id: str
-    workflow_interface_revision: int
-    workflow_interface_digest: str
+    node_interface_revision: int
+    node_interface_digest: str
     node_contract_digest: str
     authored_properties: tuple[tuple[str, object], ...]
     incoming_edges: tuple[IncomingEdgeIdentity, ...]
@@ -1050,8 +1050,8 @@ class AssembledNodeSolution:
     solution_key: str
     reason_code: str
     dependency_solution_keys: tuple[str, ...]
-    workflow_interface_revision: int
-    workflow_interface_digest: str
+    node_interface_revision: int
+    node_interface_digest: str
     node_contract_digest: str
     input_provenance_digest: str
     execution_policy_digest: str
@@ -1063,13 +1063,13 @@ class AssembledNodeSolution:
 def solution_key(identity: NodeSolutionIdentity) -> str:
     if type(identity) is not NodeSolutionIdentity:
         raise TypeError("identity must be a NodeSolutionIdentity")
-    if type(identity.workflow_interface_revision) is not int or identity.workflow_interface_revision <= 0:
+    if type(identity.node_interface_revision) is not int or identity.node_interface_revision <= 0:
         raise _identity_error(
-            "workflow_interface_revision_invalid",
-            "workflow interface revision must be positive",
+            "node_interface_revision_invalid",
+            "node interface revision must be positive",
         )
     for field_name in (
-        "workflow_interface_digest",
+        "node_interface_digest",
         "node_contract_digest",
         "input_provenance_digest",
         "execution_policy_digest",
@@ -1113,8 +1113,8 @@ def solution_key(identity: NodeSolutionIdentity) -> str:
             "workspace_id": _require_text("workspace_id", identity.workspace_id),
             "node_id": _require_text("node_id", identity.node_id),
             "node_type_id": _require_text("node_type_id", identity.node_type_id),
-            "workflow_interface_revision": identity.workflow_interface_revision,
-            "workflow_interface_digest": identity.workflow_interface_digest,
+            "node_interface_revision": identity.node_interface_revision,
+            "node_interface_digest": identity.node_interface_digest,
             "node_contract_digest": identity.node_contract_digest,
             "authored_properties": dict(identity.authored_properties),
             "incoming_edges": [
@@ -1203,8 +1203,6 @@ def assemble_node_solution(
     keys_by_node: Mapping[str, str],
     execution_environment_digest: str,
     trigger_publication_generations: Mapping[str, int],
-    workflow_interface_revision: int | None = None,
-    workflow_interface_digest: str = "",
 ) -> AssembledNodeSolution:
     """Assemble the exact per-node identity used on both sides of dispatch."""
 
@@ -1218,14 +1216,8 @@ def assemble_node_solution(
     policy_hash = execution_policy_digest()
     implementation_hash = fallback_digest
     dependency_keys: tuple[str, ...] = ()
-    interface_revision = (
-        plan.workflow_interface_revision
-        if workflow_interface_revision is None
-        else workflow_interface_revision
-    )
-    interface_digest = (
-        workflow_interface_digest or plan.workflow_interface_digest
-    )
+    interface_revision = plan.workflow_interface_revision
+    interface_digest = plan.node_solution_interface_digest(node_id)
     try:
         normalized_properties = registry.normalize_properties(
             node.type_id,
@@ -1310,8 +1302,8 @@ def assemble_node_solution(
                 workspace_id=plan.workspace.workspace_id,
                 node_id=node_id,
                 node_type_id=node.type_id,
-                workflow_interface_revision=interface_revision,
-                workflow_interface_digest=interface_digest,
+                node_interface_revision=interface_revision,
+                node_interface_digest=interface_digest,
                 node_contract_digest=contract_hash,
                 authored_properties=tuple(sorted(normalized_properties.items())),
                 incoming_edges=tuple(incoming_identities),
@@ -1340,8 +1332,8 @@ def assemble_node_solution(
         solution_key=key,
         reason_code=reason,
         dependency_solution_keys=dependency_keys,
-        workflow_interface_revision=interface_revision,
-        workflow_interface_digest=interface_digest,
+        node_interface_revision=interface_revision,
+        node_interface_digest=interface_digest,
         node_contract_digest=contract_hash,
         input_provenance_digest=provenance_hash,
         execution_policy_digest=policy_hash,

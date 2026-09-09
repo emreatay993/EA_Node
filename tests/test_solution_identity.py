@@ -40,8 +40,8 @@ def _identity() -> NodeSolutionIdentity:
         workspace_id="workspace",
         node_id="node",
         node_type_id="data.number_slider",
-        workflow_interface_revision=1,
-        workflow_interface_digest=_DIGESTS[0],
+        node_interface_revision=1,
+        node_interface_digest=_DIGESTS[0],
         node_contract_digest=_DIGESTS[1],
         authored_properties=(("value", {"items": [1, 2.0, None]}),),
         incoming_edges=(
@@ -137,8 +137,8 @@ def test_solution_key_is_stable_across_hash_seeds_and_processes() -> None:
         "NodeSolutionIdentity,solution_key;"
         "d='a'*64;"
         "i=NodeSolutionIdentity(solution_namespace_id='namespace',workspace_id='ws',"
-        "node_id='node',node_type_id='data.select',workflow_interface_revision=1,"
-        "workflow_interface_digest=d,node_contract_digest=d,"
+        "node_id='node',node_type_id='data.select',node_interface_revision=1,"
+        "node_interface_digest=d,node_contract_digest=d,"
         "authored_properties=(('value',{'set':{'gamma','alpha','beta'}}),),"
         "incoming_edges=(),hidden_ordering_pairs=(),dependency_solution_keys=(),"
         "trigger_publication_generations=(),input_provenance_digest=d,"
@@ -450,6 +450,6 @@ def test_environment_and_solution_keys_bind_every_execution_identity() -> None:
         replace(baseline, implementation_digest=_DIGESTS[8]),
         replace(baseline, catalog_revision_digest=_DIGESTS[8]),
         replace(baseline, execution_environment_digest=_DIGESTS[8]),
-        replace(baseline, workflow_interface_digest=_DIGESTS[8]),
+        replace(baseline, node_interface_digest=_DIGESTS[8]),
     )
     assert all(solution_key(candidate) != baseline_key for candidate in changes)
