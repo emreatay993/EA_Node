@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from unittest import mock
 
 import pytest
@@ -30,8 +30,11 @@ from ea_node_editor.ui_qml.graph_canvas_state.execution_state_props import (
     resolve_runtime_property_presentations,
 )
 from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
+    node_surface_metrics,
+    resolved_node_surface_size,
     standard_inline_property_row_height,
 )
+from ea_node_editor.ui_qml.graph_geometry.anchors import surface_port_local_point
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_scene_payload.builder import GraphScenePayloadBuilder
 
@@ -342,6 +345,77 @@ class _DeclarativePropertyProjectionNode:
 
     def execute(self, _ctx) -> NodeResult:  # noqa: ANN001
         return NodeResult()
+
+
+def test_grouped_node_width_measures_only_visible_rows() -> None:
+    spec = _SettingsGroupProjectionNode().spec()
+    long_label = "A deliberately long label belonging to a collapsed setting"
+    spec = replace(
+        spec,
+        ports=tuple(replace(port, label=long_label) if port.key == "font_size" else port for port in spec.ports),
+        properties=tuple(
+            replace(prop, type="enum", inline_editor="enum", enum_values=(long_label,))
+            if prop.key == "font_size" else prop for prop in spec.properties
+        ),
+    )
+    model = GraphModel()
+    node = model.add_node(model.active_workspace.workspace_id, spec.type_id, "Options", 0, 0)
+    closed = node_surface_metrics(node, spec)
+    node.expanded_settings_group_ids = ("plot",)
+    opened = node_surface_metrics(node, spec)
+    assert opened.default_width > closed.default_width
+    assert closed.standard_left_label_width == opened.standard_left_label_width
+    node.expanded_settings_group_ids = ()
+    assert node_surface_metrics(node, spec).default_width == closed.default_width
+
+
+@pytest.mark.parametrize("type_id", ["plot.signal", "core.logger", "core.if", "tests.settings_group_projection"])
+def test_ordinary_nodes_fit_contents_despite_saved_dimensions(type_id: str) -> None:
+    registry = build_default_registry()
+    registry.register(_SettingsGroupProjectionNode)
+    model = GraphModel()
+    workspace = model.active_workspace
+    node = model.add_node(workspace.workspace_id, type_id, "Content sizing", 40, 60)
+    spec = registry.get_spec(type_id)
+    builder = GraphScenePayloadBuilder()
+
+    def payload():
+        return builder.rebuild_models(
+            model=model, registry=registry, workspace_id=workspace.workspace_id,
+            scope_path=(), graph_theme_bridge=None,
+        )[0][0]
+
+    for expanded in ((), tuple(group.group_id for group in spec.settings_groups), ()):
+        node.expanded_settings_group_ids = expanded
+        node.custom_width = node.custom_height = None
+        fitted = payload()
+        node.custom_width, node.custom_height = 980, 1600
+        oversized = payload()
+        assert (oversized["width"], oversized["height"]) == (fitted["width"], fitted["height"])
+        assert (oversized["x"], oversized["y"]) == (40, 60)
+        assert oversized.get("settings_band") == fitted.get("settings_band")
+        assert oversized["ports"] == fitted["ports"]
+        for port in spec.ports:
+            if port.direction == "out":
+                assert surface_port_local_point(node, spec, port.key)[0] == oversized["width"]
+        if spec.settings_groups:
+            metrics = oversized["surface_metrics"]
+            assert oversized["settings_band"]["top"] == (
+                metrics["port_top"] + metrics["port_height"] + metrics["body_bottom_margin"]
+            )
+
+    compiled_spec = replace(spec, runtime_behavior="compile_only")
+    assert resolved_node_surface_size(node, compiled_spec) == resolved_node_surface_size(node, spec)
+
+
+@pytest.mark.parametrize("type_id", ["media.panel", "model.viewer", "tabular.input", "io.folder_explorer", "io.path_pointer"])
+def test_dedicated_surfaces_preserve_manual_dimensions(type_id: str) -> None:
+    registry = build_default_registry()
+    spec = registry.get_spec(type_id)
+    model = GraphModel()
+    node = model.add_node(model.active_workspace.workspace_id, type_id, "Sized panel", 40, 60)
+    node.custom_width, node.custom_height = 980, 1600
+    assert resolved_node_surface_size(node, spec) == (980, 1600)
 
 
 def _settings_group_scene(*, expanded_group_ids: tuple[str, ...] = ()):

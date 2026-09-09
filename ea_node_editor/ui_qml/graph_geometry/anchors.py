@@ -1,3 +1,6 @@
+# Purpose: Resolve port anchors using node surface geometry.
+# Map: feature_routes/graph_scene_payload_and_projection.md
+# Tests: tests/test_graph_scene_presentation_facts.py, tests/test_graph_surface_input_controls.py
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -15,7 +18,7 @@ from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 
 from .flowchart_metrics import _flowchart_horizontal_bounds, normalize_flowchart_variant
-from .standard_metrics import node_surface_metrics
+from .standard_metrics import node_surface_metrics, resolved_node_surface_size, uses_content_sizing
 from .surface_contract import CARDINAL_SIDES, FLOWCHART_OUTLINE_INSET, _FlowchartBounds, _resolved_dimensions
 
 
@@ -257,6 +260,10 @@ def surface_port_local_point(
         default_width=metrics.default_width,
         default_height=metrics.default_height,
     )
+    if uses_content_sizing(spec):
+        resolved_width, resolved_height = resolved_node_surface_size(
+            node, spec, scoped_nodes, surface_metrics=metrics,
+        )
     width_value = float(width) if width is not None else resolved_width
     height_value = float(height) if height is not None else resolved_height
 

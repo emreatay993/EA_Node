@@ -714,7 +714,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(workspace.nodes[node_id].comments, [])
 
     def test_resize_node_geometry_uses_targeted_delta_without_scene_rebuild(self) -> None:
-        source_id = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
+        source_id = self.scene.add_node_from_type("io.path_pointer", 0.0, 0.0)
         target_id = self.scene.add_node_from_type("core.python_script", 320.0, 40.0)
         edge_id = self.scene.connect_nodes(source_id, target_id)
         workspace = self.model.project.workspaces[self.workspace_id]
@@ -776,7 +776,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
     def test_resize_node_clamps_to_surface_minimum_and_records_history(self) -> None:
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
-        node_id = self.scene.add_node_from_type("core.logger", 20.0, 30.0)
+        node_id = self.scene.add_node_from_type("io.path_pointer", 20.0, 30.0)
         workspace = self.model.project.workspaces[self.workspace_id]
         history.clear_workspace(self.workspace_id)
 
@@ -1353,7 +1353,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         )
         payload_by_id = {item["node_id"]: item for item in self.scene.nodes_model}
         off_payload = payload_by_id[node_id]
-        self.assertAlmostEqual(off_payload["width"], off_width, places=6)
+        self.assertAlmostEqual(off_payload["width"], off_payload["surface_metrics"]["default_width"], places=6)
         self.assertAlmostEqual(float(workspace.nodes[node_id].custom_width or 0.0), off_width, places=6)
 
         self.preference_bridge.set_graphics_show_port_labels_value(True)
@@ -2843,15 +2843,17 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
         self.assertLess(shortened_min_width, long_min_width)
         self.assertLess(shortened_title_width, long_title_width)
-        self.assertAlmostEqual(float(shortened_payload["width"]), long_min_width, places=6)
-        self.assertAlmostEqual(float(shortened_minimap_payload["width"]), long_min_width, places=6)
+        fitted_width = float(shortened_payload["surface_metrics"]["default_width"])
+        self.assertLess(fitted_width, long_min_width)
+        self.assertAlmostEqual(float(shortened_payload["width"]), fitted_width, places=6)
+        self.assertAlmostEqual(float(shortened_minimap_payload["width"]), fitted_width, places=6)
 
         self.scene.resize_node(node_id, shortened_min_width, float(shortened_payload["height"]))
         final_payload = {item["node_id"]: item for item in self.scene.nodes_model}[node_id]
         final_minimap_payload = {item["node_id"]: item for item in self.scene.minimap_nodes_model}[node_id]
         self.assertLess(float(final_payload["width"]), long_min_width)
-        self.assertAlmostEqual(float(final_payload["width"]), shortened_min_width, places=6)
-        self.assertAlmostEqual(float(final_minimap_payload["width"]), shortened_min_width, places=6)
+        self.assertAlmostEqual(float(final_payload["width"]), fitted_width, places=6)
+        self.assertAlmostEqual(float(final_minimap_payload["width"]), fitted_width, places=6)
 
     def test_rename_undo_redo_refreshes_node_payload_without_edge_payload_churn(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 0.0, 0.0)

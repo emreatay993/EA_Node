@@ -1096,6 +1096,109 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_content_sized_nodes_keep_settings_and_connected_ports_aligned(self) -> None:
+        self._run_qml_probe(
+            "content-sized-node-canvas-layout",
+            '''
+            from PyQt6.QtGui import QFont, QFontDatabase
+            from PyQt6.QtCore import pyqtSignal
+            from PyQt6.QtTest import QTest
+
+            previous_font = app.font()
+            font_ids = [QFontDatabase.addApplicationFont("C:/Windows/Fonts/" + filename)
+                for filename in ("segoeui.ttf", "segoeuib.ttf")]
+            assert all(font_id >= 0 for font_id in font_ids)
+            app.setFont(QFont("Segoe UI", 9))
+            class GraphicsSource(QObject):
+                graphics_preferences_changed = pyqtSignal()
+                graphics_graph_label_pixel_size = 17
+                graphics_node_title_icon_pixel_size = 31
+                graphics_show_port_labels = True
+
+            graphics = GraphicsSource()
+            model = GraphModel()
+            registry = build_default_registry()
+            scene = GraphSceneBridge()
+            scene.bind_graphics_preferences_source(graphics)
+            workspace = model.active_workspace
+            scene.set_workspace(model, registry, workspace.workspace_id)
+            signal_id = scene.add_node_from_type("plot.signal", -380, -300)
+            media_id = scene.add_node_from_type("media.panel", 100, -300)
+            signal = workspace.nodes[signal_id]
+            signal.custom_width, signal.custom_height = 980, 1600
+            scene.refresh_workspace_from_model(workspace.workspace_id)
+            edge_id = scene.add_edge(signal_id, "image", media_id, "source")
+            view = ViewportBridge()
+            view.set_viewport_size(1000, 1000)
+            canvas = create_component(graph_canvas_qml_path, {
+                "sceneBridge": scene, "viewBridge": view, "width": 1000, "height": 1000,
+                "mainWindowBridge": graphics,
+            })
+            window = attach_host_to_window(canvas, 1000, 1000)
+            try:
+                QTest.qWait(80)
+
+                def host(node_id):
+                    return next(item for item in named_child_items(canvas, "graphNodeCard")
+                        if variant_value(item.property("nodeData"))["node_id"] == node_id)
+
+                def assert_geometry():
+                    card = host(signal_id)
+                    payload = variant_value(card.property("nodeData"))
+                    metrics = variant_value(card.property("surfaceMetrics"))
+                    assert metrics and metrics["port_height"] > 0
+                    assert abs(card.width() - payload["surface_metrics"]["default_width"]) < 0.1
+                    assert abs(card.height() - payload["surface_metrics"]["default_height"]) < 0.1
+                    first_group = named_child_items(card, "graphNodeSettingsGroupHeader")[0]
+                    group_top = first_group.mapToItem(card, QPointF(0, 0)).y()
+                    assert abs(group_top - (metrics["port_top"] + metrics["port_height"]
+                        + metrics["body_bottom_margin"])) < 0.1, (group_top, metrics)
+                    for label in named_child_items(card, "graphNodeSettingsGroupLabel"):
+                        assert label.isVisible()
+                        assert label.width() + 40 <= card.width()
+                    output = named_item(card, "graphNodeOutputPortDot", "image")
+                    center = output.mapToItem(card, QPointF(output.width()/2, output.height()/2))
+                    assert abs(center.x() - card.width()) < 0.1
+                    edges = {item["edge_id"]: item for item in scene.edges_model}
+                    edge = edges[edge_id]
+                    assert edge["source_anchor_bounds"]["width"] == card.width()
+                    port = next(port for port in payload["ports"] if port["key"] == "image")
+                    point = variant_value(canvas._scenePortPoint(payload, port, -1, 0))
+                    assert abs(point["x"] - (payload["x"] + center.x())) < 0.1
+                    assert abs(point["y"] - (payload["y"] + center.y())) < 0.1
+                    target = host(media_id)
+                    target_payload = variant_value(target.property("nodeData"))
+                    source = named_item(target, "graphNodeInputPortDot", "source")
+                    target_center = source.mapToItem(target, QPointF(source.width()/2, source.height()/2))
+                    assert abs(edge["ty"] - (target_payload["y"] + target_center.y())) < 0.1
+                    return card, first_group
+
+                card, header = assert_geometry()
+                collapsed_size = (card.width(), card.height())
+                for _ in range(2):
+                    mouse_click(window, item_scene_point(header))
+                    QTest.qWait(240)
+                    card, header = assert_geometry()
+                    assert "general_options" in signal.expanded_settings_group_ids, signal.expanded_settings_group_ids
+                    assert card.height() > collapsed_size[1], (card.height(), collapsed_size)
+                    for label in named_child_items(card, "graphNodeInlinePropertyLabel"):
+                        if label.isVisible():
+                            assert not label.property("truncated"), label.property("text")
+                    for editor in named_child_items(card, "graphNodeInlineColorEditor"):
+                        if editor.isVisible():
+                            assert editor.width() > 60, (editor.objectName(), editor.width())
+                    mouse_click(window, item_scene_point(header))
+                    QTest.qWait(240)
+                    card, header = assert_geometry()
+                    assert (card.width(), card.height()) == collapsed_size, ((card.width(), card.height()), collapsed_size)
+            finally:
+                dispose_host_window(canvas, window)
+                app.setFont(previous_font)
+                for font_id in font_ids:
+                    QFontDatabase.removeApplicationFont(font_id)
+            ''',
+        )
+
     def test_signal_plot_title_and_shared_settings_group_animation_are_interactive(self) -> None:
         self._run_qml_probe(
             "signal-plot-shared-settings-animation",
@@ -4170,8 +4273,9 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             scene = GraphSceneBridge()
             scene.set_workspace(model, registry, workspace_id)
             source_node_id = scene.add_node_from_type("core.constant", 40.0, 140.0)
-            target_node_id = scene.add_node_from_type("core.if", 220.0, 140.0)
-            scene.add_edge(source_node_id, "value", target_node_id, "condition")
+            target_node_id = scene.add_node_from_type("data.panel", 220.0, 140.0)
+            scene.set_node_property(target_node_id, "auto_resize", False)
+            scene.add_edge(source_node_id, "value", target_node_id, "input")
 
             view = ViewportBridge()
             view.set_viewport_size(1280.0, 720.0)

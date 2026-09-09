@@ -1,3 +1,7 @@
+# Purpose: Measure standard node content and resolve fitted or dedicated-surface dimensions.
+# Map: feature_routes/graph_scene_payload_and_projection.md
+# Tests: tests/test_graph_scene_presentation_facts.py, tests/test_graph_surface_input_controls.py
+# Landmarks: standard_port_row_count; standard_inline_body_height; _standard_inline_min_width; uses_content_sizing; resolved_node_surface_size
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -641,11 +645,15 @@ def _standard_visible_label_widths(
         _DYNAMIC_PORT_REMOVE_CENTER_INTERVAL
         + _DYNAMIC_PORT_REMOVE_TARGET_WIDTH * 0.5 - STANDARD_PORT_GUTTER
     )
+    grouped_keys = {
+        item.port_key for group in spec.settings_groups for item in group.items
+    } if str(spec.surface_family or "standard").strip() == "standard" else set()
     left_label_width = max(
         (
             _estimate_standard_text_width(port.label or port.key, pixel_size=port_label_pixel_size)
             + (remove_reserve if port.key in removable_keys else 0.0)
             for port in in_ports
+            if port.key not in grouped_keys
         ),
         default=0.0,
     )
@@ -654,6 +662,7 @@ def _standard_visible_label_widths(
             _estimate_standard_text_width(port.label or port.key, pixel_size=port_label_pixel_size)
             + (remove_reserve if port.key in removable_keys else 0.0)
             for port in out_ports
+            if port.key not in grouped_keys
         ),
         default=0.0,
     )
@@ -695,7 +704,8 @@ def _standard_inline_enum_control_width(enum_values: tuple[str, ...], *, pixel_s
     )
 
 
-def _standard_inline_enum_min_width(
+def _standard_inline_min_width(
+    node: NodeInstance,
     spec: NodeTypeSpec,
     *,
     graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
@@ -706,20 +716,65 @@ def _standard_inline_enum_min_width(
         + STANDARD_BODY_RIGHT_MARGIN
         + (_STANDARD_INLINE_ROW_HORIZONTAL_MARGIN * 2.0)
     )
-    required_widths: list[float] = []
+    default_property_keys = {
+        port.key for port in spec.ports if port.uses_property_default
+    }
+    grouped_keys = {
+        item.property_key or (item.port_key if item.port_key in default_property_keys else "")
+        for group in spec.settings_groups for item in group.items
+    }
+    expanded_keys = {
+        item.property_key or (item.port_key if item.port_key in default_property_keys else "")
+        for group in spec.settings_groups
+        if group.group_id in node.expanded_settings_group_ids
+        for item in group.items
+    }
+    # Group headers span the card, independently of the two port-label columns.
+    required_widths = [
+        _estimate_standard_text_width(group.label, pixel_size=inline_pixel_size)
+        + 52.0  # 12px side insets, 12px chevron, and two 8px gaps.
+        for group in spec.settings_groups
+    ]
+    grouped_port_keys = {
+        item.port_key
+        for group in spec.settings_groups
+        if group.group_id in node.expanded_settings_group_ids
+        for item in group.items
+        if not item.property_key and item.port_key not in default_property_keys
+    }
+    required_widths.extend(
+        _estimate_standard_text_width(
+            node.port_labels.get(port.key) or port.label or port.key,
+            pixel_size=inline_pixel_size,
+        ) + 2.0 * STANDARD_PORT_GUTTER
+        for port in spec.ports if port.key in grouped_port_keys
+    )
     for property_spec in inline_property_specs(spec):
+        grouped = property_spec.key in grouped_keys
+        if grouped and property_spec.key not in expanded_keys:
+            continue
         editor = str(property_spec.inline_editor or "").strip().lower()
-        if editor != "enum" or not property_spec.enum_values:
+        if not grouped and (editor != "enum" or not property_spec.enum_values):
             continue
         label_width = _standard_inline_enum_label_width(
             property_spec.label or property_spec.key,
             pixel_size=inline_pixel_size,
         )
-        control_width = _standard_inline_enum_control_width(
-            tuple(str(value) for value in property_spec.enum_values),
-            pixel_size=inline_pixel_size,
-        )
-        required_widths.append(row_chrome_width + max(label_width, control_width))
+        if editor == "color":
+            # Inline color rows place label, swatch, and a hex field side by side.
+            control_width = 26.0 + 6.0 + 16.0 + _estimate_standard_text_width(
+                "#ffffffff", pixel_size=inline_pixel_size,
+            )
+            content_width = label_width + 6.0 + control_width
+        elif editor == "toggle":
+            content_width = label_width + 6.0 + 32.0
+        else:
+            control_width = _standard_inline_enum_control_width(
+                tuple(str(value) for value in property_spec.enum_values),
+                pixel_size=inline_pixel_size,
+            )
+            content_width = max(label_width, control_width)
+        required_widths.append(row_chrome_width + content_width)
     return round(max(required_widths, default=0.0), 3)
 
 
@@ -994,7 +1049,8 @@ def _standard_surface_metrics(
             float(node.custom_height) - body_top - port_count * port_row_height - bottom_padding,
         )
     default_height = body_top + default_body_height + port_count * port_row_height + bottom_padding
-    inline_enum_min_width = _standard_inline_enum_min_width(
+    inline_min_width = _standard_inline_min_width(
+        node,
         spec,
         graph_label_pixel_size=graph_label_pixel_size,
     )
@@ -1008,7 +1064,7 @@ def _standard_surface_metrics(
         visible_ports_override=visible_ports_override,
     )
     min_width = width_contract.min_width_with_labels if show_port_labels else width_contract.min_width_without_labels
-    min_width = max(min_width, inline_enum_min_width, body_layout_min_width)
+    min_width = max(min_width, inline_min_width, body_layout_min_width)
     default_width = max(STANDARD_DEFAULT_WIDTH, min_width)
     if str(spec.type_id or "") == "io.folder_explorer":
         default_width = max(default_width, _FOLDER_EXPLORER_DEFAULT_WIDTH)
@@ -1055,6 +1111,17 @@ def _standard_surface_metrics(
     )
 
 
+def uses_content_sizing(spec: NodeTypeSpec) -> bool:
+    """Ordinary processing cards fit contents; dedicated surfaces retain sizing."""
+    surface = surface_spec_for_node_type(type_id=spec.type_id, spec=spec)
+    return (
+        spec.runtime_behavior in {"active", "compile_only"}
+        and surface.family == "standard"
+        and surface.component_key == "standard"
+        and not _standard_reserves_body_layout_metrics(surface.layout)
+    )
+
+
 def resolved_node_surface_size(
     node: NodeInstance,
     spec: NodeTypeSpec,
@@ -1078,6 +1145,12 @@ def resolved_node_surface_size(
     )
     if node.collapsed:
         return float(metrics.collapsed_width), float(metrics.collapsed_height)
+
+    if uses_content_sizing(spec):
+        return (
+            max(float(metrics.min_width), float(metrics.default_width)),
+            max(float(metrics.min_height), float(metrics.default_height)),
+        )
 
     width, height = _resolved_dimensions(
         node,
