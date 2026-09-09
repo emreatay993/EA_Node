@@ -361,7 +361,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             self.assertEqual(rebuilds, ["rebuild", "rebuild"])
             self.assertEqual(
                 scene._scene_payload_graphics_preferences,
-                (False, 14, 12, True),
+                (False, 14, 12, True, False),
             )
 
             source.graphics_show_port_labels = True

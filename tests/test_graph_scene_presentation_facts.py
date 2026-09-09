@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import FrozenInstanceError, replace
 from unittest import mock
 
@@ -367,6 +368,7 @@ def test_grouped_node_width_measures_only_visible_rows() -> None:
     assert closed.standard_left_label_width == opened.standard_left_label_width
     node.expanded_settings_group_ids = ()
     assert node_surface_metrics(node, spec).default_width == closed.default_width
+    assert node_surface_metrics(node, spec, keep_expanded_node_width=True).default_width == opened.default_width
 
 
 @pytest.mark.parametrize("type_id", ["plot.signal", "core.logger", "core.if", "tests.settings_group_projection"])
@@ -408,6 +410,62 @@ def test_ordinary_nodes_fit_contents_despite_saved_dimensions(type_id: str) -> N
     assert resolved_node_surface_size(node, compiled_spec) == resolved_node_surface_size(node, spec)
 
 
+@pytest.mark.parametrize("type_id", ["plot.signal", "tests.settings_group_projection"])
+def test_keep_expanded_width_uses_full_settings_metrics_in_all_payload_paths(type_id: str) -> None:
+    registry = build_default_registry()
+    registry.register(_SettingsGroupProjectionNode)
+    model = GraphModel()
+    workspace = model.active_workspace
+    node = model.add_node(
+        workspace.workspace_id, type_id, "Options", 40, 60,
+        properties=registry.default_properties(type_id),
+    )
+    original_properties = copy.deepcopy(node.properties)
+    sink = model.add_node(workspace.workspace_id, "core.logger", "Sink", 900, 60)
+    edge = model.add_edge(workspace.workspace_id, node.node_id, "image", sink.node_id, "message")
+    spec = registry.resolve_spec(type_id, node.properties)
+    keep_width = True
+    builder = GraphScenePayloadBuilder(keep_expanded_node_width_provider=lambda: keep_width)
+    common = dict(model=model, registry=registry, workspace_id=workspace.workspace_id, graph_theme_bridge=None)
+
+    def full_payload():
+        nodes, _backdrops, minimap, edges = builder.rebuild_partitioned_models(**common, scope_path=())
+        payload = next(item for item in nodes if item["node_id"] == node.node_id)
+        assert next(item for item in minimap if item["node_id"] == node.node_id)["width"] == payload["width"]
+        metrics = payload["surface_metrics"]
+        assert edges[0]["sx"] == node.x + payload["width"] - metrics["port_side_margin"] - metrics["port_dot_radius"]
+        return payload
+
+    # The first render is collapsed: width must not depend on a previous expansion.
+    collapsed = full_payload()
+    node.expanded_settings_group_ids = tuple(group.group_id for group in spec.settings_groups)
+    expanded = full_payload()
+    assert collapsed["width"] == expanded["width"]
+    assert collapsed["height"] < expanded["height"]
+    keep_width = False
+    assert full_payload()["width"] == expanded["width"]
+    node.expanded_settings_group_ids = ()
+    fitted = full_payload()
+    assert fitted["width"] <= collapsed["width"]
+    if type_id == "plot.signal":
+        assert fitted["width"] < collapsed["width"]
+    assert fitted["height"] == collapsed["height"]
+    keep_width = True
+    targeted = builder.build_node_payloads_for_ids(**common, scope_path=(), node_ids={node.node_id})[0][0]
+    connection = builder.build_node_connection_payloads_for_ids(**common, scope_path=(), node_ids={node.node_id})[node.node_id]
+    added = builder.build_added_node_payloads_for_ids(**common, scope_path=(), node_ids={node.node_id})[0][0]
+    preview = builder.build_library_preview_node_payload(**common, library_payload={"type_id": type_id, "display_name": "Options"})
+    for payload in (targeted, connection, added, preview):
+        assert (payload["width"], payload["height"]) == (collapsed["width"], collapsed["height"])
+        assert payload["surface_metrics"] == collapsed["surface_metrics"]
+    targeted_edge = builder.build_edge_payloads_for_ids(**common, scope_path=(), edge_ids={edge.edge_id})[0]
+    metrics = collapsed["surface_metrics"]
+    assert targeted_edge["sx"] == node.x + collapsed["width"] - metrics["port_side_margin"] - metrics["port_dot_radius"]
+    assert builder._node_payload_factory.layout_bounds(node=node, spec=spec, workspace_nodes=workspace.nodes).width == collapsed["width"]
+    assert node.properties == original_properties  # Includes plot output-image dimensions.
+    assert (node.custom_width, node.custom_height) == (None, None)
+
+
 @pytest.mark.parametrize("type_id", ["media.panel", "model.viewer", "tabular.input", "io.folder_explorer", "io.path_pointer"])
 def test_dedicated_surfaces_preserve_manual_dimensions(type_id: str) -> None:
     registry = build_default_registry()
@@ -416,6 +474,9 @@ def test_dedicated_surfaces_preserve_manual_dimensions(type_id: str) -> None:
     node = model.add_node(model.active_workspace.workspace_id, type_id, "Sized panel", 40, 60)
     node.custom_width, node.custom_height = 980, 1600
     assert resolved_node_surface_size(node, spec) == (980, 1600)
+    stable_metrics = node_surface_metrics(node, spec, keep_expanded_node_width=True)
+    assert stable_metrics == node_surface_metrics(node, spec)
+    assert resolved_node_surface_size(node, spec, surface_metrics=stable_metrics) == (980, 1600)
 
 
 def _settings_group_scene(*, expanded_group_ids: tuple[str, ...] = ()):

@@ -337,6 +337,14 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.notched_ports_check = QCheckBox("Notched ports", nodes_card)
         self.notched_ports_check.setObjectName("graphicsSettingsNotchedPortsCheck")
         nodes_form.addRow(self.notched_ports_check)
+        self.keep_expanded_node_width_check = QCheckBox("Keep expanded node width", nodes_card)
+        self.keep_expanded_node_width_check.setObjectName("graphicsSettingsKeepExpandedNodeWidthCheck")
+        self.keep_expanded_node_width_check.setToolTip(
+            "Reserves the width needed for fully expanded settings when sections collapse. "
+            "Node height still fits visible controls."
+            if self._tooltips_enabled else ""
+        )
+        nodes_form.addRow(self.keep_expanded_node_width_check)
         self.node_elapsed_time_visibility_combo = QComboBox(nodes_card)
         self.node_elapsed_time_visibility_combo.setObjectName(
             "graphicsSettingsNodeElapsedTimeVisibilityCombo"
@@ -946,6 +954,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.show_minimap_check.setChecked(settings["canvas"]["show_minimap"])
         self.show_port_labels_check.setChecked(settings["canvas"]["show_port_labels"])
         self.notched_ports_check.setChecked(settings["canvas"]["notched_ports"])
+        self.keep_expanded_node_width_check.setChecked(settings["canvas"]["keep_expanded_node_width"])
         node_elapsed_time_visibility_id = settings["canvas"]["node_elapsed_time_visibility"]
         node_elapsed_time_visibility_index = self.node_elapsed_time_visibility_combo.findData(
             node_elapsed_time_visibility_id
@@ -1082,6 +1091,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                     "show_minimap": self.show_minimap_check.isChecked(),
                     "show_port_labels": self.show_port_labels_check.isChecked(),
                     "notched_ports": self.notched_ports_check.isChecked(),
+                    "keep_expanded_node_width": self.keep_expanded_node_width_check.isChecked(),
                     "node_elapsed_time_unit": str(
                         self.node_elapsed_time_unit_combo.currentData()
                         or DEFAULT_GRAPHICS_SETTINGS["canvas"]["node_elapsed_time_unit"]

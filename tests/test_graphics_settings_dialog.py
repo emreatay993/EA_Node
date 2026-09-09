@@ -131,6 +131,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 ["Canvas", "Interaction", "Performance", "Theme", "Layout"],
             )
             self.assertEqual(dialog.values(), DEFAULT_GRAPHICS_SETTINGS)
+            self.assertFalse(dialog.keep_expanded_node_width_check.isChecked())
             self.assertEqual(dialog.show_port_labels_check.objectName(), "graphicsSettingsShowPortLabelsCheck")
             self.assertEqual(
                 dialog.notched_ports_check.objectName(),
@@ -358,6 +359,17 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         finally:
             dialog.close()
 
+    def test_keep_expanded_node_width_checkbox_roundtrips(self) -> None:
+        dialog = GraphicsSettingsDialog(initial_settings={"canvas": {"keep_expanded_node_width": True}})
+        try:
+            self.assertTrue(dialog.keep_expanded_node_width_check.isChecked())
+            self.assertIn("fully expanded settings", dialog.keep_expanded_node_width_check.toolTip())
+            self.assertTrue(dialog.values()["canvas"]["keep_expanded_node_width"])
+            dialog.keep_expanded_node_width_check.setChecked(False)
+            self.assertFalse(dialog.values()["canvas"]["keep_expanded_node_width"])
+        finally:
+            dialog.close()
+
     def test_dialog_normalizes_invalid_initial_settings(self) -> None:
         dialog = GraphicsSettingsDialog(
             initial_settings={
@@ -368,6 +380,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                     "show_minimap": "no",
                     "show_port_labels": False,
                     "notched_ports": "false",
+                    "keep_expanded_node_width": "true",
                     "node_elapsed_time_unit": "ticks",
                     "node_floating_toolbar_opens_on_hover": "false",
                     "minimap_expanded": False,
@@ -411,6 +424,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertEqual(dialog.theme_combo.count(), 2)
             self.assertEqual(dialog.graph_theme_combo.count(), len(graph_theme_choices()))
             self.assertNotIn("performance", dialog.values())
+            self.assertFalse(dialog.values()["canvas"]["keep_expanded_node_width"])
             self.assertTrue(dialog.follow_shell_theme_check.isChecked())
             self.assertFalse(dialog.graph_theme_combo.isEnabled())
             self.assertTrue(dialog.expand_collision_enabled_check.isChecked())

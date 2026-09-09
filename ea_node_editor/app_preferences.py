@@ -449,6 +449,10 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
             canvas_payload.get("notched_ports"),
             defaults["canvas"]["notched_ports"],
         )
+        normalized["canvas"]["keep_expanded_node_width"] = _normalize_bool(
+            canvas_payload.get("keep_expanded_node_width"),
+            defaults["canvas"]["keep_expanded_node_width"],
+        )
         normalized["canvas"]["minimap_expanded"] = _normalize_bool(
             canvas_payload.get("minimap_expanded"),
             defaults["canvas"]["minimap_expanded"],

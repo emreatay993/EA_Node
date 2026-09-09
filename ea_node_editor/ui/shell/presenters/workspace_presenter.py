@@ -187,6 +187,10 @@ class ShellWorkspacePresenter(QObject):
     def graphics_notched_ports(self) -> bool: return bool(self._ui_state.notched_ports)
 
     @property
+    def graphics_keep_expanded_node_width(self) -> bool:
+        return bool(self._ui_state.keep_expanded_node_width)
+
+    @property
     def graphics_node_elapsed_time_unit(self) -> str:
         return str(self._ui_state.node_elapsed_time_unit)
 
@@ -652,6 +656,7 @@ class ShellWorkspacePresenter(QObject):
         )
         show_port_labels = bool(canvas.get("show_port_labels", self._ui_state.show_port_labels))
         notched_ports = bool(canvas.get("notched_ports", self._ui_state.notched_ports))
+        keep_expanded_node_width = bool(canvas.get("keep_expanded_node_width", self._ui_state.keep_expanded_node_width))
         node_elapsed_time_unit = normalize_node_elapsed_time_unit(
             canvas.get("node_elapsed_time_unit", self._ui_state.node_elapsed_time_unit),
             self._ui_state.node_elapsed_time_unit,
@@ -833,6 +838,9 @@ class ShellWorkspacePresenter(QObject):
         if self._ui_state.notched_ports != notched_ports:
             self._ui_state.notched_ports = notched_ports
             changed = True
+        if self._ui_state.keep_expanded_node_width != keep_expanded_node_width:
+            self._ui_state.keep_expanded_node_width = keep_expanded_node_width
+            changed = True
         if self._ui_state.node_elapsed_time_unit != node_elapsed_time_unit:
             self._ui_state.node_elapsed_time_unit = node_elapsed_time_unit
             changed = True
@@ -914,6 +922,7 @@ class ShellWorkspacePresenter(QObject):
                 "show_minimap": bool(self._ui_state.show_minimap),
                 "show_port_labels": bool(self._ui_state.show_port_labels),
                 "notched_ports": bool(self._ui_state.notched_ports),
+                "keep_expanded_node_width": bool(self._ui_state.keep_expanded_node_width),
                 "node_elapsed_time_unit": str(self._ui_state.node_elapsed_time_unit),
                 "node_elapsed_time_visibility": str(self._ui_state.node_elapsed_time_visibility),
                 "node_comment_editor_default": str(self._ui_state.node_comment_editor_default),

@@ -494,7 +494,7 @@ class GraphSceneBridgeBase(QObject):
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._graphics_preferences_source: object | None = None
-        self._scene_payload_graphics_preferences: tuple[bool, int, int, bool] | None = None
+        self._scene_payload_graphics_preferences: tuple[bool, int, int, bool, bool] | None = None
         self._mutation_timing_enabled = False
         self._mutation_timing_records: list[dict[str, Any]] = []
         self._active_mutation_timing_record: dict[str, Any] | None = None
@@ -551,7 +551,7 @@ class GraphSceneBridgeBase(QObject):
             self._scene_context.rebuild_models()
         return True
 
-    def _current_scene_payload_graphics_preferences(self) -> tuple[bool, int, int, bool]:
+    def _current_scene_payload_graphics_preferences(self) -> tuple[bool, int, int, bool, bool]:
         source = self._graphics_preferences_source
         if source is None:
             return (
@@ -560,6 +560,7 @@ class GraphSceneBridgeBase(QObject):
                 effective_graph_node_icon_pixel_size(
                     DEFAULT_GRAPH_LABEL_PIXEL_SIZE, None
                 ),
+                False,
                 False,
             )
         graph_label_pixel_size = normalize_graph_label_pixel_size(
@@ -592,6 +593,7 @@ class GraphSceneBridgeBase(QObject):
             graph_label_pixel_size,
             int(node_icon_pixel_size),
             bool(getattr(source, "graphics_lightweight_canvas", False)),
+            bool(getattr(source, "graphics_keep_expanded_node_width", False)),
         )
 
     def _remember_scene_payload_graphics_preferences(self) -> None:
@@ -601,7 +603,7 @@ class GraphSceneBridgeBase(QObject):
 
     def _effective_scene_payload_graphics_preferences(
         self,
-    ) -> tuple[bool, int, int, bool]:
+    ) -> tuple[bool, int, int, bool, bool]:
         if self._scene_payload_graphics_preferences is None:
             self._remember_scene_payload_graphics_preferences()
         assert self._scene_payload_graphics_preferences is not None
@@ -675,6 +677,10 @@ class GraphSceneBridgeBase(QObject):
     @property
     def graphics_lightweight_canvas(self) -> bool:
         return self._effective_scene_payload_graphics_preferences()[3]
+
+    @property
+    def graphics_keep_expanded_node_width(self) -> bool:
+        return self._effective_scene_payload_graphics_preferences()[4]
 
     @property
     def _workspace_id(self) -> str:

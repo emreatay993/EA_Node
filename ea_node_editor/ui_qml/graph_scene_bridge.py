@@ -52,6 +52,7 @@ class GraphSceneBridge(GraphSceneBridgeBase):
             boundary_adapters=self._boundary_adapters,
             current_input_provider=self._current_output_value,
             property_edit_adapters=create_property_edit_adapters(),
+            keep_expanded_node_width_provider=lambda: self.graphics_keep_expanded_node_width,
         )
         self._scene_context = _GraphSceneContext(self, payload_builder=self._payload_builder)
         self._scope_selection = GraphSceneScopeSelection(self._scene_context)

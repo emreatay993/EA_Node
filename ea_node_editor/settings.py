@@ -253,6 +253,7 @@ DEFAULT_GRAPHICS_SETTINGS = {
         "show_minimap": True,
         "show_port_labels": True,
         "notched_ports": True,
+        "keep_expanded_node_width": False,
         "minimap_expanded": True,
         "node_shadow": True,
         "shadow_strength": 70,

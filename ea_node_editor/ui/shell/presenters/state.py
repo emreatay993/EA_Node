@@ -58,6 +58,7 @@ class ShellWorkspaceUiState:
     show_minimap: bool
     show_port_labels: bool
     notched_ports: bool
+    keep_expanded_node_width: bool
     node_elapsed_time_unit: str
     node_elapsed_time_visibility: str
     node_comment_editor_default: str
@@ -173,6 +174,9 @@ def build_default_shell_workspace_ui_state(
         ),
         notched_ports=bool(
             canvas.get("notched_ports", DEFAULT_GRAPHICS_SETTINGS["canvas"]["notched_ports"])
+        ),
+        keep_expanded_node_width=bool(
+            canvas.get("keep_expanded_node_width", DEFAULT_GRAPHICS_SETTINGS["canvas"]["keep_expanded_node_width"])
         ),
         node_elapsed_time_unit=normalize_node_elapsed_time_unit(
             canvas.get(

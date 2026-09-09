@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import copy
 import math
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
@@ -48,6 +48,7 @@ from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
     resolved_node_surface_size as resolved_standard_node_surface_size,
     standard_inline_label_anchor_offset,
     standard_inline_property_row_height,
+    uses_content_sizing,
 )
 from ea_node_editor.ui_qml.graph_geometry.anchors import surface_port_local_point
 from ea_node_editor.ui_qml.graph_geometry.surface_contract import CARDINAL_SIDES
@@ -230,13 +231,14 @@ class _NodePresentationFacts:
 
 
 class _GraphSceneNodePayloadFactory:
-    def __init__(self, boundary_adapters: GraphBoundaryAdapters, current_input_provider: Any = None, property_edit_adapters: Any = ()) -> None:
+    def __init__(self, boundary_adapters: GraphBoundaryAdapters, current_input_provider: Any = None, property_edit_adapters: Any = (), *, keep_expanded_node_width_provider: Callable[[], bool] | None = None) -> None:
         self._boundary_adapters = boundary_adapters
         self._current_input_provider = current_input_provider
         self._property_edit_adapters = tuple(property_edit_adapters or ())
+        self._keep_expanded_node_width_provider = keep_expanded_node_width_provider
 
-    @staticmethod
     def _surface_metrics(
+        self,
         *,
         node,
         spec: NodeTypeSpec,
@@ -255,6 +257,10 @@ class _GraphSceneNodePayloadFactory:
                 graph_label_pixel_size=graph_label_pixel_size,
                 graph_node_icon_pixel_size=graph_node_icon_pixel_size,
                 visible_ports_override=visible_ports_override,
+                keep_expanded_node_width=(
+                    bool(self._keep_expanded_node_width_provider())
+                    if self._keep_expanded_node_width_provider is not None else False
+                ),
             )
         return default_node_surface_metrics(
             node,
@@ -734,7 +740,7 @@ class _GraphSceneNodePayloadFactory:
             ),
             extra_height=settings_band_height,
         )
-        if visible_ports_override is None:
+        if visible_ports_override is None and not uses_content_sizing(spec):
             width, height = self._boundary_adapters.node_size(
                 layout_node,
                 spec,

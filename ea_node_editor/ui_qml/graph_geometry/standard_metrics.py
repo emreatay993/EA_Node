@@ -709,6 +709,7 @@ def _standard_inline_min_width(
     spec: NodeTypeSpec,
     *,
     graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    keep_expanded_node_width: bool = False,
 ) -> float:
     inline_pixel_size = standard_inline_property_pixel_size(graph_label_pixel_size)
     row_chrome_width = (
@@ -726,7 +727,7 @@ def _standard_inline_min_width(
     expanded_keys = {
         item.property_key or (item.port_key if item.port_key in default_property_keys else "")
         for group in spec.settings_groups
-        if group.group_id in node.expanded_settings_group_ids
+        if keep_expanded_node_width or group.group_id in node.expanded_settings_group_ids
         for item in group.items
     }
     # Group headers span the card, independently of the two port-label columns.
@@ -738,7 +739,7 @@ def _standard_inline_min_width(
     grouped_port_keys = {
         item.port_key
         for group in spec.settings_groups
-        if group.group_id in node.expanded_settings_group_ids
+        if keep_expanded_node_width or group.group_id in node.expanded_settings_group_ids
         for item in group.items
         if not item.property_key and item.port_key not in default_property_keys
     }
@@ -981,6 +982,7 @@ def _standard_surface_metrics(
     graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
     graph_node_icon_pixel_size: object | None = None,
     visible_ports_override: tuple[EffectivePort, ...] | None = None,
+    keep_expanded_node_width: bool = False,
 ) -> GraphNodeSurfaceMetrics:
     variant = str(getattr(spec, "surface_variant", "") or "").strip()
     if variant == PANEL_SURFACE_VARIANT:
@@ -1053,6 +1055,7 @@ def _standard_surface_metrics(
         node,
         spec,
         graph_label_pixel_size=graph_label_pixel_size,
+        keep_expanded_node_width=keep_expanded_node_width and uses_content_sizing(spec),
     )
     body_layout_min_width = _standard_body_layout_min_width(layout)
     width_contract = _standard_surface_min_width_contract(
@@ -1248,6 +1251,7 @@ def node_surface_metrics(
     graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
     graph_node_icon_pixel_size: object | None = None,
     visible_ports_override: tuple[EffectivePort, ...] | None = None,
+    keep_expanded_node_width: bool = False,
 ) -> GraphNodeSurfaceMetrics:
     family = str(spec.surface_family or "standard").strip() or "standard"
     if family == "flowchart":
@@ -1306,4 +1310,5 @@ def node_surface_metrics(
         graph_label_pixel_size=graph_label_pixel_size,
         graph_node_icon_pixel_size=graph_node_icon_pixel_size,
         visible_ports_override=visible_ports_override,
+        keep_expanded_node_width=keep_expanded_node_width,
     )

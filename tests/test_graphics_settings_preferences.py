@@ -368,7 +368,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(edges_changed, ["edges"])
         self.assertEqual(
             scene._scene_payload_graphics_preferences,
-            (False, 16, 12, True),
+            (False, 16, 12, True, False),
         )
         self.assertEqual(host.graph_theme_bridge.theme_id, "graph_stitch_light")
         plot_payload = next(
@@ -1053,6 +1053,35 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertFalse(shell_context_properties._qt_graphics_notched_ports(host))
         persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
         self.assertFalse(persisted["graphics"]["canvas"]["notched_ports"])
+
+    def test_keep_expanded_node_width_persists_and_updates_existing_scene(self) -> None:
+        host = _RuntimeTooltipHost(self._controller)
+        self.assertFalse(self._controller.load()["graphics"]["canvas"]["keep_expanded_node_width"])
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        node = model.add_node(workspace.workspace_id, "plot.signal", "Signal Plot", 40, 60)
+        scene = GraphSceneBridge()
+        scene.bind_graphics_preferences_source(host.shell_workspace_presenter)
+        scene.set_workspace(model, registry, workspace.workspace_id)
+        fitted = scene.nodes_model[0]
+        notifications = []
+        scene.nodes_changed.connect(lambda: notifications.append(True))
+
+        self._controller.set_graphics_settings({"canvas": {"keep_expanded_node_width": True}}, host=host)
+
+        self.assertTrue(host.workspace_ui_state.keep_expanded_node_width)
+        self.assertTrue(host.shell_workspace_presenter.graphics_keep_expanded_node_width)
+        self.assertTrue(scene.graphics_keep_expanded_node_width)
+        self.assertEqual(notifications, [True])
+        self.assertGreater(scene.nodes_model[0]["width"], fitted["width"])
+        self.assertEqual(scene.nodes_model[0]["height"], fitted["height"])
+        self.assertIsNone(node.custom_width)
+        reloaded = AppPreferencesController(store=self._store).load()["graphics"]
+        self.assertTrue(reloaded["canvas"]["keep_expanded_node_width"])
+
+        self._controller.set_graphics_settings({"canvas": {"keep_expanded_node_width": False}}, host=host)
+        self.assertEqual(scene.nodes_model[0]["width"], fitted["width"])
 
     def test_tooltip_preferences_missing_key_defaults_true(self) -> None:
         self._preferences_path.write_text(
