@@ -59,6 +59,10 @@ PHASES_BY_KIND = {
     "shell_target": {"full.shell_isolation / child process"},
 }
 COMMIT_RE = re.compile(r"^(?:This commit|[0-9a-f]{8,40})$")
+RETAINED_TASK_IDS = ("T00", *(f"T{index:02d}" for index in range(7, 27)))
+# 7f5304b4 removed these exact rows with the retired graph product. Its parent
+# a7da1170 records every one as ACCEPTED; absence alone never grants acceptance.
+RETIRED_ACCEPTED_TASK_IDS = tuple(f"T{index:02d}" for index in range(1, 7))
 
 
 def _table(text: str, heading: str) -> tuple[list[str], list[list[str]]]:
@@ -85,7 +89,7 @@ def _validate_tasks(rows: list[list[str]]) -> list[int]:
     assert all(len(row) == 9 for row in rows)
     task_ids = [row[0].split()[0] for row in rows]
     statuses = [row[2] for row in rows]
-    assert task_ids == [f"T{index:02d}" for index in range(27)]
+    assert task_ids == list(RETAINED_TASK_IDS)
     assert set(statuses) <= TASK_STATUSES
 
     active = [
@@ -130,8 +134,13 @@ def _validate_tasks(rows: list[list[str]]) -> list[int]:
         else:
             assert commit == "N/A — accepted no-op"
 
-    if statuses[13] not in {"ACCEPTED", "ACCEPTED NO-OP"}:
-        assert all(status == "NOT STARTED" for status in statuses[14:])
+    status_by_id = dict(zip(task_ids, statuses, strict=True))
+    if status_by_id["T13"] not in {"ACCEPTED", "ACCEPTED NO-OP"}:
+        assert all(
+            status_by_id[task_id] == "NOT STARTED"
+            for task_id in RETAINED_TASK_IDS
+            if int(task_id[1:]) > 13
+        )
     return active
 
 
@@ -175,7 +184,7 @@ def _validate_migrations(rows: list[list[str]], task_status: dict[str, str]) -> 
             accepted,
         ) = row
         assert program in {"A", "B"}
-        assert owning_task in task_status
+        assert owning_task in task_status or owning_task in RETIRED_ACCEPTED_TASK_IDS
         task_number = int(owning_task[1:])
         assert (program == "A" and 1 <= task_number <= 12) or (
             program == "B" and 14 <= task_number <= 25
@@ -195,7 +204,10 @@ def _validate_migrations(rows: list[list[str]], task_status: dict[str, str]) -> 
         if production_owner == "N/A":
             assert disposition == "deleted_obsolete_behavior"
 
-        owner_status = task_status[owning_task]
+        owner_status = task_status.get(owning_task)
+        if owner_status is None:
+            assert owning_task in RETIRED_ACCEPTED_TASK_IDS
+            owner_status = "ACCEPTED"
         if disposition == PENDING_DISPOSITION:
             assert owner_status in {"NOT STARTED", "IN PROGRESS"}
             continue
@@ -228,7 +240,8 @@ def _validate_status_sync(
     statuses = [row[2] for row in task_rows]
     if active:
         index = active[0]
-        assert status == f"{statuses[index]} — T{index:02d}"
+        task_id = task_rows[index][0].split()[0]
+        assert status == f"{statuses[index]} — {task_id}"
         return
     if statuses[-1] in {"ACCEPTED", "ACCEPTED NO-OP"}:
         assert status == "COMPLETED — T00–T26 ACCEPTED"
@@ -237,8 +250,10 @@ def _validate_status_sync(
         index for index, value in enumerate(statuses) if value == "NOT STARTED"
     )
     assert next_index > 0
+    next_task_id = task_rows[next_index][0].split()[0]
+    previous_task_id = task_rows[next_index - 1][0].split()[0]
     assert status == (
-        f"CHECKPOINT — T{next_index - 1:02d} ACCEPTED; NEXT T{next_index:02d}"
+        f"CHECKPOINT — {previous_task_id} ACCEPTED; NEXT {next_task_id}"
     )
 
 
@@ -271,6 +286,13 @@ def test_completed_t26_checkpoint_is_valid() -> None:
 def test_accepted_task_requires_complete_evidence() -> None:
     _, rows = _table(LEDGER.read_text(encoding="utf-8"), "## Task Ledger")
     rows[0][5] = "Pending"
+    with pytest.raises(AssertionError):
+        _validate_tasks(rows)
+
+
+def test_task_ledger_rejects_any_other_missing_retained_row() -> None:
+    _, rows = _table(LEDGER.read_text(encoding="utf-8"), "## Task Ledger")
+    rows.pop(1)
     with pytest.raises(AssertionError):
         _validate_tasks(rows)
 

@@ -335,6 +335,9 @@ class _ShellTestExecutionClient:
         self._project_solution_binding_revision += 1
         self._project_solution_save_contexts.clear()
 
+    def retire_workspace(self, _workspace_id: str) -> int:
+        return 0
+
 
 def _action_shortcuts(action) -> set[str]:  # noqa: ANN001
     return {

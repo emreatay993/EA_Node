@@ -47,6 +47,7 @@ def test_registered_addon_ids_are_exact() -> None:
     ) == (
         "ea_node_editor.builtins.tabular_data",
         "mars.corex",
+        "mechanical.corex",
     )
 
 

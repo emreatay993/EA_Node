@@ -39,7 +39,6 @@ These rows summarize whole-capability status. `PARTIAL` means accepted backend a
 
 ## Active Implementation Plans — No Implementation Proof
 
-- [COREX Mechanical Catalogue](../PLANS/MECHANICAL_CATALOGUE/PLAN.md) — `IN_PROGRESS — T01–T17 ACCEPTED`; [task ledger](../PLANS/MECHANICAL_CATALOGUE/TASK_LEDGER.md), [user/developer guide](../MECHANICAL_CATALOGUE.md), runnable [table](../../examples/mechanical_table_to_signal_plot.cxproj), [image](../../examples/mechanical_camera_image_workflows.cxproj), and [mutation](../../examples/mechanical_mutate_snippet_save.cxproj) examples, [T17 structural proof](../../tests/mechanical_catalogue/test_examples.py), [approved visual baseline](../PLANS/MECHANICAL_CATALOGUE/VISUAL_BASELINE.md), [T01 capability qualification](perf/MECHANICAL_CATALOGUE_CAPABILITY_PROOF.md)
 - [COREX Runtime, Registry, and Presentation Ownership Refactor](../PLAN_COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR.md) — `COMPLETED — T00–T26 ACCEPTED`; [QA ledger](perf/COREX_RUNTIME_REGISTRY_PRESENTATION_REFACTOR_QA_MATRIX.md)
 
 ### Implemented Features With Remaining Acceptance Checks
@@ -52,6 +51,7 @@ T01–T17 are complete, and the locked 176-type snapshot is fully classified.
 
 ### Completed Implementation Plans
 
+- [COREX Mechanical Catalogue](../PLANS/MECHANICAL_CATALOGUE/PLAN.md) — `COMPLETED — T01–T18 ACCEPTED`; [task ledger](../PLANS/MECHANICAL_CATALOGUE/TASK_LEDGER.md), [final QA matrix](perf/MECHANICAL_CATALOGUE_QA_MATRIX.md), [user/developer guide](../MECHANICAL_CATALOGUE.md), runnable [table](../../examples/mechanical_table_to_signal_plot.cxproj), [image](../../examples/mechanical_camera_image_workflows.cxproj), and [mutation](../../examples/mechanical_mutate_snippet_save.cxproj) examples, [T17 structural proof](../../tests/mechanical_catalogue/test_examples.py), [approved visual baseline](../PLANS/MECHANICAL_CATALOGUE/VISUAL_BASELINE.md), [T01 capability qualification](perf/MECHANICAL_CATALOGUE_CAPABILITY_PROOF.md)
 - [COREX File System Nodes](../PLAN_COREX_FILESYSTEM_NODES.md) — `COMPLETED - T01-T04 ACCEPTED`; focused and serial checks passed, with two verified baseline fast-gate failures documented.
 - [COREX Typed Connection Reliability](../PLAN_COREX_TYPED_CONNECTION_RELIABILITY.md) — `COMPLETED — T00–T06 ACCEPTED`; [task ledger](../PLANS/COREX_TYPED_CONNECTION_RELIABILITY_TASK_LEDGER.md)
 - [COREX Maintainability And Ownership Refactor](../PLAN_COREX_MAINTAINABILITY_OWNERSHIP_REFACTOR.md) — `COMPLETED — T00–T08 ACCEPTED`

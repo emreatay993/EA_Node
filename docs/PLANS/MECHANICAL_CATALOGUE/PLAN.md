@@ -1,6 +1,6 @@
 # COREX Mechanical Catalogue — Detailed Implementation Plan
 
-Status: **IN_PROGRESS — SEE TASK_LEDGER.md FOR ACCEPTED TASKS AND CURRENT WORK**. Implementation resumed on 2026-09-07. The user approved the two narrow 261 result-state amendments described below, and independent review accepted T01 against unchanged retained native evidence. TASK_LEDGER.md remains the authority for task acceptance and separate local commit status.
+Status: **COMPLETED — T01–T18 ACCEPTED; INDEPENDENT INTEGRATION REVIEW PASSED**. Implementation resumed on 2026-09-07 and completed on 2026-09-09 against the approved 261 contract. [TASK_LEDGER.md](TASK_LEDGER.md) records the separate task commits and accepted evidence; the [final QA matrix](../../specs/perf/MECHANICAL_CATALOGUE_QA_MATRIX.md) records verification outcomes and material limitations.
 
 Planning baseline and execution amendment: 2026-09-07. The user approved the eight-node layout, then explicitly authorized implementation, required verification using disposable fixtures and available licensed installations, and separate local task commits. After T01 found no accessible 2025 R2 installation, the user replaced that release requirement with **2026 R1 (261) as the sole initial reference and acceptance release**. The former planning-only status and 252 gate are historical; all other scope and acceptance requirements remain in force. Current execution status belongs to TASK_LEDGER.md.
 

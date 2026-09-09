@@ -34,12 +34,16 @@ class WorkspaceDeleteDialogParentTests(MainWindowShellTestBase):
             captured["parent"] = parent
             return QMessageBox.StandardButton.Yes
 
-        with patch.object(QMessageBox, "question", side_effect=_capture_question):
+        with (
+            patch.object(QMessageBox, "question", side_effect=_capture_question),
+            patch.object(QMessageBox, "warning") as warning,
+        ):
             self.window.request_close_workspace_by_id(dup_id)
 
         # The dialog must be reached and given a real QWidget parent (not the adapter).
         self.assertIn("parent", captured)
         self.assertIsInstance(captured["parent"], QWidget)
+        warning.assert_not_called()
         self.assertNotIn(dup_id, self.window.model.project.workspaces)
 
 
