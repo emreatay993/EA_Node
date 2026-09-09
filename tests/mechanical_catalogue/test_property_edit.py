@@ -21,11 +21,11 @@ from ea_node_editor.addons.property_edit_adapters import create_property_edit_ad
 from tests.mechanical_catalogue.test_contracts import _model_metadata, _row, _selector
 
 
-def _catalogue(*, revision=2, complete=True, name="RÉSULTAT", native_id=7):
+def _catalogue(*, revision=2, complete=True, name="RÉSULTAT", native_id=7, omitted_rows=3):
     catalogue_id = f"00000000-0000-0000-0000-{revision:012d}"
     return catalogue_table(
         [
-            _row(model_revision=revision, catalogue_id=catalogue_id, system_key="system-1", catalogue_complete=complete, omitted_rows=0 if complete else 3),
+            _row(model_revision=revision, catalogue_id=catalogue_id, system_key="system-1", catalogue_complete=complete, omitted_rows=0 if complete else omitted_rows),
             _row(
                 "object",
                 model_revision=revision,
@@ -108,6 +108,20 @@ def test_locator_requires_path_iteration_and_unique_matching_table() -> None:
     wrong = _model(producer_iteration=9)
     assert _project(lambda *_: DataTree({(0, 2): (table,)}), DataTree.from_item(wrong))["enum_codes"] == []
     assert _project(lambda *_: DataTree({(4,): (table,)}), DataTree.from_item(_model()))["enum_codes"] == []
+
+
+def test_incomplete_catalogue_with_unknown_omission_count_preserves_nullable_scalars() -> None:
+    from ea_node_editor.addons.mechanical.property_edit import _table_rows
+
+    table = _catalogue(complete=False, omitted_rows=None)
+    rows = _table_rows(table)
+    assert rows[0]["omitted_rows"] is None
+    assert rows[0]["catalogue_complete"] is False
+    assert rows[0]["model_revision"] == 2
+    assert rows[1]["has_tabular_data"] is None
+    item = _project(lambda *_: DataTree({(0, 2): (table,)}), DataTree.from_item(_model()))
+    assert item["enum_codes"] == [_selector("object", 7, "Model/RÉSULTAT")]
+    assert "incomplete" in item["metadata_notice"].lower()
 
 
 def test_descriptor_index_is_reused_and_replaced_with_the_accepted_table(monkeypatch) -> None:

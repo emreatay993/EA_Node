@@ -60,10 +60,12 @@ def _scalar(value: Any) -> Any:
 
 
 def _table_rows(table: TableValue) -> list[dict[str, Any]]:
+    from pandas import NA
+
     columns = [column.to_pandas_array() for column in table.columns]
     return [
-        {name: _scalar(columns[column][row]) for column, name in enumerate(table.column_names)}
-        for row in range(table.row_count)
+        {name: None if value is NA else _scalar(value) for name, value in zip(table.column_names, row)}
+        for row in zip(*columns)
     ]
 
 
