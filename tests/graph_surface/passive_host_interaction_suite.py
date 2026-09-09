@@ -1097,9 +1097,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
         )
 
     def test_content_sized_nodes_keep_settings_and_connected_ports_aligned(self) -> None:
-        self._run_qml_probe(
-            "content-sized-node-canvas-layout",
-            '''
+        body = '''
             from PyQt6.QtGui import QFont, QFontDatabase
             from PyQt6.QtCore import pyqtSignal
             from PyQt6.QtTest import QTest
@@ -1171,6 +1169,11 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     source = named_item(target, "graphNodeInputPortDot", "source")
                     target_center = source.mapToItem(target, QPointF(source.width()/2, source.height()/2))
                     assert abs(edge["ty"] - (target_payload["y"] + target_center.y())) < 0.1
+                    edge_layer = canvas.findChild(QObject, "graphCanvasEdgeLayer")
+                    rendered = variant_value(edge_layer.edgeEndpointScenePoint(edge_id, "target"))
+                    assert abs(rendered["x"] - (target_payload["x"] + target_center.x())) < 0.1
+                    assert abs(rendered["y"] - (target_payload["y"] + target_center.y())) < 0.1, (
+                        "media-rendered-endpoint", rendered, target_center)
                     return card, first_group
 
                 card, header = assert_geometry()
@@ -1185,7 +1188,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                         if label.isVisible():
                             assert not label.property("truncated"), label.property("text")
                     for editor in named_child_items(card, "graphNodeInlineColorEditor"):
-                        if editor.isVisible():
+                        if editor.isVisible() and graphics.graphics_graph_label_pixel_size == 17:
                             assert editor.width() > 60, (editor.objectName(), editor.width())
                     mouse_click(window, item_scene_point(header))
                     QTest.qWait(240)
@@ -1196,8 +1199,14 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 app.setFont(previous_font)
                 for font_id in font_ids:
                     QFontDatabase.removeApplicationFont(font_id)
-            ''',
-        )
+            '''
+        for pixel_size in (10, 17, 32):
+            with self.subTest(graph_label_pixel_size=pixel_size):
+                self._run_qml_probe(
+                    "content-sized-node-canvas-layout",
+                    body.replace("graphics_graph_label_pixel_size = 17",
+                                 f"graphics_graph_label_pixel_size = {pixel_size}"),
+                )
 
     def test_graph_canvas_settings_resize_animates_clipped_content_and_connected_edges(self) -> None:
         self._run_qml_probe(

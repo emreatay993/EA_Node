@@ -46,6 +46,7 @@ Settings-section size transitions use shared 180 ms width/height animations with
 - [Retained Work-Packet QA Evidence And Spec Navigation](feature_routes/work_packet_docs_status_qa.md)
 
 ## Current ownership notes
+- Shared QML surface metrics preserve projected port-row heights for both node grips and rendered wire endpoints, including Media Panel at custom graph text sizes; the edge-routing map owns this alignment regression.
 - The native COREX splash background, original emblem at 115% reference size, and
   independent presentation animation are owned by `ui/splash/opening_screen.py`.
   The [splash route](feature_routes/shell_startup_qml_context_splash.md) owns startup

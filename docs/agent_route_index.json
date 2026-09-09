@@ -1199,7 +1199,8 @@
         "tests/test_flow_edge_labels.py",
         "tests/test_graph_surface_input_controls.py",
         "tests/graph_track_b/scene_model_graph_scene_suite.py",
-        "tests/graph_track_b/qml_preference_rendering_suite.py"
+        "tests/graph_track_b/qml_preference_rendering_suite.py",
+        "tests/graph_surface/passive_host_interaction_suite.py"
       ],
       "qml_candidates": [
         "ea_node_editor/ui_qml/components/graph/EdgeLayer.qml",
@@ -1261,6 +1262,10 @@
         "suite",
         "preference",
         "rendering",
+        "graphnodesurfacemetrics",
+        "passive",
+        "host",
+        "interaction",
         "active",
         "wire",
         "compile",

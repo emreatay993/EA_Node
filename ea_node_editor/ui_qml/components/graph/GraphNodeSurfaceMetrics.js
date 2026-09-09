@@ -234,6 +234,9 @@ function _normalizedGraphLabelPixelSize(value) {
     return Math.max(GRAPH_LABEL_PIXEL_SIZE_MIN, Math.min(GRAPH_LABEL_PIXEL_SIZE_MAX, numeric));
 }
 
+// Projected port_height is authoritative for both cards and edge endpoints.
+// This font-based row height is only a fallback for unprojected preview nodes;
+// edge callers do not carry the card's graphLabelPixelSize override.
 function _viewerPortRowHeight(graphLabelPixelSize) {
     var standard = _standardContract();
     return Math.max(
@@ -397,8 +400,8 @@ function _standardSurfaceMetrics(node, source, graphLabelPixelSize, heightOverri
     var portCount = _visiblePortCounts(node).portCount;
     var headerHeight = _contractNumber(standard, "header_height");
     var inlineHeight = inlineBodyHeight(node);
-    var portHeight = Math.max(
-        _metricNumber(source, "port_height", _contractNumber(standard, "port_height")),
+    var portHeight = _metricNumber(
+        source, "port_height",
         _viewerPortRowHeight(graphLabelPixelSize)
     );
     var portCenterOffset = Math.max(
@@ -860,7 +863,7 @@ function _mediaSurfaceMetrics(node, source, heightOverride, graphLabelPixelSize)
     var layout = _mediaVariantLayout(node && node.surface_variant);
     var passive = _passiveContract();
     var portCount = _visiblePortCounts(node).portCount;
-    var portHeight = _viewerPortRowHeight(graphLabelPixelSize);
+    var portHeight = _metricNumber(source, "port_height", _viewerPortRowHeight(graphLabelPixelSize));
     var defaultBodyHeight = Math.max(
         _contractNumber(layout, "min_body_height"),
         _contractNumber(layout, "default_height")
@@ -952,8 +955,8 @@ function _viewerSurfaceMetrics(node, source, _widthOverride, heightOverride, gra
     var headerHeight = _contractNumber(standard, "header_height");
     var bodyTop = _contractNumber(standard, "body_top");
     var resolvedBodyTop = _metricNumber(source, "body_top", bodyTop);
-    var portHeight = Math.max(
-        _metricNumber(source, "port_height", 0.0),
+    var portHeight = _metricNumber(
+        source, "port_height",
         _viewerPortRowHeight(graphLabelPixelSize)
     );
     var inlineHeight = inlineBodyHeight(node);
