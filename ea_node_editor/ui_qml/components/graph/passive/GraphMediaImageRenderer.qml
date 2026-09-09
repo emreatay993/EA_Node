@@ -174,7 +174,7 @@ GraphShared.GraphSurfaceBase {
             return imageFrameVisible ? contentInset : 0;
         return Number(host.surfaceMetrics.body_top || 44);
     }
-    readonly property real contentBottomMargin: imageFrameVisible ? (host ? Number(host.surfaceMetrics.body_bottom_margin || 12) : 12) : 0
+    readonly property real contentBottomMargin: host ? surfaceBodyBottomMargin : (imageFrameVisible ? 12 : 0)
     readonly property color cropOverlayShadeColor: Qt.alpha("#11151A", 0.44)
     readonly property color cropFrameColor: host ? host.selectedOutlineColor : "#60CDFF"
     readonly property color cropHandleFillColor: host ? host.surfaceColor : "#1b1d22"

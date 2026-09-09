@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
+from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics, surface_port_local_point
 from ea_node_editor.ui_qml.graph_scene.command_bridge import GraphSceneCommandBridge
 from ea_node_editor.ui_qml.surface_contracts import surface_spec_for_values
 from tests.graph_surface.environment import PassiveGraphSurfaceHostTestBase
@@ -35,8 +35,18 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
             variant="media_panel",
         )
 
-        assert (metrics.default_width, metrics.default_height) == (340.0, 288.0)
-        assert (metrics.min_width, metrics.min_height) == (260.0, 216.0)
+        assert (metrics.default_width, metrics.default_height) == (340.0, 306.0)
+        assert (metrics.min_width, metrics.min_height) == (260.0, 272.0)
+        assert metrics.body_height == 232.0
+        assert metrics.port_height == 18.0
+        assert metrics.port_center_offset == 9.0
+        assert metrics.port_top + metrics.port_height + metrics.body_bottom_margin == metrics.default_height
+        _source_x, source_y = surface_port_local_point(node, spec, "source", {node.node_id: node})
+        assert source_y - metrics.port_dot_radius >= metrics.port_top
+        hidden_source_node = node.clone()
+        hidden_source_node.exposed_ports = {"source": False}
+        hidden_source_metrics = node_surface_metrics(hidden_source_node, spec)
+        assert hidden_source_metrics.default_height == 288.0
         assert surface.fullscreen.content_kind == "media"
         assert surface.metadata == {"panel_like": True, "suppress_run_action": True}
 
@@ -95,6 +105,71 @@ class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
                 b"set_exposed_port(QString,QString,bool)"
             )
             >= 0
+        )
+
+    def test_exposed_source_port_stays_below_the_rendered_media_viewport(self) -> None:
+        self._run_qml_probe(
+            "media-panel-exposed-source-port-body-spacing",
+            """
+            from PyQt6.QtCore import QPointF, pyqtProperty
+            from PyQt6.QtGui import QColor, QImage
+            from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
+
+            class MediaCanvas(QQuickItem):
+                def __init__(self, node_id, image_url):
+                    super().__init__()
+                    self._node_id = node_id
+                    self._image_url = image_url
+
+                @pyqtProperty("QVariantMap", constant=True)
+                def executionFacts(self):
+                    return {
+                        "mediaPanelSourceLookup": {
+                            self._node_id: {
+                                "authority": "input",
+                                "input_exposed": True,
+                                "input_connected": True,
+                                "state": "ready",
+                                "media_kind": "image",
+                                "resolved_source_url": self._image_url,
+                                "preview_source_url": self._image_url,
+                            }
+                        },
+                        "portFlowStateLookup": {},
+                    }
+
+            image_path = Path.cwd() / "artifacts" / "media-panel-port-spacing.png"
+            image_path.parent.mkdir(parents=True, exist_ok=True)
+            image = QImage(8, 6, QImage.Format.Format_ARGB32)
+            image.fill(QColor("#5da9ff"))
+            assert image.save(str(image_path))
+
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            node = model.add_node(workspace_id, "media.panel", "Media Panel", 0.0, 0.0)
+            payload = GraphScenePayloadBuilder().rebuild_models(
+                model=model,
+                registry=registry,
+                workspace_id=workspace_id,
+                scope_path=(),
+                graph_theme_bridge=None,
+            )[0][0]
+            assert payload["node_id"] == node.node_id
+
+            canvas = MediaCanvas(node.node_id, QUrl.fromLocalFile(str(image_path)).toString())
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload, "canvasItem": canvas})
+            host.setWidth(float(payload["width"]))
+            host.setHeight(float(payload["height"]))
+            window = attach_host_to_window(host, 480, 360)
+            try:
+                settle_events(10)
+                viewport = named_item(host, "graphNodeMediaPreviewViewport")
+                viewport_bottom = viewport.mapToItem(host, QPointF(0.0, viewport.height())).y()
+                assert abs(viewport_bottom - float(payload["surface_metrics"]["port_top"])) < 0.1
+            finally:
+                dispose_host_window(host, window)
+            """,
         )
 
     def test_fullscreen_qml_dispatches_only_from_media_payload_kind(self) -> None:

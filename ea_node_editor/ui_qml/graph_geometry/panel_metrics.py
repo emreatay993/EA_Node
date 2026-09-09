@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import replace
+
+from ea_node_editor.graph.effective_ports import EffectivePort
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE
-from .standard_metrics import collapsed_node_title_width
+from .standard_metrics import collapsed_node_title_width, standard_viewer_port_row_height
 from .surface_contract import (
     ANNOTATION_VARIANT_LAYOUTS,
     GROUP_BACKDROP_VARIANT_LAYOUTS,
@@ -17,6 +21,7 @@ from .surface_contract import (
     GraphNodeSurfaceMetrics,
     _PassivePanelLayout,
     _resolved_dimensions,
+    _visible_port_count,
 )
 
 
@@ -174,22 +179,61 @@ def _group_backdrop_surface_metrics(
     )
 
 
-def _media_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeSurfaceMetrics:
+def _media_surface_metrics(
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    workspace_nodes: Mapping[str, NodeInstance] | None = None,
+    *,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    visible_ports_override: tuple[EffectivePort, ...] | None = None,
+) -> GraphNodeSurfaceMetrics:
     variant = normalize_media_variant(spec.surface_variant)
     layout = MEDIA_VARIANT_LAYOUTS[variant]
     default_width = float(layout.default_width)
-    default_height = float(layout.default_height)
+    port_count = _visible_port_count(
+        node,
+        spec,
+        workspace_nodes,
+        visible_ports_override=visible_ports_override,
+    )
+    port_height = standard_viewer_port_row_height(
+        graph_label_pixel_size=graph_label_pixel_size,
+    )
+    default_body_height = max(
+        layout.min_body_height,
+        float(layout.default_height) - layout.body_top - layout.body_bottom_margin,
+    )
+    default_height = (
+        layout.body_top
+        + default_body_height
+        + port_count * port_height
+        + layout.body_bottom_margin
+    )
+    min_height = max(
+        layout.min_height,
+        layout.body_top
+        + layout.min_body_height
+        + port_count * port_height
+        + layout.body_bottom_margin,
+    )
     _active_width, active_height = _resolved_dimensions(
         node,
         default_width=default_width,
         default_height=default_height,
     )
-    body_height = max(layout.min_body_height, active_height - layout.body_top - layout.body_bottom_margin)
-    return _build_panel_surface_metrics(
+    body_height = max(
+        layout.min_body_height,
+        active_height
+        - layout.body_top
+        - port_count * port_height
+        - layout.body_bottom_margin,
+    )
+    return replace(
+        _build_panel_surface_metrics(
         default_width=default_width,
         default_height=default_height,
         min_width=layout.min_width,
-        min_height=layout.min_height,
+        min_height=min_height,
         active_height=active_height,
         body_top=layout.body_top,
         body_height=body_height,
@@ -202,4 +246,8 @@ def _media_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeS
         body_right_margin=layout.body_right_margin,
         body_bottom_margin=layout.body_bottom_margin,
         use_host_chrome=True,
+        ),
+        port_top=layout.body_top + body_height,
+        port_height=port_height,
+        port_center_offset=port_height * 0.5,
     )

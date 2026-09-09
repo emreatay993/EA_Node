@@ -859,23 +859,41 @@ function _groupBackdropSurfaceMetrics(node, source, graphLabelPixelSize, heightO
 function _mediaSurfaceMetrics(node, source, heightOverride) {
     var layout = _mediaVariantLayout(node && node.surface_variant);
     var passive = _passiveContract();
-    var activeHeight = _surfaceContentHeight(
-        node,
-        settingsBandHeight(node) > 0.0 ? heightOverride : undefined,
+    var portCount = _visiblePortCounts(node).portCount;
+    var portHeight = _viewerPortRowHeight(graphLabelPixelSize);
+    var defaultBodyHeight = Math.max(
+        _contractNumber(layout, "min_body_height"),
         _contractNumber(layout, "default_height")
+            - _contractNumber(layout, "body_top")
+            - _contractNumber(layout, "body_bottom_margin")
     );
     var bodyTop = _metricNumber(source, "body_top", _contractNumber(layout, "body_top"));
     var bodyBottomMargin = _metricNumber(source, "body_bottom_margin", _contractNumber(layout, "body_bottom_margin"));
-    var bodyHeight = _metricNumber(
-        source,
-        "body_height",
-        Math.max(_contractNumber(layout, "min_body_height"), activeHeight - bodyTop - bodyBottomMargin)
+    var defaultHeight = Math.max(
+        _metricNumber(source, "default_height", 0.0),
+        bodyTop + defaultBodyHeight + portCount * portHeight + bodyBottomMargin
+    );
+    var minHeight = Math.max(
+        _metricNumber(source, "min_height", 0.0),
+        bodyTop
+            + _contractNumber(layout, "min_body_height")
+            + portCount * portHeight
+            + bodyBottomMargin
+    );
+    var activeHeight = _surfaceContentHeight(
+        node,
+        settingsBandHeight(node) > 0.0 ? heightOverride : undefined,
+        defaultHeight
+    );
+    var bodyHeight = Math.max(
+        _contractNumber(layout, "min_body_height"),
+        activeHeight - bodyTop - portCount * portHeight - bodyBottomMargin
     );
     return {
         "default_width": _metricNumber(source, "default_width", _contractNumber(layout, "default_width")),
-        "default_height": _metricNumber(source, "default_height", _contractNumber(layout, "default_height")),
+        "default_height": defaultHeight,
         "min_width": _metricNumber(source, "min_width", _contractNumber(layout, "min_width")),
-        "min_height": _metricNumber(source, "min_height", _contractNumber(layout, "min_height")),
+        "min_height": minHeight,
         "collapsed_width": _metricNumber(source, "collapsed_width", _contractNumber(_standardContract(), "collapsed_width")),
         "collapsed_height": _metricNumber(
             source,
@@ -886,9 +904,12 @@ function _mediaSurfaceMetrics(node, source, heightOverride) {
         "header_top_margin": _metricNumber(source, "header_top_margin", 0.0),
         "body_top": bodyTop,
         "body_height": bodyHeight,
-        "port_top": _metricNumber(source, "port_top", activeHeight - bodyBottomMargin),
-        "port_height": _metricNumber(source, "port_height", 0.0),
-        "port_center_offset": _metricNumber(source, "port_center_offset", 0.0),
+        "port_top": bodyTop + bodyHeight,
+        "port_height": portHeight,
+        "port_center_offset": Math.max(
+            _metricNumber(source, "port_center_offset", 0.0),
+            portHeight * 0.5
+        ),
         "port_side_margin": _metricNumber(source, "port_side_margin", _contractNumber(passive, "port_side_margin")),
         "port_dot_radius": _metricNumber(source, "port_dot_radius", _contractNumber(passive, "port_dot_radius")),
         "resize_handle_size": _metricNumber(

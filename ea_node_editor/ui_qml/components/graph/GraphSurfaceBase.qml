@@ -30,6 +30,17 @@ Item {
 
     // Standard content margin for framed surface bodies.
     readonly property real surfaceContentMargin: 8.0
+    readonly property real surfaceBodyBottomMargin: {
+        if (!host)
+            return 0.0;
+        var metrics = host.surfaceMetrics || (host.nodeData ? host.nodeData.surface_metrics : null);
+        if (!metrics)
+            return 0.0;
+        var bodyEnd = Number(metrics.port_top);
+        if (!isFinite(bodyEnd))
+            bodyEnd = Number(metrics.body_top || 0.0) + Number(metrics.body_height || 0.0);
+        return Math.max(0.0, Number(host.height) - bodyEnd);
+    }
 
     function propRaw(key, fallback) {
         var value = surfaceBase.nodeProperties[key];

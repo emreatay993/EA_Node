@@ -64,9 +64,7 @@ GraphShared.GraphSurfaceBase {
     readonly property real contentTopMargin: surfaceShowTitle
         ? (host ? Number(host.surfaceMetrics.body_top || 44) : 44)
         : (surfaceShowFrame ? contentInset : 0)
-    readonly property real contentBottomMargin: surfaceShowFrame
-        ? (host ? Number(host.surfaceMetrics.body_bottom_margin || 12) : 12)
-        : 0
+    readonly property real contentBottomMargin: host ? surfaceBodyBottomMargin : (surfaceShowFrame ? 12 : 0)
     readonly property var surfaceActions: {
         var count = pageCount;
         var page = Math.max(1, Math.min(Math.max(1, count), resolvedPageNumber));

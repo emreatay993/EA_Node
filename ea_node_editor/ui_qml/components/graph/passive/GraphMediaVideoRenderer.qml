@@ -65,7 +65,7 @@ GraphShared.GraphSurfaceBase {
             return surfaceShowFrame ? contentInset : 0;
         return Number(host.surfaceMetrics.body_top || 44);
     }
-    readonly property real contentBottomMargin: surfaceShowFrame ? (host ? Number(host.surfaceMetrics.body_bottom_margin || 12) : 12) : 0
+    readonly property real contentBottomMargin: host ? surfaceBodyBottomMargin : (surfaceShowFrame ? 12 : 0)
     readonly property string statusText: _statusText()
     readonly property string previewState: {
         if (String(sourceResolution.state || "") !== "ready" || resolvedSourceUrl.length === 0)

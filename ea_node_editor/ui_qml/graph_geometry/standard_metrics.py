@@ -1206,7 +1206,13 @@ def node_surface_metrics(
     if family == "media":
         from .panel_metrics import _media_surface_metrics
 
-        return _media_surface_metrics(node, spec)
+        return _media_surface_metrics(
+            node,
+            spec,
+            workspace_nodes,
+            graph_label_pixel_size=graph_label_pixel_size,
+            visible_ports_override=visible_ports_override,
+        )
     if family == "viewer":
         from .viewer_metrics import _viewer_surface_metrics
 
