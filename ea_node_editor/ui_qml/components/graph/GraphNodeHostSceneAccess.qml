@@ -5,7 +5,7 @@ QtObject {
     id: root
     property var host: null
 
-    function _localPortPoint(direction, rowIndex, portData) {
+    function _localPortPoint(direction, rowIndex, portData, forLayout) {
         if (!root.host || !root.host.nodeData)
             return {"x": 0.0, "y": 0.0};
         var widthValue = Number(root.host.width);
@@ -19,7 +19,7 @@ QtObject {
         if (!isFinite(heightValue) || heightValue <= 0.0)
             heightValue = Number(root.host.surfaceMetrics.default_height);
         if (portData) {
-            return GraphNodeSurfaceMetrics.localPortPointForPort(
+            var point = GraphNodeSurfaceMetrics.localPortPointForPort(
                 root.host.nodeData,
                 portData,
                 direction === "in" ? rowIndex : -1,
@@ -28,6 +28,10 @@ QtObject {
                 heightValue,
                 root.host.effectiveGraphLabelPixelSize
             );
+            point.y += forLayout
+                ? Number(root.host.settingsGroupOffsets[String(portData.settings_group_id || "")] || 0)
+                : Number(root.host.settingsGroupPortOffsets[String(portData.key)] || 0);
+            return point;
         }
         return GraphNodeSurfaceMetrics.localPortPoint(
             root.host.nodeData,
@@ -44,7 +48,7 @@ QtObject {
     }
 
     function localPortPointForPort(direction, rowIndex, portData) {
-        return root._localPortPoint(direction, rowIndex, portData);
+        return root._localPortPoint(direction, rowIndex, portData, false);
     }
 
     function _portScenePos(direction, rowIndex, portData) {

@@ -26,6 +26,7 @@ Shared node-toolbar Expand/Collapse and Run-options icons are owned by the float
 The surface loader retains action owners for active collapsed-node toolbars; hidden body input and native viewer/plot activity remain disabled.
 Ordinary active/compile-only cards fit current content even with saved custom dimensions; dedicated and passive surfaces retain manual sizing. Standard widths separate top-level port columns from settings headers and expanded controls. Graph Scene Payload owns sizing/anchor coverage and the real-canvas toggle regression.
 Graphics Settings > Canvas > Nodes offers app-persistent expanded-width retention through the workspace presenter and scene-bound payload provider; ordinary card height still fits visible settings.
+Settings-section size transitions use shared 180 ms width/height animations with interpolated headers and port anchors, clipped revealed controls, and presentation-only member grips during collapse. Tagged canvas geometry synchronizes connections and yields to manual resize ownership; Surface Input owns the animation regression.
 
 - [Graph Scene Payload And Projection](feature_routes/graph_scene_payload_and_projection.md)
 - [Graph Canvas Input Layers](feature_routes/graph_canvas_input_layers.md)

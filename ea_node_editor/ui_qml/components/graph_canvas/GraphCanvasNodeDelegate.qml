@@ -5,6 +5,7 @@ import "GraphCanvasLogic.js" as GraphCanvasLogic
 GraphComponents.GraphNodeHost {
     id: nodeCard
     property bool backdropInputOverlay: false
+    property string _settingsGroupGeometryNodeId: ""
     readonly property bool _groupBackdropNode: canvasItem ? canvasItem._isGroupBackdropPayload(modelData) : false
 
     objectName: nodeCard.backdropInputOverlay ? "graphGroupBackdropInputCard" : "graphNodeCard"
@@ -37,6 +38,45 @@ GraphComponents.GraphNodeHost {
     settingsGroupAnimationsEnabled: !(canvasItem
         && canvasItem.canvasStateBridgeRef
         && Boolean(canvasItem.canvasStateBridgeRef.graphics_lightweight_canvas))
+
+    function _syncSettingsGroupGeometry(active) {
+        var geometryNodeId = active ? nodeId : _settingsGroupGeometryNodeId;
+        if (!active)
+            _settingsGroupGeometryNodeId = "";
+        if (!canvasItem || !geometryNodeId.length)
+            return;
+        var current = canvasItem.liveNodeGeometry || ({});
+        var existing = current[geometryNodeId];
+        // A resize preview owns its geometry and cancels the settings transition.
+        if (existing && !existing.settingsGroupAnimation)
+            return;
+        if (!active && !existing)
+            return;
+        var next = Object.assign({}, current);
+        if (active) {
+            _settingsGroupGeometryNodeId = geometryNodeId;
+            next[geometryNodeId] = {
+                "x": Number(nodeData.x), "y": Number(nodeData.y),
+                "width": width, "height": height,
+                "settingsGroupAnimation": true,
+                "settingsGroupLayoutHeight": settingsGroupLayoutHeight,
+                "settingsGroupPortOffsets": settingsGroupPortOffsets
+            };
+        } else {
+            delete next[geometryNodeId];
+        }
+        canvasItem.liveNodeGeometry = next;
+    }
+
+    onWidthChanged: _syncSettingsGroupGeometry(settingsGroupAnimationRunning)
+    onHeightChanged: _syncSettingsGroupGeometry(settingsGroupAnimationRunning)
+    onSettingsGroupPortOffsetsChanged: _syncSettingsGroupGeometry(settingsGroupAnimationRunning)
+    onSettingsGroupAnimationRunningChanged: _syncSettingsGroupGeometry(settingsGroupAnimationRunning)
+    onNodeIdChanged: {
+        _syncSettingsGroupGeometry(false);
+        cancelSettingsGroupAnimation();
+    }
+    Component.onDestruction: _syncSettingsGroupGeometry(false)
 
     function _graphActionBridge() {
         return canvasItem ? canvasItem.graphActionBridgeRef : null;
@@ -100,6 +140,8 @@ GraphComponents.GraphNodeHost {
                 return;
             var map = nodeCard.canvasItem.liveNodeGeometry || ({});
             var entry = map[String(nodeCard.nodeData.node_id || "")];
+            if (entry && entry.settingsGroupAnimation)
+                return;
             if (entry) {
                 nodeCard._liveX = Number(entry.x);
                 nodeCard._liveY = Number(entry.y);
@@ -336,6 +378,9 @@ GraphComponents.GraphNodeHost {
             return;
         nodeCard.beginSettingsGroupAnimation();
         if (bridge.set_node_settings_group_expanded(nodeId, groupId, expanded)) {
+            // Scene mutation clears transient geometry, including a retoggle's
+            // still-running preview. Restore it before the next painted frame.
+            nodeCard._syncSettingsGroupGeometry(nodeCard.settingsGroupAnimationRunning);
             canvasItem.forceActiveFocus();
             return;
         }

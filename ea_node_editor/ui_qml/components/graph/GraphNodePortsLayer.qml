@@ -958,6 +958,8 @@ Item {
             property string groupId: String(groupData.group_id || "")
             readonly property var anchor: groupData.aggregate_anchor || null
             readonly property int connectedCount: anchor ? Number(anchor.connected_count || 0) : 0
+            readonly property real animationYOffset: root.host
+                ? Number(root.host.settingsGroupOffsets[groupId] || 0) : 0
             visible: Boolean(anchor) && !Boolean(groupData.expanded)
             width: root.width
             height: root.height
@@ -975,7 +977,7 @@ Item {
                 x: settingsGroupAggregate.anchor ? Number(settingsGroupAggregate.anchor.x || 0) : 0
                 y: settingsGroupAggregate.anchor
                     ? Number(settingsGroupAggregate.anchor.y || 0)
-                        + root.settingsBandYOffset - height * 0.5
+                        + root.settingsBandYOffset + settingsGroupAggregate.animationYOffset - height * 0.5
                     : 0
                 sourceSize: root.notchSourceSize
                 source: root.notchSvgSource
@@ -996,7 +998,7 @@ Item {
                     : 0
                 y: settingsGroupAggregate.anchor
                     ? Number(settingsGroupAggregate.anchor.y || 0)
-                        + root.settingsBandYOffset - height * 0.5
+                        + root.settingsBandYOffset + settingsGroupAggregate.animationYOffset - height * 0.5
                     : 0
                 width: root.standardRestPortDiameter
                 height: width
@@ -1073,9 +1075,15 @@ Item {
                 x: 0
                 y: 0
                 width: root.host ? root.host.width : 0
-                height: inputPortRow.height
+                height: root.host && root.host.settingsGroupAnimationRunning
+                    ? Math.min(inputPortRow.height, Math.max(0,
+                        root.host.settingsGroupContentBottom(String(inputPortRow.portData.settings_group_id || ""))
+                            - inputPortRow.y))
+                    : inputPortRow.height
+                clip: Boolean(root.host && root.host.settingsGroupAnimationRunning)
                 visible: inputPortRow.defaultEditorVisible
-                enabled: root.host ? !root.host.surfaceInteractionLocked : false
+                enabled: root.host ? !root.host.surfaceInteractionLocked
+                    && !root.host.settingsGroupAnimationRunning : false
                 host: root.host
                 modelOverride: inputPortRow.defaultEditorVisible
                     ? [inputPortRow.defaultProperty]

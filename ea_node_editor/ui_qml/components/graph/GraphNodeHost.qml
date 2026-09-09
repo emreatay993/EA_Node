@@ -548,13 +548,70 @@ Item {
     property real _liveHeight: 0
     property bool settingsGroupAnimationsEnabled: true
     property bool _settingsGroupAnimationArmed: false
+    property real _settingsGroupStartWidth: 0
+    property real _settingsGroupStartHeight: 0
+    property var _settingsGroupStartHeaders: ({})
+    property var _settingsGroupStartPorts: ({})
+    property var _settingsGroupStartVisiblePorts: ({})
     readonly property int settingsGroupAnimationDuration: 180
     readonly property bool settingsGroupAnimationRunning: settingsGroupHeightAnimation.running
+        || settingsGroupWidthAnimation.running
     readonly property real settingsGroupLayoutHeight: settingsGroupAnimationRunning
         && nodeData
-        && Number(height) < Number(nodeData.height)
         ? Number(nodeData.height)
         : Number(height)
+    readonly property real _settingsGroupAnimationRemaining: {
+        if (!settingsGroupAnimationRunning || !nodeData)
+            return 0;
+        var heightDelta = Number(nodeData.height) - _settingsGroupStartHeight;
+        var widthDelta = Number(nodeData.width) - _settingsGroupStartWidth;
+        var remaining = Math.abs(heightDelta) > 0.01
+            ? (Number(nodeData.height) - height) / heightDelta
+            : (Math.abs(widthDelta) > 0.01 ? (Number(nodeData.width) - width) / widthDelta : 0);
+        return Math.max(0, Math.min(1, remaining));
+    }
+    readonly property var settingsGroupOffsets: {
+        var offsets = {};
+        for (var i = 0; i < settingsGroups.length; ++i) {
+            var group = settingsGroups[i];
+            var start = _settingsGroupStartHeaders[String(group.group_id)];
+            if (start !== undefined)
+                offsets[String(group.group_id)] = (start - Number(group.header.y)) * _settingsGroupAnimationRemaining;
+        }
+        return offsets;
+    }
+    readonly property var settingsGroupPortOffsets: {
+        var offsets = {};
+        if (!settingsGroupAnimationRunning || !nodeData)
+            return offsets;
+        var ports = nodeData.ports || [];
+        var inputRow = 0;
+        var outputRow = 0;
+        for (var i = 0; i < ports.length; ++i) {
+            var port = ports[i];
+            var start = _settingsGroupStartPorts[String(port.key)];
+            var target = GraphNodeSurfaceMetrics.localPortPointForPort(
+                nodeData, port, inputRow, outputRow, width, settingsGroupLayoutHeight, effectiveGraphLabelPixelSize);
+            if (start !== undefined)
+                offsets[String(port.key)] = (start - target.y) * _settingsGroupAnimationRemaining;
+            if (GraphNodeSurfaceMetrics.portLayoutDirection(port) === "in")
+                inputRow += 1;
+            else
+                outputRow += 1;
+        }
+        return offsets;
+    }
+
+    function settingsGroupContentBottom(groupId) {
+        for (var i = 0; i < settingsGroups.length - 1; ++i) {
+            if (String(settingsGroups[i].group_id) === String(groupId)) {
+                var next = settingsGroups[i + 1];
+                return Math.min(height, Number(next.header.y)
+                    + Number(settingsGroupOffsets[String(next.group_id)] || 0));
+            }
+        }
+        return height;
+    }
     readonly property bool _bodyRegionSurface: String(surfaceLayout.content_region || "host") === "body"
 
     function _emptyPathPointerDropData() {
@@ -562,16 +619,57 @@ Item {
     }
 
     function beginSettingsGroupAnimation() {
+        var headers = {};
+        var ports = {};
+        var visiblePorts = {};
+        var currentPorts = inputPorts.concat(outputPorts);
+        for (var visibleIndex = 0; visibleIndex < currentPorts.length; ++visibleIndex)
+            visiblePorts[String(currentPorts[visibleIndex].key)] = true;
+        for (var i = 0; i < settingsGroups.length; ++i) {
+            var group = settingsGroups[i];
+            headers[String(group.group_id)] = Number(group.header.y)
+                + Number(settingsGroupOffsets[String(group.group_id)] || 0);
+        }
+        var nodePorts = nodeData ? nodeData.ports || [] : [];
+        var inputRow = 0;
+        var outputRow = 0;
+        for (var portIndex = 0; portIndex < nodePorts.length; ++portIndex) {
+            var port = nodePorts[portIndex];
+            var direction = GraphNodeSurfaceMetrics.portLayoutDirection(port);
+            ports[String(port.key)] = sceneAccess.localPortPointForPort(
+                direction, direction === "in" ? inputRow++ : outputRow++, port).y;
+        }
+        _settingsGroupStartHeaders = headers;
+        _settingsGroupStartPorts = ports;
+        _settingsGroupStartVisiblePorts = visiblePorts;
+        _settingsGroupStartWidth = width;
+        _settingsGroupStartHeight = height;
         _settingsGroupAnimationArmed = Boolean(settingsGroupAnimationsEnabled);
+        // Only this request's model update may start a transition. Disabling
+        // a Behavior leaves its current animation running, but later edits snap.
+        Qt.callLater(function() { card._settingsGroupAnimationArmed = false; });
     }
 
     function cancelSettingsGroupAnimation() {
         _settingsGroupAnimationArmed = false;
+        // Reapply the bound targets through the disabled Behaviors so an active
+        // transition also stops when lightweight mode or a resize takes over.
+        width = Qt.binding(function() { return card._resolvedNodeWidth; });
+        height = Qt.binding(function() { return card._resolvedNodeHeight; });
     }
 
     function _finishSettingsGroupAnimation() {
-        if (!settingsGroupHeightAnimation.running)
+        if (!settingsGroupAnimationRunning)
             _settingsGroupAnimationArmed = false;
+    }
+
+    onSettingsGroupAnimationsEnabledChanged: {
+        if (!settingsGroupAnimationsEnabled)
+            cancelSettingsGroupAnimation();
+    }
+    on_LiveGeometryActiveChanged: {
+        if (_liveGeometryActive)
+            cancelSettingsGroupAnimation();
     }
 
     function _updatePathPointerDropData(eventObj) {
@@ -771,15 +869,30 @@ Item {
     readonly property bool _shadowVisible: chromeLayout.shadowVisible
     readonly property int nodeTextRenderType: chromeLayout.nodeTextRenderType
 
+    // Keep old member grips visible while their wires converge onto the
+    // collapsed aggregate. The transient rows own no editors or labels.
+    readonly property var _settingsGroupPortPresentation: {
+        if (!settingsGroupAnimationRunning || !nodeData)
+            return nodeData;
+        var ports = (nodeData.ports || []).map(function(port) {
+            if (port.handle_visible !== false || !_settingsGroupStartVisiblePorts[String(port.key)])
+                return port;
+            return Object.assign({}, port, {
+                "handle_visible": true, "settings_group_transition_only": true,
+                "default_property": null
+            });
+        });
+        return Object.assign({}, nodeData, {"ports": ports});
+    }
     readonly property var inputPorts: {
         if (!card.portLayerActive)
             return [];
-        return GraphNodeSurfaceMetrics.visiblePortsForDirection(card.nodeData, "in");
+        return GraphNodeSurfaceMetrics.visiblePortsForDirection(card._settingsGroupPortPresentation, "in");
     }
     readonly property var outputPorts: {
         if (!card.portLayerActive)
             return [];
-        return GraphNodeSurfaceMetrics.visiblePortsForDirection(card.nodeData, "out");
+        return GraphNodeSurfaceMetrics.visiblePortsForDirection(card._settingsGroupPortPresentation, "out");
     }
     readonly property real resolvedBorderWidth: themeState.resolvedBorderWidth
     readonly property real resolvedCornerRadius: themeState.resolvedCornerRadius
@@ -802,6 +915,10 @@ Item {
 
     function localPortPointForPort(direction, rowIndex, portData) {
         return sceneAccess.localPortPointForPort(direction, rowIndex, portData);
+    }
+
+    function localPortLayoutPointForPort(direction, rowIndex, portData) {
+        return sceneAccess._localPortPoint(direction, rowIndex, portData, true);
     }
 
     function portScenePos(direction, rowIndex) {
@@ -1488,6 +1605,22 @@ Item {
     width: card._resolvedNodeWidth
     height: card._resolvedNodeHeight
 
+    Behavior on width {
+        enabled: card._settingsGroupAnimationArmed
+            && card.settingsGroupAnimationsEnabled
+            && !card._liveGeometryActive
+            && !card.isCollapsed
+        NumberAnimation {
+            id: settingsGroupWidthAnimation
+            duration: card.settingsGroupAnimationDuration
+            easing.type: Easing.InOutCubic
+            onRunningChanged: {
+                if (!running)
+                    Qt.callLater(card._finishSettingsGroupAnimation);
+            }
+        }
+    }
+
     Behavior on height {
         enabled: card._settingsGroupAnimationArmed
             && card.settingsGroupAnimationsEnabled
@@ -1615,10 +1748,21 @@ Item {
         Component.onCompleted: card._measuredCollapsedTitleRequiredWidth = collapsedTitleRequiredWidth
     }
 
-    GraphNodePortsLayer {
-        id: portsLayer
-        anchors.fill: parent
-        host: card
+    Item {
+        objectName: "graphNodePortsAnimationClip"
+        z: 5
+        x: -16
+        width: card.width + 32
+        height: card.height
+        clip: card.settingsGroupAnimationRunning
+
+        GraphNodePortsLayer {
+            id: portsLayer
+            x: 16
+            width: card.width
+            height: card.height
+            host: card
+        }
     }
 
     GraphNodeSettingsGroupsLayer {

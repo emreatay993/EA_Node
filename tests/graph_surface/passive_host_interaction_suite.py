@@ -1199,6 +1199,280 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             ''',
         )
 
+    def test_graph_canvas_settings_resize_animates_clipped_content_and_connected_edges(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-settings-size-animation",
+            '''
+            from PyQt6.QtGui import QFont, QFontDatabase
+            from PyQt6.QtCore import pyqtSignal
+            from PyQt6.QtTest import QTest
+
+            font_id = QFontDatabase.addApplicationFont("C:/Windows/Fonts/segoeui.ttf")
+            assert font_id >= 0
+            previous_font = app.font()
+            app.setFont(QFont("Segoe UI", 9))
+
+            class GraphicsSource(QObject):
+                graphics_preferences_changed = pyqtSignal()
+                graphics_lightweight_canvas = False
+                graphics_graph_label_pixel_size = 17
+                graphics_show_port_labels = True
+
+            graphics = GraphicsSource()
+            model = GraphModel()
+            registry = build_default_registry()
+            scene = GraphSceneBridge()
+            scene.bind_graphics_preferences_source(graphics)
+            workspace = model.active_workspace
+            scene.set_workspace(model, registry, workspace.workspace_id)
+            signal_id = scene.add_node_from_type("plot.signal", -330, -390)
+            media_id = scene.add_node_from_type("media.panel", 270, -390)
+            source_id = scene.add_node_from_type("core.constant", -560, 350)
+            output_edge = scene.add_edge(signal_id, "image", media_id, "source")
+            input_edge = scene.add_edge(source_id, "value", signal_id, "show_legend")
+            second_input_edge = scene.add_edge(source_id, "value", signal_id, "labels")
+            assert output_edge and input_edge and second_input_edge
+            node = workspace.nodes[signal_id]
+            persisted_size = (node.custom_width, node.custom_height)
+            view = ViewportBridge()
+            view.set_viewport_size(1400, 1100)
+            canvas = create_component(graph_canvas_qml_path, {
+                "sceneBridge": scene, "viewBridge": view, "width": 1400, "height": 1100,
+                "mainWindowBridge": graphics,
+            })
+            window = attach_host_to_window(canvas, 1400, 1100)
+            try:
+                QTest.qWait(80)
+                card = next(item for item in named_child_items(canvas, "graphNodeCard")
+                    if variant_value(item.property("nodeData"))["node_id"] == signal_id)
+                edge_layer = canvas.findChild(QObject, "graphCanvasEdgeLayer")
+
+                def header(group_id="general_options"):
+                    return next(item for item in named_child_items(card, "graphNodeSettingsGroupHeader")
+                        if item.property("groupId") == group_id)
+
+                def click_header():
+                    mouse_click(window, item_scene_point(header()))
+
+                def group_top(group_id="general_options"):
+                    return header(group_id).mapToItem(card, QPointF(0, 0)).y()
+
+                def assert_live_geometry(check_pixels=True):
+                    # The immutable rendered frame and its item geometry are
+                    # sampled together, without advancing the event loop.
+                    frame = window.grabWindow() if check_pixels else None
+                    overlay_map = variant_value(canvas.property("liveNodeGeometry"))
+                    assert signal_id in overlay_map, (
+                        "missing-live-overlay", check_pixels, card.property("settingsGroupAnimationRunning"),
+                        card.property("_settingsGroupAnimationArmed"), card.property("_settingsGroupGeometryNodeId"),
+                        card.width(), card.height(), node.expanded_settings_group_ids, overlay_map)
+                    overlay = overlay_map[signal_id]
+                    assert overlay["settingsGroupAnimation"]
+                    assert abs(overlay["width"] - card.width()) < 0.1
+                    assert abs(overlay["height"] - card.height()) < 0.1
+                    assert not card.property("_liveGeometryActive")
+                    payload = variant_value(card.property("nodeData"))
+                    node_map = variant_value(edge_layer._nodeMap())
+                    edges = {edge["edge_id"]: edge for edge in scene.edges_model}
+                    for edge_id, prefix, port_key in (
+                        (output_edge, "s", "image"), (input_edge, "t", "show_legend"),
+                        (second_input_edge, "t", "labels"),
+                    ):
+                        geometry = variant_value(edge_layer._edgeGeometry(edges[edge_id], node_map))
+                        port = next((item for item in named_child_items(card,
+                            "graphNodeOutputPortDot" if prefix == "s" else "graphNodeInputPortDot")
+                            if item.property("propertyKey") == port_key), None)
+                        assert port is not None and port.isVisible(), (port_key, node.expanded_settings_group_ids)
+                        center = port.mapToItem(card, QPointF(port.width()/2, port.height()/2))
+                        rendered = variant_value(edge_layer.edgeEndpointScenePoint(
+                            edge_id, "source" if prefix == "s" else "target"))
+                        assert abs(rendered["x"] - (payload["x"] + center.x())) < 0.1, (
+                            "rendered-x", port_key, rendered, center, edge_layer.property("_activeEdgeRendererKind"))
+                        assert abs(rendered["y"] - (payload["y"] + center.y())) < 0.1, (
+                            "rendered-y", port_key, rendered, center, edge_layer.property("_activeEdgeRendererKind"))
+                        if prefix == "t" and frame is not None:
+                            t = 0.94
+                            curve_x = ((1-t)**3*geometry["sx"] + 3*(1-t)**2*t*geometry["c1x"]
+                                + 3*(1-t)*t*t*geometry["c2x"] + t**3*geometry["tx"])
+                            curve_y = ((1-t)**3*geometry["sy"] + 3*(1-t)**2*t*geometry["c1y"]
+                                + 3*(1-t)*t*t*geometry["c2y"] + t**3*geometry["ty"])
+                            screen = QPointF(edge_layer.sceneToScreenX(curve_x), edge_layer.sceneToScreenY(curve_y))
+                            scale = frame.width() / window.width()
+                            pixels = [frame.pixelColor(round((screen.x() + dx)*scale),
+                                round((screen.y() + dy)*scale))
+                                for dx in range(-1, 2) for dy in range(-1, 2)]
+                            assert any(min(color.red(), color.green(), color.blue()) > 110
+                                and max(color.red(), color.green(), color.blue())
+                                    - min(color.red(), color.green(), color.blue()) < 50
+                                for color in pixels), ("painted-wire-at-socket", port_key, screen)
+                        if edge_layer.property("_activeEdgeRendererKind") == "retained_qml":
+                            retained = canvas.findChild(QObject, "graphCanvasEdgeRetainedLayer")
+                            entries = []
+                            pending = [retained]
+                            while pending:
+                                item = pending.pop()
+                                pending.extend(item.childItems())
+                                entries.append(variant_value(item.property("edgeEntry")))
+                            entry = next(value for value in entries
+                                if isinstance(value, dict) and value.get("edgeId") == edge_id)
+                            screen = port.mapToScene(QPointF(port.width()/2, port.height()/2))
+                            assert abs(entry[prefix + "x"] - screen.x()) < 0.1
+                            assert abs(entry[prefix + "y"] - screen.y()) < 0.1
+                        assert 0 <= center.y() <= card.height(), (port_key, center.y(), card.height())
+                        assert abs(geometry[prefix + "x"] - (payload["x"] + center.x())) < 0.1
+                        assert abs(geometry[prefix + "y"] - (payload["y"] + center.y())) < 0.1, (
+                            port_key, geometry, center.y(), overlay)
+
+                def assert_finished():
+                    QTest.qWait(220)
+                    assert not card.property("settingsGroupAnimationRunning")
+                    assert not card.property("_settingsGroupAnimationArmed")
+                    assert card.property("_settingsGroupGeometryNodeId") == ""
+                    assert signal_id not in variant_value(canvas.property("liveNodeGeometry"))
+                    payload = variant_value(card.property("nodeData"))
+                    assert abs(card.width() - payload["width"]) < 0.1
+                    assert abs(card.height() - payload["height"]) < 0.1
+                    assert (node.custom_width, node.custom_height) == persisted_size
+                    if not node.expanded_settings_group_ids:
+                        assert not any(item.property("propertyKey") in ("show_legend", "labels")
+                            for item in named_child_items(card, "graphNodeInputPortDot"))
+
+                collapsed = (card.width(), card.height())
+                first_header_top = group_top()
+                second_header_top = group_top("signal_plot_options")
+                assert not card.property("settingsGroupAnimationRunning")
+                click_header()
+                target = variant_value(card.property("nodeData"))
+                QTest.qWait(60)
+                assert collapsed[0] < card.width() < target["width"], (collapsed, card.width(), target["width"])
+                assert collapsed[1] < card.height() < target["height"]
+                assert abs(group_top() - first_header_top) < 0.1
+                final_second_top = next(group["header"]["y"] for group in target["settings_groups"]
+                    if group["group_id"] == "signal_plot_options")
+                assert second_header_top < group_top("signal_plot_options") < final_second_top
+                assert_live_geometry()
+                clip = card.findChild(QObject, "graphNodePortsAnimationClip")
+                assert clip.property("clip") and abs(clip.height() - card.height()) < 0.1
+                default_editor = named_item(card, "graphNodeInputDefaultProperty", "width")
+                assert default_editor is not None and not default_editor.isEnabled()
+                for editor in named_child_items(card, "graphNodeInputDefaultProperty"):
+                    if editor.isVisible() and editor.height() > 0:
+                        bottom = editor.mapToItem(card, QPointF(0, editor.height())).y()
+                        assert bottom <= group_top("signal_plot_options") + 0.1
+                ancestor = default_editor.parentItem()
+                while ancestor is not None and ancestor is not clip:
+                    ancestor = ancestor.parentItem()
+                assert ancestor is clip
+                settings_clip = card.findChild(QObject, "graphNodeSettingsGroupsLayer")
+                assert settings_clip.property("clip")
+                assert_finished()
+
+                expanded = (card.width(), card.height())
+                click_header()
+                QTest.qWait(60)
+                assert collapsed[0] < card.width() < expanded[0]
+                assert collapsed[1] < card.height() < expanded[1]
+                assert abs(group_top() - first_header_top) < 0.1
+                assert second_header_top < group_top("signal_plot_options") < final_second_top
+                assert_live_geometry()
+                assert_finished()
+
+                click_header()
+                QTest.qWait(45)
+                click_header()
+                assert collapsed[0] < card.width() <= card.property("_settingsGroupStartWidth")
+                assert collapsed[1] < card.height() <= card.property("_settingsGroupStartHeight")
+                assert_finished()
+                assert (card.width(), card.height()) == collapsed
+
+                click_header()
+                assert_finished()
+                click_header()
+                QTest.qWait(45)
+                click_header()
+                captured_centers = variant_value(card.property("_settingsGroupStartPorts"))
+                assert card.property("settingsGroupAnimationRunning")
+                for key in ("show_legend", "labels"):
+                    port = named_item(card, "graphNodeInputPortDot", key)
+                    center = port.mapToItem(card, QPointF(port.width()/2, port.height()/2)).y()
+                    assert center >= captured_centers[key]
+                assert_live_geometry(check_pixels=False)
+                assert_finished()
+                click_header()
+                QTest.qWait(40)
+                card.resizePreviewChanged.emit(signal_id, -330.0, -390.0, 550.0, 850.0, True)
+                app.processEvents()
+                assert not card.property("settingsGroupAnimationRunning")
+                assert card.property("_liveGeometryActive")
+                manual = variant_value(canvas.property("liveNodeGeometry"))[signal_id]
+                assert "settingsGroupAnimation" not in manual
+                assert (card.width(), card.height()) == (550.0, 850.0)
+                card.resizePreviewChanged.emit(signal_id, -330.0, -390.0, 550.0, 850.0, False)
+                assert_finished()
+
+                click_header()
+                QTest.qWait(45)
+                graphics.graphics_lightweight_canvas = True
+                graphics.graphics_preferences_changed.emit()
+                app.processEvents()
+                assert not card.property("settingsGroupAnimationRunning"), (
+                    card.property("settingsGroupAnimationsEnabled"),
+                    card.property("_settingsGroupAnimationArmed"),
+                    card.width(), card.height())
+                assert_finished()
+                click_header()
+                assert not card.property("settingsGroupAnimationRunning")
+                assert_finished()
+                assert (card.width(), card.height()) == collapsed
+
+                graphics.graphics_lightweight_canvas = False
+                graphics.graphics_preferences_changed.emit()
+                click_header()
+                QTest.qWait(40)
+                assert_live_geometry()
+                card.cancelSettingsGroupAnimation()
+                assert_finished()
+
+                graphics.graphics_keep_expanded_node_width = True
+                graphics.graphics_preferences_changed.emit()
+                app.processEvents()
+                assert not card.property("settingsGroupAnimationRunning")
+                stable_width = card.width()
+                for _ in range(2):
+                    click_header()
+                    QTest.qWait(60)
+                    assert card.property("settingsGroupAnimationRunning")
+                    assert abs(card.width() - stable_width) < 0.1
+                    assert_live_geometry()
+                    assert_finished()
+
+                scene.set_node_property(signal_id, "labels", ["First", "Second"])
+                app.processEvents()
+                assert not card.property("settingsGroupAnimationRunning")
+                assert signal_id not in variant_value(canvas.property("liveNodeGeometry"))
+
+                scene.clear_selection()
+                click_header()
+                QTest.qWait(60)
+                assert_live_geometry()
+                assert edge_layer.property("_activeEdgeRendererKind") == "retained_qml"
+                assert_finished()
+                click_header()
+                assert_finished()
+
+                click_header()
+                QTest.qWait(40)
+                assert signal_id in variant_value(canvas.property("liveNodeGeometry"))
+                scene.remove_node(signal_id)
+                QTest.qWait(80)
+                assert signal_id not in variant_value(canvas.property("liveNodeGeometry"))
+            finally:
+                dispose_host_window(canvas, window)
+                app.setFont(previous_font)
+                QFontDatabase.removeApplicationFont(font_id)
+            ''',
+        )
+
     def test_signal_plot_title_and_shared_settings_group_animation_are_interactive(self) -> None:
         self._run_qml_probe(
             "signal-plot-shared-settings-animation",

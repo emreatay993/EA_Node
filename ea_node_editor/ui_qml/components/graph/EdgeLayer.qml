@@ -30,6 +30,7 @@ Item {
     property real dragDy: 0.0
     property int dragRevision: 0
     property var liveNodeGeometry: ({})
+    property bool _settingsGroupGeometryActive: false
     property var selectedNodeIds: sceneBridge ? (sceneBridge.selected_node_ids || []) : []
     property var selectedEdgeIds: []
     property var visibleSceneRectPayload: ({})
@@ -565,6 +566,10 @@ Item {
                 merged.width = liveWidth;
             if (isFinite(liveHeight) && liveHeight > 0.0)
                 merged.height = liveHeight;
+            if (overlay.settingsGroupAnimation) {
+                merged.settingsGroupLayoutHeight = overlay.settingsGroupLayoutHeight;
+                merged.settingsGroupPortOffsets = overlay.settingsGroupPortOffsets;
+            }
             byId[liveNodeId] = merged;
             hasOverlay = true;
         }
@@ -613,7 +618,13 @@ Item {
             if (String(port.key || "") === String(portKey)) {
                 if (isLockedPlaceholder)
                     return GraphNodeSurfaceMetrics.portScenePointForPort(node, port, 0, 0);
-                return GraphNodeSurfaceMetrics.portScenePointForPort(node, port, inputRow, outputRow);
+                var point = GraphNodeSurfaceMetrics.portScenePointForPort(
+                    node, port, inputRow, outputRow, node.width,
+                    node.settingsGroupLayoutHeight !== undefined ? node.settingsGroupLayoutHeight : node.height
+                );
+                point.y += Number(node.settingsGroupPortOffsets
+                    ? node.settingsGroupPortOffsets[String(port.key)] || 0 : 0);
+                return point;
             }
             var direction = GraphNodeSurfaceMetrics.portLayoutDirection(port);
             if (direction === "in")
@@ -1168,7 +1179,25 @@ Item {
         requestRedraw();
     }
     onDragRevisionChanged: { markActiveNodeGeometryDirty(); requestRedraw(); }
-    onLiveNodeGeometryChanged: { markActiveNodeGeometryDirty(); requestRedraw(); }
+    onLiveNodeGeometryChanged: {
+        markActiveNodeGeometryDirty();
+        var animationActive = false;
+        var geometry = liveNodeGeometry || ({});
+        for (var nodeId in geometry) {
+            if (geometry[nodeId] && geometry[nodeId].settingsGroupAnimation) {
+                animationActive = true;
+                break;
+            }
+        }
+        // Canvas paint can precede deferred callbacks. Refresh the incident
+        // edge snapshots now so the next paint uses this frame's socket poses.
+        if (animationActive || _settingsGroupGeometryActive)
+            requestImmediateRedraw();
+        else
+            requestRedraw();
+        _settingsGroupGeometryActive = animationActive;
+    }
+
     onVisibleSceneRectPayloadChanged: markViewportDirty()
     onSelectedEdgeIdsChanged: { markSelectionDirty(); requestRedraw(); }
     onWireSelectionModeHeldChanged: { markSelectionDirty(); requestRedraw(); }

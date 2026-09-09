@@ -50,6 +50,9 @@ Item {
     readonly property var portPoint: host
         ? host.localPortPointForPort(direction, rowIndex, portData)
         : ({"x": 0.0, "y": 0.0})
+    readonly property var portLayoutPoint: host
+        ? host.localPortLayoutPointForPort(direction, rowIndex, portData)
+        : portPoint
     readonly property real dotDiameter: portDot.width
     readonly property real metricRowHeight: portsLayer
         ? portsLayer._resolvedPortRowHeight()
@@ -63,7 +66,7 @@ Item {
     objectName: isInput ? "graphNodeInputPortRow" : "graphNodeOutputPortRow"
     x: 0
     y: isInput
-        ? portPoint.y - (portsLayer
+        ? portLayoutPoint.y - (portsLayer
             ? portsLayer._defaultEditorAnchorOffset(defaultProperty, height)
             : 0)
         : portPoint.y - height * 0.5
@@ -685,6 +688,7 @@ Item {
             ? standardAvailableWidth
             : rawAvailableWidth
         visible: !row.portsLayer.hostLockedPlaceholder
+            && !Boolean(row.portData.settings_group_transition_only)
             && (!row.isInput || !row.labelOwnedBySettings)
             && (row.host ? (row.host._portLabelsVisible || lockedState) : true)
         anchors.verticalCenter: parent.verticalCenter

@@ -57,6 +57,9 @@ Item {
                 "height": Number(groupData.header_height || 0)
             })
             readonly property bool expanded: Boolean(groupData.expanded)
+            readonly property real animationYOffset: root.host
+                ? Number(root.host.settingsGroupOffsets[String(groupData.group_id)] || 0)
+                : 0
             readonly property real interactiveGeometryKey: {
                 var total = headerRow.x + headerRow.y + headerRow.width + headerRow.height;
                 total += headerRow.visible && headerMouse.enabled ? 1 : 0;
@@ -69,7 +72,9 @@ Item {
             }
 
             width: root.width
-            height: root.height
+            height: root.host && root.host.settingsGroupAnimationRunning
+                ? root.host.settingsGroupContentBottom(String(groupData.group_id)) : root.height
+            clip: Boolean(root.host && root.host.settingsGroupAnimationRunning)
 
             function currentInteractiveRects() {
                 var lists = [];
@@ -104,8 +109,10 @@ Item {
                 objectName: "graphNodeSettingsGroupHeader"
                 property string groupId: String(groupItem.groupData.group_id || "")
                 x: Number(groupItem.headerData.x || 0)
-                y: Number(groupItem.headerData.y || 0) + root.bandYOffset
+                y: Number(groupItem.headerData.y || 0) + root.bandYOffset + groupItem.animationYOffset
                 width: {
+                    if (root.host && root.host.settingsGroupAnimationRunning)
+                        return Math.max(0, groupItem.width - x);
                     var numeric = Number(groupItem.headerData.width);
                     return isFinite(numeric) && numeric > 0 ? numeric : groupItem.width;
                 }
@@ -260,7 +267,7 @@ Item {
                         return total;
                     }
                     x: 0
-                    y: Number(itemData.y || 0) + root.bandYOffset
+                    y: Number(itemData.y || 0) + root.bandYOffset + groupItem.animationYOffset
                     width: groupItem.width
                     height: Math.max(0, Number(itemData.height || 0))
                     visible: groupItem.expanded && Boolean(itemData.visible)
