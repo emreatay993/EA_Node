@@ -87,6 +87,21 @@ exit cleanly before its timeout, so modal startup error dialogs fail the build.
 
 ## Useful First Checks
 
+To compare Model Viewer environments across machines, run the
+[viewer environment diagnostic script](../scripts/diagnose_viewer_environment.py)
+from the repository root:
+
+```powershell
+.\venv\Scripts\python.exe .\scripts\diagnose_viewer_environment.py
+```
+
+Use the same Python executable that launches COREX; replace the interpreter path
+above if needed. Copy the complete output, including the Python executable and
+version, free-threaded build flag, viewer package versions, repository revision,
+and `pip check` results. The script uses only the standard library and does not
+install packages, load the viewer, or change configuration. Exit code `1` means
+`pip check` failed or could not run; the rest of the report is still printed.
+
 Start an implementation with the smallest route-owned test that proves the
 changed behavior. Use `scripts/nav.py` to find the owning tests and commands:
 
