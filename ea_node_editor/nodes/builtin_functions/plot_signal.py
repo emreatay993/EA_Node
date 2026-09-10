@@ -132,7 +132,7 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     "values",
     value_type=float,
     _accepted_data_types=(
-        "COREX.DataTypes.Int", "COREX.DataTypes.GraphArray",
+        "COREX.DataTypes.Int", "COREX.DataTypes.String", "COREX.DataTypes.GraphArray",
         "COREX.DataTypes.ArrayValue", "COREX.DataTypes.TableValue", "COREX.DataTypes.SeriesValue",
         "COREX.Runtime.TabularDataRef", "COREX.Runtime.TabularWindowRef",
         "COREX.Runtime.ArrayDataRef", "COREX.Runtime.ArraySlice2DRef",
@@ -140,7 +140,7 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     structure="tree",
     required=True,
     label="Values",
-    description="Numeric tree branches, vectors, matrices, scientific tables or tabular/array references.",
+    description="Numeric or numeric-text tree branches, vectors, matrices, scientific tables or tabular/array references.",
 )
 @corex.interval(
     "x_axis_interval",

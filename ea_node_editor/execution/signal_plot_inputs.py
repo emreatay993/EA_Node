@@ -118,6 +118,35 @@ def _array_columns(array: np.ndarray) -> _Columns:
     )
 
 
+def _plain_numeric_column(samples: Sequence[Any]) -> tuple[np.ndarray, str]:
+    present = [
+        item
+        for item in samples
+        if item is not None and not (isinstance(item, str) and not item.strip())
+    ]
+    if present and all(isinstance(item, (bool, np.bool_)) for item in present):
+        return np.asarray(samples, dtype=object), "boolean"
+    if any(isinstance(item, (bool, np.bool_)) for item in present):
+        return np.asarray(samples, dtype=object), "other"
+    if not all(isinstance(item, (str, Real)) for item in present):
+        return np.asarray(samples, dtype=object), "other"
+    if not any(isinstance(item, str) for item in present) and len(present) == len(samples):
+        return np.asarray(samples), "numeric"
+    try:
+        numeric = np.asarray(
+            [
+                np.nan
+                if item is None or isinstance(item, str) and not item.strip()
+                else float(item)
+                for item in samples
+            ],
+            dtype=np.float64,
+        )
+    except (TypeError, ValueError):
+        return np.asarray(samples, dtype=object), "other"
+    return numeric, "numeric"
+
+
 def _plain_columns(value: Sequence[Any]) -> _Columns:
     try:
         raw = np.asarray(value, dtype=object)
@@ -135,16 +164,9 @@ def _plain_columns(value: Sequence[Any]) -> _Columns:
     arrays, kinds = {}, []
     for i in range(width):
         samples = list(raw if raw.ndim == 1 else raw[:, i])
-        present = [item for item in samples if item is not None]
-        if present and all(isinstance(item, (bool, np.bool_)) for item in present):
-            kind = "boolean"
-        elif all(isinstance(item, Real) and not isinstance(item, (bool, np.bool_)) for item in present):
-            kind = "numeric"
-        else:
-            kind = "other"
+        arrays[i], kind = _plain_numeric_column(samples)
         if raw.ndim == 1 and kind != "numeric":
             raise ValueError("Values sequences must contain real numeric samples or missing values, without Boolean samples")
-        arrays[i] = np.asarray(samples, dtype=np.float64 if len(present) != len(samples) else None) if kind == "numeric" else np.asarray(samples, dtype=object)
         kinds.append(kind)
     return _Columns((None,) * width, tuple(kinds), lambda positions: {i: arrays[i] for i in positions}, indexed=raw.ndim == 1)
 
@@ -331,7 +353,12 @@ def normalize_signal_inputs(
     sources = []
     if isinstance(values, DataTree):
         for _path, items in values.branches:
-            if not items or all(item is None or isinstance(item, Real) and not isinstance(item, (bool, np.bool_)) for item in items):
+            if not items or all(
+                item is None
+                or isinstance(item, str)
+                or isinstance(item, Real) and not isinstance(item, (bool, np.bool_))
+                for item in items
+            ):
                 sources.append(items)
             else:
                 sources.extend(items)

@@ -40,6 +40,24 @@ def test_one_dimensional_values_use_sample_indices(value):
     assert not trace.y.flags.writeable
 
 
+def test_numeric_text_sequences_and_tree_branches_are_coerced_to_numbers():
+    trace, = normalize_signal_inputs(["1", " 2.5 ", "", None, "nan", "inf"])
+    np.testing.assert_array_equal(trace.x, [0, 1, 2, 3, 4, 5])
+    np.testing.assert_allclose(
+        trace.y,
+        [1.0, 2.5, np.nan, np.nan, np.nan, np.inf],
+        equal_nan=True,
+    )
+
+    tree_trace, = normalize_signal_inputs(
+        DataTree({(0,): ("1", "2", "3", "7")})
+    )
+    np.testing.assert_array_equal(tree_trace.y, [1.0, 2.0, 3.0, 7.0])
+
+    blank_trace, = normalize_signal_inputs(["", None])
+    np.testing.assert_allclose(blank_trace.y, [np.nan, np.nan], equal_nan=True)
+
+
 def test_immutable_inputs_share_buffers_and_preserve_integer_precision(monkeypatch):
     array = ArrayValue.from_numpy(np.array([[2**60, 3], [2**60 + 1, 4]], dtype=np.int64))
     trace, = normalize_signal_inputs(array)
@@ -109,7 +127,7 @@ def test_gaps_and_log_validation_leave_source_samples_intact():
     (DataTree(), "at least one"),
     ([[1, 2], [3]], "rectangular"),
     (np.ones((2, 2, 2)), "one- or two-dimensional"),
-    (["1", "2"], "real numeric"),
+    (["1", "not-a-number"], "real numeric"),
     (np.array([1j, 2j]), "no numeric Y"),
     (pd.DataFrame({"a": [True, False]}), "no numeric Y"),
 ])
