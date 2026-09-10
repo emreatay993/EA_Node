@@ -14,14 +14,11 @@ dependency requirements.
 | Input | X | Y |
 | --- | --- | --- |
 | Numeric list, 1D ndarray or Series | Sample index | Values |
-| Numeric-text list or Panel Data branch | Sample index | Values converted to numbers |
 | One numeric matrix/table column | Sample index | That column |
 | Multiple matrix/table columns | First numeric or typed datetime column | Other numeric columns |
 | Numeric DataTree branches | Independent sample index per branch | One trace per branch |
 
-Plain sequences and Panel Data branches accept numeric text, including blank
-items as gaps. Non-numeric text still fails. Typed text and Boolean table
-columns are skipped in automatic mapping. Row order and missing
+Text and Boolean columns are skipped in automatic mapping. Row order and missing
 samples are preserved. A rectangular nested list inside one graph item is a
 matrix; numeric items in separate DataTree branches stay separate signals.
 Container items in a tree expand in branch/item order. Ragged matrices, arrays

@@ -48660,7 +48660,6 @@
           "side": "",
           "accepted_data_types": [
             "COREX.DataTypes.Int",
-            "COREX.DataTypes.String",
             "COREX.DataTypes.GraphArray",
             "COREX.DataTypes.ArrayValue",
             "COREX.DataTypes.TableValue",
@@ -48671,7 +48670,7 @@
             "COREX.Runtime.ArraySlice2DRef"
           ],
           "display_tier": "",
-          "description": "Numeric or numeric-text tree branches, vectors, matrices, scientific tables or tabular/array references.",
+          "description": "Numeric tree branches, vectors, matrices, scientific tables or tabular/array references.",
           "data_access": "tree"
         },
         {
@@ -50145,7 +50144,6 @@
         "side": "",
         "accepted_data_types": [
           "COREX.DataTypes.Int",
-          "COREX.DataTypes.String",
           "COREX.DataTypes.GraphArray",
           "COREX.DataTypes.ArrayValue",
           "COREX.DataTypes.TableValue",
@@ -50156,7 +50154,7 @@
           "COREX.Runtime.ArraySlice2DRef"
         ],
         "display_tier": "",
-        "description": "Numeric or numeric-text tree branches, vectors, matrices, scientific tables or tabular/array references.",
+        "description": "Numeric tree branches, vectors, matrices, scientific tables or tabular/array references.",
         "data_access": "tree"
       },
       {

@@ -78,8 +78,6 @@ Settings-section size transitions use shared 180 ms width/height animations with
 - Signal Plot declaration/execution is owned by `nodes/builtin_functions/plot_signal.py`,
   normalization/rendering by `execution/signal_plot_inputs.py` and `execution/signal_plot_renderer.py`,
   metadata-only selectors by `nodes/builtins/plot/signal_schema.py`, and navigation by the plotter route.
-  Its Values union includes String so numeric-text plain sequences and Panel Data branches are
-  coerced locally without treating typed tabular text columns as numeric.
 - Immutable scientific ArrayValue/TableValue/SeriesValue contracts and the bounded codec live in
   `runtime_contracts/scientific_values.py` and `scientific_codec.py`; native script/plugin boundaries
   preserve isolation without copying for each built-in reader. T04 pipeline/budget proof is owned by

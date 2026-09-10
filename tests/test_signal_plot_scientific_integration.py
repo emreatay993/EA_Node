@@ -17,7 +17,6 @@ from ea_node_editor.execution.runtime_requests import ExecutionRequest
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.builtins.data_control import PANEL_MODE_DATA
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import ImageValue
 from ea_node_editor.runtime_contracts.scientific_values import ArrayValue
@@ -150,7 +149,6 @@ def test_npy_reference_pipeline_honors_explicit_input_rows_and_repeats(tmp_path)
         "COREX.DataTypes.TableValue",
         "COREX.DataTypes.SeriesValue",
         "COREX.DataTypes.Any",
-        "COREX.DataTypes.String",
         "COREX.Runtime.TabularDataRef",
         "COREX.Runtime.TabularWindowRef",
         "COREX.Runtime.ArrayDataRef",
@@ -183,6 +181,7 @@ def test_scientific_and_reference_connections_are_legal(type_id):
 @pytest.mark.parametrize(
     "type_id",
     [
+        "COREX.DataTypes.String",
         "COREX.DataTypes.Image",
         "COREX.DataTypes.Path",
         "COREX.DataTypes.Bool",
@@ -209,63 +208,6 @@ def test_signal_rejects_unrelated_declared_sources(type_id):
             target_node_id=plot.node_id,
             target_port_key="values",
         )
-
-
-def test_panel_numeric_text_runs_through_signal_plot_and_media_panel():
-    registry = build_default_registry(include_public_plugins=False)
-    model = GraphModel()
-    workspace_id = model.active_workspace.workspace_id
-    mutation = model.validated_mutations(workspace_id, registry)
-    panel = mutation.add_node(
-        type_id="data.panel",
-        title="Panel",
-        x=0,
-        y=0,
-        properties={"value": "1\n2\n3\n7", "mode": PANEL_MODE_DATA},
-    )
-    plot = mutation.add_node(type_id="plot.signal", title="Signal Plot", x=200, y=0)
-    media = mutation.add_node(type_id="media.panel", title="Media Panel", x=400, y=0)
-    mutation.add_edge(
-        source_node_id=panel.node_id,
-        source_port_key="output",
-        target_node_id=plot.node_id,
-        target_port_key="values",
-    )
-    mutation.add_edge(
-        source_node_id=plot.node_id,
-        source_port_key="image",
-        target_node_id=media.node_id,
-        target_port_key="source",
-    )
-    snapshot = build_runtime_snapshot(
-        model.project,
-        workspace_id=workspace_id,
-        registry=registry,
-    )
-    runtime = CorexRuntime(registry=registry)
-    try:
-        result = runtime.run(
-            ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace_id),
-            timeout=60,
-        )
-        assert result.status == "completed", (result.error, result.traceback)
-        settled = {
-            event["node_id"]: event
-            for event in result.events
-            if event.get("type") == "node_settled"
-        }
-        assert isinstance(
-            settled_item(settled[plot.node_id], "image", registry.data_types),
-            ImageValue,
-        )
-        assert isinstance(
-            settled_item(
-                settled[media.node_id], "_surface_source", registry.data_types
-            ),
-            ImageValue,
-        )
-    finally:
-        runtime.shutdown()
 
 
 @pytest.mark.parametrize(
