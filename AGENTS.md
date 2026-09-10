@@ -3,7 +3,7 @@
 - Keep this file as an agent-facing map, not a full project manual. Put durable details in repo docs or executable scripts, then link to those sources here.
 - Prefer the project venv for all Python, PyQt6, Qt, pytest, QML, startup, smoke, and validation commands. The primary interpreter is `venv/Scripts/python.exe`, even from `bash`.
 - Canonical source/dev launch: `.\venv\Scripts\python.exe -m ea_node_editor.bootstrap`. Treat root scripts and `.\main.py` references as legacy/packaging context unless the task explicitly targets them.
-- Fresh setup: `py -3.10 -m venv venv`, then `.\venv\Scripts\python.exe -m pip install --upgrade pip`, then usually `.\venv\Scripts\python.exe -m pip install -e ".[all,dev]"`. `requirements.txt` is a convenience path, not separate dependency truth.
+- Fresh setup: `py -3.11 -m venv venv`, then `.\venv\Scripts\python.exe -m pip install --upgrade pip`, then usually `.\venv\Scripts\python.exe -m pip install -e ".[all,dev]"`. `requirements.txt` is a convenience path, not separate dependency truth.
 - Editable installs expose `corex-node-editor` and `corex-runtime`, but prefer the package-module launch command for source/dev sessions.
 
 ## Coding Communication Style
