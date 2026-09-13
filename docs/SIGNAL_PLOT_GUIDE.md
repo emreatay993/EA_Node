@@ -50,7 +50,7 @@ changes remain local in either mode.
 View changes do not run nodes while fullscreen is open. After a synchronized
 close, Auto mode follows normal graph execution; Manual mode needs a run to
 refresh the preview. Re-expanding an unchanged plot remembers its view and
-selection for the current project session. Changed data, conflicting authored
+selection and probes for the current project session. Changed data, conflicting authored
 settings, and project replacement invalidate that temporary state. Plot results
 are not stored as durable project results: run the workflow after reopening to
 restore interactivity. Expanding a plot never rereads a source file or runs an
@@ -60,6 +60,47 @@ The [runnable example](../examples/signal_plot_scientific.README.md) generates
 CSV, NumPy and pandas workflows. NumPy and pandas must be installed in the chosen
 execution Python environment. Tabular formats retain their existing optional
 dependency requirements.
+
+## Cursor probes
+
+Open **Probe** beside Select, choose **Place vertical probe** or **Place horizontal
+probe**, and click the chart. The blue solid **X** cursor and amber dashed **Y**
+cursor can coexist. Placement opens the **Probes** drawer and restores your
+previous tool. Drag a labeled handle to move a cursor; dragging keeps a collapsed
+drawer collapsed. Wheel zoom, middle-button pan, fits and selection work around
+the handles without moving the cursor's data coordinate.
+
+Use the drawer's **Cursor** selector to choose which probe to inspect. Enter an
+exact **X/Y position**, select a reading method, or remove that cursor. Datetime
+X input is explicitly UTC, for example `2026-01-01T12:00:00.123Z`. Invalid input
+shows an inline error and preserves the last valid position. An off-screen cursor
+stays at its coordinate; the drawer explains that it is outside the visible window.
+
+| Reading method | Results |
+| --- | --- |
+| **Interpolated intersections** | Every crossing of visible line traces, interpolated in the plotted axis coordinates. Logarithmic Y uses logarithmic interpolation. Shared vertices appear once; coincident segments appear as overlap intervals. Gaps are never bridged and marker-only traces are not connected. |
+| **Nearest samples** | Actual samples nearest along the chosen cursor axis, restricted to the visible window, including equidistant ties. Logarithmic axes use plotted distance. Coordinates, original sample indices and signed sample-minus-cursor offsets are shown; datetime X offsets are milliseconds. |
+
+Intersections is the default when visible lines exist; otherwise nearest samples
+is used. Both methods follow legend visibility and inspect complete source data,
+regardless of display density or PNG point budgets. Results are ordered by signal
+and source position, with exact totals and **50 rows per page**. Sample indices
+in the table start at one. The current page's results are highlighted on the
+active cursor, and outdated rows are hidden while a query updates. Datetime plot
+positions use UTC milliseconds with representable fractional milliseconds;
+actual sample readouts retain the source timestamp's precision.
+
+The **Selection** and **Probes** drawer tabs keep their inspections separate.
+Use **Probe > Show results** to reopen the drawer or **Clear probes** to remove
+both cursors. Escape first cancels unfinished placement, handle dragging or an
+invalid coordinate edit, then closes a menu, the drawer or fullscreen. Choosing
+another tool cancels placement and activates that tool directly.
+
+Probe inspection never changes axis limits, creates an undo entry or executes
+upstream nodes. Coordinates and reading method are remembered for an unchanged
+plot during this project session, including an acknowledged range-only update.
+External edits, undo/redo, changed data and project replacement invalidate
+conflicting inspection state. Probes are not saved into the project.
 
 ## Automatic mapping
 

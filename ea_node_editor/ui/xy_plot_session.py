@@ -23,6 +23,7 @@ from ea_node_editor.ui.support.node_presentation import build_property_input_ove
 from ea_node_editor.ui.support.solution_output_cache import current_output_value
 from ea_node_editor.web_host.webengine import check_webengine_available
 from ea_node_editor.web_host.xy_assets import stage_xy_host_assets
+from ea_node_editor.web_host.xy_probe_contract import normalized_probe_state
 from ea_node_editor.web_host.xy_transport import XYPlotWorker, decode_request, normalized_axes, normalized_view_state
 
 RANGE_KEYS = {"x": ("x_axis_interval", "x_datetime_start", "x_datetime_end"), "y": ("y_axis_interval",)}
@@ -45,7 +46,8 @@ class XYPlotSession(QObject):
     toolbar_style_requested = pyqtSignal(str)
 
     def __init__(self, plot: PlotValue, initial: dict, sync_message: str, parent: QObject,
-                 *, toolbar_style: str = "icons_with_names", sync_axes: dict | None = None) -> None:
+                 *, toolbar_style: str = "icons_with_names", sync_axes: dict | None = None,
+                 probe_state: dict | None = None) -> None:
         super().__init__(parent)
         self.plot = plot
         self.token = uuid.uuid4().hex
@@ -54,7 +56,8 @@ class XYPlotSession(QObject):
         self._pending = 0
         self._initial = {"session": self.token, "state": initial, "sync_message": sync_message,
                          "authored_ranges": {"x": plot.settings.x_bounds, "y": plot.settings.y_bounds},
-                         "toolbar_style": toolbar_style, "sync_axes": sync_axes}
+                         "toolbar_style": toolbar_style, "sync_axes": sync_axes,
+                         "probe_state": normalized_probe_state(probe_state, logarithmic_y=plot.settings.logarithmic_y_axis)}
         self._cancelled = threading.Event()
         self._assets = tempfile.TemporaryDirectory(prefix="corex-xy-")
         destination = Path(self._assets.name)
@@ -219,12 +222,14 @@ class XYPlotSessionOwner(QObject):
         entry = self.cache.get(key)
         initial = {"ranges": {axis: list(bounds) for axis, bounds in
                               {"x": plot.settings.x_bounds, "y": plot.settings.y_bounds}.items() if bounds}, "selection": None}
+        probe_state = None
         if entry and entry["data"] == plot.data_signature and entry["render"] == plot.render_signature:
             if entry.get("expected_bounds") == {"x": plot.settings.x_bounds, "y": plot.settings.y_bounds}:
                 entry["settings"] = plot.settings_signature
                 entry.pop("expected_bounds", None)
             if entry.get("settings") == plot.settings_signature:
                 initial = copy.deepcopy(entry["state"])
+                probe_state = copy.deepcopy(entry.get("probe_state"))
                 self.cache.move_to_end(key)
             else:
                 self.cache.pop(key, None)
@@ -237,7 +242,7 @@ class XYPlotSessionOwner(QObject):
         style = self.toolbar_style_provider() if self.toolbar_style_provider else self.toolbar_style
         if type(style) is not str or style not in XY_TOOLBAR_STYLES:
             style = "icons_with_names"
-        self.active = XYPlotSession(plot, initial, message, self, toolbar_style=style, sync_axes=allowed)
+        self.active = XYPlotSession(plot, initial, message, self, toolbar_style=style, sync_axes=allowed, probe_state=probe_state)
         session = self.active
         session.toolbar_style_requested.connect(lambda value: self._set_toolbar_style(session, value))
         _, producer = self._node(plot)
@@ -266,6 +271,7 @@ class XYPlotSessionOwner(QObject):
             state = normalized_view_state(event["state"])
             changed = normalized_axes(event.get("changed_axes", []))
             automatic = normalized_axes(event.get("automatic", [])) & changed
+            probe_state = normalized_probe_state(event.get("probe_state"), logarithmic_y=plot.settings.logarithmic_y_axis)
         except (KeyError, TypeError, ValueError):
             return "", {}
         permissions = self.axis_permissions(plot)
@@ -290,7 +296,8 @@ class XYPlotSessionOwner(QObject):
         updates = {key: value for key, value in updates.items() if node.properties.get(key) != value}
         key = (plot.provenance.workspace_id, plot.provenance.node_id)
         self.cache[key] = {"data": plot.data_signature, "render": plot.render_signature,
-                           "settings": plot.settings_signature, "properties": copy.deepcopy(node.properties), "state": state}
+                           "settings": plot.settings_signature, "properties": copy.deepcopy(node.properties),
+                           "state": state, "probe_state": probe_state}
         self.cache.move_to_end(key)
         while len(self.cache) > 16:
             self.cache.popitem(last=False)

@@ -8,8 +8,11 @@ from pathlib import Path
 import shutil
 from xml.etree import ElementTree
 
-HOST_FILES = ("index.html", "host.js", "host.css", "gestures.js", "controls.js", "toolbar.js", "readouts.js")
-HOST_ICONS = ("fit-width", "fit-height", "zoom-fit", "fullscreen", "video-fit", "settings", "x", "chevron-down", "link", "format-list-bulleted")
+from ea_node_editor.web_host.xy_client import precise_xy_client
+
+HOST_FILES = ("index.html", "host.js", "host.css", "gestures.js", "controls.js", "toolbar.js", "readouts.js",
+              "probes.js", "probe_scheduler.js", "probe_coordinates.js", "probe_readouts.js")
+HOST_ICONS = ("fit-width", "fit-height", "zoom-fit", "fullscreen", "video-fit", "settings", "x", "chevron-down", "link", "format-list-bulleted", "focus")
 
 
 def stage_xy_host_assets(destination: Path) -> None:
@@ -30,4 +33,4 @@ def stage_xy_host_assets(destination: Path) -> None:
     html = destination / "index.html"
     html.write_text(html.read_text(encoding="utf-8").replace("<!--COREX_XY_ICONS-->", "\n".join(symbols)), encoding="utf-8")
     with resources.as_file(resources.files("xy").joinpath("static", "index.js")) as source:
-        shutil.copyfile(source, destination / "xy-widget.js")
+        (destination / "xy-widget.js").write_text(precise_xy_client(source.read_text(encoding="utf-8")), encoding="utf-8")

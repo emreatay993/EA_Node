@@ -6,8 +6,9 @@ import {createXYControls} from './controls.js';
 import {installMiddlePan} from './gestures.js';
 import {createToolbar} from './toolbar.js';
 import {createReadouts} from './readouts.js';
+import {createProbes} from './probes.js';
 
-let bridge, session, model, cleanup, controls, toolbar, readouts, middlePan;
+let bridge, session, model, cleanup, controls, toolbar, readouts, middlePan, probes;
 let baseline, completed, home, authored;
 let initializing = true, closing = false, gesture = false, restoringGesture = false, escapeForwarding = false;
 const changed = new Set(), automatic = new Set(), fitIntents = new Map();
@@ -48,7 +49,7 @@ class Model {
   }
   off(key, fn) {this.listeners.get(key)?.delete(fn);}
   emit(key, ...args) {for (const fn of [...(this.listeners.get(key) || [])]) fn(...args);}
-  send(message) {send({kind: 'message', message});}
+  send(message) {send({kind: 'message', message}); probes?.legendChanged(message);}
 }
 
 function describeMode() {
@@ -62,7 +63,9 @@ function describeMode() {
     'select-y': ['Select Y', 'Drag to select a Y range.'],
     none: ['Paused', 'Choose a navigation or selection tool.'],
   };
+  if (middlePan?.active) probes?.suspendHover();
   const [label, hint] = middlePan?.active ? ['Temporary pan', 'Release the middle button to resume your tool.'] :
+    probes?.status().mode ? [probes.status().mode, 'Click to pin; drag the labeled handle or enter an exact coordinate. Escape cancels placement.'] :
     descriptions[mode] || ['Preparing', 'Preparing the plot.'];
   readouts.setMode(label, hint + ' Wheel to zoom; hold the middle button and drag to pan temporarily.');
   if (chart()?.xy && !snapshot().selection) readouts.selection(emptySelection(), null);
@@ -120,6 +123,7 @@ function cancelGesture() {
   escapeForwarding = true;
   try {
     if (middlePan?.cancel()) {gesture = false; return true;}
+    if (probes?.cancelInteraction()) return true;
     if (gesture) {
       controls.canvas.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true}));
       gesture = false;
@@ -135,13 +139,15 @@ function cancelInteraction() {
 
 async function requestClose() {
   if (closing) return;
+  middlePan?.cancel();
+  probes?.prepareClose();
   cancelGesture();
   await frames(); // Flush the last completed native gesture, never its preview.
   const state = completed || baseline;
   if (!state) {send({kind: 'flush', state: {}, changed_axes: [], automatic: []}); return;}
   if (chart()) state.selection = snapshot().selection;
   closing = true;
-  send({kind: 'flush', state, changed_axes: [...changed], automatic: [...automatic]});
+  send({kind: 'flush', state, changed_axes: [...changed], automatic: [...automatic], probe_state: probes?.state()});
 }
 
 async function receive(event, initial) {
@@ -153,24 +159,28 @@ async function receive(event, initial) {
     const root = chart();
     if (!root?.xy) throw Error('XY renderer did not initialize.');
     home = snapshot();
-    root.addEventListener('xy:view_change', event => finishGesture(event.detail), {signal});
-    controls = createXYControls(root, {onReset: resetIntent});
-    controls.canvas.addEventListener('dblclick', () => {
-      if (['pan', 'zoom'].includes(controls.state().mode)) resetIntent();
-    }, {capture: true, signal});
+    root.addEventListener('xy:view_change', event => {finishGesture(event.detail); probes?.viewChanged(event.detail);}, {signal});
+    controls = createXYControls(root, {onReset: resetIntent, logarithmicY: event.probe_metadata.y_log});
     middlePan = installMiddlePan(root, {controls, onModeChange: describeMode, onCancel: state => {
       restoringGesture = true; gesture = false;
       root.xy.applyState(state, {animate: false, history: false});
       frames().then(() => {restoringGesture = false;});
     }});
+    probes = createProbes({root, controls, metadata: event.probe_metadata, initial: initial.probe_state,
+      send: query => send({kind: 'probe_query', ...query}), openPanel: () => readouts.showTab('probes'),
+      onChange: state => {readouts.probeCount(state.count); describeMode();}, temporaryPan: () => Boolean(middlePan?.active)});
+    controls.canvas.addEventListener('dblclick', () => {
+      if (['pan', 'zoom'].includes(controls.state().mode)) resetIntent();
+    }, {capture: true, signal});
     controls.canvas.addEventListener('pointerdown', () => {gesture = true;}, {signal});
     window.addEventListener('pointerup', () => {gesture = false;}, {signal});
     controls.subscribe(describeMode);
-    toolbar = createToolbar({controls, style: initial.toolbar_style, onFit: fitView,
+    toolbar = createToolbar({controls, probes, style: initial.toolbar_style, onFit: fitView,
       onStyle: value => bridge.set_toolbar_style(value), beforeAction: cancelGesture});
     root.xy.applyState(initial.state, {animate: false, history: false});
     await frames();
     baseline = snapshot(); completed = clone(baseline); initializing = false;
+    probes.start();
     controls.canvas.focus(); describeMode(); window.corexXY.ready = true;
   } else if (event.kind === 'reply') {
     model?.emit('msg:custom', event.message, decode(event.buffers));
@@ -183,6 +193,10 @@ async function receive(event, initial) {
     window.corexXY.selection = value;
   } else if (event.kind === 'presentation_error') {
     readouts.note(event.message, true);
+  } else if (event.kind === 'probe_result') {
+    probes?.receive(event.value);
+  } else if (event.kind === 'probe_error') {
+    probes?.receive(event, true);
   }
 }
 
@@ -197,7 +211,8 @@ new QWebChannel(qt.webChannelTransport, channel => {
   }});
   bridge.outbound.connect(raw => {receive(JSON.parse(raw), initial).catch(fail);});
   window.corexXY = {ready: false, requestClose, cancelInteraction, state: () => chart()?.xy.state(),
-    applyState: patch => chart()?.xy.applyState(patch, {animate: false}), home: () => home, selection: null};
+    applyState: patch => chart()?.xy.applyState(patch, {animate: false}), home: () => home, selection: null,
+    probeState: () => probes?.state()};
   send({kind: 'initialize'});
 });
 
@@ -208,5 +223,5 @@ window.addEventListener('keydown', event => {
 }, {capture: true, signal});
 window.addEventListener('pagehide', () => {
   closing = true;
-  lifetime.abort(); middlePan?.dispose(); toolbar?.dispose(); controls?.dispose(); readouts?.dispose(); cleanup?.();
+  lifetime.abort(); middlePan?.dispose(); toolbar?.dispose(); probes?.dispose(); controls?.dispose(); readouts?.dispose(); cleanup?.();
 }, {once: true});

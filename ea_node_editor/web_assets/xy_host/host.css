@@ -65,3 +65,29 @@ html, body {height: 100%; margin: 0; background: #fff; color: #26354a; font: 13p
 
 .corex-xy-chart {--chart-selection: #2563eb; --chart-selection-fill: rgba(37,99,235,.10); --chart-zoom-selection: #b45309; --chart-zoom-selection-fill: rgba(217,119,6,.10);}
 .corex-xy-chart [data-xy-slot="modebar"] {display: none !important;}
+
+/* Probe chrome is clipped to the native data canvas and never intercepts input. */
+.probe-overlay {position:absolute;pointer-events:none;overflow:hidden;z-index:4;}
+.corex-xy-chart.xy-probing [data-xy-slot="crosshair_x"], .corex-xy-chart.xy-probing [data-xy-slot="crosshair_y"], .corex-xy-chart.xy-probing [data-xy-slot="tooltip"] {display:none!important;}
+.probe-axis-x {color:#2563eb;font-weight:600;}
+.probe-axis-y {color:#b77916;font-weight:600;}
+#inspection-tabs {display:flex;gap:4px;}
+#inspection-tabs [aria-selected="true"] {background:#e9f2ff;color:#225dab;}
+.probe-panel {display:flex;flex-direction:column;min-height:0;padding:0 10px 6px;}
+#inspection:has(#probe-panel:not([hidden])) {height:min(270px,36vh);max-height:min(270px,36vh);}
+.probe-fields {display:grid;grid-template-columns:120px minmax(130px,1fr) 190px 27px;gap:8px;align-items:end;flex:none;}
+.probe-fields label {display:flex;flex-direction:column;gap:3px;min-width:0;font-size:11px;color:#586b83;}
+.probe-fields input, .probe-fields select {box-sizing:border-box;width:100%;min-width:0;height:28px;padding:3px 6px;border:1px solid #cbd7e6;border-radius:5px;background:#fff;color:#26354a;font:12px 'Segoe UI',sans-serif;}
+.probe-fields input:focus-visible, .probe-fields select:focus-visible {outline:2px solid #3675c8;outline-offset:1px;}
+.probe-fields input[aria-invalid="true"] {border-color:#b64532;}
+.probe-validation {flex:none;color:#ac3325;font-size:11px;}
+.probe-validation:empty {display:none;}
+.probe-status {flex:none;max-height:36px;overflow:auto;font-size:11px;color:#62738a;padding:4px 0;}
+.probe-status.is-warning {color:#a16c13;}
+.probe-results {min-height:0;flex:1;}
+.probe-results table {border-collapse:collapse;width:100%;white-space:nowrap;font-size:11px;font-variant-numeric:tabular-nums;}
+.probe-results th,.probe-results td {padding:4px 7px;border-bottom:1px solid #e6ecf3;text-align:left;}
+.probe-results th {position:sticky;top:0;background:#f1f5fa;color:#63738a;font-weight:600;}
+.probe-pager {display:flex;align-items:center;gap:8px;flex:none;font-size:11px;color:#63738a;padding-top:3px;}
+#probe-next {margin-left:auto;}
+@media(max-width:700px) {.probe-fields {grid-template-columns:1fr 1fr;gap:5px;} .probe-fields label:has(#probe-method) {grid-column:1;}.probe-fields #probe-remove {justify-self:end;}}

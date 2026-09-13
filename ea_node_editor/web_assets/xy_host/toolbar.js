@@ -63,7 +63,7 @@ const SELECTIONS = [
   ['select-x', 'Select X range'], ['select-y', 'Select Y range'],
 ];
 
-export function createToolbar({controls, style, onFit, onStyle, beforeAction}) {
+export function createToolbar({controls, probes, style, onFit, onStyle, beforeAction}) {
   const host = document.getElementById('toolbar');
   host.replaceChildren();
   const lifetime = new AbortController();
@@ -188,14 +188,37 @@ export function createToolbar({controls, style, onFit, onStyle, beforeAction}) {
   for (const [mode, element] of [['pan', pan], ['zoom', zoom]]) {
     element.setAttribute('aria-pressed', 'false');
     element.addEventListener('click', () => {
-      closeMenu(false); beforeAction(); controls.setTool(controls.state().mode === mode ? 'none' : mode);
+      const desired = controls.state().mode === mode ? 'none' : mode;
+      closeMenu(false); beforeAction(); controls.setTool(desired);
     }, {signal});
   }
   const select = button('selection', 'Select', 'Choose a selection tool to inspect original samples.', 'select', true);
   const view = button('view', 'Zoom', 'Zoom steps, view history and reset.', 'zoomin', true);
-  navigation.append(pan, zoom, select, view);
+  const probe = button('probe', 'Probe', 'Place vertical or horizontal cursors and inspect full-resolution trace readings.', 'focus');
+  navigation.append(pan, zoom, select, probe, view);
   const selectMenu = menu('selection', 'Selection tools', select);
   for (const [mode, label] of SELECTIONS) item(selectMenu, mode, label, () => controls.setTool(mode), true);
+  const probeMenu = menu('probe', 'Cursor probes', probe);
+  for (const [axis, label] of [['x', 'Place vertical probe'], ['y', 'Place horizontal probe']]) {
+    const entry = item(probeMenu, 'probe-' + axis, label, () => probes.place(axis));
+    entry.firstChild.textContent = axis.toUpperCase(); entry.firstChild.classList.add('probe-axis-' + axis);
+  }
+  for (const [value, label] of [['intersections', 'Interpolated intersections'], ['nearest', 'Nearest samples']]) {
+    const entry = item(probeMenu, 'probe-' + value, label, () => probes.setMethod(value), true);
+    entry.dataset.probeMethod = value; entry.firstChild.classList.add('radio-indicator');
+  }
+  const showProbes = item(probeMenu, 'probe-results', 'Show results', () => probes.show());
+  showProbes.firstChild.replaceWith(fileIcon('format-list-bulleted'));
+  const clearProbes = item(probeMenu, 'probe-clear', 'Clear probes', () => probes.clear());
+  clearProbes.firstChild.replaceWith(fileIcon('x'));
+  const unsubscribeProbes = probes.subscribe(state => {
+    probe.setAttribute('aria-pressed', String(state.busy));
+    clearProbes.disabled = !state.count && !state.busy;
+    for (const entry of probeMenu.querySelectorAll('[data-probe-method]')) {
+      entry.setAttribute('aria-checked', String(entry.dataset.probeMethod === state.method));
+      entry.disabled = entry.dataset.probeMethod === 'intersections' && !state.hasLines;
+    }
+  });
   const viewMenu = menu('view', 'View navigation', view);
   for (const [key, label] of [['back', 'Previous view'], ['forward', 'Next view'], ['zoomin', 'Zoom in'], ['zoomout', 'Zoom out'], ['reset', 'Reset view and selection']]) {
     item(viewMenu, key, label, () => controls.perform(key));
@@ -276,7 +299,7 @@ export function createToolbar({controls, style, onFit, onStyle, beforeAction}) {
   return {
     cancelInteraction() {tooltips.hide(); return closeMenu();},
     dispose() {
-      unsubscribe(); lifetime.abort(); tooltips.dispose();
+      unsubscribe(); unsubscribeProbes(); lifetime.abort(); tooltips.dispose();
       for (const popup of menus.values()) popup.remove();
       host.replaceChildren();
     },

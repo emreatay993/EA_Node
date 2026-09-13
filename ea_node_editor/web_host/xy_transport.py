@@ -13,6 +13,7 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 
 from ea_node_editor.runtime_contracts import PlotValue
 from ea_node_editor.runtime_contracts.scientific_values import SCIENTIFIC_OPERATION_MAX_BYTES
+from ea_node_editor.web_host.xy_probe_contract import normalized_probe_state, probe_metadata, signal_label
 
 MAX_MESSAGE_BYTES = 1024 * 1024
 MAX_POLYGON_POINTS = 2048
@@ -67,6 +68,7 @@ def decode_request(raw: str) -> dict[str, Any]:
         raise ValueError("Plot request must be an object")
     if request.get("kind") == "flush":
         normalized_view_state(request.get("state", {}))
+        normalized_probe_state(request.get("probe_state"))
         for key in ("changed_axes", "automatic"):
             normalized_axes(request.get(key, []))
     message = request.get("message")
@@ -119,18 +121,13 @@ def selection_summary(plot: PlotValue, mark_ids: tuple[str, ...], selection: Any
         if not count:
             continue
         total += count
-        label = _effective_label(plot, signal_number - 1)
+        label = signal_label(plot, signal_number - 1)
         summaries.append({"signal": signal.signal_id, "label": label, "count": count,
                           "y_mean": float(np.mean(y)), "y_min": float(np.min(y)), "y_max": float(np.max(y))})
         for index, xv, yv in zip(indices[:max(0, PREVIEW_ROWS-len(rows))], x, y):
             rows.append({"signal": signal.signal_id, "label": label, "index": int(index),
                          "x": str(xv) + "Z" if signal.x_kind == "datetime" else float(xv), "y": float(yv)})
     return {"count": total, "signals": summaries, "rows": rows, "preview_limit": PREVIEW_ROWS}
-
-
-def _effective_label(plot: PlotValue, index: int) -> str:
-    label = plot.settings.labels[index] if plot.settings.labels else plot.signals[index].label
-    return label or f"Signal {index + 1}"
 
 
 class XYPlotWorker(QObject):
@@ -144,6 +141,8 @@ class XYPlotWorker(QObject):
         self.cancelled = cancelled
         self.figure = None
         self.mark_ids = ()
+        self.probe_metadata = None
+        self.hidden_marks: set[int] = set()
 
     def emit_event(self, kind: str, **values: Any) -> None:
         if not self.cancelled.is_set():
@@ -167,7 +166,8 @@ class XYPlotWorker(QObject):
                 self.figure.height = "100%"
                 spec, buffers = self.figure.build_payload_split()
                 spec["interaction"] = {**spec.get("interaction", {}), "_transport_view_change": True}
-                self.emit_event("mount", spec=spec, buffers=pack_buffers(buffers))
+                self.probe_metadata = probe_metadata(self.plot, self.mark_ids, [trace.kind for trace in self.figure.traces])
+                self.emit_event("mount", spec=spec, buffers=pack_buffers(buffers), probe_metadata=self.probe_metadata)
             elif kind == "message" and self.figure is not None:
                 from xy.channel import ChannelCallbacks, handle_message
 
@@ -179,9 +179,31 @@ class XYPlotWorker(QObject):
                 if reply is not None:
                     message, buffers = reply
                     self.emit_event("reply", message=message, buffers=pack_buffers(buffers))
+                message = request["message"]
+                if message.get("type") == "legend_toggle" and message.get("category") is None:
+                    trace, hidden = message.get("trace"), message.get("hidden")
+                    if type(trace) is int and 0 <= trace < len(self.mark_ids) and type(hidden) is bool:
+                        if hidden:
+                            self.hidden_marks.add(trace)
+                        else:
+                            self.hidden_marks.discard(trace)
+            elif kind == "probe_query" and self.figure is not None:
+                from ea_node_editor.web_host.xy_probes import ProbeCancelled, query_probe
+                marks = [mark for mark in self.probe_metadata["marks"] if mark["id"] not in self.hidden_marks]
+                try:
+                    result = query_probe(self.plot, request,
+                        visible_lines={mark["signal"] for mark in marks if mark["kind"] == "line"},
+                        visible_signals={mark["signal"] for mark in marks}, cancelled=self.cancelled.is_set)
+                    self.emit_event("probe_result", value=result)
+                except ProbeCancelled:
+                    return
+                except (ValueError, OverflowError) as error:
+                    self.emit_event("probe_error", revision=request.get("revision"), message=str(error))
             elif kind == "flush":
                 self.emit_event("flushed", state=normalized_view_state(request.get("state", {})),
-                                changed_axes=request.get("changed_axes", []), automatic=request.get("automatic", []))
+                                changed_axes=request.get("changed_axes", []), automatic=request.get("automatic", []),
+                                probe_state=normalized_probe_state(request.get("probe_state"),
+                                    logarithmic_y=self.plot.settings.logarithmic_y_axis))
         except Exception as error:  # boundary: report failures, never paint a stale figure
             self.emit_event("error", message=f"{type(error).__name__}: {error}")
         finally:
@@ -194,7 +216,7 @@ class XYPlotWorker(QObject):
             row["signal"] = self.mark_ids[trace]
             for number, signal in enumerate(self.plot.signals, 1):
                 if signal.signal_id == row["signal"]:
-                    row["label"] = _effective_label(self.plot, number - 1)
+                    row["label"] = signal_label(self.plot, number - 1)
                     if signal.x_kind == "datetime" and type(row.get("index")) is int:
                         row["x"] = str(signal.x.to_numpy()[row["index"]]) + "Z"
                     break

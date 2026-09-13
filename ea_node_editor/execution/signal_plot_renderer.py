@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 import xy
 
+from ea_node_editor.common.plot_coordinates import plot_x_coordinates
 from ea_node_editor.execution.plot_series_decimation import decimate_xy
 from ea_node_editor.execution.signal_plot_inputs import normalize_signal_inputs
 from ea_node_editor.runtime_contracts import (
@@ -227,7 +228,7 @@ def _prepare_signal_plot(inputs: Mapping[str, Any]) -> tuple[tuple[PlotSignal, .
         values = signal.y
         x_values = signal.x
         if datetime_x:
-            x_values = _xy_x_values(x_values, signal.x_kind)
+            x_values = plot_x_coordinates(x_values)
             finite_x = x_values[np.isfinite(x_values)]
             if len(finite_x):
                 datetime_extents.append((float(finite_x.min()), float(finite_x.max())))
@@ -280,23 +281,12 @@ def _prepare_signal_plot(inputs: Mapping[str, Any]) -> tuple[tuple[PlotSignal, .
     return tuple(normalized), settings, tuple(warnings)
 
 
-def _xy_x_values(values: np.ndarray, x_kind: str) -> np.ndarray:
-    if x_kind != "datetime":
-        return values
-    missing = np.isnat(values)
-    milliseconds = values.astype("datetime64[ms]")
-    fractional_ms = (values - milliseconds).astype("timedelta64[ns]").astype(np.float64) / 1_000_000
-    result = milliseconds.astype(np.float64) + fractional_ms
-    result[missing] = np.nan
-    return result
-
-
 def _build_chart(signals: tuple[PlotSignal, ...], settings: PlotSettings, *, preview: bool):
     """Build both renderers from the same owned normalized data and settings."""
     warnings: list[str] = []
     marks: list[Any] = []
     for index, signal in enumerate(signals):
-        x_values = _xy_x_values(signal.x.to_numpy(), signal.x_kind)
+        x_values = plot_x_coordinates(signal.x.to_numpy())
         values = signal.y.to_numpy()
         if preview and settings.max_points and len(values) > settings.max_points:
             x_values, values, reduction = decimate_xy(x_values, values, settings.max_points, preserve_gaps=True)

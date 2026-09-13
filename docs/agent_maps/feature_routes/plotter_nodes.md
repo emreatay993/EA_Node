@@ -17,12 +17,20 @@ Use this for plotter node planning, backend registry/static export work, generic
 - `ea_node_editor/execution/plot_series_decimation.py` — min-max envelope / stride sampling contract
 - `ea_node_editor/nodes/builtin_functions/plot_signal.py` — inert decorated Signal Plot declaration and worker function
 - `ea_node_editor/execution/signal_plot_renderer.py` — shared full-data normalization, PlotValue construction and PNG rendering
+- `ea_node_editor/common/plot_coordinates.py` — shared fractional UTC-millisecond coordinates for rendering and cursor inspection
 - `ea_node_editor/runtime_contracts/plot_value.py` — immutable full-data plot, preview and producer identity
 - `ea_node_editor/runtime_contracts/plot_codec.py` — bounded session-only plot transport
 - `ea_node_editor/ui/xy_plot_session.py` — fullscreen lifecycle, temporary view cache and guarded range writeback
 - `ea_node_editor/web_host/xy_transport.py` — worker-owned XY figures and canonical sample readouts
+- `ea_node_editor/web_host/xy_probe_contract.py` — lightweight query/state validation and logical trace metadata
+- `ea_node_editor/web_host/xy_probes.py` — chunked full-source intersections, overlaps and nearest-sample paging
 - `ea_node_editor/web_host/xy_assets.py` — bundled host assets and shared application SVG symbols
+- `ea_node_editor/web_host/xy_client.py` — guarded XY 0.0.6 affine GPU precision correction; no installed-package mutation
 - `ea_node_editor/web_assets/xy_host/` — offline browser client and temporary middle-button pan
+- `ea_node_editor/web_assets/xy_host/probes.js` — cursor gestures and clipped SVG overlays
+- `ea_node_editor/web_assets/xy_host/probe_scheduler.js` — one in-flight query, revisions and coalesced drag updates
+- `ea_node_editor/web_assets/xy_host/probe_coordinates.js` — numeric and explicit UTC coordinate editing
+- `ea_node_editor/web_assets/xy_host/probe_readouts.js` — active cursor, coordinate editor and paged results
 - `ea_node_editor/ui_qml/components/web/XYPlotHost.qml`
 - `ea_node_editor/execution/signal_plot_inputs.py` — aligned read-only scientific/ref X/Y normalization
 - `ea_node_editor/nodes/builtins/plot/signal_schema.py` — zero-I/O schema suggestions for shared property editors
@@ -52,6 +60,9 @@ Use this for plotter node planning, backend registry/static export work, generic
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_plot_node_contracts.py tests/test_plot_headless_export.py tests/test_registry_validation.py tests/test_passive_runtime_wiring.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest -n 0 tests/test_plot_value.py tests/test_xy_plot_transport.py tests/test_xy_plot_session.py tests/test_xy_fullscreen_bridge.py -q
+.\venv\Scripts\python.exe -m pytest -n 0 tests/test_xy_probes.py tests/test_xy_probe_scheduler.py -q
+.\venv\Scripts\python.exe -m pytest -n 0 tests/test_xy_client.py -q
+.\venv\Scripts\python.exe -m pytest -n 0 tests/test_xy_probe_qml.py -q
 .\venv\Scripts\python.exe -m tests.test_xy_plot_qml --probe
 .\venv\Scripts\python.exe -m tests.test_xy_fullscreen_shell --probe
 .\venv\Scripts\python.exe -m pytest tests/test_xy_interactive_showcase.py -q
@@ -75,9 +86,12 @@ $env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test
 ## Surface Ownership Notes
 - Signal Plot publishes `PlotValue` on the retained `image` output key (display label Plot). Its strict codec retains full normalized signals and producer provenance for the current session only; the catalog's shared Plot-to-Image conversion supplies the PNG preview to image consumers. PNG reduction remains independent of fullscreen data. Durable reuse and project-property persistence are rejected.
 - Media Panel recognizes the exact plot value, renders its PNG inline, and uses the dedicated QML XY host under `content_kind="media"` in fullscreen. Generic plot-node backends below remain separate. Expansion uses accepted values only and never executes or rereads a source.
-- `XYPlotSessionOwner` validates the accepted producer and execution state, retires late callbacks, caches bounded ranges/selection geometry, and applies optional `sync_fullscreen_ranges` changes only on normal close through one `GraphSceneBridge.set_node_properties` batch. Wired/locked ranges stay local-only. Reset/Fit intent clears automatic overrides even without numerical view changes; external changes invalidate cached state. Middle-button pan temporarily uses XY's native gesture path and restores the prior tool.
+- `XYPlotSessionOwner` validates the accepted producer and execution state, retires late callbacks, caches bounded ranges/selection geometry and separate scalar probe state, and applies optional `sync_fullscreen_ranges` changes only on normal close through one `GraphSceneBridge.set_node_properties` batch. Wired/locked ranges stay local-only. Reset/Fit intent clears automatic overrides even without numerical view changes; external changes invalidate cached state. Middle-button pan temporarily uses XY's native gesture path and restores the prior tool.
 - The visible Fit X/Y, Fit Data and Fit to Limits actions in `web_assets/xy_host/host.js` preserve selection and tool state. Axis fits reset only that axis to automatic on synchronized close; limits restoration cancels pending range edits. The session supplies authored bounds separately from cached initial ranges. Native QML checks cover repeated zero-delta fits, datetime/log axes and wrapping controls.
 - The single top toolbar is owned by `web_assets/xy_host/toolbar.js`; `controls.js` alone adapts XY's native mode/history/capability controls, including the shared temporary-pan path. `readouts.js` owns the compact status strip and opt-in selection drawer. SVG symbols reuse existing app icons. `graphics.plot.xy_toolbar_style` stores icons-with-names or icons-only presentation outside graph/project state. Desktop probes use the production QQuickWidget host and test menus, tooltips, keyboard focus, compact layout and close intent; the real-shell probe proves resizing and preference persistence without upstream execution.
+- Cursor inspection uses the Probe menu and Selection/Probes drawer tabs. `controls.js` maps data coordinates from the native data-canvas bounds, current ranges and logarithmic Y scale. `probes.js` clips SVG cursors and current-page highlights to that canvas; only labeled handles and explicit placement intercept pointer gestures. `probe_scheduler.js` permits one query in flight, coalesces updates at 10 Hz and rejects obsolete revisions. The worker computes exact visible-window results from canonical full-resolution signals in bounded NumPy chunks, respecting each rendered representation's visibility. Only the contract module is imported on the UI path; NumPy query logic stays worker-owned. PlotValue, project persistence and graph output contracts are unchanged.
+- `common/plot_coordinates.py` supplies the same fractional UTC-millisecond coordinates to rendering and probe calculations. `web_host/xy_client.py` corrects the bundled client's cartesian affine mapping so epoch offsets are subtracted before float32 GPU arithmetic; logarithmic/polar paths remain native. Asset staging validates the exact known methods and rejects unexpected client changes for explicit review. `tests/test_xy_client.py` covers the guard and GPU arithmetic; the probe GUI check verifies actual trace pixels across the viewport before creating overlays.
+- `tests/test_xy_probes.py` covers crossings, overlaps, shared vertices, gaps, nearest ties, visibility, datetime/log axes, an independent geometry oracle and million-point bounded paging. `tests/test_xy_probe_scheduler.py` checks request ordering, cancellation and strict coordinate parsing. `tests/test_xy_probe_qml.py` exercises actual production placement, dragging, editing, paging, legend changes and navigation coexistence. The shell check proves zero probe-only graph edits/runs, unchanged-plot and acknowledged range-only restoration, undo/redo invalidation, and project-reopen clearing.
 - `tests/test_xy_fullscreen_shell.py` exercises the real shell and worker: PNG/full-data output, native middle-button pan, one close-time undo entry, Manual/Auto behavior, and save/close/reopen followed by normal execution. The focused QML probe covers native interaction and rendering; both desktop probes are GUI-marked.
 - Signal Plot is the sole function-SDK plot conversion: its full grouped-control contract is statically parsed from the internal inert source and executed through the verified function bundle, while rendering remains execution-owned. The eight generated generic plots remain trusted descriptors.
 - The generic family contains eight retained nodes; `plot.line` is removed without alias or migration. Retained generic line-oriented fixtures use `plot.scatter`.

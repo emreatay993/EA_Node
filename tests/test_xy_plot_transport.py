@@ -86,3 +86,36 @@ def test_worker_million_point_query_generation_and_flush_order():
     worker.cancelled.set()
     worker.receive(json.dumps({"session": "session", "kind": "initialize"}))
     assert events[-1]["kind"] == "flushed"
+
+
+def test_probe_worker_visibility_errors_and_separate_flush_state():
+    from tests.test_xy_probes import request
+    worker = XYPlotWorker(plot_value(), "session", threading.Event())
+    events = []
+    worker.outbound.connect(lambda raw: events.append(json.loads(raw)))
+    def post(**value):
+        worker.receive(json.dumps({"session": "session", **value}))
+    post(kind="initialize")
+    assert [m["kind"] for m in events[-1]["probe_metadata"]["marks"]] == ["line", "scatter"]
+    post(kind="probe_query", **request())
+    assert events[-1]["value"]["total"] == 1
+    post(kind="message", message={"type": "legend_toggle", "trace": 0, "hidden": True})
+    post(kind="probe_query", **request())
+    assert events[-1]["value"]["counts"][0]["status"] == "no_line"
+    post(kind="probe_query", **request(method="nearest"))
+    assert events[-1]["value"]["total"] == 1
+    post(kind="message", message={"type": "legend_toggle", "trace": 1, "hidden": True})
+    post(kind="probe_query", **request(method="nearest"))
+    assert events[-1]["value"]["total"] == 0
+    post(kind="probe_query", **{**request(), "position": None})
+    assert events[-1]["kind"] == "probe_error" and events[-1]["revision"] == 7
+    assert worker.figure is not None
+    state = {"positions": {"x": 1, "y": .5}, "active": "y", "method": "nearest"}
+    post(kind="flush", state={"ranges": {"x": [0, 2]}}, probe_state=state)
+    assert events[-1]["probe_state"] == state
+    assert "probe_state" not in events[-1]["state"]
+    count = len(events)
+    worker.receive(json.dumps({"session": "retired", "kind": "probe_query", **request()}))
+    worker.cancelled.set()
+    post(kind="probe_query", **request())
+    assert len(events) == count

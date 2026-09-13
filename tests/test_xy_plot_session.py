@@ -143,21 +143,48 @@ def test_close_notification_connection_changes_are_rechecked_before_commit(owner
 
 def test_acknowledged_cache_rebase_is_consumed_before_external_input_ranges(owner, monkeypatch):
     service, node, plot, current = owner
-    node_id, updates = service.close_updates(service.active, event())
+    probes = {"positions": {"x": 1., "y": .7}, "active": "x", "method": "intersections"}
+    node_id, updates = service.close_updates(service.active, event(probe_state=probes))
     service.active = None
     assert service.commit(plot, node_id, updates)
     replacement = replace(plot, settings=replace(plot.settings, x_bounds=(.5, 1.5), y_bounds=(.2, 1.2)))
     current["plot"] = replacement
     monkeypatch.setattr("ea_node_editor.ui.xy_plot_session.XYPlotSession", lambda plot, initial, *args, **kwargs:
-                        SimpleNamespace(plot=plot, initial=initial, toolbar_style_requested=Mock()))
+                        SimpleNamespace(plot=plot, initial=initial, probe_state=kwargs.get("probe_state"), toolbar_style_requested=Mock()))
     reopened = service.open(replacement, "panel")
     assert reopened.initial["ranges"]["x"] == [.5, 1.5]
+    assert reopened.probe_state == probes
     assert "expected_bounds" not in next(iter(service.cache.values()))
     service.active = None
     external = replace(replacement, settings=replace(replacement.settings, x_bounds=(100, 200)))
     current["plot"] = external
     reopened = service.open(external, "panel")
     assert reopened.initial["ranges"]["x"] == [100, 200]
+    assert reopened.probe_state is None
+    assert not service.cache
+
+
+def test_probe_only_inspection_caches_without_axis_edits(owner):
+    service, node, _plot, _ = owner
+    before = copy.deepcopy(node.properties)
+    probes = {"positions": {"x": 1., "y": .7}, "active": "y", "method": "nearest"}
+    node_id, updates = service.close_updates(service.active, event(changed_axes=[], probe_state=probes))
+    assert node_id == node.node_id and updates == {} and node.properties == before
+    assert next(iter(service.cache.values()))["probe_state"] == probes
+    malformed = {"positions": {"y": float("nan")}}
+    assert service.close_updates(service.active, event(probe_state=malformed)) == ("", {})
+
+
+def test_changed_data_drops_cached_probe_coordinates(owner, monkeypatch):
+    service, node, plot, current = owner
+    probes = {"positions": {"x": 1., "y": .7}, "active": "x", "method": "nearest"}
+    service.close_updates(service.active, event(changed_axes=[], probe_state=probes))
+    service.active = None
+    changed = replace(plot, signals=(replace(plot.signals[0], y=ArrayValue.from_numpy(np.array([10., 20., 30.]))),))
+    current['plot'] = changed
+    monkeypatch.setattr("ea_node_editor.ui.xy_plot_session.XYPlotSession", lambda plot, initial, *args, **kwargs:
+                        SimpleNamespace(plot=plot, probe_state=kwargs.get('probe_state'), toolbar_style_requested=Mock()))
+    assert service.open(changed, 'panel').probe_state is None
     assert not service.cache
 
 

@@ -35,10 +35,14 @@ export function createReadouts({syncMessage, syncAxes, onClear}) {
   const clear = document.getElementById('clear');
   const close = document.getElementById('inspection-close');
   const sync = document.getElementById('sync');
+  const probeToggle = document.getElementById('probe-toggle');
+  const tabs = {selection: document.getElementById('selection-tab'), probes: document.getElementById('probes-tab')};
+  let activeTab = 'selection';
   toggle.prepend(fileIcon('format-list-bulleted'));
   toggle.append(fileIcon('chevron-down'));
   clear.append(fileIcon('x')); close.append(fileIcon('x'));
   sync.prepend(fileIcon('link'));
+  probeToggle.prepend(fileIcon('focus'));
   const syncText = document.createElement('span');
   syncText.textContent = !syncAxes ? 'Range sync' : syncAxes.x && syncAxes.y ? 'Sync on close' :
     !syncAxes.x && !syncAxes.y ? 'Local view' : syncAxes.x ? 'Y local' : 'X local';
@@ -46,13 +50,36 @@ export function createReadouts({syncMessage, syncAxes, onClear}) {
 
   function open(value) {
     drawer.hidden = !value;
-    toggle.setAttribute('aria-expanded', String(value));
+    toggle.setAttribute('aria-expanded', String(value && activeTab === 'selection'));
+    probeToggle.setAttribute('aria-expanded', String(value && activeTab === 'probes'));
   }
-  toggle.addEventListener('click', () => open(drawer.hidden), {signal});
-  close.addEventListener('click', () => {open(false); toggle.focus();}, {signal});
+  function showTab(tab) {
+    activeTab = tab;
+    document.getElementById('selection-panel').hidden = tab !== 'selection';
+    document.getElementById('probe-panel').hidden = tab !== 'probes';
+    document.getElementById('selection-summary').hidden = tab !== 'selection';
+    for (const [name, button] of Object.entries(tabs)) button.setAttribute('aria-selected', String(name === tab));
+    open(true);
+  }
+  const focusToggle = () => (activeTab === 'probes' && !probeToggle.hidden ? probeToggle : toggle).focus();
+  toggle.addEventListener('click', () => {if (!drawer.hidden && activeTab === 'selection') open(false); else showTab('selection');}, {signal});
+  probeToggle.addEventListener('click', () => {if (!drawer.hidden && activeTab === 'probes') open(false); else showTab('probes');}, {signal});
+  for (const [tab, button] of Object.entries(tabs)) button.addEventListener('click', () => showTab(tab), {signal});
+  document.getElementById('inspection-tabs').addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault(); event.stopPropagation();
+    const next = event.key === 'Home' ? 'selection' : event.key === 'End' ? 'probes' : activeTab === 'selection' ? 'probes' : 'selection';
+    showTab(next); tabs[next].focus();
+  }, {signal});
+  close.addEventListener('click', () => {open(false); focusToggle();}, {signal});
   clear.addEventListener('click', onClear, {signal});
 
   return {
+    showTab,
+    probeCount(value) {
+      probeToggle.hidden = value === 0;
+      document.getElementById('probe-count').textContent = `Probes (${value})`;
+    },
     setMode(label, hint) {
       mode.textContent = label; mode.dataset.tooltip = hint;
     },
@@ -70,7 +97,14 @@ export function createReadouts({syncMessage, syncAxes, onClear}) {
       clear.disabled = !geometry;
       toggle.dataset.tooltip = total ? 'Show selection statistics and sample rows.' :
         geometry ? 'No samples match the selection.' : 'Select marker samples to inspect statistics and rows.';
-      if (!total) {open(false); return;}
+      if (!total) {
+        if (activeTab === 'selection') open(false);
+        document.getElementById('selection-summary').textContent = 'No selection';
+        document.getElementById('statistics').textContent = 'Select marker samples to inspect statistics.';
+        document.getElementById('sample-rows').replaceChildren();
+        document.getElementById('preview-note').textContent = '';
+        return;
+      }
       document.getElementById('selection-summary').textContent = `${total.toLocaleString()} original samples`;
       document.getElementById('preview-note').textContent = `First ${value.rows.length} samples`;
       table(document.getElementById('statistics'), ['Signal', 'Count', 'Mean Y', 'Min Y', 'Max Y'],
@@ -80,7 +114,7 @@ export function createReadouts({syncMessage, syncAxes, onClear}) {
     },
     cancelInteraction() {
       if (drawer.hidden) return false;
-      open(false); toggle.focus(); return true;
+      open(false); focusToggle(); return true;
     },
     dispose() {lifetime.abort();},
   };

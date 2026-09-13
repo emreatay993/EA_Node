@@ -26,6 +26,7 @@ def test_xy_fullscreen_through_real_shell():
 
 
 def _probe(project_path: Path):
+    import copy
     import json
     import time
 
@@ -117,12 +118,14 @@ QtObject {
 
         def loaded():
             nonlocal host
-            host = window.qml_host.root_object().findChild(QObject, "xyPlotHost")
+            host = next((item for item in window.qml_host.root_object().findChildren(QObject, "xyPlotHost")
+                         if item.property("sessionBridge") is bridge.xy_plot_bridge), None)
             return host is not None and host.property("webEngineItem") is not None
 
         spin(loaded, "fullscreen host")
         proxy.setProperty("target", host.property("webEngineItem"))
-        spin(lambda: evaluate("Boolean(window.corexXY && corexXY.ready)"), "XY readiness")
+        expected_url = json.dumps(bridge.xy_plot_bridge.asset_url)
+        spin(lambda: evaluate("Boolean(location.href === " + expected_url + " && window.corexXY && corexXY.ready)"), "XY readiness")
         assert len(run_events) == before, "Expansion must not execute upstream nodes"
         return host
 
@@ -146,6 +149,21 @@ QtObject {
         point = web.mapToScene(QPointF(*rect)).toPoint()
         QTest.mouseClick(window.qml_host.quick_window(), Qt.MouseButton.LeftButton, pos=point)
         QTest.qWait(100)
+
+    def place_probe(host):
+        click_tool(host, '[data-menu=probe]')
+        click_tool(host, '[data-command=probe-x]')
+        web = host.findChild(QQuickItem, "xyPlotWebEngineView")
+        location = evaluate("(()=>{const r=document.querySelector('[data-xy-slot=canvas]').getBoundingClientRect();return [r.x+r.width*.45,r.y+r.height*.5]})()")
+        QTest.mouseClick(window.qml_host.quick_window(), Qt.MouseButton.LeftButton,
+                         pos=web.mapToScene(QPointF(*location)).toPoint())
+        spin(lambda: evaluate("corexXY.probeState().positions.x") is not None, "shell probe placement")
+        spin(lambda: evaluate("document.getElementById('probe-status').dataset.total !== undefined"), "shell probe results")
+        return probe_state()
+
+    def probe_state():
+        # Serialize inside Chromium: Qt's object conversion drops null properties.
+        return json.loads(evaluate("JSON.stringify(corexXY.probeState())"))
 
     try:
         assert window.project_session_controller.open_project_path(project_path, show_errors=False)
@@ -184,6 +202,16 @@ QtObject {
         assert window.runtime_history.undo_depth(workspace_id) == history_before
         assert evaluate("corexXY.state()") == original_state
         print("Shell probe: resized live plot; toolbar style persisted without rerun, session replacement or graph edit", flush=True)
+        properties_before_probe = copy.deepcopy(producer().properties)
+        stored_probe = place_probe(host)
+        bridge.request_close()
+        spin(lambda: not bridge.open, "probe-only close")
+        assert producer().properties == properties_before_probe
+        assert window.runtime_history.undo_depth(workspace_id) == history_before
+        assert len(run_events) == previous_events and current(panel_id, "_surface_source") is not None
+        host = expand()
+        assert probe_state() == stored_probe
+        print("Shell probe: probe-only close has no graph edit/run; unchanged plot restores cursor state", flush=True)
         middle_pan(host)
         bridge.request_close()
         spin(lambda: not bridge.open, "normal fullscreen close")
@@ -201,12 +229,20 @@ QtObject {
         old_signature = current(panel_id, "_surface_source").settings_signature
         host = expand()
         assert evaluate("document.body.dataset.toolbarStyle") == "icons_only"
+        actual = probe_state()['positions']
+        assert actual == {"x": None, "y": None}, ("Undo/redo invalidates conflicting inspection state", actual)
+        stored_probe = place_probe(host)
         middle_pan(host)
         bridge.request_close()
         spin(lambda: not bridge.open, "Auto fullscreen close")
         spin(lambda: not window.run_state.active_run_id and isinstance(current(panel_id, "_surface_source"), PlotValue)
              and current(panel_id, "_surface_source").settings_signature != old_signature, "Auto rerun")
         print("Shell probe: Auto close reruns the normal graph and refreshes the preview", flush=True)
+
+        expand()
+        assert probe_state() == stored_probe, "Acknowledged range-only changes preserve probes"
+        bridge.request_close()
+        spin(lambda: not bridge.open, "restored Auto inspection close")
 
         window.run_controller.set_auto_run_enabled(False)
         assert window.project_session_controller.save_project()
@@ -217,6 +253,7 @@ QtObject {
         assert not bridge._xy_owner.cache
         run_graph()
         expand()
+        assert probe_state()['positions'] == {"x": None, "y": None}
         bridge.request_close()
         spin(lambda: not bridge.open, "final close")
         print("PASS: real shell Manual/Auto, middle pan, single undo, refreshed preview and rerun after reopen", flush=True)

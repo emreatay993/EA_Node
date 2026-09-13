@@ -23,11 +23,12 @@ def test_production_xy_qml_host(narrow):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def _probe(narrow=False):
+def _probe(narrow=False, *, exercise=None, plot_transform=None, initial_probes=None):
     print("XY QML probe: imports", flush=True)
     import json
     import time
     from dataclasses import replace
+    from types import SimpleNamespace
     import numpy as np
     from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, QPoint, Qt, QUrl, qInstallMessageHandler
     from PyQt6.QtQml import QQmlComponent
@@ -51,7 +52,11 @@ def _probe(narrow=False):
     base = plot_value()
     plot = replace(base, signals=(PlotSignal("signal-0", ArrayValue.from_numpy(x), ArrayValue.from_numpy(y)),),
                    settings=replace(base.settings, marker_sizes=(3,), x_bounds=(10, 90)))
-    session = XYPlotSession(plot, {"ranges": {"x": [10, 90]}, "selection": None}, "Ranges sync on close.", parent)
+    if plot_transform:
+        plot = plot_transform(plot)
+    initial_view = {"ranges": {axis: list(value) for axis, value in
+                    {"x": plot.settings.x_bounds, "y": plot.settings.y_bounds}.items() if value}, "selection": None}
+    session = XYPlotSession(plot, initial_view, "Ranges sync on close.", parent, probe_state=initial_probes)
     print("XY QML probe: create QML", flush=True)
     errors, closed, style_changes = [], [], []
     session.toolbar_style_requested.connect(style_changes.append)
@@ -125,7 +130,7 @@ Item {
 
     def assert_layout():
         bounds = evaluate("[...document.querySelectorAll('#toolbar > div > button')].map(e=>{const r=e.getBoundingClientRect();return [r.left,r.top,r.right,r.bottom]})")
-        assert len(bounds) == 9 and all(0 <= r[0] < r[2] <= host_width for r in bounds), bounds
+        assert len(bounds) == 10 and all(0 <= r[0] < r[2] <= host_width for r in bounds), bounds
         for index, left in enumerate(bounds):
             for right in bounds[index+1:]:
                 assert left[2] <= right[0] or right[2] <= left[0] or left[3] <= right[1] or right[3] <= left[1], bounds
@@ -139,6 +144,11 @@ Item {
         spin(lambda: host.property("webEngineItem") is not None, "WebEngine host creation")
         spin(lambda: bool(evaluate("Boolean(window.corexXY && window.corexXY.ready)")), "XY readiness")
         spin(lambda: evaluate("[innerWidth,innerHeight]") == [host_width, 810], "positive browser viewport")
+        if exercise:
+            exercise(SimpleNamespace(plot=plot, session=session, closed=closed, host=host, window=window,
+                qml_window=qml_window, widget=qml_host.container_widget, evaluate=evaluate, click=click,
+                spin=spin, capture=capture, app=app, narrow=narrow))
+            return
         state = evaluate("corexXY.state()")
         animation_frame("frame after mount")
         assert state["ranges"]["x"] == [10, 90], state

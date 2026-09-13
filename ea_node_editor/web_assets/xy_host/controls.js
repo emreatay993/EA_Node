@@ -17,7 +17,7 @@ const SELECTORS = {
   fit: '[data-xy-modebar-menu-item="fit"]',
 };
 
-export function createXYControls(root, {onReset}) {
+export function createXYControls(root, {onReset, logarithmicY = false}) {
   const canvas = root.querySelector('[data-xy-slot="canvas"]');
   const nativeBar = root.querySelector('[data-xy-slot="modebar"]');
   if (!canvas || !nativeBar) throw Error('The XY client control contract is unavailable.');
@@ -74,6 +74,27 @@ export function createXYControls(root, {onReset}) {
 
   return {
     canvas, state, perform, setTool,
+    geometry() {
+      const rect = canvas.getBoundingClientRect(), parent = root.getBoundingClientRect();
+      return {left: rect.left, top: rect.top, width: rect.width, height: rect.height,
+        offsetX: rect.left - parent.left, offsetY: rect.top - parent.top, ranges: root.xy.state().ranges};
+    },
+    dataAt(clientX, clientY) {
+      const view = this.geometry(), {ranges} = view;
+      if (view.width <= 0 || view.height <= 0) return null;
+      const u = Math.max(0, Math.min(1, (clientX - view.left) / view.width));
+      const v = 1 - Math.max(0, Math.min(1, (clientY - view.top) / view.height));
+      const y = logarithmicY ? ranges.y.map(Math.log) : ranges.y;
+      const result = logarithmicY ? Math.exp((1 - v) * y[0] + v * y[1]) : (1 - v) * y[0] + v * y[1];
+      return {x: (1 - u) * ranges.x[0] + u * ranges.x[1], y: Math.max(ranges.y[0], Math.min(ranges.y[1], result))};
+    },
+    project(x, y) {
+      const view = this.geometry(), {ranges} = view;
+      const yr = logarithmicY ? ranges.y.map(Math.log) : ranges.y;
+      const yy = logarithmicY ? Math.log(y) : y;
+      return {x: (x - ranges.x[0]) / (ranges.x[1] - ranges.x[0]) * view.width,
+        y: (1 - (yy - yr[0]) / (yr[1] - yr[0])) * view.height};
+    },
     icon(action) {
       return buttons[action]?.querySelector('svg')?.cloneNode(true) || null;
     },
