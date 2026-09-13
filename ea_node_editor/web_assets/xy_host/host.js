@@ -3,9 +3,10 @@
 // Tests: tests/test_xy_plot_qml.py
 import {render} from './xy-widget.js';
 import {installMiddlePan} from './gestures.js';
-let bridge, session, model, cleanup, observer, baseline, completed, home;
+let bridge, session, model, cleanup, observer, baseline, completed, home, authored;
 let initializing=true, closing=false, gesture=false, restoringGesture=false, escapeForwarding=false, middlePan;
 const changed=new Set(), automatic=new Set();
+const fitIntents=new Map();
 const chart=()=>document.querySelector('.corex-xy-chart');
 const clone=value=>JSON.parse(JSON.stringify(value));
 const frames=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
@@ -60,6 +61,10 @@ function finishGesture(detail){
   completed=snapshot();
   for(const axis of detail.axes?.length?detail.axes:['x','y']){
     if(!['x','y'].includes(axis))continue;
+    // The native API emits its view event on a later frame. Keep the explicit
+    // fit intent, including zero-delta fits, until a different gesture occurs.
+    if(detail.source==='api'&&JSON.stringify(fitIntents.get(axis))===JSON.stringify(completed.ranges[axis]))continue;
+    fitIntents.delete(axis);
     if(detail.source==='reset'){changed.add(axis);automatic.add(axis);}
     else if(JSON.stringify(completed.ranges[axis])!==JSON.stringify(baseline.ranges[axis])){changed.add(axis);automatic.delete(axis);}
     else{changed.delete(axis);automatic.delete(axis);}
@@ -67,9 +72,28 @@ function finishGesture(detail){
 }
 function resetIntent(){
   if(initializing||closing||!home)return;
+  fitIntents.clear();
   for(const axis of ['x','y']){changed.add(axis);automatic.add(axis);}
   completed=clone(home);
   completed.selection=snapshot().selection;
+}
+function fitView(mode){
+  if(initializing||closing||!home||!['x','y','data','limits'].includes(mode))return;
+  cancelInteraction();
+  const axes=['x','y'].includes(mode)?[mode]:['x','y'];
+  const ranges=Object.fromEntries(axes.map(axis=>[axis,
+    mode==='limits'?(authored[axis]||home.ranges[axis]):home.ranges[axis]]));
+  if(!chart().xy.applyState({ranges},{animate:false}))return;
+  completed=snapshot();
+  for(const axis of axes){
+    fitIntents.set(axis,clone(completed.ranges[axis]));
+    if(mode==='limits'){changed.delete(axis);automatic.delete(axis);}
+    else{changed.add(axis);automatic.add(axis);}
+  }
+  document.getElementById('readout').textContent={
+    x:'X fitted to all data; Y is unchanged.',y:'Y fitted to all data; X is unchanged.',
+    data:'Both axes fitted to all data.',limits:'Signal Plot limits restored; automatic axes show all data.',
+  }[mode];
 }
 function cancelInteraction(){
   const root=chart();if(!root)return false;
@@ -125,6 +149,7 @@ async function receive(event, initial){
     observer.observe(root,{subtree:true,attributes:true,attributeFilter:['data-xy-dragmode','style']});
     root.xy.applyState(initial.state,{animate:false,history:false});
     await frames();baseline=snapshot();completed=clone(baseline);initializing=false;
+    document.querySelectorAll('[data-fit]').forEach(button=>{button.disabled=false;});
     canvas.focus();describeMode();window.corexXY.ready=true;
   }else if(event.kind==='reply')model?.emit('msg:custom',event.message,decode(event.buffers));
   else if(event.kind==='hover'){
@@ -138,10 +163,11 @@ async function receive(event, initial){
 }
 new QWebChannel(qt.webChannelTransport,channel=>{
   bridge=channel.objects.xyBridge;
-  const initial=JSON.parse(bridge.initial_json);session=initial.session;
+  const initial=JSON.parse(bridge.initial_json);session=initial.session;authored=initial.authored_ranges;
   bridge.outbound.connect(raw=>{receive(JSON.parse(raw),initial).catch(fail);});
   document.getElementById('sync').textContent=initial.sync_message;
   document.getElementById('clear').addEventListener('click',()=>chart()?.xy.applyState({selection:null},{animate:false}));
+  document.querySelectorAll('[data-fit]').forEach(button=>button.addEventListener('click',()=>fitView(button.dataset.fit)));
   window.corexXY={ready:false,requestClose,cancelInteraction,state:()=>chart()?.xy.state(),
     applyState:patch=>chart()?.xy.applyState(patch,{animate:false}),home:()=>home,selection:null};
   send({kind:'initialize'});

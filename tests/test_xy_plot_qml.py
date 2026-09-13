@@ -114,6 +114,16 @@ Item {
         QTest.qWait(200)
         after = evaluate("(()=>{const c=document.querySelector('canvas');return [c.width,c.height]})()")
         assert after[0] > before[0] and after[1] > before[1], (before, after)
+        # The visible fit controls wrap, rather than collide or escape the host.
+        window.resize(360, 810); root.setWidth(360)
+        QTest.qWait(100)
+        fit_rects = evaluate("[...document.querySelectorAll('[data-fit]')].map(e=>{const r=e.getBoundingClientRect();return [r.left,r.top,r.right,r.bottom,e.disabled]})")
+        assert len(fit_rects) == 4 and all(0 <= r[0] < r[2] <= 360 and not r[4] for r in fit_rects), fit_rects
+        for index, left in enumerate(fit_rects):
+            for right in fit_rects[index+1:]:
+                assert left[2] <= right[0] or right[2] <= left[0] or left[3] <= right[1] or right[3] <= left[1], fit_rects
+        window.resize(1140, 810); root.setWidth(1140)
+        QTest.qWait(100)
         click('[data-xy-modebar-action="pan"]')
         assert evaluate("document.querySelector('[data-xy-slot=canvas]').dataset.xyDragmode") == "none"
         click('[data-xy-modebar-action="pan"]')
@@ -198,7 +208,50 @@ Item {
             session.request_close()
             spin(lambda: bool(closed), "home reset flush")
             assert set(closed[0]["automatic"]) == {"x", "y"}, closed
-        print("PASS: QML render, authored/home view, resize, native Pan toggle/drag, middle-drag with select/zoom and Escape cancellation, expanded menu/Escape, canonical selection, close flush.", flush=True)
+        # Reopened views may differ from authored limits. Exercise each visible
+        # control with native clicks, including a repeated zero-delta fit.
+        dates = np.datetime64('2026-01-01', 'ms') + np.arange(len(x)) * np.timedelta64(1, 's')
+        date_ms = dates.astype('int64')
+        date_plot = replace(plot, signals=(PlotSignal('signal-0', ArrayValue.from_numpy(dates),
+                            ArrayValue.from_numpy(np.geomspace(1, 1000, len(x))), x_kind='datetime'),),
+                            settings=replace(plot.settings, logarithmic_y_axis=True,
+                            x_bounds=(float(date_ms[2000]), float(date_ms[10000])), y_bounds=(10, 100)))
+        for mode, fit_plot in [('x', plot), ('y', plot), ('data', plot), ('limits', plot),
+                               ('data', date_plot), ('limits', date_plot)]:
+            initial_ranges = ({'x': [float(date_ms[3000]), float(date_ms[8000])], 'y': [20, 50]}
+                              if fit_plot is date_plot else {'x': [20, 60], 'y': [-.4, .6]})
+            x0, x1 = initial_ranges['x']; y0, y1 = initial_ranges['y']
+            kept_selection = {'polygon': [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]}
+            root.setProperty('bridge', None)
+            session.retire(); session.thread.wait(); session.dispose()
+            closed.clear()
+            session = XYPlotSession(fit_plot, {'ranges': initial_ranges, 'selection': kept_selection}, 'Fit verification', parent)
+            session.failed.connect(errors.append); session.close_ready.connect(closed.append)
+            root.setProperty('payload', session_presentation(session)); root.setProperty('bridge', session)
+            spin(lambda: host.property('webEngineItem') is not None, 'fit WebEngine')
+            spin(lambda: bool(evaluate('Boolean(window.corexXY && window.corexXY.ready)')), 'fit XY readiness')
+            data_ranges = evaluate('corexXY.home().ranges')
+            evaluate("document.querySelector('[data-xy-modebar-menu-item=zoom]').click(); true")
+            if mode == 'limits':
+                click('[data-fit=data]')  # Restoring limits must cancel pending automatic edits.
+            click(f'[data-fit={mode}]')
+            click(f'[data-fit={mode}]')
+            expected = dict(initial_ranges)
+            axes = [mode] if mode in ('x', 'y') else ['x', 'y']
+            for axis in axes:
+                authored_bounds = getattr(fit_plot.settings, f'{axis}_bounds')
+                expected[axis] = list(authored_bounds) if mode == 'limits' and authored_bounds else data_ranges[axis]
+            fitted = evaluate('corexXY.state()')
+            assert fitted['ranges'] == expected, (mode, fitted, expected)
+            assert fitted['selection'] == kept_selection
+            assert evaluate("document.querySelector('[data-xy-slot=canvas]').dataset.xyDragmode") == 'zoom'
+            session.request_close()
+            spin(lambda: bool(closed), 'fit close flush')
+            expected_axes = set() if mode == 'limits' else set(axes)
+            assert set(closed[0]['automatic']) == expected_axes, (mode, closed)
+            assert set(closed[0]['changed_axes']) == expected_axes, (mode, closed)
+            assert closed[0]['state']['ranges'] == expected
+        print("PASS: QML render, authored/home view, resize, native Pan toggle/drag, middle-drag with select/zoom and Escape cancellation, expanded menu/Escape, canonical selection, close flush, axis/data/authored fits with datetime/log ranges and wrapped controls.", flush=True)
     finally:
         session.retire()
         session.thread.wait()

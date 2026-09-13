@@ -90,6 +90,7 @@ Settings-section size transitions use shared 180 ms width/height animations with
   live WebChannel transport, exact selections, linked views and bounded streaming covered by
   `tests/test_xy_interactive_showcase.py` and the script's `--smoke-test`.
 - Production fullscreen XY uses `runtime_contracts/plot_value.py` and `plot_codec.py` for immutable session data, `ui/xy_plot_session.py` for accepted-source lifecycle and one-batch close-time range synchronization, and `web_host/xy_transport.py` plus `components/web/XYPlotHost.qml` for local rendering. Media Panel remains PNG-only inline; temporary middle-button pan is client-owned in `web_assets/xy_host/gestures.js`.
+- XY axis/data fits and authored-limit restoration are owned by `web_assets/xy_host/host.js`. The session keeps authored bounds separate from its cached initial view; axis fits preserve the other axis and use the existing close-time synchronization guards.
 - Immutable scientific ArrayValue/TableValue/SeriesValue contracts and the bounded codec live in
   `runtime_contracts/scientific_values.py` and `scientific_codec.py`; native script/plugin boundaries
   preserve isolation without copying for each built-in reader. T04 pipeline/budget proof is owned by

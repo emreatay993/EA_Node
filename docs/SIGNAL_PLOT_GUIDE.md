@@ -15,6 +15,20 @@ the previous tool. Escape cancels an open menu or active gesture before closing
 fullscreen. Selection counts, statistics, and the bounded X/Y preview use the
 original samples, without double-counting line and marker representations.
 
+The visible range controls preserve the current tool and selection:
+
+| Control | View |
+| --- | --- |
+| **Fit X** | Full data extent on X; Y stays unchanged. |
+| **Fit Y** | Full data extent on Y; X stays unchanged. |
+| **Fit Data** | Full data extent on both axes. |
+| **Fit to Limits** | The originating Signal Plot's authored limits; axes without an override use their full data extent. |
+
+Fit to Limits restores the authored limits even when fullscreen reopened a
+cached inspection view. It discards pending range edits. Fit X/Y mark only the
+chosen axis as automatic; Fit Data marks both. Datetime and logarithmic axes
+retain their existing interpretation.
+
 **Sync fullscreen ranges**, under **Signal plot options**, is on by default.
 Closing fullscreen applies the final editable X/Y ranges to the originating
 Signal Plot as one undoable change. Reset/Fit Data restores automatic ranges.

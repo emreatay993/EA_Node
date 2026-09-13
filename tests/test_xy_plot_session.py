@@ -88,6 +88,19 @@ def test_connected_axis_preserves_fallback_and_reset_is_nullable(owner):
     assert service.close_updates(service.active, event(automatic=["x", "y"]))[1] == {"y_axis_interval": None}
 
 
+@pytest.mark.parametrize("axis", ["x", "y"])
+def test_axis_fit_clears_only_its_override_in_one_batch(owner, axis):
+    service, node, plot, _ = owner
+    node.properties.update(x_axis_interval=Interval1D(1, 2), y_axis_interval=Interval1D(3, 4))
+    node_id, updates = service.close_updates(service.active, event(changed_axes=[axis], automatic=[axis]))
+    assert updates == {f"{axis}_axis_interval": None}
+    service.active = None
+    assert service.commit(plot, node_id, updates)
+    other = "y" if axis == "x" else "x"
+    assert node.properties[f"{other}_axis_interval"] == (Interval1D(3, 4) if other == "y" else Interval1D(1, 2))
+    assert service.scene._history.undo_depth(plot.provenance.workspace_id) == 1
+
+
 def test_datetime_bounds_are_atomic_and_external_edits_invalidate_cache(owner):
     service, node, plot, current = owner
     signal = PlotSignal("signal-0", ArrayValue.from_numpy(np.array(['2026-01-01', '2026-01-02', '2026-01-03'], dtype='datetime64[ms]')), plot.signals[0].y, x_kind="datetime")

@@ -4,6 +4,12 @@
 <title>Signal Plot inspection</title><link rel="stylesheet" href="host.css">
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script></head>
 <body><div id="error" role="alert"></div><div id="mode" role="status">Preparing chart…</div>
+<div id="view-controls" role="group" aria-label="Plot ranges">
+<button type="button" class="host-button" data-fit="x" disabled title="Fit the full data extent on X, keeping Y unchanged. On synchronized close, X becomes automatic.">Fit X</button>
+<button type="button" class="host-button" data-fit="y" disabled title="Fit the full data extent on Y, keeping X unchanged. On synchronized close, Y becomes automatic.">Fit Y</button>
+<button type="button" class="host-button" data-fit="data" disabled title="Fit all data on both axes. On synchronized close, both axes become automatic.">Fit Data</button>
+<button type="button" class="host-button" data-fit="limits" disabled title="Restore the Signal Plot axis limits. Axes without an override use their full data extent. Pending range edits are discarded.">Fit to Limits</button>
+</div>
 <div id="chart"></div><div id="readout" role="status">Hover to inspect samples.</div>
 <div class="footer"><button class="host-button" id="clear">Clear selection</button><span id="sync"></span></div>
 <div id="selection">Select marker samples to inspect statistics and an eight-row preview.</div><script type="module" src="host.js"></script></body></html>

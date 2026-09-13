@@ -50,7 +50,8 @@ class XYPlotSession(QObject):
         self.retired = False
         self.closing = False
         self._pending = 0
-        self._initial = {"session": self.token, "state": initial, "sync_message": sync_message}
+        self._initial = {"session": self.token, "state": initial, "sync_message": sync_message,
+                         "authored_ranges": {"x": plot.settings.x_bounds, "y": plot.settings.y_bounds}}
         self._cancelled = threading.Event()
         self._assets = tempfile.TemporaryDirectory(prefix="corex-xy-")
         destination = Path(self._assets.name)
