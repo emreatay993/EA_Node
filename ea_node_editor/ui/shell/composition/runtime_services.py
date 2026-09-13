@@ -183,6 +183,9 @@ def create_viewer_service_dependencies(
         model_provider=model_provider, registry_provider=registry_provider,
         active_workspace_id_provider=active_workspace_id_provider,
         scene_bridge=primitives.scene, run_state=state.run_state, parent=host,
+        toolbar_style_provider=lambda: preferences.app_preferences_controller.plot_settings()["xy_toolbar_style"],
+        toolbar_style_setter=lambda value: preferences.app_preferences_controller.update_graphics_settings(
+            {"plot": {"xy_toolbar_style": value}}),
     )
     content_fullscreen_bridge = ContentFullscreenBridge(
         host,

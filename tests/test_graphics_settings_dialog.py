@@ -969,6 +969,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         initial_settings = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
         initial_settings["plot"] = {
             "lightweight_canvas": True,
+            "xy_toolbar_style": "icons_only",
             "plot_default_backend_per_type": {
                 "line": "matplotlib",
             },
@@ -980,6 +981,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 dialog.values()["plot"],
                 {
                     "lightweight_canvas": True,
+                    "xy_toolbar_style": "icons_only",
                     "plot_default_backend_per_type": DEFAULT_GRAPHICS_SETTINGS["plot"][
                         "plot_default_backend_per_type"
                     ],
@@ -992,6 +994,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 dialog.values()["plot"],
                 {
                     "lightweight_canvas": False,
+                    "xy_toolbar_style": "icons_only",
                     "plot_default_backend_per_type": DEFAULT_GRAPHICS_SETTINGS["plot"][
                         "plot_default_backend_per_type"
                     ],

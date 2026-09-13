@@ -148,7 +148,8 @@ def test_acknowledged_cache_rebase_is_consumed_before_external_input_ranges(owne
     assert service.commit(plot, node_id, updates)
     replacement = replace(plot, settings=replace(plot.settings, x_bounds=(.5, 1.5), y_bounds=(.2, 1.2)))
     current["plot"] = replacement
-    monkeypatch.setattr("ea_node_editor.ui.xy_plot_session.XYPlotSession", lambda plot, initial, *args: SimpleNamespace(plot=plot, initial=initial))
+    monkeypatch.setattr("ea_node_editor.ui.xy_plot_session.XYPlotSession", lambda plot, initial, *args, **kwargs:
+                        SimpleNamespace(plot=plot, initial=initial, toolbar_style_requested=Mock()))
     reopened = service.open(replacement, "panel")
     assert reopened.initial["ranges"]["x"] == [.5, 1.5]
     assert "expected_bounds" not in next(iter(service.cache.values()))

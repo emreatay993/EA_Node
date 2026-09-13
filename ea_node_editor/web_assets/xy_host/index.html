@@ -1,15 +1,37 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="color-scheme" content="light">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' qrc:; script-src 'self' qrc:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
-<title>Signal Plot inspection</title><link rel="stylesheet" href="host.css">
-<script src="qrc:///qtwebchannel/qwebchannel.js"></script></head>
-<body><div id="error" role="alert"></div><div id="mode" role="status">Preparing chart…</div>
-<div id="view-controls" role="group" aria-label="Plot ranges">
-<button type="button" class="host-button" data-fit="x" disabled title="Fit the full data extent on X, keeping Y unchanged. On synchronized close, X becomes automatic.">Fit X</button>
-<button type="button" class="host-button" data-fit="y" disabled title="Fit the full data extent on Y, keeping X unchanged. On synchronized close, Y becomes automatic.">Fit Y</button>
-<button type="button" class="host-button" data-fit="data" disabled title="Fit all data on both axes. On synchronized close, both axes become automatic.">Fit Data</button>
-<button type="button" class="host-button" data-fit="limits" disabled title="Restore the Signal Plot axis limits. Axes without an override use their full data extent. Pending range edits are discarded.">Fit to Limits</button>
-</div>
-<div id="chart"></div><div id="readout" role="status">Hover to inspect samples.</div>
-<div class="footer"><button class="host-button" id="clear">Clear selection</button><span id="sync"></span></div>
-<div id="selection">Select marker samples to inspect statistics and an eight-row preview.</div><script type="module" src="host.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="color-scheme" content="light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' qrc:; script-src 'self' qrc:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+  <title>Signal Plot inspection</title>
+  <link rel="stylesheet" href="host.css">
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+</head>
+<body class="corex-xy-host">
+  <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false"><defs><!--COREX_XY_ICONS--></defs></svg>
+  <div id="error" role="alert"></div>
+  <header id="toolbar" role="toolbar" aria-label="Plot tools"><span class="loading">Preparing plot…</span></header>
+  <main id="chart" aria-label="Interactive signal plot"></main>
+  <section id="inspection" aria-labelledby="inspection-title" hidden>
+    <div class="inspection-header">
+      <h2 id="inspection-title">Selection details</h2><span id="selection-summary"></span>
+      <button id="inspection-close" class="status-button icon-button" type="button" aria-label="Collapse selection details" data-tooltip="Collapse selection details."></button>
+    </div>
+    <div class="inspection-content">
+      <section><h3>Statistics</h3><div id="statistics" class="table-scroll"></div></section>
+      <section><h3>Sample preview <span id="preview-note"></span></h3><div id="sample-rows" class="table-scroll"></div></section>
+    </div>
+  </section>
+  <footer id="statusbar">
+    <span id="mode" tabindex="0">Preparing</span>
+    <div id="readout" role="status" tabindex="0">Hover a point to inspect its values.</div>
+    <div class="status-actions">
+      <button id="selection-toggle" class="status-button" type="button" aria-expanded="false" aria-controls="inspection" disabled><span id="selection-count">No selection</span></button>
+      <button id="clear" class="status-button icon-button" type="button" aria-label="Clear selection" data-tooltip="Clear the selection." disabled></button>
+      <span id="sync" tabindex="0"></span>
+    </div>
+  </footer>
+  <script type="module" src="host.js"></script>
+</body>
+</html>

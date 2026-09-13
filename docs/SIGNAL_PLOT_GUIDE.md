@@ -9,10 +9,20 @@ other Image inputs receive its PNG preview through the shared Plot-to-Image conv
 ## Interactive fullscreen
 
 Expand a connected Media Panel to inspect the plot. Use the wheel to zoom, or
-choose Pan, Box Zoom, and the available selection tools in the visible toolbar.
+choose Pan, Box Zoom, and the available selection tools in the top toolbar.
 Hold the middle mouse button and drag to pan temporarily; releasing it restores
-the previous tool. Escape cancels an open menu or active gesture before closing
-fullscreen. Selection counts, statistics, and the bounded X/Y preview use the
+the previous tool. The **Zoom** menu contains zoom steps, view history and reset.
+Use **Display** to choose **Icons and names** or **Icons only**; tooltips and
+keyboard navigation work in both styles. This app preference survives restarts
+and does not change the graph or project.
+
+The slim status strip shows the active tool, hovered sample and range-sync
+status. After selecting points, click **N selected** to open the statistics and
+sample-preview drawer. Collapse it to return that space to the plot, or use the
+adjacent clear button to remove the selection. Escape cancels a gesture, closes
+an open menu or collapses the drawer before closing fullscreen.
+
+Selection counts, statistics, and the bounded X/Y preview use the
 original samples, without double-counting line and marker representations.
 
 The visible range controls preserve the current tool and selection:

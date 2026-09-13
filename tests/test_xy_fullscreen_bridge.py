@@ -2,7 +2,9 @@
 # Map: feature_routes/plotter_nodes.md
 # Tests: tests/test_xy_fullscreen_bridge.py
 from dataclasses import replace
+import json
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -119,3 +121,23 @@ def test_renderer_failure_and_deleted_producer_retire_callbacks(setup):
     s.events.changed.emit()
     assert session.retired and s.bridge.xy_plot_bridge is None
     assert s.bridge.media_payload["source_state"] == "stale"
+
+
+def test_toolbar_preference_is_separate_from_graph_and_retired_sessions(setup):
+    s = setup
+    owner = s.bridge._ensure_xy_owner()
+    owner.toolbar_style_provider = lambda: "icons_only"
+    owner.toolbar_style_setter = Mock()
+    assert s.bridge.request_open_node(s.panel.node_id)
+    session = s.bridge.xy_plot_bridge
+    initial = json.loads(session.initial_json)
+    assert initial["toolbar_style"] == "icons_only"
+    assert initial["sync_axes"] == {"x": True, "y": True}
+    session.set_toolbar_style("icons_with_names")
+    owner.toolbar_style_setter.assert_called_once_with("icons_with_names")
+    assert owner.active is session and session.worker.figure is None
+    assert s.scene._history.undo_depth(s.workspace.workspace_id) == 0
+    session.set_toolbar_style("unknown")
+    owner.retire()
+    session.set_toolbar_style("icons_only")
+    assert owner.toolbar_style_setter.call_count == 1

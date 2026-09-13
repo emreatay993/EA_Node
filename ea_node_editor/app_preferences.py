@@ -75,6 +75,7 @@ from ea_node_editor.settings import (
     SELECTION_TOOLBAR_MODE_CHOICES,
     SOURCE_IMPORT_MODE_CHOICES,
     TAB_STRIP_DENSITY_CHOICES,
+    XY_TOOLBAR_STYLES,
     app_preferences_path,
 )
 from ea_node_editor.text_style import normalize_recent_text_colors
@@ -323,6 +324,9 @@ def normalize_plot_settings(payload: Any) -> dict[str, Any]:
     normalized["plot_default_backend_per_type"] = normalize_plot_default_backend_per_type(
         payload.get("plot_default_backend_per_type")
     )
+    style = payload.get("xy_toolbar_style")
+    if type(style) is str and style in XY_TOOLBAR_STYLES:
+        normalized["xy_toolbar_style"] = style
     return normalized
 
 

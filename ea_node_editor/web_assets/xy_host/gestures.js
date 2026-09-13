@@ -3,20 +3,13 @@
 // Tests: tests/test_xy_plot_qml.py
 // The adapter changes no axis math: forwarded pointer events use XY constraints,
 // logarithmic transforms, view notifications and viewport queries.
-export function installMiddlePan(root, {onCancel, onModeChange}) {
-  const canvas=root.querySelector('[data-xy-slot="canvas"]');
+export function installMiddlePan(root, {controls, onCancel, onModeChange}) {
+  const canvas=controls.canvas;
   let active=null, forwarding=false;
   const listeners=[];
   const listen=(target,type,fn,options)=>{target.addEventListener(type,fn,options);listeners.push(()=>target.removeEventListener(type,fn,options));};
   function tool(mode){
-    const current=canvas.dataset.xyDragmode;
-    if(current===mode)return;
-    if(mode==='pan'||mode==='none'){
-      const pan=root.querySelector('[data-xy-modebar-action="pan"]');
-      if(current!=='pan')pan?.click();
-      if(mode==='none')pan?.click();
-    }else if(mode==='zoom')root.querySelector('[data-xy-modebar-menu-item="zoom"]')?.click();
-    else root.querySelector(`[data-xy-modebar-select-item="${mode}"]`)?.click();
+    controls.setTool(mode);
   }
   function forward(type,event){
     forwarding=true;

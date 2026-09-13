@@ -991,6 +991,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         )
         self._sync_shadow_settings_visibility()
         self.plot_lightweight_canvas_check.setChecked(settings["plot"]["lightweight_canvas"])
+        self._plot_settings = copy.deepcopy(settings["plot"])
         self._plot_default_backend_per_type = copy.deepcopy(settings["plot"]["plot_default_backend_per_type"])
         self.snap_to_grid_check.setChecked(settings["interaction"]["snap_to_grid"])
         self._set_combo_current_data(
@@ -1162,6 +1163,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                     },
                 },
                 "plot": {
+                    **self._plot_settings,
                     "lightweight_canvas": self.plot_lightweight_canvas_check.isChecked(),
                     "plot_default_backend_per_type": copy.deepcopy(self._plot_default_backend_per_type),
                 },

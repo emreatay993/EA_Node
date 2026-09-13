@@ -5,14 +5,12 @@ from __future__ import annotations
 
 import copy
 import json
-import shutil
 import tempfile
 import threading
 import uuid
 from collections import OrderedDict
 from collections.abc import Mapping
 from datetime import datetime, timezone
-from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -20,9 +18,11 @@ from PyQt6.QtCore import QObject, QThread, QTimer, pyqtProperty, pyqtSignal, pyq
 
 from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.runtime_contracts import DataTree, Interval1D, PlotValue
+from ea_node_editor.settings import XY_TOOLBAR_STYLES
 from ea_node_editor.ui.support.node_presentation import build_property_input_override_state
 from ea_node_editor.ui.support.solution_output_cache import current_output_value
 from ea_node_editor.web_host.webengine import check_webengine_available
+from ea_node_editor.web_host.xy_assets import stage_xy_host_assets
 from ea_node_editor.web_host.xy_transport import XYPlotWorker, decode_request, normalized_axes, normalized_view_state
 
 RANGE_KEYS = {"x": ("x_axis_interval", "x_datetime_start", "x_datetime_end"), "y": ("y_axis_interval",)}
@@ -42,8 +42,10 @@ class XYPlotSession(QObject):
     close_requested = pyqtSignal(name="closeRequested")
     close_ready = pyqtSignal(object)
     failed = pyqtSignal(str)
+    toolbar_style_requested = pyqtSignal(str)
 
-    def __init__(self, plot: PlotValue, initial: dict, sync_message: str, parent: QObject) -> None:
+    def __init__(self, plot: PlotValue, initial: dict, sync_message: str, parent: QObject,
+                 *, toolbar_style: str = "icons_with_names", sync_axes: dict | None = None) -> None:
         super().__init__(parent)
         self.plot = plot
         self.token = uuid.uuid4().hex
@@ -51,16 +53,12 @@ class XYPlotSession(QObject):
         self.closing = False
         self._pending = 0
         self._initial = {"session": self.token, "state": initial, "sync_message": sync_message,
-                         "authored_ranges": {"x": plot.settings.x_bounds, "y": plot.settings.y_bounds}}
+                         "authored_ranges": {"x": plot.settings.x_bounds, "y": plot.settings.y_bounds},
+                         "toolbar_style": toolbar_style, "sync_axes": sync_axes}
         self._cancelled = threading.Event()
         self._assets = tempfile.TemporaryDirectory(prefix="corex-xy-")
         destination = Path(self._assets.name)
-        for name in ("index.html", "host.js", "host.css", "gestures.js"):
-            source = resources.files("ea_node_editor").joinpath("web_assets", "xy_host", name)
-            with resources.as_file(source) as path:
-                shutil.copyfile(path, destination / name)
-        with resources.as_file(resources.files("xy").joinpath("static", "index.js")) as path:
-            shutil.copyfile(path, destination / "xy-widget.js")
+        stage_xy_host_assets(destination)
         self.asset_url = (destination / "index.html").as_uri()
         self.thread = QThread(parent)
         self.worker = XYPlotWorker(plot, self.token, self._cancelled)
@@ -79,6 +77,11 @@ class XYPlotSession(QObject):
     @pyqtProperty(str, constant=True)
     def initial_json(self) -> str:
         return json.dumps(self._initial, allow_nan=False)
+
+    @pyqtSlot(str)
+    def set_toolbar_style(self, style: str) -> None:
+        if not self.retired and not self.closing and style in XY_TOOLBAR_STYLES:
+            self.toolbar_style_requested.emit(style)
 
     @pyqtSlot(str)
     def post(self, raw: str) -> None:
@@ -144,13 +147,17 @@ class XYPlotSession(QObject):
 class XYPlotSessionOwner(QObject):
     """Composition-owned authority; no scene payload contains a PlotValue."""
     def __init__(self, *, model_provider, registry_provider, active_workspace_id_provider,
-                 scene_bridge, run_state, parent: QObject | None = None) -> None:
+                 scene_bridge, run_state, toolbar_style_provider=None, toolbar_style_setter=None,
+                 parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.model_provider = model_provider
         self.registry_provider = registry_provider
         self.active_workspace_id_provider = active_workspace_id_provider
         self.scene = scene_bridge
         self.run_state = run_state
+        self.toolbar_style_provider = toolbar_style_provider
+        self.toolbar_style_setter = toolbar_style_setter
+        self.toolbar_style = "icons_with_names"
         self.active: XYPlotSession | None = None
         self.panel_id = ""
         self.cache: OrderedDict[tuple[str, str], dict] = OrderedDict()
@@ -227,11 +234,27 @@ class XYPlotSessionOwner(QObject):
         unavailable = [axis.upper() for axis in ("x", "y") if not allowed[axis]]
         message = ("Range synchronization unavailable for " + ", ".join(unavailable) + ". Local exploration is available."
                    if unavailable else "Final ranges synchronize to Signal Plot when fullscreen closes.")
-        self.active = XYPlotSession(plot, initial, message, self)
+        style = self.toolbar_style_provider() if self.toolbar_style_provider else self.toolbar_style
+        if type(style) is not str or style not in XY_TOOLBAR_STYLES:
+            style = "icons_with_names"
+        self.active = XYPlotSession(plot, initial, message, self, toolbar_style=style, sync_axes=allowed)
+        session = self.active
+        session.toolbar_style_requested.connect(lambda value: self._set_toolbar_style(session, value))
         _, producer = self._node(plot)
         self.active.authored_properties = copy.deepcopy(producer.properties) if producer else {}
         self.panel_id = panel_id
         return self.active
+
+    def _set_toolbar_style(self, session: XYPlotSession, style: str) -> None:
+        if session is not self.active or session.retired or session.closing or style not in XY_TOOLBAR_STYLES:
+            return
+        self.toolbar_style = style
+        if self.toolbar_style_setter:
+            try:
+                self.toolbar_style_setter(style)
+            except Exception as error:
+                session.outbound.emit(json.dumps({"session": session.token, "kind": "presentation_error",
+                    "message": f"Toolbar style changed, but could not be saved: {error}"}))
 
     def close_updates(self, session: XYPlotSession, event: dict) -> tuple[str, dict]:
         """Prepare one guarded batch; caller retires the surface before committing."""

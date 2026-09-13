@@ -226,9 +226,11 @@ DEFAULT_MEDIA_PANEL_SETTINGS = {
     "source_input_exposed": True,
 }
 
+XY_TOOLBAR_STYLES = ("icons_with_names", "icons_only")
 DEFAULT_PLOT_SETTINGS = {
     "lightweight_canvas": DEFAULT_PLOT_LIGHTWEIGHT_CANVAS,
     "plot_default_backend_per_type": DEFAULT_PLOT_BACKEND_PER_TYPE,
+    "xy_toolbar_style": "icons_with_names",
 }
 
 DEFAULT_ENGINEERING_VIEWER_SETTINGS = {

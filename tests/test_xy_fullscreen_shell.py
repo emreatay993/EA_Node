@@ -140,6 +140,13 @@ QtObject {
         QTest.mouseRelease(target, Qt.MouseButton.MiddleButton, pos=end)
         spin(lambda: evaluate("corexXY.state().ranges.x") != before, "native middle-pan change")
 
+    def click_tool(host, selector):
+        web = host.findChild(QQuickItem, "xyPlotWebEngineView")
+        rect = evaluate("(()=>{const r=document.querySelector(" + json.dumps(selector) + ").getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2];})()")
+        point = web.mapToScene(QPointF(*rect)).toPoint()
+        QTest.mouseClick(window.qml_host.quick_window(), Qt.MouseButton.LeftButton, pos=point)
+        QTest.qWait(100)
+
     try:
         assert window.project_session_controller.open_project_path(project_path, show_errors=False)
         workspace_id = window.model.active_workspace.workspace_id
@@ -158,6 +165,25 @@ QtObject {
 
         history_before = window.runtime_history.undo_depth(workspace_id)
         host = expand()
+        original_state = evaluate("corexXY.state()")
+        original_width = evaluate("innerWidth")
+        original_session = bridge.xy_plot_bridge
+        previous_events = len(run_events)
+        window.resize(1300, 850)
+        spin(lambda: 0 < evaluate("innerWidth") < original_width, "fullscreen resize")
+        evaluate("window.resizedFrame=false;requestAnimationFrame(()=>window.resizedFrame=true);true")
+        spin(lambda: evaluate("window.resizedFrame"), "render frame after shell resize")
+        assert evaluate("corexXY.state()") == original_state
+        click_tool(host, '[data-menu=appearance]')
+        click_tool(host, '#menu-appearance [data-toolbar-style=icons_only]')
+        spin(lambda: evaluate("document.body.dataset.toolbarStyle") == "icons_only", "toolbar display change")
+        from ea_node_editor.settings import app_preferences_path
+        saved_preferences = json.loads(app_preferences_path().read_text(encoding="utf-8"))
+        assert saved_preferences["graphics"]["plot"]["xy_toolbar_style"] == "icons_only"
+        assert bridge.xy_plot_bridge is original_session and len(run_events) == previous_events
+        assert window.runtime_history.undo_depth(workspace_id) == history_before
+        assert evaluate("corexXY.state()") == original_state
+        print("Shell probe: resized live plot; toolbar style persisted without rerun, session replacement or graph edit", flush=True)
         middle_pan(host)
         bridge.request_close()
         spin(lambda: not bridge.open, "normal fullscreen close")
@@ -174,6 +200,7 @@ QtObject {
         window.run_controller.set_auto_run_enabled(True)
         old_signature = current(panel_id, "_surface_source").settings_signature
         host = expand()
+        assert evaluate("document.body.dataset.toolbarStyle") == "icons_only"
         middle_pan(host)
         bridge.request_close()
         spin(lambda: not bridge.open, "Auto fullscreen close")

@@ -1477,6 +1477,17 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(seen["graphics"], 1)
         self.assertEqual(host._scene_refresh_count, 0)
 
+    def test_xy_toolbar_style_persists_and_invalid_values_use_default(self) -> None:
+        self._controller.load()
+        self._controller.update_graphics_settings({"plot": {"lightweight_canvas": True, "xy_toolbar_style": "icons_only"}})
+        persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+        self.assertEqual(persisted["graphics"]["plot"]["xy_toolbar_style"], "icons_only")
+        self.assertEqual(self._controller.load()["graphics"]["plot"]["xy_toolbar_style"], "icons_only")
+        for value in ("unknown", {}, [], True, None):
+            updated = self._controller.update_graphics_settings({"plot": {"xy_toolbar_style": value}})
+            self.assertEqual(updated["plot"]["xy_toolbar_style"], "icons_with_names")
+            self.assertTrue(updated["plot"]["lightweight_canvas"])
+
     def test_plot_default_backend_normalizer_uses_registry_capabilities(self) -> None:
         normalized = normalize_plot_default_backend_per_type(
             {

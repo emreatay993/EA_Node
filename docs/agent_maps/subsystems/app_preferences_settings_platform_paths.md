@@ -28,6 +28,7 @@ Use this for app-wide settings, graphics preferences, solution-mode defaults, se
 - Managed workflow runtimes live under `user_data_dir() / "runtimes"`; explicit preparation fills the app default, while project overrides remain separately authored in Workflow Settings.
 - Validated public plugin bytes live under `user_data_dir() / "runtime" / "plugin_generations"`; this content-addressed runtime cache is app-local and never enters `.cxproj` persistence.
 - Keep app-global plot preferences such as `graphics.plot.lightweight_canvas` and `graphics.plot.plot_default_backend_per_type` in app preferences, not `.cxproj` project documents.
+- `graphics.plot.xy_toolbar_style` defaults to `icons_with_names` and also accepts `icons_only`. The fullscreen Display menu uses the composition-injected preference callbacks; it does not edit graph properties or invalidate plot data. Graphics Settings preserves this field when changing other plot preferences.
 - Keep shell pane collapse state in app preferences as `graphics.shell.panel_collapsed`; it covers only the outer node-library, properties, and output panes, not library categories, inspector groups, selected-node body collapse, output tabs, or output height.
 - Keep Folder Explorer details-column defaults in app preferences as `graphics.folder_explorer.column_widths`; the app-wide JSON is the source of truth, not project `.cxproj` files.
 - Keep annotation text recent colors in app preferences as `graphics.typography.recent_text_colors`; they are app-wide toolbar history, not project `.cxproj` data.
