@@ -25,6 +25,11 @@ from ea_node_editor.addons.mechanical.contracts import (
     validate_property,
 )
 from ea_node_editor.addons.mechanical.commands import snippet_object_values
+from ea_node_editor.addons.mechanical.cdb_save import (
+    export_snapshot,
+    replace_snapshot_report,
+    validate_analysis_choice,
+)
 from ea_node_editor.addons.mechanical.graphics import (
     CAMERA_IDENTITY_FIELDS,
     IMAGE_CAPTURE_LIMIT,
@@ -47,6 +52,7 @@ from ea_node_editor.addons.mechanical.saving import (
 from ea_node_editor.addons.mechanical.workbench import validate_workbench_save_receipt
 from ea_node_editor.addons.mechanical.owner_process import (
     MechanicalOwnerProcess,
+    OwnerOperationError,
     OwnerProtocolError,
 )
 from ea_node_editor.nodes.execution_context import NodeInputNotReadyError
@@ -234,6 +240,7 @@ def _execute_model_mutation(
     timeout_sec: float,
     label: str,
     connection_change: bool = False,
+    retain_work_root_on_failure: bool = False,
 ) -> dict[str, Any]:
     response = None
     operation_error: BaseException | None = None
@@ -262,10 +269,15 @@ def _execute_model_mutation(
     if isinstance(operation_error, (TimeoutError, OwnerProtocolError)):
         retirement_error: BaseException | None = None
         try:
-            ctx.mechanical_sessions.retire_session(session)
+            ctx.mechanical_sessions.retire_session(
+                session,
+                **({"retain_work_root": True} if retain_work_root_on_failure else {}),
+            )
         except Exception as close_exc:
             retirement_error = close_exc
         detail = str(operation_error)
+        if retain_work_root_on_failure:
+            detail += f"; source_recovery_path={session.work_root}"
         if invalidation_error is not None:
             detail += f"; observation invalidation failed: {invalidation_error}"
         if retirement_error is not None:
@@ -554,9 +566,11 @@ def execute_save_model(ctx, model=None, settings=None):
     format_code = resolve_save_format(
         destination, _setting(ctx, settings, "format", "auto")
     )
+    cdb_export = format_code == "cdb"
+    native_format = "mechdb" if cdb_export else format_code
     workbench_source = source_suffix in {".wbpj", ".wbpz"}
     workbench_project_save = workbench_source and format_code in {"wbpj", "wbpz"}
-    workbench_model_export = workbench_source and format_code in {"mechdb", "mechdat"}
+    workbench_model_export = workbench_source and native_format in {"mechdb", "mechdat"}
     if workbench_source:
         if format_code == "mechpz":
             raise ValueError(
@@ -580,6 +594,52 @@ def execute_save_model(ctx, model=None, settings=None):
     )
     destination = preflight.destination
     destination_companion = preflight.companion
+    cdb_content, cdb_load_step, cdb_analysis = "mesh", 1, None
+    if cdb_export:
+        if metadata["release_code"] != 261:
+            raise ValueError("CDB export is qualified for Mechanical 2026 R1 (261) only")
+        cdb_content = _setting(ctx, settings, "cdb_content", "mesh")
+        if type(cdb_content) is not str or cdb_content not in {"mesh", "full"}:
+            raise ValueError("CDB Content must be mesh or full")
+        if cdb_content == "full":
+            cdb_load_step = _setting(ctx, settings, "cdb_load_step", 1)
+            if type(cdb_load_step) is not int or cdb_load_step < 1:
+                raise ValueError("CDB Load step must be a positive Integer")
+        raw_analysis = _setting(ctx, settings, "cdb_analysis", "")
+        selector = (
+            None if type(raw_analysis) is str and not raw_analysis.strip()
+            else _script_environment(raw_analysis, metadata, operation="Save CDB Analysis")
+        )
+        if ctx.should_stop():
+            raise RuntimeError("mechanical.operation_failed: CDB source preflight cancelled")
+        try:
+            selected = ctx.mechanical_sessions.operate(
+                session, expected_revision=metadata["model_revision"],
+                operation="cdb_source_preflight", mutation=False, timeout_sec=600.0,
+                args={
+                    "source_path": str(source), "work_path": str(session.work_path),
+                    "selector": selector,
+                    "identity": {
+                        key: metadata[key] for key in (
+                            "run_id", "session_id", "document_id", "source_key", "system_key", "model_revision"
+                        )
+                    },
+                },
+            )
+        except OwnerOperationError as exc:
+            raise ValueError(f"mechanical.selector_missing: {exc}") from exc
+        except (TimeoutError, OwnerProtocolError) as exc:
+            detail = f"CDB source preflight failed: {exc}; source_recovery_path={session.work_root}"
+            try:
+                ctx.mechanical_sessions.retire_session(session, retain_work_root=True)
+            except Exception as close_exc:
+                detail += f"; session retirement failed: {close_exc}"
+            raise RuntimeError(f"mechanical.operation_uncertain: {detail}") from exc
+        if not isinstance(selected, Mapping) or set(selected) != {"analysis"}:
+            raise RuntimeError("mechanical.save_failed: invalid CDB source preflight response")
+        cdb_analysis = validate_analysis_choice(selected["analysis"])
+        if ctx.should_stop():
+            raise RuntimeError("mechanical.operation_failed: CDB source preflight cancelled")
     archive_inputs: dict[str, bool] = {}
     archive_keys = (
         ("include_results", "include_user_files", "include_external_imported_files")
@@ -592,6 +652,14 @@ def execute_save_model(ctx, model=None, settings=None):
             raise TypeError(f"{key} must be Boolean")
         archive_inputs[key] = value
     staging = create_save_staging(destination, format_code)
+    try:
+        native_staging = (
+            create_save_staging(staging.root / "snapshot.mechdb", "mechdb")
+            if cdb_export else staging
+        )
+    except BaseException:
+        shutil.rmtree(staging.root, ignore_errors=True)
+        raise
     expected_files = [destination, *([destination_companion] if destination_companion else [])]
     catalogue_id = str(uuid4())
     expected_revision = metadata["model_revision"]
@@ -611,12 +679,12 @@ def execute_save_model(ctx, model=None, settings=None):
         "system_key": metadata["system_key"],
     }
     args = {
-        "format": format_code,
+        "format": native_format,
         "source_path": str(source),
-        "destination_path": str(destination),
+        "destination_path": str(native_staging.primary if cdb_export else destination),
         "work_path": str(session.work_path),
-        "stage_path": str(staging.primary),
-        "stage_companion": "" if staging.companion is None else str(staging.companion),
+        "stage_path": str(native_staging.primary),
+        "stage_companion": "" if native_staging.companion is None else str(native_staging.companion),
         **(
             {
                 "native_project": str(staging.native_project),
@@ -624,15 +692,18 @@ def execute_save_model(ctx, model=None, settings=None):
             }
             if workbench_project_save
             else {
-                "bridge_path": str(staging.root / "b" / "b.dsdb"),
-                "snapshot_path": str(staging.root / "w.json"),
-                "model_snapshot_path": str(staging.root / "m.json"),
+                "bridge_path": str(native_staging.root / "b" / "b.dsdb"),
+                "snapshot_path": str(native_staging.root / "w.json"),
+                "model_snapshot_path": str(native_staging.root / "m.json"),
             }
             if workbench_model_export
             else {}
         ),
-        "verify_path": str(staging.verify_project),
-        "files": [str(path) for path in expected_files],
+        "verify_path": str(native_staging.verify_project),
+        "files": (
+            [str(native_staging.primary), str(native_staging.companion)]
+            if cdb_export else [str(path) for path in expected_files]
+        ),
         "overwrite": overwrite,
         "catalogue_identity": identity,
         "view_export_path": str(session.work_root / f"save-views-{uuid4().hex}.xml"),
@@ -655,6 +726,7 @@ def execute_save_model(ctx, model=None, settings=None):
             label="Save Mechanical Model",
             args=args,
             connection_change=workbench_source,
+            retain_work_root_on_failure=cdb_export,
         )
         if workbench_model_export:
             exported = response.get("native_export")
@@ -667,7 +739,7 @@ def execute_save_model(ctx, model=None, settings=None):
                     "mechanical.save_failed: Workbench export receipt is invalid"
                 )
             conversion_owner = MechanicalOwnerProcess(
-                work_root=staging.root / "conversion-owner"
+                work_root=native_staging.root / "conversion-owner"
             )
             ctx.register_cancel(conversion_owner.close)
             try:
@@ -681,7 +753,7 @@ def execute_save_model(ctx, model=None, settings=None):
                     operation="convert_workbench_model",
                     timeout_sec=600.0,
                     args={
-                        "format": format_code,
+                        "format": native_format,
                         "release_code": metadata["release_code"],
                         "bridge_path": args["bridge_path"],
                         "bridge_bytes": exported["bridge_bytes"],
@@ -703,6 +775,19 @@ def execute_save_model(ctx, model=None, settings=None):
                 "status": "staged",
                 "native_save": converted.get("native_save"),
             }
+        if cdb_export:
+            if response.get("status") != "staged":
+                raise RuntimeError("mechanical.save_failed: CDB snapshot was not staged")
+            response = {
+                **response,
+                "native_save": export_snapshot(
+                    ctx, metadata=metadata, snapshot=native_staging,
+                    snapshot_receipt=response.get("native_save"), staging=staging,
+                    workbench_source=workbench_source, analysis=cdb_analysis,
+                    content=cdb_content, load_step=cdb_load_step,
+                    owner_factory=MechanicalOwnerProcess,
+                ),
+            }
     except BaseException as exc:
         if staging.root.exists() and any(path.is_file() for path in staging.root.rglob("*")):
             raise RuntimeError(
@@ -713,7 +798,11 @@ def execute_save_model(ctx, model=None, settings=None):
     try:
         if response.get("status") != "staged":
             raise RuntimeError("Mechanical save did not return a staged result")
-        if workbench_project_save:
+        if cdb_export:
+            validate_staged_bundle(
+                staging, format_code="cdb", cdb_receipt=response.get("native_save")
+            )
+        elif workbench_project_save:
             native_receipt = response.get("native_save")
             validate_workbench_save_receipt(
                 native_receipt,
@@ -740,12 +829,18 @@ def execute_save_model(ctx, model=None, settings=None):
         report = response.get("catalogue")
         if session.revision != new_revision or type(report) is not TableValue:
             raise RuntimeError("Mechanical save revision or Report catalogue is invalid")
+        if cdb_export:
+            report = replace_snapshot_report(
+                report, identity=identity, receipt=response["native_save"],
+                source=source, destination=destination, overwrite=overwrite,
+            )
         if ctx.should_stop():
             raise RuntimeError("mechanical.operation_failed: Save cancelled before publication")
         publication = publish_save(
             staging,
             preflight=preflight,
             format_code=format_code,
+            **({"cdb_receipt": response["native_save"]} if cdb_export else {}),
         )
     except BaseException as exc:
         if staging.root.exists() and any(path.is_file() for path in staging.root.rglob("*")):
@@ -761,6 +856,10 @@ def execute_save_model(ctx, model=None, settings=None):
             path.exists() for path in publication.files
         ):
             raise RuntimeError("mechanical.save_failed: published files are incomplete")
+        if cdb_export:
+            from ea_node_editor.addons.mechanical.cdb_export import validate_cdb_receipt
+
+            validate_cdb_receipt(response["native_save"], stage_path=destination)
         refreshed_model = ctx.mechanical_sessions.register_model(
             session,
             document_id=metadata["document_id"],

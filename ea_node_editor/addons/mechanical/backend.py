@@ -79,6 +79,7 @@ LIFECYCLE_OPERATIONS = frozenset(
         "snippet_preflight", "run_snippet", "close",
         "standalone_save", "workbench_save",
         "workbench_model_export", "convert_workbench_model",
+        "cdb_source_preflight", "export_cdb_snapshot",
     }
 )
 
@@ -165,6 +166,7 @@ class MechanicalOwnerBackend:
         self.release_code = 0
         self.mechanical_server_started = False
         self.connection_generation = 0
+        self._cdb_export_started = False
 
     def _launch_workbench(self, *, release: int, mode: str, workdir: Path, timeout_sec: float) -> Any:
         from ea_node_editor.addons.mechanical.workbench import launch_workbench_owner
@@ -216,6 +218,10 @@ class MechanicalOwnerBackend:
             return self.workbench_model_export(args)
         if operation == "convert_workbench_model":
             return self.convert_workbench_model(args)
+        if operation == "cdb_source_preflight":
+            return self.cdb_source_preflight(args)
+        if operation == "export_cdb_snapshot":
+            return self.export_cdb_snapshot(args)
         return self.definition_tables(args)
 
     def _execute_native_script(self, script: str) -> Any:
@@ -825,6 +831,141 @@ class MechanicalOwnerBackend:
             return
         path.unlink()
         self._snippet_rollback_path = None
+
+    def cdb_source_preflight(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        required = {"source_path", "work_path", "selector", "identity"}
+        if (
+            set(args) != required
+            or self.release_code != 261
+            or self.source_path is None or self.work_path is None
+            or self.tree is None or self.model is None
+            or self.app is None and self.mechanical is None
+            or Path(str(args["source_path"])).resolve() != self.source_path
+            or Path(str(args["work_path"])).resolve() != self.work_path
+            or not isinstance(args["identity"], Mapping)
+            or set(args["identity"]) != {
+                "run_id", "session_id", "document_id", "source_key", "system_key", "model_revision"
+            }
+        ):
+            raise ValueError("CDB source preflight arguments or admitted model are invalid")
+        selector = args["selector"]
+        if selector is not None and (
+            not isinstance(selector, Mapping)
+            or not (
+                set(selector) == {"kind", "object_id", "object_path"}
+                and selector["kind"] == "typed"
+                and type(selector["object_id"]) is int and selector["object_id"] >= 0
+                and type(selector["object_path"]) is str and bool(selector["object_path"])
+                or set(selector) == {"kind", "text"} and selector["kind"] == "text"
+                and type(selector["text"]) is str and bool(selector["text"].strip())
+            )
+        ):
+            raise ValueError("CDB Analysis must be an exact source Object or text selector")
+        inventory = self._execute_native_json(
+            {},
+            r'''import hashlib,json
+try:
+    unicode
+except NameError:
+    unicode=str
+_corex_analyses=[{'ordinal':i+1,'object_id':int(a.ObjectId),'name':unicode(a.Name),'analysis_type':unicode(a.AnalysisType),'physics_type':unicode(a.PhysicsType)} for i,a in enumerate(Model.Analyses)]
+_corex_payload=json.dumps(_corex_analyses,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+with open(_corex_data['native_output_path'],'wb') as _corex_stream:_corex_stream.write(_corex_payload)
+_corex_receipt=json.dumps({'byte_length':len(_corex_payload),'sha256':hashlib.sha256(_corex_payload).hexdigest()},separators=(',',':'))
+_corex_receipt''',
+            prefix="cdb-source-analyses", label="CDB source analysis inventory", max_bytes=1024 * 1024,
+        )
+        fields = {"ordinal", "object_id", "name", "analysis_type", "physics_type"}
+        if (
+            type(inventory) is not list or not inventory or len(inventory) > 256
+            or any(
+                not isinstance(row, dict) or set(row) != fields
+                or type(row["ordinal"]) is not int or row["ordinal"] != index + 1
+                or type(row["object_id"]) is not int or row["object_id"] < 0
+                or any(type(row[key]) is not str or not row[key] for key in ("name", "analysis_type", "physics_type"))
+                for index, row in enumerate(inventory)
+            )
+            or len({row["object_id"] for row in inventory}) != len(inventory)
+        ):
+            raise RuntimeError("CDB source analysis inventory is invalid")
+        found = search_tree(
+            tree=self.tree, model=self.model, data_model=self.data_model,
+            identity=dict(args["identity"]), filter_code="type",
+            query="Ansys.ACT.Automation.Mechanical.Analysis", match_mode="exact",
+            case_sensitive=True, include_hidden_properties=False, invert=False,
+        )
+        objects = {value.payload["object_id"]: value.payload for value in found["objects"]}
+        eligible = []
+        for row in inventory:
+            if row["analysis_type"] != "Static" or row["physics_type"] != "Mechanical":
+                continue
+            payload = objects.get(row["object_id"])
+            if (
+                payload is None or payload["display_name"] != row["name"]
+                or payload["analysis_id"] != row["object_id"]
+            ):
+                raise ValueError("CDB source analysis no longer matches its tree identity")
+            if selector is None or (
+                selector["kind"] == "typed"
+                and selector["object_id"] == row["object_id"]
+                and selector["object_path"] == payload["object_path"]
+            ) or (
+                selector["kind"] == "text"
+                and selector["text"] in {row["name"], payload["object_path"]}
+            ):
+                eligible.append({"ordinal": row["ordinal"], "name": row["name"]})
+        if len(eligible) != 1:
+            raise ValueError("Choose exactly one eligible Static Structural analysis; selection is missing or ambiguous")
+        return {"analysis": eligible[0]}
+
+    def export_cdb_snapshot(self, args: Mapping[str, Any]) -> dict[str, Any]:
+        from ea_node_editor.addons.mechanical.cdb_export import export_cdb_snapshot, validate_cdb_receipt
+        from ea_node_editor.addons.mechanical.cdb_save import validate_analysis_choice
+
+        required = {
+            "snapshot_path", "snapshot_receipt", "snapshot_sha256", "workbench_source",
+            "stage_path", "work_root", "content", "analysis", "load_step", "release_code", "timeout_sec",
+        }
+        if (
+            set(args) != required or self._cdb_export_started
+            or any(value is not None for value in (self.app, self.mechanical, self.workbench, self.source_path, self.work_path))
+            or type(args["release_code"]) is not int or args["release_code"] != 261
+            or type(args["workbench_source"]) is not bool
+            or type(args["snapshot_sha256"]) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", args["snapshot_sha256"]) is None
+            or type(args["content"]) is not str or args["content"] not in {"mesh", "full"}
+            or type(args["load_step"]) is not int or args["load_step"] < 1
+            or type(args["timeout_sec"]) not in {int, float} or not 0 < args["timeout_sec"] <= 600
+        ):
+            raise ValueError("CDB snapshot export requires a fresh qualified owner and exact arguments")
+        analysis = validate_analysis_choice(args["analysis"])
+        snapshot = Path(str(args["snapshot_path"])).resolve(strict=True)
+        stage = Path(str(args["stage_path"])).resolve()
+        work_root = Path(str(args["work_root"])).resolve()
+        if (
+            snapshot.name != "s.mechdb" or stage.name != "s.cdb"
+            or snapshot.parent.parent != stage.parent
+            or work_root != stage.parent / "cdb-owner" / "native"
+            or stage.exists() or work_root.exists() or not work_root.parent.is_dir()
+            or any(is_reparse_point(path) for path in (snapshot, snapshot.parent, stage.parent, work_root.parent))
+            or hashlib.sha256(snapshot.read_bytes()).hexdigest() != args["snapshot_sha256"]
+        ):
+            raise ValueError("CDB native snapshot staging identity is invalid")
+        staging = SaveStaging(
+            snapshot.parent, snapshot, companion_path(snapshot, "mechdb"),
+            snapshot.parent / "v" / "v.mechdb",
+        )
+        validator = validate_model_export_save_receipt if args["workbench_source"] else validate_native_save_receipt
+        validator(args["snapshot_receipt"], format_code="mechdb", staging=staging)
+        self._cdb_export_started = True
+        receipt = export_cdb_snapshot(
+            snapshot_path=snapshot, stage_path=stage, work_root=work_root,
+            content=args["content"], analysis=analysis, load_step=args["load_step"],
+            release_code=args["release_code"], timeout_sec=args["timeout_sec"],
+        )
+        if hashlib.sha256(snapshot.read_bytes()).hexdigest() != args["snapshot_sha256"]:
+            raise RuntimeError("CDB export changed the qualified native snapshot")
+        return {"status": "staged", "native_save": validate_cdb_receipt(receipt, stage_path=stage)}
 
     def standalone_save(self, args: Mapping[str, Any]) -> dict[str, Any]:
         common = {

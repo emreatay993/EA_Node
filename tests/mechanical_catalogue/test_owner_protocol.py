@@ -6,6 +6,8 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import threading
+from types import SimpleNamespace
 
 import pytest
 import psutil
@@ -13,6 +15,7 @@ import pandas as pd
 
 from ea_node_editor.addons.mechanical.owner_process import (
     MechanicalOwnerProcess,
+    OwnerOperationError,
     OwnerProtocolError,
     _creation_time_for_pid,
     _owner_command,
@@ -41,7 +44,7 @@ def test_real_owner_process_has_exact_identity_and_bounded_protocol() -> None:
             expected_revision=0,
             operation="health",
         ) == {"status": "ready"}
-        with pytest.raises(OwnerProtocolError, match="Unsupported"):
+        with pytest.raises(OwnerOperationError, match="Unsupported") as rejected:
             owner.request(
                 run_id="run",
                 session_id="session",
@@ -50,6 +53,12 @@ def test_real_owner_process_has_exact_identity_and_bounded_protocol() -> None:
                 operation="eval",
                 args={"code": "1 + 1"},
             )
+        assert isinstance(rejected.value, OwnerProtocolError)
+        assert owner.alive
+        assert owner.request(
+            run_id="run", session_id="session", workspace_id="workspace",
+            expected_revision=0, operation="health",
+        ) == {"status": "ready"}
         with pytest.raises(OwnerProtocolError, match="identity"):
             owner.request(
                 run_id="other",
@@ -77,6 +86,34 @@ def test_owner_protocol_rejects_non_data_arguments() -> None:
             )
     finally:
         owner.close()
+
+
+@pytest.mark.parametrize("change", [
+    {}, {"error_kind": "protocol"}, {"error_kind": None}, {"ok": 0},
+    {"error": {"message": "invalid"}}, {"extra": True}, {"request_id": "another"},
+])
+def test_only_complete_matching_backend_rejections_are_operation_errors(monkeypatch, change):
+    from ea_node_editor.addons.mechanical import owner_process
+
+    owner = object.__new__(MechanicalOwnerProcess)
+    owner._lock = threading.Lock()
+    owner._scope = None
+    owner._connection = SimpleNamespace(settimeout=lambda _timeout: None)
+    owner._stream = object()
+    owner.close = lambda: None
+    monkeypatch.setattr(MechanicalOwnerProcess, "alive", property(lambda _owner: True))
+    requests = []
+    monkeypatch.setattr(owner_process, "_send", lambda _stream, request: requests.append(request))
+    monkeypatch.setattr(owner_process, "_receive", lambda _stream: {
+        "request_id": requests[0]["request_id"], "ok": False,
+        "error": "analysis selection is ambiguous", "error_kind": "operation", **change,
+    })
+    with pytest.raises(OwnerProtocolError) as raised:
+        owner.request(
+            run_id="run", session_id="session", workspace_id="workspace",
+            expected_revision=0, operation="cdb_source_preflight",
+        )
+    assert isinstance(raised.value, OwnerOperationError) is (not change)
 
 
 def test_owner_protocol_survives_handshake_timeout_while_idle() -> None:

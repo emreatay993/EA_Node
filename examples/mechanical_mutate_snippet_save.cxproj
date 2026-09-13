@@ -138,6 +138,9 @@
             "destination"
           ],
           "exposed_ports": {
+            "cdb_analysis": true,
+            "cdb_content": true,
+            "cdb_load_step": true,
             "file": true,
             "files": true,
             "format": true,
@@ -157,6 +160,9 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
+            "cdb_analysis": "",
+            "cdb_content": "mesh",
+            "cdb_load_step": 1,
             "file": "",
             "format": "auto",
             "include_external_imported_files": true,

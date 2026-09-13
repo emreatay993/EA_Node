@@ -65,6 +65,9 @@ def test_registered_save_node_has_every_typed_exposed_control() -> None:
         ("source_model", "COREX.Mechanical.Model", "item"),
         ("file", "COREX.DataTypes.Path", "item"),
         ("format", "COREX.DataTypes.String", "item"),
+        ("cdb_content", "COREX.DataTypes.String", "item"),
+        ("cdb_analysis", "COREX.Mechanical.Object", "item"),
+        ("cdb_load_step", "COREX.DataTypes.Int", "item"),
         ("include_results", "COREX.DataTypes.Bool", "item"),
         ("include_user_files", "COREX.DataTypes.Bool", "item"),
         ("include_external_imported_files", "COREX.DataTypes.Bool", "item"),
@@ -76,7 +79,7 @@ def test_registered_save_node_has_every_typed_exposed_control() -> None:
     assert next(
         prop for prop in declaration.spec.properties if prop.key == "format"
     ).enum_values == (
-        "auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz"
+        "auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz", "cdb"
     )
     ports = {port.key: port for port in declaration.spec.ports}
     assert ports["source_model"].required is True

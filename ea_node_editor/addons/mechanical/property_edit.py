@@ -22,6 +22,7 @@ _SELECTOR_KINDS = {
     "objects": ("object",),
     "views": ("view",),
     "environments": ("object",),
+    "cdb_analysis": ("analysis",),
 }
 _INDEX_CACHE: OrderedDict[tuple[str, int], "_CatalogueIndex"] = OrderedDict()
 _CACHE_LIMIT = 16
@@ -98,6 +99,13 @@ def _catalogue_index(table: TableValue, rows: list[dict[str, Any]]) -> _Catalogu
         if path and path != visible:
             visible = f"{visible} — {path}"
         rows_by_kind.setdefault(kind, []).append((code, visible))
+        if (
+            kind == "object"
+            and row.get("object_id") is not None
+            and row.get("analysis_id") == row.get("object_id")
+            and str(row.get("api_type") or "").endswith(".Analysis")
+        ):
+            rows_by_kind.setdefault("analysis", []).append((code, visible))
         if kind == "object" and str(row.get("api_type") or "").endswith(
             ".BoltPretension"
         ):
@@ -314,6 +322,9 @@ class MechanicalPropertyEditAdapter:
         )
         node_type = str(getattr(context.node, "type_id", ""))
         properties = getattr(context.node, "properties", {}) or {}
+        cdb_content = _first_value(_connected_value(context, "cdb_content"))
+        if cdb_content is None:
+            cdb_content = properties.get("cdb_content", "mesh")
         open_file = _first_value(_connected_value(context, "file"))
         if open_file is None:
             open_file = properties.get("file", "")
@@ -375,11 +386,35 @@ class MechanicalPropertyEditAdapter:
                 continue
             if save_node and item_key == "format":
                 item.update(
-                    enum_codes=["auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz"],
-                    enum_values=["Auto", "Mechanical database", "Mechanical model export", "Mechanical archive", "Workbench project", "Workbench archive"],
+                    enum_codes=["auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz", "cdb"],
+                    enum_values=["Auto", "Mechanical database", "Mechanical model export", "Mechanical archive", "Workbench project", "Workbench archive", "Blocked CDB export"],
                     exact_selectors=True,
                 )
                 continue
+            if save_node and item_key in {"cdb_content", "cdb_analysis", "cdb_load_step"}:
+                if resolved_save_format != "cdb" or (
+                    item_key == "cdb_load_step" and cdb_content != "full"
+                ):
+                    reason = (
+                        "CDB exports only; other formats do not consume this value."
+                        if resolved_save_format != "cdb"
+                        else "Full CDB content only; mesh exports do not consume a load step."
+                    )
+                    item.update(
+                        adapter_condition_enabled=False,
+                        adapter_condition_reason=reason,
+                        condition_enabled=False,
+                        editor_enabled=False,
+                        editor_disabled_reason=reason,
+                    )
+                    continue
+                if item_key == "cdb_content":
+                    item.update(
+                        enum_codes=["mesh", "full"],
+                        enum_values=["Mesh and named selections", "Full database (one load step)"],
+                        exact_selectors=True,
+                    )
+                    continue
             if save_node and (
                 item_key == "include_external_imported_files" and resolved_save_format != "wbpz"
                 or item_key in {"include_results", "include_user_files"}
@@ -492,6 +527,8 @@ class MechanicalPropertyEditAdapter:
             if not kinds:
                 continue
             options: list[tuple[Any, str]] = []
+            if item_key == "cdb_analysis":
+                options.append(("", "Automatic (sole eligible Static Structural analysis)"))
             connected_filter = _first_value(_connected_value(context, "filter"))
             filter_code = str(
                 connected_filter
@@ -529,6 +566,11 @@ class MechanicalPropertyEditAdapter:
             )
             if item_key == "query":
                 item["help_text"] = " ".join(filter(None, (item.get("help_text"), contextual)))
+            if item_key == "cdb_analysis":
+                item["help_text"] = " ".join(filter(None, (
+                    item.get("help_text"),
+                    "Choose an exact analysis. Static Structural eligibility is checked in the source model when saving.",
+                )))
             if item.get("editor_mode") == "chip_list" or item.get("inline_editor") == "list":
                 item.update(
                     list_item_enum_codes=list(item["enum_codes"]),

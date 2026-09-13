@@ -46,6 +46,10 @@ class OwnerProtocolError(RuntimeError):
     pass
 
 
+class OwnerOperationError(OwnerProtocolError):
+    """The owner returned a complete rejection from backend operation execution."""
+
+
 def _owner_command() -> list[str]:
     executable = Path(sys.executable)
     if not executable.is_file():
@@ -803,7 +807,10 @@ def _child(port: int, token: str, spool_root: str) -> int:
                         raise ValueError(
                             "Mechanical owner request identity does not match its session"
                         )
-                result = backend.execute(request["operation"], request["args"])
+                try:
+                    result = backend.execute(request["operation"], request["args"])
+                except Exception as exc:
+                    raise OwnerOperationError(str(exc)) from exc
                 if request["operation"] == "run_snippet":
                     encoded = _prepare_snippet_response(
                         backend,
@@ -849,6 +856,7 @@ def _child(port: int, token: str, spool_root: str) -> int:
                         "request_id": request["request_id"],
                         "ok": False,
                         "error": str(exc),
+                        "error_kind": "operation" if isinstance(exc, OwnerOperationError) else "protocol",
                     },
                 )
             if request["operation"] == "close":
@@ -998,6 +1006,13 @@ class MechanicalOwnerProcess:
             self.close()
             raise OwnerProtocolError("Mechanical owner response identity mismatch")
         if response.get("ok") is not True:
+            if (
+                response.get("ok") is False
+                and set(response) == {"request_id", "ok", "error", "error_kind"}
+                and response.get("error_kind") == "operation"
+                and type(response.get("error")) is str
+            ):
+                raise OwnerOperationError(response["error"])
             raise OwnerProtocolError(
                 str(response.get("error", "Mechanical owner operation failed"))
             )

@@ -55,6 +55,7 @@ class _Session:
     connection_generation: int = 0
     terminal: bool = False
     closed: bool = False
+    retain_work_root: bool = False
     operation_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def close(self) -> None:
@@ -62,6 +63,9 @@ class _Session:
             return
         self.terminal = True
         self.owner.close()
+        if self.retain_work_root:
+            self.closed = True
+            return
         deadline = time.monotonic() + 2.0
         while self.work_root.exists():
             shutil.rmtree(self.work_root, ignore_errors=True)
@@ -346,8 +350,9 @@ class MechanicalSessionService:
             )
             return len(owned)
 
-    def retire_session(self, session: _Session) -> None:
+    def retire_session(self, session: _Session, *, retain_work_root: bool = False) -> None:
         with self._lock:
+            session.retain_work_root = session.retain_work_root or retain_work_root
             if self._sessions.get(session.key) is session:
                 self._sessions.pop(session.key)
             session.terminal = True

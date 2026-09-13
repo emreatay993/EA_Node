@@ -77,6 +77,7 @@ EXPECTED_GROUPS = {
     ),
     "mechanical.save_model": (
         ("destination", "Destination", ("file", "format")),
+        ("cdb_options", "CDB options", ("cdb_content", "cdb_analysis", "cdb_load_step")),
         (
             "save_options",
             "Save options",
@@ -143,7 +144,7 @@ def test_all_eight_nodes_have_exact_typed_connectable_control_inventory(tmp_path
     inputs = tuple(port for spec in specs for port in spec.ports if port.direction == "in")
     outputs = tuple(port for spec in specs for port in spec.ports if port.direction == "out")
 
-    assert len(inputs) == 52
+    assert len(inputs) == 55
     assert len(outputs) == 22
     assert all(port.exposed and port.kind == "data" for port in (*inputs, *outputs))
     assert all(port.data_type and port.data_type != "COREX.DataTypes.Any" for port in inputs)

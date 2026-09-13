@@ -175,6 +175,9 @@ def test_mutation_example_reads_current_discrete_value_then_adds_100_n(registry)
     assert save == {
         "file": "",
         "format": "auto",
+        "cdb_content": "mesh",
+        "cdb_analysis": "",
+        "cdb_load_step": 1,
         "include_results": True,
         "include_user_files": True,
         "include_external_imported_files": True,
@@ -270,8 +273,8 @@ def test_guide_advertises_the_exact_final_mechanical_registry_contract(registry)
         )
     ]
 
-    assert sum(len(spec.ports) for spec in mechanical_specs) == 74
-    assert sum(1 for spec in mechanical_specs for port in spec.ports if port.direction == "in") == 52
+    assert sum(len(spec.ports) for spec in mechanical_specs) == 77
+    assert sum(1 for spec in mechanical_specs for port in spec.ports if port.direction == "in") == 55
     assert sum(1 for spec in mechanical_specs for port in spec.ports if port.direction == "out") == 22
     for spec in mechanical_specs:
         section = _guide_section(guide, spec)

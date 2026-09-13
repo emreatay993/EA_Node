@@ -315,7 +315,7 @@ def mechanical_apdl_snippet(ctx, source_model, settings):
     category=("FEA", "ANSYS", "Mechanical"),
     icon="mechanical/save.svg",
     description="Explicitly saves standalone Mechanical outputs, complete Workbench projects/archives, or a selected Workbench model-only export through staged rollback-protected publication.",
-    keywords=("mechanical", "ansys", "save", "archive", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz"),
+    keywords=("mechanical", "ansys", "save", "archive", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz", "cdb"),
     _default_expanded_settings_group_ids=("destination",),
     _solution_reuse_scope="never",
 )
@@ -323,15 +323,30 @@ def mechanical_apdl_snippet(ctx, source_model, settings):
     label="Model", description="Run-owned Mechanical model state after every intended mutation.")
 @corex.path("file", default="", label="File", port=True,
     section="Destination", _section_order=0,
-    file_filter="Mechanical and Workbench (*.mechdb *.mechdat *.mechpz *.wbpj *.wbpz);;All Files (*)",
+    file_filter="Mechanical and Workbench (*.mechdb *.mechdat *.mechpz *.wbpj *.wbpz *.cdb);;All Files (*)",
     _inspector_editor="path", _property_group="Destination",
     _port_value_type="COREX.DataTypes.Path", _port_required=True,
     _port_description="Required explicit destination; no implicit source overwrite.")
-@corex.dropdown("format", default="auto", options=("auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz"),
+@corex.dropdown("format", default="auto", options=("auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz", "cdb"),
     label="Format", section="Destination", port=True, _section_order=1,
     _inspector_editor="enum", _property_group="Destination",
     _port_value_type="COREX.DataTypes.String",
     _port_description="Auto infers the exact destination extension; explicit format and extension must agree.")
+@corex.dropdown("cdb_content", default="mesh", options=("mesh", "full"), label="Content", port=True,
+    section="CDB options", _section_order=0,
+    _inspector_editor="enum", _property_group="CDB options",
+    _port_value_type="COREX.DataTypes.String",
+    _port_description="CDB only: existing physical mesh and named selections, or supported full database for one load step; never solves or remeshes.")
+@corex.text("cdb_analysis", default="", label="Analysis", port=True,
+    section="CDB options", _section_order=1,
+    _inspector_editor="text", _property_group="CDB options",
+    _port_value_type="COREX.Mechanical.Object", _port_accepted_data_types=("COREX.DataTypes.String",),
+    _port_description="CDB only: scalar Static Structural analysis Object or exact name/tree path; blank requires one eligible analysis.")
+@corex.number("cdb_load_step", default=1, minimum=1, step=1, label="Load step", port=True,
+    section="CDB options", _section_order=2,
+    _inspector_editor="text", _property_group="CDB options", _property_type="int",
+    _port_value_type="COREX.DataTypes.Int",
+    _port_description="Full CDB only: one positive load-step number; ignored for mesh content and other formats.")
 @corex.switch("include_results", default=True, label="Include result files", port=True,
     section="Save options", _section_order=0,
     _inspector_editor="toggle", _property_group="Save options",

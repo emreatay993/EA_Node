@@ -32,7 +32,9 @@ Regenerate the projects through the normal serializer path:
 .\venv\Scripts\python.exe .\scripts\mechanical_catalogue\generate_examples.py --output-dir .\examples
 ```
 
-The generator uses fixed project, workspace, view, node, and edge IDs. It builds each current-schema document through `JsonProjectSerializer.from_document`, normalizes it with `to_persistent_document`, publishes with `save_document`, reloads with the ordinary `load` path, and verifies every surviving edge through `GraphInvariantKernel`. Initial section state comes from each current `NodeTypeSpec.default_expanded_settings_group_ids` and is preserved by the authored document.
+The generator uses fixed project, workspace, view, node, and edge IDs. It builds each current-schema document through `JsonProjectSerializer.from_document`, normalizes it with `to_persistent_document`, publishes with `save_document`, reloads with the ordinary `load` path, and verifies every surviving edge through `GraphInvariantKernel`. Initial section state comes from each current `NodeTypeSpec.default_expanded_settings_group_ids` and is preserved by the authored document. Regenerate after control metadata changes so the examples retain the current Save inputs and collapsed CDB options. The generator CLI accepts `--output-dir`; export content, analysis, and step are Save node settings, not generator flags.
+
+To use CDB with the mutation example, choose a separate `.cdb` destination and set **Save Mechanical Model > Format** to `cdb` (or use `auto` with that extension). Expand **CDB options**, select **Content** `mesh` or `full`, and enter the exact source analysis name or tree path in **Analysis**. Leave Analysis blank only when there is exactly one eligible Static Structural analysis. For Full, set **Load step**, for example `3`; Mesh ignores it. The source must already have a current mesh, and any authored snippet must satisfy the supported CDB command checks described below.
 
 For retained live fixtures, tests or T18 tooling may call `inject_fixture_paths(...)` from the generator after loading. That helper changes only the Open/Save properties through `ValidatedGraphMutation`; fixture paths are never committed into the examples.
 
@@ -54,7 +56,7 @@ This is shared execution behavior, so future FEA nodes can use the same typed da
 
 ## Exact node and port contract
 
-All ports below are ordinary typed `data` ports. Item, List, and Tree are explicit data-access contracts. Every listed input is exposed; a connected value overrides its local property default. Section collapse changes presentation only and preserves ports and wires.
+The eight nodes expose 55 inputs and 22 outputs, for 77 ports. All ports below are ordinary typed `data` ports. Item, List, and Tree are explicit data-access contracts. Every listed input is exposed; a connected value overrides its local property default when that input is active for the selected operation. Section collapse changes presentation only and preserves ports and wires.
 
 ### Open Mechanical Model (`mechanical.open_model`)
 
@@ -173,20 +175,25 @@ Fresh default section: `command_snippet` (**Command snippet**, expanded). `solve
 
 ### Save Mechanical Model (`mechanical.save_model`)
 
-Fresh default section: `destination` (**Destination**, expanded). `save_options` (**Save options**) starts collapsed. The mutator's actual model input key is `source_model`; **Model** is its visible label.
+Fresh default section: `destination` (**Destination**, expanded). `cdb_options` (**CDB options**) and `save_options` (**Save options**) start collapsed. The mutator's actual model input key is `source_model`; **Model** is its visible label.
 
 | Port | Direction | Type / access | Required or default |
 | --- | --- | --- | --- |
 | `source_model` | In | `COREX.Mechanical.Model` / Item | Required |
 | `file` | In | `COREX.DataTypes.Path` / Item; accepts String | Required; blank while authoring |
 | `format` | In | `COREX.DataTypes.String` / Item | `auto` |
+| `cdb_content` | In | `COREX.DataTypes.String` / Item | `mesh`; choices `mesh` and `full` |
+| `cdb_analysis` | In | `COREX.Mechanical.Object` / Item; accepts String | `""`; exact source analysis name/path or source-validated scalar selector; blank requires one eligible analysis |
+| `cdb_load_step` | In | `COREX.DataTypes.Int` / Item | `1`; Full CDB only, ignored for Mesh |
 | `include_results` | In | `COREX.DataTypes.Bool` / Item | `true` |
 | `include_user_files` | In | `COREX.DataTypes.Bool` / Item | `true` |
 | `include_external_imported_files` | In | `COREX.DataTypes.Bool` / Item | `true` |
 | `overwrite` | In | `COREX.DataTypes.Bool` / Item | `false` |
-| `model` | Out | `COREX.Mechanical.Model` / Item | Fresh admissible revision after publication |
-| `files` | Out | `COREX.DataTypes.Path` / List | Primary and required companions |
-| `report` | Out | `COREX.DataTypes.TableValue` / Item | Publication/inclusion/recovery facts |
+| `model` | Out | `COREX.Mechanical.Model` / Item | Fresh admissible revision after publication; CDB retains the original source owner |
+| `files` | Out | `COREX.DataTypes.Path` / List | Primary and required companions; exactly one file for CDB |
+| `report` | Out | `COREX.DataTypes.TableValue` / Item | Publication/inclusion/recovery facts and native CDB proof when exporting CDB |
+
+CDB controls are active only for `format=cdb`, or `format=auto` with a `.cdb` destination. They are inactive and unconsumed for every other format, including connected values. `cdb_load_step` is active only for Full CDB. Archive inclusion controls are inactive and unconsumed for CDB; they do not change CDB content. Overwrite still applies to the destination.
 
 ## Search meanings and grammar
 
@@ -249,7 +256,7 @@ Every attempted mutation invalidates the prior model revision. Order changes onl
 
 ## Explicit save and publication
 
-Format codes are `auto`, `mechdb`, `mechdat`, `mechpz`, `wbpj`, and `wbpz`; explicit format and extension must agree.
+Format codes are `auto`, `mechdb`, `mechdat`, `mechpz`, `wbpj`, `wbpz`, and `cdb`; explicit format and extension must agree. Auto infers the exact destination extension.
 
 | Source | Destination | Contract |
 | --- | --- | --- |
@@ -258,12 +265,28 @@ Format codes are `auto`, `mechdb`, `mechdat`, `mechpz`, `wbpj`, and `wbpz`; expl
 | Workbench | `.wbpj` | Native whole-project save with companion assets. Archive controls are inactive. |
 | Workbench | `.wbpz` | Native whole-project archive. Results/solution, user files, and external imported files are independent inclusion choices; `FailIfMissingFiles=True` remains mandatory. |
 | Selected Workbench Model | `.mechdb`, `.mechdat` | Native Model.Export to a run-owned `.dsdb`, then separate same-release standalone Open/SaveAs/reopen. This is model-only, never an archive. |
+| Standalone or selected Workbench Model | `.cdb` | Export the selected analysis through a source snapshot and a fresh CDB owner; publish exactly one verified CDB and return a fresh Model on the original source owner. Native qualification is bounded below. |
 
 Workbench-to-`.mechpz` is rejected with guidance to use `.wbpz`. The selected-model export omits results, user/imported/external files, Workbench systems/topology/shared links, design points, and project dependencies; the Report names those omissions. It does not expose archive toggles or manufacture missing files.
 
 Save validates the destination and source identity, writes and verifies a complete staging output, then publishes. `.wbpj` is a file-plus-directory transaction. Overwrite uses identity-checked backup/restore; if rollback cannot complete, the only surviving recovery output is retained and its exact path is reported. No success is reported before primary and required companions are complete. Source overwrite occurs only when the user explicitly selects the source as destination and enables Overwrite.
 
 The qualified Workbench state comparison is narrowly limited to the unique registered `dp0/act.dat` pair when its working-to-stage SHA is the sole mismatch after ordinary checks. The closed HDF5 schema and complete logical Session data/metadata must match; all other files and all stage-verification/restoration phases remain byte-strict. This proves qualified logical equality, not timestamp-only byte changes.
+
+### CDB content and analysis selection
+
+CDB export is supported only for Ansys 2026 R1 Static Structural analyses with an existing current mesh. It never solves or remeshes. It adds a format to Save Mechanical Model; there is no CDB import or additional node.
+
+`cdb_analysis` accepts one Mechanical Object selector validated against the original source, or a String containing an exact analysis name or tree path. Source preflight resolves that analysis before snapshot conversion. Blank selects only the sole eligible analysis; multiple eligible analyses require an explicit selection. The returned Model remains attached to the original standalone or Workbench source owner, with a fresh admissible revision for downstream operations.
+
+| Content | Included | Excluded or inactive |
+| --- | --- | --- |
+| `mesh` (default) | Existing physical elements and nodes, solver-exported named selections, and the element-type, real-constant, and section definitions needed by those elements | Material properties, loads, supports, and generated contact elements; `cdb_load_step` is ignored |
+| `full` | The supported assembled database for one selected Mechanical load step, including supported material, load, support, and contact definitions | Results, solved state, and load-step history; this is not a sequence of steps or solver substeps |
+
+Full requires a positive existing Mechanical load-step number; the default is `1`. Solve- or history-dependent features, result-dependent or unsupported custom APDL, and contact geometry adjustments that require unsupported native operations are rejected. Supported contact export includes the qualified native generated `RMOD` alias. Mesh export removes generated contact elements while retaining the physical mesh.
+
+The native helper validates the CDB before publication and supplies proof for the final Report. Legacy native file APIs use identity-checked Windows short paths. Unicode destination paths are preserved when the OS supplies usable short names; an unavailable or mismatched alias is an error. The owner protocol distinguishes an expected operation rejection from a protocol failure. CDB recovery retains the source working copy and exposes its recovery path when retention is required.
 
 ## Sessions, errors, and limits
 
@@ -297,5 +320,30 @@ The registry and documentation contract is checked without Ansys:
 ```
 
 T17 also closes one runnable-source integration omission from the accepted T16 metadata change: the dependency-free `corex.node` identity decorator now admits the already validated `_default_expanded_settings_group_ids` field. No other private field was admitted, and decorator identity behavior is unchanged. The exact direct-source regression is `tests/mechanical_catalogue/test_catalogue.py::test_registered_function_forwards_unconnected_properties_as_settings`; the complete six-test catalogue lane also exercises worker-registry loading.
+
+CDB native command preparation and proof are owned by `ea_node_editor/addons/mechanical/cdb_export.py`. `cdb_save.py` coordinates the existing source snapshot/save routes, a fresh CDB owner, and final Report helpers. `backend.py` allowlists `cdb_source_preflight` and `export_cdb_snapshot`; `runtime.py` and `saving.py` validate the CDB receipt and publish one file. `owner_process.py` and `session.py` own typed operation rejection, protocol failure handling, and retained working-copy recovery. Control metadata remains in `function_nodes.py` and `property_edit.py`.
+
+The focused CDB helper/save and grouped-control checks do not launch Ansys:
+
+```powershell
+.\venv\Scripts\python.exe -m pytest tests/mechanical_catalogue/test_cdb_export.py tests/mechanical_catalogue/test_cdb_save.py -q -n 0
+.\venv\Scripts\python.exe -m pytest tests/mechanical_catalogue/test_controls.py tests/mechanical_catalogue/test_examples.py -q -n 0
+```
+
+After changing map citations, regenerate the route index with `.\venv\Scripts\python.exe .\scripts\generate_agent_route_index.py`, then run the traceability, Markdown-link, and map checks above. Regenerate examples with the existing CLI in Runnable examples. These checks establish registry, documentation, and generated-artifact consistency; native and GUI acceptance require their own evidence.
+
+### CDB export qualification
+
+The accepted CDB implementation checkpoint records 64 native-helper unit tests and 65 CDB save tests passing (129 total). Related source/lifecycle checks passed 271 tests before the latest path correction; that correction has a separate 11-case focused path checkpoint. These figures describe accepted implementation evidence, not a new native or GUI run by the documentation task.
+
+Accepted 2026 R1 native evidence is limited to these cases:
+
+- Full step 1 and step 3 readback each produced 541 nodes and 108 elements, with the same MeshHash and different PhysicsHash.
+- Mesh export with a Unicode destination read back 541 nodes, 96 physical elements, and one named component.
+- A contact-bearing fixture read back 541 nodes and 156 elements in Full, and 541 nodes and 96 physical elements plus its named selection in Mesh. The native generated contact `RMOD` alias is qualified in the helper.
+- A registered standalone Mesh Open -> Save CDB -> Continue graph completed every node with model revisions 0, 1, and 2, preserved the source, and left zero survivors among 23 tracked processes.
+- A registered Workbench Full step 3 Open -> Save CDB -> Continue graph with a Unicode destination completed every node with model revisions 0, 1, and 2, preserved the original source bundle, and left zero survivors among 48 tracked processes after bounded settling. The saved UTF-8 receipt passed validation.
+
+Registered standalone and Workbench source families are qualified for the specific content, step, and path cases above. CDB-specific live GUI qualification is not claimed. Helper contact evidence does not establish all contact formulations or geometry-adjustment behavior.
 
 The [T01 capability qualification](specs/perf/MECHANICAL_CATALOGUE_CAPABILITY_PROOF.md) records bounded 261 native evidence. The [implementation plan](PLANS/MECHANICAL_CATALOGUE/PLAN.md) and [task ledger](PLANS/MECHANICAL_CATALOGUE/TASK_LEDGER.md) separate accepted task evidence from remaining T18 live integration. These examples and this guide contain neutral COREX material only.

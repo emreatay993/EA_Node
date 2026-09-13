@@ -19,7 +19,7 @@ from typing import Any, Mapping
 from ea_node_editor.common.path_safety import is_reparse_point
 
 
-SAVE_FORMATS = ("auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz")
+SAVE_FORMATS = ("auto", "mechdb", "mechdat", "mechpz", "wbpj", "wbpz", "cdb")
 _MODEL_FORMATS = frozenset({"mechdb", "mechdat"})
 _PROJECT_FORMATS = frozenset({"wbpj"})
 _BUNDLE_FORMATS = _MODEL_FORMATS | _PROJECT_FORMATS
@@ -254,11 +254,11 @@ _corex_receipt'''
 
 def resolve_save_format(destination: Path, requested: object) -> str:
     if type(requested) is not str or requested not in SAVE_FORMATS:
-        raise ValueError("Format must be auto, mechdb, mechdat, mechpz, wbpj, or wbpz")
+        raise ValueError("Format must be auto, mechdb, mechdat, mechpz, wbpj, wbpz, or cdb")
     extension = destination.suffix.casefold().removeprefix(".")
     if extension not in set(SAVE_FORMATS) - {"auto"}:
         raise ValueError(
-            "Save File must end in .mechdb, .mechdat, .mechpz, .wbpj, or .wbpz"
+            "Save File must end in .mechdb, .mechdat, .mechpz, .wbpj, .wbpz, or .cdb"
         )
     format_code = extension if requested == "auto" else requested
     if format_code != extension:
@@ -911,7 +911,9 @@ def validate_model_export_save_receipt(
     return dict(value)
 
 
-def validate_staged_bundle(staging: SaveStaging, *, format_code: str) -> None:
+def validate_staged_bundle(
+    staging: SaveStaging, *, format_code: str, cdb_receipt: object = None,
+) -> None:
     _assert_normal_bundle(staging.primary, expected_directory=False)
     if not staging.primary.is_file() or staging.primary.stat().st_size < 1:
         raise RuntimeError("Mechanical native staged primary file is missing or empty")
@@ -920,6 +922,12 @@ def validate_staged_bundle(staging: SaveStaging, *, format_code: str) -> None:
         _assert_normal_bundle(staging.companion, expected_directory=True)
         if not staging.companion.is_dir():
             raise RuntimeError("Mechanical native staged companion directory is missing")
+    elif format_code == "cdb":
+        from ea_node_editor.addons.mechanical.cdb_export import validate_cdb_receipt
+
+        if staging.companion is not None:
+            raise RuntimeError("CDB export must publish a single file")
+        validate_cdb_receipt(cdb_receipt, stage_path=staging.primary)
     elif not zipfile.is_zipfile(staging.primary):
         raise RuntimeError("Mechanical native staged archive is not a readable archive")
 
@@ -1201,8 +1209,9 @@ def publish_save(
     *,
     preflight: DestinationPreflight,
     format_code: str,
+    cdb_receipt: object = None,
 ) -> PublishedSave:
-    validate_staged_bundle(staging, format_code=format_code)
+    validate_staged_bundle(staging, format_code=format_code, cdb_receipt=cdb_receipt)
     _fsync_bundle(staging.primary)
     if staging.companion is not None:
         _fsync_bundle(staging.companion)
