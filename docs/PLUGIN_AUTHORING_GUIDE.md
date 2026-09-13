@@ -139,9 +139,28 @@ See [scientific values and limits](SIGNAL_PLOT_GUIDE.md#native-numpy-and-pandas-
 ## Add controls
 
 Controls create saved settings. Every control accepts `name`, `default`,
-`label`, `description`, `section`, and `port`. `port=True` also creates an
+`label`, `description`, `section`, `port`, and `affects_execution`. `port=True` also creates an
 optional input; a connected value overrides the saved setting without replacing
 it.
+
+`affects_execution` defaults to `True`. Declare `affects_execution=False` only
+for saved presentation state that does not define outputs, side effects, or
+execution prerequisites. Such edits remain saved and undoable, but do not
+invalidate solutions or schedule Auto execution. Solution keys exclude those
+values; complete authored values remain in runtime snapshots and settings for
+initial presentation setup. A live surface must apply later display edits through
+its presentation update path.
+
+```python
+@corex.text("display_caption", default="Preview", affects_execution=False)
+```
+
+The same keyword works in Python Script control declarations. It must be a
+Boolean literal and cannot be combined with `port=True`. Registry validation
+also rejects presentation-only input, dynamic-port, readiness, provenance, and
+sensitive dependencies. Display names do not imply this classification: a plot
+title or exported-image camera changes generated output and must keep the
+default. When a property's effect is uncertain, keep `affects_execution=True`.
 
 | Decorator | Additional fields |
 | --- | --- |

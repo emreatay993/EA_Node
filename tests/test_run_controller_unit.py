@@ -370,11 +370,11 @@ class _PassthroughDependencyPlugin:
                     exposed=True,
                 ),
             ),
-            properties=(),
+            properties=(PropertySpec("note", "str", "", "Fallback Value"),),
         )
 
     def execute(self, ctx: ExecutionContext) -> NodeResult:
-        return NodeResult(outputs={"result": ctx.inputs.get("value")})
+        return NodeResult(outputs={"result": ctx.inputs.get("value", ctx.properties.get("note"))})
 
 
 class _RequiredPureDataPlugin:
@@ -484,6 +484,23 @@ def _run_controller(host: _RunHostStub) -> RunController:
 
 
 class RunControllerUnitTests(unittest.TestCase):
+    def test_presentation_edit_during_active_run_does_not_invalidate_or_queue_auto(self):
+        host = _RunHostStub()
+        workspace = host.model.active_workspace
+        node = host.model.add_node(workspace.workspace_id, "media.panel", "Media", 0, 0)
+        controller = _run_controller(host)
+        controller.set_auto_run_enabled(True)
+        host.run_state.active_run_id = "captured-run"
+        host.run_state.active_run_workspace_id = workspace.workspace_id
+        before = workspace.capture_snapshot()
+        host.model.set_node_property(workspace.workspace_id, node.node_id, "show_title", False)
+        self.assertFalse(controller.invalidate_solution_for_graph_change(workspace.workspace_id,
+            before_snapshot=before, after_snapshot=workspace.capture_snapshot()))
+        self.assertEqual(host.execution_client.invalidate_calls, [])
+        self.assertEqual(host.execution_client.start_calls, [])
+        self.assertFalse(host.run_state.pending_auto_run_target_node_ids)
+        self.assertFalse(controller.node_invalidated_during_active_run(workspace.workspace_id, node.node_id))
+
     def assert_run_controls(
         self,
         host: _RunHostStub,
@@ -513,9 +530,8 @@ class RunControllerUnitTests(unittest.TestCase):
             0,
         )
         self.assertFalse(
-            controller.invalidate_solution_for_history_action(
+            controller.invalidate_solution_for_graph_change(
                 workspace_id,
-                "add-node",
                 before_snapshot=passive_before,
                 after_snapshot=host.model.active_workspace.capture_snapshot(),
             )
@@ -544,9 +560,8 @@ class RunControllerUnitTests(unittest.TestCase):
         before_remove = host.model.active_workspace.capture_snapshot()
         host.model.remove_node(workspace_id, active.node_id)
         self.assertTrue(
-            controller.invalidate_solution_for_history_action(
+            controller.invalidate_solution_for_graph_change(
                 workspace_id,
-                "remove-node",
                 before_snapshot=before_remove,
                 after_snapshot=host.model.active_workspace.capture_snapshot(),
             )
@@ -734,9 +749,8 @@ class RunControllerUnitTests(unittest.TestCase):
                 "script",
                 _script_result("'draft'"),
             )
-            controller.invalidate_solution_for_history_action(
+            controller.invalidate_solution_for_graph_change(
                 workspace_id,
-                "edit-node-property",
                 before_snapshot=before,
                 after_snapshot=workspace.capture_snapshot(),
             )
@@ -764,9 +778,8 @@ class RunControllerUnitTests(unittest.TestCase):
             "timeout_sec",
             1.0,
         )
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "edit-node-property",
             before_snapshot=before,
             after_snapshot=workspace.capture_snapshot(),
         )
@@ -1148,9 +1161,8 @@ class RunControllerUnitTests(unittest.TestCase):
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.set_node_property(workspace_id, source.node_id, "note", "changed")
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "edit-node-property",
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
@@ -1194,9 +1206,8 @@ class RunControllerUnitTests(unittest.TestCase):
             workspace_id, source.node_id, "result", target.node_id, "value"
         )
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "add-edge",
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
@@ -1206,18 +1217,16 @@ class RunControllerUnitTests(unittest.TestCase):
         rename_before = host.model.active_workspace.capture_snapshot()
         host.model.set_node_title(workspace_id, target.node_id, "Renamed Target")
         rename_after = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "rename-node",
             before_snapshot=rename_before,
             after_snapshot=rename_after,
         )
         self.assertEqual(host.execution_client.start_calls, [])
 
         disconnected_snapshot = before_snapshot
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "add-edge",
             before_snapshot=disconnected_snapshot,
             after_snapshot=after_snapshot,
         )
@@ -1245,9 +1254,8 @@ class RunControllerUnitTests(unittest.TestCase):
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.set_node_property(workspace_id, target.node_id, "value", 2)
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "edit-node-property",
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
@@ -1284,9 +1292,8 @@ class RunControllerUnitTests(unittest.TestCase):
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.remove_edge(workspace_id, first_edge.edge_id)
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "remove-edge",
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
@@ -1298,9 +1305,8 @@ class RunControllerUnitTests(unittest.TestCase):
         before_last_removal = host.model.active_workspace.capture_snapshot()
         host.model.remove_edge(workspace_id, second_edge.edge_id)
         after_last_removal = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "remove-edge",
             before_snapshot=before_last_removal,
             after_snapshot=after_last_removal,
         )
@@ -1350,9 +1356,8 @@ class RunControllerUnitTests(unittest.TestCase):
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.set_node_property(workspace_id, source.node_id, "note", "changed")
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "edit-node-property",
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
@@ -1376,9 +1381,8 @@ class RunControllerUnitTests(unittest.TestCase):
         before_snapshot = host.model.active_workspace.capture_snapshot()
         host.model.set_node_property(workspace_id, panel.node_id, "value", "1")
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "edit-node-property",
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
@@ -1454,9 +1458,8 @@ class RunControllerUnitTests(unittest.TestCase):
                     0,
                 )
                 after_snapshot = host.model.active_workspace.capture_snapshot()
-                controller.invalidate_solution_for_history_action(
+                controller.invalidate_solution_for_graph_change(
                     workspace_id,
-                    action_type,
                     before_snapshot=before_snapshot,
                     after_snapshot=after_snapshot,
                 )
@@ -1501,9 +1504,8 @@ class RunControllerUnitTests(unittest.TestCase):
         )
         after_snapshot = host.model.active_workspace.capture_snapshot()
 
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "toggle-edge-enabled",
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
@@ -1526,7 +1528,7 @@ class RunControllerUnitTests(unittest.TestCase):
         controller = _run_controller(host)  # type: ignore[arg-type]
         controller.set_auto_run_enabled(True)
         before_snapshot = host.model.active_workspace.capture_snapshot()
-        host.model.set_node_property(workspace_id, node.node_id, "note", "after")
+        host.model.set_node_property(workspace_id, node.node_id, "message", "after")
         after_snapshot = host.model.active_workspace.capture_snapshot()
 
         for restored_snapshot in (before_snapshot, after_snapshot):
@@ -1534,9 +1536,8 @@ class RunControllerUnitTests(unittest.TestCase):
                 host.model.active_workspace.restore_snapshot(restored_snapshot)
                 host.execution_client.start_calls.clear()
                 controller.clear_active_run()
-                controller.invalidate_solution_for_history_action(
+                controller.invalidate_solution_for_graph_change(
                     workspace_id,
-                    "edit-node-property",
                     before_snapshot=before_snapshot,
                     after_snapshot=after_snapshot,
                 )
@@ -1572,9 +1573,8 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot = host.model.active_workspace.capture_snapshot()
             host.model.set_node_property(workspace_id, target.node_id, "value", value)
             after_snapshot = host.model.active_workspace.capture_snapshot()
-            controller.invalidate_solution_for_history_action(
+            controller.invalidate_solution_for_graph_change(
                 workspace_id,
-                "edit-node-property",
                 before_snapshot=before_snapshot,
                 after_snapshot=after_snapshot,
             )
@@ -1705,8 +1705,12 @@ class RunControllerUnitTests(unittest.TestCase):
         host.run_state.active_run_id = ""
         host.run_state.active_run_workspace_id = ""
 
-        changed = controller.invalidate_solution_for_history_action(
-            workspace_id, "add-edge"
+        before_snapshot = host.model.active_workspace.capture_snapshot()
+        host.model.set_node_property(workspace_id, script.node_id, "script", _script_result("'changed'"))
+        changed = controller.invalidate_solution_for_graph_change(
+            workspace_id,
+            before_snapshot=before_snapshot,
+            after_snapshot=host.model.active_workspace.capture_snapshot(),
         )
 
         self.assertTrue(changed)
@@ -1789,9 +1793,8 @@ class RunControllerUnitTests(unittest.TestCase):
         )
         after_snapshot = host.model.active_workspace.capture_snapshot()
 
-        changed = controller.invalidate_solution_for_history_action(
+        changed = controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "edit-node-property",
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
@@ -1839,9 +1842,8 @@ class RunControllerUnitTests(unittest.TestCase):
         cosmetic_before = host.model.active_workspace.capture_snapshot()
         host.model.set_node_title(workspace_id, upstream.node_id, "Renamed Upstream")
         cosmetic_after = host.model.active_workspace.capture_snapshot()
-        cosmetic_changed = controller.invalidate_solution_for_history_action(
+        cosmetic_changed = controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "rename-node",
             before_snapshot=cosmetic_before,
             after_snapshot=cosmetic_after,
         )

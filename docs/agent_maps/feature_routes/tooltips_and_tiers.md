@@ -28,6 +28,10 @@ Viewer capability-disabled copy belongs in `viewer.json`; shared viewer
 controls must keep disabled items hoverable and show the exact unavailable
 reason.
 
+The board-preview retry button declares the `general` category explicitly and
+uses the shared `GraphSurfaceButton` label tooltip. Keep new controls out of the
+accepted missing-category inventory by declaring their policy at the call site.
+
 `ManagedToolTip` owns explicit shell-themed QML tooltip chrome using the
 `themeBridge` palette and a rounded card. Its implicit width is capped by
 `maximumTextWidth`, so plain and rich text content receives a bounded width and

@@ -159,7 +159,7 @@ from ea_node_editor.addons.tabular_data.input_node import execute_tabular_input
     _property_group="Safety",
 )
 @corex.text(
-    "tabular_table_view_state",
+    "tabular_table_view_state", affects_execution=False,
     default="",
     label="Tabular Table View State",
     _inline_editor="",

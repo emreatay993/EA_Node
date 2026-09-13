@@ -62,7 +62,7 @@ BUILTIN_TYPES = {
     "str": STRING_DATA_TYPE_ID,
 }
 _COMMON_CONTROL_FIELDS = frozenset(
-    {"default", "label", "description", "section", "port"}
+    {"default", "label", "description", "section", "port", "affects_execution"}
 )
 CONTROL_ALLOWED_FIELDS = {
     "text": _COMMON_CONTROL_FIELDS,
@@ -626,6 +626,9 @@ def control_spec(
     description = string_value(values, "description")
     section = string_value(values, "section")
     accepted: tuple[str, ...] = ()
+    affects_execution = bool_value(values, "affects_execution", True)
+    if not affects_execution and bool_value(values, "port"):
+        raise DeclarationValueError("presentation-only controls cannot back input ports")
 
     if decorator_name in {"text", "text_area", "color", "path"}:
         default = values.get("default", "")
@@ -653,6 +656,7 @@ def control_spec(
             file_filter=string_value(values, "file_filter"),
             description=description,
             group=section,
+            affects_execution=affects_execution,
         )
         return prop, data_type, accepted, "item"
 
@@ -669,6 +673,7 @@ def control_spec(
                 inline_editor="toggle",
                 description=description,
                 group=section,
+                affects_execution=affects_execution,
             ),
             BOOLEAN_DATA_TYPE_ID,
             (),
@@ -700,6 +705,7 @@ def control_spec(
                 inline_editor="slider" if decorator_name == "slider" else "number",
                 description=description,
                 group=section,
+                affects_execution=affects_execution,
             ),
             data_type,
             (),
@@ -734,6 +740,7 @@ def control_spec(
                     searchable=searchable,
                     description=description,
                     group=section,
+                    affects_execution=affects_execution,
                 ),
                 STRING_DATA_TYPE_ID,
                 (),
@@ -767,6 +774,7 @@ def control_spec(
                 searchable=searchable,
                 description=description,
                 group=section,
+                affects_execution=affects_execution,
             ),
             INTEGER_DATA_TYPE_ID,
             (),
@@ -826,6 +834,7 @@ def control_spec(
                 ),
                 description=description,
                 group=section,
+                affects_execution=affects_execution,
             ),
             INTERVAL_1D_GRAPH_DATA_TYPE_ID,
             (),
@@ -915,6 +924,7 @@ def control_spec(
                 list_item_step=values.get("step", 0.0),
                 description=description,
                 group=section,
+                affects_execution=affects_execution,
             ),
             str(item_type_id),
             (STRING_DATA_TYPE_ID,) if item_type_id == COLOR_DATA_TYPE_ID else (),

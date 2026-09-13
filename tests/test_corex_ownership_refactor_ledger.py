@@ -414,6 +414,7 @@ def test_t25_live_and_removed_inventories_have_exact_ledger_membership() -> None
     assert live_ids == set(registry)
     assert baseline_ids - live_ids == removed_ids
     assert live_ids - baseline_ids == {
+        "run_controller__test_media_toolbar_history_and_bulk_edits_preserve_real_workflow",
         "main_window__lifecycle__composition_context_provider_action_identity",
         "main_window__lifecycle__fullscreen_media_handoff",
         "main_window__lifecycle__native_parenting",
@@ -445,7 +446,7 @@ def test_t25_live_and_removed_inventories_have_exact_ledger_membership() -> None
         "main_window__lifecycle__viewer_reparent_restore",
         "project_session__test_recovery_prompt_is_deferred_until_main_window_is_visible",
     }
-    assert len(live_rows) - len(lifecycle_ids) == 43
+    assert len(live_rows) - len(lifecycle_ids) == 44
     for row in live_rows:
         assert row[5] != "N/A"
         assert (

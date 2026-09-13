@@ -264,6 +264,8 @@ class PropertySpec:
     list_item_minimum: float | None = None
     list_item_maximum: float | None = None
     list_item_step: float = 0.0
+    # False declares authored presentation state, excluded from computational identity.
+    affects_execution: bool = True
 
     def __post_init__(self) -> None:
         object.__setattr__(

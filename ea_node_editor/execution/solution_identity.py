@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 _SHA256_CHARS = frozenset("0123456789abcdef")
 _CANONICAL_SCHEMA_VERSION = 1
-_SOLUTION_KEY_SCHEMA_VERSION = 3
+_SOLUTION_KEY_SCHEMA_VERSION = 4
 _BUILD_DIGEST_SCHEMA_VERSION = 1
 _HASH_CHUNK_SIZE = 1024 * 1024
 MAX_CANONICAL_DEPTH = 32
@@ -990,6 +990,7 @@ def node_contract_digest(
                     "data_access": port.data_access,
                     "required": port.required,
                     "uses_property_default": port.uses_property_default,
+                    "allow_empty_string": port.allow_empty_string,
                     "property_default": (
                         properties[port.key].default
                         if port.uses_property_default and port.key in properties
@@ -1227,10 +1228,9 @@ def assemble_node_solution(
     interface_revision = plan.workflow_interface_revision
     interface_digest = plan.node_solution_interface_digest(node_id)
     try:
-        normalized_properties = registry.normalize_properties(
+        normalized_properties = registry.execution_properties(
             node.type_id,
             node.properties,
-            include_defaults=True,
         )
         incoming_identities: list[IncomingEdgeIdentity] = []
         conversion_pairs: set[tuple[str, str]] = set()

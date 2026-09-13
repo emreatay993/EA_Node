@@ -772,9 +772,8 @@ class RunProjectionControllerTests(unittest.TestCase):
             workspace_id, node.node_id, "script", _script_result("2")
         )
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "edit-node-property",
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
@@ -792,9 +791,8 @@ class RunProjectionControllerTests(unittest.TestCase):
             workspace_id, node.node_id, "script", _script_result("3")
         )
         after_snapshot = host.model.active_workspace.capture_snapshot()
-        controller.invalidate_solution_for_history_action(
+        controller.invalidate_solution_for_graph_change(
             workspace_id,
-            "edit-node-property",
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )

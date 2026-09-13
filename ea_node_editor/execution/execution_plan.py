@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 _TRIGGER_TYPE_ID = "core.trigger"
 _FINGERPRINT_SCHEMA_VERSION = 1
-WORKFLOW_INTERFACE_REVISION = 3
+WORKFLOW_INTERFACE_REVISION = 4
 
 
 class _ExecutionCycleError(ValueError):
@@ -553,6 +553,7 @@ class ExecutionPlan:
                     "data_access": port.data_access,
                     "required": port.required,
                     "uses_property_default": port.uses_property_default,
+                    "allow_empty_string": port.allow_empty_string,
                     "property_default": (
                         property_defaults.get(port.key)
                         if port.uses_property_default

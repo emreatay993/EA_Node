@@ -1,18 +1,21 @@
 from __future__ import annotations
 
+import copy
 import json
 import re
 import sys
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 from types import SimpleNamespace
 
-from PyQt6.QtCore import QMetaObject, QObject
+from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, Qt
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QMessageBox
 
+from ea_node_editor.execution.runtime import CorexRuntime
 from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.execution_plan import ExecutionPlan
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
@@ -413,7 +416,102 @@ def _named_qquick_item(root: QObject, object_name: str) -> QQuickItem | None:
     return match
 
 
+class _CountingRuntime(CorexRuntime):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.dispatch_count = 0
+        self.invalidation_count = 0
+
+    def dispatch_prepared(self, *args, **kwargs):
+        self.dispatch_count += 1
+        return super().dispatch_prepared(*args, **kwargs)
+
+    def invalidate_solution(self, *args, **kwargs):
+        self.invalidation_count += 1
+        return super().invalidate_solution(*args, **kwargs)
+
+
 class ShellRunControllerTests(MainWindowShellTestBase):
+    def _wait_until(self, predicate, timeout=40):
+        deadline = time.monotonic() + timeout
+        while not predicate() and time.monotonic() < deadline:
+            QTest.qWait(20)
+        self.assertTrue(predicate(), "Timed out waiting for the real canvas/runtime")
+
+    def test_media_toolbar_history_and_bulk_edits_preserve_real_workflow(self):
+        window = self.window
+        window.run_controller.set_auto_run_enabled(False)
+        runtime = _CountingRuntime(registry=window.registry)
+        self.addCleanup(runtime.shutdown)
+        events = []
+        runtime.subscribe(lambda event: events.append(event))
+        runtime.subscribe(window.execution_event.emit)
+        window.execution_client = runtime
+        workspace_id, workspace = self._active_workspace()
+        source_file = Path(self._temp_dir.name) / "series.csv"
+        source_file.write_text("value\n0\n1\n0\n-1\n0\n", encoding="utf-8")
+        table = window.scene.add_node_from_type("tabular.input", x=20, y=20)
+        plot = window.scene.add_node_from_type("plot.signal", x=240, y=20)
+        media = window.scene.add_node_from_type("media.panel", x=480, y=20)
+        window.scene.set_node_property(table, "path", str(source_file))
+        window.scene.add_edge(table, "table_data", plot, "values")
+        window.scene.add_edge(plot, "image", media, "source")
+        window.scene.select_node(media, False)
+        window.show()
+        window.run_controller.run_workflow()
+        self._wait_until(lambda: any(e.get("type") == "run_completed" for e in events)
+                         and not window.run_state.active_run_id)
+        started = [e for e in events if e.get("type") == "node_started"]
+        self.assertEqual({e["node_id"] for e in started}, {table, plot, media})
+        self.assertFalse([e for e in events if e.get("type") in {"run_failed", "node_failed"}])
+        window.run_controller.set_auto_run_enabled(True)
+        baseline = (runtime.dispatch_count, runtime.invalidation_count, len(started))
+        facts = runtime.solution_facts(window.model.project.project_id, workspace_id)
+        elapsed = copy.deepcopy(window.run_state.cached_node_elapsed_ms_by_workspace_id)
+        records = copy.deepcopy(window.run_state.cached_node_output_records_by_workspace_id)
+        history_depth = window.runtime_history.undo_depth(workspace_id)
+
+        def assert_preserved():
+            QTest.qWait(30)
+            self.assertEqual((runtime.dispatch_count, runtime.invalidation_count,
+                len([e for e in events if e.get("type") == "node_started"])), baseline)
+            self.assertEqual(runtime.solution_facts(window.model.project.project_id, workspace_id), facts)
+            self.assertEqual(window.run_state.cached_node_elapsed_ms_by_workspace_id, elapsed)
+            self.assertEqual(window.run_state.cached_node_output_records_by_workspace_id, records)
+            self.assertFalse(window.run_state.pending_auto_run_target_node_ids)
+
+        for action, title, frame in [
+            ("toggle_title", False, True), ("toggle_frame", False, False),
+            ("toggle_content_only", True, True),
+        ]:
+            card = self._graph_node_card(media)
+            surface = next(item for item in self._walk_items(card)
+                           if item.objectName() == "graphNodeMediaSurface")
+            QMetaObject.invokeMethod(surface, "dispatchSurfaceAction", Qt.ConnectionType.DirectConnection,
+                Q_ARG("QVariant", action))
+            self.assertEqual(workspace.nodes[media].properties["show_title"], title)
+            self.assertEqual(workspace.nodes[media].properties["show_frame"], frame)
+            assert_preserved()
+            rendered_card = self._graph_node_card(media)
+            self.assertEqual(rendered_card.property("nodeChromeTitleVisible"), title)
+            self.assertEqual(rendered_card.property("nodeChromeFrameVisible"), frame)
+        self.assertTrue(workspace.dirty)
+        self.assertEqual(window.runtime_history.undo_depth(workspace_id), history_depth + 3)
+        self.assertTrue(window.workspace_edit_controller.undo())
+        self.assertFalse(workspace.nodes[media].properties["show_frame"])
+        assert_preserved()
+        self.assertTrue(window.workspace_edit_controller.redo())
+        self.assertTrue(workspace.nodes[media].properties["show_frame"])
+        assert_preserved()
+        window.scene.set_node_properties(media, {"rotation_degrees": 90, "fit_mode": "cover"})
+        window.scene.set_node_property(table, "tabular_table_view_state", {"column_widths": {"value": 180}})
+        assert_preserved()
+
+        # A computational control still causes exactly one Auto dispatch.
+        window.scene.set_node_property(plot, "title", "Changed plot output")
+        self._wait_until(lambda: runtime.dispatch_count == baseline[0] + 1 and not window.run_state.active_run_id)
+        self.assertEqual(runtime.invalidation_count, baseline[1] + 1)
+
     def test_disconnected_toggle_auto_run_preserves_current_viewer_until_separate_same_node_invalidation(
         self,
     ) -> None:

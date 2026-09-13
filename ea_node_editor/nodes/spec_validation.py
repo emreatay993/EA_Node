@@ -212,9 +212,39 @@ class _SpecValidator:
         self._validate_property_conditions(spec, properties_by_key)
         self._validate_property_default_ports(spec, properties_by_key)
         self._validate_readiness_requirements(spec, properties_by_key)
+        self._validate_execution_properties(spec, properties_by_key, resolved_ports)
         self._validate_settings_groups(spec)
         if spec.instance_spec_resolver is not None:
             self.validate(resolve_instance_spec(spec, {}))
+
+    @staticmethod
+    def _validate_execution_properties(
+        spec: NodeTypeSpec,
+        properties_by_key: Mapping[str, PropertySpec],
+        resolved_ports: tuple[PortSpec, ...],
+    ) -> None:
+        required = {
+            port.key for port in (*spec.ports, *resolved_ports)
+            if port.direction == "in" and port.kind == "data"
+        }
+        required.update(group.property_key for group in spec.dynamic_port_groups)
+        required.update(item.property_key for item in spec.solution_provenance_inputs)
+        required.update(prop.sensitive_scope_key for prop in properties_by_key.values() if prop.sensitive)
+        for requirement in spec.readiness_requirements:
+            required.update(requirement.any_of_properties)
+            required.update(condition.property_key for condition in requirement.when_properties)
+        for prop in properties_by_key.values():
+            if not isinstance(prop.affects_execution, bool):
+                raise TypeError(
+                    f"Node {spec.type_id} property {prop.key} affects_execution must be bool"
+                )
+            if not prop.affects_execution and (
+                prop.key in required or prop.expose_port_toggle or prop.sensitive
+            ):
+                raise ValueError(
+                    f"Node {spec.type_id} property {prop.key} affects execution through "
+                    "an input, structure, readiness, provenance, or sensitive dependency"
+                )
 
     @staticmethod
     def _validate_sensitive_properties(

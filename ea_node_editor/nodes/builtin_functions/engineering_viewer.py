@@ -31,14 +31,14 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     description="Saved entity selections for the displayed scene layers.",
 )
 @corex.switch(
-    "show_mesh_edges",
+    "show_mesh_edges", affects_execution=False,
     default=False,
     label="Show Mesh Edges",
     _inline_editor="",
     _property_group="View",
 )
 @corex.dropdown(
-    "representation",
+    "representation", affects_execution=False,
     default="surface_with_edges",
     options=(
         "surface",
@@ -52,28 +52,28 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     _property_group="View",
 )
 @corex.switch(
-    "show_attribute_colors",
+    "show_attribute_colors", affects_execution=False,
     default=False,
     label="Show Attribute Colors",
     _inline_editor="",
     _property_group="View",
 )
 @corex.switch(
-    "show_orientation_triad",
+    "show_orientation_triad", affects_execution=False,
     default=True,
     label="Show Orientation Triad",
     _inline_editor="",
     _property_group="View",
 )
 @corex.switch(
-    "show_view_cube",
+    "show_view_cube", affects_execution=False,
     default=True,
     label="Show View Cube",
     _inline_editor="",
     _property_group="View",
 )
 @corex.switch(
-    "show_world_axes",
+    "show_world_axes", affects_execution=False,
     default=False,
     label="Show World Axes",
     _inline_editor="",
@@ -89,7 +89,7 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     _property_default=["scene_1"],
 )
 @corex.text(
-    "scene_styles",
+    "scene_styles", affects_execution=False,
     default="",
     label="Scene Appearance",
     _inline_editor="",
@@ -98,14 +98,14 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     _property_default={},
 )
 @corex.switch(
-    "clip_enabled",
+    "clip_enabled", affects_execution=False,
     default=False,
     label="Enable Clipping",
     _inline_editor="",
     _inspector_visible=False,
 )
 @corex.dropdown(
-    "clip_axis",
+    "clip_axis", affects_execution=False,
     default="x",
     options=("x", "y", "z"),
     label="Clipping Axis",
@@ -113,21 +113,21 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     _inspector_visible=False,
 )
 @corex.number(
-    "clip_offset",
+    "clip_offset", affects_execution=False,
     default=0.0,
     label="Clipping Offset",
     _inline_editor="",
     _inspector_visible=False,
 )
 @corex.switch(
-    "parallel_projection",
+    "parallel_projection", affects_execution=False,
     default=False,
     label="Parallel Projection",
     _inline_editor="",
     _property_group="View",
 )
 @corex.dropdown(
-    "viewer_background",
+    "viewer_background", affects_execution=False,
     default="theme",
     options=("theme", "white", "black", "gray"),
     label="Background",
@@ -149,7 +149,7 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     },
 )
 @corex.text(
-    "camera_bookmarks",
+    "camera_bookmarks", affects_execution=False,
     default="",
     label="Camera Bookmarks",
     _inline_editor="",

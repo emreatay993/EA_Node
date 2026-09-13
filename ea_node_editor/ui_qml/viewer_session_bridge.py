@@ -322,6 +322,7 @@ class ViewerSessionBridge(QObject):
         self._workspace_provider = workspace_provider
         self._scene_bridge = scene_bridge
         self._data_types = data_types
+        self._registry: NodeRegistry | None = None
         self._sessions: dict[tuple[str, str], _ViewerSessionProjection] = {}
         self._presentation_service = _ViewerSessionPresentationService(
             capture_overlay_camera_state=capture_overlay_camera_state,
@@ -353,10 +354,13 @@ class ViewerSessionBridge(QObject):
                 "Cannot replace the registry while a viewer session is active"
             )
 
-    def replace_data_types(self, data_types: DataTypeCatalog) -> None:
-        if not isinstance(data_types, DataTypeCatalog):
-            raise TypeError("data_types must be a DataTypeCatalog")
-        self._data_types = data_types
+    def replace_registry(self, registry: NodeRegistry) -> None:
+        from ea_node_editor.nodes.registry import NodeRegistry
+
+        if not isinstance(registry, NodeRegistry):
+            raise TypeError("registry must be a NodeRegistry")
+        self._registry = registry
+        self._data_types = registry.data_types
 
     @pyqtProperty(str, notify=active_workspace_changed)
     def active_workspace_id(self) -> str:
@@ -468,7 +472,38 @@ class ViewerSessionBridge(QObject):
         value: Any,
         payload: Any = None,
     ) -> bool:
-        option_updates = _session_option_updates_for_node_property(key, value)
+        return self._sync_presentation_options(
+            node_id, payload, _session_option_updates_for_node_property(key, value),
+        )
+
+    def _authored_presentation_options(self, workspace_id: str, node_id: str) -> dict[str, Any]:
+        registry = self._registry
+        if registry is None:
+            return {}
+        workspace = self._workspace_provider(workspace_id)
+        node = workspace.nodes.get(node_id) if workspace is not None else None
+        if node is None:
+            return {}
+        spec = registry.resolve_spec(node.type_id, node.properties)
+        if spec.surface_family != "viewer":
+            return {}
+        properties = registry.normalize_properties(node.type_id, node.properties)
+        updates = {}
+        for prop in spec.properties:
+            if not prop.affects_execution:
+                updates.update(_session_option_updates_for_node_property(prop.key, properties[prop.key]))
+        return updates
+
+    def sync_node_presentation(self, node_id: str, payload: Any = None) -> bool:
+        """Reconcile complete current appearance after any committed graph change."""
+        state = self._active_session(node_id, payload)
+        if state is None or self._display_phase(state) != "open":
+            return False
+        return self._sync_presentation_options(node_id, payload, self._authored_presentation_options(
+            self._workspace_id_from_payload(payload), node_id,
+        ))
+
+    def _sync_presentation_options(self, node_id, payload, option_updates) -> bool:
         if not option_updates:
             return False
         state = self._active_session(node_id, payload)
@@ -483,7 +518,7 @@ class ViewerSessionBridge(QObject):
         return self._update_session_command(
             node_id,
             payload,
-            command_name="sync_node_property_option",
+            command_name="sync_presentation",
             option_updates=option_updates,
         )
 
@@ -785,6 +820,7 @@ class ViewerSessionBridge(QObject):
         *,
         reseed_on_next_reset: bool = False,
     ) -> None:
+        self._registry = registry
         old_workspace_ids = {workspace_id for workspace_id, _node_id in self._sessions}
         incoming_workspaces = getattr(project, "workspaces", {})
         incoming_workspace_ids = (
@@ -1507,6 +1543,8 @@ class ViewerSessionBridge(QObject):
         if event_type == "viewer_session_closed":
             state.camera_state_locally_captured = False
             self._clear_explicit_inline_if_matches(workspace_id, node_id)
+        if event_type in {"viewer_session_opened", "viewer_data_materialized"}:
+            self.sync_node_presentation(node_id, {"workspace_id": workspace_id})
         self.sessions_changed.emit()
         self._sync_live_modes(workspace_id)
 
@@ -1559,6 +1597,7 @@ class ViewerSessionBridge(QObject):
             node_id=node_id,
             session_id=session_id,
             backend_id=backend_id,
+            options=self._authored_presentation_options(workspace_id, node_id),
         )
         if not request_id:
             return False

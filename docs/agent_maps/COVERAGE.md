@@ -53,6 +53,10 @@ Settings-section size transitions use shared 180 ms width/height animations with
 
 ## Current ownership notes
 
+- The tooltip route owns the board-preview retry button's explicit general-category policy and the accepted missing-category audit. Its wording and rendering remain in the shared surface control.
+
+- Presentation-only canvas edits use `PropertySpec.affects_execution` across declarations and solution identity; `execution/graph_changes.py` owns snapshot semantics, with compiled topology and existing runtime downstream closure. `MutationUiEffects.after_graph_change` owns shared commit/replay presentation aftermath. The run-controller, clipboard/history, floating-toolbar, nodes, execution and viewer maps cover this contract and the real-worker/QML regression.
+
 - Explicit project/viewer invalidation is delivered to each live concrete worker with a request-, workspace-, digest- and generation-checked acknowledgment. `execution/client_common.py`, concrete clients and worker entry points own delivery and active-run handoffs; `tests/test_viewer_invalidation_lifecycle.py` verifies reopen and ordering. The prepared atomic path and fresh-service baseline guard remain intact. The real-shell XY probe additionally verifies save/close/reopen and normal rerun.
 - Shared QML surface metrics preserve projected port-row heights for both node grips and rendered wire endpoints, including Media Panel at custom graph text sizes; the edge-routing map owns this alignment regression.
 - The native COREX splash background, original emblem at 115% reference size, and

@@ -1006,6 +1006,7 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
         source_path="tests/test_shell_run_controller.py",
         coverage_kind="method_targets",
         owner_name="ShellRunControllerTests",
+        covered_names=("test_media_toolbar_history_and_bulk_edits_preserve_real_workflow",),
         excluded_names=(
             "test_node_execution_visualization_shell_events_drive_graph_node_chrome_states",
             "test_node_execution_visualization_failure_priority_overrides_completed_chrome",

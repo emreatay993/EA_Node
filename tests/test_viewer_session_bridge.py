@@ -774,6 +774,8 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id=node_id,
                 session_id=session_id,
+                workspace_invalidation_epoch=self.bridge._viewer_epochs("ws_main", node_id)[0],
+                node_invalidation_epoch=self.bridge._viewer_epochs("ws_main", node_id)[1],
                 summary={"cache_state": "live_ready"},
                 options={"live_mode": "proxy"},
                 data_refs={"dataset": {"kind": f"mock::{node_id}"}},
@@ -956,6 +958,49 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(results[0][0], "node_viewer")
         self.assertTrue(results[0][1]["supported"])
         self.assertEqual(results[0][1]["value"]["bounds"], [0, 1, 0, 1, 0, 1])
+
+    def test_authored_appearance_reconciles_bulk_changes_and_property_removal(self):
+        from ea_node_editor.nodes.bootstrap import build_builtin_registry
+        registry = build_builtin_registry()
+        node = SimpleNamespace(type_id="model.viewer", properties=registry.default_properties("model.viewer"))
+        self.host.model.project.workspaces["ws_main"].nodes["node_viewer"] = node
+        self.bridge.project_loaded(self.host.model.project, registry)
+        self._open_live_session()
+        before = len(self.host.execution_client.update_calls)
+        node.properties.update({"show_mesh_edges": True, "viewer_background": "white"})
+        self.assertTrue(self.bridge.sync_node_presentation("node_viewer"))
+        self.assertEqual(len(self.host.execution_client.update_calls), before + 1)
+        options = self.host.execution_client.update_calls[-1]["options"]
+        self.assertTrue(options["show_mesh_edges"])
+        self.assertEqual(options["viewer_background"], "white")
+        self.assertFalse(self.bridge.sync_node_presentation("node_viewer"))
+        node.properties.pop("show_mesh_edges")
+        self.assertTrue(self.bridge.sync_node_presentation("node_viewer"))
+        self.assertFalse(self.host.execution_client.update_calls[-1]["options"]["show_mesh_edges"])
+        self.assertEqual(self.host.execution_client.start_calls, [])
+
+    def test_appearance_edited_while_session_opens_overrides_captured_options(self):
+        from ea_node_editor.nodes.bootstrap import build_builtin_registry
+        registry = build_builtin_registry()
+        node = SimpleNamespace(type_id="model.viewer", properties=registry.default_properties("model.viewer"))
+        self.host.model.project.workspaces["ws_main"].nodes["node_viewer"] = node
+        self.bridge.project_loaded(self.host.model.project, registry)
+        node.properties["viewer_background"] = "white"
+        self.assertFalse(self.bridge.sync_node_presentation("node_viewer"))
+        self.assertEqual(self.host.execution_client.update_calls, [])
+        session_id = self.bridge.open("node_viewer", {"data_refs": {"fields": "fields"}})
+        request = self.host.execution_client.open_calls[-1]
+        node.properties["viewer_background"] = "black"
+        self.assertFalse(self.bridge.sync_node_presentation("node_viewer"))
+        self.bridge.handle_viewer_execution_event(_viewer_opened_event(
+            request_id=request["request_id"], workspace_id="ws_main", node_id="node_viewer",
+            session_id=session_id, options={"viewer_background": "white"},
+            workspace_invalidation_epoch=self.bridge._viewer_epochs("ws_main", "node_viewer")[0],
+            node_invalidation_epoch=self.bridge._viewer_epochs("ws_main", "node_viewer")[1],
+        ))
+        self.assertEqual(self.bridge.session_state("node_viewer")["options"]["viewer_background"], "black")
+        self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["viewer_background"], "black")
+        self.assertEqual(self.host.execution_client.start_calls, [])
 
     def test_node_property_option_sync_routes_mesh_edge_toggle_to_open_session(
         self,

@@ -1411,21 +1411,19 @@ class _GraphSceneContext:
             if self.mutation_timing_enabled():
                 self.record_mutation_timing_phase("history_capture_ms", (time.perf_counter() - start) * 1000.0)
 
-    def _invalidate_solution_for_history_action(
+    def _apply_graph_change_effects(
         self,
         workspace_id: str,
-        action_type: str,
         *,
-        before_snapshot: WorkspaceSnapshot | None,
-        after_snapshot: WorkspaceSnapshot | None,
+        before_snapshot: WorkspaceSnapshot,
+        after_snapshot: WorkspaceSnapshot,
     ) -> None:
         host = self._bridge.parent()
-        hook = getattr(host, "invalidate_solution_for_history_action", None)
+        hook = getattr(host, "apply_graph_change_effects", None)
         if not callable(hook):
             return
         hook(
             workspace_id,
-            action_type,
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
@@ -1451,9 +1449,8 @@ class _GraphSceneContext:
             )
             if entry is None:
                 return
-            self._invalidate_solution_for_history_action(
+            self._apply_graph_change_effects(
                 self.workspace_id,
-                action_type,
                 before_snapshot=entry.before,
                 after_snapshot=entry.after,
             )
@@ -1503,9 +1500,8 @@ class _GraphSceneContext:
                     after_snapshot,
                 )
                 if entry is not None:
-                    self._invalidate_solution_for_history_action(
+                    self._apply_graph_change_effects(
                         self.workspace_id,
-                        action_type,
                         before_snapshot=entry.before,
                         after_snapshot=entry.after,
                     )

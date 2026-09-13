@@ -1,6 +1,13 @@
 # Nodes, Registry, Built-ins, And Plugin Loading
 
 ## Purpose
+`PropertySpec.affects_execution` is the shared authored-property impact contract.
+Public controls, shipped add-ons and Python Script use the same declaration
+engine; `NodeRegistry.execution_properties` normalizes then removes only explicit
+presentation keys. Spec validation rejects known computational dependencies.
+`tests/test_execution_property_contract.py` covers admission, registry agreement,
+all control families and the shipped presentation-property inventory.
+
 Use this for node definitions, registry validation, built-in node families, data-type contracts, packages, and plugin loading.
 
 ## Lookup Aliases

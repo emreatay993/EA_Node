@@ -114,9 +114,9 @@ def number_slider(ctx, settings):
     _inspector_editor="textarea",
 )
 @corex.number("mode", default=0, label="Mode", _inline_editor="")
-@corex.number("font_size", default=12, label="Font Size", _inline_editor="")
-@corex.number("alignment", default=2, label="Alignment", _inline_editor="")
-@corex.switch("auto_resize", default=True, label="Auto Resize", _inline_editor="")
+@corex.number("font_size", affects_execution=False, default=12, label="Font Size", _inline_editor="")
+@corex.number("alignment", affects_execution=False, default=2, label="Alignment", _inline_editor="")
+@corex.switch("auto_resize", affects_execution=False, default=True, label="Auto Resize", _inline_editor="")
 @corex.dropdown("interpretation", default="text", options=("text", "auto", "number"), label="Interpret values as", _inline_editor="")
 def panel(ctx, input, settings):
     result = execute_panel(ctx)

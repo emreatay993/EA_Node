@@ -99,6 +99,9 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 
 ## Common Changes
 
+- `graph_changes.py` owns computational before/after snapshot comparison. A raw authored-state shortcut avoids resolving unchanged invalid nodes; changed properties use `NodeRegistry.execution_properties` plus resolved contracts before skipping compilation. Compiled per-node interfaces, incoming edges, and hidden links determine roots; grouping-preserving edits stay current. Conservative fallback excludes compile-only roots and retains a successful after projection.
+- `PropertySpec.affects_execution=False` excludes only declared presentation properties from both invalidation and solution keys. Full snapshots and worker attestation retain them. Solution-key schema 4 and workflow-interface revision 4 bind the new semantics, including `allow_empty_string`. `tests/test_execution_graph_changes.py` and `tests/test_execution_property_contract.py` own the contract regressions.
+
 - `ExecutionPlan.node_solution_interface_digest` identifies one producer independently of downstream/unrelated nodes; full workflow fingerprints still attest dispatch. Result records carry `node_interface_revision`/`node_interface_digest`. Identity revision 2 prevents old global-interface cache keys matching this scope.
 - Partial runs use `SolutionStore.current_outputs` and explicit `READ_CURRENT`/`PRUNE` decisions to consume only demanded detached ports. Currentness, generation, pinning, record/payload digest commitments, lifetime, and full plan validation remain execution-owned. Current reads do not republish producer facts; ordering dependencies and shared recomputation expand demand. `tests/test_runtime_current_results.py` owns the mixed Model/Table, Image/Media, empty-port, malicious-payload, volatile-lineage, and real-process regressions. `StartRunCommand.recompute_mode` carries explicit force policy to worker admission.
 

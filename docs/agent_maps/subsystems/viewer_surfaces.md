@@ -1,6 +1,16 @@
 # Viewer Surfaces, Native Overlays, And Fullscreen
 
 ## Purpose
+Committed appearance edits and directional undo/redo use
+`MutationUiEffects.after_graph_change` and
+`ViewerSessionBridge.sync_node_presentation`. Appearance is reconciled in one
+session update; unavailable/opening sessions do not start a workflow. Runtime
+session opens and materialization reapply current authored presentation so late
+execution snapshots cannot overwrite newer edits. Full initial runtime properties
+remain available; saved selections and scene inputs still affect computation.
+Registry replacement adopts or rolls back the viewer's registry and value catalog
+together through `replace_registry`, keeping presentation declarations current.
+
 Use this for embedded viewer sessions, native overlay management, fullscreen content, viewer host services, and engineering viewer surfaces.
 
 ## Start Here

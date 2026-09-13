@@ -943,6 +943,9 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             [argument.arg for argument in web_init.args.kwonlyargs],
             [
                 "preview_persist_callback",
+                "state_persist_callback",
+                "state_verify_callback",
+                "session_id",
                 "artifact_service",
                 "artifact_scope",
             ],

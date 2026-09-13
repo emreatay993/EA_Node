@@ -70,18 +70,16 @@ class ShellWindowRunAndStyleStateMixin:
     def set_graphics_expand_collision_avoidance(self: "ShellWindow", settings: dict[str, Any]) -> None:
         self.shell_workspace_presenter.set_graphics_expand_collision_avoidance(settings)
 
-    def invalidate_solution_for_history_action(
+    def apply_graph_change_effects(
         self: "ShellWindow",
         workspace_id: str,
-        action_type: str,
         *,
-        before_snapshot: object | None = None,
-        after_snapshot: object | None = None,
+        before_snapshot: object,
+        after_snapshot: object,
     ) -> bool:
         return bool(
-            self.run_controller.invalidate_solution_for_history_action(
+            self.workspace_edit_controller.mutation_ui_effects.after_graph_change(
                 workspace_id,
-                action_type,
                 before_snapshot=before_snapshot,
                 after_snapshot=after_snapshot,
             )

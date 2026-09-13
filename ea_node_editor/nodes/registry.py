@@ -833,6 +833,19 @@ class NodeRegistry:
     def default_properties(self, type_id: str) -> dict[str, Any]:
         return self.normalize_properties(type_id, {}, include_defaults=True)
 
+    def execution_properties(
+        self, type_id: str, values: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Project normalized authored values that define a node's computation.
+
+        Complete properties remain available to persistence, presentation, and
+        initial runtime setup. Invalidation and solution keys share this projection.
+        """
+        normalized = self.normalize_properties(type_id, dict(values or {}))
+        spec = self.resolve_spec(type_id, normalized)
+        presentation_keys = {prop.key for prop in spec.properties if not prop.affects_execution}
+        return {key: value for key, value in normalized.items() if key not in presentation_keys}
+
     def normalize_property_value(
         self,
         type_id: str,

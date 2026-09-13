@@ -19,6 +19,7 @@ from tests.shell_isolation_runtime import shell_lifecycle_contract
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _EXPECTED_T25_TARGET_IDS = {
+    "run_controller__test_media_toolbar_history_and_bulk_edits_preserve_real_workflow",
     "main_window__drop_connect_and_workflow_io__connection_constraints_and_library_drop",
     "main_window__drop_connect_and_workflow_io__connection_drag_and_cycle",
     "main_window__drop_connect_and_workflow_io__nested_category_startup",

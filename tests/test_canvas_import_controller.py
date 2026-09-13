@@ -47,7 +47,7 @@ def test_dialog_add_action_label_fits_the_styled_button(qapp):
 class _SceneParent(QObject):
     def __init__(self):
         super().__init__()
-        self.invalidate_solution_for_history_action = Mock()
+        self.apply_graph_change_effects = Mock()
 
 
 @pytest.fixture
@@ -104,7 +104,7 @@ def test_mixed_automatic_mapping_batch_history_and_url_spelling(import_host, qap
     assert nodes[7].properties["start_location"] == "https://example.test/page?q=X#part"
     assert all(not node.exposed_ports["source"] for node in nodes if node.type_id == "media.panel")
     assert host.runtime_history.undo_depth(workspace.workspace_id) == 1
-    assert host.parent.invalidate_solution_for_history_action.call_count == 1
+    assert host.parent.apply_graph_change_effects.call_count == 1
     assert (nodes[0].x, nodes[0].y) == ((99, 49) if gesture == "paste" else (123, 456))
     host.runtime_history.undo_workspace(workspace.workspace_id, workspace)
     assert not workspace.nodes

@@ -83,6 +83,7 @@ Rectangle {
             visible: root.previewMode === "error"
             enabled: root.surface && root.surface.fullscreenAvailable
             text: "Open editor to retry"
+            tooltipCategory: "general"
             onClicked: root.surface._requestContentFullscreen()
         }
     }

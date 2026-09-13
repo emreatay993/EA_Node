@@ -1,6 +1,12 @@
 # Floating Toolbar And Checked States
 
 ## Purpose
+Toolbar dispatch does not decide execution impact. Presentation-only property
+declarations and `execution/graph_changes.py` cover title/frame, Media Panel
+display controls, Panel formatting and other cosmetic edits through the shared
+history boundary. A generated plot's appearance settings still define output.
+The real-worker/QML regression lives in `tests/test_shell_run_controller.py`.
+
 Use this for graph node, flow-edge, and selection-envelope floating toolbar actions, checked-state projection, hover/selection visibility, toolbar positioning, quick edge-style popovers and popup lifecycle, inline edge-label editing, and zoom-aware tooltip placement that keeps popups clear of toolbar hit targets.
 
 Subnode scope entry is a contextual node toolbar action (`open_subnode_scope` / `Enter Subnode`) rather than a persistent header badge or common action; keep `GraphNodeHost.qml` `contextNodeActions`, `GraphNodeFloatingToolbar.qml`, and graph-canvas action routing aligned.

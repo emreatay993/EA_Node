@@ -420,12 +420,8 @@ class RegistryReplacementCoordinator:
                 ),
                 _PublicationStep(
                     "viewer_catalog",
-                    lambda: viewer_sessions.replace_data_types(
-                        replacement_registry.data_types
-                    ),
-                    lambda: viewer_sessions.replace_data_types(
-                        current_registry.data_types
-                    ),
+                    lambda: viewer_sessions.replace_registry(replacement_registry),
+                    lambda: viewer_sessions.replace_registry(current_registry),
                 ),
             )
         )

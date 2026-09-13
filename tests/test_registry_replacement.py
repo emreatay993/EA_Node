@@ -187,6 +187,7 @@ class _ViewerSessions:
         failure: _FailureController,
     ) -> None:
         self.data_types = current.data_types
+        self.registry = current
         self._old = current.data_types
         self._replacement = replacement.data_types
         self._failure = failure
@@ -195,7 +196,9 @@ class _ViewerSessions:
     def assert_registry_replaceable(self) -> None:
         self.preflights += 1
 
-    def replace_data_types(self, data_types) -> None:  # noqa: ANN001
+    def replace_registry(self, registry) -> None:  # noqa: ANN001
+        self.registry = registry
+        data_types = registry.data_types
         self.data_types = data_types
         if data_types is self._replacement:
             self._failure.apply("viewer_catalog")
@@ -893,7 +896,8 @@ def test_viewer_session_bridge_refuses_active_projection_and_replaces_catalog() 
 
     bridge._sessions.clear()  # noqa: SLF001
     bridge.assert_registry_replaceable()
-    bridge.replace_data_types(replacement.data_types)
+    bridge.replace_registry(replacement)
+    assert bridge._registry is replacement
     assert bridge._data_types is replacement.data_types  # noqa: SLF001
 
 

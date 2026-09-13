@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from ea_node_editor.graph.workspace_state import WorkspaceSnapshot
+
 
 class MutationUiEffects:
     """Shell-owned UI aftermath for graph mutations.
@@ -75,29 +77,22 @@ class MutationUiEffects:
             self.refresh_scene_from_model(str(workspace.workspace_id))
         if str(key) == "script":
             self.sync_script_editor_node(str(node_id), workspace=workspace)
-        self.sync_viewer_session_node_property(str(node_id), str(key), value, workspace=workspace)
         self._selected_node_and_workspace_tabs()
 
-    def sync_viewer_session_node_property(
-        self,
-        node_id: str,
-        key: str,
-        value: Any,
-        *,
-        workspace: Any | None,
-    ) -> None:
-        workspace_id = str(getattr(workspace, "workspace_id", "") or "").strip()
-        if not workspace_id:
-            return
-        viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
-        sync_node_property_option = getattr(viewer_session_bridge, "sync_node_property_option", None)
-        if callable(sync_node_property_option):
-            sync_node_property_option(
-                str(node_id),
-                str(key),
-                value,
-                {"workspace_id": workspace_id},
-            )
+    def after_graph_change(
+        self, workspace_id: str, *,
+        before_snapshot: WorkspaceSnapshot, after_snapshot: WorkspaceSnapshot,
+    ) -> bool:
+        """Apply one committed edit or directional history replay at the shared seam."""
+        viewer = getattr(self._host, "viewer_session_bridge", None)
+        if viewer is not None:
+            for node_id, node in after_snapshot.nodes.items():
+                previous = before_snapshot.nodes.get(node_id)
+                if previous is None or previous.properties != node.properties:
+                    viewer.sync_node_presentation(node_id, {"workspace_id": workspace_id})
+        return self._host.run_controller.invalidate_solution_for_graph_change(
+            workspace_id, before_snapshot=before_snapshot, after_snapshot=after_snapshot,
+        )
 
     def after_selected_port_exposure_changed(self) -> None:
         self._selected_node_and_workspace_tabs()
@@ -140,7 +135,7 @@ class MutationUiEffects:
         script_editor = getattr(self._host, "script_editor", None)
         if script_editor is not None:
             self.sync_script_editor_node(str(getattr(script_editor, "current_node_id", "")))
-        self.invalidate_solution_for_history_entry(workspace_id, entry)
+        self.after_graph_change(workspace_id, before_snapshot=entry.before, after_snapshot=entry.after)
         self.refresh_workspace_tabs()
 
     def after_connected_ports_request(self) -> None:
@@ -157,21 +152,6 @@ class MutationUiEffects:
 
     def after_selected_graph_items_deleted(self) -> None:
         self._selected_node_and_workspace_tabs()
-
-    def invalidate_solution_for_history_entry(
-        self,
-        workspace_id: str,
-        entry: object,
-    ) -> None:
-        hook = getattr(self._host, "invalidate_solution_for_history_action", None)
-        if not callable(hook):
-            return
-        hook(
-            workspace_id,
-            getattr(entry, "action_type", ""),
-            before_snapshot=getattr(entry, "before", None),
-            after_snapshot=getattr(entry, "after", None),
-        )
 
     def _selected_node_and_workspace_tabs(self) -> None:
         self.notify_selected_node_changed()

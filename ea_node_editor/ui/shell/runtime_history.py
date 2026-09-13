@@ -38,101 +38,6 @@ ACTION_EDIT_PROPERTY = ACTION_EDIT_NODE_PROPERTY
 ACTION_DELETE_SELECTED = "delete-selected"
 ACTION_MOVE_NODE = "move-node"
 ACTION_RESIZE_NODE = "resize-node"
-_EXECUTION_PRESERVING_ACTION_TYPES = frozenset(
-    {
-        ACTION_RENAME_NODE,
-        ACTION_TOGGLE_COLLAPSED,
-        ACTION_TOGGLE_SETTINGS_GROUP,
-        ACTION_TOGGLE_NODE_LOCKED,
-        ACTION_EDIT_NODE_STYLE,
-        ACTION_EDIT_NODE_LINK,
-        ACTION_EDIT_NODE_COMMENT,
-        ACTION_EDIT_EDGE_LABEL,
-        ACTION_EDIT_EDGE_STYLE,
-        ACTION_EDIT_PORT_LABEL,
-        ACTION_MOVE_NODE,
-        ACTION_RESIZE_NODE,
-        ACTION_WRAP_GROUP,
-    }
-)
-
-
-@dataclass(frozen=True, slots=True)
-class HistoryExecutionChange:
-    affects_execution: bool
-    changed_root_node_ids: tuple[str, ...] = ()
-    removed_node_ids: tuple[str, ...] = ()
-
-
-def classify_history_execution_change(
-    action_type: str,
-    *,
-    registry: object,
-    before_snapshot: WorkspaceSnapshot | None = None,
-    after_snapshot: WorkspaceSnapshot | None = None,
-) -> HistoryExecutionChange:
-    normalized_action_type = str(action_type or "").strip()
-    if not normalized_action_type:
-        return HistoryExecutionChange(False)
-    if normalized_action_type in _EXECUTION_PRESERVING_ACTION_TYPES:
-        return HistoryExecutionChange(False)
-    if not isinstance(before_snapshot, WorkspaceSnapshot) or not isinstance(
-        after_snapshot, WorkspaceSnapshot
-    ):
-        return HistoryExecutionChange(True)
-    if (
-        before_snapshot.nodes == after_snapshot.nodes
-        and before_snapshot.edges == after_snapshot.edges
-    ):
-        return HistoryExecutionChange(False)
-
-    def is_active(node: object | None) -> bool:
-        if node is None:
-            return False
-        get_spec = getattr(registry, "get_spec", None)
-        if not callable(get_spec):
-            return False
-        try:
-            spec = get_spec(str(getattr(node, "type_id", "") or ""))
-        except (KeyError, TypeError, ValueError):
-            return False
-        return str(getattr(spec, "runtime_behavior", "") or "").strip() == "active"
-
-    changed_roots: set[str] = set()
-    removed: set[str] = set()
-    for node_id in set(before_snapshot.nodes) | set(after_snapshot.nodes):
-        before_node = before_snapshot.nodes.get(node_id)
-        after_node = after_snapshot.nodes.get(node_id)
-        if before_node == after_node:
-            continue
-        if is_active(after_node):
-            changed_roots.add(str(node_id))
-        elif is_active(before_node):
-            removed.add(str(node_id))
-
-    for edge_id in set(before_snapshot.edges) | set(after_snapshot.edges):
-        before_edge = before_snapshot.edges.get(edge_id)
-        after_edge = after_snapshot.edges.get(edge_id)
-        if before_edge == after_edge:
-            continue
-        for edge in (before_edge, after_edge):
-            if edge is None:
-                continue
-            target_node_id = str(edge.target_node_id or "").strip()
-            if target_node_id and is_active(after_snapshot.nodes.get(target_node_id)):
-                changed_roots.add(target_node_id)
-
-    ordered_roots = tuple(
-        node_id for node_id in after_snapshot.nodes if node_id in changed_roots
-    )
-    ordered_removed = tuple(
-        node_id for node_id in before_snapshot.nodes if node_id in removed
-    )
-    return HistoryExecutionChange(
-        bool(ordered_roots or ordered_removed),
-        ordered_roots,
-        ordered_removed,
-    )
 
 
 @dataclass(slots=True)
@@ -456,9 +361,7 @@ __all__ = [
     "ACTION_WRAP_GROUP",
     "HistoryEntry",
     "GroupedHistoryResult",
-    "HistoryExecutionChange",
     "RuntimeGraphHistory",
     "WorkspaceSnapshot",
     "history_entry_title_only_node_id",
-    "classify_history_execution_change",
 ]

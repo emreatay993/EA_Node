@@ -33,16 +33,14 @@ class _ScriptEditorProbe:
 
 class _ViewerSessionBridgeProbe:
     def __init__(self) -> None:
-        self.property_option_syncs: list[tuple[str, str, object, dict[str, object]]] = []
+        self.property_option_syncs: list[tuple[str, dict[str, object]]] = []
 
-    def sync_node_property_option(
+    def sync_node_presentation(
         self,
         node_id: str,
-        key: str,
-        value: object,
         payload: dict[str, object],
     ) -> None:
-        self.property_option_syncs.append((node_id, key, value, dict(payload)))
+        self.property_option_syncs.append((node_id, dict(payload)))
 
 
 class _MutationEffectsHostProbe:
@@ -52,17 +50,17 @@ class _MutationEffectsHostProbe:
         self.script_editor = _ScriptEditorProbe()
         self.invalidated_history_entries: list[tuple[object, ...]] = []
         self.graph_hints: list[tuple[str, int]] = []
+        self.run_controller = self
 
-    def invalidate_solution_for_history_action(
+    def invalidate_solution_for_graph_change(
         self,
         workspace_id: str,
-        action_type: str,
         *,
         before_snapshot: object,
         after_snapshot: object,
     ) -> None:
         self.invalidated_history_entries.append(
-            (workspace_id, action_type, before_snapshot, after_snapshot)
+            (workspace_id, before_snapshot, after_snapshot)
         )
 
     def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
@@ -97,19 +95,15 @@ class MutationUiEffectsTests(unittest.TestCase):
         self.assertEqual(refreshed_tabs, ["refresh"])
         self.assertEqual(host.invalidated_history_entries, [])
 
-    def test_property_change_offers_viewer_session_option_sync(self) -> None:
+    def test_committed_property_change_offers_one_viewer_presentation_sync(self) -> None:
         host = _MutationEffectsHostProbe()
         viewer_session_bridge = _ViewerSessionBridgeProbe()
         host.viewer_session_bridge = viewer_session_bridge
         effects, _refreshed_tabs = self._effects(host)
-        workspace = SimpleNamespace(workspace_id="workspace-1", nodes={})
-
-        effects.after_selected_node_property_changed(
-            "node-viewer",
-            "show_mesh_edges",
-            True,
-            workspace=workspace,
-            refresh_scene_payload=False,
+        before = SimpleNamespace(nodes={"node-viewer": SimpleNamespace(properties={"show_mesh_edges": False})})
+        after = SimpleNamespace(nodes={"node-viewer": SimpleNamespace(properties={"show_mesh_edges": True, "representation": "wireframe"})})
+        effects.after_graph_change(
+            "workspace-1", before_snapshot=before, after_snapshot=after,
         )
 
         self.assertEqual(
@@ -117,8 +111,6 @@ class MutationUiEffectsTests(unittest.TestCase):
             [
                 (
                     "node-viewer",
-                    "show_mesh_edges",
-                    True,
                     {"workspace_id": "workspace-1"},
                 )
             ],
@@ -134,7 +126,7 @@ class MutationUiEffectsTests(unittest.TestCase):
         self.assertEqual(host.scene.refreshed_workspace_ids, ["workspace-1"])
         self.assertEqual(
             host.invalidated_history_entries,
-            [("workspace-1", "edit-node-property", "before", "after")],
+            [("workspace-1", "before", "after")],
         )
         self.assertEqual(refreshed_tabs, ["refresh"])
         self.assertEqual(host.selected_node_changed.count, 0)

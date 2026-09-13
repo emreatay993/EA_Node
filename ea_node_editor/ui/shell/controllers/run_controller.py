@@ -21,9 +21,8 @@ from ea_node_editor.graph.hierarchy import root_node_ids_for_fragment, subtree_n
 from ea_node_editor.ui.shell.controllers.run_projection_controller import (
     RunProjectionController,
 )
-from ea_node_editor.ui.shell.runtime_history import (
-    classify_history_execution_change,
-)
+from ea_node_editor.execution.graph_changes import compare_execution_graphs
+from ea_node_editor.graph.workspace_state import WorkspaceSnapshot
 from ea_node_editor.ui.shell.state import ShellRunState
 
 
@@ -798,19 +797,18 @@ class RunController:
         state.selected_run_preview_revision += 1
         self._projection.commit_node_execution_state_change()
 
-    def invalidate_solution_for_history_action(
+    def invalidate_solution_for_graph_change(
         self,
         workspace_id: str,
-        action_type: str,
         *,
-        before_snapshot: object | None = None,
-        after_snapshot: object | None = None,
+        before_snapshot: WorkspaceSnapshot,
+        after_snapshot: WorkspaceSnapshot,
     ) -> bool:
         normalized_workspace_id = str(workspace_id or "").strip()
         if not normalized_workspace_id:
             return False
-        change = classify_history_execution_change(
-            action_type,
+        change = compare_execution_graphs(
+            normalized_workspace_id,
             registry=self._host.registry,
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
@@ -821,8 +819,6 @@ class RunController:
         if workspace is None:
             return False
         changed_root_node_ids = change.changed_root_node_ids
-        if not changed_root_node_ids and not change.removed_node_ids:
-            changed_root_node_ids = self._active_node_ids(workspace)
         runtime_snapshot = build_runtime_snapshot(
             self._host.model.project,
             workspace_id=normalized_workspace_id,

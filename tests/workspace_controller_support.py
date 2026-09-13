@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from ea_node_editor.custom_workflows import (
     export_custom_workflow_file,
@@ -101,6 +101,7 @@ class _UndoRedoHostStub:
         self._graph_interactions = _GraphInteractionsStub()
         self.model = GraphModel()
         self.runtime_history = _RuntimeHistoryStub()
+        self.run_controller = SimpleNamespace(invalidate_solution_for_graph_change=Mock(return_value=False))
         workspace_id = self.model.active_workspace.workspace_id
         self.workspace_manager = _WorkspaceManagerStub(workspace_id)
         self.scene = _SceneStub()
