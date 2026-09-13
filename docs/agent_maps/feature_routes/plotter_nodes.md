@@ -16,11 +16,19 @@ Use this for plotter node planning, backend registry/static export work, generic
 - `ea_node_editor/ui_qml/plot_auto_preview_service.py` — async render-request builds + shared cache
 - `ea_node_editor/execution/plot_series_decimation.py` — min-max envelope / stride sampling contract
 - `ea_node_editor/nodes/builtin_functions/plot_signal.py` — inert decorated Signal Plot declaration and worker function
-- `ea_node_editor/execution/signal_plot_renderer.py` — Signal Plot validation and ImageValue rendering
+- `ea_node_editor/execution/signal_plot_renderer.py` — shared full-data normalization, PlotValue construction and PNG rendering
+- `ea_node_editor/runtime_contracts/plot_value.py` — immutable full-data plot, preview and producer identity
+- `ea_node_editor/runtime_contracts/plot_codec.py` — bounded session-only plot transport
+- `ea_node_editor/ui/xy_plot_session.py` — fullscreen lifecycle, temporary view cache and guarded range writeback
+- `ea_node_editor/web_host/xy_transport.py` — worker-owned XY figures and canonical sample readouts
+- `ea_node_editor/web_assets/xy_host/` — offline browser client and temporary middle-button pan
+- `ea_node_editor/ui_qml/components/web/XYPlotHost.qml`
 - `ea_node_editor/execution/signal_plot_inputs.py` — aligned read-only scientific/ref X/Y normalization
 - `ea_node_editor/nodes/builtins/plot/signal_schema.py` — zero-I/O schema suggestions for shared property editors
 - `scripts/generate_signal_plot_scientific_example.py`
 - `scripts/benchmark_signal_plot.py`
+- `scripts/showcase_xy_interactive.py` — standalone offline XY desktop interaction and streaming gallery
+- `tests/test_xy_interactive_showcase.py`
 - `docs/SIGNAL_PLOT_GUIDE.md`
 - `ea_node_editor/ui_qml/plot_widget_binder.py`
 - `ea_node_editor/ui_qml/components/graph/plot/GraphPlotSurface.qml`
@@ -42,6 +50,11 @@ Use this for plotter node planning, backend registry/static export work, generic
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_plot_node_contracts.py tests/test_plot_headless_export.py tests/test_registry_validation.py tests/test_passive_runtime_wiring.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest -n 0 tests/test_plot_value.py tests/test_xy_plot_transport.py tests/test_xy_plot_session.py tests/test_xy_fullscreen_bridge.py -q
+.\venv\Scripts\python.exe -m tests.test_xy_plot_qml --probe
+.\venv\Scripts\python.exe -m tests.test_xy_fullscreen_shell --probe
+.\venv\Scripts\python.exe -m pytest tests/test_xy_interactive_showcase.py -q
+.\venv\Scripts\python.exe .\scripts\showcase_xy_interactive.py --smoke-test
 .\venv\Scripts\python.exe -m pytest tests/test_plot_backend_registry.py tests/test_plot_headless_export.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_inspector_projection.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_plot_node_contracts.py tests/test_passive_runtime_wiring.py --ignore=venv -q
@@ -59,6 +72,10 @@ $env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test
 - [Retained Work-Packet QA Evidence And Spec Navigation](work_packet_docs_status_qa.md)
 
 ## Surface Ownership Notes
+- Signal Plot publishes `PlotValue` on the retained `image` output key (display label Plot). Its strict codec retains full normalized signals and producer provenance for the current session only; the catalog's shared Plot-to-Image conversion supplies the PNG preview to image consumers. PNG reduction remains independent of fullscreen data. Durable reuse and project-property persistence are rejected.
+- Media Panel recognizes the exact plot value, renders its PNG inline, and uses the dedicated QML XY host under `content_kind="media"` in fullscreen. Generic plot-node backends below remain separate. Expansion uses accepted values only and never executes or rereads a source.
+- `XYPlotSessionOwner` validates the accepted producer and execution state, retires late callbacks, caches bounded ranges/selection geometry, and applies optional `sync_fullscreen_ranges` changes only on normal close through one `GraphSceneBridge.set_node_properties` batch. Wired/locked ranges stay local-only. Reset/Fit intent clears automatic overrides even without numerical view changes; external changes invalidate cached state. Middle-button pan temporarily uses XY's native gesture path and restores the prior tool.
+- `tests/test_xy_fullscreen_shell.py` exercises the real shell and worker: PNG/full-data output, native middle-button pan, one close-time undo entry, Manual/Auto behavior, and save/close/reopen followed by normal execution. The focused QML probe covers native interaction and rendering; both desktop probes are GUI-marked.
 - Signal Plot is the sole function-SDK plot conversion: its full grouped-control contract is statically parsed from the internal inert source and executed through the verified function bundle, while rendering remains execution-owned. The eight generated generic plots remain trusted descriptors.
 - The generic family contains eight retained nodes; `plot.line` is removed without alias or migration. Retained generic line-oriented fixtures use `plot.scatter`.
 - `scripts/benchmark_signal_plot.py` owns full-resolution Matplotlib-versus-XY rendering and the separate scientific process/CorexRuntime workload. `--scientific --rows 2000000` records initial/repeated elapsed time, combined process RSS, all source samples, reduction counts and actual recomputation reasons. The trusted-fixture 64 MiB reuse gate is in `tests/test_signal_plot_scientific_integration.py`; retained measurements live in `docs/specs/perf/SIGNAL_PLOT_SCIENTIFIC_INPUTS_QA.md`.

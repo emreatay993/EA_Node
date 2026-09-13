@@ -46,6 +46,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - `tests/test_trusted_client.py`
 - `tests/test_execution_worker.py`
 - `tests/test_execution_viewer_service.py`
+- `tests/test_viewer_invalidation_lifecycle.py`
 - `tests/test_engineering_viewer_node.py`
 - `tests/test_engineering_viewer_widget_binder.py`
 

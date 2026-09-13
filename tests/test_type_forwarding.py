@@ -23,6 +23,7 @@ from ea_node_editor.runtime_contracts import (
 )
 
 IMAGE = "COREX.DataTypes.Image"
+PLOT = "COREX.DataTypes.Plot"
 ANY = GRAPH_DATA_TYPE_ID
 
 
@@ -49,16 +50,16 @@ def _resolve(registry, nodes, edges, **kwargs):
                              workspace_edges=edges, **kwargs)
 
 
-def test_plot_panel_trigger_and_stream_gate_preserve_image_but_not_input_acceptance(registry):
+def test_plot_panel_trigger_and_stream_gate_preserve_plot_but_not_input_acceptance(registry):
     nodes = [_node("plot", "plot.signal"), _node("panel", "data.panel"), _node("trigger"),
              _node("gate", "core.stream_gate", properties={"output_port_ids": ["left", "right", "extra"]})]
     edges = [_edge("plot", "panel", source_port="image"), _edge("panel", "trigger"),
              _edge("trigger", "gate", target_port="stream")]
     resolver = _resolve(registry, nodes, edges)
-    assert resolver.source_contract("plot", "image").type_ids == (IMAGE,)
+    assert resolver.source_contract("plot", "image").type_ids == (PLOT,)
     for node, key in (("panel", "output"), ("trigger", "output"), ("gate", "left"),
                       ("gate", "right"), ("gate", "extra")):
-        assert resolver.source_contract(node, key) == ResolvedSourceContract((IMAGE,))
+        assert resolver.source_contract(node, key) == ResolvedSourceContract((PLOT,))
         assert resolver.port(node, key).data_type == ANY
     assert resolver.port("panel", "input").data_type == ANY
     assert resolver.port("trigger", "input").accepted_data_types == ()
@@ -129,7 +130,7 @@ def test_unresolved_source_metadata_does_not_become_any(registry):
     resolver = _resolve(registry, nodes, [_edge("plot", "trigger", source_port="image"),
                                          _edge("missing", "trigger")])
     contract = resolver.source_contract("trigger", "output")
-    assert contract.type_ids == (IMAGE,)
+    assert contract.type_ids == (PLOT,)
     assert contract.has_unresolved_sources
     assert resolver.compatibility("trigger", "output", _source_port(IMAGE)).status == "unresolved"
     assert resolver.source_contract("missing", "output") == ResolvedSourceContract((), True)
@@ -147,7 +148,7 @@ def test_cycles_are_conservative_and_independent_of_node_order(registry):
     for ordered_nodes in (nodes, list(reversed(nodes))):
         resolver = _resolve(registry, ordered_nodes, edges)
         for key in ("a", "b", "c"):
-            assert resolver.source_contract(key, "output") == ResolvedSourceContract((ANY, IMAGE))
+            assert resolver.source_contract(key, "output") == ResolvedSourceContract((ANY, PLOT))
 
 
 def test_long_chain_resolves_without_recursion_and_reuses_snapshot(registry):
@@ -159,7 +160,7 @@ def test_long_chain_resolves_without_recursion_and_reuses_snapshot(registry):
         resolver = _resolve(registry, list(reversed(nodes)), edges)
         before = resolve_spec.call_count
         contract = resolver.source_contract("1499", "output")
-        assert contract == ResolvedSourceContract((IMAGE,))
+        assert contract == ResolvedSourceContract((PLOT,))
         for _ in range(40):
             assert resolver.source_contract("1499", "output") is contract
             assert resolver.compatibility("1499", "output", _source_port(IMAGE)).is_compatible
@@ -184,8 +185,8 @@ def test_nested_any_subnode_boundaries_forward_and_typed_boundaries_remain_decla
              _edge("nested", "out_pin", source_port="nested_out", target_port="pin"),
              _edge("shell", "tail", source_port="out_pin")]
     resolver = _resolve(registry, nodes, edges)
-    assert resolver.source_contract("tail", "output").type_ids == (IMAGE,)
-    assert resolver.source_contract("nested_in", "pin").type_ids == (IMAGE,)
+    assert resolver.source_contract("tail", "output").type_ids == (PLOT,)
+    assert resolver.source_contract("nested_in", "pin").type_ids == (PLOT,)
     nodes[-2].properties["data_type"] = STRING_DATA_TYPE_ID
     assert _resolve(registry, nodes, edges).source_contract("tail", "output").type_ids == (STRING_DATA_TYPE_ID,)
     orphan = _resolve(registry, [_node("orphan", "core.subnode_input")], [])
@@ -201,6 +202,6 @@ def run(ctx, input):
 '''
     nodes = [_node("plot", "plot.signal"), _node("script", "core.python_script", properties={"script": source})]
     edges = [_edge("plot", "script", source_port="image")]
-    assert _resolve(registry, nodes, edges).source_contract("script", "output").type_ids == (IMAGE,)
+    assert _resolve(registry, nodes, edges).source_contract("script", "output").type_ids == (PLOT,)
     nodes[1].properties["script"] = source.replace(', type_from_input="input"', '')
     assert _resolve(registry, nodes, edges).source_contract("script", "output").type_ids == (ANY,)

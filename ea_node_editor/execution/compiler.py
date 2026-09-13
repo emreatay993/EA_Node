@@ -5,7 +5,7 @@ from collections import defaultdict
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Mapping
 
-from ea_node_editor.execution.runtime_dto import RuntimeEdge, RuntimeNode, RuntimeWorkspace
+from ea_node_editor.execution.runtime_dto import RuntimeEdge, RuntimeNode, RuntimeWorkspace, materialize_runtime_node
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
@@ -16,6 +16,7 @@ if TYPE_CHECKING:
         RegistryValidationPassMemo,
     )
     from ea_node_editor.graph.records import NodeInstance
+    from ea_node_editor.runtime_contracts import DataTypeCatalog
 
 def compile_workspace_document(
     workspace_doc: Mapping[str, Any],
@@ -46,7 +47,9 @@ def compile_runtime_workspace_snapshot(
 ) -> RuntimeWorkspace:
     """Compile nested subnode authoring constructs into a flat execution graph."""
     nodes_by_id, node_order = _normalize_nodes(workspace.nodes)
-    workspace_nodes = _materialize_nodes(nodes_by_id)
+    workspace_nodes = _materialize_nodes(
+        nodes_by_id, catalog=registry.data_types if registry is not None else None,
+    )
     validation_kernel, validation_memo = _registry_validation_context(
         registry=registry,
         workspace_nodes=workspace_nodes,
@@ -231,12 +234,14 @@ def _normalize_nodes(raw_nodes: object) -> tuple[dict[str, dict[str, Any]], list
     return nodes_by_id, node_order
 
 
-def _materialize_nodes(nodes_by_id: Mapping[str, Mapping[str, Any]]) -> dict[str, NodeInstance]:
-    from ea_node_editor.graph.record_payloads import node_instance_from_mapping
-
+def _materialize_nodes(
+    nodes_by_id: Mapping[str, Mapping[str, Any]],
+    *,
+    catalog: DataTypeCatalog | None = None,
+) -> dict[str, NodeInstance]:
     materialized: dict[str, NodeInstance] = {}
     for node_id, node_doc in nodes_by_id.items():
-        node = node_instance_from_mapping(node_doc)
+        node = materialize_runtime_node(node_doc, catalog=catalog)
         if node is None:
             continue
         materialized[node_id] = node

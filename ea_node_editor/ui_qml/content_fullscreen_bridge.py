@@ -108,6 +108,7 @@ class _FullscreenCandidate:
     web_page_payload: dict[str, Any]
     plot_payload: dict[str, Any]
     tabular_payload: dict[str, Any]
+    plot_value: object | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -414,6 +415,7 @@ class ContentFullscreenBridge(QObject):
         trim_video_clip_replace: _TrimVideoReplace,
         trim_video_clip_copy: _TrimVideoCopy,
         create_web_surface_artifact_service: _WebSurfaceArtifactServiceFactory,
+        plot_session_owner=None,
     ) -> None:
         super().__init__(parent)
         self._model_provider: _ModelProvider | None = model_provider
@@ -440,6 +442,8 @@ class ContentFullscreenBridge(QObject):
             _WebSurfaceArtifactServiceFactory | None
         ) = create_web_surface_artifact_service
         self._terminal = False
+        self._xy_owner = plot_session_owner
+        self._xy_failed_signature = ""
         self._lifecycle_connections: list[tuple[pyqtBoundSignal, Callable[..., Any]]] = []
         self._open = False
         self._node_id = ""
@@ -502,6 +506,8 @@ class ContentFullscreenBridge(QObject):
         if self._terminal:
             return
         self._terminal = True
+        if self._xy_owner is not None:
+            self._xy_owner.shutdown()
         for signal, slot in self._lifecycle_connections:
             try:
                 signal.disconnect(slot)
@@ -641,6 +647,7 @@ class ContentFullscreenBridge(QObject):
                 title=str(node.title or spec.display_name),
                 content_kind=content_kind,
                 media_payload=media_payload,
+                plot_value=source_resolution.raw_value if source_resolution and source_resolution.media_kind == "plot" else None,
                 viewer_payload=(
                     self._build_viewer_payload(
                         workspace_id=workspace_id,
@@ -1012,12 +1019,18 @@ class ContentFullscreenBridge(QObject):
     def request_close(self) -> None:
         if self._terminal:
             return
+        if self._xy_owner is not None and self._xy_owner.active is not None:
+            self._xy_owner.active.request_close()
+            return
         if self._open and self._content_kind == "web_editor" and self._web_surface_bridge is not None:
             self._web_surface_bridge.request_close()
             return
         self._complete_close()
 
     def _complete_close(self) -> None:
+        if self._xy_owner is not None:
+            self._xy_owner.retire()
+        self._xy_failed_signature = ""
         self._clear_tabular_preview_jobs()
         self._set_state(
             open_=False,
@@ -1447,10 +1460,14 @@ class ContentFullscreenBridge(QObject):
     def _on_workspace_changed(self, _workspace_id: str = "") -> None:
         if self._terminal:
             return
+        if self._xy_owner is not None:
+            self._xy_owner.observe_graph()
         if self._open:
             self._complete_close()
 
     def _on_nodes_changed(self, *_args: object) -> None:
+        if not self._terminal and self._xy_owner is not None:
+            self._xy_owner.observe_graph()
         if self._terminal or not self._open:
             return
         resolution = self._resolve_candidate(self._node_id)
@@ -1474,6 +1491,31 @@ class ContentFullscreenBridge(QObject):
         if candidate.content_kind == "script_editor":
             self._retarget_script_editor(candidate.node)
         media_payload = copy.deepcopy(candidate.media_payload)
+        from ea_node_editor.runtime_contracts import PlotValue
+        from ea_node_editor.ui.xy_plot_session import session_presentation
+        previous_xy = self.xy_plot_bridge
+        if type(candidate.plot_value) is PlotValue:
+            owner = self._ensure_xy_owner()
+            value = candidate.plot_value
+            if not owner.accepted(value):
+                owner.retire()
+                media_payload.update(source_state="stale", source_message="The originating Signal Plot is no longer current.")
+            elif self._xy_failed_signature == value.value_signature:
+                media_payload.update(source_state="failed", source_message="The plot renderer failed. Close fullscreen and reopen to retry.")
+            else:
+                try:
+                    session = owner.open(value, candidate.node.node_id)
+                    if session is not previous_xy:
+                        session.close_ready.connect(lambda event, active=session: self._on_xy_close(active, event))
+                        session.failed.connect(lambda message, active=session: self._on_xy_failed(active, message))
+                    media_payload["xy_session"] = session_presentation(session)
+                except Exception as error:
+                    owner.retire()
+                    self._xy_failed_signature = value.value_signature
+                    media_payload.update(source_state="failed", source_message=str(error))
+        elif self._xy_owner is not None:
+            self._xy_owner.retire()
+        bridge_changed = bridge_changed or previous_xy is not self.xy_plot_bridge
         if (
             str(media_payload.get("media_kind", "") or "") == "video"
             and runtime_state is not None
@@ -1513,6 +1555,8 @@ class ContentFullscreenBridge(QObject):
         script_editor.set_node(node)
 
     def _close_with_error(self, error: str) -> None:
+        if self._xy_owner is not None:
+            self._xy_owner.retire()
         self._set_state(
             open_=False,
             node_id="",
@@ -1585,6 +1629,36 @@ class ContentFullscreenBridge(QObject):
 
     def _active_media_kind(self) -> str:
         return str(self._media_payload.get("media_kind", "") or "").strip()
+
+    @pyqtProperty(QObject, notify=content_fullscreen_changed)
+    def xy_plot_bridge(self) -> QObject | None:
+        return self._xy_owner.active if self._xy_owner is not None else None
+
+    def _ensure_xy_owner(self):
+        if self._xy_owner is None:
+            from ea_node_editor.ui.xy_plot_session import XYPlotSessionOwner
+            self._xy_owner = XYPlotSessionOwner(
+                model_provider=self._model_provider, registry_provider=self._registry_provider,
+                active_workspace_id_provider=self._active_workspace_id_provider,
+                scene_bridge=self._scene_bridge, run_state=self._run_state, parent=self,
+            )
+        return self._xy_owner
+
+    def _on_xy_close(self, session, event: dict) -> None:
+        if self._terminal or self._xy_owner is None or self._xy_owner.active is not session:
+            return
+        node_id, updates = self._xy_owner.close_updates(session, event)
+        plot = session.plot
+        self._complete_close()
+        self._xy_owner.commit(plot, node_id, updates)
+
+    def _on_xy_failed(self, session, message: str) -> None:
+        if self._terminal or self._xy_owner is None or self._xy_owner.active is not session:
+            return
+        self._xy_failed_signature = session.plot.value_signature
+        self._xy_owner.retire()
+        self._media_payload.update(source_state="failed", source_message=str(message), xy_session={})
+        self.content_fullscreen_changed.emit()
 
     def _ensure_web_surface_bridge(
         self,

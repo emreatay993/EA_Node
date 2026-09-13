@@ -148,6 +148,9 @@ def scientific_payload_size(payload: Mapping[str, Any]) -> int:
 
 def check_scientific_budget(value: Any) -> None:
     """Preflight the entire operation before decoding any scientific buffer."""
+    from ea_node_editor.runtime_contracts.plot_value import PlotValue
+    from ea_node_editor.runtime_contracts.plot_codec import PLOT_MARKER, plot_payload_size
+
     total = 0
 
     def visit(item: Any, depth: int) -> None:
@@ -156,7 +159,11 @@ def check_scientific_budget(value: Any) -> None:
             raise ValueError(
                 f"runtime value exceeds maximum JSON depth {JSON_MAX_DEPTH}"
             )
-        if type(item) in {ArrayValue, TableValue}:
+        if type(item) is PlotValue:
+            size = item.nbytes
+        elif isinstance(item, Mapping) and not isinstance(item, DataTree) and item.get(_MARKER) == PLOT_MARKER:
+            size = plot_payload_size(item)
+        elif type(item) in {ArrayValue, TableValue}:
             size = item.nbytes
         elif (
             isinstance(item, Mapping)

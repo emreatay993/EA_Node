@@ -10,7 +10,7 @@ from dataclasses import replace
 import hashlib
 import json
 from types import MappingProxyType
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from ea_node_editor.common.optimization_links import (
     OPTIMIZATION_PARAMETER_POOL_TYPE_ID,
@@ -19,8 +19,11 @@ from ea_node_editor.common.optimization_links import (
     optimization_pool_role,
     parameter_setup_pool_link_facts,
 )
-from ea_node_editor.execution.runtime_dto import RuntimeEdge, RuntimeWorkspace
+from ea_node_editor.execution.runtime_dto import RuntimeEdge, RuntimeWorkspace, materialize_runtime_node
 from ea_node_editor.execution.solution_identity import canonical_digest
+
+if TYPE_CHECKING:
+    from ea_node_editor.runtime_contracts import DataTypeCatalog
 
 _TRIGGER_TYPE_ID = "core.trigger"
 _FINGERPRINT_SCHEMA_VERSION = 1
@@ -117,7 +120,7 @@ class ExecutionPlan:
                     registry.get_spec(node.type_id),
                     instance_spec_resolver=None,
                 )
-        self.node_instances = self._materialize_nodes()
+        self.node_instances = self._materialize_nodes(registry.data_types)
         self.node_ports = self._resolve_effective_ports()
         self.ports_by_key = {
             node_id: {port.key: port for port in ports}
@@ -164,12 +167,10 @@ class ExecutionPlan:
             if node.node_id in self.scheduled_node_ids
         )
 
-    def _materialize_nodes(self) -> dict[str, Any]:
-        from ea_node_editor.graph.record_payloads import node_instance_from_mapping
-
+    def _materialize_nodes(self, catalog: DataTypeCatalog) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for node_id, node in self.nodes.items():
-            materialized = node_instance_from_mapping(node.to_document())
+            materialized = materialize_runtime_node(node.to_document(), catalog=catalog)
             if materialized is None:
                 raise ValueError(f"Unable to materialize runtime node: {node_id}")
             result[node_id] = materialized

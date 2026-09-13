@@ -1091,7 +1091,7 @@ def test_durable_backend_rebind_evicts_only_previous_durable_state(
     runtime.shutdown()
 
 
-def test_all_29_maximum_durable_rows_share_conditional_store_publication() -> None:
+def test_all_28_maximum_durable_rows_share_conditional_store_publication() -> None:
     registry = build_default_registry()
     durable_rows = tuple(
         spec.type_id
@@ -1099,7 +1099,7 @@ def test_all_29_maximum_durable_rows_share_conditional_store_publication() -> No
         if spec.runtime_behavior == "active"
         and spec.solution_reuse_scope == "durable"
     )
-    assert len(durable_rows) == 29
+    assert len(durable_rows) == 28
     assert "data.boolean_toggle" in durable_rows
 
 
@@ -1154,6 +1154,7 @@ def test_durable_stage_failure_falls_back_to_valid_session_record() -> None:
 
 def test_large_durable_image_falls_back_to_session_without_repository_bytes(
     tmp_path,
+    monkeypatch,
 ) -> None:  # noqa: ANN001
     small_png = base64.b64decode(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg=="
@@ -1167,16 +1168,25 @@ def test_large_durable_image_falls_back_to_session_without_repository_bytes(
     )
     image = ImageValue.from_png(small_png[:-12] + ancillary + small_png[-12:])
 
+    # Image durability is independent of Signal Plot's session-only output.
+    monkeypatch.setattr(core_value, "SOURCE", core_value.SOURCE + '''
+@corex.node(id="tests.durable_image", name="Durable Image", category=("Tests",),
+            _solution_reuse_scope="durable")
+@corex.output("image", value_type=corex.Image)
+def durable_image(ctx):
+    raise AssertionError("Synthetic settlement fixture must not execute")
+''')
+    registry = build_default_registry(include_public_plugins=False, generation_root=plugin_generations_dir())
     model = GraphModel()
     workspace = model.active_workspace
     node = model.add_node(
         workspace.workspace_id,
-        "plot.signal",
-        "Signal Plot",
+        "tests.durable_image",
+        "Durable Image",
         0,
         0,
     )
-    runtime, client, registry = _runtime(model)
+    runtime, client, registry = _runtime(model, registry=registry)
     project_path = tmp_path / "large-image.cxproj"
     runtime.reset_project_session(model.project.project_id, str(project_path))
     repository = SolutionRepository.create_empty(

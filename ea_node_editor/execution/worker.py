@@ -16,6 +16,7 @@ from ea_node_editor.execution.run_messages import (
 from ea_node_editor.execution.worker_protocol import (
     decode_command_payload,
     dispatch_viewer_command,
+    dispatch_viewer_invalidation,
     emit,
     emit_protocol_error,
     emit_run_state,
@@ -23,6 +24,7 @@ from ea_node_editor.execution.worker_protocol import (
 )
 from ea_node_editor.execution.worker_runner import WorkflowRunner
 from ea_node_editor.execution.worker_services import WorkerServices
+from ea_node_editor.execution.viewer_messages import InvalidateViewerSessionsCommand
 
 
 def run_workflow(
@@ -59,6 +61,9 @@ def worker_main(
 
             if isinstance(command, ShutdownCommand):
                 break
+            if isinstance(command, InvalidateViewerSessionsCommand):
+                dispatch_viewer_invalidation(command, event_queue=event_queue, worker_services=services)
+                continue
             if isinstance(command, RetireWorkspaceCommand):
                 retired = services.mechanical_session_service.retire_workspace(
                     command.workspace_id

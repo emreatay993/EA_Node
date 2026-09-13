@@ -150,6 +150,11 @@ def generate_example(destination: Path) -> Path:
     mutation = model.validated_mutations(model.active_workspace.workspace_id, registry)
     for plot in tuple(model.active_workspace.nodes.values()):
         if plot.type_id == "plot.signal":
+            mutation.set_node_properties(plot.node_id, {
+                "show_legend": True,
+                "marker_shapes": [1] if plot.title.startswith("csv") else [0],
+                "sync_fullscreen_ranges": not plot.title.startswith("pandas"),
+            })
             panel = mutation.add_node(
                 type_id="media.panel",
                 title=plot.title,

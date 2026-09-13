@@ -1,8 +1,7 @@
 """Runtime workspace DTOs plus explicit graph conversion adapters.
 
-This module owns the execution-time document shape. Graph objects enter only
-through the ``from_*`` assembly adapters; worker execution and persistence
-codecs stay outside this DTO layer.
+This module owns the execution-time document shape and explicit graph conversion
+adapters; worker execution and persistence codecs stay outside this DTO layer.
 """
 
 from __future__ import annotations
@@ -17,10 +16,31 @@ from ea_node_editor.execution.transport_fields import (
     nonnegative_int_field as _nonnegative_int_field,
     string_field as _string_field,
 )
+from ea_node_editor.runtime_contracts import serialize_runtime_value
 
 if TYPE_CHECKING:
     from ea_node_editor.graph.workspace_state import WorkspaceData
     from ea_node_editor.graph.records import EdgeInstance, NodeInstance
+    from ea_node_editor.runtime_contracts import DataTypeCatalog
+
+
+def materialize_runtime_node(
+    payload: Mapping[str, Any],
+    *,
+    catalog: DataTypeCatalog | None = None,
+) -> NodeInstance | None:
+    """Adapt native or tagged runtime properties to the strict graph wire reader.
+
+    Prepared snapshots decode semantic values before dispatch validation. Graph
+    record parsing still requires tagged JSON, including on that second pass.
+    """
+    from ea_node_editor.graph.record_payloads import node_instance_from_mapping
+
+    graph_payload = dict(payload)
+    graph_payload["properties"] = serialize_runtime_value(
+        payload.get("properties", {}), catalog=catalog,
+    )
+    return node_instance_from_mapping(graph_payload, data_types=catalog)
 
 _RUNTIME_NODE_FIELDS = frozenset(
     {
@@ -524,4 +544,4 @@ class RuntimeWorkspace:
         return payload
 
 
-__all__ = ["RuntimeEdge", "RuntimeNode", "RuntimeWorkspace"]
+__all__ = ["RuntimeEdge", "RuntimeNode", "RuntimeWorkspace", "materialize_runtime_node"]

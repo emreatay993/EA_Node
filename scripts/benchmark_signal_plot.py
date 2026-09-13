@@ -185,7 +185,7 @@ def scientific_benchmark(
     from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
     from ea_node_editor.graph.model import GraphModel
     from ea_node_editor.nodes.bootstrap import build_default_registry
-    from ea_node_editor.runtime_contracts import ImageValue
+    from ea_node_editor.runtime_contracts import PlotValue
     from scripts.generate_signal_plot_scientific_example import add_signal_chain
 
     registry = build_default_registry(include_public_plugins=False)
@@ -265,8 +265,14 @@ def scientific_benchmark(
             verify_scientific_source(
                 settled_item(settled[source.node_id], output, registry.data_types), rows
             )
-            image = settled_item(settled[plot.node_id], "image", registry.data_types)
-            assert isinstance(image, ImageValue) and (image.width, image.height) == (
+            plot_value = settled_item(settled[plot.node_id], "image", registry.data_types)
+            assert isinstance(plot_value, PlotValue)
+            assert len(plot_value.signals) == 3 and all(
+                signal.x.shape == (rows,) and signal.y.shape == (rows,)
+                for signal in plot_value.signals
+            ), "Interactive plot must retain every source sample"
+            image = plot_value.preview
+            assert (image.width, image.height) == (
                 600,
                 400,
             )

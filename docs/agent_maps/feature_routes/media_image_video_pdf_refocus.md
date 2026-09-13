@@ -8,6 +8,11 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - `ea_node_editor/nodes/builtins/passive_mail.py`
 - `ea_node_editor/nodes/file_dialog_filters.py`
 - `ea_node_editor/ui/media_panel_source.py`
+- `ea_node_editor/ui/xy_plot_session.py`
+- `ea_node_editor/web_host/xy_transport.py`
+- `ea_node_editor/ui_qml/components/web/XYPlotHost.qml`
+- `tests/test_xy_fullscreen_bridge.py`
+- `tests/test_xy_plot_qml.py`
 - `ea_node_editor/ui/media_video_state.py`
 - `ea_node_editor/ui/shell/media_panel_action_service.py`
 - `ea_node_editor/ui/media_preview_provider.py`
@@ -40,12 +45,13 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - `tests/main_window_shell/passive_pdf_nodes.py`
 
 ## Source And Runtime Rules
-- `media.panel` is one active sink with an optional exposed `source` input and private `_surface_source` output. The accepted input union is Path, String, or exact `ImageValue`; runtime cardinality is one Item and the input never uses the authored property as an execution default.
+- `media.panel` is one active sink with an optional exposed `source` input and private `_surface_source` output. The accepted input union is Path, String, exact `ImageValue`, or exact `PlotValue`; runtime cardinality is one Item and the input never uses the authored property as an execution default.
 - Source input exposure selects authority. Hidden means the authored `source` property is used without a run. Exposed means only settled connected input is considered, including when unwired or non-ready; never fall back to the dormant property.
 - `ui/media_panel_source.py` is the Python authority for actions, Project Review Deck, fullscreen, and the QML-safe `mediaPanelSourceLookup`. Only `ready` publishes URLs; waiting/running/empty/failed/blocked/stale/invalid states clear the renderer and carry a message.
 - Connected runtime media resolves only the output cache entry named by the node's retained solution fact. An expired retained record projects `stale` without rendering; expired-without-record and never-run nodes expose no cached source. Fullscreen, graph commands/presenters, and Project Review Deck inherit this one selector through `resolve_media_panel_source(...)`.
 - `nodes/file_dialog_filters.py` owns the shared image/PDF/video suffixes, combined filter, and source classification. Do not recreate suffix tables in clipboard, drop, or preview consumers.
 - Connected `ImageValue` uses `image_value_preview_source()`; bytes never enter QML. Project Review Deck materializes it only inside the deck's existing temporary export area.
+- Connected `PlotValue` preserves its complete session data while using `preview` for the existing image renderer. Fullscreen dispatches to the dedicated XY QML host with lightweight session metadata. `XYPlotSessionOwner` owns producer guards, close-time optional axis writeback and temporary geometry caches; generic plot-node hosting is unchanged. Running/failed/unavailable producers retire interactive sessions even before the Media Panel itself runs.
 
 ## Surface And Action Rules
 - `GraphMediaPanelSurface.qml` is the common dispatcher. It owns Source/Browse/Internalize/Repair/Open, Source exposure, title/frame, and fullscreen actions; the three renderers own mode-specific behavior.

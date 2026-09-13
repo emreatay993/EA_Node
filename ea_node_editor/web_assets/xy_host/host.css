@@ -1,0 +1,20 @@
+/* Host controls are scoped: unlayered generic button rules break XY menus. */
+html,body{height:100%;margin:0;background:#fff;color:#17243a;font:13px 'Segoe UI',sans-serif}
+body{display:flex;flex-direction:column;overflow:hidden}
+#chart{flex:1;min-height:160px;position:relative;overflow:hidden}
+#mode,#readout,.footer{padding:7px 12px;flex:none}
+#mode{background:#f3f6fa;min-height:20px}#readout{white-space:pre-wrap;max-height:48px;overflow:auto}
+.footer{display:flex;align-items:center;gap:14px;color:#53647c}
+.host-button{font:inherit;cursor:pointer;border:1px solid #c8d4e4;background:white;border-radius:5px;padding:5px 9px;color:#24364f}
+#selection{height:155px;flex:none;overflow:auto;padding:0 12px;font-size:12px}
+#selection table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+#selection th,#selection td{text-align:left;padding:3px 8px;border-bottom:1px solid #e3e8ef}
+#selection th{position:sticky;top:0;background:#f3f6fa}#selection p{margin:4px 0 7px}
+#error:empty{display:none}#error{padding:14px;background:#fff1f0;color:#a72316}
+.corex-xy-chart{--chart-modebar-bg:#fff;--chart-modebar-active:#dbeafe;--chart-selection:#2563eb;--chart-selection-fill:rgba(37,99,235,.10);--chart-zoom-selection:#b45309;--chart-zoom-selection-fill:rgba(217,119,6,.10)}
+.corex-xy-chart [data-xy-slot="modebar"]{opacity:1!important;pointer-events:auto!important;transition:none!important}
+.corex-xy-chart button[data-xy-slot="modebar_button"].xy-active{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
+.corex-xy-chart button[data-xy-modebar-action="pan"]{width:auto;gap:5px;padding:0 7px;font-size:12px}
+.corex-xy-chart button[data-xy-modebar-action="pan"]::after{content:"Pan"}
+.corex-xy-chart button[data-xy-modebar-select-trigger]::after{content:"Select"}
+.corex-xy-chart [data-xy-modebar-export-trigger]{display:none!important}

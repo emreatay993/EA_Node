@@ -64,6 +64,7 @@ FocusScope {
         ? String(root.mediaPayload.media_kind || "")
         : ""
     readonly property bool mediaImageActive: root.mediaReady && root.mediaKind === "image"
+    readonly property bool mediaPlotActive: root.mediaReady && root.mediaKind === "plot"
     readonly property bool mediaPdfActive: root.mediaReady && root.mediaKind === "pdf"
     readonly property bool mediaVideoActive: root.mediaReady && root.mediaKind === "video"
     readonly property string mediaStateMessage: String(
@@ -351,6 +352,11 @@ FocusScope {
             }
         }
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_F11) {
+            if (event.key === Qt.Key_Escape && root.mediaPlotActive) {
+                xyPlotHost.handleEscape();
+                event.accepted = true;
+                return;
+            }
             root.requestClose();
             event.accepted = true;
             return;
@@ -2050,6 +2056,15 @@ FocusScope {
                     hostServiceRef: root.viewerHostServiceRef
                     sessionState: root.viewerLiveSessionState
                 }
+            }
+
+            WebComponents.XYPlotHost {
+                id: xyPlotHost
+                anchors.fill: parent
+                anchors.margins: 12
+                visible: root.mediaPlotActive
+                payload: root.mediaPayload.xy_session || ({})
+                sessionBridge: root.bridgeRef ? root.bridgeRef.xy_plot_bridge : null
             }
 
             WebComponents.WebEditorHost {

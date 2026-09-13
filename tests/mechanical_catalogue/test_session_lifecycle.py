@@ -337,8 +337,13 @@ def test_backend_workspace_retirement_fans_out_to_every_concrete_client() -> Non
     class Client:
         def __init__(self, name: str) -> None:
             self.name = name
+            self.waited_workspace = None
+
+        def wait_for_viewer_invalidations(self, workspace_id: str) -> None:
+            self.waited_workspace = workspace_id
 
         def retire_workspace(self, workspace_id: str) -> int:
+            assert self.waited_workspace == workspace_id
             calls.append((self.name, workspace_id))
             return 1
 
@@ -347,7 +352,7 @@ def test_backend_workspace_retirement_fans_out_to_every_concrete_client() -> Non
     backend._trusted_client = Client("trusted")
     backend._external_python_client = Client("external")
     assert backend.retire_workspace("A") == 3
-    assert calls == [("process", "A"), ("trusted", "A"), ("external", "A")]
+    assert sorted(calls) == [("external", "A"), ("process", "A"), ("trusted", "A")]
 
 
 def test_correlated_retirement_protocol_error_wakes_immediately_and_is_still_published() -> (
@@ -435,8 +440,13 @@ def test_backend_retirement_attempts_all_clients_before_reporting_failure() -> N
         def __init__(self, name, error=False):
             self.name = name
             self.error = error
+            self.waited_workspace = None
+
+        def wait_for_viewer_invalidations(self, workspace_id):
+            self.waited_workspace = workspace_id
 
         def retire_workspace(self, workspace_id):
+            assert self.waited_workspace == workspace_id
             calls.append((self.name, workspace_id))
             if self.error:
                 raise RuntimeError("broken transport")

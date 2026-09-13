@@ -32,8 +32,11 @@ from ea_node_editor.execution.run_messages import (
     ResumeRunCommand,
     StopRunCommand,
     RetireWorkspaceCommand,
+    StartRunCommand,
 )
 from ea_node_editor.execution.viewer_messages import (
+    InvalidateViewerSessionsCommand,
+    viewer_epoch_snapshot_digest,
     VIEWER_COMMAND_TYPES,
     VIEWER_RESPONSE_EVENT_TYPES,
     CloseViewerSessionCommand,
@@ -54,6 +57,14 @@ from ea_node_editor.runtime_contracts import (
 )
 
 _LISTENER_SHUTDOWN_SENTINEL = {"type": "__listener_shutdown__"}
+
+
+@dataclass
+class _ViewerInvalidationDelivery:
+    command: InvalidateViewerSessionsCommand
+    generation: int
+    acknowledged: threading.Event
+    error: str = ""
 
 
 def _registry_contract_digest(value: object) -> str:
@@ -537,6 +548,8 @@ class _ExecutionClientCommon:
         generation_token: int | None = None,
     ) -> None:
         payload = event_to_dict(event, catalog=getattr(self, "_data_types", None))
+        if self._record_viewer_invalidation_ack(payload, generation_token):
+            return
         if payload.get("type") == "workspace_retired":
             waiters = getattr(self, "_workspace_retirement_waiters", {})
             waiter = waiters.get(str(payload.get("request_id", "")))
@@ -590,6 +603,10 @@ class _ExecutionClientCommon:
             waiters.pop(request_id, None)
 
     def _fail_workspace_retirements(self, error: str) -> None:
+        with self._viewer_request_lock:
+            for delivery in getattr(self, "_viewer_invalidation_deliveries", {}).values():
+                delivery.error = str(error)
+                delivery.acknowledged.set()
         for waiter in tuple(
             getattr(self, "_workspace_retirement_waiters", {}).values()
         ):
@@ -731,26 +748,191 @@ class _ExecutionClientCommon:
         if not normalized_workspace_id:
             raise ValueError("workspace_id is required")
         normalized_node_ids = self._normalize_viewer_node_ids(node_ids)
+        if normalized_node_ids is not None:
+            normalized_node_ids = tuple(sorted(normalized_node_ids))
         if normalized_node_ids == ():
             return set()
-        with self._viewer_request_lock:
-            workspace_epoch = self._workspace_viewer_epochs.get(
-                normalized_workspace_id, 0
-            ) + (1 if normalized_node_ids is None else 0)
-            node_epochs = tuple(
-                (
-                    node_id,
-                    self._node_viewer_epochs.get((normalized_workspace_id, node_id), 0)
-                    + 1,
+        with (
+            self._viewer_invalidation_access_guard(),
+            self._viewer_invalidation_delivery_lock,
+        ):
+            generation = self._catalog_generation_token_value()
+            with self._viewer_request_lock:
+                workspace_epoch = self._workspace_viewer_epochs.get(
+                    normalized_workspace_id, 0
+                ) + (1 if normalized_node_ids is None else 0)
+                node_epochs = tuple(
+                    (
+                        node_id,
+                        self._node_viewer_epochs.get(
+                            (normalized_workspace_id, node_id), 0
+                        )
+                        + 1,
+                    )
+                    for node_id in (normalized_node_ids or ())
                 )
-                for node_id in (normalized_node_ids or ())
+                plan = self._plan_viewer_invalidation_snapshot_locked(
+                    normalized_workspace_id,
+                    normalized_node_ids,
+                    workspace_epoch,
+                    node_epochs,
+                )
+                self._apply_viewer_invalidation_plan_locked(plan)
+                command = InvalidateViewerSessionsCommand(
+                    request_id=uuid.uuid4().hex,
+                    workspace_id=normalized_workspace_id,
+                    node_ids=normalized_node_ids,
+                    workspace_epoch=workspace_epoch,
+                    node_epochs=node_epochs,
+                    snapshot_digest=viewer_epoch_snapshot_digest(
+                        workspace_id=normalized_workspace_id,
+                        node_ids=normalized_node_ids,
+                        workspace_epoch=workspace_epoch,
+                        node_epochs=node_epochs,
+                    ),
+                )
+                delivery = _ViewerInvalidationDelivery(
+                    command, generation, threading.Event()
+                )
+                if not hasattr(self, "_viewer_invalidation_deliveries"):
+                    self._viewer_invalidation_deliveries = {}
+                self._viewer_invalidation_deliveries[command.request_id] = delivery
+            try:
+                if not self._source_generation_is_current(generation):
+                    raise RuntimeError(
+                        "Viewer invalidation worker generation changed before delivery"
+                    )
+                delivered = self._post_viewer_invalidation(command)
+            except Exception as exc:  # noqa: BLE001
+                delivered = False
+                delivery.error = str(exc)
+            generation_changed = not self._source_generation_is_current(generation)
+            with self._viewer_request_lock:
+                if delivered is None:  # No existing worker can own viewer state.
+                    self._viewer_invalidation_deliveries.pop(command.request_id, None)
+                elif not delivered or generation_changed:
+                    if generation_changed:
+                        delivery.error = "Viewer invalidation worker generation changed during delivery"
+                    delivery.error = (
+                        delivery.error or "Failed to dispatch viewer invalidation"
+                    )
+                    self._viewer_invalidation_deliveries[command.request_id] = delivery
+                    delivery.acknowledged.set()
+            return set(plan.retired_request_ids)
+
+    def _viewer_invalidation_access_guard(self):  # noqa: ANN201
+        # Process transports must remain callable from reader callbacks while
+        # workspace retirement holds _start_lock awaiting that same reader.
+        return nullcontext()
+
+    def _dispatch_start_run_with_viewer_invalidation(
+        self,
+        command: StartRunCommand,
+        dispatch: Callable[[StartRunCommand], bool],
+    ) -> bool:
+        if command.preparation_id:
+            return dispatch(command)
+        with self._viewer_invalidation_delivery_lock:
+            with self._viewer_request_lock:
+                workspace_epoch = (
+                    self._workspace_viewer_epochs.get(command.workspace_id, 0) + 1
+                )
+            command = replace(
+                command,
+                viewer_invalidation_node_ids=None,
+                viewer_workspace_invalidation_epoch=workspace_epoch,
+                viewer_node_invalidation_epochs=(),
+                viewer_epoch_snapshot_digest=viewer_epoch_snapshot_digest(
+                    workspace_id=command.workspace_id,
+                    node_ids=None,
+                    workspace_epoch=workspace_epoch,
+                    node_epochs=(),
+                ),
             )
-        return self._commit_viewer_invalidation_snapshot(
-            normalized_workspace_id,
-            normalized_node_ids,
-            workspace_epoch,
-            node_epochs,
-        )
+            if not dispatch(command):
+                return False
+            self._commit_viewer_invalidation_snapshot(
+                command.workspace_id, None, workspace_epoch, ()
+            )
+            return True
+
+    def _post_viewer_invalidation(
+        self, command: InvalidateViewerSessionsCommand
+    ) -> bool | None:
+        if not self._viewer_generation_is_live():
+            return None
+        return self._post_command(command)
+
+    def _record_viewer_invalidation_ack(
+        self, payload: dict[str, Any], generation: int | None
+    ) -> bool:
+        event_type = payload.get("type")
+        if event_type not in {"viewer_sessions_invalidated", "protocol_error"}:
+            return False
+        request_id = str(payload.get("request_id", ""))
+        if not getattr(self, "_viewer_invalidation_deliveries", None):
+            return event_type == "viewer_sessions_invalidated"
+        with self._viewer_request_lock:
+            deliveries = getattr(self, "_viewer_invalidation_deliveries", {})
+            delivery = deliveries.get(request_id)
+            if delivery is not None:
+                if generation is not None and generation != delivery.generation:
+                    delivery.error = (
+                        "Viewer invalidation acknowledgement generation changed"
+                    )
+                elif event_type == "protocol_error":
+                    delivery.error = str(
+                        payload.get("error", "Viewer invalidation failed")
+                    )
+                elif (
+                    payload.get("workspace_id") != delivery.command.workspace_id
+                    or payload.get("snapshot_digest")
+                    != delivery.command.snapshot_digest
+                ):
+                    delivery.error = (
+                        "Viewer invalidation acknowledgement does not match its request"
+                    )
+                else:
+                    deliveries.pop(request_id, None)
+                delivery.acknowledged.set()
+        return event_type == "viewer_sessions_invalidated"
+
+    def wait_for_viewer_invalidations(
+        self, workspace_id: str, *, timeout_sec: float = 10.0
+    ) -> None:
+        """Wait outside reader callback/lifecycle locks before admitting a new run."""
+        deadline = time.monotonic() + timeout_sec
+        with self._viewer_request_lock:
+            pending = tuple(
+                item
+                for item in getattr(
+                    self, "_viewer_invalidation_deliveries", {}
+                ).values()
+                if item.command.workspace_id == workspace_id
+            )
+        for delivery in pending:
+            if not self._source_generation_is_current(delivery.generation):
+                raise RuntimeError(
+                    "Viewer invalidation worker generation changed before acknowledgement"
+                )
+            if not delivery.acknowledged.wait(max(0.0, deadline - time.monotonic())):
+                raise TimeoutError(
+                    "Execution worker did not acknowledge viewer invalidation"
+                )
+            if delivery.error:
+                raise RuntimeError(delivery.error)
+        self._assert_viewer_invalidations_ready(workspace_id)
+
+    def _assert_viewer_invalidations_ready(self, workspace_id: str) -> None:
+        with self._viewer_request_lock:
+            for delivery in getattr(
+                self, "_viewer_invalidation_deliveries", {}
+            ).values():
+                if delivery.command.workspace_id == workspace_id:
+                    raise RuntimeError(
+                        delivery.error
+                        or "Viewer invalidation has not been acknowledged"
+                    )
 
     def _commit_viewer_invalidation_snapshot(
         self,

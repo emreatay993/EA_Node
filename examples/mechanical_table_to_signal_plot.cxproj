@@ -243,6 +243,7 @@
             ],
             "max_points": 4000,
             "show_legend": false,
+            "sync_fullscreen_ranges": true,
             "title": "COREX tabular load",
             "width": 600,
             "x_axis_interval": null,

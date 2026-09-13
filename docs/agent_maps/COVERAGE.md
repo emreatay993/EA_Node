@@ -52,6 +52,8 @@ Settings-section size transitions use shared 180 ms width/height animations with
 - [Retained Work-Packet QA Evidence And Spec Navigation](feature_routes/work_packet_docs_status_qa.md)
 
 ## Current ownership notes
+
+- Explicit project/viewer invalidation is delivered to each live concrete worker with a request-, workspace-, digest- and generation-checked acknowledgment. `execution/client_common.py`, concrete clients and worker entry points own delivery and active-run handoffs; `tests/test_viewer_invalidation_lifecycle.py` verifies reopen and ordering. The prepared atomic path and fresh-service baseline guard remain intact. The real-shell XY probe additionally verifies save/close/reopen and normal rerun.
 - Shared QML surface metrics preserve projected port-row heights for both node grips and rendered wire endpoints, including Media Panel at custom graph text sizes; the edge-routing map owns this alignment regression.
 - The native COREX splash background, original emblem at 115% reference size, and
   independent presentation animation are owned by `ui/splash/opening_screen.py`.
@@ -84,6 +86,10 @@ Settings-section size transitions use shared 180 ms width/height animations with
 - Signal Plot declaration/execution is owned by `nodes/builtin_functions/plot_signal.py`,
   normalization/rendering by `execution/signal_plot_inputs.py` and `execution/signal_plot_renderer.py`,
   metadata-only selectors by `nodes/builtins/plot/signal_schema.py`, and navigation by the plotter route.
+- The standalone XY desktop gallery is owned by `scripts/showcase_xy_interactive.py`, with
+  live WebChannel transport, exact selections, linked views and bounded streaming covered by
+  `tests/test_xy_interactive_showcase.py` and the script's `--smoke-test`.
+- Production fullscreen XY uses `runtime_contracts/plot_value.py` and `plot_codec.py` for immutable session data, `ui/xy_plot_session.py` for accepted-source lifecycle and one-batch close-time range synchronization, and `web_host/xy_transport.py` plus `components/web/XYPlotHost.qml` for local rendering. Media Panel remains PNG-only inline; temporary middle-button pan is client-owned in `web_assets/xy_host/gestures.js`.
 - Immutable scientific ArrayValue/TableValue/SeriesValue contracts and the bounded codec live in
   `runtime_contracts/scientific_values.py` and `scientific_codec.py`; native script/plugin boundaries
   preserve isolation without copying for each built-in reader. T04 pipeline/budget proof is owned by

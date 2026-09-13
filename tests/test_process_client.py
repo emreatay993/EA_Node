@@ -38,6 +38,7 @@ from ea_node_editor.runtime_contracts import (
     DataTree,
     ENGINEERING_SCENE_DATA_TYPE_ID,
     ImageValue,
+    PlotValue,
     TabularDataRef,
 )
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
@@ -412,7 +413,7 @@ class ProcessClientTests(ProcessClientTestHarness):
                 )
             )
 
-    def test_signal_plot_image_value_survives_real_process_queue_transport(
+    def test_signal_plot_value_survives_real_process_queue_transport(
         self,
     ) -> None:
         registry = build_default_registry()
@@ -475,9 +476,12 @@ class ProcessClientTests(ProcessClientTestHarness):
             settled["outputs"]["image"]["value"],
             catalog=registry.data_types,
         )
-        image = image_tree.branches[0][1][0]
-        self.assertIs(type(image), ImageValue)
-        self.assertEqual((image.width, image.height), (600, 400))
+        plot = image_tree.branches[0][1][0]
+        self.assertIs(type(plot), PlotValue)
+        self.assertIs(type(plot.preview), ImageValue)
+        self.assertEqual((plot.preview.width, plot.preview.height), (600, 400))
+        self.assertTrue(plot.preview.encoded_bytes.startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertEqual(plot.signals[0].y.to_numpy().tolist(), [5.0])
 
     def test_invalid_worker_payload_emits_protocol_error(self) -> None:
         self.client._event_queue.put("not-a-dict")  # noqa: SLF001

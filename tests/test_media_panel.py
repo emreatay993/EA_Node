@@ -79,7 +79,7 @@ def test_media_panel_has_exact_active_contract_and_static_settings_superset() ->
         "in",
         "data",
         "COREX.DataTypes.Path",
-        ("COREX.DataTypes.String", "COREX.DataTypes.Image"),
+        ("COREX.DataTypes.String", "COREX.DataTypes.Image", "COREX.DataTypes.Plot"),
         "item",
         False,
         False,
@@ -143,6 +143,13 @@ def test_registry_keeps_media_panel_and_mail_as_separate_nodes() -> None:
         "show_title",
         "show_frame",
     )
+
+
+def test_plot_input_retains_identity_instead_of_preview_conversion():
+    from tests.test_plot_value import plot_value
+    plot = plot_value()
+    result = MediaPanelNodePlugin().execute(_context(plot))
+    assert result.outputs["_surface_source"] is plot
 
 
 @pytest.mark.parametrize(

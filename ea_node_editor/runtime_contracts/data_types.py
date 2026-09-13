@@ -472,6 +472,7 @@ class DataTypeCatalog:
         from ea_node_editor.runtime_contracts.scientific_values import ArrayValue, TableValue
         from ea_node_editor.runtime_contracts.interval_1d import Interval1D
         from ea_node_editor.runtime_contracts.image_value import ImageValue
+        from ea_node_editor.runtime_contracts.plot_value import PlotValue
         from ea_node_editor.runtime_contracts.value_refs import (
             RuntimeArtifactRef,
             RuntimeHandleRef,
@@ -499,7 +500,7 @@ class DataTypeCatalog:
         validated_value = value
         explicit_semantic_identity = False
 
-        if isinstance(value, (ArrayValue, TableValue)):
+        if isinstance(value, (ArrayValue, TableValue, PlotValue)):
             explicit_semantic_identity = True
             actual_type_id = value.data_type_id
             schema_version = 1

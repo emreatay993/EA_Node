@@ -18,7 +18,7 @@ from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
-from ea_node_editor.runtime_contracts import ImageValue
+from ea_node_editor.runtime_contracts import PlotValue
 from ea_node_editor.runtime_contracts.scientific_values import ArrayValue
 from scripts.benchmark_signal_plot import (
     _measure,
@@ -63,7 +63,9 @@ def test_panel_interpretation_signal_plot_media_pipeline(interpretation, value):
             runtime_snapshot=build_runtime_snapshot(model.project, workspace_id=workspace_id, registry=registry)), timeout=60)
         assert result.status == "completed", (result.error, result.traceback)
         settled = {event["node_id"]: event for event in result.events if event.get("type") == "node_settled"}
-        assert isinstance(settled_item(settled[media.node_id], "_surface_source", registry.data_types), ImageValue)
+        panel_plot = settled_item(settled[media.node_id], "_surface_source", registry.data_types)
+        assert isinstance(panel_plot, PlotValue)
+        assert panel_plot.provenance.node_id == plot.node_id
     finally:
         runtime.shutdown()
 
@@ -101,7 +103,7 @@ def test_generated_csv_numpy_pandas_project_loads_and_runs(tmp_path):
         )
         for plot_id in plots:
             assert isinstance(
-                settled_item(settled[plot_id], "image", registry.data_types), ImageValue
+                settled_item(settled[plot_id], "image", registry.data_types), PlotValue
             )
         for node in workspace.nodes.values():
             if node.type_id == "media.panel":
@@ -109,7 +111,7 @@ def test_generated_csv_numpy_pandas_project_loads_and_runs(tmp_path):
                     settled_item(
                         settled[node.node_id], "_surface_source", registry.data_types
                     ),
-                    ImageValue,
+                    PlotValue,
                 )
     finally:
         runtime.shutdown()
@@ -160,7 +162,7 @@ def test_npy_reference_pipeline_honors_explicit_input_rows_and_repeats(tmp_path)
         )
         assert isinstance(
             settled_item(repeated_settled[plot.node_id], "image", registry.data_types),
-            ImageValue,
+            PlotValue,
         )
         assert len(repeated_settled[plot.node_id]["warnings"]) == 3
     finally:

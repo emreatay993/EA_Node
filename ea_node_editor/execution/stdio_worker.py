@@ -5,6 +5,7 @@ import queue
 import sys
 import threading
 import traceback
+from contextlib import nullcontext
 from typing import Any, TextIO
 
 from ea_node_editor.execution.run_messages import (
@@ -14,6 +15,8 @@ from ea_node_editor.execution.run_messages import (
     ShutdownCommand,
     StartRunCommand,
     StopRunCommand,
+    RetireWorkspaceCommand,
+    WorkspaceRetiredEvent,
 )
 from ea_node_editor.execution.protocol_codec import (
     command_to_dict,
@@ -22,6 +25,7 @@ from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.execution.worker_protocol import (
     command_payload_type,
     dispatch_viewer_command,
+    dispatch_viewer_invalidation,
     decode_command_payload,
     emit,
     emit_protocol_error,
@@ -29,6 +33,7 @@ from ea_node_editor.execution.worker_protocol import (
     is_viewer_command,
 )
 from ea_node_editor.execution.worker_services import WorkerServices
+from ea_node_editor.execution.viewer_messages import InvalidateViewerSessionsCommand
 
 _EVENT_WRITER_SENTINEL = object()
 
@@ -53,6 +58,8 @@ def _run_workflow_thread(
     event_queue: queue.Queue[Any],
     command_queue: queue.Queue[dict[str, Any]],
     worker_services: WorkerServices,
+    lifecycle_lock: Any = None,
+    run_finished: threading.Event | None = None,
 ) -> None:
     try:
         run_workflow(
@@ -80,6 +87,66 @@ def _run_workflow_thread(
             transition="fail",
             reason="worker_exception",
         )
+    finally:
+        with lifecycle_lock if lifecycle_lock is not None else nullcontext():
+            deferred = []
+            while True:
+                try:
+                    payload = command_queue.get_nowait()
+                except queue.Empty:
+                    break
+                if command_payload_type(payload) in {
+                    "invalidate_viewer_sessions",
+                    "retire_workspace",
+                }:
+                    pending = decode_command_payload(
+                        payload,
+                        event_queue=event_queue,
+                        worker_services=worker_services,
+                    )
+                    if pending is not None:
+                        _dispatch_lifecycle_command(
+                            pending, event_queue, worker_services
+                        )
+                else:
+                    deferred.append(payload)
+            for payload in deferred:
+                command_queue.put(payload)
+            if run_finished is not None:
+                run_finished.set()
+
+
+def _dispatch_lifecycle_command(
+    command: Any, event_queue: queue.Queue[Any], services: WorkerServices
+) -> bool:
+    if isinstance(command, InvalidateViewerSessionsCommand):
+        dispatch_viewer_invalidation(
+            command, event_queue=event_queue, worker_services=services
+        )
+        return True
+    if isinstance(command, RetireWorkspaceCommand):
+        try:
+            retired = services.mechanical_session_service.retire_workspace(
+                command.workspace_id
+            )
+            emit(
+                event_queue,
+                WorkspaceRetiredEvent(
+                    request_id=command.request_id,
+                    workspace_id=command.workspace_id,
+                    retired_count=str(retired),
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001
+            emit_protocol_error(
+                event_queue,
+                str(exc),
+                request_id=command.request_id,
+                workspace_id=command.workspace_id,
+                command=command.type,
+            )
+        return True
+    return False
 
 
 def _load_json_line(
@@ -112,6 +179,9 @@ def main(stdin: TextIO | None = None, stdout: TextIO | None = None) -> int:
     )
     writer.start()
     active_thread: threading.Thread | None = None
+    lifecycle_lock = threading.Lock()
+    run_finished = threading.Event()
+    run_finished.set()
 
     try:
         for line in input_stream:
@@ -119,11 +189,11 @@ def main(stdin: TextIO | None = None, stdout: TextIO | None = None) -> int:
             if payload is None:
                 continue
 
-            if active_thread is not None and not active_thread.is_alive():
+            if active_thread is not None and run_finished.is_set():
                 active_thread.join(timeout=0.1)
                 active_thread = None
 
-            run_is_active = active_thread is not None and active_thread.is_alive()
+            run_is_active = not run_finished.is_set()
             active_catalog = None
             if run_is_active:
                 try:
@@ -148,15 +218,21 @@ def main(stdin: TextIO | None = None, stdout: TextIO | None = None) -> int:
             if command is None:
                 continue
 
-            if active_thread is not None and active_thread.is_alive():
-                command_queue.put(payload)
+            with lifecycle_lock:
+                queued_for_run = not run_finished.is_set()
+                if queued_for_run:
+                    command_queue.put(payload)
+            if queued_for_run:
                 if isinstance(command, ShutdownCommand):
+                    assert active_thread is not None
                     active_thread.join(timeout=2.0)
                     break
                 continue
 
             if isinstance(command, ShutdownCommand):
                 break
+            if _dispatch_lifecycle_command(command, event_queue, worker_services):
+                continue
             if isinstance(command, StartRunCommand):
                 active_thread = threading.Thread(
                     target=_run_workflow_thread,
@@ -165,10 +241,13 @@ def main(stdin: TextIO | None = None, stdout: TextIO | None = None) -> int:
                         "event_queue": event_queue,
                         "command_queue": command_queue,
                         "worker_services": worker_services,
+                        "lifecycle_lock": lifecycle_lock,
+                        "run_finished": run_finished,
                     },
                     daemon=False,
                     name=f"external-python-run-{command.run_id}",
                 )
+                run_finished.clear()
                 active_thread.start()
             elif isinstance(command, StopRunCommand):
                 emit_protocol_error(
@@ -198,6 +277,7 @@ def main(stdin: TextIO | None = None, stdout: TextIO | None = None) -> int:
                     "Unknown command type.",
                     run_id=str(getattr(command, "run_id", "")),
                     workspace_id=str(getattr(command, "workspace_id", "")),
+                    request_id=str(getattr(command, "request_id", "")),
                     command=str(getattr(command, "type", "")),
                 )
 

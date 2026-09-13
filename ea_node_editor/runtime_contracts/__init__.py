@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ea_node_editor.runtime_contracts.plot_value import PlotValue, PlotSignal, PlotSettings, PlotProvenance, PLOT_DATA_TYPE_ID
+
 from ea_node_editor.runtime_contracts.scientific_values import (
     ARRAY_VALUE_TYPE_ID, TABLE_VALUE_TYPE_ID, SERIES_VALUE_TYPE_ID,
     ArrayValue, ColumnValue, TableValue,
@@ -106,6 +108,7 @@ from ea_node_editor.runtime_contracts.tabular_data import (
 from ea_node_editor.runtime_contracts.viewer_session import default_viewer_session_id
 
 __all__ = [
+    "PlotValue", "PlotSignal", "PlotSettings", "PlotProvenance", "PLOT_DATA_TYPE_ID",
     "ARRAY_VALUE_TYPE_ID",
     "TABLE_VALUE_TYPE_ID",
     "SERIES_VALUE_TYPE_ID",

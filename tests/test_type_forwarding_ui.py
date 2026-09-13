@@ -25,6 +25,7 @@ from ea_node_editor.ui.support.node_presentation import build_data_type_ui_proje
 from tests.graph_surface.environment import GraphSurfaceInputContractTestBase
 
 IMAGE = "COREX.DataTypes.Image"
+PLOT = "COREX.DataTypes.Plot"
 
 
 def make_scene():
@@ -93,7 +94,7 @@ def test_same_recommendations_through_plot_panel_and_trigger():
     results = []
     for node_id, key in ((plot, "image"), (direct_trigger, "output"), (panel, "output"), (trigger, "output")):
         context = build_connection_quick_insert_context(host, node_id, key)
-        assert context["source_type_ids"] == [IMAGE]
+        assert context["source_type_ids"] == [PLOT]
         rows, _ = build_connection_quick_insert_results(host, items, "", ConnectionQuickInsertState(context=context))
         results.append(rows)
     assert results[0] == results[1] == results[2] == results[3]
@@ -102,8 +103,8 @@ def test_same_recommendations_through_plot_panel_and_trigger():
     for node_id in (panel, trigger):
         port = port_payload(scene, node_id, "output")
         assert port["data_type"] == GRAPH_DATA_TYPE_ID
-        assert port["data_type_label"] == "Image"
-        assert port["source_type_ids"] == [IMAGE]
+        assert port["data_type_label"] == "Plot"
+        assert port["source_type_ids"] == [PLOT]
         assert port["accepted_data_type_labels"] == []
 
 
@@ -221,7 +222,7 @@ def test_pruned_edges_and_transitive_payloads_publish_and_undo_together():
     history.undo_workspace(model.active_workspace.workspace_id, model.active_workspace)
     scene.refresh_workspace_from_model(model.active_workspace.workspace_id)
     assert downstream in {edge["edge_id"] for edge in scene.edges_model}
-    assert port_payload(scene, trigger, "output")["source_type_ids"] == [IMAGE]
+    assert port_payload(scene, trigger, "output")["source_type_ids"] == [PLOT]
     history.redo_workspace(model.active_workspace.workspace_id, model.active_workspace)
     scene.refresh_workspace_from_model(model.active_workspace.workspace_id)
     assert downstream not in {edge["edge_id"] for edge in scene.edges_model}

@@ -6,9 +6,57 @@ import pytest
 
 from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.execution_plan import ExecutionPlan
-from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
+from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot, RuntimeSnapshot
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.runtime_contracts import Interval1D, TypedInlineValue, serialize_runtime_value
+
+
+@pytest.mark.parametrize("tagged", [False, True])
+def test_prepared_snapshot_materializes_native_and_tagged_semantic_properties(tagged):
+    registry = build_default_registry()
+    model = GraphModel()
+    workspace_id = model.active_workspace.workspace_id
+    node = model.add_node(workspace_id, "plot.signal", "Plot", 0, 0)
+    properties = {
+        "x_axis_interval": Interval1D(2., 8.),
+        "y_axis_interval": Interval1D(-3., 5.),
+        "image_background_color": TypedInlineValue("COREX.DataTypes.Color", 1,
+            {"R": 0.1, "G": 0.2, "B": 0.3, "A": 1., "IsValid": True}),
+    }
+    snapshot = build_runtime_snapshot(model.project, workspace_id=workspace_id, registry=registry)
+    workspace = snapshot.workspace(workspace_id)
+    input_properties = serialize_runtime_value(properties, catalog=registry.data_types) if tagged else properties
+    snapshot = replace(snapshot, workspaces=(replace(workspace, nodes=(replace(workspace.nodes[0], properties=input_properties),)),))
+    decoded = RuntimeSnapshot.from_mapping(snapshot.to_document(catalog=registry.data_types), catalog=registry.data_types)
+    for candidate in (snapshot, decoded):
+        compiled = compile_runtime_snapshot(candidate, workspace_id=workspace_id, registry=registry)
+        plan = ExecutionPlan(compiled, registry)
+        assert plan.node_instances[node.node_id].properties == properties
+    assert snapshot.workspace(workspace_id).nodes[0].properties == input_properties
+    assert decoded.workspace(workspace_id).nodes[0].properties == properties
+
+
+def test_runtime_materialization_rejects_unsupported_properties_without_weakening_wire_reader():
+    from ea_node_editor.execution.compiler import compile_runtime_workspace_snapshot
+    from ea_node_editor.execution.runtime_dto import materialize_runtime_node
+    from ea_node_editor.graph.record_payloads import node_instance_from_mapping
+
+    registry = build_default_registry()
+    payload = {"node_id": "node", "type_id": "plot.signal", "properties": {"x_axis_interval": Interval1D(0., 1.)}}
+    with pytest.raises(TypeError, match="strict JSON"):
+        node_instance_from_mapping(payload, data_types=registry.data_types)
+    payload["properties"]["unsupported"] = object()
+    with pytest.raises(TypeError, match="strict JSON"):
+        materialize_runtime_node(payload, catalog=registry.data_types)
+    model = GraphModel()
+    model.add_node(model.active_workspace.workspace_id, "plot.signal", "Plot", 0, 0)
+    workspace = _workspace(model, registry)
+    invalid = replace(workspace, nodes=(replace(workspace.nodes[0], properties=payload["properties"]),))
+    with pytest.raises(TypeError, match="strict JSON"):
+        compile_runtime_workspace_snapshot(invalid, registry)
+    with pytest.raises(TypeError, match="strict JSON"):
+        ExecutionPlan(invalid, registry)
 
 
 def _workspace(model: GraphModel, registry):  # noqa: ANN001

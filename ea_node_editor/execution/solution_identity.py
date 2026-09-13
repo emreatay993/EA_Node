@@ -21,6 +21,7 @@ from typing import Any, TYPE_CHECKING
 from ea_node_editor.runtime_contracts import (
     DataTree,
     ImageValue,
+    PlotValue,
     Interval1D,
     RuntimeArtifactRef,
     RuntimeHandleRef,
@@ -207,6 +208,8 @@ class _CanonicalEncoder:
                     object.__getattribute__(value, "payload"), depth=depth + 1
                 ),
             }
+        if value_type is PlotValue:
+            return {"t": "plot", "schema_version": 1, "signature": value.value_signature}
         if value_type is ImageValue:
             return {
                 "t": "image",

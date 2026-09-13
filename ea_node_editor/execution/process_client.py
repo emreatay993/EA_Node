@@ -83,6 +83,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         self._active_node_timeout_sec = 0.0
         self._script_timeout_by_node_id: dict[str, float] = {}
         self._viewer_request_lock = threading.Lock()
+        self._viewer_invalidation_delivery_lock = threading.RLock()
         self._pending_viewer_requests: dict[str, _PendingViewerRequest] = {}
         self._viewer_session_ids: set[tuple[str, str]] = set()
         self._viewer_session_generations: dict[tuple[str, str], int] = {}
@@ -268,33 +269,34 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                     f"Failed to start worker process: {exc}",
                 )
                 return pending.request_id
-            workspace_epoch, node_epoch = self._viewer_epochs(
-                str(getattr(command, "workspace_id", "")),
-                str(getattr(command, "node_id", "")),
-            )
-            command = replace(
-                command,
-                workspace_invalidation_epoch=workspace_epoch,
-                node_invalidation_epoch=node_epoch,
-            )
-            try:
-                command = self._decode_command(self._encode_command(command))
-            except (TypeError, ValueError) as exc:
-                pending = self._pending_viewer_request(command)
-                self._dispatch_viewer_request_failure(pending, str(exc))
-                return pending.request_id
-            request_id = str(getattr(command, "request_id", ""))
-            pending = self._pending_viewer_request(command)
-            if require_session_id and not pending.session_id:
-                self._dispatch_viewer_request_failure(
-                    pending, "session_id is required."
+            with self._viewer_invalidation_delivery_lock:
+                workspace_epoch, node_epoch = self._viewer_epochs(
+                    str(getattr(command, "workspace_id", "")),
+                    str(getattr(command, "node_id", "")),
                 )
-                return request_id
-            self._track_viewer_request(pending)
-            success, error_message = self._try_post_command(command)
-            if not success:
-                self._complete_viewer_request(request_id)
-                self._dispatch_viewer_request_failure(pending, error_message)
+                command = replace(
+                    command,
+                    workspace_invalidation_epoch=workspace_epoch,
+                    node_invalidation_epoch=node_epoch,
+                )
+                try:
+                    command = self._decode_command(self._encode_command(command))
+                except (TypeError, ValueError) as exc:
+                    pending = self._pending_viewer_request(command)
+                    self._dispatch_viewer_request_failure(pending, str(exc))
+                    return pending.request_id
+                request_id = str(getattr(command, "request_id", ""))
+                pending = self._pending_viewer_request(command)
+                if require_session_id and not pending.session_id:
+                    self._dispatch_viewer_request_failure(
+                        pending, "session_id is required."
+                    )
+                    return request_id
+                self._track_viewer_request(pending)
+                success, error_message = self._try_post_command(command)
+                if not success:
+                    self._complete_viewer_request(request_id)
+                    self._dispatch_viewer_request_failure(pending, error_message)
         return request_id
 
     @_registry_admitted
@@ -405,6 +407,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         with self._start_lock:
             try:
                 self._ensure_process()
+                self._assert_viewer_invalidations_ready(workspace_id)
             except Exception as exc:  # noqa: BLE001
                 self._release_start_run(run_id)
                 self._emit_protocol_error(
@@ -418,7 +421,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                 )
                 self._clear_active_node_state_locked()
                 self._physical_generation_run_dispatched = True
-            if not self._post_command(command):
+            if not self._dispatch_start_run_with_viewer_invalidation(command, self._post_command):
                 self._release_start_run(run_id)
                 return ""
             self._mark_start_run_dispatched(run_id)

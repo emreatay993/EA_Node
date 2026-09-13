@@ -241,8 +241,8 @@ def test_solution_reuse_classification_matches_all_shipped_rows() -> None:
     assert len(specs) == 147
     assert len(executable) == 109
     assert Counter(spec.solution_reuse_scope for spec in executable) == {
-        "durable": 29,
-        "session": 27,
+        "durable": 28,
+        "session": 28,
         "never": 53,
     }
     assert Counter(spec.runtime_behavior for spec in excluded) == {

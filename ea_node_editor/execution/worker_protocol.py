@@ -5,6 +5,8 @@ from typing import Any
 
 from ea_node_editor.common.payload_tools import copy_json_safe
 from ea_node_editor.execution.viewer_messages import (
+    InvalidateViewerSessionsCommand,
+    ViewerSessionsInvalidatedEvent,
     CloseViewerSessionCommand,
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
@@ -146,6 +148,41 @@ def dispatch_viewer_command(
             ),
         )
     emit(event_queue, event, catalog=data_types)
+
+
+def dispatch_viewer_invalidation(
+    command: InvalidateViewerSessionsCommand,
+    *,
+    event_queue: Queue,
+    worker_services: WorkerServices,
+) -> None:
+    """Apply an explicit lifecycle invalidation before acknowledging its digest."""
+    try:
+        worker_services.viewer_session_service.adopt_invalidation_snapshot(
+            workspace_id=command.workspace_id,
+            node_ids=command.node_ids,
+            workspace_epoch=command.workspace_epoch,
+            node_epochs=command.node_epochs,
+            snapshot_digest=command.snapshot_digest,
+            reason="workspace_invalidated",
+        )
+    except Exception as exc:  # noqa: BLE001
+        emit_protocol_error(
+            event_queue,
+            str(exc),
+            workspace_id=command.workspace_id,
+            request_id=command.request_id,
+            command=command.type,
+        )
+        return
+    emit(
+        event_queue,
+        ViewerSessionsInvalidatedEvent(
+            request_id=command.request_id,
+            workspace_id=command.workspace_id,
+            snapshot_digest=command.snapshot_digest,
+        ),
+    )
 
 
 def decode_command_payload(

@@ -13,6 +13,8 @@ from ea_node_editor.common.payload_tools import (
     validate_payload_fields,
 )
 from ea_node_editor.runtime_contracts.data_tree import DataTree
+from ea_node_editor.runtime_contracts.plot_value import PlotValue
+from ea_node_editor.runtime_contracts.plot_codec import PLOT_MARKER, plot_from_payload, plot_to_payload
 from ea_node_editor.runtime_contracts.scientific_values import (
     ArrayValue, TableValue, snapshot_scientific_values,
 )
@@ -79,6 +81,7 @@ RuntimeValueRef: TypeAlias = (
     ArrayValue
     | TableValue
     | TypedInlineValue
+    | PlotValue
     | ImageValue
     | RuntimeArtifactRef
     | RuntimeHandleRef
@@ -109,6 +112,8 @@ def _coerce_runtime_value_ref(
     marker = _extract_runtime_marker(payload)
     if marker is None:
         return None
+    if marker == PLOT_MARKER:
+        return plot_from_payload(payload, catalog=catalog)
     if marker == SCIENTIFIC_MARKER:
         return scientific_from_payload(payload)
     if marker == _RUNTIME_TYPED_INLINE_MARKER_VALUE:
@@ -254,7 +259,7 @@ def _deserialize_interval_1d(payload: Mapping[str, Any]) -> Interval1D:
 
 
 def _runtime_semantic_type_id(value: object) -> str:
-    if isinstance(value, (ArrayValue, TableValue)):
+    if isinstance(value, (ArrayValue, TableValue, PlotValue)):
         return value.data_type_id
     if isinstance(value, ImageValue):
         return IMAGE_VALUE_DATA_TYPE_ID
@@ -280,7 +285,7 @@ def _runtime_semantic_type_id(value: object) -> str:
 def _requires_active_catalog(value: object) -> bool:
     if isinstance(
         value,
-        (ArrayValue, TableValue, TypedInlineValue, ImageValue, RuntimeArtifactRef, RuntimeHandleRef),
+        (ArrayValue, TableValue, PlotValue, TypedInlineValue, ImageValue, RuntimeArtifactRef, RuntimeHandleRef),
     ):
         return True
     if isinstance(value, DataTree):
@@ -293,6 +298,7 @@ def _requires_active_catalog(value: object) -> bool:
         marker = _extract_runtime_marker(value)
         if marker in {
             SCIENTIFIC_MARKER,
+            PLOT_MARKER,
             _RUNTIME_TYPED_INLINE_MARKER_VALUE,
             _RUNTIME_IMAGE_MARKER_VALUE,
             _RUNTIME_ARTIFACT_MARKER_VALUE,
@@ -352,6 +358,8 @@ def _serialize_runtime_value(
 ) -> Any:
     if depth > JSON_MAX_DEPTH:
         raise ValueError(f"runtime value exceeds maximum JSON depth {JSON_MAX_DEPTH}")
+    if isinstance(value, PlotValue):
+        return plot_to_payload(value, catalog=catalog)
     if isinstance(value, (ArrayValue, TableValue)):
         return scientific_to_payload(value)
     if isinstance(value, DataTree):
@@ -401,6 +409,8 @@ def _serialize_runtime_value(
             else _coerce_runtime_value_ref(value, catalog=catalog)
         )
         if payload_ref is not None:
+            if isinstance(payload_ref, PlotValue):
+                return plot_to_payload(payload_ref, catalog=catalog)
             if isinstance(payload_ref, (ArrayValue, TableValue)):
                 return scientific_to_payload(payload_ref)
             if isinstance(

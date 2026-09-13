@@ -78,6 +78,8 @@ from ea_node_editor.execution.worker_runtime import (
     prepare_runtime,
 )
 from ea_node_editor.execution.worker_services import WorkerServices
+from ea_node_editor.execution.viewer_messages import InvalidateViewerSessionsCommand
+from ea_node_editor.execution.worker_protocol import dispatch_viewer_invalidation
 from ea_node_editor.nodes.execution_context import (
     ExecutionContext,
     NodeInputNotReadyError,
@@ -148,6 +150,7 @@ class RunControl:
         data_types: DataTypeCatalog | None = None,
         viewer_command_handler: Callable[[WorkerCommand], None] | None = None,
         workspace_retirement_handler: Callable[[str], int] | None = None,
+        viewer_invalidation_handler: Callable[[InvalidateViewerSessionsCommand], None] | None = None,
     ) -> None:
         self._command_queue = command_queue
         self._event_queue = event_queue
@@ -156,6 +159,7 @@ class RunControl:
         self._data_types = data_types
         self._viewer_command_handler = viewer_command_handler
         self._workspace_retirement_handler = workspace_retirement_handler
+        self._viewer_invalidation_handler = viewer_invalidation_handler
         self.paused = False
         self.stop_requested = False
         self.shutdown_requested = False
@@ -184,6 +188,13 @@ class RunControl:
         command_run_id = getattr(command, "run_id", "")
         command_workspace_id = getattr(command, "workspace_id", "")
         command_request_id = getattr(command, "request_id", "")
+
+        if isinstance(command, InvalidateViewerSessionsCommand):
+            if self._viewer_invalidation_handler is None:
+                emit_protocol_error(self._event_queue, "Viewer invalidation handler is unavailable.", workspace_id=command.workspace_id, request_id=command.request_id, command=command.type)
+            else:
+                self._viewer_invalidation_handler(command)
+            return
 
         if isinstance(command, ShutdownCommand):
             self.shutdown_requested = True
@@ -1824,6 +1835,9 @@ class WorkflowRunner:
             workspace_retirement_handler=(
                 self._worker_services.mechanical_session_service.retire_workspace
             ),
+            viewer_invalidation_handler=lambda invalidation: dispatch_viewer_invalidation(
+                invalidation, event_queue=event_queue, worker_services=self._worker_services,
+            ),
         )
         self._publisher = RunEventPublisher(
             event_queue,
@@ -1889,6 +1903,14 @@ class WorkflowRunner:
                     node_ids=command.viewer_invalidation_node_ids,
                     workspace_epoch=command.viewer_workspace_invalidation_epoch,
                     node_epochs=command.viewer_node_invalidation_epochs,
+                    snapshot_digest=command.viewer_epoch_snapshot_digest,
+                )
+            elif command.viewer_workspace_invalidation_epoch:
+                self._worker_services.viewer_session_service.validate_invalidation_snapshot(
+                    workspace_id=command.workspace_id,
+                    node_ids=None,
+                    workspace_epoch=command.viewer_workspace_invalidation_epoch,
+                    node_epochs=(),
                     snapshot_digest=command.viewer_epoch_snapshot_digest,
                 )
         except Exception as exc:  # noqa: BLE001
@@ -2275,11 +2297,21 @@ class WorkflowRunner:
                     runtime_snapshot=runtime_snapshot,
                     runtime_snapshot_context=runtime_context,
                 )
-                self._worker_services.viewer_session_service.invalidate_workspace(
-                    self._command.workspace_id,
-                    reason="workspace_rerun",
-                    node_ids=None,
-                )
+                if self._command.viewer_workspace_invalidation_epoch:
+                    self._worker_services.viewer_session_service.adopt_invalidation_snapshot(
+                        workspace_id=self._command.workspace_id,
+                        node_ids=None,
+                        workspace_epoch=self._command.viewer_workspace_invalidation_epoch,
+                        node_epochs=(),
+                        snapshot_digest=self._command.viewer_epoch_snapshot_digest,
+                        reason="workspace_rerun",
+                    )
+                else:
+                    self._worker_services.viewer_session_service.invalidate_workspace(
+                        self._command.workspace_id,
+                        reason="workspace_rerun",
+                        node_ids=None,
+                    )
                 self._publisher.emit_run_started()
             self._publisher.emit_log("info", "Workflow run started.")
             self._publisher.emit_log(

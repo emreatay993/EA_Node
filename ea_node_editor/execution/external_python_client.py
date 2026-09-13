@@ -83,6 +83,7 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
         self._active_node_timeout_sec = 0.0
         self._script_timeout_by_node_id: dict[str, float] = {}
         self._viewer_request_lock = threading.Lock()
+        self._viewer_invalidation_delivery_lock = threading.RLock()
         self._pending_viewer_requests: dict[str, _PendingViewerRequest] = {}
         self._viewer_session_ids: set[tuple[str, str]] = set()
         self._viewer_session_generations: dict[tuple[str, str], int] = {}
@@ -490,6 +491,7 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
                 return ""
             try:
                 self._ensure_process(python_executable)
+                self._assert_viewer_invalidations_ready(workspace_id)
             except RuntimeError as exc:
                 self._release_start_run(run_id)
                 self._emit_protocol_error(str(exc), run_id=run_id, command="start_run")
@@ -501,7 +503,7 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
                     workspace_id,
                 )
                 self._clear_active_node_state_locked()
-            if not self._post_command(command):
+            if not self._dispatch_start_run_with_viewer_invalidation(command, self._post_command):
                 self._release_start_run(run_id)
                 return ""
             self._mark_start_run_dispatched(run_id)
@@ -519,33 +521,39 @@ class ExternalPythonExecutionClient(_ExecutionClientCommon):
             try:
                 if python_executable:
                     self._ensure_process(python_executable)
-                workspace_epoch, node_epoch = self._viewer_epochs(
-                    str(getattr(command, "workspace_id", "")),
-                    str(getattr(command, "node_id", "")),
-                )
-                command = replace(
-                    command,
-                    workspace_invalidation_epoch=workspace_epoch,
-                    node_invalidation_epoch=node_epoch,
-                )
-                command = self._decode_command(self._encode_command(command))
             except (RuntimeError, TypeError, ValueError) as exc:
                 pending = self._pending_viewer_request(command)
                 self._dispatch_viewer_request_failure(pending, str(exc))
                 return pending.request_id
-            request_id = str(getattr(command, "request_id", ""))
-            pending = self._pending_viewer_request(command)
-            if require_session_id and not pending.session_id:
-                self._dispatch_viewer_request_failure(
-                    pending, "session_id is required."
-                )
-                return request_id
-            self._track_viewer_request(pending)
-            if not self._post_command(command):
-                self._complete_viewer_request(request_id)
-                self._dispatch_viewer_request_failure(
-                    pending, "Failed to dispatch command."
-                )
+            with self._viewer_invalidation_delivery_lock:
+                try:
+                    workspace_epoch, node_epoch = self._viewer_epochs(
+                        str(getattr(command, "workspace_id", "")),
+                        str(getattr(command, "node_id", "")),
+                    )
+                    command = replace(
+                        command,
+                        workspace_invalidation_epoch=workspace_epoch,
+                        node_invalidation_epoch=node_epoch,
+                    )
+                    command = self._decode_command(self._encode_command(command))
+                except (RuntimeError, TypeError, ValueError) as exc:
+                    pending = self._pending_viewer_request(command)
+                    self._dispatch_viewer_request_failure(pending, str(exc))
+                    return pending.request_id
+                request_id = str(getattr(command, "request_id", ""))
+                pending = self._pending_viewer_request(command)
+                if require_session_id and not pending.session_id:
+                    self._dispatch_viewer_request_failure(
+                        pending, "session_id is required."
+                    )
+                    return request_id
+                self._track_viewer_request(pending)
+                if not self._post_command(command):
+                    self._complete_viewer_request(request_id)
+                    self._dispatch_viewer_request_failure(
+                        pending, "Failed to dispatch command."
+                    )
         return request_id
 
     def _stdout_listener(

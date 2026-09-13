@@ -16,14 +16,14 @@ from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.file_dialog_filters import media_kind_from_source
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
-from ea_node_editor.runtime_contracts import DataTree, ImageValue, RuntimeArtifactRef
+from ea_node_editor.runtime_contracts import DataTree, ImageValue, PlotValue, RuntimeArtifactRef
 from ea_node_editor.ui.image_value_preview_provider import image_value_preview_source
 from ea_node_editor.ui.media_preview_provider import (
     LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
     describe_local_image,
 )
 from ea_node_editor.ui.pdf_preview_provider import describe_pdf_preview
-from ea_node_editor.ui.support.solution_output_cache import retained_output_record
+from ea_node_editor.ui.support.solution_output_cache import current_output_value, retained_output_record
 
 
 _READY_STATE = "ready"
@@ -127,6 +127,26 @@ def _first_error_message(value: object) -> str:
     return ""
 
 
+def plot_producer_state(plot: PlotValue, workspace: object, run_state: object | None) -> tuple[str, str]:
+    """A pass-through value remains governed by its actual producer's state."""
+    provenance = plot.provenance
+    node = getattr(workspace, "nodes", {}).get(provenance.node_id)
+    if getattr(workspace, "workspace_id", "") != provenance.workspace_id or node is None or node.type_id != "plot.signal":
+        return "stale", "The originating Signal Plot is no longer available."
+    execution = _node_execution_state(run_state, provenance.workspace_id, provenance.node_id)
+    if execution in {"running", "failed", "empty"}:
+        return execution, {"running": "Signal Plot is running.", "failed": "Signal Plot failed.", "empty": "Signal Plot produced no data."}[execution]
+    record = retained_output_record(run_state, provenance.workspace_id, provenance.node_id)
+    if record is not None and not record.get("outputs_available", True):
+        return "unavailable", "The originating Signal Plot output is unavailable."
+    tree = current_output_value(run_state, provenance.workspace_id, provenance.node_id, "image")
+    if isinstance(tree, DataTree) and tree.item_count == 1:
+        value = next(item for _path, items in tree.branches for item in items)
+        if type(value) is PlotValue and value.value_signature == plot.value_signature:
+            return "ready", ""
+    return "stale", "The originating Signal Plot is no longer current."
+
+
 def _failed_message(run_state: object | None, node_id: str) -> str:
     errors_by_node = getattr(run_state, "root_errors_by_node_id", {})
     errors = errors_by_node.get(node_id, ()) if isinstance(errors_by_node, Mapping) else ()
@@ -189,8 +209,8 @@ def _resolve_value(
     project_metadata: Mapping[str, Any] | None,
     page_number: object,
 ) -> MediaPanelSourceResolution:
-    if type(value) is ImageValue:
-        preview_url = image_value_preview_source(value)
+    if type(value) in {ImageValue, PlotValue}:
+        preview_url = image_value_preview_source(value.preview if type(value) is PlotValue else value)
         if not preview_url:
             return _non_ready(
                 authority=authority,
@@ -204,7 +224,7 @@ def _resolve_value(
             input_exposed=input_exposed,
             input_connected=input_connected,
             state=_READY_STATE,
-            media_kind="image",
+            media_kind="plot" if type(value) is PlotValue else "image",
             resolved_source_url=preview_url,
             preview_source_url=preview_url,
             raw_value=value,
@@ -228,7 +248,7 @@ def _resolve_value(
             input_exposed=input_exposed,
             input_connected=input_connected,
             state="invalid",
-            message="Media Panel supports Path, String, or Image values.",
+            message="Media Panel supports Path, String, Image, or Plot values.",
         )
 
     if not source_ref:
@@ -390,7 +410,7 @@ def resolve_media_panel_source(
             input_exposed=True,
             input_connected=False,
             state="waiting",
-            message="Connect a Path, String, or Image value to Source.",
+            message="Connect a Path, String, Image, or Plot value to Source.",
         )
 
     execution_state = _node_execution_state(run_state, workspace_id, node_id)
@@ -476,6 +496,10 @@ def resolve_media_panel_source(
         raw_value = next(
             item for _path, items in tree.branches for item in items
         )
+        if type(raw_value) is PlotValue:
+            state, message = plot_producer_state(raw_value, workspace, run_state)
+            if state != "ready":
+                return _non_ready(authority="input", input_exposed=True, input_connected=True, state=state, message=message)
         return _resolve_value(
             raw_value,
             authority="input",

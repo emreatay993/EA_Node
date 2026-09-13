@@ -178,6 +178,12 @@ def create_viewer_service_dependencies(
             node_type=node_type,
         )
 
+    from ea_node_editor.ui.xy_plot_session import XYPlotSessionOwner
+    xy_plot_owner = XYPlotSessionOwner(
+        model_provider=model_provider, registry_provider=registry_provider,
+        active_workspace_id_provider=active_workspace_id_provider,
+        scene_bridge=primitives.scene, run_state=state.run_state, parent=host,
+    )
     content_fullscreen_bridge = ContentFullscreenBridge(
         host,
         model_provider=model_provider,
@@ -195,6 +201,7 @@ def create_viewer_service_dependencies(
         ),
         trim_video_clip_copy=media_panel_action_service.request_trim_video_clip_copy,
         create_web_surface_artifact_service=create_web_surface_artifact_service,
+        plot_session_owner=xy_plot_owner,
     )
     viewer_host_service = ViewerHostService(
         host,

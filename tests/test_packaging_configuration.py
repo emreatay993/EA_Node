@@ -497,7 +497,7 @@ def test_spec_declares_full_profile_as_all_runtime_stack() -> None:
     assert 'datas += copy_metadata("paramiko")' in spec_source
     assert 'hiddenimports += ["xy.components"]' in spec_source
     assert 'datas += copy_metadata("xy")' in spec_source
-    assert 'collect_data_files("xy", includes=["_native_lib/*"])' in spec_source
+    assert 'collect_data_files("xy", includes=["_native_lib/*", "static/index.js"])' in spec_source
     assert 'PROJECT_ROOT / "licenses" / "PARAMIKO-LGPL-2.1.txt"' in spec_source
     assert (REPO_ROOT / "licenses" / "PARAMIKO-LGPL-2.1.txt").is_file()
     assert "## Paramiko" in (REPO_ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")

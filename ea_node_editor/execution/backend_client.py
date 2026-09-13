@@ -1975,6 +1975,7 @@ class ExecutionBackendClient:
 
         def retire(client: Any) -> None:
             try:
+                client.wait_for_viewer_invalidations(normalized)
                 count = client.retire_workspace(normalized)
                 with result_lock:
                     results.append(count)

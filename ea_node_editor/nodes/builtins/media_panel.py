@@ -26,7 +26,8 @@ from ea_node_editor.nodes.file_dialog_filters import (
     media_kind_from_source,
 )
 from ea_node_editor.nodes.node_specs import PortSpec, PropertySpec
-from ea_node_editor.runtime_contracts import ImageValue, RuntimeArtifactRef
+from ea_node_editor.runtime_contracts import ImageValue, PlotValue, RuntimeArtifactRef
+from ea_node_editor.runtime_contracts.plot_value import PLOT_DATA_TYPE_ID
 from ea_node_editor.runtime_contracts.data_tree import resolve_single_run_inputs
 
 MEDIA_PANEL_TYPE_ID = "media.panel"
@@ -40,7 +41,7 @@ def _validated_media_source(ctx: ExecutionContext) -> object:
     if "source" not in inputs or inputs["source"] is None:
         raise NodeInputNotReadyError("Media Panel is waiting for a source input.")
     source = inputs["source"]
-    if type(source) is ImageValue:
+    if type(source) in {ImageValue, PlotValue}:
         return source
     if type(source) is RuntimeArtifactRef:
         resolved = ctx.resolve_path_value(source)
@@ -61,7 +62,7 @@ def _validated_media_source(ctx: ExecutionContext) -> object:
             return text
     suffixes = ", ".join(MEDIA_FILE_SUFFIXES)
     raise ValueError(
-        "Media Panel source must be an Image value, a project media reference, "
+        "Media Panel source must be an Image or Plot value, a project media reference, "
         f"or a local/file/HTTP(S) media path using one of: {suffixes}."
     )
 
@@ -70,8 +71,8 @@ def _validated_media_source(ctx: ExecutionContext) -> object:
     type_id=MEDIA_PANEL_TYPE_ID,
     display_name="Media Panel",
     category_path=(MEDIA_PANEL_CATEGORY,),
-    description="Displays image, PDF, or video media from an authored or connected source.",
-    keywords=("media", "image", "pdf", "video", "preview"),
+    description="Displays images, interactive Signal Plots, PDFs, or videos from an authored or connected source.",
+    keywords=("media", "image", "plot", "pdf", "video", "preview"),
     ports=(
         PortSpec(
             "source",
@@ -82,9 +83,9 @@ def _validated_media_source(ctx: ExecutionContext) -> object:
             required=False,
             uses_property_default=False,
             exposed=True,
-            accepted_data_types=(STRING_DATA_TYPE_ID, IMAGE_DATA_TYPE_ID),
+            accepted_data_types=(STRING_DATA_TYPE_ID, IMAGE_DATA_TYPE_ID, PLOT_DATA_TYPE_ID),
             data_access="item",
-            description="Image, PDF, or video source to display.",
+            description="Image, Plot, PDF, or video source to display. Plots become interactive in fullscreen.",
         ),
         PortSpec(
             "_surface_source",

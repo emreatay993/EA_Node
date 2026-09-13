@@ -42,7 +42,7 @@ from ea_node_editor.ui.media_panel_source import (
 from ea_node_editor.ui.media_video_state import normalize_media_video_properties
 from ea_node_editor.ui.mail_preview_provider import describe_mail_preview
 from ea_node_editor.ui.pdf_preview_provider import describe_pdf_preview
-from ea_node_editor.runtime_contracts import ImageValue
+from ea_node_editor.runtime_contracts import ImageValue, PlotValue
 from ea_node_editor.ui_qml.surface_contracts import (
     surface_spec_payload_for_node_type,
     surface_spec_payload_for_values,
@@ -176,19 +176,20 @@ def build_content_fullscreen_media_payload(
             payload["transient_state"] = {}
             return payload
 
+        preview_value = resolution.raw_value.preview if type(resolution.raw_value) is PlotValue else resolution.raw_value
         image_preview = (
             {
                 "state": "ready",
                 "message": "",
                 "resolved_source_url": resolution.resolved_source_url,
-                "format": resolution.raw_value.format,
-                "source_pixel_width": resolution.raw_value.width,
-                "source_pixel_height": resolution.raw_value.height,
+                "format": preview_value.format,
+                "source_pixel_width": preview_value.width,
+                "source_pixel_height": preview_value.height,
                 "frame_count": 1,
                 "animation_supported": False,
                 "is_animated": False,
             }
-            if type(resolution.raw_value) is ImageValue
+            if type(preview_value) is ImageValue
             else describe_local_image(resolution.resolved_source_url)
             if urlsplit(resolution.resolved_source_url).scheme.casefold() == "file"
             else {

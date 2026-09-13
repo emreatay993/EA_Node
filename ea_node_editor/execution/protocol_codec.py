@@ -69,6 +69,8 @@ from ea_node_editor.execution.run_messages import (
     normalize_target_node_ids,
 )
 from ea_node_editor.execution.viewer_messages import (
+    InvalidateViewerSessionsCommand,
+    ViewerSessionsInvalidatedEvent,
     CloseViewerSessionCommand,
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
@@ -81,6 +83,9 @@ from ea_node_editor.execution.viewer_messages import (
     ViewerSessionOpenedEvent,
     ViewerSessionUpdatedEvent,
     normalize_viewer_invalidation_fields,
+    normalize_viewer_invalidation_node_ids,
+    normalize_viewer_node_invalidation_epochs,
+    viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.execution.runtime_snapshot import coerce_runtime_snapshot
 from ea_node_editor.nodes.function_plugin import EMPTY_PLUGIN_FINGERPRINT
@@ -113,6 +118,7 @@ WorkerCommand: TypeAlias = (
     | CommitRunPreflightCommand
     | CancelRunPreflightCommand
     | RetireWorkspaceCommand
+    | InvalidateViewerSessionsCommand
     | OpenViewerSessionCommand
     | UpdateViewerSessionCommand
     | CloseViewerSessionCommand
@@ -134,6 +140,7 @@ WorkerEvent: TypeAlias = (
     | LogEvent
     | ProtocolErrorEvent
     | WorkspaceRetiredEvent
+    | ViewerSessionsInvalidatedEvent
     | ViewerSessionOpenedEvent
     | ViewerSessionUpdatedEvent
     | ViewerSessionClosedEvent
@@ -174,6 +181,7 @@ _SCALAR_PROTOCOL_TYPES = frozenset(
         LogEvent,
         ProtocolErrorEvent,
         WorkspaceRetiredEvent,
+        ViewerSessionsInvalidatedEvent,
         ViewerSessionFailedEvent,
     }
 )
@@ -682,6 +690,18 @@ def command_to_dict(
     *,
     catalog: DataTypeCatalog | None = None,
 ) -> dict[str, Any]:
+    if isinstance(command, InvalidateViewerSessionsCommand):
+        payload = {
+            "type": command.type,
+            "request_id": command.request_id,
+            "workspace_id": command.workspace_id,
+            "node_ids": None if command.node_ids is None else list(command.node_ids),
+            "workspace_epoch": command.workspace_epoch,
+            "node_epochs": [list(item) for item in command.node_epochs],
+            "snapshot_digest": command.snapshot_digest,
+        }
+        dict_to_command(payload)
+        return payload
     if isinstance(command, StartRunCommand):
         if (
             catalog is not None
@@ -1578,6 +1598,36 @@ def dict_to_command(
             request_id=_string_field(payload, "request_id", strip=True),
             workspace_id=_string_field(payload, "workspace_id", strip=True),
         )
+    if command_type == "invalidate_viewer_sessions":
+        request_id = _string_field(payload, "request_id", strip=True)
+        workspace_id = _string_field(payload, "workspace_id", strip=True)
+        if not request_id or not workspace_id:
+            raise ValueError("viewer invalidation requires request_id and workspace_id")
+        node_ids = normalize_viewer_invalidation_node_ids(payload.get("node_ids"))
+        node_epochs = normalize_viewer_node_invalidation_epochs(
+            payload.get("node_epochs", ())
+        )
+        workspace_epoch = _nonnegative_int_value(
+            payload.get("workspace_epoch"), field_name="workspace_epoch"
+        )
+        digest = _sha256_digest(
+            payload.get("snapshot_digest"), field_name="snapshot_digest"
+        )
+        if digest != viewer_epoch_snapshot_digest(
+            workspace_id=workspace_id,
+            node_ids=node_ids,
+            workspace_epoch=workspace_epoch,
+            node_epochs=node_epochs,
+        ):
+            raise ValueError("viewer invalidation snapshot digest mismatch")
+        return InvalidateViewerSessionsCommand(
+            request_id=request_id,
+            workspace_id=workspace_id,
+            node_ids=node_ids,
+            workspace_epoch=workspace_epoch,
+            node_epochs=node_epochs,
+            snapshot_digest=digest,
+        )
     if command_type == "commit_run_preflight":
         return CommitRunPreflightCommand(
             run_id=_string_field(payload, "run_id", strip=True),
@@ -1746,6 +1796,14 @@ def dict_to_event(
             request_id=_string_field(payload, "request_id", strip=True),
             workspace_id=_string_field(payload, "workspace_id", strip=True),
             retired_count=_string_field(payload, "retired_count", strip=True),
+        )
+    if event_type == "viewer_sessions_invalidated":
+        return ViewerSessionsInvalidatedEvent(
+            request_id=_string_field(payload, "request_id", strip=True),
+            workspace_id=_string_field(payload, "workspace_id", strip=True),
+            snapshot_digest=_sha256_digest(
+                payload.get("snapshot_digest"), field_name="snapshot_digest"
+            ),
         )
     if event_type == "run_started":
         return RunStartedEvent(

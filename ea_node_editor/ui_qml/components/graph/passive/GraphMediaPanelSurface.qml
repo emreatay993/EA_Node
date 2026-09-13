@@ -39,7 +39,7 @@ GraphShared.GraphSurfaceBase {
     readonly property string sourceState: String(sourceResolution.state || "invalid")
     readonly property string mediaKind: String(sourceResolution.media_kind || "")
     readonly property bool sourceReady: sourceState === "ready"
-        && (mediaKind === "image" || mediaKind === "pdf" || mediaKind === "video")
+        && (mediaKind === "image" || mediaKind === "plot" || mediaKind === "pdf" || mediaKind === "video")
     readonly property string authoredSource: propValue("source")
     readonly property string sourceStorageMode: SourceStorageModeUtils.sourceModeForPath(authoredSource)
     readonly property bool sourceEditingEnabled: !inputExposed && !blocksHostInteraction
@@ -58,7 +58,7 @@ GraphShared.GraphSurfaceBase {
     readonly property string placeholderMessage: String(
         sourceResolution.message
         || (inputExposed
-            ? (inputConnected ? "Run the connected media source." : "Connect a Path, String, or Image value to Source.")
+            ? (inputConnected ? "Run the connected media source." : "Connect a Path, String, Image, or Plot value to Source.")
             : "Choose an image, PDF, or video source.")
     )
     readonly property string rendererKey: sourceReady
@@ -357,7 +357,7 @@ GraphShared.GraphSurfaceBase {
         id: rendererLoader
         anchors.fill: parent
         active: dispatcher.rendererActive
-        sourceComponent: dispatcher.mediaKind === "image"
+        sourceComponent: (dispatcher.mediaKind === "image" || dispatcher.mediaKind === "plot")
             ? imageRendererComponent
             : (dispatcher.mediaKind === "pdf"
                 ? pdfRendererComponent

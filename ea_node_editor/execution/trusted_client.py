@@ -47,6 +47,8 @@ from ea_node_editor.execution.worker_runtime import (
     DEFAULT_RUNTIME_PREPARATION_CACHE,
 )
 from ea_node_editor.execution.worker_services import WorkerServices
+from ea_node_editor.execution.viewer_messages import InvalidateViewerSessionsCommand
+from ea_node_editor.execution.worker_protocol import dispatch_viewer_invalidation
 from ea_node_editor.nodes.function_plugin import (
     EMPTY_PLUGIN_FINGERPRINT,
     INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
@@ -96,6 +98,7 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
         self._active_node_timeout_sec = 0.0
         self._script_timeout_by_node_id: dict[str, float] = {}
         self._viewer_request_lock = threading.Lock()
+        self._viewer_invalidation_delivery_lock = threading.RLock()
         self._pending_viewer_requests: dict[str, _PendingViewerRequest] = {}
         self._viewer_session_ids: set[tuple[str, str]] = set()
         self._viewer_session_generations: dict[tuple[str, str], int] = {}
@@ -125,6 +128,48 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
 
     def retire_workspace(self, workspace_id: str) -> int:
         return self._worker_services.mechanical_session_service.retire_workspace(workspace_id)
+
+    def _viewer_invalidation_access_guard(self):  # noqa: ANN201
+        return self._start_lock
+
+    def _post_viewer_invalidation(
+        self, command: InvalidateViewerSessionsCommand
+    ) -> bool | None:
+        # Only trusted service access needs serialization with the run handoff.
+        # Transport clients must remain callable from a reader callback while a
+        # retirement thread holds its start lock awaiting that same reader.
+        with self._start_lock:
+            with self._state_lock:
+                active_thread = self._run_thread
+                generation = self._catalog_generation_token
+            if active_thread is not None and active_thread.is_alive():
+                return self._post_command(command)
+            if self._worker_services._viewer_session_service is None:  # noqa: SLF001
+                return None
+            dispatch_viewer_invalidation(
+                self._decode_command(self._encode_command(command)),
+                event_queue=_GenerationTaggedEventSink(self._event_queue, generation),
+                worker_services=self._worker_services,
+            )
+            return True
+
+    def _drain_viewer_invalidations(self, event_sink: Any) -> None:
+        deferred = []
+        while True:
+            try:
+                payload = self._command_queue.get_nowait()
+            except queue.Empty:
+                break
+            if payload.get("type") == "invalidate_viewer_sessions":
+                dispatch_viewer_invalidation(
+                    self._decode_command(payload),
+                    event_queue=event_sink,
+                    worker_services=self._worker_services,
+                )
+            else:
+                deferred.append(payload)
+        for payload in deferred:
+            self._command_queue.put(payload)
 
     def _encode_run_preflight_command(self, command: WorkerCommand) -> dict[str, Any]:
         return self._encode_command(command)
@@ -317,18 +362,25 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
             return ""
 
         try:
-            with self._state_lock:
-                self._script_timeout_by_node_id = {}
-                self._clear_active_node_state_locked()
-                self._drain_command_queue()
-                self._run_thread = threading.Thread(
-                    target=self._run_workflow_thread,
-                    args=(command, generation_token),
-                    daemon=True,
-                    name=f"trusted-execution-{run_id}",
-                )
-                self._run_thread.start()
-                self._start_run_pending_id = ""
+            with self._start_lock:
+                self._assert_viewer_invalidations_ready(workspace_id)
+
+                def launch(admitted_command: StartRunCommand) -> bool:
+                    with self._state_lock:
+                        self._script_timeout_by_node_id = {}
+                        self._clear_active_node_state_locked()
+                        self._drain_command_queue()
+                        self._run_thread = threading.Thread(
+                            target=self._run_workflow_thread,
+                            args=(admitted_command, generation_token),
+                            daemon=True,
+                            name=f"trusted-execution-{run_id}",
+                        )
+                        self._run_thread.start()
+                        self._start_run_pending_id = ""
+                    return True
+
+                self._dispatch_start_run_with_viewer_invalidation(command, launch)
         except Exception as exc:  # noqa: BLE001
             self._release_start_run(run_id)
             self._emit_protocol_error(
@@ -445,13 +497,23 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
                 )
             )
 
+        finally:
+            # Serialize the active -> idle handoff with invalidation delivery.
+            # A lifecycle command queued after the last RunControl poll must
+            # never be discarded by the next start's command-queue clearing.
+            with self._start_lock:
+                self._drain_viewer_invalidations(event_sink)
+                with self._state_lock:
+                    if self._run_thread is threading.current_thread():
+                        self._run_thread = None
+
     def _send_viewer_command(
         self,
         command: WorkerCommand,
         *,
         require_session_id: bool = False,
     ) -> str:
-        with self._start_lock:
+        with self._start_lock, self._viewer_invalidation_delivery_lock:
             workspace_epoch, node_epoch = self._viewer_epochs(
                 str(getattr(command, "workspace_id", "")),
                 str(getattr(command, "node_id", "")),

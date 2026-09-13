@@ -1,4 +1,4 @@
-# Purpose: Declare strict COREX Complex, Color, and Image value contracts.
+# Purpose: Declare strict COREX Complex, Color, Image and session-only Plot contracts.
 # Map: subsystems/nodes_registry_builtins.md
 # Tests: tests/test_core_value_types.py
 
@@ -12,6 +12,9 @@ from ea_node_editor.nodes.plugin_contracts import (
 )
 from ea_node_editor.runtime_contracts import (
     DataTypeSpec,
+    DataConversionSpec,
+    PlotValue,
+    PLOT_DATA_TYPE_ID,
     ImageValue,
 )
 
@@ -51,7 +54,21 @@ def is_image_value(value: object) -> bool:
     return type(value) is ImageValue
 
 
+def is_plot_value(value: object) -> bool:
+    return type(value) is PlotValue
+
+
+def plot_preview(value: object) -> ImageValue:
+    if type(value) is not PlotValue:
+        raise ValueError("Plot to Image requires a PlotValue")
+    return value.preview
+
+
 COREX_CORE_VALUE_DATA_TYPES = (
+    DataTypeSpec(
+        PLOT_DATA_TYPE_ID, "Plot", "viewer", is_plot_value,
+        parents=(GRAPH_DATA_TYPE_ID,), carriers=frozenset({"native"}), persistence="never",
+    ),
     DataTypeSpec(
         COMPLEX_DATA_TYPE_ID,
         "Complex",
@@ -99,12 +116,16 @@ COREX_CORE_VALUE_DATA_TYPES = (
 
 COREX_CORE_VALUE_CONTRACT_MANIFEST = PluginContractManifest(
     data_types=COREX_CORE_VALUE_DATA_TYPES,
+    data_conversions=(DataConversionSpec(PLOT_DATA_TYPE_ID, IMAGE_DATA_TYPE_ID, plot_preview),),
 )
 
 __all__ = [
     "COLOR_DATA_TYPE_ID",
     "COMPLEX_DATA_TYPE_ID",
     "IMAGE_DATA_TYPE_ID",
+    "PLOT_DATA_TYPE_ID",
+    "is_plot_value",
+    "plot_preview",
     "COREX_CORE_VALUE_CONTRACT_MANIFEST",
     "COREX_CORE_VALUE_DATA_TYPES",
     "COREX_CORE_VALUE_OWNER_ID",

@@ -41,6 +41,25 @@ VIEWER_RESPONSE_EVENT_TYPES = frozenset(
 
 
 @dataclass(frozen=True)
+class InvalidateViewerSessionsCommand:
+    type: Literal["invalidate_viewer_sessions"] = "invalidate_viewer_sessions"
+    request_id: str = ""
+    workspace_id: str = ""
+    node_ids: tuple[str, ...] | None = None
+    workspace_epoch: int = 0
+    node_epochs: tuple[tuple[str, int], ...] = ()
+    snapshot_digest: str = ""
+
+
+@dataclass(frozen=True)
+class ViewerSessionsInvalidatedEvent:
+    type: Literal["viewer_sessions_invalidated"] = "viewer_sessions_invalidated"
+    request_id: str = ""
+    workspace_id: str = ""
+    snapshot_digest: str = ""
+
+
+@dataclass(frozen=True)
 class OpenViewerSessionCommand:
     type: Literal["open_viewer_session"] = "open_viewer_session"
     request_id: str = ""
@@ -346,15 +365,31 @@ def normalize_viewer_invalidation_fields(
             raise ValueError(
                 "prepared execution requires a viewer invalidation reservation"
             )
-        if (
-            normalized_workspace_epoch != 0
-            or normalized_node_epochs
-            or snapshot_digest not in {"", None}
-        ):
+        if normalized_node_epochs:
             raise ValueError(
                 "legacy start_run forbids viewer invalidation reservation fields"
             )
-        normalized_digest = ""
+        if normalized_workspace_epoch:
+            if normalized_node_ids is not None:
+                raise ValueError(
+                    "direct start_run requires workspace-global viewer invalidation"
+                )
+            normalized_digest = _sha256_digest(
+                snapshot_digest, field_name="viewer_epoch_snapshot_digest"
+            )
+            if normalized_digest != viewer_epoch_snapshot_digest(
+                workspace_id=workspace_id,
+                node_ids=None,
+                workspace_epoch=normalized_workspace_epoch,
+                node_epochs=(),
+            ):
+                raise ValueError("viewer invalidation snapshot digest mismatch")
+        else:
+            if snapshot_digest not in {"", None}:
+                raise ValueError(
+                    "legacy start_run forbids viewer invalidation reservation fields"
+                )
+            normalized_digest = ""
     return {
         "viewer_invalidation_node_ids": normalized_node_ids,
         "viewer_workspace_invalidation_epoch": normalized_workspace_epoch,
@@ -366,6 +401,7 @@ def normalize_viewer_invalidation_fields(
 
 __all__ = [
     "CloseViewerSessionCommand",
+    "InvalidateViewerSessionsCommand",
     "MaterializeViewerDataCommand",
     "OpenViewerSessionCommand",
     "QueryViewerSessionCommand",
@@ -378,6 +414,7 @@ __all__ = [
     "ViewerSessionFailedEvent",
     "ViewerSessionOpenedEvent",
     "ViewerSessionUpdatedEvent",
+    "ViewerSessionsInvalidatedEvent",
     "normalize_viewer_invalidation_fields",
     "normalize_viewer_invalidation_node_ids",
     "normalize_viewer_node_invalidation_epochs",

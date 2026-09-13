@@ -1,8 +1,36 @@
 # Signal Plot scientific inputs
 
 Connect **Tabular Data Input > Table / Array** or **Python Script > result** to
-**Signal Plot > Values**. Signal Plot returns an immutable PNG **Image**; connect
-it to Media Panel for display or Image Export to write a file.
+**Signal Plot > Values**. Signal Plot returns an immutable **Plot** containing a
+PNG preview and the complete normalized signals. Connect it to Media Panel for a
+static canvas preview and interactive fullscreen inspection. Image Export and
+other Image inputs receive its PNG preview through the shared Plot-to-Image conversion.
+
+## Interactive fullscreen
+
+Expand a connected Media Panel to inspect the plot. Use the wheel to zoom, or
+choose Pan, Box Zoom, and the available selection tools in the visible toolbar.
+Hold the middle mouse button and drag to pan temporarily; releasing it restores
+the previous tool. Escape cancels an open menu or active gesture before closing
+fullscreen. Selection counts, statistics, and the bounded X/Y preview use the
+original samples, without double-counting line and marker representations.
+
+**Sync fullscreen ranges**, under **Signal plot options**, is on by default.
+Closing fullscreen applies the final editable X/Y ranges to the originating
+Signal Plot as one undoable change. Reset/Fit Data restores automatic ranges.
+An axis driven by a connected range input remains local-only; its upstream input
+and fallback setting are never overwritten. Turn the toggle off for inspection
+that leaves authored settings unchanged. Selections and temporary visibility
+changes remain local in either mode.
+
+View changes do not run nodes while fullscreen is open. After a synchronized
+close, Auto mode follows normal graph execution; Manual mode needs a run to
+refresh the preview. Re-expanding an unchanged plot remembers its view and
+selection for the current project session. Changed data, conflicting authored
+settings, and project replacement invalidate that temporary state. Plot results
+are not stored as durable project results: run the workflow after reopening to
+restore interactivity. Expanding a plot never rereads a source file or runs an
+upstream script. Ordinary image inputs remain static images.
 
 The [runnable example](../examples/signal_plot_scientific.README.md) generates
 CSV, NumPy and pandas workflows. NumPy and pandas must be installed in the chosen
@@ -51,11 +79,16 @@ finite samples; other samples become gaps.
 
 ## Full data and rendered points
 
-The default `max_points=4000` limits each rendered trace, preserving endpoints,
+The default `max_points=4000` limits each PNG preview trace, preserving endpoints,
 extrema, sample order and gaps. A warning reports the original and rendered point
 counts. If the requested budget cannot represent the gap topology, rendering
 fails clearly. Set **Maximum rendered points** to `0` for full resolution.
-Reduction never edits the source values or changes downstream consumers.
+Reduction never edits the source values. The interactive plot keeps the full
+normalized signals and uses XY's own viewport-dependent display reduction.
+Selection tools follow XY's mark capabilities; density views expose selection
+after zooming to individual points, and line-only views retain navigation and
+hover without adding artificial markers. Oversized plot values fail against the
+existing scientific transport budgets instead of silently truncating samples.
 
 Source selection is separate from rendering reduction. Tabular selected columns,
 table windows and array slices are honored before mapping. Direct ArrayDataRef

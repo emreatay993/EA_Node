@@ -3357,10 +3357,10 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(len(registry.all_specs()), 144)
         self.assertEqual(len(data_ports), 437)
         self.assertEqual(len(resolved_data_ports), 442)
-        self.assertEqual(len(primary_type_ids), 57)
-        self.assertEqual(len(accepted_type_ids), 14)
-        self.assertEqual(len({accepted for _, port in resolved_data_ports for accepted in port.accepted_data_types}), 16)
-        self.assertEqual(len(registry.data_types.all_specs()), 167)
+        self.assertEqual(len(primary_type_ids), 58)
+        self.assertEqual(len(accepted_type_ids), 15)
+        self.assertEqual(len({accepted for _, port in resolved_data_ports for accepted in port.accepted_data_types}), 17)
+        self.assertEqual(len(registry.data_types.all_specs()), 168)
         self.assertEqual(
             len(
                 [
@@ -3369,7 +3369,7 @@ class RegistryValidationTests(unittest.TestCase):
                     if spec.type_id != LOAD_STEP_DATA_TYPE_ID
                 ]
             ),
-            166,
+            167,
         )
         self.assertFalse(
             primary_type_ids

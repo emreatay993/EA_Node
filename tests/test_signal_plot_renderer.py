@@ -37,6 +37,29 @@ from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 SIGNAL_PLOT_TYPE_ID = "plot.signal"
 
 
+def test_signal_plot_authored_numeric_ranges_save_load_and_compile(tmp_path: Path) -> None:
+    from ea_node_editor.execution.compiler import compile_runtime_snapshot
+    from ea_node_editor.execution.execution_plan import ExecutionPlan
+    from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot, RuntimeSnapshot
+    from ea_node_editor.graph.model import GraphModel
+    from ea_node_editor.persistence.serializer import JsonProjectSerializer
+
+    registry = build_default_registry()
+    model = GraphModel()
+    workspace_id = model.active_workspace.workspace_id
+    ranges = {"x_axis_interval": Interval1D(2., 8.), "y_axis_interval": Interval1D(-3., 5.)}
+    node = model.validated_mutations(workspace_id, registry).add_node(type_id=SIGNAL_PLOT_TYPE_ID, title="Plot", x=0, y=0, properties=ranges)
+    serializer = JsonProjectSerializer(registry)
+    path = tmp_path / "ranges.cxproj"
+    serializer.save(str(path), model.project)
+    restored = serializer.load(str(path))
+    assert all(restored.workspaces[workspace_id].nodes[node.node_id].properties[key] == value for key, value in ranges.items())
+    snapshot = build_runtime_snapshot(restored, workspace_id=workspace_id, registry=registry)
+    snapshot = RuntimeSnapshot.from_mapping(snapshot.to_document(catalog=registry.data_types), catalog=registry.data_types)
+    plan = ExecutionPlan(compile_runtime_snapshot(snapshot, workspace_id=workspace_id, registry=registry), registry)
+    assert all(plan.node_instances[node.node_id].properties[key] == value for key, value in ranges.items())
+
+
 def test_scientific_render_uses_explicit_x_labels_and_bounded_gaps(monkeypatch) -> None:
     import numpy as np
     import pandas as pd
@@ -161,7 +184,9 @@ def test_signal_plot_contract_is_exact_and_generic_siblings_remain(
     assert inputs[7].uses_property_default is False
     assert tuple(port.data_access for port in inputs[4:5] + inputs[10:15]) == ("list",) * 6
     assert tuple(port.key for port in outputs) == ("image",)
-    assert outputs[0].data_type == "COREX.DataTypes.Image"
+    assert outputs[0].data_type == "COREX.DataTypes.Plot"
+    assert outputs[0].label == "Plot"
+    assert spec.solution_reuse_scope == "session"
     assert tuple(port.label for port in inputs) == (
         "Width", "Height", "Title", "Font size", "Labels", "Show legend",
         "Legend alignment", "Values", "X axis interval", "Y axis interval",
@@ -181,6 +206,7 @@ def test_signal_plot_contract_is_exact_and_generic_siblings_remain(
         "legend_alignment": 8,
         "x_axis_interval": None,
         "y_axis_interval": None,
+        "sync_fullscreen_ranges": True,
         "colors": [],
         "line_styles": [1],
         "line_widths": [1],
@@ -220,7 +246,7 @@ def test_signal_plot_static_ui_metadata_is_exact() -> None:
         "legend_alignment", "image_background_color", "data_background_color",
     )
     assert tuple(item.property_key for item in spec.settings_groups[1].items) == (
-        "x_axis_interval", "y_axis_interval", "logarithmic_y_axis", "colors",
+        "x_axis_interval", "y_axis_interval", "sync_fullscreen_ranges", "logarithmic_y_axis", "colors",
         "line_styles", "line_widths", "marker_shapes", "marker_sizes",
         "x_axis_label", "y_axis_label",
     )
@@ -260,11 +286,12 @@ def test_signal_plot_function_adapter_preserves_present_overrides_and_warnings()
     captured: dict[str, object] = {}
     image = object()
 
-    def render(values):  # noqa: ANN001
+    def render(values, *, provenance):  # noqa: ANN001
+        assert (provenance.workspace_id, provenance.node_id, provenance.run_id) == ("workspace_signal_adapter", "node_signal_adapter", "run_signal_adapter")
         captured.update(values)
         return image, ("first", "second")
 
-    namespace["render_signal_plot"] = render
+    namespace["create_signal_plot"] = render
     adapter = PythonFunctionAdapter(
         declaration.spec,
         namespace[declaration.function_name],  # type: ignore[arg-type]

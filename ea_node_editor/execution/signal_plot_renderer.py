@@ -13,7 +13,11 @@ import xy
 
 from ea_node_editor.execution.plot_series_decimation import decimate_xy
 from ea_node_editor.execution.signal_plot_inputs import normalize_signal_inputs
-from ea_node_editor.runtime_contracts import ImageValue, Interval1D, TypedInlineValue
+from ea_node_editor.runtime_contracts import (
+    ArrayValue, ImageValue, Interval1D, TypedInlineValue,
+    PlotValue, PlotSignal, PlotSettings, PlotProvenance,
+)
+from ea_node_editor.runtime_contracts import scientific_values
 
 CATEGORY10 = (
     "#1f77b4",
@@ -159,7 +163,7 @@ def _color(value: object, name: str) -> str:
     raise ValueError(f"{name} must be a COREX Color or #RRGGBB value")
 
 
-def render_signal_plot(inputs: Mapping[str, Any]) -> tuple[ImageValue, tuple[str, ...]]:
+def _prepare_signal_plot(inputs: Mapping[str, Any]) -> tuple[tuple[PlotSignal, ...], PlotSettings, tuple[str, ...]]:
     logarithmic = bool(inputs.get("logarithmic_y_axis", False))
     signals = normalize_signal_inputs(
         inputs.get("values"),
@@ -215,17 +219,15 @@ def render_signal_plot(inputs: Mapping[str, Any]) -> tuple[ImageValue, tuple[str
     data_background = _color(inputs.get("data_background_color", "#ffffff"), "Data background color")
 
     warnings: list[str] = []
-    marks: list[Any] = []
+    normalized: list[PlotSignal] = []
+    if sum(signal.x.nbytes + signal.y.nbytes for signal in signals) > scientific_values.SCIENTIFIC_VALUE_MAX_BYTES:
+        raise ValueError("Plot value exceeds the 256 MiB decoded-content limit")
     datetime_extents: list[tuple[float, float]] = []
     for index, signal in enumerate(signals):
         values = signal.y
         x_values = signal.x
         if datetime_x:
-            missing_x = np.isnat(x_values)
-            milliseconds = x_values.astype("datetime64[ms]")
-            fractional_ms = (x_values - milliseconds).astype("timedelta64[ns]").astype(np.float64) / 1_000_000
-            x_values = milliseconds.astype(np.float64) + fractional_ms
-            x_values[missing_x] = np.nan
+            x_values = _xy_x_values(x_values, signal.x_kind)
             finite_x = x_values[np.isfinite(x_values)]
             if len(finite_x):
                 datetime_extents.append((float(finite_x.min()), float(finite_x.max())))
@@ -245,43 +247,10 @@ def render_signal_plot(inputs: Mapping[str, Any]) -> tuple[ImageValue, tuple[str
             if not warnings:
                 warnings.append("Non-finite samples were rendered as gaps.")
 
-        if max_points and len(values) > max_points:
-            x_values, values, reduction = decimate_xy(x_values, values, max_points, preserve_gaps=True)
-            warnings.append(
-                f"Trace {index + 1} reduced from {reduction['original_rows']} to {reduction['points']} rendered points; source data is unchanged."
-            )
-        color = palette[index % len(palette)]
-        label = labels[index] or None
-        line_code = line_styles[index % len(line_styles)]
-        marker_code = marker_shapes[index % len(marker_shapes)]
-        line_width = line_widths[index % len(line_widths)]
-        if line_code and line_width > 0:
-            marks.append(
-                xy.line(
-                    x_values,
-                    values,
-                    name=label,
-                    color=color,
-                    width=float(line_width),
-                    dash=LINE_DASHES[line_code],
-                )
-            )
-        marker = MARKERS[marker_code]
-        if marker is not None:
-            symbol, open_marker = marker
-            marks.append(
-                xy.scatter(
-                    x_values,
-                    values,
-                    name=label if not (line_code and line_width > 0) else None,
-                    color=data_background if open_marker else color,
-                    size=float(marker_sizes[index % len(marker_sizes)]),
-                    symbol=symbol,
-                    stroke=color,
-                    stroke_width=1.0 if open_marker else 0.0,
-                    opacity=1.0,
-                )
-            )
+        normalized.append(PlotSignal(
+            f"signal-{index}", ArrayValue.from_numpy(signal.x),
+            ArrayValue.from_numpy(values), signal.label, signal.x_kind,
+        ))
 
     if datetime_x and any(datetime_bounds):
         if not datetime_extents:
@@ -297,40 +266,128 @@ def render_signal_plot(inputs: Mapping[str, Any]) -> tuple[ImageValue, tuple[str
         if limits[0] >= limits[1]:
             raise ValueError("Datetime bounds must have increasing endpoints.")
         x_bounds = (limits[0], limits[1])
-    axis_style = {"tick_label_size": float(font_size), "label_size": float(font_size)}
-    x_label = str(inputs.get("x_axis_label", "") or "")
+    settings = PlotSettings(
+        width=width, height=height, font_size=font_size, max_points=max_points,
+        legend_alignment=legend_alignment, title=str(inputs.get("title", "") or ""),
+        x_axis_label=str(inputs.get("x_axis_label", "") or ""),
+        y_axis_label=str(inputs.get("y_axis_label", "") or ""),
+        logarithmic_y_axis=logarithmic, show_legend=bool(inputs.get("show_legend", False)),
+        labels=tuple(labels), colors=tuple(palette), line_styles=tuple(line_styles),
+        line_widths=tuple(line_widths), marker_shapes=tuple(marker_shapes), marker_sizes=tuple(marker_sizes),
+        image_background_color=image_background, data_background_color=data_background,
+        x_bounds=x_bounds, y_bounds=y_bounds,
+    )
+    return tuple(normalized), settings, tuple(warnings)
+
+
+def _xy_x_values(values: np.ndarray, x_kind: str) -> np.ndarray:
+    if x_kind != "datetime":
+        return values
+    missing = np.isnat(values)
+    milliseconds = values.astype("datetime64[ms]")
+    fractional_ms = (values - milliseconds).astype("timedelta64[ns]").astype(np.float64) / 1_000_000
+    result = milliseconds.astype(np.float64) + fractional_ms
+    result[missing] = np.nan
+    return result
+
+
+def _build_chart(signals: tuple[PlotSignal, ...], settings: PlotSettings, *, preview: bool):
+    """Build both renderers from the same owned normalized data and settings."""
+    warnings: list[str] = []
+    marks: list[Any] = []
+    for index, signal in enumerate(signals):
+        x_values = _xy_x_values(signal.x.to_numpy(), signal.x_kind)
+        values = signal.y.to_numpy()
+        if preview and settings.max_points and len(values) > settings.max_points:
+            x_values, values, reduction = decimate_xy(x_values, values, settings.max_points, preserve_gaps=True)
+            warnings.append(
+                f"Trace {index + 1} reduced from {reduction['original_rows']} to {reduction['points']} rendered points; source data is unchanged."
+            )
+        color = settings.colors[index % len(settings.colors)]
+        label = (settings.labels[index] if settings.labels else signal.label) or None
+        line_code = settings.line_styles[index % len(settings.line_styles)]
+        marker_code = settings.marker_shapes[index % len(settings.marker_shapes)]
+        line_width = settings.line_widths[index % len(settings.line_widths)]
+        if line_code and line_width > 0:
+            marks.append(xy.line(x_values, values, name=label, color=color,
+                                 width=float(line_width), dash=LINE_DASHES[line_code]))
+        marker = MARKERS[marker_code]
+        if marker is not None:
+            symbol, open_marker = marker
+            marks.append(xy.scatter(
+                x_values, values, name=label if not (line_code and line_width > 0) else None,
+                color=settings.data_background_color if open_marker else color,
+                size=float(settings.marker_sizes[index % len(settings.marker_sizes)]),
+                symbol=symbol, stroke=color, stroke_width=1.0 if open_marker else 0.0, opacity=1.0,
+            ))
+    datetime_x = signals[0].x_kind == "datetime"
+    x_label = settings.x_axis_label
     if datetime_x:
         x_label = f"{x_label} (UTC)" if x_label else "UTC"
+    axis_style = {"tick_label_size": float(settings.font_size), "label_size": float(settings.font_size)}
+    # Authored limits only constrain the PNG. The live figure first establishes
+    # its full-data home view; the host then navigates to authored/cached ranges.
+    x_bounds = settings.x_bounds if preview else None
+    y_bounds = settings.y_bounds if preview else None
     components: list[Any] = [
         *marks,
         xy.x_axis(label=x_label, type_="time" if datetime_x else None, bounds=x_bounds, domain=x_bounds, style=axis_style),
-        xy.y_axis(
-            label=str(inputs.get("y_axis_label", "") or ""),
-            bounds=y_bounds,
-            type_="log" if logarithmic else None,
-            nonpositive="mask" if logarithmic else None,
-            style=axis_style,
-        ),
-        xy.theme(background=image_background, plot_background=data_background),
+        xy.y_axis(label=settings.y_axis_label, bounds=y_bounds,
+                  type_="log" if settings.logarithmic_y_axis else None,
+                  nonpositive="mask" if settings.logarithmic_y_axis else None, style=axis_style),
+        xy.theme(background=settings.image_background_color, plot_background=settings.data_background_color),
     ]
-    if any(labels) and bool(inputs.get("show_legend", False)):
-        components.append(xy.legend(show=True, loc=LEGEND_LOCATIONS[legend_alignment]))
+    if any(settings.labels) and settings.show_legend:
+        components.append(xy.legend(show=True, loc=LEGEND_LOCATIONS[settings.legend_alignment]))
+    if not preview:
+        components.extend((xy.tooltip(), xy.modebar()))
     chart = xy.chart(
-        *components,
-        width=width,
-        height=height,
-        title=str(inputs.get("title", "") or ""),
-        style={"font-size": f"{font_size}px"},
+        *components, width=settings.width if preview else "100%", height=settings.height,
+        title=settings.title, style={"font-size": f"{settings.font_size}px"},
+        **({} if preview else {"hover": True, "select": True, "crosshair": True,
+                               "default_drag_action": "pan", "class_names": {"root": "corex-xy-chart"}}),
     )
-    png = chart.to_png(width=width, height=height, scale=1.0)
-    return ImageValue.from_png(png), tuple(warnings)
+    return chart, tuple(warnings)
+
+
+def authored_initial_ranges(plot: PlotValue) -> dict[str, tuple[float, float] | None]:
+    """Authored initial view, with datetime X expressed in UTC milliseconds."""
+    return {"x": plot.settings.x_bounds, "y": plot.settings.y_bounds}
+
+
+def xy_mark_signal_ids(plot: PlotValue) -> tuple[str, ...]:
+    """Map XY mark indices to logical signals without double-counting samples."""
+    result = []
+    for index, signal in enumerate(plot.signals):
+        settings = plot.settings
+        if settings.line_styles[index % len(settings.line_styles)] and settings.line_widths[index % len(settings.line_widths)] > 0:
+            result.append(signal.signal_id)
+        if settings.marker_shapes[index % len(settings.marker_shapes)]:
+            result.append(signal.signal_id)
+    return tuple(result)
+
+
+def build_xy_figure(plot: PlotValue):
+    """Create a full-resolution live figure on the dedicated XY owner worker."""
+    chart, _ = _build_chart(plot.signals, plot.settings, preview=False)
+    return chart.figure()
+
+
+def create_signal_plot(inputs: Mapping[str, Any], *, provenance: PlotProvenance) -> tuple[PlotValue, tuple[str, ...]]:
+    signals, settings, warnings = _prepare_signal_plot(inputs)
+    chart, reduction_warnings = _build_chart(signals, settings, preview=True)
+    preview = ImageValue.from_png(chart.to_png(width=settings.width, height=settings.height, scale=1.0))
+    return PlotValue(preview, signals, settings, provenance), warnings + reduction_warnings
+
+
+def render_signal_plot(inputs: Mapping[str, Any]) -> tuple[ImageValue, tuple[str, ...]]:
+    """Render-only entry point for static export and renderer callers."""
+    signals, settings, warnings = _prepare_signal_plot(inputs)
+    chart, reduction_warnings = _build_chart(signals, settings, preview=True)
+    return ImageValue.from_png(chart.to_png(width=settings.width, height=settings.height, scale=1.0)), warnings + reduction_warnings
 
 
 __all__ = [
-    "CATEGORY10",
-    "LEGEND_LABELS",
-    "LEGEND_LOCATIONS",
-    "LINE_DASHES",
-    "MARKERS",
-    "render_signal_plot",
+    "CATEGORY10", "LEGEND_LABELS", "LEGEND_LOCATIONS", "LINE_DASHES", "MARKERS",
+    "render_signal_plot", "create_signal_plot", "build_xy_figure", "authored_initial_ranges", "xy_mark_signal_ids",
 ]

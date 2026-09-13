@@ -7,6 +7,8 @@ Use this for support layers that are not owned by graph, persistence, or UI: tel
 - `ea_node_editor/runtime_contracts/data_types.py`
 - `ea_node_editor/runtime_contracts/scientific_values.py`
 - `ea_node_editor/runtime_contracts/scientific_codec.py`
+- `ea_node_editor/runtime_contracts/plot_value.py`
+- `ea_node_editor/runtime_contracts/plot_codec.py`
 - `ea_node_editor/telemetry/`
 - `ea_node_editor/help/`
 - `ea_node_editor/benchmarks/`
@@ -21,6 +23,7 @@ Use this for support layers that are not owned by graph, persistence, or UI: tel
 - Solution records retain node-scoped interface provenance; whole-workflow fingerprints remain in execution preparation. Immutable result records and per-port digests stay independent of UI and persistence implementations.
 
 - `runtime_contracts/scientific_values.py` owns immutable ArrayValue/TableValue buffers, dtype/shape validation and isolated native script adapters; SeriesValue is the series TableValue variant. `scientific_codec.py` owns the versioned data-only wire format and 256 MiB/value, 512 MiB/operation decoded-content bounds. Scientific values remain durable-ineligible, and JSON collection validation stays unchanged.
+- `runtime_contracts/plot_value.py` owns immutable full-data PlotValue, PNG previews, validated chart settings and producer stamps. `plot_codec.py` extends the scientific byte budgets to plot arrays, preview and metadata, while the catalog converts Plot to Image for static consumers. Plots support session reuse only; no durable or property persistence is introduced.
 - `runtime_contracts/data_tree.py` owns immutable path-indexed `DataTree` values and modifier ordering.
 - `runtime_contracts/image_value.py` owns strict immutable PNG parsing and `ImageValue`; `value_refs.py` owns inline, artifact, and handle carriers; `tabular_data.py` owns tabular and array carriers; `value_codec.py` owns recursive tagged serialization; and `durable_values.py` owns callback-free durable decoding and validation. The durable gate retains declared/concrete catalog checks, assignability, persistence/sensitivity, carrier kinds, per-inline size, artifact metadata, private/staging/session/path rejection, markers, and current managed-artifact integrity.
 - `common/artifact_refs.py` owns only the dependency-light `saved://` and `temp://` grammar shared by runtime contracts and persistence.

@@ -198,8 +198,8 @@ def test_internal_function_declarations_carry_the_accepted_reuse_scopes(
 
     assert len(function_entries) == 76
     assert Counter(entry.spec.solution_reuse_scope for entry in function_entries) == {
-        "durable": 29,
-        "session": 22,
+        "durable": 28,
+        "session": 23,
         "never": 25,
     }
 

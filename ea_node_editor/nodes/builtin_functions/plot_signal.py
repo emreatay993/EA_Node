@@ -4,7 +4,8 @@
 
 SOURCE = r'''import corex
 
-from ea_node_editor.execution.signal_plot_renderer import render_signal_plot
+from ea_node_editor.execution.signal_plot_renderer import create_signal_plot
+from ea_node_editor.runtime_contracts import PlotProvenance
 
 
 LEGEND_LABELS = (
@@ -46,7 +47,7 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
 
 @corex.node(
     id="plot.signal",
-    _solution_reuse_scope="durable",
+    _solution_reuse_scope="session",
     name="Signal Plot",
     category=("Plot",),
     icon="show_chart",
@@ -150,7 +151,6 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     port=True,
     _port_description="Define a custom interval for the displayed X-axis value range.",
     _section_order=0,
-    _persistence_type=None,
 )
 @corex.interval(
     "y_axis_interval",
@@ -160,7 +160,6 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     port=True,
     _port_description="Define a custom interval for the displayed Y-axis value range.",
     _section_order=1,
-    _persistence_type=None,
 )
 @corex.list(
     "colors",
@@ -170,7 +169,7 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     section="Signal plot options",
     port=True,
     _port_description="Input one color per plotted trace for your input data. If the number of colors is less than the number of plotted traces, then the color values are repeated.",
-    _section_order=3,
+    _section_order=4,
 )
 @corex.list(
     "line_styles",
@@ -182,7 +181,7 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     section="Signal plot options",
     port=True,
     _port_description="Choose the line style for the plot. 0 = None, 1 = Solid, 2 = Dash, 3 = Dash Dot, 4 = Dash Dot Dot, 5 = Dot. Please provide one style for all plotted traces or one style for each branch. If the number of styles is less than the number of traces, then the styles are repeated.",
-    _section_order=4,
+    _section_order=5,
 )
 @corex.list(
     "line_widths",
@@ -195,7 +194,7 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     section="Signal plot options",
     port=True,
     _port_description="Specify the line width connecting the data points. Please provide one width for all plotted traces or one width for each branch. If the number of widths is less than the number of traces, then the widths are repeated.",
-    _section_order=5,
+    _section_order=6,
 )
 @corex.list(
     "marker_shapes",
@@ -207,7 +206,7 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     section="Signal plot options",
     port=True,
     _port_description="Choose the marker shape for the plot. 0 = None, 1 = Filled circle, 2 = Filled square, 3 = Open circle, 4 = Open square, 5 = Filled diamond, 6 = Open diamond, 7 = Asterisk, 8 = Hashtag, 9 = Cross, 10 = X, 11 = Vertical bar, 12 = Tri upwards, 13 = Tri downwards, 14 = Filled triangle upwards, 15 = Filled triangle downwards, 16 = Open triangle upwards, 17 = Open triangle downwards. Please provide one shape for all plotted traces or one shape for each branch. If the number of shapes is less than the number of traces, then the shapes are repeated.",
-    _section_order=6,
+    _section_order=7,
 )
 @corex.list(
     "marker_sizes",
@@ -220,7 +219,7 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     section="Signal plot options",
     port=True,
     _port_description="Specify the size of the markers which point to your given values. Please provide one size for all plotted traces or one size for each branch. If the number of sizes is less than the number of traces, then the sizes are repeated.",
-    _section_order=7,
+    _section_order=8,
 )
 @corex.text(
     "x_axis_label",
@@ -229,7 +228,7 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     section="Signal plot options",
     port=True,
     _port_description="Label of the horizontal x-axis.",
-    _section_order=8,
+    _section_order=9,
 )
 @corex.text(
     "y_axis_label",
@@ -238,7 +237,7 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     section="Signal plot options",
     port=True,
     _port_description="Label of the vertical y-axis.",
-    _section_order=9,
+    _section_order=10,
 )
 @corex.switch(
     "logarithmic_y_axis",
@@ -247,7 +246,11 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     section="Signal plot options",
     port=True,
     _port_description="If set to true, the Y axis will use a logarithmic scale with a base of 10.",
-    _section_order=2,
+    _section_order=3,
+)
+@corex.switch(
+    "sync_fullscreen_ranges", default=True, label="Sync fullscreen ranges",
+    section="Signal plot options", port=False, _section_order=2,
 )
 @corex.color(
     "image_background_color",
@@ -298,17 +301,19 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
 )
 @corex.output(
     "image",
-    value_type=corex.Image,
-    label="Image",
-    description="Image data from your plot.",
+    value_type="COREX.DataTypes.Plot",
+    label="Plot",
+    description="Plot data with a PNG preview and full-resolution fullscreen inspection.",
 )
 def signal_plot(ctx, values, settings):
     render_inputs = settings.to_dict()
     render_inputs["values"] = values
-    image, warnings = render_signal_plot(render_inputs)
+    plot, warnings = create_signal_plot(render_inputs, provenance=PlotProvenance(
+        workspace_id=ctx.workspace_id, node_id=ctx.node_id, run_id=ctx.run_id,
+    ))
     for warning in warnings:
         ctx.warn(warning, code="signal_plot_render")
-    return {"image": image}
+    return {"image": plot}
 '''
 
 __all__ = ["SOURCE"]

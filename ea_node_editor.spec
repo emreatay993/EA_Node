@@ -441,7 +441,7 @@ hiddenimports += imageio_ffmpeg_hiddenimports
 datas = []
 datas += copy_metadata("paramiko")
 datas += copy_metadata("xy")
-datas += collect_data_files("xy", includes=["_native_lib/*"])
+datas += collect_data_files("xy", includes=["_native_lib/*", "static/index.js"])
 datas += [
     (str(PROJECT_ROOT / "THIRD_PARTY_NOTICES.md"), "."),
     (str(PROJECT_ROOT / "licenses" / "PARAMIKO-LGPL-2.1.txt"), "licenses"),

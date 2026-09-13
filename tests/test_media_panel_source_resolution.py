@@ -129,6 +129,38 @@ def _value_result(value):  # noqa: ANN001
     return SettledPortResult(status="value", value=DataTree.from_item(value))
 
 
+def test_plot_preview_and_running_producer_provenance():
+    from dataclasses import replace
+    from ea_node_editor.runtime_contracts import PlotProvenance
+    from tests.test_plot_value import plot_value
+    panel = _node()
+    workspace = _workspace(panel, connected=True)
+    producer = SimpleNamespace(node_id="signal", type_id="plot.signal")
+    workspace.nodes[producer.node_id] = producer
+    plot = replace(plot_value(), provenance=PlotProvenance(workspace.workspace_id, producer.node_id, "original-run"))
+    state = _run_state(result=_value_result(plot), state="completed")
+    records = state.cached_node_output_records_by_workspace_id[workspace.workspace_id]
+    records[producer.node_id] = {"producer-record": {"record_id": "producer-record", "outputs_available": True,
+                                                  "outputs": {"image": _value_result(plot)}}}
+    facts = state.node_solution_facts_by_workspace_id[workspace.workspace_id]
+    facts[producer.node_id] = replace(facts[panel.node_id], node_id=producer.node_id, retained_record_id="producer-record")
+    # Preview provider absence is independent of provenance readiness.
+    from unittest.mock import patch
+    with patch("ea_node_editor.ui.media_panel_source.image_value_preview_source", return_value="image://preview/plot"):
+        resolved = resolve_media_panel_source(node=panel, workspace=workspace, run_state=state)
+    assert resolved.media_kind == "plot" and resolved.raw_value is plot
+    assert "signals" not in repr(resolved.to_qml_payload())
+    state.running_node_ids = {producer.node_id}
+    resolved = resolve_media_panel_source(node=panel, workspace=workspace, run_state=state)
+    assert resolved.state == "running" and resolved.raw_value is None
+    state.running_node_ids.clear()
+    state.failed_node_ids = {producer.node_id}
+    assert resolve_media_panel_source(node=panel, workspace=workspace, run_state=state).state == "failed"
+    state.failed_node_ids.clear()
+    records[producer.node_id]["producer-record"]["outputs_available"] = False
+    assert resolve_media_panel_source(node=panel, workspace=workspace, run_state=state).state == "unavailable"
+
+
 class _CanvasSource(QObject):
     graphics_preferences_changed = pyqtSignal()
     snap_to_grid_changed = pyqtSignal()
@@ -186,7 +218,7 @@ def test_exposed_input_never_falls_back_to_authored_source() -> None:
         "source_ref": "",
         "resolved_source_url": "",
         "preview_source_url": "",
-        "message": "Connect a Path, String, or Image value to Source.",
+        "message": "Connect a Path, String, Image, or Plot value to Source.",
     }
     assert wired.authority == "input"
     assert wired.input_connected
@@ -292,7 +324,7 @@ def test_malformed_url_worker_failure_resolves_as_controlled_invalid() -> None:
     result = event.outputs["_surface_source"]
     assert result.status == "failed"
     assert result.errors
-    assert result.errors[0].error.startswith("Media Panel source must be an Image value")
+    assert result.errors[0].error.startswith("Media Panel source must be an Image or Plot value")
     assert "Invalid IPv6" not in result.errors[0].error
 
     node = _node(exposed=True)
