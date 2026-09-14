@@ -149,21 +149,11 @@ def _plain_columns(value: Sequence[Any]) -> _Columns:
     return _Columns((None,) * width, tuple(kinds), lambda positions: {i: arrays[i] for i in positions}, indexed=raw.ndim == 1)
 
 
-def _ref_option(ref: TabularDataRef | ArrayDataRef, key: str, default: Any) -> Any:
-    options = ref.metadata.get("node_options")
-    if isinstance(options, Mapping) and key in options:
-        return options[key]
-    return ref.metadata.get(key, default)
-
-
 def _table_columns(ref: TabularDataRef | TabularWindowRef, service: Any) -> _Columns:
     base = ref.table_data if isinstance(ref, TabularWindowRef) else ref
     schema = service.column_schema(base)
     all_names = tuple(column.name for column in schema.columns)
-    selected = () if isinstance(ref, TabularWindowRef) else _ref_option(base, "selected_columns", ())
-    if isinstance(selected, str):
-        raise ValueError("Selected source columns must be an ordered list of names")
-    positions = tuple(_selector(name, all_names, "Selected source column") for name in selected) if selected else tuple(range(len(all_names)))
+    positions = tuple(range(len(all_names)))
     names = tuple(all_names[i] for i in positions)
     offset, limit = 0, None
     if isinstance(ref, TabularWindowRef):
@@ -207,11 +197,8 @@ def _array_ref_columns(ref: ArrayDataRef | ArraySlice2DRef, service: Any) -> _Co
     if len(base.shape) not in {1, 2}:
         raise ValueError("Values array references must be one- or two-dimensional")
     rows, width = base.shape[0], base.shape[1] if len(base.shape) == 2 else 1
-    hints = {} if isinstance(ref, ArraySlice2DRef) else _ref_option(base, "array_slice_2d", {})
-    if not isinstance(hints, Mapping):
-        raise ValueError("Array slice metadata must be a mapping")
     row_start, col_start, row_stop, col_stop = 0, 0, rows, width
-    requests = [hints]
+    requests = []
     if isinstance(ref, ArraySlice2DRef):
         requests.append({key: getattr(ref, key) for key in ("row_offset", "column_offset", "row_limit", "column_limit")})
     for request in requests:

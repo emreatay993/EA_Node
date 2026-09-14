@@ -21,11 +21,6 @@ def connected_signal_value(node_id: str, edges: Any, current_output_provider: Ca
     return None
 
 
-def _option(ref: Any, key: str, default: Any) -> Any:
-    options = ref.metadata.get("node_options", {})
-    return options[key] if isinstance(options, Mapping) and key in options else ref.metadata.get(key, default)
-
-
 def _columns(value: Any) -> tuple[tuple[Any, str], ...]:
     if isinstance(value, TableValue):
         return tuple((name, column.dtype) for name, column in zip(value.column_names, value.columns))
@@ -33,7 +28,7 @@ def _columns(value: Any) -> tuple[tuple[Any, str], ...]:
         base = value.table_data if isinstance(value, TabularWindowRef) else value
         schema = base.metadata.get("column_schema", ())
         columns = tuple((item["name"], item["dtype"]) for item in schema if isinstance(item, Mapping) and type(item.get("name")) is str and type(item.get("dtype")) is str)
-        names = value.columns if isinstance(value, TabularWindowRef) else _option(base, "selected_columns", ())
+        names = value.columns if isinstance(value, TabularWindowRef) else ()
         if names:
             lookup = {name: (name, dtype) for name, dtype in columns}
             columns = tuple(lookup[name] for name in names if name in lookup)
@@ -48,9 +43,6 @@ def _columns(value: Any) -> tuple[tuple[Any, str], ...]:
         width = base.shape[1] if len(base.shape) == 2 else 1
         if isinstance(value, ArraySlice2DRef):
             start, limit = value.column_offset, value.column_limit
-        elif isinstance(base, ArrayDataRef):
-            hints = _option(base, "array_slice_2d", {})
-            start, limit = hints.get("column_offset", 0), hints.get("column_limit", 0)
         else:
             start, limit = 0, 0
         width = max(0, min(width - start, limit) if limit else width - start)

@@ -450,6 +450,11 @@ class TabularPreviewProvider:
             )
 
         slice_request = self._slice_request(_request_mapping(request), mode=mode)
+        if len(session.ref.shape) > 2:
+            payload = _base_payload("array_axes_required", "Configure data to choose an explicit preview plane for this array.")
+            payload.update(preview_kind="array", array={"shape": list(session.ref.shape), "dtype": session.ref.dtype},
+                           ref=_payload_from_ref(session.ref), source=session.source, selector=session.selector)
+            return payload
         request_payload = _slice_request_payload(slice_request)
         cache_key = _inline_payload_cache_key(
             preview_kind="array",
@@ -570,7 +575,7 @@ class TabularPreviewProvider:
 
         selector = _selector_payload(scan, options.selected_object)
         source = _source_payload(raw_source, resolution, path, scan=scan)
-        if scan.requires_selection and not options.selected_object:
+        if scan.requires_selection and not options.selected_object and not (options.data_view and options.data_view.mode == "table"):
             payload = _base_payload(
                 "selection_required",
                 "Select a sheet, key, or dataset before previewing this source.",

@@ -40,7 +40,7 @@ Settings-section size transitions use shared 180 ms width/height animations with
 - [Surface Input And Inline Controls](feature_routes/surface_input_and_inline_controls.md)
 - [Port Availability And Default Values](feature_routes/port_availability_and_default_values.md)
 - [Plotter Nodes](feature_routes/plotter_nodes.md)
-- [Tabular Data Add-on And Preview](feature_routes/tabular_data_addon_preview.md)
+- [Tabular Data Add-on And Preview](feature_routes/tabular_data_addon_preview.md) — composed views, isolated queries, themed composer controls and responsive QML acceptance
 - [MARS Solver Add-on](feature_routes/mars_solver_addon.md)
 - [Neutral CAD/FE Engineering Viewer](feature_routes/neutral_cad_fe_engineering_viewer.md)
 - [Managed Artifacts And Project Data](feature_routes/managed_artifacts_project_data.md)
@@ -79,6 +79,7 @@ Settings-section size transitions use shared 180 ms width/height animations with
 - `GraphCanvasHostPresenter` directly owns graph cursor application, passive-node/flow-edge style dialogs and presets, style clipboard operations, flow-edge labels, and their scene mutations. `ShellHostPresenter` retains app-wide/native dialog and import policy only; `ShellWindow` has no graph cursor/style facade slots.
 - Workspace shell ownership is direct: `WorkspaceSelectionContext`, `WorkspaceNavigationController`, `WorkspaceEditController`, `WorkspaceDropConnectController`, `WorkflowLibraryController`, and `WorkspacePackageIOController` are composed explicitly. One shared `MutationUiEffects` is injected into edit/drop, while `GraphActionController` calls concrete owners without string dispatch or umbrella fallbacks.
 - Tabular ownership is split without a second service: `loader_cache_service.py` coordinates refs, records, cache lifecycle, locks, and eviction; `source_backends.py` owns format IO/conversion; `preview_query.py` owns one normalized query and the optimized Arrow plus bounded Python evaluators.
+- Tabular composition/output definitions live in `runtime_contracts/data_view.py`; strict immutable recipes and load-option transport are covered by `tests/test_data_view_contract.py`, with implementation progress in `docs/PLAN_Tabular_Data_Composer.md`.
 - Media Panel action ownership is direct: `ui/shell/media_panel_action_service.py` is the sole QObject for crop, frame capture, timestamp annotation, trim replace/copy, artifact staging, and trim worker/QThread lifecycle. `ui/media_video_state.py` still owns Python normalization and `GraphMediaVideoPlaybackCore.qml` still owns per-renderer playback/seek/clip/bookmark/primer behavior; no singleton player or fullscreen lifecycle redesign was introduced.
 - Incremental execution freshness, invalidation closure, settlement acceptance, and reset notifications are execution-owned. Shell/QML retain only bounded record-ID-selected presentation caches, exact node cleanup, and the transport-only current/expired projection.
 - Shell execution ownership is direct: `RunEventController` is the sole runtime-event intake; `RunController` owns commands, preview, dispatch, Auto, Trigger, pause/resume/stop, and history invalidation; `RunProjectionController` alone owns node execution sets, elapsed/warning state, accepted-output observations, solution facts, port availability, failure focus, run-control status, and their signals over the one shared `ShellRunState`.

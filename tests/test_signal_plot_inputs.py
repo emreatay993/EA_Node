@@ -150,13 +150,13 @@ def test_csv_source_matches_native_and_unknown_numeric_columns_are_inferred(tmp_
     options = TabularLoadOptions(cache_policy="source_direct") if source_direct else TabularLoadOptions()
     ref = service.open_source(source, options)
     # Limit to columns whose declared/inferred meaning is equivalent on both paths.
-    ref = replace(ref, metadata={**ref.metadata, "selected_columns": ["label", "flag", "x", "y"]})
+    ref = TabularWindowRef("selected", ref, columns=("label", "flag", "x", "y"))
     trace, = normalize_signal_inputs(ref, service=service)
     native, = normalize_signal_inputs(pd.DataFrame({"x": [10, 8, 9], "y": [2., np.nan, 6.]}))
     np.testing.assert_array_equal(trace.x, native.x)
     np.testing.assert_array_equal(trace.y, native.y)
     if source_direct:
-        assert all(not column.dtype for column in service.schema(ref).columns)
+        assert all(not column.dtype for column in service.schema(ref.table_data).columns)
         with pytest.raises(ValueError, match="typed datetime"):
             unrestricted = service.open_source(source, options)
             normalize_signal_inputs(unrestricted, service=service, x_mode="column", x_column="date", y_columns=["y"])
@@ -210,9 +210,10 @@ def test_array_refs_are_full_length_and_honor_slices_and_selected_columns(tmp_pa
     np.testing.assert_array_equal(trace.x, data[100:105, 1])
     np.testing.assert_array_equal(trace.y, data[100:105, 2])
     hinted = replace(ref, metadata={**ref.metadata, "node_options": {"array_slice_2d": {"row_offset": 105, "row_limit": 3, "column_offset": 2, "column_limit": 1}}})
-    trace, = normalize_signal_inputs(hinted, service=service)
-    np.testing.assert_array_equal(trace.x, range(3))
-    np.testing.assert_array_equal(trace.y, data[105:108, 2])
+    hinted_traces = normalize_signal_inputs(hinted, service=service)
+    assert len(hinted_traces) == 3
+    np.testing.assert_array_equal(hinted_traces[0].x, data[:, 0])
+    np.testing.assert_array_equal(hinted_traces[0].y, data[:, 1])
     calls = []
     original = service.to_numpy
     def capture(ref, options):

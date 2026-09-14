@@ -43,13 +43,13 @@ def test_signal_cached_ref_schema_matches_explicit_window_and_slice_selections()
 
     base = TabularDataRef(ref_id="table", resolver_id="cached", source_uri="missing.csv", metadata={"column_schema": [{"name": "time", "dtype": "timestamp[us]"}, {"name": "a", "dtype": "float64"}, {"name": "b", "dtype": "float64"}], "node_options": {"selected_columns": ["a"]}})
     items = [{"key": "x_column"}, {"key": "y_columns"}]
-    assert enrich_signal_property_items(items, base)[0]["enum_codes"] == ["a"]
+    assert enrich_signal_property_items(items, base)[0]["enum_codes"] == ["time", "a", "b"]
     window = TabularWindowRef(ref_id="window", table_data=base, columns=("time", "b"))
     assert enrich_signal_property_items(items, window)[0]["enum_codes"] == ["time", "b"]
     assert enrich_signal_property_items(items, window)[1]["enum_codes"] == ["b"]
     array = ArrayDataRef(ref_id="array", resolver_id="cached", source_uri="missing.npy", shape=(10, 4), dtype="float64", metadata={"array_slice_2d": {"column_offset": 2, "column_limit": 1}})
     sliced = ArraySlice2DRef(ref_id="slice", array_data=array, column_offset=0, column_limit=3)
-    assert enrich_signal_property_items(items, array)[0]["enum_codes"] == [0]
+    assert enrich_signal_property_items(items, array)[0]["enum_codes"] == [0, 1, 2, 3]
     assert enrich_signal_property_items(items, sliced)[0]["enum_codes"] == [0, 1, 2]
 
 

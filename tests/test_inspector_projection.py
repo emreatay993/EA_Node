@@ -181,21 +181,13 @@ class InspectorProjectionTabularDataInputTests(unittest.TestCase):
         self.assertEqual(items_by_key["path"]["editor_mode"], "path")
         self.assertEqual(items_by_key["path"]["path_dialog_mode"], "file")
         self.assertEqual(items_by_key["path"]["group"], "Source")
-        self.assertEqual(items_by_key["selected_object"]["label"], "Data Source")
-        self.assertEqual(items_by_key["selected_object"]["group"], "Selection")
-        self.assertIn("multiple sheets", items_by_key["selected_object"]["help_text"])
+        self.assertEqual(items_by_key["data_view_summary"]["label"], "Configured Output")
+        self.assertEqual(items_by_key["data_view_summary"]["group"], "Selection")
+        self.assertIn("Configure data", items_by_key["data_view_summary"]["help_text"])
+        self.assertNotIn("selected_object", items_by_key)
         self.assertNotIn("array_slice_2d", items_by_key)
-        self.assertEqual(items_by_key["array_slice_2d_row_start"]["label"], "Start Row")
-        self.assertEqual(items_by_key["array_slice_2d_row_start"]["value"], 1)
-        self.assertEqual(items_by_key["array_slice_2d_row_count"]["value"], 50)
-        self.assertEqual(items_by_key["array_slice_2d_column_start"]["value"], "A")
-        self.assertEqual(items_by_key["array_slice_2d_column_count"]["value"], 50)
-        self.assertEqual(
-            items_by_key["array_slice_2d_summary"]["editor_mode"], "summary"
-        )
-        self.assertEqual(
-            items_by_key["array_slice_2d_summary"]["value"], "Rows 1-50, Columns A-AX"
-        )
+        self.assertEqual(items_by_key["data_view_summary"]["editor_mode"], "summary")
+        self.assertNotIn("array_slice_2d_row_start", items_by_key)
         self.assertEqual(items_by_key["cache_policy"]["group"], "Cache")
         self.assertEqual(items_by_key["project_managed_source"]["group"], "Portability")
 
@@ -222,7 +214,8 @@ class InspectorProjectionTabularDataInputTests(unittest.TestCase):
         self.assertNotIn("array_slice_2d", items_by_key)
         self.assertNotIn("array_slice_2d_row_start", items_by_key)
         self.assertNotIn("array_slice_2d_summary", items_by_key)
-        self.assertNotIn("help_text", items_by_key["selected_object"])
+        self.assertNotIn("data_view_summary", items_by_key)
+        self.assertNotIn("selected_object", items_by_key)
 
 
 class InspectorProjectionHeaderTests(unittest.TestCase):

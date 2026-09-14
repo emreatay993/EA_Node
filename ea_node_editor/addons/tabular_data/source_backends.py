@@ -13,6 +13,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from ea_node_editor.runtime_contracts.data_view import DataViewDefinition
 from ea_node_editor.addons.tabular_data.policy import (
     CACHE_POLICY_APP_MANAGED_PARQUET,
     CACHE_POLICY_SOURCE_DIRECT,
@@ -58,7 +59,9 @@ class SelectionRequiredError(TabularLoaderError):
     def __init__(self, *, format_id: str, choices: Sequence[SelectableObject]) -> None:
         self.format_id = format_id
         self.choices = tuple(choices)
-        names = ", ".join(choice.object_id for choice in self.choices)
+        names = ", ".join(choice.object_id for choice in self.choices[:8])
+        if len(self.choices) > 8:
+            names += f", ... ({len(self.choices)} objects)"
         super().__init__(f"The {format_id} source contains multiple objects; select one of: {names}.")
 
 
@@ -85,6 +88,7 @@ class TabularLoadOptions:
     selected_object: str = ""
     allow_npz_archive_preview: bool = False
     cache_policy: str = CACHE_POLICY_APP_MANAGED_PARQUET
+    data_view: DataViewDefinition | None = None
 
     def __post_init__(self) -> None:
         delimiter = self.delimiter
@@ -115,6 +119,8 @@ class TabularLoadOptions:
         object.__setattr__(self, "selected_object", str(self.selected_object or "").strip())
         object.__setattr__(self, "allow_npz_archive_preview", bool(self.allow_npz_archive_preview))
         object.__setattr__(self, "cache_policy", cache_policy)
+        if self.data_view is not None and not isinstance(self.data_view, DataViewDefinition):
+            object.__setattr__(self, "data_view", DataViewDefinition.from_mapping(self.data_view))
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> TabularLoadOptions:
@@ -129,13 +135,14 @@ class TabularLoadOptions:
             selected_object=str(payload.get("selected_object", "") or ""),
             allow_npz_archive_preview=bool(payload.get("allow_npz_archive_preview", False)),
             cache_policy=str(payload.get("cache_policy", "") or ""),
+            data_view=payload.get("data_view"),
         )
 
     def with_selected_object(self, selected_object: str) -> TabularLoadOptions:
         return replace(self, selected_object=selected_object)
 
     def to_cache_payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "delimiter": self.delimiter,
             "encoding": self.encoding,
             "header_row": self.header_row,
@@ -145,6 +152,9 @@ class TabularLoadOptions:
             "allow_npz_archive_preview": self.allow_npz_archive_preview,
             "cache_policy": self.cache_policy,
         }
+        if self.data_view is not None:
+            payload["data_view"] = self.data_view.to_payload()
+        return payload
 
     @property
     def uses_managed_cache(self) -> bool:
@@ -230,6 +240,7 @@ class TableRecord:
     warnings: tuple[str, ...]
     stats: SourceStats = SourceStats(size_bytes=0, mtime_ns=0)
     content_sha256: str = ""
+    view: Any = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -379,31 +390,18 @@ class SourceBackendMethods:
         options: TabularLoadOptions,
         stats: SourceStats,
     ) -> SourceScanResult:
-        numpy = import_optional("numpy", format_id="npz", purpose="NPZ archive scanning")
+        import_optional("numpy", format_id="npz", purpose="NPZ archive scanning")
+        from ea_node_editor.addons.tabular_data.npz_members import catalogue_npz
+        from ea_node_editor.addons.tabular_data.operations import check_cancelled
+
         objects: list[SelectableObject] = []
-        with numpy.load(path, allow_pickle=False) as archive:
-            for key in archive.files:
-                if stats.size_bytes > self.policy.large_warning_bytes:
-                    objects.append(
-                        SelectableObject(
-                            object_id=key,
-                            display_name=key,
-                            kind="array",
-                            metadata={"archive_only": True},
-                        )
-                    )
-                    continue
-                array = archive[key]
-                objects.append(
-                    SelectableObject(
-                        object_id=key,
-                        display_name=key,
-                        kind="array",
-                        shape=tuple(int(value) for value in array.shape),
-                        dtype=str(array.dtype),
-                        metadata={"archive_only": True},
-                    )
-                )
+        for member in catalogue_npz(path, check_cancelled=check_cancelled):
+            objects.append(SelectableObject(
+                object_id=member["member"], display_name=member["member"], kind="array",
+                shape=member.get("shape", ()), dtype=member.get("dtype", ""),
+                metadata={"archive_only": True, **{key: value for key, value in member.items()
+                          if key not in {"member", "shape", "dtype"}}},
+            ))
         return self._object_scan(path, "npz", tuple(objects), options, stats)
 
     def _object_scan(
@@ -456,9 +454,11 @@ class SourceBackendMethods:
             raise SelectionRequiredError(format_id=scan.format_id, choices=scan.objects)
         for item in scan.objects:
             if item.object_id == selected_object_id:
+                if item.metadata.get("supported") is False:
+                    raise TabularLoaderError(str(item.metadata.get("error", "The selected member is unavailable")))
                 if (
                     scan.format_id == "npz"
-                    and scan.size_bytes > self.policy.large_warning_bytes
+                    and max(scan.size_bytes, int(item.metadata.get("nbytes", 0))) > self.policy.large_warning_bytes
                     and not options.allow_npz_archive_preview
                 ):
                     raise LargeDataMaterializationError(
@@ -507,12 +507,18 @@ class SourceBackendMethods:
     ) -> ArrayRecord:
         shape = selected.shape
         dtype = selected.dtype
-        if scan.format_id == "npz" and not shape:
+        if scan.format_id == "npz" and not dtype:
             numpy = import_optional("numpy", format_id="npz", purpose="NPZ selected array metadata")
             with numpy.load(scan.source_path, allow_pickle=False) as archive:
                 array = archive[selected.object_id]
                 shape = tuple(int(value) for value in array.shape)
                 dtype = str(array.dtype)
+        if options.data_view is not None and options.data_view.mode == "array":
+            slices = options.data_view.to_payload()["array_slices"]
+            if slices and len(slices) != len(shape):
+                raise ValueError("Specify an output slice for every array dimension")
+            if slices:
+                shape = tuple(max(0, min(limit or size, size - offset)) for size, (offset, limit) in zip(shape, slices, strict=True))
         return ArrayRecord(
             source_path=scan.source_path,
             format_id=scan.format_id,
@@ -527,6 +533,12 @@ class SourceBackendMethods:
         )
 
     def _iter_all_table_records(self, record: TableRecord) -> Iterable[dict[str, Any]]:
+        if record.view is not None:
+            from ea_node_editor.addons.tabular_data.composition import view_batches
+
+            for batch in view_batches(self, record.view, columns=tuple(column.name for column in record.columns)):
+                yield from (json_safe_mapping(row) for row in batch.to_pylist())
+            return
         if record.format_id in TEXT_FORMAT_IDS:
             delimiter = self._resolve_text_delimiter(record.source_path, record.format_id, record.options)
             columns = tuple(column.name for column in record.columns)
@@ -783,6 +795,15 @@ class SourceBackendMethods:
         return array[:]
 
     def _open_array(self, record: ArrayRecord) -> Any:
+        array = self._open_physical_array(record)
+        view = record.options.data_view
+        if view is not None and view.mode == "array":
+            slices = view.to_payload()["array_slices"]
+            if slices:
+                return array[tuple(slice(offset, offset + limit if limit else None) for offset, limit in slices)]
+        return array
+
+    def _open_physical_array(self, record: ArrayRecord) -> Any:
         numpy = import_optional("numpy", format_id=record.format_id, purpose="array preview")
         if record.format_id == "npy":
             return numpy.load(record.source_path, mmap_mode="r", allow_pickle=False)
@@ -792,8 +813,9 @@ class SourceBackendMethods:
                     "Large NPZ archives require explicit preview opt-in.",
                     size_bytes=record.size_bytes,
                 )
-            archive = numpy.load(record.source_path, allow_pickle=False)
-            return archive[record.object_id]
+            from ea_node_editor.addons.tabular_data.operations import check_cancelled
+
+            return self._npz_member_cache.open(record.source_path, record.object_id, content_sha256=record.content_sha256, check_cancelled=check_cancelled)
         if record.format_id == "hdf5":
             h5py = import_optional("h5py", format_id="hdf5", purpose="HDF5 array preview")
             return _Hdf5ArrayHandle(h5py.File(record.source_path, "r"), record.object_id)
@@ -1209,6 +1231,12 @@ def json_safe_value(value: Any) -> Any:
         return value if math.isfinite(value) else None
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
+    if getattr(getattr(value, "dtype", None), "kind", "") == "M":
+        import numpy as np
+        return None if np.isnat(value) else str(np.datetime_as_string(value, unit="auto"))
+    from datetime import date, datetime
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
     if hasattr(value, "item"):
         return json_safe_value(value.item())
     if isinstance(value, Mapping):

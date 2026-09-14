@@ -89,6 +89,8 @@ def source_path_from_ref(ref: TabularDataRef | ArrayDataRef) -> Path:
 
 def load_options_from_ref(ref: TabularDataRef | ArrayDataRef) -> TabularLoadOptions:
     options = TabularLoadOptions.from_mapping(ref.metadata.get("load_options"))
+    if options.data_view is not None:
+        return options
     return options.with_selected_object(ref.object_id) if ref.object_id else options
 
 
@@ -106,7 +108,18 @@ def describe_tabular_source(ref: TabularDataRef | ArrayDataRef) -> dict[str, str
     if not isinstance(ref.metadata.get("load_options"), dict) or not ref.object_id:
         raise RetainedResourceError("retained_source_descriptor", "The retained source parser options are missing")
     if format_id == "hdf5":
-        _require_contained_hdf5_dataset(path, ref.object_id)
+        options = load_options_from_ref(ref)
+        members = options.data_view.members if options.data_view is not None else (ref.object_id,)
+        for member in members:
+            if not member and ref.object_id.startswith("view:"):
+                h5py = import_optional("h5py", format_id="hdf5", purpose="retained source metadata")
+                with h5py.File(path, "r") as handle:
+                    names = []
+                    handle.visititems(lambda name, item: names.append(name) if isinstance(item, h5py.Dataset) else None)
+                if len(names) != 1:
+                    raise RetainedResourceError("retained_source_descriptor", "An automatic HDF5 member is ambiguous")
+                member = names[0]
+            _require_contained_hdf5_dataset(path, member or ref.object_id)
     return {
         "ref_kind": "table" if isinstance(ref, TabularDataRef) else "array",
         "ref_id": ref.ref_id,

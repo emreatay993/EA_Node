@@ -129,11 +129,9 @@ _TABULAR_INPUT_SIGNATURE_PROPERTIES = (
     "header_row",
     "skip_rows",
     "schema_hints",
-    "selected_object",
+    "data_view",
     "cache_policy",
     "allow_npz_archive_preview",
-    "tabular_selected_columns",
-    "array_slice_2d",
 )
 
 # Plot properties that change the rendered series/figure — part of the series

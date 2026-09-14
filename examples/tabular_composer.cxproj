@@ -1,0 +1,454 @@
+{
+  "active_workspace_id": "workspace_composer",
+  "metadata": {
+    "artifact_store": {
+      "artifacts": {
+        "tabular_source.composer": {
+          "artifact_kind": "tabular_source",
+          "relative_path": "nodes/composer/in/signals.npz"
+        }
+      },
+      "staged": {}
+    },
+    "custom_workflows": [],
+    "ui": {
+      "passive_style_presets": {
+        "edge_presets": [],
+        "node_presets": []
+      },
+      "script_editor": {
+        "floating": false,
+        "visible": false,
+        "width": 0.0
+      }
+    },
+    "workflow_settings": {
+      "environment": {
+        "python_path": "",
+        "working_directory": ""
+      },
+      "general": {
+        "author": "",
+        "description": "",
+        "project_name": ""
+      },
+      "logging": {
+        "capture_console": true,
+        "level": "info"
+      },
+      "plugins": {
+        "enabled": []
+      },
+      "solver_config": {
+        "enable_parallel": true,
+        "memory_limit_gb": 12,
+        "thread_count": 8
+      }
+    },
+    "workspace_order": [
+      "workspace_composer"
+    ]
+  },
+  "name": "Tabular Composer",
+  "project_id": "project_tabular_composer",
+  "schema_version": 5,
+  "workspace_order": [
+    "workspace_composer"
+  ],
+  "workspaces": [
+    {
+      "active_view_id": "view_composer",
+      "dirty": true,
+      "edges": [
+        {
+          "edge_id": "edge_combined",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "input_combined",
+          "source_port_key": "table_data",
+          "target_node_id": "plot_combined",
+          "target_port_key": "values",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_heatflow",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "input_heatflow",
+          "source_port_key": "table_data",
+          "target_node_id": "plot_heatflow",
+          "target_port_key": "values",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_temperature",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "input_temperature",
+          "source_port_key": "table_data",
+          "target_node_id": "plot_temperature",
+          "target_port_key": "values",
+          "visual_style": {}
+        }
+      ],
+      "name": "Composition examples",
+      "nodes": [
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 255.0,
+          "custom_width": 430.0,
+          "expanded_settings_group_ids": [],
+          "exposed_ports": {
+            "array_data": true,
+            "path": true,
+            "table_data": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "input_combined",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "data_view": {
+              "mode": "table",
+              "query": {
+                "filters": [
+                  {
+                    "column": "Housing",
+                    "op": "gt",
+                    "value": "40"
+                  }
+                ],
+                "sort": [
+                  {
+                    "column": "time_s",
+                    "descending": false
+                  }
+                ]
+              },
+              "segments": [
+                {
+                  "blocks": [
+                    {
+                      "id": "temperature",
+                      "labels_member": "sensor_names",
+                      "member": "temperature",
+                      "unit": "C"
+                    },
+                    {
+                      "id": "flow",
+                      "labels_member": "interface_names",
+                      "member": "heat_flow",
+                      "unit": "W"
+                    }
+                  ],
+                  "coordinate": {
+                    "member": "time_s",
+                    "name": "time_s",
+                    "unit": "s"
+                  }
+                }
+              ],
+              "version": 1
+            },
+            "data_view_name": "Combined / warm housing",
+            "path": "saved://tabular_source.composer"
+          },
+          "title": "Combined / warm housing",
+          "type_id": "tabular.input",
+          "x": 0.0,
+          "y": 640.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 255.0,
+          "custom_width": 430.0,
+          "expanded_settings_group_ids": [],
+          "exposed_ports": {
+            "array_data": true,
+            "path": true,
+            "table_data": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "input_heatflow",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "data_view": {
+              "mode": "table",
+              "query": {},
+              "segments": [
+                {
+                  "blocks": [
+                    {
+                      "id": "flow",
+                      "labels_member": "interface_names",
+                      "member": "heat_flow",
+                      "unit": "W"
+                    }
+                  ],
+                  "coordinate": {
+                    "member": "time_s",
+                    "name": "time_s",
+                    "unit": "s"
+                  }
+                }
+              ],
+              "version": 1
+            },
+            "data_view_name": "Heat-flow history",
+            "path": "saved://tabular_source.composer"
+          },
+          "title": "Heat-flow history",
+          "type_id": "tabular.input",
+          "x": 0.0,
+          "y": 320.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 255.0,
+          "custom_width": 430.0,
+          "expanded_settings_group_ids": [],
+          "exposed_ports": {
+            "array_data": true,
+            "path": true,
+            "table_data": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "input_temperature",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "data_view": {
+              "mode": "table",
+              "query": {},
+              "segments": [
+                {
+                  "blocks": [
+                    {
+                      "id": "temperature",
+                      "labels_member": "sensor_names",
+                      "member": "temperature",
+                      "unit": "C"
+                    }
+                  ],
+                  "coordinate": {
+                    "member": "time_s",
+                    "name": "time_s",
+                    "unit": "s"
+                  }
+                }
+              ],
+              "version": 1
+            },
+            "data_view_name": "Temperature history",
+            "path": "saved://tabular_source.composer"
+          },
+          "title": "Temperature history",
+          "type_id": "tabular.input",
+          "x": 0.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 280.0,
+          "custom_width": 500.0,
+          "expanded_settings_group_ids": [],
+          "exposed_ports": {
+            "colors": true,
+            "data_background_color": true,
+            "font_size": true,
+            "height": true,
+            "image": true,
+            "image_background_color": true,
+            "labels": true,
+            "legend_alignment": true,
+            "line_styles": true,
+            "line_widths": true,
+            "logarithmic_y_axis": true,
+            "marker_shapes": true,
+            "marker_sizes": true,
+            "max_points": true,
+            "show_legend": true,
+            "title": true,
+            "values": true,
+            "width": true,
+            "x_axis_interval": true,
+            "x_axis_label": true,
+            "x_column": true,
+            "x_datetime_end": true,
+            "x_datetime_start": true,
+            "x_mode": true,
+            "y_axis_interval": true,
+            "y_axis_label": true,
+            "y_columns": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "plot_combined",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "show_legend": true,
+            "title": "Combined / warm housing",
+            "x_column": "time_s",
+            "x_mode": "column",
+            "y_columns": [
+              "Housing",
+              "Shaft",
+              "Gear"
+            ]
+          },
+          "title": "Combined / warm housing plot",
+          "type_id": "plot.signal",
+          "x": 560.0,
+          "y": 640.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 280.0,
+          "custom_width": 500.0,
+          "expanded_settings_group_ids": [],
+          "exposed_ports": {
+            "colors": true,
+            "data_background_color": true,
+            "font_size": true,
+            "height": true,
+            "image": true,
+            "image_background_color": true,
+            "labels": true,
+            "legend_alignment": true,
+            "line_styles": true,
+            "line_widths": true,
+            "logarithmic_y_axis": true,
+            "marker_shapes": true,
+            "marker_sizes": true,
+            "max_points": true,
+            "show_legend": true,
+            "title": true,
+            "values": true,
+            "width": true,
+            "x_axis_interval": true,
+            "x_axis_label": true,
+            "x_column": true,
+            "x_datetime_end": true,
+            "x_datetime_start": true,
+            "x_mode": true,
+            "y_axis_interval": true,
+            "y_axis_label": true,
+            "y_columns": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "plot_heatflow",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "show_legend": true,
+            "title": "Heat-flow history",
+            "x_column": "time_s",
+            "x_mode": "column",
+            "y_columns": [
+              "Interface A",
+              "Interface B"
+            ]
+          },
+          "title": "Heat-flow history plot",
+          "type_id": "plot.signal",
+          "x": 560.0,
+          "y": 320.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 280.0,
+          "custom_width": 500.0,
+          "expanded_settings_group_ids": [],
+          "exposed_ports": {
+            "colors": true,
+            "data_background_color": true,
+            "font_size": true,
+            "height": true,
+            "image": true,
+            "image_background_color": true,
+            "labels": true,
+            "legend_alignment": true,
+            "line_styles": true,
+            "line_widths": true,
+            "logarithmic_y_axis": true,
+            "marker_shapes": true,
+            "marker_sizes": true,
+            "max_points": true,
+            "show_legend": true,
+            "title": true,
+            "values": true,
+            "width": true,
+            "x_axis_interval": true,
+            "x_axis_label": true,
+            "x_column": true,
+            "x_datetime_end": true,
+            "x_datetime_start": true,
+            "x_mode": true,
+            "y_axis_interval": true,
+            "y_axis_label": true,
+            "y_columns": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "plot_temperature",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {
+            "show_legend": true,
+            "title": "Temperature history",
+            "x_column": "time_s",
+            "x_mode": "column",
+            "y_columns": [
+              "Housing",
+              "Shaft",
+              "Gear"
+            ]
+          },
+          "title": "Temperature history plot",
+          "type_id": "plot.signal",
+          "x": 560.0,
+          "y": 0.0
+        }
+      ],
+      "views": [
+        {
+          "hide_optional_ports": true,
+          "name": "Composer",
+          "pan_x": 45.0,
+          "pan_y": 45.0,
+          "scope_path": [],
+          "view_id": "view_composer",
+          "zoom": 0.8
+        }
+      ],
+      "workspace_id": "workspace_composer"
+    }
+  ]
+}

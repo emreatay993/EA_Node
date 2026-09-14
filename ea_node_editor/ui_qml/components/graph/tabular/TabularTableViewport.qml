@@ -20,7 +20,7 @@ Item {
     readonly property int rowCount: tableModel.row_count
     readonly property int columnCount: tableModel.column_count
     readonly property int rowHeight: compact ? 20 : 26
-    readonly property int headerHeight: compact ? 22 : 28
+    readonly property int headerHeight: tableModel.has_units ? (compact ? 30 : 40) : (compact ? 22 : 28)
     readonly property int rowHeaderWidth: compact ? 38 : 56
     readonly property color panelColor: host ? Qt.darker(host.inlineInputBackgroundColor, 1.02) : String(themePalette.input_bg || themePalette.panel_bg || "#22242a")
     readonly property color borderColor: host ? host.inlineInputBorderColor : String(themePalette.input_border || themePalette.border || "#3a4355")
@@ -82,6 +82,8 @@ Item {
         if (column < 0 || column >= columnCount)
             return false;
         var label = String(tableModel.column_label(column) || "").trim();
+        selectedRow = -1;
+        selectedColumn = -1;
         if (!label.length)
             return false;
         var next = _selectedColumnList();
@@ -173,20 +175,30 @@ Item {
             return tableModel.cell_text(selectedRow, selectedColumn);
         var lines = [];
         var headers = [];
+        var columnIndexes = [];
         for (var column = 0; column < columnCount; column++)
-            headers.push(tableModel.column_label(column));
+            if (!_selectedColumnList().length || isSelectedColumn(column)) {
+                headers.push(tableModel.column_label(column));
+                columnIndexes.push(column);
+            }
         if (headers.length > 0)
             lines.push(headers.join("\t"));
         for (var row = 0; row < rowCount; row++) {
             var values = [];
-            for (var valueColumn = 0; valueColumn < columnCount; valueColumn++)
-                values.push(tableModel.cell_text(row, valueColumn));
+            for (var valueColumn = 0; valueColumn < columnIndexes.length; valueColumn++)
+                values.push(tableModel.cell_text(row, columnIndexes[valueColumn]));
             lines.push(values.join("\t"));
         }
         return lines.join("\n");
     }
 
-    onPreviewChanged: Qt.callLater(applyStoredColumnWidths)
+    onPreviewChanged: {
+        selectedRow = -1;
+        selectedColumn = -1;
+        selectedColumns = [];
+        selectedColumnsEdited([]);
+        Qt.callLater(applyStoredColumnWidths);
+    }
     onTableViewStateChanged: Qt.callLater(applyStoredColumnWidths)
 
     TabularPreviewTableModel {
@@ -251,12 +263,13 @@ Item {
                 anchors.fill: parent
                 anchors.leftMargin: 6
                 anchors.rightMargin: 8
-                text: String(display || "")
+                text: String(display || "") + (tableModel.column_unit(column).length ? "\n" + tableModel.column_unit(column) : "")
                 color: viewport.textColor
                 font.pixelSize: viewport.compact ? 9 : 11
                 font.bold: true
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
+                maximumLineCount: 2
             }
 
             MouseArea {

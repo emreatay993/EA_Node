@@ -43,6 +43,7 @@ examples/ansys_transient_extraction/ansys_transient_extraction_v2026R1.wbpz
 !examples/stress_1200_nodes.cxproj
 !examples/tabular_plot_showcase.cxproj
 !examples/tabular_plot_showcase_direct.cxproj
+!examples/tabular_composer.cxproj
 !examples/mixed_authoring_simple_connectors.cxproj
 !examples/selected_group_run_showcase.cxproj
 !examples/selected_run_cache_report_rerun.cxproj

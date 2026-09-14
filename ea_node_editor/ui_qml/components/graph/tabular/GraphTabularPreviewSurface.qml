@@ -15,9 +15,7 @@ Item {
         ? nodeProperties.tabular_table_view_state
         : ({})
     property var lastExportResult: ({})
-    readonly property var selectedColumns: nodeProperties && nodeProperties.tabular_selected_columns
-        ? nodeProperties.tabular_selected_columns
-        : []
+    property var selectedColumns: []
     readonly property string nodeId: String(nodeData.node_id || "")
     readonly property string sourcePath: String(nodeProperties.path || "")
     readonly property bool hasSourcePath: sourcePath.trim().length > 0
@@ -30,17 +28,13 @@ Item {
     readonly property string previewState: String(previewPayload.state || "placeholder")
     readonly property string previewKind: TabularUtils.previewKind(previewPayload)
     readonly property bool previewReady: previewState === "ready"
-    readonly property var selectorOptions: TabularUtils.selectorObjectIds(previewPayload)
-    readonly property bool selectorPickerVisible: previewState === "selection_required"
-        && selectorOptions.length > 0
     readonly property bool exportAvailable: previewReady
         && host
         && host.surfaceFullscreenBridgeRef
         && host.surfaceFullscreenBridgeRef.export_tabular_visible_rows_for_node
-    readonly property bool fullscreenAvailable: sourcePath.trim().length > 0
-        && host
+    readonly property bool fullscreenAvailable: host
         && host.surfaceFullscreenBridgeRef
-        && host.surfaceFullscreenBridgeRef.request_toggle_for_node
+        && host.surfaceFullscreenBridgeRef.request_open_node
     readonly property bool blocksHostInteraction: false
     readonly property color panelFillColor: host && host.hasPassiveFillOverride
         ? host.surfaceColor
@@ -94,7 +88,7 @@ Item {
     readonly property real contentBottomMargin: bodyRegionHosted ? 0 : (host ? Number(host.surfaceMetrics.body_bottom_margin || 10) : 10)
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists([
         SurfaceControlGeometry.rectList(SurfaceControlGeometry.rectFromItem(gridPanel, host)),
-        selectorCombo.embeddedInteractiveRects
+        configureButton.embeddedInteractiveRects
     ])
     readonly property var surfaceActions: [
         {
@@ -140,7 +134,7 @@ Item {
         },
         {
             "id": "fullscreen",
-            "label": "Fullscreen",
+            "label": "Configure data",
             "icon": "fullscreen",
             "kind": "tabular",
             "enabled": fullscreenAvailable,
@@ -270,7 +264,7 @@ Item {
         if (!fullscreenAvailable)
             return false;
         _beginSurfaceInteraction();
-        return Boolean(host.surfaceFullscreenBridgeRef.request_toggle_for_node(nodeId));
+        return Boolean(host.surfaceFullscreenBridgeRef.request_open_node(nodeId));
     }
 
     function _copyObject(value) {
@@ -316,53 +310,17 @@ Item {
     }
 
     function _saveSelectedColumns(columns) {
-        var canvasItem = _canvasItem();
-        if (!canvasItem || !canvasItem.commitNodeSurfaceProperty)
-            return false;
-        return Boolean(canvasItem.commitNodeSurfaceProperty(
-            nodeId,
-            "tabular_selected_columns",
-            columns || []
-        ));
-    }
-
-    function _saveSelectedObject(value) {
-        var text = String(value || "").trim();
-        if (!text.length)
-            return false;
-        var canvasItem = _canvasItem();
-        if (!canvasItem || !canvasItem.commitNodeSurfaceProperty)
-            return false;
-        return Boolean(canvasItem.commitNodeSurfaceProperty(
-            nodeId,
-            "selected_object",
-            text
-        ));
-    }
-
-    function _browseSourcePath(sourceMode) {
-        if (!host || !host.browseNodePropertyPath)
-            return "";
-        var normalizedSourceMode = String(sourceMode || "").trim();
-        if (normalizedSourceMode.length > 0)
-            return String(host.browseNodePropertyPath("path", sourcePath, normalizedSourceMode) || "");
-        return String(host.browseNodePropertyPath("path", sourcePath) || "");
+        selectedColumns = columns || [];
+        return true;
     }
 
     function _editSource(sourceMode) {
-        var selectedPath = _browseSourcePath(
-            SourceStorageModeUtils.normalizedSourceMode(sourceMode, sourceStorageMode)
-        );
-        if (!selectedPath.length || selectedPath === sourcePath)
-            return false;
-        var canvasItem = _canvasItem();
-        if (!canvasItem || !canvasItem.commitNodeSurfaceProperty)
-            return false;
-        return Boolean(canvasItem.commitNodeSurfaceProperty(
-            nodeId,
-            "path",
-            selectedPath
-        ));
+        if (!_requestContentFullscreen()) return false;
+        var composer = host.surfaceFullscreenBridgeRef.tabular_composer;
+        if (!composer) return false;
+        var mode = SourceStorageModeUtils.normalizedSourceMode(sourceMode, sourceStorageMode);
+        composer.browse_source(mode === "managed_copy");
+        return true;
     }
 
     function dispatchSurfaceAction(actionId) {
@@ -429,7 +387,7 @@ Item {
                         objectName: "graphNodeTabularStatusText"
                         anchors.verticalCenter: parent.verticalCenter
                         width: Math.max(0, parent.width - 7 - parent.spacing)
-                        text: surface.statusLabel
+                        text: String(surface.nodeProperties.data_view_name || surface.statusLabel)
                         visible: surface.showStatusSummary
                         color: surface.captionTextColor
                         font.pixelSize: 11
@@ -457,7 +415,7 @@ Item {
             id: gridPanel
             objectName: "graphNodeTabularPreviewGrid"
             width: parent.width
-            height: Math.max(44, parent.height - (surface.showStatusSummary ? 32 : 0))
+            height: Math.max(44, parent.height - (surface.showStatusSummary ? 32 : 0) - 36)
             host: surface.host
             compact: true
             preview: surface.previewPayload
@@ -477,7 +435,7 @@ Item {
             id: emptyStatePanel
             objectName: "graphNodeTabularPreviewPlaceholder"
             width: parent.width
-            height: Math.max(44, parent.height - (surface.showStatusSummary ? 32 : 0))
+            height: Math.max(44, parent.height - (surface.showStatusSummary ? 32 : 0) - 36)
             visible: !surface.previewReady
 
             Column {
@@ -506,28 +464,33 @@ Item {
                     elide: Text.ElideRight
                 }
 
-                GraphSurfaceControls.GraphSurfaceSearchableComboBox {
-                    id: selectorCombo
-                    objectName: "graphNodeTabularSelectorCombo"
-                    width: parent.width
-                    height: 28
-                    visible: surface.selectorPickerVisible
-                    host: surface.host
-                    model: surface.selectorOptions
-                    selectedValue: String(surface.nodeProperties.selected_object || "")
-                    placeholderText: "Select sheet, key, or dataset"
-                    onValueActivated: function(value) {
-                        surface._saveSelectedObject(value);
-                    }
-                    onAccepted: {
-                        surface._saveSelectedObject(editText);
-                    }
-                    onActiveFocusChanged: {
-                        if (!activeFocus)
-                            surface._saveSelectedObject(editText);
-                    }
-                }
 
+
+            }
+        }
+        Row {
+            width: parent.width
+            height: 28
+            spacing: 8
+            Text {
+                width: Math.max(0, parent.width - configureButton.width - 8)
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
+                text: Object.keys(surface.nodeProperties.data_view_migration_notice || ({})).length ? "Selection review" : ""
+                color: surface.statusWarnColor
+                font.pixelSize: 10
+                elide: Text.ElideRight
+            }
+            GraphSurfaceControls.GraphSurfaceButton {
+                id: configureButton
+                objectName: "graphNodeTabularConfigure"
+                host: surface.host
+                text: "Configure data..."
+                tooltipCategory: "general"
+                width: Math.min(155, parent.width)
+                height: 28
+                enabled: surface.fullscreenAvailable
+                onClicked: surface._requestContentFullscreen()
             }
         }
     }

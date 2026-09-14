@@ -338,69 +338,6 @@ def _rewrite_array_slice_property(node: Any, key: str, value: Any) -> PropertyEd
     return None
 
 
-def _selection_property_items(node: Any) -> list[dict[str, Any]]:
-    selection = tabular_array_slice_2d_from_value(
-        _node_properties(node).get(TABULAR_ARRAY_SLICE_2D_PROPERTY, {})
-    )
-    return [
-        {
-            "key": TABULAR_ARRAY_ROW_START_PROPERTY,
-            "label": "Start Row",
-            "type": "int",
-            "value": selection["row_offset"] + 1,
-            "enum_values": [],
-            "inline_editor": "",
-            "editor_mode": "text",
-            "group": "Selection",
-            "dirty": selection["row_offset"] != 0,
-            "help_text": "Rows are numbered from 1.",
-        },
-        {
-            "key": TABULAR_ARRAY_ROW_COUNT_PROPERTY,
-            "label": "Number of Rows",
-            "type": "int",
-            "value": selection["row_limit"],
-            "enum_values": [],
-            "inline_editor": "",
-            "editor_mode": "text",
-            "group": "Selection",
-            "dirty": selection["row_limit"] != 50,
-        },
-        {
-            "key": TABULAR_ARRAY_COLUMN_START_PROPERTY,
-            "label": "Start Column",
-            "type": "str",
-            "value": tabular_array_column_label_from_offset(selection["column_offset"]),
-            "enum_values": [],
-            "inline_editor": "",
-            "editor_mode": "text",
-            "group": "Selection",
-            "dirty": selection["column_offset"] != 0,
-            "help_text": "Use spreadsheet letters such as A or AA, or enter a column number.",
-        },
-        {
-            "key": TABULAR_ARRAY_COLUMN_COUNT_PROPERTY,
-            "label": "Number of Columns",
-            "type": "int",
-            "value": selection["column_limit"],
-            "enum_values": [],
-            "inline_editor": "",
-            "editor_mode": "text",
-            "group": "Selection",
-            "dirty": selection["column_limit"] != 50,
-        },
-        {
-            "key": TABULAR_ARRAY_SELECTION_SUMMARY_PROPERTY,
-            "label": "Preview",
-            "type": "str",
-            "value": tabular_array_slice_2d_summary(selection),
-            "enum_values": [],
-            "inline_editor": "",
-            "editor_mode": "summary",
-            "group": "Selection",
-            "dirty": False,
-        },
-    ]
 
 
 class TabularDataPropertyEditAdapter:
@@ -422,16 +359,7 @@ class TabularDataPropertyEditAdapter:
             return _rewrite_table_window_property(context.node, str(key or "").strip(), value)
         if node_type_id == TABULAR_ARRAY_SLICE_2D_NODE_TYPE_ID:
             return _rewrite_array_slice_property(context.node, str(key or "").strip(), value)
-        if node_type_id != TABULAR_DATA_INPUT_NODE_TYPE_ID:
-            return None
-        updated_slice = tabular_array_slice_2d_with_property_update(
-            _node_properties(context.node).get(TABULAR_ARRAY_SLICE_2D_PROPERTY, {}),
-            str(key or "").strip(),
-            value,
-        )
-        if updated_slice is None:
-            return None
-        return PropertyEditRewrite(TABULAR_ARRAY_SLICE_2D_PROPERTY, updated_slice)
+        return None
 
     def build_property_items(
         self,
@@ -443,71 +371,19 @@ class TabularDataPropertyEditAdapter:
             return [dict(item) for item in items] + _table_window_property_items(context.node)
         if node_type_id == TABULAR_ARRAY_SLICE_2D_NODE_TYPE_ID:
             return [dict(item) for item in items] + _array_slice_property_items(context.node)
-        if node_type_id != TABULAR_DATA_INPUT_NODE_TYPE_ID:
-            return [dict(item) for item in items]
-
-        result: list[dict[str, Any]] = []
-        inserted_slice_items = False
-        for item in items:
-            next_item = dict(item)
-            result.append(next_item)
-            if str(next_item.get("key", "")).strip() != "selected_object":
-                continue
-            next_item["help_text"] = _TABULAR_SELECTION_HELP_TEXT
-            next_item.update(self._selected_object_override(context))
-            result.extend(_selection_property_items(context.node))
-            inserted_slice_items = True
-        if not inserted_slice_items:
-            result.extend(_selection_property_items(context.node))
+        result = [dict(item) for item in items]
+        if node_type_id == TABULAR_DATA_INPUT_NODE_TYPE_ID:
+            properties = _node_properties(context.node)
+            view = properties.get("data_view", {})
+            mode = str(view.get("mode", "source")) if isinstance(view, Mapping) else "invalid"
+            title = str(properties.get("data_view_name", "") or "Data view")
+            result.append(_base_item(key="data_view_summary", label="Configured Output",
+                                     value=f"{title} ({mode})", editor_mode="summary",
+                                     help_text="Use Configure data on the node to change sources, mapping and output rules."))
+            if properties.get("data_view_migration_notice"):
+                result.append(_base_item(key="data_view_notice", label="Selection Review", editor_mode="summary",
+                                         value="Old preview limits no longer limit output. Review in Configure data."))
         return result
-
-    def _selected_object_override(self, context: PropertyEditAdapterContext) -> dict[str, Any]:
-        from ea_node_editor.ui.tabular_preview_provider import describe_tabular_selector
-
-        selector_properties = dict(_node_properties(context.node))
-        source_path = context.source_path_for_property("path")
-        if source_path:
-            selector_properties["path"] = source_path
-
-        def project_context() -> tuple[str | None, dict[str, Any] | None]:
-            metadata = dict(context.project_metadata) if isinstance(context.project_metadata, Mapping) else None
-            return context.project_path, metadata
-
-        try:
-            payload = describe_tabular_selector(selector_properties, project_context_provider=project_context)
-        except Exception:
-            payload = {}
-        selector = payload.get("selector") if isinstance(payload, Mapping) else {}
-        raw_objects_value = selector.get("objects") if isinstance(selector, Mapping) else []
-        raw_objects = (
-            raw_objects_value
-            if isinstance(raw_objects_value, Iterable) and not isinstance(raw_objects_value, (str, bytes, Mapping))
-            else []
-        )
-        options = _dedupe_text_values(
-            str(item.get("object_id") or item.get("display_name") or "")
-            for item in raw_objects
-            if isinstance(item, Mapping)
-        )
-        state = str(payload.get("state", "") if isinstance(payload, Mapping) else "")
-        error = payload.get("error") if isinstance(payload, Mapping) else {}
-        error_code = str(error.get("code", "") if isinstance(error, Mapping) else "")
-        placeholder = ""
-        if not source_path:
-            placeholder = "Choose a tabular data file first"
-        elif not options:
-            placeholder = (
-                "No sheets, keys, or datasets found"
-                if state == "ready"
-                else "Enter sheet, key, or dataset manually"
-            )
-        elif error_code == "selector_required":
-            placeholder = "Select a sheet, key, or dataset"
-        return {
-            "editor_mode": "editable_combo",
-            "enum_values": list(options),
-            "placeholder_text": placeholder,
-        }
 
 
 def create_tabular_property_edit_adapters() -> tuple[TabularDataPropertyEditAdapter, ...]:

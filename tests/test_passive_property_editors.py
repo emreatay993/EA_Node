@@ -114,7 +114,7 @@ class PassivePropertyEditorModeTests(unittest.TestCase):
         self.assertEqual(database_items["body"]["value"], "Database")
         self.assertTrue(WorkspaceViewNavOps._property_is_content_searchable(decision_body))
 
-    def test_tabular_data_source_uses_editable_combo_with_scanned_objects(self) -> None:
+    def test_tabular_data_source_uses_a_configuration_summary(self) -> None:
         try:
             import openpyxl
         except ImportError:
@@ -135,20 +135,20 @@ class PassivePropertyEditorModeTests(unittest.TestCase):
             self.scene.set_node_property(node_id, "path", str(source))
             items = self._property_items_for_node(node_id)
 
-        self.assertEqual(items["selected_object"]["editor_mode"], "editable_combo")
-        self.assertEqual(items["selected_object"]["enum_values"], ["First", "Second"])
-        self.assertEqual(items["selected_object"].get("placeholder_text"), "Select a sheet, key, or dataset")
+        self.assertNotIn("selected_object", items)
+        self.assertEqual(items["data_view_summary"]["editor_mode"], "summary")
+        self.assertIn("Configure data", items["data_view_summary"]["help_text"])
 
-    def test_tabular_data_source_selector_remains_editable_without_a_path(self) -> None:
+    def test_tabular_data_source_summary_is_available_without_a_path(self) -> None:
         if self.registry.spec_or_none("tabular.input") is None:
             self.skipTest("tabular.input add-on is not registered in the default registry")
 
         node_id = self.scene.add_node_from_type("tabular.input", 0.0, 0.0)
         items = self._property_items_for_node(node_id)
 
-        self.assertEqual(items["selected_object"]["editor_mode"], "editable_combo")
-        self.assertEqual(items["selected_object"]["enum_values"], [])
-        self.assertEqual(items["selected_object"].get("placeholder_text"), "Choose a tabular data file first")
+        self.assertNotIn("selected_object", items)
+        self.assertEqual(items["data_view_summary"]["editor_mode"], "summary")
+        self.assertEqual(items["data_view_summary"]["value"], "Data view (source)")
 
 
 if __name__ == "__main__":

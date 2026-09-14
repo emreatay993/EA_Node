@@ -230,8 +230,9 @@ function visibleSummary(preview) {
     var columnsVisible = columns(preview).length;
     var firstRow = rowOffset(preview);
     var firstColumn = columnOffset(preview);
-    return rowsVisible + " rows from " + firstRow + ", "
-        + columnsVisible + " columns from " + firstColumn;
+    if (!rowsVisible || !columnsVisible) return "No visible rows";
+    return "Rows " + (firstRow + 1) + "–" + (firstRow + rowsVisible) + " of " + totalRows(preview)
+        + " · columns " + (firstColumn + 1) + "–" + (firstColumn + columnsVisible);
 }
 
 function formatCount(value) {

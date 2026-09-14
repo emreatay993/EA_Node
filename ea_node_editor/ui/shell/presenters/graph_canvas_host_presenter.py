@@ -41,12 +41,13 @@ class GraphCanvasHostPresenter(QObject):
         host: _GraphCanvasHostPresenterHostProtocol,
         *,
         parent: QObject | None = None,
+        tabular_preview_provider_factory=TabularPreviewProvider,
     ) -> None:
         super().__init__(_presenter_parent(host, parent))
         self._host = host
-        self._tabular_preview_provider = TabularPreviewProvider(
-            project_context_provider=self._project_context,
-        )
+        self._tabular_preview_provider_factory = tabular_preview_provider_factory
+        self._tabular_preview_payloads: dict[str, dict[str, Any]] = {}
+        self._tabular_completed: dict[str, dict[str, Any]] = {}
         self._tabular_preview_worker_pool = TabularPreviewWorkerPool(self)
         self._tabular_preview_worker_pool.job_finished.connect(self._on_tabular_preview_job_finished)
         self._tabular_preview_errors: dict[str, str] = {}
@@ -54,6 +55,8 @@ class GraphCanvasHostPresenter(QObject):
     def shutdown(self) -> None:
         self._tabular_preview_worker_pool.shutdown()
         self._tabular_preview_errors.clear()
+        self._tabular_preview_payloads.clear()
+        self._tabular_completed.clear()
 
     def request_navigate_scope_parent(self) -> bool:
         return bool(self._host.search_scope_controller.navigate_scope(self._host.scene.navigate_scope_parent))
@@ -129,21 +132,20 @@ class GraphCanvasHostPresenter(QObject):
         properties_or_source: dict[str, Any] | str,
         request: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        payload = self._tabular_preview_provider.describe_preview(
-            properties_or_source,
-            request,
-            mode="inline",
-        )
-        if isinstance(payload, dict) and payload.get("state") == "loading":
+        source = properties_or_source if isinstance(properties_or_source, str) else properties_or_source.get("path", "")
+        if not str(source or "").strip():
+            return {"state": "placeholder", "content_kind": "tabular", "preview_kind": "", "message": "Configure data to choose a source file."}
+        try:
             job_key = self._tabular_preview_job_key(properties_or_source, request)
-            error = self._tabular_preview_errors.get(job_key, "")
-            if error:
-                return self._tabular_error_payload(error)
-            # Cold cache: resolve on the worker (where conversion is allowed);
-            # the provider's session caches absorb the result so the surface's
-            # next describe is a warm hit.
-            self._schedule_tabular_preview_build(properties_or_source, request, job_key=job_key)
-        return payload
+        except (ValueError, TypeError) as exc:
+            return self._tabular_error_payload(str(exc))
+        if job_key in self._tabular_preview_payloads:
+            return copy.deepcopy(self._tabular_preview_payloads[job_key])
+        error = self._tabular_preview_errors.get(job_key, "")
+        if error:
+            return self._tabular_error_payload(error)
+        self._schedule_tabular_preview_build(properties_or_source, request, job_key=job_key)
+        return {"state": "loading", "content_kind": "tabular", "preview_kind": "", "message": "Preparing data preview..."}
 
     def _schedule_tabular_preview_build(
         self,
@@ -155,30 +157,52 @@ class GraphCanvasHostPresenter(QObject):
         properties_snapshot = copy.deepcopy(properties_or_source)
         request_snapshot = copy.deepcopy(request)
         normalized_job_key = job_key or self._tabular_preview_job_key(properties_snapshot, request_snapshot)
+        context_snapshot = copy.deepcopy(self._project_context())
 
         def build() -> None:
-            self._tabular_preview_provider.describe_preview(
+            provider = self._tabular_preview_provider_factory(project_context_provider=lambda: context_snapshot)
+            payload = provider.describe_preview(
                 properties_snapshot,
                 request_snapshot,
                 mode="inline",
             )
+            if isinstance(payload.get("selector"), dict):
+                selector = payload["selector"]
+                selector["object_count"] = len(selector.pop("objects", []))
+            self._tabular_completed[normalized_job_key] = payload
 
         if self._tabular_preview_worker_pool.schedule(normalized_job_key, build):
             self._tabular_preview_errors.pop(normalized_job_key, None)
 
-    @staticmethod
     def _tabular_preview_job_key(
+        self,
         properties_or_source: dict[str, Any] | str,
         request: dict[str, Any] | None,
     ) -> str:
+        from ea_node_editor.addons.tabular_data.input_node import tabular_load_options_from_node_properties
+
+        properties = {"path": properties_or_source} if isinstance(properties_or_source, str) else dict(properties_or_source)
+        project_path, metadata = self._project_context()
+        path = ProjectArtifactResolver(project_path=project_path, project_metadata=metadata).resolve_to_path(str(properties.get("path", "")))
+        try:
+            stat = path.stat() if path is not None else None
+            stamp = (str(path), stat.st_size, stat.st_mtime_ns) if stat is not None else None
+        except OSError:
+            stamp = None
         return "inline:" + json.dumps(
-            {"properties": properties_or_source, "request": request},
+            {"path": properties.get("path", ""), "stamp": stamp, "project": project_path,
+             "options": tabular_load_options_from_node_properties(properties).to_cache_payload(), "request": request},
             sort_keys=True,
             separators=(",", ":"),
             default=str,
         )
 
     def _on_tabular_preview_job_finished(self, job_key: str, error: str) -> None:
+        payload = self._tabular_completed.pop(str(job_key), None)
+        if payload is not None and not error:
+            if len(self._tabular_preview_payloads) >= 32:
+                self._tabular_preview_payloads.pop(next(iter(self._tabular_preview_payloads)))
+            self._tabular_preview_payloads[str(job_key)] = payload
         if error:
             self._tabular_preview_errors[str(job_key)] = str(error)
         else:

@@ -149,7 +149,7 @@ def test_shipped_catalogue_has_explicit_presentation_inventory():
     registry = build_default_registry(include_public_plugins=False)
     expected = {
         "data.panel": {"font_size", "alignment", "auto_resize"},
-        "tabular.input": {"tabular_table_view_state"},
+        "tabular.input": {"tabular_table_view_state", "data_view_name", "data_view_migration_notice"},
         "model.viewer": {
             "show_mesh_edges",
             "representation",

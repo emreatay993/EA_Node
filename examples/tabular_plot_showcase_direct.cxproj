@@ -214,13 +214,19 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "Quarterly Channels",
+              "mode": "source",
+              "output": {
+                "columns": [
+                  "channel",
+                  "units"
+                ]
+              },
+              "version": 1
+            },
+            "data_view_name": "Bar Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -228,12 +234,7 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "Quarterly Channels",
             "skip_rows": 0,
-            "tabular_selected_columns": [
-              "channel",
-              "units"
-            ],
             "tabular_table_view_state": {}
           },
           "title": "bar_channels.xlsx",
@@ -322,13 +323,13 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "contour",
+              "mode": "array",
+              "version": 1
+            },
+            "data_view_name": "Contour Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -336,9 +337,7 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "contour",
             "skip_rows": 0,
-            "tabular_selected_columns": [],
             "tabular_table_view_state": {}
           },
           "title": "contour_field.npz",
@@ -424,13 +423,13 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "",
+              "mode": "array",
+              "version": 1
+            },
+            "data_view_name": "Heatmap Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -438,9 +437,7 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "",
             "skip_rows": 0,
-            "tabular_selected_columns": [],
             "tabular_table_view_state": {}
           },
           "title": "heatmap_grid.npy",
@@ -526,13 +523,18 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "",
+              "mode": "source",
+              "output": {
+                "columns": [
+                  "latency_ms"
+                ]
+              },
+              "version": 1
+            },
+            "data_view_name": "Histogram Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -540,11 +542,7 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "",
             "skip_rows": 0,
-            "tabular_selected_columns": [
-              "latency_ms"
-            ],
             "tabular_table_view_state": {}
           },
           "title": "histogram_latency.txt",
@@ -636,13 +634,20 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "",
+              "mode": "source",
+              "output": {
+                "columns": [
+                  "month",
+                  "north",
+                  "south"
+                ]
+              },
+              "version": 1
+            },
+            "data_view_name": "Line Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -650,13 +655,7 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "",
             "skip_rows": 0,
-            "tabular_selected_columns": [
-              "month",
-              "north",
-              "south"
-            ],
             "tabular_table_view_state": {}
           },
           "title": "line_series.csv",
@@ -748,13 +747,21 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "",
+              "mode": "source",
+              "output": {
+                "columns": [
+                  "x",
+                  "y",
+                  "z",
+                  "intensity"
+                ]
+              },
+              "version": 1
+            },
+            "data_view_name": "Point Cloud Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -762,14 +769,7 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "",
             "skip_rows": 0,
-            "tabular_selected_columns": [
-              "x",
-              "y",
-              "z",
-              "intensity"
-            ],
             "tabular_table_view_state": {}
           },
           "title": "point_cloud.csv",
@@ -862,13 +862,19 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "",
+              "mode": "source",
+              "output": {
+                "columns": [
+                  "load",
+                  "efficiency"
+                ]
+              },
+              "version": 1
+            },
+            "data_view_name": "Scatter Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -876,12 +882,7 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "",
             "skip_rows": 0,
-            "tabular_selected_columns": [
-              "load",
-              "efficiency"
-            ],
             "tabular_table_view_state": {}
           },
           "title": "scatter_points.tsv",
@@ -998,13 +999,23 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 3,
-              "column_offset": 0,
-              "row_limit": 80,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "array_slices": [
+                [
+                  0,
+                  80
+                ],
+                [
+                  0,
+                  3
+                ]
+              ],
+              "member": "streamline_path",
+              "mode": "array",
+              "version": 1
+            },
+            "data_view_name": "Streamlines Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -1012,9 +1023,7 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "streamline_path",
             "skip_rows": 0,
-            "tabular_selected_columns": [],
             "tabular_table_view_state": {}
           },
           "title": "streamline_path.h5",
@@ -1103,13 +1112,20 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "",
+              "mode": "source",
+              "output": {
+                "columns": [
+                  "x",
+                  "y",
+                  "z"
+                ]
+              },
+              "version": 1
+            },
+            "data_view_name": "Surface Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -1117,13 +1133,7 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "",
             "skip_rows": 0,
-            "tabular_selected_columns": [
-              "x",
-              "y",
-              "z"
-            ],
             "tabular_table_view_state": {}
           },
           "title": "surface_elevation.parquet",

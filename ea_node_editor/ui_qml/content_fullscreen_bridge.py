@@ -28,9 +28,7 @@ from ea_node_editor.nodes.builtins.web_viewer import (
 )
 from ea_node_editor.addons.tabular_data.input_node import (
     TABULAR_DATA_INPUT_NODE_TYPE_ID,
-    TABULAR_SELECTED_COLUMNS_PROPERTY,
     TABULAR_TABLE_VIEW_STATE_PROPERTY,
-    normalize_tabular_selected_columns,
     normalize_tabular_table_view_state,
 )
 from ea_node_editor.addons.tabular_data.extraction_nodes import (
@@ -416,6 +414,9 @@ class ContentFullscreenBridge(QObject):
         trim_video_clip_copy: _TrimVideoCopy,
         create_web_surface_artifact_service: _WebSurfaceArtifactServiceFactory,
         plot_session_owner=None,
+        choose_tabular_source: Callable[[str], str] | None = None,
+        stage_tabular_source: Callable[[str, str], str] | None = None,
+        discard_tabular_source: Callable[[str], None] | None = None,
     ) -> None:
         super().__init__(parent)
         self._model_provider: _ModelProvider | None = model_provider
@@ -442,6 +443,12 @@ class ContentFullscreenBridge(QObject):
             _WebSurfaceArtifactServiceFactory | None
         ) = create_web_surface_artifact_service
         self._terminal = False
+        self._choose_tabular_source = choose_tabular_source
+        self._stage_tabular_source = stage_tabular_source
+        self._discard_tabular_source = discard_tabular_source
+        self._tabular_composer = None
+        self._tabular_composer_identity = ("", "")
+        self._tabular_pending_target = ""
         self._xy_owner = plot_session_owner
         self._xy_failed_signature = ""
         self._lifecycle_connections: list[tuple[pyqtBoundSignal, Callable[..., Any]]] = []
@@ -506,6 +513,9 @@ class ContentFullscreenBridge(QObject):
         if self._terminal:
             return
         self._terminal = True
+        if self._tabular_composer is not None:
+            self._tabular_composer.shutdown()
+        self._tabular_pending_target = ""
         if self._xy_owner is not None:
             self._xy_owner.shutdown()
         for signal, slot in self._lifecycle_connections:
@@ -606,13 +616,6 @@ class ContentFullscreenBridge(QObject):
         ).strip():
             return _FullscreenResolution(
                 None, "Mail Panel needs a source path before it can open fullscreen."
-            )
-        if content_kind == TABULAR_PREVIEW_CONTENT_KIND and not str(
-            node.properties.get("path", "") or ""
-        ).strip():
-            return _FullscreenResolution(
-                None,
-                "Tabular data nodes need a source path before they can open fullscreen.",
             )
         project_path, project_metadata = self._project_context()
         source_resolution = (
@@ -829,17 +832,7 @@ class ContentFullscreenBridge(QObject):
         table_view_state = normalize_tabular_table_view_state(
             properties.get(TABULAR_TABLE_VIEW_STATE_PROPERTY, {})
         )
-        selected_columns = normalize_tabular_selected_columns(
-            properties.get(TABULAR_SELECTED_COLUMNS_PROPERTY, [])
-        )
-        preview_payload = self._ensure_tabular_preview_provider().describe_preview(
-            properties,
-            {
-                "row_limit": TABULAR_PREVIEW_FULLSCREEN_ROW_LIMIT,
-                "column_limit": TABULAR_PREVIEW_FULLSCREEN_COLUMN_LIMIT,
-            },
-            mode="fullscreen",
-        )
+        preview_payload = {"state": "loading", "message": "Preparing data configuration..."}
         surface_spec = surface_spec_payload_for_node_type(
             type_id=node.type_id, spec=spec
         )
@@ -868,7 +861,6 @@ class ContentFullscreenBridge(QObject):
             "surface_spec": surface_spec,
             "properties": properties,
             TABULAR_TABLE_VIEW_STATE_PROPERTY: table_view_state,
-            TABULAR_SELECTED_COLUMNS_PROPERTY: selected_columns,
             "preview": preview_payload,
             "preview_state": str(preview_payload.get("state", "") or ""),
             "preview_kind": str(
@@ -953,6 +945,73 @@ class ContentFullscreenBridge(QObject):
         return copy.deepcopy(self._tabular_payload)
 
     @pyqtProperty(QObject, notify=content_fullscreen_changed)
+    def tabular_composer(self) -> QObject | None:
+        return self._tabular_composer
+
+    def _tabular_current_properties(self):
+        if self._model_provider is None:
+            return None
+        model = self._model_provider()
+        workspace_id, node_id = self._tabular_composer_identity
+        workspace = model.project.workspaces.get(workspace_id) if model is not None else None
+        node = workspace.nodes.get(node_id) if workspace is not None else None
+        return node.properties if node is not None else None
+
+    def _ensure_tabular_composer(self, candidate):
+        from ea_node_editor.ui.tabular_composer_session import TabularComposerSession
+
+        identity = (candidate.workspace_id, candidate.node.node_id)
+        if self._tabular_composer is None:
+            self._tabular_composer = TabularComposerSession(
+                self, read_properties=self._tabular_current_properties,
+                apply_properties=lambda values: self._scene_bridge.set_node_properties(self._tabular_composer_identity[1], values),
+                project_context=self._project_context, choose_source=self._choose_tabular_source,
+                stage_source=(lambda path: self._stage_tabular_source(self._tabular_composer_identity[1], path)) if self._stage_tabular_source else None,
+                discard_source=self._discard_tabular_source,
+                choose_export=self._choose_composer_export)
+            self._tabular_composer.applied.connect(self._complete_close)
+            self._tabular_composer.close_ready.connect(self._complete_close)
+            self._tabular_composer.close_cancelled.connect(self._cancel_tabular_retarget)
+            self._tabular_composer.changed.connect(self._on_composer_changed)
+        if identity != self._tabular_composer_identity or not self._tabular_composer.active:
+            self._tabular_composer_identity = identity
+            self._tabular_composer.begin(candidate.node.properties)
+        else:
+            self._tabular_composer.observe(candidate.node.properties)
+
+    def _keep_tabular_draft(self, node_id: str) -> bool:
+        if (self._tabular_composer is not None and self._tabular_composer.active
+                and self._tabular_composer.dirty and str(node_id) != self._node_id):
+            self._tabular_pending_target = str(node_id)
+            self._tabular_composer.request_close()
+            return True
+        return False
+
+    def _cancel_tabular_retarget(self) -> None:
+        self._tabular_pending_target = ""
+
+    def _composer_payload(self, payload):
+        if self._tabular_composer is None or not self._tabular_composer.active:
+            return payload
+        state = self._tabular_composer.state
+        result = copy.deepcopy(payload)
+        result.update(preview=state["preview"], preview_state=state["preview"].get("state", "loading"),
+                      draft_preview=state["dirty"], conflict=state["conflict"])
+        return result
+
+    def _on_composer_changed(self):
+        if self._open and self._content_kind == TABULAR_PREVIEW_CONTENT_KIND and self._tabular_composer is not None and self._tabular_composer.active:
+            self._tabular_payload = self._composer_payload(self._tabular_payload)
+            self.content_fullscreen_changed.emit()
+
+    def _choose_composer_export(self, scope: str, kind: str, name: str) -> str:
+        if self._save_file_dialog is None:
+            return ""
+        return self._save_file_dialog(title=f"Export {scope} data", suggested_path=name,
+                                      file_filter=TABULAR_ARRAY_OUTPUT_FILES_FILTER if kind == "array" else TABULAR_TABLE_OUTPUT_FILES_FILTER,
+                                      default_suffix=Path(name).suffix)
+
+    @pyqtProperty(QObject, notify=content_fullscreen_changed)
     def web_surface_bridge(self) -> QObject | None:
         return self._web_surface_bridge
 
@@ -963,6 +1022,8 @@ class ContentFullscreenBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_open_node(self, node_id: str) -> bool:
         if self._terminal:
+            return False
+        if self._keep_tabular_draft(node_id):
             return False
         if self._keep_active_web_editor(node_id):
             return str(node_id or "").strip() == self._node_id
@@ -976,6 +1037,8 @@ class ContentFullscreenBridge(QObject):
     @pyqtSlot(str, "QVariantMap", result=bool)
     def request_open_node_with_state(self, node_id: str, state: dict[str, Any]) -> bool:
         if self._terminal:
+            return False
+        if self._keep_tabular_draft(node_id):
             return False
         if self._keep_active_web_editor(node_id):
             return str(node_id or "").strip() == self._node_id
@@ -1019,6 +1082,9 @@ class ContentFullscreenBridge(QObject):
     def request_close(self) -> None:
         if self._terminal:
             return
+        if self._tabular_composer is not None and self._tabular_composer.active:
+            self._tabular_composer.request_close()
+            return
         if self._xy_owner is not None and self._xy_owner.active is not None:
             self._xy_owner.active.request_close()
             return
@@ -1028,6 +1094,10 @@ class ContentFullscreenBridge(QObject):
         self._complete_close()
 
     def _complete_close(self) -> None:
+        pending_target = self._tabular_pending_target
+        self._tabular_pending_target = ""
+        if self._tabular_composer is not None:
+            self._tabular_composer.retire()
         if self._xy_owner is not None:
             self._xy_owner.retire()
         self._xy_failed_signature = ""
@@ -1047,6 +1117,9 @@ class ContentFullscreenBridge(QObject):
             last_error="",
             web_surface_bridge_changed=self._clear_web_surface_bridge(),
         )
+
+        if pending_target and not self._terminal:
+            self.request_open_node(pending_target)
 
     @pyqtSlot("QVariantMap", result=bool)
     def request_close_with_state(self, state: dict[str, Any]) -> bool:
@@ -1396,34 +1469,6 @@ class ContentFullscreenBridge(QObject):
         )
         return True
 
-    @pyqtSlot("QVariantList", result=bool)
-    def save_tabular_selected_columns(self, columns: list[Any]) -> bool:
-        if not self._open or self._content_kind != TABULAR_PREVIEW_CONTENT_KIND or not self._node_id:
-            return False
-        normalized = normalize_tabular_selected_columns(columns)
-        if not self._set_node_property(self._node_id, TABULAR_SELECTED_COLUMNS_PROPERTY, normalized):
-            return False
-        next_tabular_payload = copy.deepcopy(self._tabular_payload)
-        next_tabular_payload[TABULAR_SELECTED_COLUMNS_PROPERTY] = list(normalized)
-        properties = next_tabular_payload.get("properties")
-        if isinstance(properties, dict):
-            properties[TABULAR_SELECTED_COLUMNS_PROPERTY] = list(normalized)
-        self._set_state(
-            open_=self._open,
-            node_id=self._node_id,
-            workspace_id=self._workspace_id,
-            content_kind=self._content_kind,
-            title=self._title,
-            media_payload=self._media_payload,
-            viewer_payload=self._viewer_payload,
-            web_editor_payload=self._web_editor_payload,
-            web_page_payload=self._web_page_payload,
-            plot_payload=self._plot_payload,
-            tabular_payload=next_tabular_payload,
-            last_error=self._last_error,
-        )
-        return True
-
     @pyqtSlot("QVariantMap", result=bool)
     def save_web_page_browser_state(self, state: dict[str, Any]) -> bool:
         if not self._open or self._content_kind != WEB_PAGE_CONTENT_KIND or not self._node_id:
@@ -1481,6 +1526,10 @@ class ContentFullscreenBridge(QObject):
         candidate: _FullscreenCandidate,
         runtime_state: Mapping[str, Any] | None = None,
     ) -> None:
+        if candidate.content_kind == TABULAR_PREVIEW_CONTENT_KIND:
+            self._ensure_tabular_composer(candidate)
+        elif self._tabular_composer is not None:
+            self._tabular_composer.retire()
         if candidate.content_kind == "web_editor":
             bridge_changed = self._ensure_web_surface_bridge(
                 candidate,
@@ -1532,13 +1581,14 @@ class ContentFullscreenBridge(QObject):
             web_editor_payload=candidate.web_editor_payload,
             web_page_payload=candidate.web_page_payload,
             plot_payload=candidate.plot_payload,
-            tabular_payload=candidate.tabular_payload,
+            tabular_payload=self._composer_payload(candidate.tabular_payload) if candidate.content_kind == TABULAR_PREVIEW_CONTENT_KIND else candidate.tabular_payload,
             last_error="",
             web_surface_bridge_changed=bridge_changed,
         )
         if (
             candidate.content_kind == TABULAR_PREVIEW_CONTENT_KIND
             and str(candidate.tabular_payload.get("preview_state", "")) == "loading"
+            and self._tabular_composer is None
         ):
             # Fullscreen opened against a cold cache: warm it on the worker
             # and re-resolve so the first rows appear without blocking open.

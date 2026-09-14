@@ -543,29 +543,6 @@ def _raise_empty_tabular_series(
     )
 
 
-def _ref_selected_columns(ref: TabularDataRef) -> tuple[str, ...]:
-    metadata = ref.metadata if isinstance(ref.metadata, Mapping) else {}
-    node_options = metadata.get("node_options")
-    candidates: object = ()
-    if isinstance(node_options, Mapping):
-        candidates = node_options.get("selected_columns", ())
-    if not candidates:
-        candidates = metadata.get("selected_columns", ())
-    return _string_list(candidates)
-
-
-def _array_slice_metadata(ref: ArrayDataRef) -> dict[str, int]:
-    metadata = ref.metadata if isinstance(ref.metadata, Mapping) else {}
-    node_options = metadata.get("node_options")
-    raw = node_options.get("array_slice_2d") if isinstance(node_options, Mapping) else None
-    if not isinstance(raw, Mapping):
-        raw = metadata.get("array_slice_2d") if isinstance(metadata.get("array_slice_2d"), Mapping) else {}
-    return {
-        "row_offset": max(0, int(raw.get("row_offset", 0) or 0)),
-        "column_offset": max(0, int(raw.get("column_offset", 0) or 0)),
-        "row_limit": max(1, int(raw.get("row_limit", 50) or 50)),
-        "column_limit": max(1, int(raw.get("column_limit", 50) or 50)),
-    }
 
 
 def _numeric_value(value: object) -> float | int | None:
@@ -879,16 +856,7 @@ def _series_from_tabular_ref(
         all_columns=all_columns,
     )
     mapped_columns = _existing_columns(all_columns, requested_mapped_columns)
-    requested_selected_columns = _ref_selected_columns(ref)
-    _validate_tabular_columns(
-        plot_type=plot_type,
-        source="selected",
-        requested=requested_selected_columns,
-        available=all_columns,
-        all_columns=all_columns,
-    )
-    selected_columns = _existing_columns(all_columns, requested_selected_columns)
-    available = mapped_columns or selected_columns or all_columns
+    available = mapped_columns or all_columns
     if not available:
         raise ValueError(
             f"Tabular {_plot_type_label(plot_type)} plot input has no columns to plot. "
@@ -1236,24 +1204,6 @@ def _series_from_tabular_columns(
     return normalize_generic_plot_series(bounded_rows), warnings
 
 
-def _array_rows_from_ref(ref: ArrayDataRef) -> tuple[tuple[Any, ...], ...]:
-    from ea_node_editor.addons.tabular_data.loader_cache_service import (
-        shared_tabular_loader_cache_service,
-    )
-
-    service = shared_tabular_loader_cache_service()
-    service.ensure_array_ref(ref)
-    selection = _array_slice_metadata(ref)
-    array_slice = service.slice_2d(
-        ref,
-        ArraySlice2DRequest(
-            row_offset=selection["row_offset"],
-            row_limit=selection["row_limit"],
-            column_offset=selection["column_offset"],
-            column_limit=selection["column_limit"],
-        ),
-    )
-    return tuple(tuple(row) for row in array_slice.values)
 
 
 def _array_rows_from_slice_ref(ref: ArraySlice2DRef) -> tuple[tuple[Any, ...], ...]:
@@ -1302,12 +1252,33 @@ def _series_with_source_ref(
 
 
 def _series_from_array_ref(ref: ArrayDataRef, *, plot_type: str) -> tuple[dict[str, Any], ...]:
-    selection = _array_slice_metadata(ref)
-    source_ref = {"kind": "array_ref", "ref": ref.to_payload(), **selection}
-    return _series_with_source_ref(
-        _series_from_array_rows(_array_rows_from_ref(ref), plot_type=plot_type),
-        source_ref,
-    )
+    import numpy as np
+    from ea_node_editor.addons.tabular_data.loader_cache_service import shared_tabular_loader_cache_service
+    from ea_node_editor.addons.tabular_data.source_backends import json_safe_value
+    from ea_node_editor.execution.plot_series_decimation import stride_sample_indices
+
+    if len(ref.shape) not in {1, 2}:
+        raise ValueError("Build a table with explicit axes before plotting an ND array")
+    count, width = ref.shape[0], ref.shape[1] if len(ref.shape) == 2 else 1
+    if not count or not width:
+        return ()
+    grid = plot_type in {PLOT_TYPE_HEATMAP, PLOT_TYPE_CONTOUR, PLOT_TYPE_SURFACE}
+    row_budget = max(1, int(TABULAR_PLOT_MAX_POINTS_PER_SERIES ** 0.5)) if grid else TABULAR_PLOT_MAX_POINTS_PER_SERIES
+    row_indexes = stride_sample_indices(count, row_budget)
+    if grid:
+        column_indexes = stride_sample_indices(width, row_budget)
+    else:
+        used_width = min(width, 2 if plot_type == PLOT_TYPE_SCATTER else 3 if plot_type in {PLOT_TYPE_POINT_CLOUD, PLOT_TYPE_STREAMLINES} else width)
+        column_indexes = np.arange(used_width)
+    values = shared_tabular_loader_cache_service().sample_array(ref, row_indexes, column_indexes)
+    rows = tuple(tuple(json_safe_value(value) for value in row) for row in values.tolist())
+    series = _series_from_array_rows(rows, plot_type=plot_type)
+    for item in series:
+        item["decimation"] = {"method": "stride" if len(row_indexes) < count or len(column_indexes) < width else "none",
+                              "original_rows": count, "points": len(row_indexes)}
+    source_ref = {"kind": "array_ref", "ref": ref.to_payload(), "row_offset": 0, "column_offset": 0,
+                  "row_limit": count, "column_limit": width}
+    return _series_with_source_ref(series, source_ref)
 
 
 def _series_from_array_slice_ref(ref: ArraySlice2DRef, *, plot_type: str) -> tuple[dict[str, Any], ...]:
@@ -1691,37 +1662,52 @@ def _write_full_fidelity_array_export(
         return None
 
     kind = str(first.get("kind", "") or "")
-    rows: tuple[tuple[Any, ...], ...]
     if kind == "array_ref":
         ref = coerce_array_data_ref(first.get("ref"))
         if ref is None:
             return None
-        rows = _array_rows_from_ref(ref)
+        base = ref
+        row_offset = column_offset = 0
+        row_limit = ref.shape[0]
+        column_count = ref.shape[1] if len(ref.shape) > 1 else 1
     elif kind == "array_slice_2d_ref":
         ref = coerce_array_slice_2d_ref(first.get("ref"))
         if ref is None:
             return None
-        rows = _array_rows_from_slice_ref(ref)
+        base = ref.array_data
+        row_offset, column_offset = ref.row_offset, ref.column_offset
+        row_limit = min(ref.row_limit or base.shape[0], max(0, base.shape[0] - row_offset))
+        width = base.shape[1] if len(base.shape) > 1 else 1
+        column_count = min(ref.column_limit or width, max(0, width - column_offset))
     else:
         return None
 
     from ea_node_editor.execution.plot_backend import PlotExportResult
 
-    column_count = max((len(row) for row in rows), default=0)
     if column_count <= 0:
         return None
+    from ea_node_editor.addons.tabular_data.loader_cache_service import shared_tabular_loader_cache_service
+    from ea_node_editor.addons.tabular_data.exporting import atomic_tabular_output
+    from ea_node_editor.addons.tabular_data.operations import check_cancelled
+
+    service = shared_tabular_loader_cache_service()
     columns = [f"column_{index + 1}" for index in range(column_count)]
-    with open(output_path, "w", encoding="utf-8", newline="") as stream:
+    exported_rows = 0
+    with atomic_tabular_output(output_path) as temporary, temporary.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.writer(stream)
         writer.writerow(columns)
-        for row in rows:
-            writer.writerow([row[index] if index < len(row) else "" for index in range(column_count)])
+        for offset in range(row_offset, row_offset + row_limit, 4096):
+            check_cancelled()
+            window = service.slice_2d(base, ArraySlice2DRequest(row_offset=offset, row_limit=min(4096, row_offset + row_limit - offset),
+                                                              column_offset=column_offset, column_limit=column_count))
+            writer.writerows(window.values)
+            exported_rows += len(window.values)
     return PlotExportResult(
         backend_id="array_full_fidelity",
         output_path=output_path,
         format=data_format,
         metadata={
-            "row_count": len(rows),
+            "row_count": exported_rows,
             "column_count": column_count,
             "columns": columns,
             "source": kind,

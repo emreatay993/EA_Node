@@ -93,36 +93,28 @@ from ea_node_editor.addons.tabular_data.input_node import execute_tabular_input
     _property_type="json",
 )
 @corex.text(
-    "selected_object",
+    "data_view",
     default="",
-    label="Data Source",
-    _inline_editor="",
-    _inspector_editor="text",
-    _property_group="Selection",
-)
-@corex.text(
-    "array_slice_2d",
-    default="",
-    label="Selected 2D Array Slice",
+    label="Data View",
     _inline_editor="",
     _inspector_visible=False,
-    _property_default={
-        "row_offset": 0,
-        "column_offset": 0,
-        "row_limit": 50,
-        "column_limit": 50,
-    },
-    _property_group="Selection",
+    _property_default={"version": 1, "mode": "source"},
     _property_type="json",
 )
 @corex.text(
-    "tabular_selected_columns",
+    "data_view_name", affects_execution=False,
     default="",
-    label="Selected Columns",
+    label="View Name",
     _inline_editor="",
     _inspector_visible=False,
-    _property_default=[],
-    _property_group="Selection",
+)
+@corex.text(
+    "data_view_migration_notice", affects_execution=False,
+    default="",
+    label="Selection Review",
+    _inline_editor="",
+    _inspector_visible=False,
+    _property_default={},
     _property_type="json",
 )
 @corex.dropdown(

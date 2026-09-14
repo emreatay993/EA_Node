@@ -522,32 +522,22 @@ def write_sources(data_root: Path = DATA_ROOT, *, workspace_id: str = "ws_tabula
 
 
 def _tabular_properties(definition: dict[str, object], *, direct: bool = False) -> dict[str, object]:
-    array_slice = {
-        "row_offset": 0,
-        "column_offset": 0,
-        "row_limit": 50,
-        "column_limit": 50,
-    }
-    if direct:
-        array_slice.update(dict(definition.get("array_slice_2d", {})))
-    properties = {
+    array = definition["source_output"] == "array_data"
+    view = {"version": 1, "mode": "array" if array else "source", "member": str(definition.get("selected_object", ""))}
+    if direct and array and definition.get("array_slice_2d"):
+        bounds = dict(definition["array_slice_2d"])
+        view["array_slices"] = [[bounds.get("row_offset", 0), bounds.get("row_limit", 0)],
+                                [bounds.get("column_offset", 0), bounds.get("column_limit", 0)]]
+    elif direct and not array:
+        view["output"] = {"columns": list(definition.get("selected_columns", ()))}
+    return {
         "path": format_managed_artifact_ref(str(definition["artifact_id"])),
-        "delimiter": "",
-        "encoding": "utf-8",
-        "header_row": 0,
-        "skip_rows": 0,
-        "schema_hints": {},
-        "selected_object": str(definition.get("selected_object", "")),
-        "array_slice_2d": array_slice,
-        "cache_policy": "source_direct",
-        "project_managed_source": True,
-        "project_managed_cache": False,
-        "allow_npz_archive_preview": True,
+        "delimiter": "", "encoding": "utf-8", "header_row": 0, "skip_rows": 0, "schema_hints": {},
+        "data_view": view, "data_view_name": str(definition["title"]) + " data",
+        "cache_policy": "source_direct", "project_managed_source": True,
+        "project_managed_cache": False, "allow_npz_archive_preview": True,
         "tabular_table_view_state": {},
     }
-    if direct:
-        properties["tabular_selected_columns"] = list(definition.get("selected_columns", ()))
-    return properties
 
 
 def _plot_properties(definition: dict[str, object], *, direct: bool = False) -> dict[str, object]:

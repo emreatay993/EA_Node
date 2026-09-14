@@ -241,7 +241,21 @@ def _prepare_explicit_output_path(path: Path, *, node_name: str, suffixes: froze
     return suffix
 
 
-def write_table_rows_to_path(
+def write_table_rows_to_path(path: Path, *, columns: Sequence[str], rows: Iterable[Mapping[str, Any]],
+                             node_name: str = TABULAR_WRITE_TABLE_WINDOW_DISPLAY_NAME) -> None:
+    from ea_node_editor.addons.tabular_data.exporting import atomic_tabular_output
+    from ea_node_editor.addons.tabular_data.operations import check_cancelled
+
+    _prepare_explicit_output_path(path, node_name=node_name, suffixes=_TABLE_OUTPUT_SUFFIXES)
+    def checked_rows():
+        for row in rows:
+            check_cancelled()
+            yield row
+    with atomic_tabular_output(path) as temporary:
+        _write_table_rows_to_file(temporary, columns=columns, rows=checked_rows(), node_name=node_name)
+
+
+def _write_table_rows_to_file(
     path: Path,
     *,
     columns: Sequence[str],
@@ -274,9 +288,9 @@ def write_table_rows_to_path(
                 )
         return
     openpyxl = _require_openpyxl(node_name)
-    workbook = openpyxl.Workbook()
+    workbook = openpyxl.Workbook(write_only=True)
     try:
-        sheet = workbook.active
+        sheet = workbook.create_sheet()
         sheet.append(normalized_columns)
         for row in rows:
             sheet.append([row.get(column) for column in normalized_columns])
@@ -285,7 +299,21 @@ def write_table_rows_to_path(
         workbook.close()
 
 
-def write_array_rows_to_path(
+def write_array_rows_to_path(path: Path, *, rows: Iterable[Sequence[Any]],
+                             node_name: str = TABULAR_WRITE_ARRAY_SLICE_2D_DISPLAY_NAME) -> None:
+    from ea_node_editor.addons.tabular_data.exporting import atomic_tabular_output
+    from ea_node_editor.addons.tabular_data.operations import check_cancelled
+
+    _prepare_explicit_output_path(path, node_name=node_name, suffixes=_ARRAY_OUTPUT_SUFFIXES)
+    def checked_rows():
+        for row in rows:
+            check_cancelled()
+            yield row
+    with atomic_tabular_output(path) as temporary:
+        _write_array_rows_to_file(temporary, rows=checked_rows(), node_name=node_name)
+
+
+def _write_array_rows_to_file(
     path: Path,
     *,
     rows: Iterable[Sequence[Any]],
@@ -307,9 +335,9 @@ def write_array_rows_to_path(
             writer.writerows(rows)
         return
     openpyxl = _require_openpyxl(node_name)
-    workbook = openpyxl.Workbook()
+    workbook = openpyxl.Workbook(write_only=True)
     try:
-        sheet = workbook.active
+        sheet = workbook.create_sheet()
         for row in rows:
             sheet.append(list(row))
         workbook.save(path)

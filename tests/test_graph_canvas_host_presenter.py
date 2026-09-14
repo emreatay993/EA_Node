@@ -120,39 +120,32 @@ def _style_fixture(
     )
 
 
-def test_graph_canvas_host_presenter_reuses_tabular_preview_provider(monkeypatch) -> None:
+def test_graph_canvas_host_presenter_builds_cold_previews_off_thread_and_reuses_results(qapp) -> None:
+    from PyQt6.QtTest import QTest
     _RecordingTabularPreviewProvider.instances = []
-    monkeypatch.setattr(
-        presenter_module,
-        "TabularPreviewProvider",
-        _RecordingTabularPreviewProvider,
-    )
     host = SimpleNamespace(
         project_path="C:/project/example.cxproj",
         model=SimpleNamespace(project=SimpleNamespace(metadata={"artifact_root": "assets"})),
-        search_scope_controller=SimpleNamespace(),
-        scene=SimpleNamespace(),
-        shell_host_presenter=SimpleNamespace(),
-        workspace_edit_controller=SimpleNamespace(),
+        search_scope_controller=SimpleNamespace(), scene=SimpleNamespace(),
+        shell_host_presenter=SimpleNamespace(), workspace_edit_controller=SimpleNamespace(),
     )
-    presenter = GraphCanvasHostPresenter(host)
-
-    first = presenter.describe_tabular_preview({"source": "table.csv"}, {"row_limit": 50})
-    second = presenter.describe_tabular_preview({"source": "table.csv"}, {"row_limit": 50})
-
-    assert first == {"call_count": 1}
-    assert second == {"call_count": 2}
-    assert len(_RecordingTabularPreviewProvider.instances) == 1
-    provider = _RecordingTabularPreviewProvider.instances[0]
-    assert provider.calls == [
-        ({"source": "table.csv"}, {"row_limit": 50}, "inline"),
-        ({"source": "table.csv"}, {"row_limit": 50}, "inline"),
-    ]
-    assert provider.contexts == [
-        ("C:/project/example.cxproj", {"artifact_root": "assets"}),
-        ("C:/project/example.cxproj", {"artifact_root": "assets"}),
-    ]
-    presenter.shutdown()
+    presenter = GraphCanvasHostPresenter(host, tabular_preview_provider_factory=_RecordingTabularPreviewProvider)
+    try:
+        first = presenter.describe_tabular_preview({"path": "C:/table.csv"}, {"row_limit": 50})
+        assert first["state"] == "loading"
+        for _ in range(100):
+            qapp.processEvents()
+            if presenter._tabular_preview_payloads:
+                break
+            QTest.qWait(10)
+        second = presenter.describe_tabular_preview({"path": "C:/table.csv"}, {"row_limit": 50})
+        assert second == {"call_count": 1}
+        assert len(_RecordingTabularPreviewProvider.instances) == 1
+        provider = _RecordingTabularPreviewProvider.instances[0]
+        assert provider.calls == [({"path": "C:/table.csv"}, {"row_limit": 50}, "inline")]
+        assert provider.contexts == [("C:/project/example.cxproj", {"artifact_root": "assets"})]
+    finally:
+        presenter.shutdown()
 
 
 def test_graph_canvas_host_presenter_opens_local_file_sources(monkeypatch, tmp_path) -> None:

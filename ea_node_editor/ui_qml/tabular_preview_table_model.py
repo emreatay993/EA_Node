@@ -87,6 +87,7 @@ class TabularPreviewTableModel(QAbstractTableModel):
         self._columns: list[str] = []
         self._row_offset = 0
         self._column_offset = 0
+        self._column_units: dict[str, str] = {}
 
     @pyqtProperty("QVariantMap", notify=preview_changed)
     def preview(self) -> dict[str, Any]:
@@ -108,6 +109,10 @@ class TabularPreviewTableModel(QAbstractTableModel):
     def column_count(self) -> int:
         return len(self._columns)
 
+    @pyqtProperty(bool, notify=preview_changed)
+    def has_units(self) -> bool:
+        return any(self._column_units.get(name) for name in self._columns)
+
     @pyqtProperty(int, notify=preview_changed)
     def row_offset(self) -> int:
         return self._row_offset
@@ -127,6 +132,8 @@ class TabularPreviewTableModel(QAbstractTableModel):
         rows, columns, preview_kind, row_offset, column_offset = self._extract_window(preview)
         self.beginResetModel()
         self._preview = copy.deepcopy(preview)
+        self._column_units = {str(column.get("name", "")): str(column.get("metadata", {}).get("unit", ""))
+                              for column in preview.get("schema", {}).get("columns", []) if isinstance(column, Mapping)}
         self._rows = rows
         self._columns = columns
         self._preview_kind = preview_kind
@@ -159,7 +166,7 @@ class TabularPreviewTableModel(QAbstractTableModel):
                 return self._columns[section]
             return None
         if orientation == Qt.Orientation.Vertical:
-            return str(self._row_offset + int(section))
+            return str(self._row_offset + int(section) + 1)
         return None
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlag:
@@ -188,7 +195,11 @@ class TabularPreviewTableModel(QAbstractTableModel):
 
     @pyqtSlot(int, result=str)
     def row_label(self, row: int) -> str:
-        return str(self._row_offset + int(row)) if 0 <= row < len(self._rows) else ""
+        return str(self._row_offset + int(row) + 1) if 0 <= row < len(self._rows) else ""
+
+    @pyqtSlot(int, result=str)
+    def column_unit(self, column: int) -> str:
+        return self._column_units.get(self.column_label(column), "")
 
     @pyqtSlot(int, result=str)
     def column_key(self, column: int) -> str:

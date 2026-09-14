@@ -47,7 +47,7 @@ def test_tabular_preview_table_model_maps_table_payload() -> None:
     assert model.rowCount() == 2
     assert model.columnCount() == 3
     assert model.headerData(0, Qt.Orientation.Horizontal) == "station"
-    assert model.headerData(1, Qt.Orientation.Vertical) == "11"
+    assert model.headerData(1, Qt.Orientation.Vertical) == "12"
     assert model.data(model.index(1, 1), Qt.ItemDataRole.DisplayRole) == "20.1"
     assert model.cell_text(0, 2) == "0"
     assert model.column_key(0) == "table:station"
@@ -60,7 +60,7 @@ def test_tabular_preview_table_model_maps_array_payload() -> None:
     assert model.rowCount() == 2
     assert model.columnCount() == 3
     assert model.headerData(0, Qt.Orientation.Horizontal) == "C4"
-    assert model.headerData(1, Qt.Orientation.Vertical) == "21"
+    assert model.headerData(1, Qt.Orientation.Vertical) == "22"
     assert model.data(model.index(1, 2), Qt.ItemDataRole.DisplayRole) == "6"
     assert model.column_key(2) == "array:6"
 

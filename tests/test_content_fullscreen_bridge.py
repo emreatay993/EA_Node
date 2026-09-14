@@ -1415,6 +1415,7 @@ class ContentFullscreenBridgeRemainingTests(_ContentFullscreenDirectTestCase):
         self.assertEqual(bridge.viewer_payload, {})
         self.assertEqual(bridge.web_editor_payload, {})
 
+        wait_for_condition_or_raise(lambda: bridge.tabular_composer is not None and not bridge.tabular_composer.state["busy"], timeout_ms=5000, timeout_message="tabular composer preview")
         payload = bridge.tabular_payload
         self.assertEqual(payload["workspace_id"], workspace_id)
         self.assertEqual(payload["node_id"], node_id)
@@ -1423,7 +1424,7 @@ class ContentFullscreenBridgeRemainingTests(_ContentFullscreenDirectTestCase):
         self.assertEqual(payload["surface_spec"]["fullscreen"]["action_kind"], "tabular")
         self.assertEqual(payload["preview_state"], "ready")
         self.assertEqual(payload[TABULAR_TABLE_VIEW_STATE_PROPERTY], {"version": 1, "column_widths": {}})
-        self.assertEqual(payload[TABULAR_SELECTED_COLUMNS_PROPERTY], [])
+        self.assertNotIn(TABULAR_SELECTED_COLUMNS_PROPERTY, payload)
         preview = payload["preview"]
         self.assertEqual(preview["preview_kind"], "table")
         self.assertEqual(preview["source"]["resolved_path"], str(source))
@@ -1483,22 +1484,25 @@ class ContentFullscreenBridgeRemainingTests(_ContentFullscreenDirectTestCase):
         self.assertNotIn("tabular_payload", json.dumps(_payload_keys(document)).lower())
         self.assertNotIn("request_tabular_window", serialized)
 
-    def test_content_fullscreen_bridge_persists_tabular_selected_columns(self) -> None:
+    def test_content_fullscreen_bridge_applies_authored_output_columns_only_on_apply(self) -> None:
         node_id, _source = self._add_tabular_node()
         workspace_id = self.workspace_id
         bridge = self._bridge()
 
         self.assertTrue(bridge.request_open_node(node_id))
-        self.assertTrue(bridge.save_tabular_selected_columns(["station", "temp", "station", ""]))
-
-        expected = ["station", "temp"]
-        self.assertEqual(bridge.tabular_payload[TABULAR_SELECTED_COLUMNS_PROPERTY], expected)
-
+        composer = bridge.tabular_composer
+        wait_for_condition_or_raise(lambda: not composer.state["busy"], timeout_ms=5000)
         node = self.model.project.workspaces[workspace_id].nodes[node_id]
-        self.assertEqual(node.properties[TABULAR_SELECTED_COLUMNS_PROPERTY], expected)
-
+        previous = copy.deepcopy(node.properties["data_view"])
+        expected = ["station", "temp"]
+        composer.update_definition({"version": 1, "mode": "source", "output": {"columns": expected}})
+        wait_for_condition_or_raise(lambda: not composer.state["busy"], timeout_ms=5000)
+        self.assertEqual(node.properties["data_view"], previous)
+        self.assertTrue(composer.apply(), composer.state)
+        self.assertEqual(node.properties["data_view"]["output"]["columns"], expected)
+        self.assertNotIn(TABULAR_SELECTED_COLUMNS_PROPERTY, node.properties)
         serialized = json.dumps(self.serializer.to_document(self.model.project))
-        self.assertIn(TABULAR_SELECTED_COLUMNS_PROPERTY, serialized)
+        self.assertIn("data_view", serialized)
 
     def test_content_fullscreen_bridge_exports_visible_tabular_rows_after_query(self) -> None:
         node_id, _source = self._add_tabular_node()
@@ -1643,10 +1647,10 @@ class ContentFullscreenBridgeRemainingTests(_ContentFullscreenDirectTestCase):
         bridge = self._bridge()
 
         self.assertFalse(bridge.save_tabular_table_view_state({"column_widths": {"table:station": 144}}))
-        self.assertFalse(bridge.save_tabular_selected_columns(["station"]))
+        self.assertIsNone(bridge.tabular_composer)
         self.assertTrue(bridge.request_open_node(node_id))
         self.assertFalse(bridge.save_tabular_table_view_state({"column_widths": {"table:station": 144}}))
-        self.assertFalse(bridge.save_tabular_selected_columns(["station"]))
+        self.assertIsNone(bridge.tabular_composer)
 
         node = self.model.project.workspaces[workspace_id].nodes[node_id]
         self.assertNotIn(TABULAR_TABLE_VIEW_STATE_PROPERTY, node.properties)

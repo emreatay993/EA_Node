@@ -17,6 +17,7 @@ from ea_node_editor.addons.tabular_data.loader_cache_service import (
 )
 from ea_node_editor.nodes.builtins.integrations_common import pick_path, require_existing_file
 from ea_node_editor.common.payload_tools import REF_METADATA_MAX_BYTES
+from ea_node_editor.runtime_contracts.data_view import DataViewDefinition
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.file_dialog_filters import TABULAR_DATA_FILES_FILTER
 from ea_node_editor.runtime_contracts import (
@@ -245,13 +246,15 @@ def normalize_tabular_selected_columns(value: Any) -> list[str]:
 
 def tabular_load_options_from_node_properties(properties: Mapping[str, Any]) -> TabularLoadOptions:
     delimiter = str(properties.get("delimiter", "") or "")
+    view = DataViewDefinition(properties.get("data_view"))
     return TabularLoadOptions(
         delimiter=delimiter or None,
         encoding=str(properties.get("encoding", "utf-8") or "utf-8"),
         header_row=_optional_int(properties.get("header_row", 0), default=0),
         skip_rows=_non_negative_int(properties.get("skip_rows", 0), default=0),
         schema_hints=_schema_hints_from_value(properties.get("schema_hints", {})),
-        selected_object=str(properties.get("selected_object", "") or ""),
+        selected_object=view.member,
+        data_view=view,
         allow_npz_archive_preview=bool(properties.get("allow_npz_archive_preview", False)),
         cache_policy=_cache_policy_from_value(properties.get("cache_policy")),
     )
@@ -262,12 +265,6 @@ def _node_options_metadata(properties: Mapping[str, Any]) -> dict[str, Any]:
         "cache_policy": _cache_policy_from_value(properties.get("cache_policy")),
         "project_managed_source": bool(properties.get("project_managed_source", False)),
         "project_managed_cache": bool(properties.get("project_managed_cache", False)),
-        "array_slice_2d": tabular_array_slice_2d_from_value(
-            properties.get(TABULAR_ARRAY_SLICE_2D_PROPERTY, {})
-        ),
-        "selected_columns": normalize_tabular_selected_columns(
-            properties.get(TABULAR_SELECTED_COLUMNS_PROPERTY, [])
-        ),
     }
 
 

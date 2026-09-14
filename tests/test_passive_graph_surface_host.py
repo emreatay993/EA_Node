@@ -1497,13 +1497,22 @@ class TabularGraphSurfaceQmlTests(PassiveGraphSurfaceHostTestBase):
             class ContentFullscreenBridgeStub(QObject):
                 def __init__(self):
                     super().__init__()
-                    self.toggle_calls = []
+                    self.open_calls = []
+                    self.browse_requests = []
                     self.export_calls = []
 
                 @pyqtSlot(str, result=bool)
-                def request_toggle_for_node(self, node_id):
-                    self.toggle_calls.append(str(node_id or ""))
+                def request_open_node(self, node_id):
+                    self.open_calls.append(str(node_id or ""))
                     return True
+
+                @pyqtProperty(QObject, constant=True)
+                def tabular_composer(self):
+                    return self
+
+                @pyqtSlot(bool)
+                def browse_source(self, managed_copy):
+                    self.browse_requests.append(bool(managed_copy))
 
                 @pyqtSlot(str, "QVariantMap", result="QVariantMap")
                 def export_tabular_visible_rows_for_node(self, node_id, payload):
@@ -1690,12 +1699,9 @@ class TabularGraphSurfaceQmlTests(PassiveGraphSurfaceHostTestBase):
                     Q_ARG("QVariant", "editSource"),
                 )
                 settle_events(3)
-                assert canvas_item.browse_requests == [
-                    ("node_tabular_surface", "path", "C:/tmp/stations.csv", "external_link")
-                ]
-                assert canvas_item.last_committed_node_id == "node_tabular_surface"
-                assert canvas_item.last_committed_properties == {"path": "C:/tmp/updated-stations.csv"}
-                canvas_item.browse_requests.clear()
+                assert bridge.browse_requests == [False]
+                assert not any(key in (canvas_item.last_committed_properties or {}) for key in ("path", "data_view", "selected_object"))
+                assert host.findChild(QObject, "graphNodeTabularConfigure") is not None
 
                 QMetaObject.invokeMethod(
                     surface,
@@ -1719,11 +1725,8 @@ class TabularGraphSurfaceQmlTests(PassiveGraphSurfaceHostTestBase):
                     Q_ARG("QVariant", "editSourceManagedCopy"),
                 )
                 settle_events(3)
-                assert canvas_item.browse_requests == [
-                    ("node_tabular_surface", "path", "C:/tmp/stations.csv", "managed_copy")
-                ]
-                assert canvas_item.last_committed_node_id == "node_tabular_surface"
-                assert canvas_item.last_committed_properties == {"path": "temp://managed-tabular-source"}
+                assert bridge.browse_requests == [False, True]
+                assert not any(key in (canvas_item.last_committed_properties or {}) for key in ("path", "data_view", "selected_object"))
 
                 QMetaObject.invokeMethod(
                     surface,
@@ -1731,7 +1734,7 @@ class TabularGraphSurfaceQmlTests(PassiveGraphSurfaceHostTestBase):
                     Q_ARG("QVariant", "fullscreen"),
                 )
                 settle_events(3)
-                assert bridge.toggle_calls == ["node_tabular_surface"]
+                assert bridge.open_calls == ["node_tabular_surface"] * 3
             finally:
                 dispose_host_window(host, window)
                 engine.deleteLater()
@@ -1831,213 +1834,49 @@ class TabularGraphSurfaceQmlTests(PassiveGraphSurfaceHostTestBase):
 
     def test_tabular_fullscreen_surface_requests_bounded_windows_and_preserves_overlay_close_keys(self) -> None:
         self._run_qml_probe(
-            "tabular-fullscreen-window-requests",
+            "tabular-fullscreen-composer-window-requests",
             """
-            from PyQt6.QtCore import Q_ARG, pyqtSignal
-
-            class TabularFullscreenBridgeStub(QObject):
-                content_fullscreen_changed = pyqtSignal()
-
-                def __init__(self):
-                    super().__init__()
-                    self.window_requests = []
-                    self.export_requests = []
-                    self.close_calls = 0
-
-                @pyqtProperty(bool, notify=content_fullscreen_changed)
-                def open(self):
-                    return True
-
-                @pyqtProperty(str, notify=content_fullscreen_changed)
-                def node_id(self):
-                    return "node_tabular_fullscreen"
-
-                @pyqtProperty(str, notify=content_fullscreen_changed)
-                def workspace_id(self):
-                    return "workspace_tabular"
-
-                @pyqtProperty(str, notify=content_fullscreen_changed)
-                def content_kind(self):
-                    return "tabular"
-
-                @pyqtProperty(str, notify=content_fullscreen_changed)
-                def title(self):
-                    return "Tabular Data Input"
-
-                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
-                def media_payload(self):
-                    return {}
-
-                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
-                def viewer_payload(self):
-                    return {}
-
-                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
-                def web_editor_payload(self):
-                    return {}
-
-                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
-                def tabular_payload(self):
-                    return {
-                        "workspace_id": "workspace_tabular",
-                        "node_id": "node_tabular_fullscreen",
-                        "type_id": "tabular.input",
-                        "title": "Tabular Data Input",
-                        "surface_spec": {
-                            "fullscreen": {
-                                "supported": True,
-                                "content_kind": "tabular",
-                                "action_kind": "tabular",
-                                "requires_bridge": True
-                            },
-                            "input_capabilities": {
-                                "devices": ["mouse", "touch"],
-                                "events": ["press", "release", "move", "wheel", "key"],
-                                "hover": True,
-                                "pressure": False,
-                                "gestures": ["tap", "drag", "wheel"],
-                                "plugin_gestures": []
-                            }
-                        },
-                        "properties": {"path": "C:/tmp/stations.csv"},
-                        "preview": self._preview(0, 0)
-                    }
-
-                @pyqtProperty(str, notify=content_fullscreen_changed)
-                def last_error(self):
-                    return ""
-
-                @pyqtProperty(QObject, notify=content_fullscreen_changed)
-                def web_surface_bridge(self):
-                    return None
-
-                def _preview(self, row_offset, column_offset):
-                    columns = ["station", "temp", "count"][int(column_offset):int(column_offset) + 3]
-                    if not columns:
-                        columns = ["station", "temp", "count"]
-                    rows = []
-                    for index in range(2):
-                        row_index = int(row_offset) + index
-                        rows.append({
-                            "station": f"S{row_index}",
-                            "temp": f"{20 + row_index / 10:.1f}",
-                            "count": str(row_index)
-                        })
-                    return {
-                        "state": "ready",
-                        "message": "Tabular data preview is ready.",
-                        "content_kind": "tabular",
-                        "preview_kind": "table",
-                        "source": {"path": "C:/tmp/stations.csv", "resolved_path": "C:/tmp/stations.csv", "format_id": "csv"},
-                        "selector": {"selected_object": "", "requires_selection": False, "objects": []},
-                        "metadata": {"backend": "fixture"},
-                        "ref": {"resolver_id": "tabular.cache", "object_id": "table"},
-                        "schema": {"columns": [{"name": "station", "dtype": "str"}, {"name": "temp", "dtype": "float64"}]},
-                        "window": {
-                            "columns": columns,
-                            "rows": rows,
-                            "row_offset": int(row_offset),
-                            "column_offset": int(column_offset),
-                            "total_rows": 120,
-                            "total_columns": 3,
-                            "bounded": True,
-                            "client_side_full_scan": False,
-                            "request": {
-                                "row_offset": int(row_offset),
-                                "row_limit": 50,
-                                "column_offset": int(column_offset),
-                                "column_limit": 50
-                            }
-                        }
-                    }
-
-                @pyqtSlot("QVariantMap", result="QVariantMap")
-                def request_tabular_window(self, request):
-                    payload = dict(request or {})
-                    self.window_requests.append(payload)
-                    preview = self._preview(payload.get("row_offset", 0), payload.get("column_offset", 0))
-                    preview["window"]["request"].update(payload)
-                    return preview
-
-                @pyqtSlot("QVariantMap", result="QVariantMap")
-                def export_tabular_visible_rows(self, payload):
-                    self.export_requests.append(dict(payload or {}))
-                    return {"ok": True, "path": "C:/tmp/stations-visible.csv", "error": ""}
-
-                @pyqtSlot()
-                def request_close(self):
-                    self.close_calls += 1
-
-            bridge = TabularFullscreenBridgeStub()
-            overlay_path = repo_root / "ea_node_editor" / "ui_qml" / "ContentFullscreenOverlay.qml"
-            overlay = create_component(
-                overlay_path,
-                {
-                    "bridgeRef": bridge,
-                    "width": 960.0,
-                    "height": 640.0,
-                },
-            )
-            window = attach_host_to_window(overlay, width=960, height=640)
+            from PyQt6.QtCore import Q_ARG
+            from tests.tabular_composer_probe import ComposerOverlayBridge
+            bridge = ComposerOverlayBridge()
+            overlay = create_component(repo_root / "ea_node_editor/ui_qml/ContentFullscreenOverlay.qml",
+                                       {"bridgeRef": bridge, "width": 1200.0, "height": 900.0})
+            window = attach_host_to_window(overlay, width=1200, height=900)
             try:
+                bridge.wait(app)
+                settle_events(5)
                 surface = overlay.findChild(QObject, "contentFullscreenTabularSurface")
                 grid = overlay.findChild(QObject, "contentFullscreenTabularGrid")
-                table_view = overlay.findChild(QObject, "contentFullscreenTabularTableView")
-                horizontal_header = overlay.findChild(QObject, "contentFullscreenTabularHorizontalHeaderView")
-                vertical_header = overlay.findChild(QObject, "contentFullscreenTabularVerticalHeaderView")
-                sidebar = overlay.findChild(QObject, "contentFullscreenTabularMetadataSidebar")
-                assert surface is not None
-                assert grid is not None
-                assert table_view is not None
-                assert horizontal_header is not None
-                assert vertical_header is not None
-                assert sidebar is not None
-                settle_events(6)
-
-                assert bool(surface.property("ready"))
-                assert str(surface.property("previewKind")) == "table"
-                assert int(grid.property("rowCount")) == 2
-                assert int(grid.property("columnCount")) == 3
-                assert int(table_view.property("rows")) == 2
-                assert int(table_view.property("columns")) == 3
-
-                QMetaObject.invokeMethod(surface, "requestNextRows")
-                settle_events(3)
-                assert bridge.window_requests[-1]["row_offset"] == 50
-                assert bridge.window_requests[-1]["row_limit"] == 50
-                assert bridge.window_requests[-1]["column_limit"] == 50
-                assert int(surface.property("rowOffset")) == 50
-                assert int(grid.property("rowCount")) == 2
-
-                search_field = overlay.findChild(QObject, "contentFullscreenTabularSearchField")
-                assert search_field is not None
-                search_field.setProperty("text", "S61")
-                settle_events(2)
-                QMetaObject.invokeMethod(surface, "applyQuery")
-                settle_events(3)
-                assert bridge.window_requests[-1]["search"] == "S61"
-
-                export_button = overlay.findChild(QObject, "contentFullscreenTabularExportButton")
-                assert export_button is not None
-                assert bool(export_button.property("enabled"))
-                QMetaObject.invokeMethod(surface, "exportVisibleRows")
-                settle_events(3)
-                assert bridge.export_requests[-1]["preview_kind"] == "table"
-                assert bridge.export_requests[-1]["request"]["search"] == "S61"
-                assert bridge.export_requests[-1]["request"]["row_offset"] == 50
-
-                app.sendEvent(
-                    overlay,
-                    QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_F11, Qt.KeyboardModifier.NoModifier),
-                )
-                app.sendEvent(
-                    overlay,
-                    QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_F11, Qt.KeyboardModifier.NoModifier),
-                )
+                assert surface is not None and grid is not None
+                assert surface.property("ready")
+                assert grid.property("rowCount") == 50 and grid.property("columnCount") == 3
+                before = dict(bridge.props["data_view"])
+                QMetaObject.invokeMethod(surface, "requestWindow", Q_ARG("QVariant", 50), Q_ARG("QVariant", 0), Q_ARG("QVariant", ""))
+                bridge.wait(app)
+                assert bridge.session.requests[-1]["row_offset"] == 50
+                assert bridge.session.requests[-1]["row_limit"] == 50
+                assert bridge.props["data_view"] == before
+                search = overlay.findChild(QObject, "tabularComposerFind")
+                assert search is not None
+                search.setProperty("text", "S61")
+                QMetaObject.invokeMethod(search, "editingFinished")
+                bridge.wait(app)
+                assert bridge.session.requests[-1]["search"] == "S61"
+                assert bridge.session.requests[-1]["row_offset"] == 0
+                assert grid.property("rowCount") == 1
+                export = overlay.findChild(QObject, "tabularComposerExportVisible")
+                assert export is not None
+                QMetaObject.invokeMethod(export, "triggered")
+                bridge.wait(app, exporting=True)
+                assert bridge.session.state["export_result"]["ok"]
+                assert bridge.session.state["export_result"]["rows"] == 1
+                app.sendEvent(overlay, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_F11, Qt.KeyboardModifier.NoModifier))
+                app.sendEvent(overlay, QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_F11, Qt.KeyboardModifier.NoModifier))
                 settle_events(3)
                 assert bridge.close_calls == 1
             finally:
                 dispose_host_window(overlay, window)
+                bridge.shutdown()
                 engine.deleteLater()
                 app.processEvents()
             """,
@@ -2045,172 +1884,34 @@ class TabularGraphSurfaceQmlTests(PassiveGraphSurfaceHostTestBase):
 
     def test_tabular_fullscreen_surface_requests_array_slices_and_populates_table_model(self) -> None:
         self._run_qml_probe(
-            "tabular-fullscreen-array-slice-requests",
+            "tabular-fullscreen-composer-array-requests",
             """
-            from PyQt6.QtCore import pyqtSignal
-
-            class TabularArrayFullscreenBridgeStub(QObject):
-                content_fullscreen_changed = pyqtSignal()
-
-                def __init__(self):
-                    super().__init__()
-                    self.slice_requests = []
-
-                @pyqtProperty(bool, notify=content_fullscreen_changed)
-                def open(self):
-                    return True
-
-                @pyqtProperty(str, notify=content_fullscreen_changed)
-                def node_id(self):
-                    return "node_tabular_array_fullscreen"
-
-                @pyqtProperty(str, notify=content_fullscreen_changed)
-                def workspace_id(self):
-                    return "workspace_tabular"
-
-                @pyqtProperty(str, notify=content_fullscreen_changed)
-                def content_kind(self):
-                    return "tabular"
-
-                @pyqtProperty(str, notify=content_fullscreen_changed)
-                def title(self):
-                    return "Tabular Data Input"
-
-                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
-                def media_payload(self):
-                    return {}
-
-                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
-                def viewer_payload(self):
-                    return {}
-
-                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
-                def web_editor_payload(self):
-                    return {}
-
-                @pyqtProperty("QVariantMap", notify=content_fullscreen_changed)
-                def tabular_payload(self):
-                    return {
-                        "workspace_id": "workspace_tabular",
-                        "node_id": "node_tabular_array_fullscreen",
-                        "type_id": "tabular.input",
-                        "title": "Tabular Data Input",
-                        "surface_spec": {
-                            "fullscreen": {
-                                "supported": True,
-                                "content_kind": "tabular",
-                                "action_kind": "tabular",
-                                "requires_bridge": True
-                            },
-                            "input_capabilities": {
-                                "devices": ["mouse", "touch"],
-                                "events": ["press", "release", "move", "wheel", "key"],
-                                "hover": True,
-                                "pressure": False,
-                                "gestures": ["tap", "drag", "wheel"],
-                                "plugin_gestures": []
-                            }
-                        },
-                        "properties": {"path": "C:/tmp/array.npy"},
-                        "preview": self._preview(0, 0)
-                    }
-
-                @pyqtProperty(str, notify=content_fullscreen_changed)
-                def last_error(self):
-                    return ""
-
-                @pyqtProperty(QObject, notify=content_fullscreen_changed)
-                def web_surface_bridge(self):
-                    return None
-
-                def _preview(self, row_offset, column_offset):
-                    row_offset = int(row_offset)
-                    column_offset = int(column_offset)
-                    return {
-                        "state": "ready",
-                        "message": "Dense array preview is ready.",
-                        "content_kind": "tabular",
-                        "preview_kind": "array",
-                        "source": {"path": "C:/tmp/array.npy", "resolved_path": "C:/tmp/array.npy", "format_id": "npy"},
-                        "selector": {"selected_object": "", "requires_selection": False, "objects": []},
-                        "metadata": {"backend": "fixture"},
-                        "ref": {"resolver_id": "tabular.cache", "object_id": "array"},
-                        "array": {"shape": [120, 80], "dtype": "float64", "object_id": "array"},
-                        "slice_2d": {
-                            "values": [
-                                [row_offset + column_offset, row_offset + column_offset + 1, row_offset + column_offset + 2],
-                                [row_offset + column_offset + 3, row_offset + column_offset + 4, row_offset + column_offset + 5]
-                            ],
-                            "row_offset": row_offset,
-                            "column_offset": column_offset,
-                            "shape": [120, 80],
-                            "bounded": True,
-                            "client_side_full_scan": False,
-                            "request": {
-                                "row_offset": row_offset,
-                                "row_limit": 50,
-                                "column_offset": column_offset,
-                                "column_limit": 50
-                            }
-                        }
-                    }
-
-                @pyqtSlot("QVariantMap", result="QVariantMap")
-                def request_tabular_slice_2d(self, request):
-                    payload = dict(request or {})
-                    self.slice_requests.append(payload)
-                    return self._preview(payload.get("row_offset", 0), payload.get("column_offset", 0))
-
-                @pyqtSlot()
-                def request_close(self):
-                    pass
-
-            bridge = TabularArrayFullscreenBridgeStub()
-            overlay_path = repo_root / "ea_node_editor" / "ui_qml" / "ContentFullscreenOverlay.qml"
-            overlay = create_component(
-                overlay_path,
-                {
-                    "bridgeRef": bridge,
-                    "width": 960.0,
-                    "height": 640.0,
-                },
-            )
-            window = attach_host_to_window(overlay, width=960, height=640)
+            from PyQt6.QtCore import Q_ARG
+            from tests.tabular_composer_probe import ComposerOverlayBridge
+            bridge = ComposerOverlayBridge(array=True)
+            overlay = create_component(repo_root / "ea_node_editor/ui_qml/ContentFullscreenOverlay.qml",
+                                       {"bridgeRef": bridge, "width": 1200.0, "height": 900.0})
+            window = attach_host_to_window(overlay, width=1200, height=900)
             try:
+                bridge.wait(app)
+                settle_events(5)
                 surface = overlay.findChild(QObject, "contentFullscreenTabularSurface")
                 grid = overlay.findChild(QObject, "contentFullscreenTabularGrid")
-                table_view = overlay.findChild(QObject, "contentFullscreenTabularTableView")
-                array_controls = overlay.findChild(QObject, "contentFullscreenTabularArraySliceControls")
-                sort_combo = overlay.findChild(QObject, "contentFullscreenTabularSortColumnCombo")
-                sort_button = overlay.findChild(QObject, "contentFullscreenTabularSortDirectionButton")
-                assert surface is not None
-                assert grid is not None
-                assert table_view is not None
-                assert array_controls is not None
-                assert sort_combo is not None
-                assert sort_button is not None
-                settle_events(6)
-
-                assert str(surface.property("previewKind")) == "array"
-                assert bool(surface.property("arrayMode"))
-                assert not bool(surface.property("tableMode"))
-                assert bool(array_controls.property("visible"))
-                assert not bool(sort_combo.property("enabled"))
-                assert not bool(sort_button.property("enabled"))
-                assert int(grid.property("rowCount")) == 2
-                assert int(grid.property("columnCount")) == 3
-                assert int(table_view.property("rows")) == 2
-                assert int(table_view.property("columns")) == 3
-
-                QMetaObject.invokeMethod(surface, "requestNextRows")
-                settle_events(3)
-                assert bridge.slice_requests[-1]["row_offset"] == 50
-
-                QMetaObject.invokeMethod(surface, "requestNextColumns")
-                settle_events(3)
-                assert bridge.slice_requests[-1]["column_offset"] == 50
+                assert surface is not None and grid is not None
+                assert surface.property("arrayMode")
+                assert grid.property("rowCount") == 50 and grid.property("columnCount") == 50
+                assert not overlay.findChild(QObject, "tabularComposerRulesTab").property("enabled")
+                QMetaObject.invokeMethod(surface, "requestWindow", Q_ARG("QVariant", 50), Q_ARG("QVariant", 0), Q_ARG("QVariant", ""))
+                bridge.wait(app)
+                assert bridge.session.requests[-1]["row_offset"] == 50
+                QMetaObject.invokeMethod(surface, "requestWindow", Q_ARG("QVariant", 50), Q_ARG("QVariant", 50), Q_ARG("QVariant", ""))
+                bridge.wait(app)
+                assert bridge.session.requests[-1]["column_offset"] == 50
+                assert grid.property("columnCount") == 30
+                assert bridge.props["data_view"] == {"version": 1, "mode": "array"}
             finally:
                 dispose_host_window(overlay, window)
+                bridge.shutdown()
                 engine.deleteLater()
                 app.processEvents()
             """,

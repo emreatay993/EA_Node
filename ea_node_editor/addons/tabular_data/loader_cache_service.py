@@ -169,6 +169,10 @@ class TabularLoaderCacheService(SourceBackendMethods):
     ) -> None:
         self.policy = policy
         self.cache_dir = Path(cache_dir) if cache_dir is not None else tabular_data_cache_dir()
+        from ea_node_editor.addons.tabular_data.npz_members import NpzMemberCache
+
+        self._npz_member_cache = NpzMemberCache(self.cache_dir / "npz_members", max_bytes=TABULAR_DATA_CACHE_MAX_BYTES,
+                                                reserve=self._reserve_member_cache)
         self._table_records: dict[str, _TableRecord] = {}
         self._array_records: dict[str, _ArrayRecord] = {}
         self._retained_table_records: dict[str, _TableRecord] = {}
@@ -241,8 +245,17 @@ class TabularLoaderCacheService(SourceBackendMethods):
         options: TabularLoadOptions | Mapping[str, Any] | None = None,
     ) -> TabularDataRef | ArrayDataRef:
         normalized_options = _coerce_options(options)
+        from ea_node_editor.addons.tabular_data.composition import needs_composition, open_composed_source
+
+        if needs_composition(normalized_options.data_view):
+            return open_composed_source(self, self._resolve_path(source_path), normalized_options)
+        if normalized_options.data_view is not None:
+            normalized_options = normalized_options.with_selected_object(
+                normalized_options.data_view.member or normalized_options.selected_object)
         scan = self.scan_source(source_path, normalized_options)
         selected = self._resolve_selected_object(scan, normalized_options)
+        if normalized_options.data_view is not None and normalized_options.data_view.mode == "array" and selected.kind != "array":
+            raise ValueError("Raw array mode requires an array source")
         options_with_selection = normalized_options.with_selected_object(selected.object_id)
         if selected.kind == "table":
             record = self._build_table_record(scan, selected, options_with_selection)
@@ -341,6 +354,17 @@ class TabularLoaderCacheService(SourceBackendMethods):
                 return True
         path = _source_path_from_ref(ref)
         options = _load_options_from_ref(ref)
+        from ea_node_editor.addons.tabular_data.composition import needs_composition, composed_record
+
+        if needs_composition(options.data_view):
+            record = composed_record(self, path, options, content_sha256=binding.sha256)
+            if record.backend_id != binding.backend_id or record.object_id != binding.object_id:
+                raise RetainedResourceError("retained_source_changed", "The retained composed view changed")
+            if not retained_read_is_active(digest):
+                RetainedSourceValidation().validate(ref, binding)
+            with self._records_lock:
+                records[digest] = record
+            return True
         # Old stat-keyed scan/cache entries do not prove accepted content identity.
         scan = self._scan_uncached(path, detect_format_id(path), options, self._source_stats(path))
         selected = self._resolve_selected_object(scan, options)
@@ -388,6 +412,13 @@ class TabularLoaderCacheService(SourceBackendMethods):
         )
 
     @guarded_retained_read
+    def configuration_schema(self, ref: TabularDataRef) -> TabularSchema:
+        self.ensure_table_ref(ref)
+        record = self._table_record(ref)
+        return TabularSchema(columns=record.view.base_columns if record.view is not None else record.columns,
+                             row_count=record.view.total_rows if record.view is not None else record.row_count)
+
+    @guarded_retained_read
     def column_schema(self, ref: TabularDataRef) -> TabularSchema:
         """Prepare typed execution metadata, including managed-cache inference.
 
@@ -415,6 +446,20 @@ class TabularLoaderCacheService(SourceBackendMethods):
     ) -> dict[str | int, Any]:
         """Load selected, aligned columns without row dictionaries on Arrow paths."""
         np = _import_optional("numpy", format_id="numpy", purpose="column materialization")
+        self.ensure_table_ref(ref)
+        record = self._table_record(ref)
+        if record.view is not None:
+            from ea_node_editor.addons.tabular_data.composition import read_view_arrays
+
+            names = tuple(column.name for column in record.columns)
+            if any(type(key) is int and not 0 <= key < len(names) for key in columns):
+                raise ValueError("Column position is outside the table schema")
+            selected = {key: names[key] if type(key) is int else key for key in columns}
+            if any(name not in names for name in selected.values()):
+                raise ValueError("Selected column is outside the composed table")
+            arrays = read_view_arrays(self, record.view, row_offset=row_offset, row_limit=row_limit or 0,
+                                      columns=tuple(dict.fromkeys(selected.values())))
+            return {key: arrays[name] for key, name in selected.items()}
         chunks: dict[str | int, list[Any]] = {key: [] for key in columns}
         if not chunks:
             return {}
@@ -447,7 +492,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
                 index = indexes[occurrence] if indexes else None
                 chunks[key].append(
                     np.full(batch.num_rows, None, dtype=object)
-                    if index is None else batch.column(index).to_numpy(zero_copy_only=False)
+                    if index is None else _exact_arrow_numpy(batch.column(index))
                 )
         return {
             name: np.array([], dtype=object) if not parts else parts[0] if len(parts) == 1 else np.concatenate(parts)
@@ -484,6 +529,17 @@ class TabularLoaderCacheService(SourceBackendMethods):
     def window(self, ref: TabularDataRef, request: TabularWindowRequest) -> TabularDataWindow:
         self.ensure_table_ref(ref)
         record = self._table_record(ref)
+        if record.view is not None:
+            from ea_node_editor.addons.tabular_data.composition import view_scalar_json
+
+            names = _select_columns(tuple(column.name for column in record.columns), request)
+            schema_columns = {column.name: column for column in record.columns}
+            arrays = self.column_arrays(ref, columns=names, row_offset=request.row_offset, row_limit=request.row_limit)
+            rows = tuple({name: view_scalar_json(arrays[name][i], schema_columns[name]) for name in names}
+                         for i in range(len(next(iter(arrays.values()), ()))))
+            return TabularDataWindow(columns=names, rows=rows, row_offset=request.row_offset,
+                                     column_offset=request.column_offset, total_rows=record.row_count,
+                                     total_columns=len(record.columns))
         if record.format_id in TEXT_FORMAT_IDS or record.format_id in EXCEL_FORMAT_IDS:
             if record.options.uses_managed_cache:
                 entry = self._ensure_record_parquet_cache(ref, record)
@@ -505,7 +561,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
         all_columns = tuple(column.name for column in record.columns)
         query = NormalizedPreviewQuery.from_mapping(request, all_columns)
 
-        if query.selected_columns:
+        if record.view is None and query.selected_columns:
             parquet_path: Path | None = None
             if record.format_id == "parquet":
                 parquet_path = record.source_path
@@ -651,6 +707,13 @@ class TabularLoaderCacheService(SourceBackendMethods):
         self.ensure_table_ref(ref)
         record = self._table_record(ref)
         selected_columns = self.window_columns(ref, request)
+        if record.view is not None:
+            batch_options = TabularArrowBatchOptions(
+                row_limit=request.row_limit or record.row_count or 2_147_483_647,
+                batch_size=4096, row_offset=request.row_offset, columns=selected_columns)
+            for batch in self.arrow_batches(ref, batch_options):
+                yield from (_json_safe_mapping(row) for row in batch.to_pylist())
+            return
         if (
             record.format_id in TEXT_FORMAT_IDS or record.format_id in EXCEL_FORMAT_IDS
         ) and record.options.uses_managed_cache:
@@ -679,6 +742,13 @@ class TabularLoaderCacheService(SourceBackendMethods):
     def arrow_batches(self, ref: TabularDataRef, options: TabularArrowBatchOptions) -> Iterable[Any]:
         self.ensure_table_ref(ref)
         record = self._table_record(ref)
+        if record.view is not None:
+            from ea_node_editor.addons.tabular_data.composition import view_batches
+
+            columns = options.columns or tuple(column.name for column in record.columns)
+            yield from view_batches(self, record.view, columns=columns, row_offset=options.row_offset,
+                                    row_limit=options.row_limit, batch_size=options.batch_size)
+            return
         parquet_path: Path | None = None
         if record.format_id == "parquet":
             parquet_path = record.source_path
@@ -799,6 +869,29 @@ class TabularLoaderCacheService(SourceBackendMethods):
             dtype=record.dtype,
             metadata=self._record_metadata(record.format_id, record.size_bytes, record.warnings),
         )
+
+    @guarded_retained_read
+    def sample_array(self, ref: ArrayDataRef, rows: Sequence[int], columns: Sequence[int]) -> Any:
+        """Read explicit rendering samples without truncating the source reference."""
+        np = _import_optional("numpy", format_id="numpy", purpose="bounded array sampling")
+        self.ensure_array_ref(ref)
+        record = self._array_record(ref)
+        if len(record.shape) not in {1, 2}:
+            raise ValueError("Build a table with explicit axes before plotting an ND array")
+        width = record.shape[1] if len(record.shape) == 2 else 1
+        if any(type(index) not in {int, np.int64, np.int32} or not 0 <= index < record.shape[0] for index in rows):
+            raise ValueError("Sample row is outside the array")
+        if any(type(index) not in {int, np.int64, np.int32} or not 0 <= index < width for index in columns):
+            raise ValueError("Sample column is outside the array")
+        if len(rows) * len(columns) * np.dtype(record.dtype).itemsize > 64 * 1024 * 1024:
+            raise ValueError("Array rendering samples exceed 64 MiB; select fewer output columns")
+        array = self._open_array(record)
+        if record.format_id == "hdf5":
+            values = [np.asarray(array[int(row), list(columns)] if len(record.shape) == 2 else [array[int(row)]]) for row in rows]
+            return np.asarray(values).reshape(len(rows), len(columns))
+        if len(record.shape) == 1:
+            return np.array(array[list(rows)], copy=True).reshape(-1, 1)
+        return np.array(array[np.ix_(rows, columns)], copy=True)
 
     def parquet_cache_key(
         self,
@@ -1016,6 +1109,19 @@ class TabularLoaderCacheService(SourceBackendMethods):
         record = self._retained_table_records.get(binding.digest) if binding else self._table_records.get(ref.ref_id)
         if record is None:
             raise KeyError(f"Unknown tabular data ref {ref.ref_id!r}.")
+        if record.view is not None and record.view.definition.has_query:
+            if record.view.query_path is not None and not record.view.query_path.is_file():
+                record = replace(record, view=replace(record.view, query_path=None))
+            if record.view.query_path is None:
+                if threading.current_thread() is threading.main_thread() and not self.ui_thread_conversion_allowed:
+                    raise TabularCacheNotReadyError(source_path=record.source_path, size_bytes=record.size_bytes)
+                from ea_node_editor.addons.tabular_data.saved_queries import ensure_saved_query
+
+                updated = ensure_saved_query(self, record)
+                with self._records_lock:
+                    target = self._retained_table_records if binding else self._table_records
+                    target[binding.digest if binding else ref.ref_id] = updated
+                record = updated
         return record
 
     def _array_record(self, ref: ArrayDataRef) -> _ArrayRecord:
@@ -1129,13 +1235,14 @@ class TabularLoaderCacheService(SourceBackendMethods):
     ) -> int:
         """Evict least-recently-used cache entries past the size cap."""
 
+        max_bytes = max(0, max_bytes - self._working_cache_bytes())
         preserved = {
             Path(path).resolve(strict=False)
             for path in (preserve_paths or ())
         }
         entries: list[tuple[float, int, Path, Path]] = []
         total = 0
-        for cache_path in self.cache_dir.glob("*/*.parquet"):
+        for cache_path in (*self.cache_dir.glob("*/*.parquet"), *self.cache_dir.glob("npz_members/*.npy")):
             try:
                 stat = cache_path.stat()
             except OSError:
@@ -1159,6 +1266,29 @@ class TabularLoaderCacheService(SourceBackendMethods):
             total -= size
             removed += 1
         return removed
+
+    def _reserve_member_cache(self, incoming_bytes: int) -> None:
+        self.enforce_cache_size_limit(max_bytes=max(0, TABULAR_DATA_CACHE_MAX_BYTES - incoming_bytes))
+        paths = (*self.cache_dir.glob("*/*.parquet"), *self.cache_dir.glob("npz_members/*.npy"))
+        remaining = sum(path.stat().st_size for path in paths if path.is_file()) + self._working_cache_bytes()
+        if remaining + incoming_bytes > TABULAR_DATA_CACHE_MAX_BYTES:
+            raise ValueError("The managed tabular cache has insufficient space for this member")
+
+    def _working_cache_bytes(self) -> int:
+        total = 0
+        for directory in (self.cache_dir / "views").glob("query_*"):
+            if directory.is_dir():
+                for path in directory.rglob("*"):
+                    try:
+                        if path.is_file():
+                            total += path.stat().st_size
+                    except OSError:
+                        continue
+        return total
+
+    def cache_usage_bytes(self) -> int:
+        paths = (*self.cache_dir.glob("*/*.parquet"), *self.cache_dir.glob("npz_members/*.npy"))
+        return sum(path.stat().st_size for path in paths if path.is_file()) + self._working_cache_bytes()
 
 
 _shared_service_guard = threading.Lock()
@@ -1226,6 +1356,16 @@ def open_tabular_source(
 ) -> tuple[TabularLoaderCacheService, TabularDataRef | ArrayDataRef]:
     service = TabularLoaderCacheService(cache_dir=cache_dir, policy=policy)
     return service, service.open_source(source_path, options)
+
+
+def _exact_arrow_numpy(column: Any) -> Any:
+    """Nullable integers must not take Arrow's lossy float64 NumPy conversion."""
+    import numpy as np
+    import pyarrow as pa
+
+    if column.null_count and pa.types.is_integer(column.type):
+        return np.array(column.to_pylist(), dtype=object)
+    return column.to_numpy(zero_copy_only=False)
 
 
 def _window_request_from_materialization(

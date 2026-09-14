@@ -43,6 +43,7 @@ These rows summarize whole-capability status. `PARTIAL` means accepted backend a
 
 ### Implemented Features With Remaining Acceptance Checks
 
+- [Tabular Data Composer and UI Redesign](../PLAN_Tabular_Data_Composer.md) — `IMPLEMENTATION COMPLETE; BROAD GATES NOT GREEN`; canonical data views, styled fullscreen workspace, saved output rules, and focused acceptance evidence with unrelated broad-suite limitations.
 - [Execution Responsiveness and Startup](../PLAN_COREX_EXECUTION_RESPONSIVENESS.md) — `IN PROGRESS — PERFORMANCE ACCEPTANCE NOT MET`; [implementation and verification evidence](perf/COREX_EXECUTION_RESPONSIVENESS_QA.md).
 - [Unified Canvas Paste and Drop](../PLAN_COREX_CANVAS_IMPORT.md) — `IMPLEMENTATION COMPLETE; NATIVE DRAG ACCEPTANCE PENDING`; shared mapping, chooser and persistent preference implemented; focused, integration and desktop evidence recorded with remaining limitations.
 

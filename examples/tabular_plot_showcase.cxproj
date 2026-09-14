@@ -338,13 +338,13 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "Quarterly Channels",
+              "mode": "source",
+              "version": 1
+            },
+            "data_view_name": "Bar Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -352,7 +352,6 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "Quarterly Channels",
             "skip_rows": 0,
             "tabular_table_view_state": {}
           },
@@ -463,13 +462,13 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "contour",
+              "mode": "array",
+              "version": 1
+            },
+            "data_view_name": "Contour Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -477,7 +476,6 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "contour",
             "skip_rows": 0,
             "tabular_table_view_state": {}
           },
@@ -589,13 +587,13 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "",
+              "mode": "array",
+              "version": 1
+            },
+            "data_view_name": "Heatmap Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -603,7 +601,6 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "",
             "skip_rows": 0,
             "tabular_table_view_state": {}
           },
@@ -715,13 +712,13 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "",
+              "mode": "source",
+              "version": 1
+            },
+            "data_view_name": "Histogram Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -729,7 +726,6 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "",
             "skip_rows": 0,
             "tabular_table_view_state": {}
           },
@@ -842,13 +838,13 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "",
+              "mode": "source",
+              "version": 1
+            },
+            "data_view_name": "Line Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -856,7 +852,6 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "",
             "skip_rows": 0,
             "tabular_table_view_state": {}
           },
@@ -967,13 +962,13 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "",
+              "mode": "source",
+              "version": 1
+            },
+            "data_view_name": "Point Cloud Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -981,7 +976,6 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "",
             "skip_rows": 0,
             "tabular_table_view_state": {}
           },
@@ -1095,13 +1089,13 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "",
+              "mode": "source",
+              "version": 1
+            },
+            "data_view_name": "Scatter Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -1109,7 +1103,6 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "",
             "skip_rows": 0,
             "tabular_table_view_state": {}
           },
@@ -1248,13 +1241,13 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "streamline_path",
+              "mode": "array",
+              "version": 1
+            },
+            "data_view_name": "Streamlines Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -1262,7 +1255,6 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "streamline_path",
             "skip_rows": 0,
             "tabular_table_view_state": {}
           },
@@ -1377,13 +1369,13 @@
           "principal_input_port_id": null,
           "properties": {
             "allow_npz_archive_preview": true,
-            "array_slice_2d": {
-              "column_limit": 50,
-              "column_offset": 0,
-              "row_limit": 50,
-              "row_offset": 0
-            },
             "cache_policy": "source_direct",
+            "data_view": {
+              "member": "",
+              "mode": "source",
+              "version": 1
+            },
+            "data_view_name": "Surface Plot data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -1391,7 +1383,6 @@
             "project_managed_cache": false,
             "project_managed_source": true,
             "schema_hints": {},
-            "selected_object": "",
             "skip_rows": 0,
             "tabular_table_view_state": {}
           },

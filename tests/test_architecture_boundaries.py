@@ -921,6 +921,9 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                 "trim_video_clip_copy",
                 "create_web_surface_artifact_service",
                 "plot_session_owner",
+                "choose_tabular_source",
+                "stage_tabular_source",
+                "discard_tabular_source",
             ],
         )
         for retired in (

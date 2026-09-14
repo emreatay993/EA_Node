@@ -265,6 +265,22 @@ class ShellHostPresenter(QObject):
             node_type=node_type,
         )
 
+    def stage_tabular_composer_source(self, node_id: str, selected_path: str) -> str:
+        """Apply a new managed source without overwriting the active artifact."""
+        return self._stage_property_source_file(property_label="Path", current_path="", selected_path=selected_path,
+                                                node_type_id=_TABULAR_INPUT_NODE_TYPE_ID, property_key="path", node_id=node_id)
+
+    def discard_tabular_composer_source(self, reference: str) -> None:
+        if not reference.startswith("temp://"):
+            return
+        resolution = self._project_artifact_resolver().resolve(reference)
+        if not resolution.artifact_id:
+            return
+        controller = self._host.project_session_controller
+        store = controller.project_artifact_store()
+        if store.discard_staged_entries([resolution.artifact_id]):
+            controller.replace_project_artifact_store(store)
+
     def save_file_dialog(
         self,
         *,

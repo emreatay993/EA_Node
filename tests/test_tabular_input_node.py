@@ -105,21 +105,16 @@ def test_tabular_data_input_descriptor_publishes_one_ref_only_source_node() -> N
     assert properties_by_key["path"].type == "path"
     assert properties_by_key["path"].inline_editor == ""
     assert properties_by_key["path"].inspector_editor == "path"
-    assert properties_by_key["selected_object"].make_default() == ""
+    assert properties_by_key["data_view"].make_default() == {"version": 1, "mode": "source"}
     assert properties_by_key["cache_policy"].make_default() == TABULAR_DATA_INPUT_CACHE_POLICY_APP_MANAGED_PARQUET
     assert properties_by_key["project_managed_source"].make_default() is False
     assert properties_by_key["project_managed_cache"].make_default() is False
-    assert properties_by_key[TABULAR_SELECTED_COLUMNS_PROPERTY].make_default() == []
-    assert not property_visible_in_inspector(properties_by_key[TABULAR_SELECTED_COLUMNS_PROPERTY])
+    assert "selected_object" not in properties_by_key
+    assert TABULAR_SELECTED_COLUMNS_PROPERTY not in properties_by_key
     assert properties_by_key[TABULAR_TABLE_VIEW_STATE_PROPERTY].make_default() == {}
     assert not property_visible_in_inspector(properties_by_key[TABULAR_TABLE_VIEW_STATE_PROPERTY])
-    assert not property_visible_in_inspector(properties_by_key[TABULAR_ARRAY_SLICE_2D_PROPERTY])
-    assert properties_by_key[TABULAR_ARRAY_SLICE_2D_PROPERTY].make_default() == {
-        "row_offset": 0,
-        "column_offset": 0,
-        "row_limit": 50,
-        "column_limit": 50,
-    }
+    assert TABULAR_ARRAY_SLICE_2D_PROPERTY not in properties_by_key
+    assert not property_visible_in_inspector(properties_by_key["data_view"])
 
 
 def test_tabular_data_input_function_entry_has_isolated_mutable_defaults() -> None:
@@ -128,12 +123,10 @@ def test_tabular_data_input_function_entry_has_isolated_mutable_defaults() -> No
     first_defaults = registry.default_properties(TABULAR_DATA_INPUT_NODE_TYPE_ID)
     second_defaults = registry.default_properties(TABULAR_DATA_INPUT_NODE_TYPE_ID)
     first_defaults["schema_hints"]["temperature"] = "float64"
-    first_defaults["array_slice_2d"]["row_limit"] = 10
-    first_defaults[TABULAR_SELECTED_COLUMNS_PROPERTY].append("temperature")
+    first_defaults["data_view"]["output"] = {"row_limit": 10, "columns": ["temperature"]}
     first_defaults[TABULAR_TABLE_VIEW_STATE_PROPERTY]["column_widths"] = {"table:station": 120}
     assert second_defaults["schema_hints"] == {}
-    assert second_defaults["array_slice_2d"]["row_limit"] == 50
-    assert second_defaults[TABULAR_SELECTED_COLUMNS_PROPERTY] == []
+    assert second_defaults["data_view"] == {"version": 1, "mode": "source"}
     assert second_defaults[TABULAR_TABLE_VIEW_STATE_PROPERTY] == {}
 
 
@@ -145,7 +138,7 @@ def test_tabular_load_options_round_trip_semantic_node_properties() -> None:
             "header_row": None,
             "skip_rows": "2",
             "schema_hints": {"count": "int64"},
-            "selected_object": "Sheet 2",
+            "data_view": {"version": 1, "mode": "source", "member": "Sheet 2"},
             "allow_npz_archive_preview": True,
             TABULAR_TABLE_VIEW_STATE_PROPERTY: {
                 "version": 1,
@@ -193,93 +186,19 @@ def test_normalize_tabular_selected_columns_deduplicates_non_empty_names() -> No
     assert normalize_tabular_selected_columns("time") == ["time"]
 
 
-def test_tabular_property_edit_adapter_rewrites_friendly_selection_fields_to_stored_slice() -> None:
+def test_tabular_input_inspector_is_metadata_only_and_uses_configuration_summary() -> None:
     [adapter] = create_tabular_property_edit_adapters()
-    node = SimpleNamespace(
-        type_id=TABULAR_DATA_INPUT_NODE_TYPE_ID,
-        properties={
-            TABULAR_ARRAY_SLICE_2D_PROPERTY: {
-                "row_offset": 0,
-                "column_offset": 0,
-                "row_limit": 50,
-                "column_limit": 50,
-            },
-        },
-    )
+    node = SimpleNamespace(type_id=TABULAR_DATA_INPUT_NODE_TYPE_ID,
+                           properties={"path": "missing.npz", "data_view": {"version": 1, "mode": "table"},
+                                       "data_view_name": "Temperature",
+                                       "data_view_migration_notice": {"version": 1}})
     context = PropertyEditAdapterContext(node=node)
-
-    rewrite = adapter.rewrite_property_edit(context, key="array_slice_2d_row_start", value="3")
-    assert rewrite is not None
-    assert rewrite.key == TABULAR_ARRAY_SLICE_2D_PROPERTY
-    assert rewrite.value == {"row_offset": 2, "column_offset": 0, "row_limit": 50, "column_limit": 50}
-    node.properties[TABULAR_ARRAY_SLICE_2D_PROPERTY] = rewrite.value
-
-    rewrite = adapter.rewrite_property_edit(context, key="array_slice_2d_column_start", value="AA")
-    assert rewrite is not None
-    assert rewrite.value == {"row_offset": 2, "column_offset": 26, "row_limit": 50, "column_limit": 50}
-    node.properties[TABULAR_ARRAY_SLICE_2D_PROPERTY] = rewrite.value
-
-    rewrite = adapter.rewrite_property_edit(context, key="array_slice_2d_row_count", value="8")
-    assert rewrite is not None
-    assert rewrite.value == {"row_offset": 2, "column_offset": 26, "row_limit": 8, "column_limit": 50}
-    node.properties[TABULAR_ARRAY_SLICE_2D_PROPERTY] = rewrite.value
-
-    rewrite = adapter.rewrite_property_edit(context, key="array_slice_2d_column_count", value="4")
-    assert rewrite is not None
-    assert rewrite.value == {"row_offset": 2, "column_offset": 26, "row_limit": 8, "column_limit": 4}
-    assert tabular_array_column_label_from_offset(27) == "AB"
-    assert tabular_array_slice_2d_summary(rewrite.value) == "Rows 3-10, Columns AA-AD"
-
-
-def test_selected_property_edit_uses_tabular_adapter_for_array_slice_fields() -> None:
-    spec = _spec()
-    node = SimpleNamespace(
-        node_id="node-tabular-input",
-        type_id=TABULAR_DATA_INPUT_NODE_TYPE_ID,
-        properties={
-            TABULAR_ARRAY_SLICE_2D_PROPERTY: {
-                "row_offset": 0,
-                "column_offset": 0,
-                "row_limit": 50,
-                "column_limit": 50,
-            },
-        },
-    )
-    changed: list[tuple[str, str, object]] = []
-
-    class _Controller:
-        def selected_node_context(self):
-            return node, spec
-
-        def active_workspace(self):
-            return SimpleNamespace(nodes={node.node_id: node}, edges={})
-
-    host = SimpleNamespace(
-        project_path="",
-        model=SimpleNamespace(project=SimpleNamespace(metadata={})),
-        app_preferences_controller=SimpleNamespace(document=default_app_preferences_document),
-        scene=SimpleNamespace(
-            set_node_property=lambda node_id, key, value: changed.append(
-                (node_id, key, value)
-            )
-        ),
-    )
-
-    WorkspaceEditController(
-        host,  # type: ignore[arg-type]
-        selection_context=_Controller(),  # type: ignore[arg-type]
-        effects=SimpleNamespace(
-            after_selected_node_property_changed=lambda *_args, **_kwargs: None
-        ),  # type: ignore[arg-type]
-    ).set_selected_node_property("array_slice_2d_column_start", "C")
-
-    assert changed == [
-        (
-            "node-tabular-input",
-            TABULAR_ARRAY_SLICE_2D_PROPERTY,
-            {"row_offset": 0, "column_offset": 2, "row_limit": 50, "column_limit": 50},
-        )
-    ]
+    items = adapter.build_property_items(context, [])
+    assert [item["key"] for item in items] == ["data_view_summary", "data_view_notice"]
+    assert items[0]["value"] == "Temperature (table)"
+    assert all(item["editor_mode"] == "summary" for item in items)
+    assert adapter.rewrite_property_edit(context, key="array_slice_2d_row_start", value=3) is None
+    assert adapter.rewrite_property_edit(context, key="data_view", value={"version": 1}) is None
 
 
 def test_tabular_data_input_executes_csv_as_table_data_only(tmp_path: Path) -> None:
@@ -303,7 +222,7 @@ def test_tabular_data_input_executes_csv_as_table_data_only(tmp_path: Path) -> N
     assert ref.metadata["format_id"] == "csv"
     assert ref.metadata["load_options"]["selected_object"] == "table"
     assert ref.metadata["node_options"]["cache_policy"] == TABULAR_DATA_INPUT_CACHE_POLICY_APP_MANAGED_PARQUET
-    assert ref.metadata["node_options"]["selected_columns"] == []
+    assert "selected_columns" not in ref.metadata["node_options"]
     assert "cache_path" not in ref.metadata["node_options"]
     assert ref.metadata["column_schema"] == [{"name": "station", "dtype": ""}, {"name": "temp", "dtype": ""}]
 
@@ -315,10 +234,10 @@ def test_column_schema_omitted_when_final_input_metadata_would_exceed_budget(tmp
     source.write_text(name + "\n1\n", encoding="utf-8")
     service = TabularLoaderCacheService(cache_dir=tmp_path / "cache")
     assert "column_schema" in service.open_source(source).metadata
-    result = execute_tabular_input(_context(properties={"path": str(source), TABULAR_SELECTED_COLUMNS_PROPERTY: [name]}))
+    result = execute_tabular_input(_context(properties={"path": str(source), "data_view": {"version": 1, "mode": "source", "output": {"columns": [name]}}}))
     metadata = result.outputs["table_data"].metadata
     assert "column_schema" not in metadata
-    assert metadata["node_options"]["selected_columns"] == [name]
+    assert metadata["load_options"]["data_view"]["output"]["columns"] == [name]
     source = tmp_path / "wider.csv"
     source.write_text("n" * 66_000 + "\n1\n", encoding="utf-8")
     metadata = service.open_source(source).metadata
@@ -326,7 +245,7 @@ def test_column_schema_omitted_when_final_input_metadata_would_exceed_budget(tmp
     assert metadata["format_id"] == "csv"
 
 
-def test_tabular_data_input_embeds_selected_columns_in_ref_metadata(tmp_path: Path) -> None:
+def test_tabular_data_input_applies_output_columns_in_its_canonical_view(tmp_path: Path) -> None:
     source = tmp_path / "weather.csv"
     source.write_text("station,temp,pressure\nA,21.5,100.0\nB,22.0,101.0\n", encoding="utf-8")
 
@@ -334,14 +253,15 @@ def test_tabular_data_input_embeds_selected_columns_in_ref_metadata(tmp_path: Pa
         _context(
             properties={
                 "path": str(source),
-                TABULAR_SELECTED_COLUMNS_PROPERTY: ["station", "temp", "station"],
+                "data_view": {"version": 1, "mode": "source", "output": {"columns": ["station", "temp"]}},
             }
         )
     )
 
     ref = result.outputs["table_data"]
     assert isinstance(ref, TabularDataRef)
-    assert ref.metadata["node_options"]["selected_columns"] == ["station", "temp"]
+    assert ref.metadata["load_options"]["data_view"]["output"]["columns"] == ["station", "temp"]
+    assert ref.column_count == 2
 
 
 def test_tabular_data_input_executes_npy_as_array_data_only(tmp_path: Path) -> None:
@@ -372,7 +292,7 @@ def test_tabular_data_input_requires_persisted_selection_for_multi_object_npz(tm
     assert exc_info.value.structured_error["code"] == TABULAR_DATA_INPUT_ERROR_SELECTOR_REQUIRED
     assert [choice["object_id"] for choice in exc_info.value.structured_error["choices"]] == ["first", "second"]
 
-    result = execute(_context(properties={"path": str(source), "selected_object": "second"}))
+    result = execute(_context(properties={"path": str(source), "data_view": {"version": 1, "mode": "source", "member": "second"}}))
     ref = result.outputs["array_data"]
     assert isinstance(ref, ArrayDataRef)
     assert ref.object_id == "second"
@@ -529,7 +449,8 @@ def test_tabular_data_input_properties_round_trip_as_semantic_project_data() -> 
     loaded = serializer.from_document(document)
     loaded_node = next(iter(loaded.workspaces[workspace.workspace_id].nodes.values()))
 
-    assert loaded_node.properties == properties
+    from ea_node_editor.common.node_property_migrations import migrate_tabular_properties
+    assert loaded_node.properties == migrate_tabular_properties(TABULAR_DATA_INPUT_NODE_TYPE_ID, properties)
     assert "cache_path" not in str(document)
     assert "parquet_cache" not in str(document)
 

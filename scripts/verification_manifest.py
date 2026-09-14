@@ -728,6 +728,7 @@ VERIFICATION_TEST_PATH_SPECS = (
     ),
     VerificationTestPathSpec(SHELL_ISOLATION_PHASE_TEST, (SHELL_ISOLATION_PHASE_KEY,)),
     VerificationTestPathSpec("tests/test_content_fullscreen_bridge.py", (GUI_SUITE_KEY,)),
+    VerificationTestPathSpec("tests/test_tabular_composer_qml.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_engineering_viewer_widget_binder.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_flow_edge_labels.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_flowchart_surfaces.py", (GUI_SUITE_KEY,)),

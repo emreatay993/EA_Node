@@ -370,7 +370,7 @@ def test_tabular_selector_lists_real_excel_sheets_and_honors_selected_sheet(tmp_
     )
 
     missing_selection = provider.describe_selector({"path": str(source)})
-    selected = provider.describe_selector({"path": str(source), "selected_object": "Second"})
+    selected = provider.describe_selector({"path": str(source), "data_view": {"version": 1, "mode": "source", "member": "Second"}})
 
     assert missing_selection["state"] == "selection_required"
     assert [item["object_id"] for item in missing_selection["selector"]["objects"]] == ["First", "Second"]

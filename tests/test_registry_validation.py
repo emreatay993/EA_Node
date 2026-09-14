@@ -1340,9 +1340,9 @@ class RegistryValidationTests(unittest.TestCase):
                 "header_row",
                 "skip_rows",
                 "schema_hints",
-                "selected_object",
-                "array_slice_2d",
-                "tabular_selected_columns",
+                "data_view",
+                "data_view_name",
+                "data_view_migration_notice",
                 "cache_policy",
                 "project_managed_source",
                 "project_managed_cache",
@@ -1351,20 +1351,12 @@ class RegistryValidationTests(unittest.TestCase):
             },
         )
         defaults = registry.default_properties(TABULAR_DATA_INPUT_NODE_TYPE_ID)
-        self.assertEqual(defaults["selected_object"], "")
+        self.assertEqual(defaults["data_view"], {"version": 1, "mode": "source"})
         self.assertEqual(defaults["cache_policy"], "app_managed_parquet")
         self.assertEqual(defaults["schema_hints"], {})
-        self.assertEqual(defaults["tabular_selected_columns"], [])
+        self.assertEqual(defaults["data_view_migration_notice"], {})
         self.assertEqual(defaults["tabular_table_view_state"], {})
-        self.assertEqual(
-            defaults["array_slice_2d"],
-            {
-                "row_offset": 0,
-                "column_offset": 0,
-                "row_limit": 50,
-                "column_limit": 50,
-            },
-        )
+        self.assertNotIn("array_slice_2d", defaults)
 
     def test_title_icon_contract_keeps_icon_authoring_field_and_descriptor_provenance(
         self,

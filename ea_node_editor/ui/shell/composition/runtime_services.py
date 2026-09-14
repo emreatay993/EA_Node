@@ -187,6 +187,8 @@ def create_viewer_service_dependencies(
         toolbar_style_setter=lambda value: preferences.app_preferences_controller.update_graphics_settings(
             {"plot": {"xy_toolbar_style": value}}),
     )
+    from ea_node_editor.nodes.file_dialog_filters import TABULAR_DATA_FILES_FILTER
+
     content_fullscreen_bridge = ContentFullscreenBridge(
         host,
         model_provider=model_provider,
@@ -205,6 +207,10 @@ def create_viewer_service_dependencies(
         trim_video_clip_copy=media_panel_action_service.request_trim_video_clip_copy,
         create_web_surface_artifact_service=create_web_surface_artifact_service,
         plot_session_owner=xy_plot_owner,
+        choose_tabular_source=lambda current: presenters.shell_host_presenter.browse_property_path_dialog(
+            "Tabular data", current, source_mode="external_link", file_filter=TABULAR_DATA_FILES_FILTER),
+        stage_tabular_source=presenters.shell_host_presenter.stage_tabular_composer_source,
+        discard_tabular_source=presenters.shell_host_presenter.discard_tabular_composer_source,
     )
     viewer_host_service = ViewerHostService(
         host,

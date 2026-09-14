@@ -2903,10 +2903,20 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
-    def test_selection_required_tabular_surface_shows_picker_and_commits_selected_object(self) -> None:
+    def test_selection_required_tabular_surface_opens_composer_without_committing(self) -> None:
         self._run_qml_probe(
-            "tabular-selection-required-picker",
+            "tabular-selection-required-composer",
             """
+            class ConfigureBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.opens = []
+                @pyqtSlot(str, result=bool)
+                def request_open_node(self, node_id):
+                    self.opens.append(node_id)
+                    return True
+            bridge = ConfigureBridgeStub()
+            engine.rootContext().setContextProperty("contentFullscreenBridge", bridge)
             payload = node_payload()
             payload["node_id"] = "node_tabular_selector"
             payload["type_id"] = "tabular.input"
@@ -2979,39 +2989,19 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             try:
                 loader = host.findChild(QObject, "graphNodeSurfaceLoader")
                 grid = host.findChild(QObject, "graphNodeTabularPreviewGrid")
-                combo = host.findChild(QObject, "graphNodeTabularSelectorCombo")
-                assert loader is not None
-                assert grid is not None
-                assert combo is not None
+                button = host.findChild(QObject, "graphNodeTabularConfigure")
+                assert loader is not None and grid is not None and button is not None
                 settle_events(8)
-
-                assert not bool(grid.property("visible"))
-                assert bool(combo.property("visible"))
-                assert variant_list(combo.property("model")) == ["First", "Second Sheet"]
-                assert 24.0 <= float(combo.property("popupRowHeight")) <= 30.0
-                assert abs(float(combo.property("popupWidth")) - float(combo.width())) < 0.75
+                assert not grid.property("visible")
+                assert button.property("visible") and button.property("enabled")
+                assert host.findChild(QObject, "graphNodeTabularSelectorCombo") is None
                 rects = variant_list(loader.property("embeddedInteractiveRects"))
                 assert len(rects) == 1, rects
                 assert abs(rect_field(rects[0], "height") - 28.0) < 0.75
-                actions = variant_list(loader.property("surfaceActions"))
-                export_actions = [action for action in actions if action["id"] == "exportVisibleRows"]
-                assert len(export_actions) == 1, actions
-                assert not bool(export_actions[0]["enabled"])
-
-                QTest.mouseClick(
-                    window,
-                    Qt.MouseButton.LeftButton,
-                    Qt.KeyboardModifier.NoModifier,
-                    item_scene_point(combo, 0.2, 0.5),
-                )
-                settle_events(2)
-                combo.setProperty("editText", "Second Sheet")
-                settle_events(2)
-                QTest.keyClick(window, Qt.Key.Key_Return)
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, item_scene_point(button, 0.5, 0.5))
                 settle_events(4)
-
-                assert canvas_item.last_committed_node_id == "node_tabular_selector"
-                assert canvas_item.last_committed_properties == {"selected_object": "Second Sheet"}
+                assert bridge.opens == ["node_tabular_selector"]
+                assert not any(key in (canvas_item.last_committed_properties or {}) for key in ("path", "data_view", "selected_object"))
             finally:
                 dispose_host_window(host, window)
                 canvas_item.deleteLater()
