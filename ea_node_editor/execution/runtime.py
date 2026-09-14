@@ -25,6 +25,12 @@ from ea_node_editor.execution.prepared_execution import (
     PreparedAction,
     PreparedExecution,
     SolutionStateChangedEvent,
+    normalize_retained_source_bindings,
+)
+from ea_node_editor.execution.retained_resources import (
+    RetainedSourceValidation,
+    validate_retained_source_bindings,
+    validate_source_provenance_bindings,
 )
 from ea_node_editor.execution.project_loader import LoadedProject, load_project
 from ea_node_editor.execution.project_solution import (
@@ -71,13 +77,9 @@ from ea_node_editor.execution.solution_store import (
 from ea_node_editor.execution.worker_runtime import RuntimeArtifactService
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
-    ArrayDataRef,
-    ArraySlice2DRef,
     DataTree,
     RuntimeArtifactRef,
     RuntimeHandleRef,
-    TabularDataRef,
-    TabularWindowRef,
 )
 from ea_node_editor.runtime_contracts.settled_results import (
     SettledPortResult,
@@ -1354,9 +1356,12 @@ class CorexRuntime:
     def _validated_event_resources(
         self,
         event: Mapping[str, Any],
+        *,
+        registry: NodeRegistry,
+        artifact_service: RuntimeArtifactService | None,
     ) -> tuple[dict[str, Any], bool, tuple[Any, ...]]:
         payload = dict(event)
-        if str(payload.get("type", "")) != "node_settled" or self._registry is None:
+        if str(payload.get("type", "")) != "node_settled":
             return payload, True, ()
         raw_outputs = payload.get("outputs", {})
         try:
@@ -1367,14 +1372,13 @@ class CorexRuntime:
             else:
                 outputs = settled_output_mapping_from_payload(
                     raw_outputs,
-                    catalog=self._registry.data_types,
+                    catalog=registry.data_types,
                 )
         except (TypeError, ValueError):
             return payload, False, ()
         run_id = str(payload.get("run_id", "")).strip()
         node_id = str(payload.get("node_id", "")).strip()
         owner_scope = f"solution:{run_id}:{node_id}:{uuid.uuid4().hex}"
-        artifact_service = self._run_artifact_services.get(run_id)
         lease_resource = getattr(self._client, "lease_solution_resource", None)
         leases: list[Any] = []
         reused_event = str(payload.get("disposition", "")).strip() == "reused"
@@ -1385,16 +1389,7 @@ class CorexRuntime:
                     raise ValueError("artifact resolver is unavailable")
                 artifact_service.resolve_path(value)
                 return value
-            if isinstance(
-                value,
-                (
-                    RuntimeHandleRef,
-                    ArrayDataRef,
-                    ArraySlice2DRef,
-                    TabularDataRef,
-                    TabularWindowRef,
-                ),
-            ):
+            if isinstance(value, RuntimeHandleRef):
                 if not callable(lease_resource):
                     raise ValueError("session resource resolver is unavailable")
                 leased = lease_resource(
@@ -1424,6 +1419,9 @@ class CorexRuntime:
             return value
 
         try:
+            bindings = normalize_retained_source_bindings(payload.get("retained_source_bindings", ()))
+            source_provenance = normalize_retained_source_bindings(payload.get("source_provenance_bindings", ()))
+            validation = RetainedSourceValidation()
             normalized_outputs = {
                 port_key: replace(
                     result,
@@ -1435,6 +1433,14 @@ class CorexRuntime:
                 )
                 for port_key, result in outputs.items()
             }
+            validate_retained_source_bindings(
+                {key: result.value for key, result in normalized_outputs.items() if result.status == "value"},
+                bindings,
+                validation=validation,
+            )
+            validate_source_provenance_bindings(source_provenance, validation=validation)
+            if payload.get("source_provenance_complete", True) is not True:
+                raise ValueError("source provenance is incomplete")
         except (FileNotFoundError, KeyError, OSError, TypeError, ValueError):
             self._release_resource_leases(leases)
             return payload, False, ()
@@ -1478,28 +1484,44 @@ class CorexRuntime:
                 )
                 self._run_artifact_services.clear()
             self._generation_snapshots[backend_id] = generation_snapshot
-            if self._registry is None:
+            registry = self._registry
+            project_binding_revision = self._project_solution_binding_revision
+            if registry is None:
                 return
-            validated_event, resources_reusable, resource_leases = (
-                self._validated_event_resources(event)
-            )
+            run_id = str(event.get("run_id", "")).strip()
             run_artifact_service = self._run_artifact_services.get(
-                str(event.get("run_id", "")).strip()
+                run_id
             )
-            diagnostics, released_leases, acceptance = (
-                self._solution_store.handle_event(
-                    validated_event,
-                    generation_snapshot,
-                    catalog=self._registry.data_types,
-                    resources_reusable=resources_reusable,
-                    resource_leases=resource_leases,
-                    artifact_context=(
-                        run_artifact_service.store
-                        if run_artifact_service is not None
-                        else None
-                    ),
+        # Fingerprinting and resolver I/O must not block Stop or graph invalidation.
+        validated_event, resources_reusable, resource_leases = (
+            self._validated_event_resources(
+                event, registry=registry, artifact_service=run_artifact_service
+            )
+        )
+        with self._lifecycle_lock:
+            if (
+                self._registry is not registry
+                or self._project_solution_binding_revision != project_binding_revision
+                or self._generation_snapshots.get(backend_id) != generation_snapshot
+                or self._run_artifact_services.get(run_id) is not run_artifact_service
+            ):
+                acceptance = None
+                released_leases = resource_leases
+            else:
+                diagnostics, released_leases, acceptance = (
+                    self._solution_store.handle_event(
+                        validated_event,
+                        generation_snapshot,
+                        catalog=registry.data_types,
+                        resources_reusable=resources_reusable,
+                        resource_leases=resource_leases,
+                        artifact_context=(
+                            run_artifact_service.store
+                            if run_artifact_service is not None
+                            else None
+                        ),
+                    )
                 )
-            )
             enriched_event = dict(validated_event)
             if str(enriched_event.get("type", "")) == "node_settled":
                 enriched_event["accepted_solution_record"] = acceptance is not None
@@ -1513,12 +1535,12 @@ class CorexRuntime:
                     enriched_event["solution_key"] = acceptance.solution_key
                     enriched_event["disposition"] = acceptance.disposition.value
                     enriched_event["solution_fact_revision"] = acceptance.fact_revision
-            self._release_resource_leases(released_leases)
-            if str(event.get("type", "")) in TERMINAL_EVENT_TYPES:
-                self._run_artifact_services.pop(
-                    str(event.get("run_id", "")).strip(),
-                    None,
-                )
+            if (
+                str(event.get("type", "")) in TERMINAL_EVENT_TYPES
+                and self._run_artifact_services.get(run_id) is run_artifact_service
+            ):
+                self._run_artifact_services.pop(run_id, None)
+        self._release_resource_leases(released_leases)
         self._publish_solution_state_results(solution_events)
         if str(event.get("type", "")) != "execution_generation_changed":
             self._event_stream.publish(enriched_event)

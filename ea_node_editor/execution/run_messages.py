@@ -19,6 +19,7 @@ from ea_node_editor.execution.registry_agreement import (
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
 from ea_node_editor.nodes.function_plugin import PluginBundleRef
 from ea_node_editor.runtime_contracts import settled_results as _settled
+from ea_node_editor.runtime_contracts.retained_resources import RetainedSourceBinding
 
 EngineState = Literal["ready", "running", "paused", "error"]
 RunTransition = Literal["start", "pause", "resume", "stop", "complete", "fail"]
@@ -201,6 +202,9 @@ class NodeSettledEvent:
     status: NodeSettlementStatus | str = "completed"
     elapsed_ms: float = 0.0
     outputs: dict[str, _settled.SettledPortResult] = field(default_factory=dict)
+    retained_source_bindings: tuple[RetainedSourceBinding, ...] = ()
+    source_provenance_bindings: tuple[RetainedSourceBinding, ...] = ()
+    source_provenance_complete: bool = True
     errors: tuple[_settled.RootExecutionError, ...] = field(default_factory=tuple)
     warnings: tuple[str, ...] = field(default_factory=tuple)
     disposition: str = ""

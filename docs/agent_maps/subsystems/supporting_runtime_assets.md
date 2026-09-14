@@ -4,6 +4,8 @@
 Use this for support layers that are not owned by graph, persistence, or UI: telemetry, help, benchmarks, runtime contracts, mockups, and custom workflows.
 
 ## Start Here
+- `ea_node_editor/runtime_contracts/retained_resources.py`
+- `tests/test_retained_resources.py`
 - `ea_node_editor/runtime_contracts/data_types.py`
 - `ea_node_editor/runtime_contracts/scientific_values.py`
 - `ea_node_editor/runtime_contracts/scientific_codec.py`
@@ -19,6 +21,8 @@ Use this for support layers that are not owned by graph, persistence, or UI: tel
 - `scripts/`
 
 ## Runtime Contracts
+
+- `runtime_contracts/retained_resources.py` owns immutable RetainedSourceBinding metadata and strict canonical serialization. Resolver/source/object/options/content/hash-policy identity is separate from authored refs. Execution owns collection, source validation and accepted-output commitments; the tabular loader owns actual-read enforcement. No general resolver registry or additional durable carrier permission is introduced.
 
 - Solution records retain node-scoped interface provenance; whole-workflow fingerprints remain in execution preparation. Immutable result records and per-port digests stay independent of UI and persistence implementations.
 

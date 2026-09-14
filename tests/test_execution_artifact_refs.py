@@ -1416,6 +1416,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
             spec = SimpleNamespace(
                 is_async=False,
                 ports=(port,),
+                solution_provenance_inputs=(),
             )
             plan = SimpleNamespace(
                 nodes={node_id: node},
@@ -1455,6 +1456,10 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
             executor.node_outputs = {}
             executor.executed = set()
             executor._developer_mode = False
+            executor.source_provenance_by_node = {}
+            executor._retained_source_bindings = {}
+            executor._executing_source_provenance = {}
+            executor._source_dependencies = {}
             executor._prepare_untyped_tree = (
                 lambda _node_id, _port, tree: tree
             )

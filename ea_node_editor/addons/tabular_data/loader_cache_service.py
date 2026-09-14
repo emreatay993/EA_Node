@@ -1,6 +1,6 @@
 # Purpose: Coordinate Tabular refs, shared records, query-table reuse, conversion locks, and cache eviction.
 # Map: feature_routes/tabular_data_addon_preview
-# Tests: tests/test_tabular_cache_service.py
+# Tests: tests/test_tabular_cache_service.py, tests/test_retained_resources.py
 # Landmarks: TabularLoaderCacheService, ParquetCacheKey, ParquetCacheEntry
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ import os
 import queue
 import sys
 import threading
-from urllib.parse import urlparse
-from urllib.request import url2pathname
+from contextvars import copy_context
+from functools import partial
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -25,6 +25,15 @@ from ea_node_editor.addons.tabular_data.preview_query import (
     evaluate_arrow_query,
     evaluate_python_query,
 )
+from ea_node_editor.addons.tabular_data.retained_sources import (
+    TABULAR_CACHE_RESOLVER_ID,
+    guarded_retained_read,
+    load_options_from_ref as _load_options_from_ref,
+    retained_read_is_active,
+    source_path_from_ref as _source_path_from_ref,
+)
+from ea_node_editor.execution.retained_resources import RetainedSourceValidation, retained_binding_for_ref
+from ea_node_editor.runtime_contracts.retained_resources import RetainedResourceError
 from ea_node_editor.addons.tabular_data.source_backends import (
     ARRAY_FORMAT_IDS,
     EXCEL_FORMAT_IDS,
@@ -108,7 +117,6 @@ def _running_in_pyinstaller_build_analysis() -> bool:
 
 _preload_native_tabular_runtime()
 
-TABULAR_CACHE_RESOLVER_ID = "tabular.cache"
 # Sort/filter/search previews must scan the source to be correct, but a preview
 # must stay responsive. Cap the rows scanned per query and report truncation so
 # the surface can tell the user results are limited to the first N source rows.
@@ -163,6 +171,8 @@ class TabularLoaderCacheService(SourceBackendMethods):
         self.cache_dir = Path(cache_dir) if cache_dir is not None else tabular_data_cache_dir()
         self._table_records: dict[str, _TableRecord] = {}
         self._array_records: dict[str, _ArrayRecord] = {}
+        self._retained_table_records: dict[str, _TableRecord] = {}
+        self._retained_array_records: dict[str, _ArrayRecord] = {}
         self._records_lock = threading.RLock()
         self._scan_cache: dict[str, SourceScanResult] = {}
         self._query_table_cache: dict[str, Any] | None = None
@@ -284,6 +294,10 @@ class TabularLoaderCacheService(SourceBackendMethods):
         return self.ensure_array_ref(ref)
 
     def ensure_table_ref(self, ref: TabularDataRef) -> TabularDataRef:
+        if ref.resolver_id != self.resolver_id:
+            raise RetainedResourceError("retained_resolver_unknown", "The tabular source resolver is unsupported")
+        if self._ensure_retained_ref(ref):
+            return ref
         with self._records_lock:
             record = self._table_records.get(ref.ref_id)
             if record is not None and self._record_source_is_current(record):
@@ -297,6 +311,10 @@ class TabularLoaderCacheService(SourceBackendMethods):
         return ref
 
     def ensure_array_ref(self, ref: ArrayDataRef) -> ArrayDataRef:
+        if ref.resolver_id != self.resolver_id:
+            raise RetainedResourceError("retained_resolver_unknown", "The array source resolver is unsupported")
+        if self._ensure_retained_ref(ref):
+            return ref
         with self._records_lock:
             record = self._array_records.get(ref.ref_id)
             if record is not None and self._record_source_is_current(record):
@@ -309,6 +327,41 @@ class TabularLoaderCacheService(SourceBackendMethods):
                 self._array_records[ref.ref_id] = self._array_records[reopened.ref_id]
         return ref
 
+    def _ensure_retained_ref(self, ref: TabularDataRef | ArrayDataRef) -> bool:
+        binding = retained_binding_for_ref(ref)
+        if binding is None:
+            return False
+        digest = binding.digest
+        if not retained_read_is_active(digest):
+            RetainedSourceValidation().validate(ref, binding)
+        records = self._retained_table_records if isinstance(ref, TabularDataRef) else self._retained_array_records
+        with self._records_lock:
+            record = records.get(digest)
+            if record is not None and self._record_source_is_current(record):
+                return True
+        path = _source_path_from_ref(ref)
+        options = _load_options_from_ref(ref)
+        # Old stat-keyed scan/cache entries do not prove accepted content identity.
+        scan = self._scan_uncached(path, detect_format_id(path), options, self._source_stats(path))
+        selected = self._resolve_selected_object(scan, options)
+        if scan.format_id in TEXT_FORMAT_IDS:
+            selected = replace(selected, row_count=self._cached_parquet_row_count(
+                path, options, content_sha256=binding.sha256,
+            ))
+        kind = "table" if isinstance(ref, TabularDataRef) else "array"
+        if selected.kind != kind:
+            raise RetainedResourceError("retained_source_changed", "The retained source object kind changed")
+        builder = self._build_table_record if kind == "table" else self._build_array_record
+        record = replace(builder(scan, selected, options), content_sha256=binding.sha256)
+        if record.backend_id != binding.backend_id or record.object_id != binding.object_id:
+            raise RetainedResourceError("retained_source_changed", "The retained source backend or object changed")
+        if not retained_read_is_active(digest):
+            RetainedSourceValidation().validate(ref, binding)
+        with self._records_lock:
+            records[digest] = record
+        return True
+
+    @guarded_retained_read
     def schema(self, ref: TabularDataRef) -> TabularSchema:
         self.ensure_table_ref(ref)
         record = self._table_record(ref)
@@ -317,13 +370,11 @@ class TabularLoaderCacheService(SourceBackendMethods):
             and (record.format_id in TEXT_FORMAT_IDS or record.format_id in EXCEL_FORMAT_IDS)
             and record.options.uses_managed_cache
         ):
-            cached_count = self._cached_parquet_row_count(record.source_path, record.options)
+            cached_count = self._cached_parquet_row_count(record.source_path, record.options, content_sha256=record.content_sha256)
             if cached_count is not None:
                 updated = replace(record, row_count=cached_count)
                 with self._records_lock:
-                    for ref_id, existing in list(self._table_records.items()):
-                        if existing is record:
-                            self._table_records[ref_id] = updated
+                    self._replace_table_record(record, updated)
                 record = updated
         return TabularSchema(
             columns=record.columns,
@@ -336,6 +387,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
             ),
         )
 
+    @guarded_retained_read
     def column_schema(self, ref: TabularDataRef) -> TabularSchema:
         """Prepare typed execution metadata, including managed-cache inference.
 
@@ -352,6 +404,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
             self._ensure_record_parquet_cache(ref, record)
         return self.schema(ref)
 
+    @guarded_retained_read
     def column_arrays(
         self,
         ref: TabularDataRef,
@@ -401,6 +454,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
             for name, parts in chunks.items()
         }
 
+    @guarded_retained_read
     def metadata(self, ref: TabularDataRef | ArrayDataRef) -> Mapping[str, Any]:
         if isinstance(ref, TabularDataRef):
             self.ensure_table_ref(ref)
@@ -426,6 +480,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
         payload["dtype"] = record.dtype
         return payload
 
+    @guarded_retained_read
     def window(self, ref: TabularDataRef, request: TabularWindowRequest) -> TabularDataWindow:
         self.ensure_table_ref(ref)
         record = self._table_record(ref)
@@ -443,6 +498,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
             return self._read_hdf5_table_window(record, request)
         raise UnsupportedTabularFormatError(record.source_path)
 
+    @guarded_retained_read
     def preview_window(self, ref: TabularDataRef, request: Mapping[str, Any]) -> TabularDataWindow:
         self.ensure_table_ref(ref)
         record = self._table_record(ref)
@@ -496,7 +552,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
         result = evaluate_arrow_query(
             query,
             parquet_path,
-            query_table_for=self._query_table_for,
+            query_table_for=partial(self._query_table_for, content_sha256=record.content_sha256),
             run_io=self._run_io,
         )
         if result is None:
@@ -523,12 +579,14 @@ class TabularLoaderCacheService(SourceBackendMethods):
         pq: Any,
         parquet_path: Path,
         needed: Sequence[str],
+        *,
+        content_sha256: str = "",
     ) -> tuple[Any, dict[str, Any]] | None:
         try:
             stat = parquet_path.stat()
         except OSError:
             return None
-        stamp = (str(parquet_path), int(stat.st_mtime_ns), int(stat.st_size))
+        stamp = (str(parquet_path), int(stat.st_mtime_ns), int(stat.st_size), content_sha256)
         with self._records_lock:
             entry = self._query_table_cache
             if (
@@ -577,12 +635,14 @@ class TabularLoaderCacheService(SourceBackendMethods):
     def rows(self, ref: TabularDataRef, request: TabularWindowRequest) -> Sequence[Mapping[str, Any]]:
         return self.window(ref, request).rows
 
+    @guarded_retained_read
     def window_columns(self, ref: TabularDataRef, request: TabularWindowRequest) -> tuple[str, ...]:
         self.ensure_table_ref(ref)
         record = self._table_record(ref)
         columns = tuple(column.name for column in record.columns)
         return _select_columns(columns, request)
 
+    @guarded_retained_read(batch_items=4096)
     def iter_window_rows(
         self,
         ref: TabularDataRef,
@@ -615,6 +675,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
             if request.row_limit > 0 and emitted >= request.row_limit:
                 return
 
+    @guarded_retained_read
     def arrow_batches(self, ref: TabularDataRef, options: TabularArrowBatchOptions) -> Iterable[Any]:
         self.ensure_table_ref(ref)
         record = self._table_record(ref)
@@ -674,7 +735,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
             finally:
                 put(sentinel)
 
-        future = _tabular_io_executor().submit(produce)
+        future = _tabular_io_executor().submit(copy_context().run, produce)
         try:
             while True:
                 item = batches.get()
@@ -687,6 +748,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
         finally:
             stop.set()
 
+    @guarded_retained_read
     def to_pandas(self, ref: TabularDataRef, options: TabularMaterializationOptions) -> Any:
         self.ensure_table_ref(ref)
         record = self._table_record(ref)
@@ -695,6 +757,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
         rows = self.window(ref, _window_request_from_materialization(record, options)).rows
         return pandas.DataFrame(list(rows))
 
+    @guarded_retained_read
     def to_polars(self, ref: TabularDataRef, options: TabularMaterializationOptions) -> Any:
         self.ensure_table_ref(ref)
         record = self._table_record(ref)
@@ -703,6 +766,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
         rows = self.window(ref, _window_request_from_materialization(record, options)).rows
         return polars.DataFrame(list(rows))
 
+    @guarded_retained_read
     def to_numpy(self, ref: TabularDataRef | ArrayDataRef, options: TabularMaterializationOptions | ArrayMaterializationOptions) -> Any:
         numpy = _import_optional("numpy", format_id="numpy", purpose="NumPy materialization")
         if isinstance(ref, TabularDataRef):
@@ -718,8 +782,11 @@ class TabularLoaderCacheService(SourceBackendMethods):
         self.ensure_array_ref(ref)
         record = self._array_record(ref)
         self._enforce_array_materialization_gate(record, options)
-        return self._read_array_materialized(record, options)
+        result = self._read_array_materialized(record, options)
+        # Retained materializations must not leave a live source-backed mmap view.
+        return numpy.array(result, copy=True) if record.content_sha256 else result
 
+    @guarded_retained_read
     def slice_2d(self, ref: ArrayDataRef, request: ArraySlice2DRequest) -> ArraySlice2D:
         self.ensure_array_ref(ref)
         record = self._array_record(ref)
@@ -739,6 +806,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
         options: TabularLoadOptions | Mapping[str, Any] | None = None,
         *,
         selected_object: str = "",
+        content_sha256: str = "",
     ) -> ParquetCacheKey:
         normalized_options = _coerce_options(options)
         path = self._resolve_path(source_path)
@@ -752,6 +820,8 @@ class TabularLoaderCacheService(SourceBackendMethods):
             "selected_object": selected,
             "backend_policy_revision": self.policy.revision,
         }
+        if content_sha256:
+            payload["source_sha256"] = content_sha256
         raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         return ParquetCacheKey(hashlib.sha256(raw).hexdigest(), payload)
 
@@ -768,12 +838,14 @@ class TabularLoaderCacheService(SourceBackendMethods):
         options: TabularLoadOptions | Mapping[str, Any] | None = None,
         *,
         selected_object: str = "",
+        content_sha256: str = "",
     ) -> ParquetCacheEntry:
         normalized_options = _coerce_options(options)
         cache_key = self.parquet_cache_key(
             source_path,
             normalized_options,
             selected_object=selected_object,
+            content_sha256=content_sha256,
         )
         cache_path, metadata_path = self.parquet_cache_paths(cache_key.key)
         if cache_path.is_file() and metadata_path.is_file():
@@ -794,6 +866,11 @@ class TabularLoaderCacheService(SourceBackendMethods):
                     normalized_options.with_selected_object(selected_object or normalized_options.selected_object),
                     temp_path,
                 )
+                if content_sha256:
+                    from ea_node_editor.execution.solution_identity import hash_file_provenance
+
+                    if hash_file_provenance(self._resolve_path(source_path)).sha256 != content_sha256:
+                        raise RetainedResourceError("retained_source_changed", "The retained source changed during cache conversion")
                 os.replace(temp_path, cache_path)
             finally:
                 if temp_path.exists():
@@ -818,7 +895,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
         """Run heavy native I/O off the main thread (see _tabular_io_executor)."""
 
         if threading.current_thread() is threading.main_thread():
-            return _tabular_io_executor().submit(fn, *args, **kwargs).result()
+            return _tabular_io_executor().submit(copy_context().run, fn, *args, **kwargs).result()
         return fn(*args, **kwargs)
 
     def _record_source_is_current(self, record: _TableRecord | _ArrayRecord) -> bool:
@@ -851,6 +928,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
             record.source_path,
             record.options,
             selected_object=record.object_id,
+            content_sha256=record.content_sha256,
         )
         cache_path, metadata_path = self.parquet_cache_paths(cache_key.key)
         if not (cache_path.is_file() and metadata_path.is_file()) and not self._conversion_allowed(record):
@@ -859,6 +937,7 @@ class TabularLoaderCacheService(SourceBackendMethods):
             record.source_path,
             record.options,
             selected_object=record.object_id,
+            content_sha256=record.content_sha256,
         )
         self._backfill_record_from_cache(ref, record, entry)
         return entry
@@ -904,19 +983,25 @@ class TabularLoaderCacheService(SourceBackendMethods):
         )
         updated = replace(record, row_count=row_count, columns=columns)
         with self._records_lock:
-            for ref_id, existing in list(self._table_records.items()):
+            self._replace_table_record(record, updated)
+
+    def _replace_table_record(self, record: _TableRecord, updated: _TableRecord) -> None:
+        for records in (self._table_records, self._retained_table_records):
+            for key, existing in list(records.items()):
                 if existing is record:
-                    self._table_records[ref_id] = updated
+                    records[key] = updated
 
     def _cached_parquet_row_count(
         self,
         path: Path,
         options: TabularLoadOptions,
+        *,
+        content_sha256: str = "",
     ) -> int | None:
         if not options.uses_managed_cache:
             return None
         try:
-            cache_key = self.parquet_cache_key(path, options)
+            cache_key = self.parquet_cache_key(path, options, content_sha256=content_sha256)
             _cache_path, metadata_path = self.parquet_cache_paths(cache_key.key)
             if not metadata_path.is_file():
                 return None
@@ -927,13 +1012,15 @@ class TabularLoaderCacheService(SourceBackendMethods):
         return int(row_count) if isinstance(row_count, int) else None
 
     def _table_record(self, ref: TabularDataRef) -> _TableRecord:
-        record = self._table_records.get(ref.ref_id)
+        binding = retained_binding_for_ref(ref)
+        record = self._retained_table_records.get(binding.digest) if binding else self._table_records.get(ref.ref_id)
         if record is None:
             raise KeyError(f"Unknown tabular data ref {ref.ref_id!r}.")
         return record
 
     def _array_record(self, ref: ArrayDataRef) -> _ArrayRecord:
-        record = self._array_records.get(ref.ref_id)
+        binding = retained_binding_for_ref(ref)
+        record = self._retained_array_records.get(binding.digest) if binding else self._array_records.get(ref.ref_id)
         if record is None:
             raise KeyError(f"Unknown array data ref {ref.ref_id!r}.")
         return record
@@ -1139,28 +1226,6 @@ def open_tabular_source(
 ) -> tuple[TabularLoaderCacheService, TabularDataRef | ArrayDataRef]:
     service = TabularLoaderCacheService(cache_dir=cache_dir, policy=policy)
     return service, service.open_source(source_path, options)
-
-
-def _source_path_from_ref(ref: TabularDataRef | ArrayDataRef) -> Path:
-    source_uri = str(ref.source_uri or "").strip()
-    if not source_uri:
-        raise ValueError(f"Cannot reopen tabular ref {ref.ref_id!r} without source_uri.")
-    parsed = urlparse(source_uri)
-    if parsed.scheme and parsed.scheme != "file":
-        raise ValueError(f"Unsupported tabular ref source URI scheme: {parsed.scheme!r}.")
-    if parsed.scheme == "file":
-        netloc = f"//{parsed.netloc}" if parsed.netloc else ""
-        return Path(url2pathname(netloc + parsed.path)).expanduser().resolve()
-    return Path(source_uri).expanduser().resolve()
-
-
-def _load_options_from_ref(ref: TabularDataRef | ArrayDataRef) -> TabularLoadOptions:
-    metadata = ref.metadata if isinstance(ref.metadata, Mapping) else {}
-    load_options = metadata.get("load_options")
-    options = TabularLoadOptions.from_mapping(load_options if isinstance(load_options, Mapping) else None)
-    if ref.object_id:
-        return options.with_selected_object(ref.object_id)
-    return options
 
 
 def _window_request_from_materialization(

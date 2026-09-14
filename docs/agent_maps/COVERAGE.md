@@ -53,6 +53,8 @@ Settings-section size transitions use shared 180 ms width/height animations with
 
 ## Current ownership notes
 
+- Retained table/array source bindings and inherited provenance guard CURRENT boundaries through materialized results. The execution and tabular maps own source integrity, read scopes, lifecycle validation and computational-versus-occurrence Plot identity; the runtime-contract map owns typed metadata. Immutable image preview registration preserves URLs/renderers across cosmetic edits, covered by the media/visualization/run-controller maps and real QML gestures.
+
 - The tooltip route owns the board-preview retry button's explicit general-category policy and the accepted missing-category audit. Its wording and rendering remain in the shared surface control.
 
 - Presentation-only canvas edits use `PropertySpec.affects_execution` across declarations and solution identity; `execution/graph_changes.py` owns snapshot semantics, with compiled topology and existing runtime downstream closure. `MutationUiEffects.after_graph_change` owns shared commit/replay presentation aftermath. The run-controller, clipboard/history, floating-toolbar, nodes, execution and viewer maps cover this contract and the real-worker/QML regression.

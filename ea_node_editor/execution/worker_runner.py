@@ -13,6 +13,7 @@ import traceback
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import replace
 from multiprocessing import Queue
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
@@ -54,9 +55,24 @@ from ea_node_editor.execution.prepared_execution import (
     validate_current_output_payload,
 )
 from ea_node_editor.execution.solution_identity import (
+    FileProvenance,
+    has_connected_source_provenance,
+    hash_file_provenance,
     assemble_node_solution,
     canonical_digest,
+    provenance_digest,
 )
+from ea_node_editor.execution.retained_resources import (
+    RetainedSourceValidation,
+    collect_retained_source_bindings,
+    bindings_for_value,
+    iter_retained_source_refs,
+    retained_source_binding_scope,
+    validate_retained_source_bindings,
+    validate_source_provenance_bindings,
+)
+from ea_node_editor.runtime_contracts.retained_resources import RetainedResourceError, RetainedSourceBinding
+from ea_node_editor.runtime_contracts.tabular_data import TabularDataRef
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
     RuntimeSnapshotContext,
@@ -457,6 +473,9 @@ class RunEventPublisher:
         solution_key: str = "",
         record_id: str = "",
         residency: str = "",
+        retained_source_bindings: tuple[RetainedSourceBinding, ...] = (),
+        source_provenance_bindings: tuple[RetainedSourceBinding, ...] = (),
+        source_provenance_complete: bool = True,
     ) -> None:
         from ea_node_editor.execution.run_messages import (
             NodeSettledEvent,
@@ -478,6 +497,9 @@ class RunEventPublisher:
                 solution_key=solution_key,
                 record_id=record_id,
                 residency=residency,
+                retained_source_bindings=retained_source_bindings,
+                source_provenance_bindings=source_provenance_bindings,
+                source_provenance_complete=source_provenance_complete,
             )
         )
 
@@ -590,6 +612,10 @@ class NodeExecutor:
         self._trigger_publications = dict(trigger_publications or {})
         self._trigger_captures = dict(trigger_captures or {})
         self._node_decisions = dict(node_decisions or {})
+        self.source_provenance_by_node: dict[str, str] = {}
+        self._retained_source_bindings: dict[tuple[str, str, str], RetainedSourceBinding] = {}
+        self._executing_source_provenance: dict[str, FileProvenance] = {}
+        self._source_dependencies: dict[str, tuple[tuple[RetainedSourceBinding, ...], bool]] = {}
         self._workspace_node_types: Mapping[str, str] = MappingProxyType(
             {
                 node_id: node.type_id
@@ -617,6 +643,8 @@ class NodeExecutor:
 
     def clear_run_state(self) -> None:
         self._run_state.clear()
+        self._retained_source_bindings.clear()
+        self._source_dependencies.clear()
 
     def _publish_node_state(self, node_id: str, value: Any) -> None:
         self._run_state[node_id] = value
@@ -630,9 +658,12 @@ class NodeExecutor:
         status = self._await_runnable()
         if status is not None:
             return status
-        if self._plan.is_trigger(node_id):
-            return self._execute_trigger(node_id)
-        return self._execute_node(node_id)
+        with retained_source_binding_scope(tuple(self._retained_source_bindings.values())):
+            self._executing_source_provenance.clear()
+            self._inherit_source_dependencies(node_id)
+            if self._plan.is_trigger(node_id):
+                return self._execute_trigger(node_id)
+            return self._execute_node(node_id)
 
     def validate_reused_output(
         self,
@@ -723,6 +754,20 @@ class NodeExecutor:
             return status
         if decision.node_id in self.executed:
             raise ValueError("reused node was installed more than once")
+        validate_retained_source_bindings(
+            {key: value.value for key, value in event_outputs.items() if value.status == "value"},
+            payload.retained_source_bindings,
+        )
+        if not payload.source_provenance_complete:
+            raise ValueError("accepted output has incomplete source provenance")
+        validate_source_provenance_bindings(payload.source_provenance_bindings)
+        self._source_dependencies[decision.node_id] = (
+            payload.source_provenance_bindings, payload.source_provenance_complete
+        )
+        for binding in payload.retained_source_bindings:
+            previous = self._retained_source_bindings.setdefault(binding.key, binding)
+            if previous != binding:
+                raise ValueError("accepted outputs have conflicting source bindings")
         self.node_outputs[decision.node_id] = dict(installed_outputs)
         self.executed.add(decision.node_id)
         if decision.action is PreparedAction.READ_CURRENT:
@@ -737,6 +782,9 @@ class NodeExecutor:
             solution_key=decision.solution_key,
             record_id=payload.record_id,
             residency=payload.residency.value,
+            retained_source_bindings=payload.retained_source_bindings,
+            source_provenance_bindings=payload.source_provenance_bindings,
+            source_provenance_complete=payload.source_provenance_complete,
         )
         return "ok"
 
@@ -856,6 +904,7 @@ class NodeExecutor:
                     target_iteration=iteration,
                     iteration_count=len(iterations),
                 )
+                self._capture_connected_source_provenance(node_id, ctx)
                 try:
                     if spec.is_async and callable(
                         getattr(plugin, "async_execute", None)
@@ -1660,6 +1709,159 @@ class NodeExecutor:
             errors=errors,
         )
 
+    def _inherit_source_dependencies(self, node_id: str) -> None:
+        dependencies: dict[tuple[str, str, str], RetainedSourceBinding] = {}
+        complete = True
+        for edge in self._plan.incoming_edges_for(node_id):
+            inherited, inherited_complete = self._source_dependencies.get(
+                edge.source_node_id, ((), True)
+            )
+            complete = complete and inherited_complete
+            for binding in inherited:
+                previous = dependencies.setdefault(binding.key, binding)
+                if previous != binding:
+                    raise ValueError("input sources have conflicting provenance")
+            result = self.node_outputs.get(edge.source_node_id, {}).get(
+                edge.source_port_key
+            )
+            if result is None or result.status != "value":
+                continue
+            for ref in iter_retained_source_refs(result.value):
+                try:
+                    selected = bindings_for_value(
+                        ref, tuple(self._retained_source_bindings.values())
+                    )
+                except RetainedResourceError:
+                    complete = False
+                    continue
+                for binding in selected:
+                    previous = dependencies.setdefault(binding.key, binding)
+                    if previous != binding:
+                        raise ValueError("input sources have conflicting provenance")
+        bindings = tuple(dependencies[key] for key in sorted(dependencies))
+        validate_source_provenance_bindings(bindings)
+        self._source_dependencies[node_id] = bindings, complete
+
+    def _capture_connected_source_provenance(
+        self, node_id: str, ctx: ExecutionContext
+    ) -> None:
+        for declaration in self._plan.node_specs[node_id].solution_provenance_inputs:
+            if declaration.kind != "file" or not self._plan.incoming_edges_for(
+                node_id, declaration.property_key
+            ):
+                continue
+            value = ctx.inputs.get(declaration.property_key)
+            path = ctx.resolve_path_value(value)
+            if path is None and isinstance(value, str) and value.strip():
+                path = Path(value).expanduser().resolve()
+            if path is not None:
+                fingerprint = hash_file_provenance(path)
+                previous = self._executing_source_provenance.setdefault(
+                    path.resolve().as_uri(), fingerprint
+                )
+                if previous != fingerprint:
+                    raise RetainedResourceError(
+                        "retained_source_changed",
+                        "The connected source changed during execution",
+                    )
+
+    def _output_source_bindings(
+        self, node_id: str, outputs: Mapping[str, SettledPortResult]
+    ) -> tuple[RetainedSourceBinding, ...]:
+        """Preserve forwarded identities and bind new sources to captured provenance."""
+        bindings: dict[tuple[str, str, str], RetainedSourceBinding] = {}
+        validation = RetainedSourceValidation()
+        declarations = self._plan.node_specs[node_id].solution_provenance_inputs
+        for result in outputs.values():
+            if result.status != "value":
+                continue
+            for ref in iter_retained_source_refs(result.value):
+                existing = self._retained_source_bindings.get(
+                    (
+                        ref.resolver_id,
+                        "table" if isinstance(ref, TabularDataRef) else "array",
+                        ref.ref_id,
+                    )
+                )
+                if existing is not None:
+                    validation.validate(ref, existing)
+                    binding = existing
+                else:
+                    # A new ref needs the producing node's declared file provenance.
+                    # Unsupported resources still work in ordinary runs, without retention.
+                    if len(declarations) != 1 or declarations[0].kind != "file":
+                        continue
+                    declaration = declarations[0]
+                    connected = bool(
+                        self._plan.incoming_edges_for(node_id, declaration.property_key)
+                    )
+                    captured = self.source_provenance_by_node.get(node_id)
+                    if not captured:
+                        continue
+                    try:
+                        (binding,) = collect_retained_source_bindings(
+                            ref, validation=validation
+                        )
+                    except RetainedResourceError as exc:
+                        if exc.reason_code in {
+                            "retained_resolver_unknown",
+                            "retained_source_descriptor",
+                            "retained_source_policy",
+                            "retained_source_dependency",
+                        }:
+                            continue
+                        raise
+                    properties = self._registry.normalize_properties(
+                        self._plan.nodes[node_id].type_id,
+                        dict(self._plan.nodes[node_id].properties),
+                    )
+                    source_path = properties.get(declaration.property_key)
+                    fingerprint = FileProvenance(
+                        binding.size_bytes, binding.sha256, binding.hash_policy_digest
+                    )
+                    if connected:
+                        if (
+                            self._executing_source_provenance.get(binding.source_uri)
+                            != fingerprint
+                        ):
+                            raise RetainedResourceError(
+                                "retained_source_changed",
+                                "The connected source changed during execution",
+                            )
+                        bindings[binding.key] = binding
+                        continue
+                    if (
+                        not isinstance(source_path, str)
+                        or Path(source_path).expanduser().resolve().as_uri()
+                        != binding.source_uri
+                    ):
+                        continue
+                    expected = canonical_digest(
+                        {
+                            "inputs": [
+                                {
+                                    "property_key": declaration.property_key,
+                                    "kind": declaration.kind,
+                                    "policy_revision": declaration.policy_revision,
+                                    "digest": provenance_digest(
+                                        fingerprint,
+                                        path_policy="content_only_no_links_v1",
+                                    ),
+                                }
+                            ]
+                        }
+                    )
+                    if expected != captured:
+                        raise RetainedResourceError(
+                            "retained_source_changed",
+                            "The source changed after execution preparation",
+                        )
+                previous = bindings.setdefault(binding.key, binding)
+                if previous != binding:
+                    raise ValueError("output sources have conflicting bindings")
+        self._retained_source_bindings.update(bindings)
+        return tuple(bindings[key] for key in sorted(bindings))
+
     def _settle(
         self,
         node_id: str,
@@ -1672,6 +1874,17 @@ class NodeExecutor:
         disposition: str = "",
     ) -> str:
         settled = dict(outputs)
+        if status in {"completed", "empty"}:
+            source_bindings = self._output_source_bindings(node_id, settled)
+            source_provenance, source_complete = self._source_dependencies.get(
+                node_id, ((), True)
+            )
+            validate_source_provenance_bindings(source_provenance)
+        else:
+            # Reporting failure must not depend on resources from the failed work.
+            source_bindings = ()
+            source_provenance = ()
+            source_complete = False
         self.node_outputs[node_id] = settled
         self.executed.add(node_id)
         decision = self._node_decisions.get(node_id)
@@ -1693,6 +1906,9 @@ class NodeExecutor:
             elapsed_ms=elapsed_ms,
             errors=errors,
             warnings=warnings,
+            retained_source_bindings=source_bindings,
+            source_provenance_bindings=source_provenance,
+            source_provenance_complete=source_complete,
             **identity_fields,
         )
         return "ok"
@@ -2032,6 +2248,8 @@ class WorkflowRunner:
                 execution_environment_digest=(command.execution_environment_digest),
                 trigger_publication_generations=trigger_generations,
             )
+            if not assembled.reason_code:
+                self._executor.source_provenance_by_node[decision.node_id] = assembled.input_provenance_digest
             if (
                 assembled.solution_key != decision.solution_key
                 or assembled.dependency_solution_keys
@@ -2042,6 +2260,7 @@ class WorkflowRunner:
                 not assembled.reason_code
                 and self._plan.node_specs[decision.node_id].solution_reuse_scope
                 != "never"
+                and not has_connected_source_provenance(self._plan, decision.node_id)
                 and all(
                     reusable_keys[key] for key in assembled.dependency_solution_keys
                 )
@@ -2118,6 +2337,7 @@ class WorkflowRunner:
             )
             for item in command.accepted_output_payloads
         }
+        source_validation = RetainedSourceValidation()
         for decision in command.node_decisions:
             if not decision.action.uses_accepted_output:
                 continue
@@ -2135,9 +2355,18 @@ class WorkflowRunner:
                     payload,
                     catalog=registry.data_types,
                     port_keys=current_ports[decision.node_id],
+                    source_validation=source_validation,
                 )
             elif payload.output_digest != payload.result_digest:
                 raise ValueError("computation reuse requires complete recorded outputs")
+            else:
+                validate_retained_source_bindings(
+                    payload.to_payload()["outputs"], payload.retained_source_bindings,
+                    validation=source_validation,
+                )
+                if not payload.source_provenance_complete:
+                    raise ValueError("accepted output has incomplete source provenance")
+                validate_source_provenance_bindings(payload.source_provenance_bindings, validation=source_validation)
             outputs_payload = settled_outputs_to_payload(
                 payload.decode_outputs(catalog=registry.data_types),
                 catalog=registry.data_types,

@@ -21,6 +21,15 @@ from ea_node_editor.execution.backends import (
     decode_execution_backend,
 )
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
+from ea_node_editor.execution.retained_resources import (
+    RetainedSourceValidation,
+    bindings_for_value,
+    iter_retained_source_refs,
+    validate_retained_source_bindings,
+    validate_source_provenance_bindings,
+)
+from ea_node_editor.runtime_contracts.retained_resources import RetainedSourceBinding
+from ea_node_editor.runtime_contracts.tabular_data import TabularDataRef
 from ea_node_editor.runtime_contracts.data_types import DataTypeCatalog
 from ea_node_editor.runtime_contracts.durable_values import (
     durable_settled_outputs_from_payload,
@@ -218,10 +227,16 @@ def _reject_durable_session_carriers(
     value: Any,
     *,
     catalog: DataTypeCatalog | None,
+    allow_bound_sources: bool = False,
 ) -> None:
     if isinstance(value, Mapping):
         marker = value.get(_RUNTIME_VALUE_MARKER_KEY)
-        if marker in _SESSION_ONLY_RUNTIME_MARKERS:
+        source_marker = marker in {
+            "tabular_data_ref", "array_data_ref", "tabular_window_ref", "array_slice_2d_ref"
+        }
+        if marker in _SESSION_ONLY_RUNTIME_MARKERS and not (
+            allow_bound_sources and source_marker
+        ):
             raise ValueError(
                 "durable accepted outputs cannot contain session-only carriers"
             )
@@ -243,11 +258,38 @@ def _reject_durable_session_carriers(
                     "durable accepted outputs cannot contain session-only carriers"
                 )
         for item in value.values():
-            _reject_durable_session_carriers(item, catalog=catalog)
+            _reject_durable_session_carriers(
+                item, catalog=catalog, allow_bound_sources=allow_bound_sources
+            )
         return
     if isinstance(value, (list, tuple)):
         for item in value:
-            _reject_durable_session_carriers(item, catalog=catalog)
+            _reject_durable_session_carriers(
+                item, catalog=catalog, allow_bound_sources=allow_bound_sources
+            )
+
+
+def normalize_retained_source_bindings(value: Any) -> tuple[RetainedSourceBinding, ...]:
+    """Bound integrity metadata at both accepted-output and settlement transport."""
+    if (
+        not isinstance(value, (tuple, list))
+        or len(value) > MAX_ACCEPTED_PORT_RESULTS_PER_PREPARATION
+    ):
+        raise ValueError("retained source bindings exceed the count limit")
+    bindings = tuple(
+        item
+        if isinstance(item, RetainedSourceBinding)
+        else RetainedSourceBinding.from_payload(item)
+        for item in value
+    )
+    if len({item.key for item in bindings}) != len(bindings):
+        raise ValueError("retained source bindings contain duplicate identities")
+    encoded = _canonical_json_bytes(
+        [item.to_payload() for item in bindings], field_name="retained source bindings"
+    )
+    if len(encoded) > MAX_ACCEPTED_OUTPUT_PAYLOAD_BYTES:
+        raise ValueError("retained source bindings exceed the byte limit")
+    return tuple(sorted(bindings, key=lambda item: item.key))
 
 
 def _settled_outputs_bytes(
@@ -623,6 +665,9 @@ class AcceptedOutputPayload:
     runtime_generation: int | None
     outputs: Mapping[str, SettledPortResult] | bytes
     output_digest: str | None = None
+    retained_source_bindings: tuple[RetainedSourceBinding, ...] = ()
+    source_provenance_bindings: tuple[RetainedSourceBinding, ...] = ()
+    source_provenance_complete: bool = True
     catalog: InitVar[DataTypeCatalog | None] = None
     _output_count: int = field(init=False, repr=False, compare=False)
     _commitment: str = field(init=False, repr=False, compare=False)
@@ -735,6 +780,20 @@ class AcceptedOutputPayload:
         )
         if residency is SolutionResidency.DURABLE:
             _reject_durable_session_carriers(output_payload, catalog=catalog)
+        bindings = normalize_retained_source_bindings(self.retained_source_bindings)
+        provenance = normalize_retained_source_bindings(self.source_provenance_bindings)
+        if type(self.source_provenance_complete) is not bool:
+            raise TypeError("source provenance completeness must be a boolean")
+        if residency is SolutionResidency.DURABLE and (bindings or provenance or not self.source_provenance_complete):
+            raise ValueError("durable accepted outputs forbid retained source bindings")
+        source_keys = {
+            (ref.resolver_id, "table" if isinstance(ref, TabularDataRef) else "array", ref.ref_id)
+            for ref in iter_retained_source_refs(output_payload)
+        }
+        if any(binding.key not in source_keys for binding in bindings):
+            raise ValueError("retained source binding has no matching output")
+        object.__setattr__(self, "retained_source_bindings", bindings)
+        object.__setattr__(self, "source_provenance_bindings", provenance)
         object.__setattr__(self, "settlement_status", settlement_status)
         object.__setattr__(self, "residency", residency)
         object.__setattr__(
@@ -745,7 +804,12 @@ class AcceptedOutputPayload:
 
         object.__setattr__(self, "_output_count", len(output_payload))
         metadata = {
-            item.name: getattr(self, item.name)
+            item.name: (
+                [binding.to_payload() for binding in bindings]
+                if item.name == "retained_source_bindings" else
+                [binding.to_payload() for binding in provenance]
+                if item.name == "source_provenance_bindings" else getattr(self, item.name)
+            )
             for item in fields(self)
             if item.init and item.name != "outputs"
         }
@@ -809,6 +873,9 @@ class AcceptedOutputPayload:
             runtime_generation=self.runtime_generation,
             outputs=encoded,
             output_digest=hashlib.sha256(encoded).hexdigest(),
+            retained_source_bindings=bindings_for_value(selected, self.retained_source_bindings),
+            source_provenance_bindings=self.source_provenance_bindings,
+            source_provenance_complete=self.source_provenance_complete,
             catalog=catalog,
         )
 
@@ -849,6 +916,9 @@ class AcceptedOutputPayload:
             "output_digest": self.output_digest,
             "residency": self.residency.value,
             "runtime_generation": self.runtime_generation,
+            "retained_source_bindings": [item.to_payload() for item in self.retained_source_bindings],
+            "source_provenance_bindings": [item.to_payload() for item in self.source_provenance_bindings],
+            "source_provenance_complete": self.source_provenance_complete,
             "outputs": _json_from_bytes(
                 self.outputs,
                 field_name="accepted outputs",
@@ -930,11 +1000,13 @@ def validate_current_output_payload(
     *,
     catalog: DataTypeCatalog,
     port_keys: tuple[str, ...],
+    source_validation: RetainedSourceValidation | None = None,
 ) -> None:
-    """Require detached data; currentness is separately owned by SolutionStore.
+    """Require detached data or bound sources; SolutionStore owns currentness.
 
     Reading a retained result must not revive handles, private working files,
     secrets, or session-bound typed snapshots after their producing run ends.
+    Supported lazy sources keep their original content binding and generation.
     This is a consumption check, not permission to persist the result.
     """
     payload.validate_for_catalog(catalog)
@@ -946,7 +1018,13 @@ def validate_current_output_payload(
         raise ValueError("current outputs must match the required data ports")
     if hashlib.sha256(payload.outputs).hexdigest() != payload.output_digest:
         raise ValueError("current output payload digest is invalid")
-    _reject_durable_session_carriers(outputs, catalog=catalog)
+    validate_retained_source_bindings(
+        outputs, payload.retained_source_bindings, validation=source_validation
+    )
+    if not payload.source_provenance_complete:
+        raise ValueError("current output has incomplete source provenance")
+    validate_source_provenance_bindings(payload.source_provenance_bindings, validation=source_validation)
+    _reject_durable_session_carriers(outputs, catalog=catalog, allow_bound_sources=True)
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)

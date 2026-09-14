@@ -16,6 +16,7 @@ from ea_node_editor.execution.backends import (
     ExecutionBackendSelection,
 )
 from ea_node_editor.execution.prepared_execution import (
+    normalize_retained_source_bindings,
     MAX_ACCEPTED_NODE_PAYLOADS_PER_PREPARATION,
     MAX_ACCEPTED_OUTPUT_PAYLOAD_BYTES,
     MAX_ACCEPTED_PORT_RESULTS_PER_PREPARATION,
@@ -986,6 +987,13 @@ def event_to_dict(
                 field_name="elapsed_ms",
             ),
             "outputs": _settled_outputs_to_dict(event.outputs, catalog=catalog),
+            "retained_source_bindings": [
+                item.to_payload() for item in normalize_retained_source_bindings(event.retained_source_bindings)
+            ],
+            "source_provenance_bindings": [
+                item.to_payload() for item in normalize_retained_source_bindings(event.source_provenance_bindings)
+            ],
+            "source_provenance_complete": _bool_value(event.source_provenance_complete, field_name="source_provenance_complete"),
             "errors": [_root_error_to_dict(error) for error in errors],
             "warnings": list(warnings),
             **identity_fields,
@@ -1885,6 +1893,11 @@ def dict_to_event(
                 payload.get("outputs", {}),
                 catalog=catalog,
             ),
+            retained_source_bindings=normalize_retained_source_bindings(
+                payload.get("retained_source_bindings", ())
+            ),
+            source_provenance_bindings=normalize_retained_source_bindings(payload.get("source_provenance_bindings", ())),
+            source_provenance_complete=_bool_field(payload, "source_provenance_complete", default=True),
             errors=_settled.root_execution_errors_from_payload(
                 payload.get("errors", ())
             ),

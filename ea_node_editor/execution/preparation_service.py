@@ -39,7 +39,8 @@ from ea_node_editor.execution.runtime_snapshot import (
     build_runtime_snapshot,
     coerce_runtime_snapshot,
 )
-from ea_node_editor.execution.solution_identity import assemble_node_solution
+from ea_node_editor.execution.solution_identity import assemble_node_solution, has_connected_source_provenance
+from ea_node_editor.execution.retained_resources import RetainedSourceValidation
 from ea_node_editor.execution.solution_store import (
     CapturedNodeSolution,
     PreparationState,
@@ -470,6 +471,7 @@ class ExecutionPreparationService:
         sizes: dict[str, int] = {}
         accepted_ports = 0
         accepted_bytes = 0
+        source_validation = RetainedSourceValidation(cancel_event=cancellation)
 
         def require(node_id: str, port_key: str | None = None) -> None:
             if port_key is None:
@@ -592,6 +594,7 @@ class ExecutionPreparationService:
                         **lookup,
                         artifact_context=artifact_service.store,
                         port_keys=tuple(sorted(requested_ports[node_id])),
+                        source_validation=source_validation,
                     )
                     if current is not None and retain_output(node_id, current[1]):
                         actions[node_id] = PreparedAction.READ_CURRENT
@@ -610,6 +613,7 @@ class ExecutionPreparationService:
                             catalog=registry.data_types,
                             runtime_generation=generation_snapshot.runtime_generation,
                             artifact_context=artifact_service.store,
+                            source_validation=source_validation,
                         )
                         if retain_output(node_id, payload):
                             actions[node_id] = PreparedAction.REUSE
@@ -746,6 +750,7 @@ class ExecutionPreparationService:
                     not assembled.reason_code
                     and generation_snapshot.available
                     and spec.solution_reuse_scope != "never"
+                    and not has_connected_source_provenance(plan, node_id)
                 ),
             ),
             assembled.reason_code,

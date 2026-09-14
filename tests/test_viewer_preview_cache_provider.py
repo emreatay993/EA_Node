@@ -71,3 +71,20 @@ def test_viewer_preview_cache_provider_does_not_double_decode_node_ids(qapp) -> 
 
     assert cached_size == QSize(5, 3)
     assert cached.pixelColor(0, 0) == QColor("#3366ff")
+
+
+def test_mutable_viewer_preview_keeps_advancing_with_the_same_signature(qapp) -> None:  # noqa: ANN001
+    provider = ViewerPreviewCacheImageProvider()
+    image = _image("#3366ff")
+    signature = ("viewer", 1)
+    assert provider.set_preview("workspace", "node", image, signature=signature)
+    first_source = provider.preview_source("workspace", "node")
+
+    image.fill(QColor("#ff3333"))
+    assert provider.set_preview("workspace", "node", image, signature=signature)
+    second_source = provider.preview_source("workspace", "node")
+    assert second_source != first_source
+    pixels, _size = provider.requestImage(
+        second_source.split("image://viewer-preview-cache/", 1)[1], QSize()
+    )
+    assert pixels.pixelColor(0, 0) == QColor("#ff3333")

@@ -22,7 +22,18 @@ from ea_node_editor.execution.prepared_execution import (
     PreparedExecution,
     validate_accepted_output_payload,
     validate_current_output_payload,
+    normalize_retained_source_bindings,
 )
+from ea_node_editor.execution.retained_resources import (
+    RetainedSourceValidation,
+    bindings_for_value,
+    iter_retained_source_refs,
+    validate_retained_source_bindings,
+    validate_source_provenance_bindings,
+)
+from ea_node_editor.execution.settled_output_identity import computational_output_digest
+from ea_node_editor.execution.solution_identity import has_connected_source_provenance
+from ea_node_editor.runtime_contracts.retained_resources import RetainedSourceBinding
 from ea_node_editor.execution.project_solution import (
     MAX_PROJECT_SOLUTION_SUPPLEMENTAL_RECORDS,
     ProjectSolutionSaveRecordExport,
@@ -139,6 +150,10 @@ class _RecordEntry:
     sequence: int
     maximum_reuse_scope: str
     resource_leases: tuple[Any, ...] = ()
+    retained_source_bindings: tuple[RetainedSourceBinding, ...] = ()
+    computational_digest: str = ""
+    source_provenance_bindings: tuple[RetainedSourceBinding, ...] = ()
+    source_provenance_complete: bool = True
 
 
 @dataclass(slots=True)
@@ -365,6 +380,8 @@ class SolutionStore:
                     or (record.workspace_id, record.node_id) not in owner_set
                     or entry.maximum_reuse_scope != "durable"
                     or not record.reuse_eligible
+                    or bool(entry.retained_source_bindings)
+                    or not entry.source_provenance_complete
                 ):
                     continue
                 fact = self._facts.get(
@@ -681,8 +698,10 @@ class SolutionStore:
         catalog: DataTypeCatalog,
         port_keys: tuple[str, ...],
         artifact_context: Any = None,
+        source_validation: RetainedSourceValidation | None = None,
     ) -> tuple[SolutionRecord, AcceptedOutputPayload] | None:
-        """Read the exact CURRENT detached result, without changing reuse policy."""
+        """Read the exact CURRENT retained result, without changing reuse policy."""
+        source_validation = source_validation or RetainedSourceValidation()
         key = self._fact_key(project_id, workspace_id, node_id)
         with self._lock:
             fact = self._facts.get(key)
@@ -710,9 +729,12 @@ class SolutionStore:
             catalog=catalog,
             runtime_generation=runtime_generation,
             artifact_context=artifact_context,
+            port_keys=port_keys,
+            source_validation=source_validation,
         )
-        payload = payload.select_ports(port_keys, catalog=catalog)
-        validate_current_output_payload(payload, catalog=catalog, port_keys=port_keys)
+        validate_current_output_payload(
+            payload, catalog=catalog, port_keys=port_keys, source_validation=source_validation
+        )
         with self._lock:
             if (
                 self._facts.get(key) != fact
@@ -728,6 +750,8 @@ class SolutionStore:
         catalog: DataTypeCatalog,
         runtime_generation: int,
         artifact_context: Any = None,
+        port_keys: tuple[str, ...] | None = None,
+        source_validation: RetainedSourceValidation | None = None,
     ) -> AcceptedOutputPayload:
         requested_record = record_id if isinstance(record_id, SolutionRecord) else None
         normalized_record_id = (
@@ -877,7 +901,7 @@ class SolutionStore:
                     self._reuse_index[record.solution_key] = record.record_id
                 self._install_lazy_durable_fact_locked(record)
                 self._last_durable_reason_code = "durable_hit"
-            return payload
+            return payload.select_ports(port_keys, catalog=catalog) if port_keys is not None else payload
         if hashlib.sha256(payload_bytes).hexdigest() != record.result_digest:
             raise ValueError("solution record payload digest is invalid")
         payload = AcceptedOutputPayload(
@@ -889,6 +913,9 @@ class SolutionStore:
             residency=record.residency,
             runtime_generation=record.runtime_generation,
             outputs=payload_bytes,
+            retained_source_bindings=entry.retained_source_bindings,
+            source_provenance_bindings=entry.source_provenance_bindings,
+            source_provenance_complete=entry.source_provenance_complete,
             catalog=catalog,
         )
         validate_accepted_output_payload(
@@ -897,6 +924,15 @@ class SolutionStore:
             catalog=catalog,
             artifact_context=artifact_context,
         )
+        if port_keys is not None:
+            payload = payload.select_ports(port_keys, catalog=catalog)
+        validate_retained_source_bindings(
+            payload.to_payload()["outputs"], payload.retained_source_bindings,
+            validation=source_validation,
+        )
+        if not payload.source_provenance_complete:
+            raise ValueError("accepted output has incomplete source provenance")
+        validate_source_provenance_bindings(payload.source_provenance_bindings, validation=source_validation)
         if record.residency is SolutionResidency.DURABLE:
             with self._lock:
                 current_entry = self._records.get(record.record_id)
@@ -1200,6 +1236,15 @@ class SolutionStore:
                         )
                     ):
                         raise ValueError("prepared_solution_observation_changed")
+                    if payload.retained_source_bindings != bindings_for_value(
+                        payload.to_payload()["outputs"], record.retained_source_bindings
+                    ):
+                        raise ValueError("prepared_solution_source_binding_changed")
+                    if (
+                        payload.source_provenance_bindings != record.source_provenance_bindings
+                        or payload.source_provenance_complete != record.source_provenance_complete
+                    ):
+                        raise ValueError("prepared_solution_source_provenance_changed")
             if prepared.preparation_id in self._preparations:
                 raise ValueError("preparation_id is already registered")
             if encoded_size > self._limits.preparation_bytes_per_runtime:
@@ -1504,6 +1549,22 @@ class SolutionStore:
                 event.get("outputs", {}),
                 catalog=catalog,
             )
+            source_bindings = normalize_retained_source_bindings(event.get("retained_source_bindings", ()))
+            source_provenance = normalize_retained_source_bindings(event.get("source_provenance_bindings", ()))
+            source_complete = event.get("source_provenance_complete", True)
+            if type(source_complete) is not bool:
+                raise TypeError("source provenance completeness must be a boolean")
+            # Bindings may be absent for unsupported refs, but never unrelated to an output.
+            bound_values = {
+                ref.key for ref in source_bindings
+            }
+            output_keys = {
+                (ref.resolver_id, "table" if isinstance(ref, TabularDataRef) else "array", ref.ref_id)
+                for result in outputs.values() if result.status == "value"
+                for ref in iter_retained_source_refs(result.value)
+            }
+            if not bound_values <= output_keys:
+                raise ValueError("retained source binding has no matching output")
             if any(result.status == "failed" for result in outputs.values()):
                 return None, resource_leases, None
             descriptors, carriers_reusable = self._output_descriptors(
@@ -1527,11 +1588,22 @@ class SolutionStore:
             )
             stored_payload = payload_bytes
             payload_size = len(payload_bytes)
+        payload_size += len(_canonical_json_bytes([item.to_payload() for item in source_bindings])) if source_bindings else 0
+        payload_size += len(_canonical_json_bytes([item.to_payload() for item in source_provenance])) if source_provenance else 0
         result_digest = hashlib.sha256(payload_bytes).hexdigest()
+        computational_digest = computational_output_digest(outputs, catalog=catalog, result_digest=result_digest)
         established_id = self._reuse_index.get(capture.solution_key)
         established = self._records.get(established_id or "")
         if established is not None:
-            if established.record.result_digest != result_digest:
+            if (
+                (established.computational_digest or established.record.result_digest) != computational_digest
+                or established.retained_source_bindings != source_bindings
+                or (
+                    established.record.residency is SolutionResidency.SESSION
+                    and established.source_provenance_bindings != source_provenance
+                )
+                or established.source_provenance_complete != source_complete
+            ):
                 key = self._fact_key(
                     established.record.project_id,
                     established.record.workspace_id,
@@ -1560,26 +1632,26 @@ class SolutionStore:
                     "reason": "same_solution_key_different_result",
                 }
                 return diagnostic, resource_leases, None
-            became_current = self._settle_fact_locked(
-                established.record,
-                capture,
-                disposition=SolutionDisposition.RECOMPUTED,
-            )
-            return (
-                None,
-                resource_leases,
-                self._acceptance(
+            if established.record.result_digest == result_digest:
+                became_current = self._settle_fact_locked(
                     established.record,
-                    SolutionDisposition.RECOMPUTED,
+                    capture,
+                    disposition=SolutionDisposition.RECOMPUTED,
                 )
-                if became_current
-                else None,
-            )
+                return (
+                    None,
+                    resource_leases,
+                    self._acceptance(established.record, SolutionDisposition.RECOMPUTED)
+                    if became_current else None,
+                )
+            # Equal computational content with new occurrence provenance needs a
+            # new full record matching the publication consumers just received.
         session_reuse_eligible = (
             capture.identity_reuse_eligible
             and capture.solution_reuse_scope != "never"
             and carriers_reusable
             and resources_reusable
+            and source_complete
         )
         record = SolutionRecord(
             record_id=f"record_{uuid.uuid4().hex}",
@@ -1605,7 +1677,11 @@ class SolutionStore:
             created_at_epoch_ms=int(time.time() * 1000),
             catalog=catalog,
         )
-        if capture.solution_reuse_scope == "durable" and session_reuse_eligible:
+        if (
+            capture.solution_reuse_scope == "durable"
+            and session_reuse_eligible
+            and not source_bindings
+        ):
             validation = validate_durable_settled_outputs(
                 outputs,
                 descriptors,
@@ -1679,6 +1755,10 @@ class SolutionStore:
                     )
                 if staged.record is not None:
                     record = staged.record
+                    # Eligible deterministic lineage covers these source versions
+                    # in the captured dependency keys. Durable detached outputs
+                    # carry no session metadata; session fallback keeps it intact.
+                    source_provenance = ()
                     locator = record.payload_locator
                     stored_payload = (
                         validation.canonical_payload if locator is not None else None
@@ -1697,6 +1777,10 @@ class SolutionStore:
             sequence=self._next_sequence(),
             maximum_reuse_scope=capture.solution_reuse_scope,
             resource_leases=retained_resource_leases,
+            retained_source_bindings=source_bindings,
+            computational_digest=computational_digest,
+            source_provenance_bindings=source_provenance,
+            source_provenance_complete=source_complete,
         )
         self._records[record.record_id] = entry
         node_key = self._fact_key(record.project_id, record.workspace_id, node_id)
@@ -1782,6 +1866,13 @@ class SolutionStore:
                 event.get("outputs", {}),
                 catalog=catalog,
             )
+            if normalize_retained_source_bindings(event.get("retained_source_bindings", ())) != accepted.retained_source_bindings:
+                raise ValueError("reused settlement changed its retained source bindings")
+            if (
+                normalize_retained_source_bindings(event.get("source_provenance_bindings", ())) != accepted.source_provenance_bindings
+                or event.get("source_provenance_complete", True) != accepted.source_provenance_complete
+            ):
+                raise ValueError("reused settlement changed its source provenance")
         except (TypeError, ValueError):
             return None, resource_leases, None
         if (
@@ -2144,7 +2235,7 @@ class SolutionStore:
                     continue
                 eligible = decisions[
                     node_id
-                ].reason_code in unavailable_reasons and all(
+                ].reason_code in unavailable_reasons and not has_connected_source_provenance(entry.plan, node_id) and all(
                     reusable_keys.get(key, False)
                     for key in capture.dependency_solution_keys
                 )

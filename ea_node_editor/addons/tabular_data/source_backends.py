@@ -229,6 +229,7 @@ class TableRecord:
     size_bytes: int
     warnings: tuple[str, ...]
     stats: SourceStats = SourceStats(size_bytes=0, mtime_ns=0)
+    content_sha256: str = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -243,6 +244,7 @@ class ArrayRecord:
     size_bytes: int
     warnings: tuple[str, ...]
     stats: SourceStats = SourceStats(size_bytes=0, mtime_ns=0)
+    content_sha256: str = ""
 
 
 class SourceBackendMethods:

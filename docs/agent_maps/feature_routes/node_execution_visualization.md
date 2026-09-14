@@ -10,6 +10,8 @@ Use this for node execution state projection, declarative readiness diagnostics,
 - `bounded rich preview`
 
 ## Start Here
+- `ea_node_editor/ui/image_value_preview_provider.py` — idempotent immutable preview registration within the active provider
+- `tests/test_image_value.py` — immutable preview identity, cache/provider lifetime and decode avoidance
 - `ea_node_editor/ui_qml/graph_canvas_state/execution_state_props.py` - owning Qt projection for workspace-scoped runtime facts.
 - `ea_node_editor/nodes/readiness.py` - shared pure prerequisite evaluator and structured issue contract.
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml` - warning/error badges and the structured warning hover table.

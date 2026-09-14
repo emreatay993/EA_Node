@@ -6,11 +6,16 @@ import os
 import stat
 import struct
 import zlib
+from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
+from PyQt6.QtCore import QSize
+from PyQt6.QtGui import QImage
 
+import ea_node_editor.ui.image_value_preview_provider as image_preview_module
 from ea_node_editor.execution.signal_plot_renderer import render_signal_plot
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.image_blobs import (
@@ -32,6 +37,7 @@ from ea_node_editor.runtime_contracts import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
+from ea_node_editor.ui.plot_preview_cache_provider import ViewerPreviewCacheImageProvider
 
 
 def _image() -> ImageValue:
@@ -141,6 +147,144 @@ def test_image_value_validates_decoded_idat_raster_structure() -> None:
     )
     for payload in valid_by_color_type:
         assert ImageValue.from_png(payload).encoded_bytes == payload
+
+
+@pytest.fixture
+def image_preview_provider() -> Iterator[ViewerPreviewCacheImageProvider]:
+    provider = ViewerPreviewCacheImageProvider()
+    image_preview_module.set_active_image_value_preview_provider(provider)
+    image_preview_module.clear_image_value_previews()
+    try:
+        yield provider
+    finally:
+        image_preview_module.clear_image_value_previews()
+        image_preview_module.set_active_image_value_preview_provider(None)
+
+
+def test_image_preview_reuses_same_and_equivalent_values_without_decode_or_publication(
+    image_preview_provider: ViewerPreviewCacheImageProvider,
+) -> None:
+    value = ImageValue.from_png(_raster_png(b"\x00\x01\x02\x03\xff"))
+    equivalent = ImageValue.from_png(value.encoded_bytes)
+    assert equivalent is not value
+    with (
+        patch.object(image_preview_module, "QImage", wraps=QImage) as decoder,
+        patch.object(
+            image_preview_provider, "set_preview", wraps=image_preview_provider.set_preview
+        ) as publish,
+    ):
+        source = image_preview_module.image_value_preview_source(value)
+        assert source.startswith("image://viewer-preview-cache/")
+        assert image_preview_module.image_value_preview_source(value) == source
+        assert image_preview_module.image_value_preview_source(equivalent) == source
+        lookalike = SimpleNamespace(**dataclasses.asdict(value))
+        assert image_preview_module.image_value_preview_source(lookalike) == ""
+        decoder.fromData.assert_called_once_with(value.encoded_bytes, "PNG")
+        publish.assert_called_once()
+
+
+def test_image_preview_changed_content_has_its_own_pixels_and_url(
+    image_preview_provider: ViewerPreviewCacheImageProvider,
+) -> None:
+    blue = ImageValue.from_png(_raster_png(b"\x00\x00\x00\xff\xff"))
+    red = ImageValue.from_png(_raster_png(b"\x00\xff\x00\x00\xff"))
+    blue_source = image_preview_module.image_value_preview_source(blue)
+    red_source = image_preview_module.image_value_preview_source(red)
+    assert red_source != blue_source
+    for source, rgba in ((blue_source, (0, 0, 255, 255)), (red_source, (255, 0, 0, 255))):
+        pixels, size = image_preview_provider.requestImage(
+            source.split("image://viewer-preview-cache/", 1)[1], QSize()
+        )
+        assert size == QSize(1, 1)
+        assert pixels.pixelColor(0, 0).getRgb() == rgba
+    assert image_preview_module.image_value_preview_source(blue) == blue_source
+
+
+@pytest.mark.parametrize("cache_loss", ["entry", "all", "adapter", "signature"])
+def test_image_preview_registers_again_after_cache_loss_or_signature_mismatch(
+    image_preview_provider: ViewerPreviewCacheImageProvider,
+    cache_loss: str,
+) -> None:
+    value = ImageValue.from_png(_raster_png(b"\x00\x01\x02\x03\xff"))
+    namespace = image_preview_module.IMAGE_VALUE_PREVIEW_WORKSPACE_ID
+    source = image_preview_module.image_value_preview_source(value)
+    if cache_loss == "entry":
+        assert image_preview_provider.clear_preview(namespace, value.sha256)
+    elif cache_loss == "all":
+        assert image_preview_provider.clear_all()
+    elif cache_loss == "adapter":
+        image_preview_module.clear_image_value_previews()
+        assert not image_preview_provider.has_preview(namespace, value.sha256)
+    else:
+        assert image_preview_provider.set_preview(
+            namespace, value.sha256, QImage.fromData(value.encoded_bytes, "PNG"),
+            signature="different-content",
+        )
+    with (
+        patch.object(image_preview_module, "QImage", wraps=QImage) as decoder,
+        patch.object(
+            image_preview_provider, "set_preview", wraps=image_preview_provider.set_preview
+        ) as publish,
+    ):
+        refreshed_source = image_preview_module.image_value_preview_source(value)
+        assert refreshed_source and refreshed_source != source
+        assert image_preview_provider.preview_signature(namespace, value.sha256) == value.sha256
+        assert image_preview_module.image_value_preview_source(value) == refreshed_source
+        decoder.fromData.assert_called_once_with(value.encoded_bytes, "PNG")
+        publish.assert_called_once()
+
+
+def test_image_preview_provider_replacement_registers_in_active_provider(
+    image_preview_provider: ViewerPreviewCacheImageProvider,
+) -> None:
+    value = ImageValue.from_png(_raster_png(b"\x00\x01\x02\x03\xff"))
+    namespace = image_preview_module.IMAGE_VALUE_PREVIEW_WORKSPACE_ID
+    image_preview_module.image_value_preview_source(value)
+    replacement = ViewerPreviewCacheImageProvider()
+    image_preview_module.set_active_image_value_preview_provider(None)
+    assert image_preview_module.image_value_preview_source(value) == ""
+    image_preview_module.set_active_image_value_preview_provider(replacement)
+    with patch.object(replacement, "set_preview", wraps=replacement.set_preview) as publish:
+        source = image_preview_module.image_value_preview_source(value)
+        assert source == replacement.preview_source(namespace, value.sha256)
+        assert replacement.has_preview(namespace, value.sha256)
+        assert image_preview_module.image_value_preview_source(value) == source
+        publish.assert_called_once()
+    image_preview_module.clear_image_value_previews()
+    assert not replacement.has_preview(namespace, value.sha256)
+    assert image_preview_provider.has_preview(namespace, value.sha256)
+
+
+def test_image_preview_existing_active_entry_is_reused_and_tracked_for_cleanup(
+    image_preview_provider: ViewerPreviewCacheImageProvider,
+) -> None:
+    value = ImageValue.from_png(_raster_png(b"\x00\x01\x02\x03\xff"))
+    namespace = image_preview_module.IMAGE_VALUE_PREVIEW_WORKSPACE_ID
+    assert image_preview_provider.set_preview(
+        namespace, value.sha256, QImage.fromData(value.encoded_bytes, "PNG"),
+        signature=value.sha256,
+    )
+    source = image_preview_provider.preview_source(namespace, value.sha256)
+    with patch.object(image_preview_module, "QImage") as decoder:
+        assert image_preview_module.image_value_preview_source(value) == source
+        decoder.fromData.assert_not_called()
+    image_preview_module.clear_image_value_previews()
+    assert not image_preview_provider.has_preview(namespace, value.sha256)
+
+
+@pytest.mark.parametrize("decoded_size", [(0, 0), (2, 1)])
+def test_image_preview_rejects_null_or_dimension_mismatched_decode(
+    image_preview_provider: ViewerPreviewCacheImageProvider,
+    decoded_size: tuple[int, int],
+) -> None:
+    value = ImageValue.from_png(_raster_png(b"\x00\x01\x02\x03\xff"))
+    decoded = QImage(*decoded_size, QImage.Format.Format_ARGB32)
+    with patch.object(image_preview_module, "QImage") as decoder:
+        decoder.fromData.return_value = decoded
+        assert image_preview_module.image_value_preview_source(value) == ""
+    assert not image_preview_provider.has_preview(
+        image_preview_module.IMAGE_VALUE_PREVIEW_WORKSPACE_ID, value.sha256
+    )
 
 
 def test_project_image_blobs_deduplicate_hydrate_and_prune(tmp_path: Path) -> None:

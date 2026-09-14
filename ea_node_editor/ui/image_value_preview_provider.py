@@ -26,6 +26,13 @@ def image_value_preview_source(value: ImageValue) -> str:
     provider = _active_provider_ref() if _active_provider_ref is not None else None
     if provider is None or type(value) is not ImageValue:
         return ""
+    if (
+        provider.has_preview(IMAGE_VALUE_PREVIEW_WORKSPACE_ID, value.sha256)
+        and provider.preview_signature(IMAGE_VALUE_PREVIEW_WORKSPACE_ID, value.sha256)
+        == value.sha256
+    ):
+        _cached_digests.add(value.sha256)
+        return provider.preview_source(IMAGE_VALUE_PREVIEW_WORKSPACE_ID, value.sha256)
     image = QImage.fromData(value.encoded_bytes, "PNG")
     if image.isNull() or image.width() != value.width or image.height() != value.height:
         return ""

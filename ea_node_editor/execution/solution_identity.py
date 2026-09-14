@@ -1192,6 +1192,14 @@ def solution_key(identity: NodeSolutionIdentity) -> str:
     )
 
 
+def has_connected_source_provenance(plan: Any, node_id: str) -> bool:
+    """Connected source paths are captured at execution, outside the solution key."""
+    return any(
+        plan.incoming_edges_for(node_id, item.property_key)
+        for item in plan.node_specs[node_id].solution_provenance_inputs
+    )
+
+
 def _node_input_provenance_digest(
     *,
     plan: Any,

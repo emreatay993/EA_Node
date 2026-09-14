@@ -7,11 +7,13 @@ import sys
 import threading
 import time
 import unittest
+from collections import Counter
 from pathlib import Path
 from unittest.mock import patch
 from types import SimpleNamespace
 
-from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, Qt, QTimer
+from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, QPoint, QPointF, Qt, QTimer
+from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QMessageBox
@@ -518,6 +520,17 @@ class ShellRunControllerTests(MainWindowShellTestBase):
 
     def test_media_toolbar_history_and_bulk_edits_preserve_real_workflow(self):
         window = self.window
+        # Match the other rendered Panel probes: Windows offscreen does not
+        # discover system fonts, so register the existing fonts for this test.
+        original_font = self.app.font()
+        for filename in ("segoeui.ttf", "seguisb.ttf", "seguisym.ttf", "consola.ttf"):
+            font_file = Path("C:/Windows/Fonts") / filename
+            if font_file.exists():
+                font_id = QFontDatabase.addApplicationFont(str(font_file))
+                if font_id >= 0:
+                    self.addCleanup(QFontDatabase.removeApplicationFont, font_id)
+        self.app.setFont(QFont("Segoe UI", 10))
+        self.addCleanup(self.app.setFont, original_font)
         window.run_controller.set_auto_run_enabled(False)
         runtime = _CountingRuntime(registry=window.registry)
         self.addCleanup(runtime.shutdown)
@@ -529,66 +542,290 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         source_file = Path(self._temp_dir.name) / "series.csv"
         source_file.write_text("value\n0\n1\n0\n-1\n0\n", encoding="utf-8")
         table = window.scene.add_node_from_type("tabular.input", x=20, y=20)
-        plot = window.scene.add_node_from_type("plot.signal", x=240, y=20)
-        media = window.scene.add_node_from_type("media.panel", x=480, y=20)
-        window.scene.set_node_property(table, "path", str(source_file))
+        # The wide Tabular surface must not cover the title Panel's pointer target.
+        panel = window.scene.add_node_from_type("data.panel", x=-450, y=50)
+        plot = window.scene.add_node_from_type("plot.signal", x=700, y=20)
+        media = window.scene.add_node_from_type("media.panel", x=1050, y=20)
+        window.scene.set_node_properties(table, {
+            "path": str(source_file), "cache_policy": "source_direct",
+        })
+        window.scene.set_node_properties(panel, {
+            "value": "Original title", "interpretation": "text", "auto_resize": False,
+        })
         window.scene.add_edge(table, "table_data", plot, "values")
+        window.scene.add_edge(panel, "output", plot, "title")
         window.scene.add_edge(plot, "image", media, "source")
+        for group in window.registry.get_spec("plot.signal").settings_groups:
+            if any(item.port_key == "title" for item in group.items):
+                window.scene.set_node_settings_group_expanded(plot, group.group_id, True)
         window.scene.select_node(media, False)
+        window.resize(1800, 1000)
         window.show()
-        window.run_controller.run_workflow()
-        self._wait_until(lambda: any(e.get("type") == "run_completed" for e in events)
-                         and not window.run_state.active_run_id)
-        started = [e for e in events if e.get("type") == "node_started"]
-        self.assertEqual({e["node_id"] for e in started}, {table, plot, media})
-        self.assertFalse([e for e in events if e.get("type") in {"run_failed", "node_failed"}])
-        window.run_controller.set_auto_run_enabled(True)
-        baseline = (runtime.dispatch_count, runtime.invalidation_count, len(started))
-        facts = runtime.solution_facts(window.model.project.project_id, workspace_id)
-        elapsed = copy.deepcopy(window.run_state.cached_node_elapsed_ms_by_workspace_id)
-        records = copy.deepcopy(window.run_state.cached_node_output_records_by_workspace_id)
-        history_depth = window.runtime_history.undo_depth(workspace_id)
+        self.app.processEvents()
+        window.view.set_view_state(0.6, 440, 150)
+        canvas = self._graph_canvas_item()
+        canvas.setProperty("minimapExpanded", False)
+        project_id = window.model.project.project_id
 
-        def assert_preserved():
-            QTest.qWait(30)
-            self.assertEqual((runtime.dispatch_count, runtime.invalidation_count,
-                len([e for e in events if e.get("type") == "node_started"])), baseline)
-            self.assertEqual(runtime.solution_facts(window.model.project.project_id, workspace_id), facts)
-            self.assertEqual(window.run_state.cached_node_elapsed_ms_by_workspace_id, elapsed)
-            self.assertEqual(window.run_state.cached_node_output_records_by_workspace_id, records)
+        def named(name, node_id=None, property_key=None):
+            root = self._graph_node_card(node_id) if node_id else canvas
+            return next(item for item in self._walk_items(root)
+                        if item.objectName() == name and (property_key is None
+                        or item.property("propertyKey") == property_key))
+
+        def point(item, x=0.5, y=0.5):
+            return item.mapToScene(QPointF(item.width() * x, item.height() * y)).toPoint()
+
+        def drag(item, end, modifiers=Qt.KeyboardModifier.NoModifier, *, wire=False):
+            start = point(item)
+            target = item.window()
+            QTest.mouseMove(target, start)
+            QTest.qWait(20)
+            QTest.mousePress(target, Qt.MouseButton.LeftButton, modifiers, start)
+            QTest.qWait(20)
+            if wire:
+                self.assertIsNotNone(canvas.property("wireDragState"), "Wire press was not received")
+            QTest.mouseMove(target, (start + end) / 2)
+            QTest.qWait(20)
+            QTest.mouseMove(target, end)
+            QTest.qWait(20)
+            QTest.mouseRelease(target, Qt.MouseButton.LeftButton, modifiers, end)
+            QTest.qWait(100)
+
+        def move_panel():
+            body = named("graphPanelBody", panel)
+            before = (workspace.nodes[panel].x, workspace.nodes[panel].y)
+            drag(body, point(body) + QPoint(30, 10))
+            self.assertNotEqual((workspace.nodes[panel].x, workspace.nodes[panel].y), before)
+
+        def edit_panel(value, commit="enter"):
+            body = named("graphPanelBody", panel)
+            QTest.mouseDClick(body.window(), Qt.MouseButton.LeftButton,
+                             Qt.KeyboardModifier.NoModifier, point(body))
+            editor = named("graphPanelEditorPopover")
+            self._wait_until(lambda: editor.property("visible"), timeout=5)
+            field = named("graphPanelEditorValueField")
+            field.forceActiveFocus()
+            field.setProperty("text", value)
+            if commit == "enter":
+                QTest.keyClick(field.window(), Qt.Key.Key_Return)
+            else:
+                button = named("graphPanelEditorAcceptButton" if commit == "ok"
+                               else "graphPanelEditorCancelButton")
+                QTest.mouseClick(button.window(), Qt.MouseButton.LeftButton,
+                                 Qt.KeyboardModifier.NoModifier, point(button))
+            self._wait_until(lambda: not editor.property("visible"), timeout=5)
+            if commit != "cancel":
+                self.assertEqual(workspace.nodes[panel].properties["value"], value)
+
+        def facts():
+            return {fact.node_id: fact for fact in runtime.solution_facts(project_id, workspace_id)}
+
+        def node_result(node_id):
+            return (facts()[node_id], copy.deepcopy(
+                window.run_state.cached_node_output_records_by_workspace_id[workspace_id][node_id]),
+                window.run_state.cached_node_elapsed_ms_by_workspace_id[workspace_id][node_id])
+
+        def counts():
+            return (runtime.dispatch_count, runtime.invalidation_count,
+                    Counter((e["type"], e["node_id"]) for e in events
+                            if e.get("type") in {"node_started", "node_settled"}))
+
+        def wait_run(event_index, expected_nodes):
+            self._wait_until(lambda: any(e.get("type") == "run_completed"
+                                        for e in events[event_index:])
+                             and not window.run_state.active_run_id
+                             and not window.run_state.active_submission_id)
+            completed = events[event_index:]
+            self.assertEqual(sum(e.get("type") == "run_completed" for e in completed), 1)
+            self.assertFalse([e for e in completed if e.get("type") in {
+                "run_failed", "node_failed", "solution_nondeterminism",
+            }])
+            for event_type in ("node_started", "node_settled"):
+                self.assertEqual(Counter(e["node_id"] for e in completed
+                                         if e.get("type") == event_type), Counter(expected_nodes))
+            self.assertTrue(all(e.get("accepted_solution_record") for e in completed
+                                if e.get("type") == "node_settled"))
             self.assertFalse(window.run_state.pending_auto_run_target_node_ids)
 
+        window.run_controller.run_workflow()
+        wait_run(0, (table, panel, plot, media))
+        surface = named("graphNodeMediaSurface", media)
+        self._wait_until(lambda: surface.property("sourceState") == "ready"
+                         and surface.property("rendererActive"))
+        window.run_controller.set_auto_run_enabled(True)
+        table_result = node_result(table)
+        state_changes, table_flow_changes = [], []
+
+        def renderer_state():
+            return (surface.property("sourceState"), surface.property("rendererActive"),
+                    surface.property("rendererKey"), surface.property("loadedRenderer"))
+
+        def observe_renderer():
+            state_changes.append(renderer_state())
+
+        def observe_table_flow():
+            table_flow_changes.append(
+                window.graph_canvas_state_bridge.port_flow_state_lookup.get(table, {}).get("table_data"))
+
+        for signal in (surface.sourceStateChanged, surface.rendererActiveChanged,
+                       surface.rendererKeyChanged, surface.loadedRendererChanged):
+            signal.connect(observe_renderer)
+        window.graph_canvas_state_bridge.port_flow_state_changed.connect(observe_table_flow)
+
+        def observe_action():
+            state_changes.clear()
+            table_flow_changes.clear()
+            observe_renderer()
+            observe_table_flow()
+
+        def cosmetic(action):
+            baseline = counts()
+            current_facts = facts()
+            records = copy.deepcopy(window.run_state.cached_node_output_records_by_workspace_id)
+            elapsed = copy.deepcopy(window.run_state.cached_node_elapsed_ms_by_workspace_id)
+            renderer = renderer_state()
+            self.assertEqual(renderer[:2], ("ready", True))
+            self.assertIsNotNone(renderer[3])
+            observe_action()
+            action()
+            QTest.qWait(100)
+            observe_renderer()
+            observe_table_flow()
+            self.assertEqual(counts(), baseline)
+            self.assertEqual(facts(), current_facts)
+            self.assertEqual(window.run_state.cached_node_output_records_by_workspace_id, records)
+            self.assertEqual(window.run_state.cached_node_elapsed_ms_by_workspace_id, elapsed)
+            self.assertTrue(all(state == renderer for state in state_changes), state_changes)
+            self.assertEqual(set(table_flow_changes), {"flowing"})
+            self.assertFalse(window.run_state.pending_auto_run_target_node_ids)
+
+        def computational(action, expected_nodes, *, preserve_table=True):
+            event_index = len(events)
+            baseline = counts()
+            old_renderer = renderer_state()
+            observe_action()
+            action()
+            wait_run(event_index, expected_nodes)
+            self._wait_until(lambda: surface.property("sourceState") == "ready"
+                             and surface.property("rendererActive"))
+            self.assertEqual(runtime.dispatch_count, baseline[0] + 1)
+            self.assertEqual(runtime.invalidation_count, baseline[1] + 1)
+            self.assertIn("stale", [state[0] for state in state_changes])
+            self.assertIn(False, [state[1] for state in state_changes])
+            self.assertNotEqual(renderer_state()[2], old_renderer[2])
+            if preserve_table:
+                self.assertEqual(node_result(table), table_result)
+                self.assertEqual(set(table_flow_changes), {"flowing"})
+
+        history_depth = window.runtime_history.undo_depth(workspace_id)
         for action, title, frame in [
             ("toggle_title", False, True), ("toggle_frame", False, False),
             ("toggle_content_only", True, True),
         ]:
-            card = self._graph_node_card(media)
-            surface = next(item for item in self._walk_items(card)
-                           if item.objectName() == "graphNodeMediaSurface")
-            QMetaObject.invokeMethod(surface, "dispatchSurfaceAction", Qt.ConnectionType.DirectConnection,
-                Q_ARG("QVariant", action))
+            cosmetic(lambda: QMetaObject.invokeMethod(surface, "dispatchSurfaceAction",
+                Qt.ConnectionType.DirectConnection, Q_ARG("QVariant", action)))
             self.assertEqual(workspace.nodes[media].properties["show_title"], title)
             self.assertEqual(workspace.nodes[media].properties["show_frame"], frame)
-            assert_preserved()
             rendered_card = self._graph_node_card(media)
             self.assertEqual(rendered_card.property("nodeChromeTitleVisible"), title)
             self.assertEqual(rendered_card.property("nodeChromeFrameVisible"), frame)
         self.assertTrue(workspace.dirty)
         self.assertEqual(window.runtime_history.undo_depth(workspace_id), history_depth + 3)
-        self.assertTrue(window.workspace_edit_controller.undo())
+        cosmetic(lambda: self.assertTrue(window.workspace_edit_controller.undo()))
         self.assertFalse(workspace.nodes[media].properties["show_frame"])
-        assert_preserved()
-        self.assertTrue(window.workspace_edit_controller.redo())
+        cosmetic(lambda: self.assertTrue(window.workspace_edit_controller.redo()))
         self.assertTrue(workspace.nodes[media].properties["show_frame"])
-        assert_preserved()
-        window.scene.set_node_properties(media, {"rotation_degrees": 90, "fit_mode": "cover"})
-        window.scene.set_node_property(table, "tabular_table_view_state", {"column_widths": {"value": 180}})
-        assert_preserved()
+        cosmetic(lambda: window.scene.set_node_properties(media, {
+            "rotation_degrees": 90, "fit_mode": "cover",
+        }))
+        cosmetic(lambda: window.scene.set_node_property(table, "tabular_table_view_state", {
+            "column_widths": {"value": 180},
+        }))
+        for _ in range(3):
+            cosmetic(move_panel)
+        cosmetic(lambda: self.assertTrue(window.workspace_edit_controller.undo()))
+        cosmetic(lambda: self.assertTrue(window.workspace_edit_controller.redo()))
 
-        # A computational control still causes exactly one Auto dispatch.
-        window.scene.set_node_property(plot, "title", "Changed plot output")
-        self._wait_until(lambda: runtime.dispatch_count == baseline[0] + 1 and not window.run_state.active_run_id)
+        panel_surface = named("graphPanelSurface", panel)
+        cosmetic(lambda: QMetaObject.invokeMethod(panel_surface, "dispatchSurfaceAction",
+            Qt.ConnectionType.DirectConnection, Q_ARG("QVariant", "panel_font_increase")))
+        before_size = (workspace.nodes[panel].custom_width, workspace.nodes[panel].custom_height)
+        cosmetic(lambda: QMetaObject.invokeMethod(panel_surface, "dispatchSurfaceAction",
+            Qt.ConnectionType.DirectConnection, Q_ARG("QVariant", "panel_fit_width")))
+        self.assertNotEqual((workspace.nodes[panel].custom_width,
+                             workspace.nodes[panel].custom_height), before_size)
+        cosmetic(lambda: edit_panel("Original title", "enter"))
+        cosmetic(lambda: edit_panel("Original title", "ok"))
+        cosmetic(lambda: edit_panel("Canceled draft", "cancel"))
+        self.assertEqual(workspace.nodes[panel].properties["value"], "Original title")
+
+        computational(lambda: edit_panel("Title via Enter"), (panel, plot, media))
+        computational(lambda: edit_panel("Title via OK", "ok"), (panel, plot, media))
+        computational(lambda: self.assertTrue(window.workspace_edit_controller.undo()),
+                      (panel, plot, media))
+        computational(lambda: self.assertTrue(window.workspace_edit_controller.redo()),
+                      (panel, plot, media))
+
+        proof_dir = Path(__file__).resolve().parents[1] / "artifacts" / "current_results_preview"
+        proof_dir.mkdir(parents=True, exist_ok=True)
+        QTest.qWait(100)
+        self.assertTrue(window.quick_widget.grabFramebuffer().save(str(proof_dir / "before-wire.png")))
+
+        def disconnect_title():
+            port = named("graphNodeOutputPortMouseArea", panel, "output")
+            drag(port, point(port) + QPoint(0, 220), Qt.KeyboardModifier.ControlModifier,
+                 wire=True)
+            self.assertFalse(any(edge.source_node_id == panel for edge in workspace.edges.values()))
+
+        def connect_title():
+            port = named("graphNodeOutputPortMouseArea", panel, "output")
+            target = named("graphNodeInputPortMouseArea", plot, "title")
+            drag(port, point(target), wire=True)
+            self.assertTrue(any(edge.source_node_id == panel and edge.target_node_id == plot
+                                for edge in workspace.edges.values()))
+
+        computational(disconnect_title, (plot, media))
+        computational(connect_title, (plot, media))
+
+        # Hold the real next-turn Auto callback, preserving its legitimate work
+        # while a subsequent presentation edit refreshes the shell projection.
+        scheduled = []
+        event_index = len(events)
+        baseline = counts()
+        observe_action()
+        with patch.object(window.run_controller, "_schedule_next_turn", scheduled.append):
+            edit_panel("Queued title", "ok")
+            self.assertEqual(len(scheduled), 1)
+            pending = set(window.run_state.pending_auto_run_target_node_ids)
+            self.assertEqual(pending, {panel, plot, media})
+            self.assertEqual(renderer_state()[:2], ("stale", False))
+            queued_counts = counts()
+            move_panel()
+            self.assertEqual(counts(), queued_counts)
+            self.assertEqual(window.run_state.pending_auto_run_target_node_ids, pending)
+            self.assertEqual(node_result(table), table_result)
+            self.assertEqual(renderer_state()[:2], ("stale", False))
+        scheduled[0]()
+        wait_run(event_index, (panel, plot, media))
+        self._wait_until(lambda: surface.property("sourceState") == "ready"
+                         and surface.property("rendererActive"))
+        self.assertEqual(runtime.dispatch_count, baseline[0] + 1)
         self.assertEqual(runtime.invalidation_count, baseline[1] + 1)
+        self.assertEqual(node_result(table), table_result)
+        self.assertEqual(set(table_flow_changes), {"flowing"})
+        cosmetic(move_panel)
+
+        changed_source = Path(self._temp_dir.name) / "changed-series.csv"
+        changed_source.write_text("value\n4\n3\n2\n1\n0\n", encoding="utf-8")
+        computational(lambda: window.scene.set_node_property(table, "path", str(changed_source)),
+                      (table, plot, media), preserve_table=False)
+        self.assertNotEqual(facts()[table].retained_record_id, table_result[0].retained_record_id)
+        cosmetic(lambda: window.scene.set_node_properties(media, {
+            "rotation_degrees": 0, "fit_mode": "contain",
+        }))
+        QTest.qWait(100)
+        self.assertTrue(window.quick_widget.grabFramebuffer().save(str(proof_dir / "acceptance.png")))
 
     def test_disconnected_toggle_auto_run_preserves_current_viewer_until_separate_same_node_invalidation(
         self,

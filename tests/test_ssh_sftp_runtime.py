@@ -493,6 +493,14 @@ def test_connection_failure_error_is_fixed_and_sensitive_text_free(
     object.__setattr__(executor, "_node_decisions", {})
     executor.node_outputs = {}
     executor.executed = set()
+    monkeypatch.setattr(
+        NodeExecutor, "_output_source_bindings",
+        lambda *_args: pytest.fail("failure reporting must not capture source bindings"),
+    )
+    monkeypatch.setattr(
+        "ea_node_editor.execution.worker_runner.validate_source_provenance_bindings",
+        lambda *_args: pytest.fail("failure reporting must not inspect source files"),
+    )
 
     expected_error_type = (
         FileNotFoundError if failure_site == "path_not_file" else RuntimeError
@@ -535,6 +543,9 @@ def test_connection_failure_error_is_fixed_and_sensitive_text_free(
     assert caught_error.__cause__ is None
     assert caught_error.__context__ is None
     assert settled_event["errors"][0]["error"] == expected_message
+    assert not settled_event["retained_source_bindings"]
+    assert not settled_event["source_provenance_bindings"]
+    assert not settled_event["source_provenance_complete"]
     assert expected_message in serialized_events
     for forbidden in (
         address,

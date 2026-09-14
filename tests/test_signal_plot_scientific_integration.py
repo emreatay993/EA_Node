@@ -20,6 +20,7 @@ from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import PlotValue
 from ea_node_editor.runtime_contracts.scientific_values import ArrayValue
+from ea_node_editor.runtime_contracts.solution_records import SolutionFreshness
 from scripts.benchmark_signal_plot import (
     _measure,
     scientific_benchmark,
@@ -147,24 +148,29 @@ def test_npy_reference_pipeline_honors_explicit_input_rows_and_repeats(tmp_path)
         assert all(
             "from 4100 to" in warning for warning in settled[plot.node_id]["warnings"]
         )
+        first_plot = settled_item(settled[plot.node_id], "image", registry.data_types)
+        first_records = {node_id: event["record_id"] for node_id, event in settled.items()}
         wait_for_runtime_idle(runtime)
         repeated = runtime.run(request, timeout=60)
         assert repeated.status == "completed", (repeated.error, repeated.traceback)
         repeated_settled = {
             e["node_id"]: e for e in repeated.events if e.get("type") == "node_settled"
         }
-        assert (
-            repeated_settled[source.node_id]["decision_reason"] == "no_reusable_record"
+        assert set(repeated_settled) == {source.node_id, plot.node_id}
+        assert not any(event.get("type") == "node_started" for event in repeated.events)
+        for node_id, event in repeated_settled.items():
+            assert event["decision_reason"] == "reusable_record_accepted"
+            assert event["disposition"] == "reused"
+            assert event["accepted_solution_record"]
+            assert event["record_id"] == first_records[node_id]
+        assert settled_item(repeated_settled[source.node_id], output, registry.data_types) == ref
+        assert settled_item(repeated_settled[plot.node_id], "image", registry.data_types) == first_plot
+        assert not repeated_settled[plot.node_id]["warnings"]
+        assert all(
+            fact.freshness is SolutionFreshness.CURRENT
+            and fact.retained_record_id == first_records[fact.node_id]
+            for fact in runtime.solution_facts(model.project.project_id, workspace_id)
         )
-        assert (
-            repeated_settled[plot.node_id]["decision_reason"]
-            == "upstream_recompute_required"
-        )
-        assert isinstance(
-            settled_item(repeated_settled[plot.node_id], "image", registry.data_types),
-            PlotValue,
-        )
-        assert len(repeated_settled[plot.node_id]["warnings"]) == 3
     finally:
         runtime.shutdown()
 

@@ -52,6 +52,7 @@ T01–T17 are complete, and the locked 176-type snapshot is fully classified.
 
 ### Completed Implementation Plans
 
+- [Current Results and Preview Stability](../PLANS/CURRENT_RESULTS_AND_PREVIEW_STABILITY.md) — `IMPLEMENTED AND REVIEWED`; source-bound current results, inherited provenance, stable immutable previews and real editor/drag/wire proof; all identified integration failures resolved with focused rechecks and the serial phase passing.
 - [Canvas Execution Impact](../PLANS/CANVAS_EXECUTION_IMPACT.md) — `IMPLEMENTED AND REVIEWED`; shared property impact, execution comparison and real-worker/QML proof; identified baseline checks corrected and passing.
 
 - [COREX Mechanical Catalogue](../PLANS/MECHANICAL_CATALOGUE/PLAN.md) — `COMPLETED — T01–T18 ACCEPTED`; [task ledger](../PLANS/MECHANICAL_CATALOGUE/TASK_LEDGER.md), [final QA matrix](perf/MECHANICAL_CATALOGUE_QA_MATRIX.md), [user/developer guide](../MECHANICAL_CATALOGUE.md), runnable [table](../../examples/mechanical_table_to_signal_plot.cxproj), [image](../../examples/mechanical_camera_image_workflows.cxproj), and [mutation](../../examples/mechanical_mutate_snippet_save.cxproj) examples, [T17 structural proof](../../tests/mechanical_catalogue/test_examples.py), [approved visual baseline](../PLANS/MECHANICAL_CATALOGUE/VISUAL_BASELINE.md), [T01 capability qualification](perf/MECHANICAL_CATALOGUE_CAPABILITY_PROOF.md), [CDB export qualification](../MECHANICAL_CATALOGUE.md#cdb-export-qualification)
