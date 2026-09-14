@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Iterable, Mapping
-from typing import Any, Literal, Protocol
+from typing import Any, Protocol
 
 from ea_node_editor.execution.prepared_execution import SolutionStateChangedEvent
 from ea_node_editor.runtime_contracts.settled_results import (
@@ -24,6 +24,7 @@ from ea_node_editor.ui.port_availability import (
 )
 from ea_node_editor.ui.shell.run_flow import selected_workspace_run_control_state
 from ea_node_editor.ui.shell.state import ShellRunState
+from ea_node_editor.telemetry.status_service import EngineState
 from ea_node_editor.ui.support.solution_output_cache import (
     cache_accepted_output_record,
     remove_cached_nodes,
@@ -53,6 +54,7 @@ class _RunProjectionHostProtocol(Protocol):
 class RunProjectionController:
     def __init__(self, host: _RunProjectionHostProtocol) -> None:
         self._host = host
+        self._last_run_controls = None
 
     @property
     def _state(self) -> ShellRunState:
@@ -230,7 +232,7 @@ class RunProjectionController:
 
     def set_run_ui_state(
         self,
-        state: Literal["ready", "running", "paused", "error"],
+        state: EngineState,
         details: str,
         running: int,
         queued: int,
@@ -251,8 +253,13 @@ class RunProjectionController:
             selected_workspace_id=self._host.workspace_manager.active_workspace_id(),
             active_run_id=self._state.active_run_id,
             active_run_workspace_id=self._state.active_run_workspace_id,
+            active_submission_id=self._state.active_submission_id,
+            active_submission_workspace_id=self._state.active_submission_workspace_id,
             engine_state=self._state.engine_state_value,
         )
+        if projection == self._last_run_controls:
+            return
+        self._last_run_controls = projection
         self._host.action_run.setEnabled(projection.can_run_active_workspace)
         self._host.action_stop.setEnabled(projection.can_stop_active_workspace)
         self._host.action_pause.setEnabled(projection.can_pause_active_workspace)

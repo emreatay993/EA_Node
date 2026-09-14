@@ -127,7 +127,7 @@ def test_extraction_node_descriptors_publish_guided_ref_interfaces() -> None:
         {port.key: port.data_type for port in table_spec.ports}["window"]
         == TABULAR_WINDOW_REF_TYPE_ID
     )
-    assert {prop.key: prop.default for prop in table_spec.properties} == {
+    assert {prop.key: prop.make_default() for prop in table_spec.properties} == {
         "row_offset": 0,
         "row_limit": 1000,
         "column_offset": 0,
@@ -141,7 +141,7 @@ def test_extraction_node_descriptors_publish_guided_ref_interfaces() -> None:
         {port.key: port.data_type for port in array_spec.ports}["slice_2d"]
         == ARRAY_SLICE_2D_REF_TYPE_ID
     )
-    assert {prop.key: prop.default for prop in array_spec.properties} == {
+    assert {prop.key: prop.make_default() for prop in array_spec.properties} == {
         "row_offset": 0,
         "row_limit": 1000,
         "column_offset": 0,
@@ -152,7 +152,7 @@ def test_extraction_node_descriptors_publish_guided_ref_interfaces() -> None:
     assert table_writer_spec.type_id == TABULAR_WRITE_TABLE_WINDOW_NODE_TYPE_ID
     assert table_writer_spec.display_name == "Write Filtered Table"
     assert table_writer_spec.properties[0].file_filter == TABULAR_TABLE_OUTPUT_FILES_FILTER
-    assert table_writer_spec.properties[0].default == ""
+    assert table_writer_spec.properties[0].make_default() == ""
     assert all(
         port.data_access == "tree"
         for port in table_writer_spec.ports
@@ -167,7 +167,7 @@ def test_extraction_node_descriptors_publish_guided_ref_interfaces() -> None:
     assert values_port.data_access == "list"
     assert array_writer_spec.type_id == TABULAR_WRITE_ARRAY_SLICE_2D_NODE_TYPE_ID
     assert array_writer_spec.properties[0].file_filter == TABULAR_ARRAY_OUTPUT_FILES_FILTER
-    assert array_writer_spec.properties[0].default == ""
+    assert array_writer_spec.properties[0].make_default() == ""
     assert all(
         port.data_access == "tree"
         for port in array_writer_spec.ports

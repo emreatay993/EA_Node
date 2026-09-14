@@ -105,16 +105,16 @@ def test_tabular_data_input_descriptor_publishes_one_ref_only_source_node() -> N
     assert properties_by_key["path"].type == "path"
     assert properties_by_key["path"].inline_editor == ""
     assert properties_by_key["path"].inspector_editor == "path"
-    assert properties_by_key["selected_object"].default == ""
-    assert properties_by_key["cache_policy"].default == TABULAR_DATA_INPUT_CACHE_POLICY_APP_MANAGED_PARQUET
-    assert properties_by_key["project_managed_source"].default is False
-    assert properties_by_key["project_managed_cache"].default is False
-    assert properties_by_key[TABULAR_SELECTED_COLUMNS_PROPERTY].default == []
+    assert properties_by_key["selected_object"].make_default() == ""
+    assert properties_by_key["cache_policy"].make_default() == TABULAR_DATA_INPUT_CACHE_POLICY_APP_MANAGED_PARQUET
+    assert properties_by_key["project_managed_source"].make_default() is False
+    assert properties_by_key["project_managed_cache"].make_default() is False
+    assert properties_by_key[TABULAR_SELECTED_COLUMNS_PROPERTY].make_default() == []
     assert not property_visible_in_inspector(properties_by_key[TABULAR_SELECTED_COLUMNS_PROPERTY])
-    assert properties_by_key[TABULAR_TABLE_VIEW_STATE_PROPERTY].default == {}
+    assert properties_by_key[TABULAR_TABLE_VIEW_STATE_PROPERTY].make_default() == {}
     assert not property_visible_in_inspector(properties_by_key[TABULAR_TABLE_VIEW_STATE_PROPERTY])
     assert not property_visible_in_inspector(properties_by_key[TABULAR_ARRAY_SLICE_2D_PROPERTY])
-    assert properties_by_key[TABULAR_ARRAY_SLICE_2D_PROPERTY].default == {
+    assert properties_by_key[TABULAR_ARRAY_SLICE_2D_PROPERTY].make_default() == {
         "row_offset": 0,
         "column_offset": 0,
         "row_limit": 50,

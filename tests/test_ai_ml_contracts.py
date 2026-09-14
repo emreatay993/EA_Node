@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from tests.repo_owned_catalog_fixture import catalog_value
+
 import json
 import socket
 import sqlite3
@@ -1896,7 +1897,7 @@ def test_sqlite_vector_function_specs_and_successor_inventory_are_exact() -> Non
         if row["spec"]["type_id"] in ids
     }
     assert {
-        declaration.spec.type_id: json.loads(json.dumps(asdict(declaration.spec)))
+        declaration.spec.type_id: catalog_value(declaration.spec)
         for declaration in declarations
     } == expected
     assert tuple(declaration.spec.type_id for declaration in declarations) == (
@@ -1973,7 +1974,7 @@ def test_sqlite_vector_function_specs_and_successor_inventory_are_exact() -> Non
         (
             prop.key,
             prop.type,
-            prop.default,
+            prop.make_default(),
             prop.minimum,
             prop.maximum,
             prop.enum_values,

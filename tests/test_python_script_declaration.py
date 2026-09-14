@@ -99,7 +99,7 @@ def run(
 
 
 def test_source_backed_group_validation_and_mutations_keep_backing_write_guards() -> None:
-    registry = build_builtin_registry()
+    registry = build_builtin_registry().fork()
     properties = registry.default_properties("core.python_script")
     spec = registry.resolve_spec("core.python_script", properties)
     group = spec.dynamic_port_groups[0]
@@ -114,6 +114,7 @@ def test_source_backed_group_validation_and_mutations_keep_backing_write_guards(
     base = registry.get_spec("core.python_script")
     custom = replace(spec, type_id="tests.source_backed", instance_spec_resolver=base.instance_spec_resolver)
     registry.register_descriptor(custom, lambda: None)
+    registry.freeze()
     model = GraphModel()
     mutation = ValidatedGraphMutation(model, model.active_workspace.workspace_id, registry)
     node = mutation.add_node(type_id=custom.type_id, title="Source", x=0, y=0, properties=properties)

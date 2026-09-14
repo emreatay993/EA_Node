@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-import json
+from tests.repo_owned_catalog_fixture import catalog_value
+
 from pathlib import Path
 import queue
 from unittest import mock
@@ -181,7 +181,7 @@ def test_interval_specs_match_golden(tmp_path: Path) -> None:
     registry = build_builtin_registry(generation_root=tmp_path / "generations")
 
     for type_id in (CONSTRUCT_INTERVAL_TYPE_ID, DECONSTRUCT_INTERVAL_TYPE_ID):
-        assert json.loads(json.dumps(asdict(registry.get_spec(type_id)))) == expected[type_id]
+        assert catalog_value(registry.get_spec(type_id)) == expected[type_id]
 
 
 @pytest.mark.parametrize(

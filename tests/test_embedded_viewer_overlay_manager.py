@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.nodes.builtins.engineering_viewer import ENGINEERING_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.node_specs import (
     NodeRenderQualitySpec,
     NodeTypeSpec,
@@ -99,8 +100,13 @@ class _CountingWidget(QWidget):
 
 class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
     def setUp(self) -> None:
-        super().setUp()
-        self.window.registry.register(lambda: _ViewerOverlayPlugin(_viewer_overlay_spec()))
+        def fixture_registry(**kwargs):
+            registry = build_default_registry(**kwargs).fork()
+            registry.register(lambda: _ViewerOverlayPlugin(_viewer_overlay_spec()))
+            registry.freeze()
+            return registry
+        with patch("ea_node_editor.ui.shell.composition.primitives.build_default_registry", side_effect=fixture_registry):
+            super().setUp()
         self.manager = self.window.embedded_viewer_overlay_manager
         self.assertIsNotNone(self.manager)
         self.workspace_id = self.window.workspace_manager.active_workspace_id()

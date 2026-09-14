@@ -21,6 +21,7 @@ from ea_node_editor.execution.run_messages import (
     StartRunCommand,
 )
 from ea_node_editor.execution.registry_agreement import (
+    RegistryAgreement,
     runtime_registry_fingerprint,
 )
 from ea_node_editor.nodes.function_plugin import (
@@ -60,11 +61,13 @@ class WorkerPluginRuntime:
 
     def prepare_registry(
         self,
-        command: StartRunCommand,
+        command: StartRunCommand | RegistryAgreement,
         trusted_registry: NodeRegistry,
     ) -> NodeRegistry:
-        if not isinstance(command, StartRunCommand):
-            raise TypeError("command must be a StartRunCommand")
+        if type(command) not in {StartRunCommand, RegistryAgreement}:
+            raise TypeError(
+                "registry preparation requires a StartRunCommand or RegistryAgreement"
+            )
         if not isinstance(trusted_registry, NodeRegistry):
             raise TypeError("trusted_registry must be a NodeRegistry")
         requested_plugin_fingerprint = command.plugin_fingerprint or (
@@ -76,8 +79,7 @@ class WorkerPluginRuntime:
                     self._registry is None
                     or requested_plugin_fingerprint
                     != self._registry.plugin_fingerprint()
-                    or command.plugin_bundles
-                    != self._registry.plugin_bundle_refs()
+                    or command.plugin_bundles != self._registry.plugin_bundle_refs()
                     or (
                         command.runtime_registry_fingerprint
                         and command.runtime_registry_fingerprint
@@ -111,19 +113,40 @@ class WorkerPluginRuntime:
                 if bundle.owner_id in trusted_owner_ids
             )
             if requested_trusted and requested_trusted != expected_trusted:
-                raise ValueError(
-                    "Trusted function generation is not attested"
-                )
+                raise ValueError("Trusted function generation is not attested")
 
+            trusted_bundles = tuple(
+                bundle
+                for bundle in trusted_registry.plugin_bundle_refs()
+                if bundle.owner_id in trusted_owner_ids
+            )
+            requested_trusted_bundles = tuple(
+                bundle
+                for bundle in command.plugin_bundles
+                if bundle.owner_id in trusted_owner_ids
+            )
+            trusted_functions = {
+                function for bundle in trusted_bundles for function in bundle.functions
+            }
+            shared_declarations = (
+                requested_trusted_bundles == trusted_bundles
+                and set(trusted_registry.all_python_function_refs())
+                == trusted_functions
+            )
             candidate = (
-                trusted_registry
-                if not command.plugin_bundles
-                and not trusted_registry.all_python_function_refs()
+                trusted_registry.fork()
+                if shared_declarations
                 else trusted_registry.trusted_runtime_copy()
             )
             generations: dict[str, VerifiedPluginGeneration] = {}
             for bundle in command.plugin_bundles:
                 generation = read_verified_plugin_generation(bundle)
+                if shared_declarations and bundle in trusted_bundles:
+                    # The worker's own bootstrap derived these declarations from
+                    # this exact verified generation. Keep source verification
+                    # and lazy function loading, without rebuilding metadata.
+                    generations[bundle.bundle_digest] = generation
+                    continue
                 package = ValidatedPackage(
                     validate_package_manifest(generation.manifest),
                     dict(generation.members),
@@ -162,8 +185,7 @@ class WorkerPluginRuntime:
                     provenance = None
                     if (
                         trusted_solution_reuse
-                        and bundle.owner_id
-                        == "ea_node_editor.builtins.tabular_data"
+                        and bundle.owner_id == "ea_node_editor.builtins.tabular_data"
                     ):
                         package_root = Path(bundle.approved_generation_root)
                         provenance = PluginProvenance(
@@ -200,9 +222,8 @@ class WorkerPluginRuntime:
                 candidate.data_types.fingerprint(),
                 computed_plugin_fingerprint,
             )
-            requested_runtime_fingerprint = (
-                command.runtime_registry_fingerprint
-                or (expected_runtime_fingerprint if not command.plugin_bundles else "")
+            requested_runtime_fingerprint = command.runtime_registry_fingerprint or (
+                expected_runtime_fingerprint if not command.plugin_bundles else ""
             )
             if requested_runtime_fingerprint != expected_runtime_fingerprint:
                 raise ValueError(
@@ -256,7 +277,9 @@ class WorkerPluginRuntime:
                 raise RuntimeError("Worker plugin runtime is not bound")
             bundle = self._bundles.get(function_ref.bundle_id)
             if bundle is None or function_ref not in bundle.functions:
-                raise RuntimeError("Public function reference is not in the active generation")
+                raise RuntimeError(
+                    "Public function reference is not in the active generation"
+                )
             reason = str(unavailable_reason or bundle.unavailable_reason).strip()
             if reason:
                 raise RuntimeError(reason)
@@ -277,8 +300,10 @@ class WorkerPluginRuntime:
                     raise RuntimeError("Public plugin function async state changed")
                 self._functions[function_ref] = function
             return PythonFunctionAdapter(
-                spec, function,
-                native_inputs=function_ref.bundle_id != INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
+                spec,
+                function,
+                native_inputs=function_ref.bundle_id
+                != INTERNAL_BUILTIN_FUNCTION_OWNER_ID,
             )
 
     def clear(self) -> None:

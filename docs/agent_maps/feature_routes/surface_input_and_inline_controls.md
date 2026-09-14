@@ -3,6 +3,10 @@
 ## Purpose
 Use this for inline editors, surface controls, editable passive surfaces, text/path/color controls, and surface interactive regions.
 
+`GraphSurfaceListEditor.qml` updates existing variant-valued model rows in place,
+preserving controls and exact string/numeric selector values through refreshes.
+`tests/qml_quick/tst_graph_surface_controls.qml` proves row identity and value fidelity.
+
 ## Lookup Aliases
 - `inline list height`
 - `list editor`

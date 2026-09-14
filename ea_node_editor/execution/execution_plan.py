@@ -7,6 +7,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from functools import cached_property
 import hashlib
 import json
 from types import MappingProxyType
@@ -19,7 +20,11 @@ from ea_node_editor.common.optimization_links import (
     optimization_pool_role,
     parameter_setup_pool_link_facts,
 )
-from ea_node_editor.execution.runtime_dto import RuntimeEdge, RuntimeWorkspace, materialize_runtime_node
+from ea_node_editor.execution.runtime_dto import (
+    RuntimeEdge,
+    RuntimeWorkspace,
+    materialize_runtime_node,
+)
 from ea_node_editor.execution.solution_identity import canonical_digest
 
 if TYPE_CHECKING:
@@ -130,14 +135,21 @@ class ExecutionPlan:
 
         # Topology contracts are identity/authoring facts, never runtime schemas.
         self.type_resolver = GraphTypeResolver(
-            registry=registry, workspace_nodes=self.node_instances,
-            workspace_edges=workspace.edges, ports_by_node_id=self.node_ports,
+            registry=registry,
+            workspace_nodes=self.node_instances,
+            workspace_edges=workspace.edges,
+            ports_by_node_id=self.node_ports,
         )
-        self.source_contracts = MappingProxyType({
-            (node_id, port.key): self.type_resolver.source_contract(node_id, port.key)
-            for node_id, ports in self.node_ports.items() for port in ports
-            if port.direction == "out" and port.kind == "data"
-        })
+        self.source_contracts = MappingProxyType(
+            {
+                (node_id, port.key): self.type_resolver.source_contract(
+                    node_id, port.key
+                )
+                for node_id, ports in self.node_ports.items()
+                for port in ports
+                if port.direction == "out" and port.kind == "data"
+            }
+        )
         self.data_incoming: dict[str, list[RuntimeEdge]] = defaultdict(list)
         self.data_outgoing: dict[str, list[RuntimeEdge]] = defaultdict(list)
         for edge in sorted(
@@ -157,8 +169,16 @@ class ExecutionPlan:
 
     def _finalize(self) -> None:
         self.workflow_interface_revision = WORKFLOW_INTERFACE_REVISION
-        self.workflow_interface_digest = self._workflow_interface_digest()
-        self.fingerprint = self._topology_fingerprint()
+        self.__dict__.pop("workflow_interface_digest", None)
+        self.__dict__.pop("fingerprint", None)
+
+    @cached_property
+    def workflow_interface_digest(self) -> str:
+        return self._workflow_interface_digest()
+
+    @cached_property
+    def fingerprint(self) -> str:
+        return self._topology_fingerprint()
 
     def _compiled_declaration_order(self) -> tuple[str, ...]:
         return tuple(
@@ -526,7 +546,10 @@ class ExecutionPlan:
         return canonical_digest(
             {
                 "revision": WORKFLOW_INTERFACE_REVISION,
-                "nodes": [self._workflow_node_interface(node_id) for node_id in self.execution_order],
+                "nodes": [
+                    self._workflow_node_interface(node_id)
+                    for node_id in self.execution_order
+                ],
             }
         )
 
@@ -534,7 +557,7 @@ class ExecutionPlan:
         spec = self.node_specs[node_id]
         node = self.nodes[node_id]
         property_defaults = {
-            property_spec.key: property_spec.default
+            property_spec.key: property_spec.make_default()
             for property_spec in spec.properties
         }
         return {
@@ -548,8 +571,11 @@ class ExecutionPlan:
                     "data_type": port.data_type,
                     "accepted_data_types": port.accepted_data_types,
                     "type_from_input": port.type_from_input,
-                    "source_contract": self.source_contracts[(node_id, port.key)].identity
-                    if (node_id, port.key) in self.source_contracts else None,
+                    "source_contract": self.source_contracts[
+                        (node_id, port.key)
+                    ].identity
+                    if (node_id, port.key) in self.source_contracts
+                    else None,
                     "data_access": port.data_access,
                     "required": port.required,
                     "uses_property_default": port.uses_property_default,
@@ -607,8 +633,11 @@ class ExecutionPlan:
                             "uses_property_default": port.uses_property_default,
                             "accepted_data_types": list(port.accepted_data_types),
                             "type_from_input": port.type_from_input,
-                            "source_contract": self.source_contracts[(node_id, port.key)].identity
-                            if (node_id, port.key) in self.source_contracts else None,
+                            "source_contract": self.source_contracts[
+                                (node_id, port.key)
+                            ].identity
+                            if (node_id, port.key) in self.source_contracts
+                            else None,
                         }
                         for port in self.node_ports.get(node_id, ())
                     ],

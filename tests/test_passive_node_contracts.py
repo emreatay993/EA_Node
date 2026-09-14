@@ -158,7 +158,7 @@ class PassiveNodeContractsTests(unittest.TestCase):
             if type_id == PASSIVE_FLOWCHART_TIMESTAMP_TYPE_ID:
                 self.assertEqual(spec.properties[2].type, "bool")
                 self.assertEqual(spec.properties[2].label, "Live")
-                self.assertFalse(spec.properties[2].default)
+                self.assertFalse(spec.properties[2].make_default())
             self.assertTrue(all(port.kind == "flow" and port.data_type == "flow" for port in spec.ports))
             self.assertEqual([port.key for port in spec.ports], ["top", "right", "bottom", "left"])
             self.assertTrue(all(port.direction == "neutral" for port in spec.ports))
@@ -270,8 +270,8 @@ class PassiveNodeContractsTests(unittest.TestCase):
             (PASSIVE_FLOWCHART_PROCESS_TYPE_ID, "body"),
         ):
             properties = {prop.key: prop for prop in registry.get_spec(type_id).properties}
-            self.assertEqual(properties[rich_text_format_property_key(content_key)].default, "plain")
-            self.assertEqual(properties[rich_text_style_property_key(content_key, "font_size")].default, 0)
+            self.assertEqual(properties[rich_text_format_property_key(content_key)].make_default(), "plain")
+            self.assertEqual(properties[rich_text_style_property_key(content_key, "font_size")].make_default(), 0)
             self.assertFalse(properties[rich_text_format_property_key(content_key)].inspector_visible)
             self.assertFalse(properties[rich_text_style_property_key(content_key, "font_size")].inspector_visible)
 

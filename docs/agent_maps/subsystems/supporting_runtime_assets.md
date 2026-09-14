@@ -30,7 +30,7 @@ Use this for support layers that are not owned by graph, persistence, or UI: tel
 - `runtime_contracts/data_types.py` owns catalog registration, parent assignability, strongest declared-union compatibility, carrier compatibility, and catalog fingerprints. `DataTypeCompatibility` remains the sole structured relation record; `connection_fallback` is a type capability consumed only by recommendation policy.
 - `ea_node_editor/nodes/core_data_types.py` registers bounded exact JSON-domain `COREX.DataTypes.JsonValue` and native `COREX.Plot.ExportBundle`; the latter is an exact four-key dictionary with two artifact refs and two JSON metadata dictionaries, not a JSON-derived type. Any, Json, GraphArray, and GraphDictionary carry the fallback capability.
 - `runtime_contracts/interval_1d.py` owns immutable ordered `Interval1D` values and strict coercion.
-- `runtime_contracts/settled_results.py` owns immutable settled port/root-error DTOs plus shared DataTree/output/error count and transport limits.
+- `runtime_contracts/settled_results.py` owns immutable settled port/root-error DTOs plus shared DataTree/output/error count and transport limits. Owned results project once into detached wire payloads, followed by structural size/error checks; raw input decoding and runtime carrier validation remain admission boundaries.
 - `runtime_contracts/solution_records.py` owns strict immutable freshness, residency, heterogeneous concrete-type/carrier output descriptors, payload locators, durable logical/record ID bounds, and `reuse_eligible` observation/solution records without importing execution implementation.
 
 ## Boundaries
@@ -52,6 +52,7 @@ Use this for support layers that are not owned by graph, persistence, or UI: tel
 - `tests/test_core_media_types.py`
 - `tests/test_unit_types.py`
 - `tests/test_solution_records.py`
+- `tests/test_solution_store_session.py`
 
 ## Focused Verification
 ```powershell

@@ -24,6 +24,7 @@ from ea_node_editor.execution.runtime_requests import (
 )
 from ea_node_editor.execution.runtime import CorexRuntime
 from ea_node_editor.execution.prepared_execution import PreparedAction, RecomputeMode
+from ea_node_editor.execution.prepared_dispatch import PreparedRunDispatch
 from ea_node_editor.execution.protocol_codec import (
     command_to_dict,
 )
@@ -135,6 +136,8 @@ class _Client:
         return 0
 
     def start_reserved_run(self, reservation, command):  # noqa: ANN001, ANN201
+        if type(command) is PreparedRunDispatch:
+            command = command.materialize(self.registry.data_types)
         self.runs[reservation.run_id] = (reservation, command)
         self.emit(
             reservation.run_id,

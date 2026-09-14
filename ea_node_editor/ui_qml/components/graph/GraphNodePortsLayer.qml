@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../common" as Common
 import "../common/TooltipPolicy.js" as TooltipPolicy
+import "../common/PresentationModelKeys.js" as PresentationModelKeys
 import "../graph_canvas/CanvasBackgroundStyle.js" as CanvasBackgroundStyle
 import "GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
 import "surface_controls" as SurfaceControls
@@ -55,6 +56,9 @@ Item {
     )
     readonly property url notchSvgSource: root._notchSvgSource()
     readonly property var settingsGroups: root.host ? root.host.settingsGroups : []
+    property var settingsGroupModelKeys: []
+    onSettingsGroupsChanged: root.settingsGroupModelKeys = PresentationModelKeys.retain(
+        root.settingsGroupModelKeys, PresentationModelKeys.groups(root.settingsGroups))
     readonly property real settingsBandYOffset: root.host && root.host.nodeData
         ? GraphNodeSurfaceMetrics.settingsBandYOffset(
             root.host.nodeData,
@@ -80,6 +84,12 @@ Item {
             return [list[0]];
         return list;
     }
+    property var inputPortModelKeys: []
+    property var outputPortModelKeys: []
+    on_VisibleInputPortsChanged: root.inputPortModelKeys = PresentationModelKeys.retain(
+        root.inputPortModelKeys, PresentationModelKeys.ports(root._visibleInputPorts))
+    on_VisibleOutputPortsChanged: root.outputPortModelKeys = PresentationModelKeys.retain(
+        root.outputPortModelKeys, PresentationModelKeys.ports(root._visibleOutputPorts))
     property var dynamicPortGroups: []
     property int dynamicPortGroupModelRevision: 0
     property int _dynamicPortGroupSyncGeneration: 0
@@ -152,7 +162,12 @@ Item {
         root._dynamicPortGroupFallbackGroups = null;
         root._scheduleDynamicPortGroupSync();
     }
-    Component.onCompleted: root._scheduleDynamicPortGroupSync()
+    Component.onCompleted: {
+        root.inputPortModelKeys = PresentationModelKeys.ports(root._visibleInputPorts);
+        root.outputPortModelKeys = PresentationModelKeys.ports(root._visibleOutputPorts);
+        root.settingsGroupModelKeys = PresentationModelKeys.groups(root.settingsGroups);
+        root._scheduleDynamicPortGroupSync();
+    }
 
     Connections {
         target: root.host
@@ -950,11 +965,11 @@ Item {
     visible: root.host && root.host.nodeData ? !root.host.nodeData.collapsed : false
 
     Repeater {
-        model: root.settingsGroups
+        model: root.settingsGroupModelKeys
 
         delegate: Item {
             id: settingsGroupAggregate
-            property var groupData: modelData || ({})
+            property var groupData: root.settingsGroups[index] || ({})
             property string groupId: String(groupData.group_id || "")
             readonly property var anchor: groupData.aggregate_anchor || null
             readonly property int connectedCount: anchor ? Number(anchor.connected_count || 0) : 0
@@ -1014,10 +1029,11 @@ Item {
 
     Repeater {
         id: inputPortsRepeater
-        model: root._visibleInputPorts
+        model: root.inputPortModelKeys
 
         delegate: GraphNodePortRow {
             id: inputPortRow
+            modelData: root._visibleInputPorts[index]
             portsLayer: root
             direction: "in"
             defaultPropertyItem: defaultPropertyLayer
@@ -1097,10 +1113,11 @@ Item {
 
     Repeater {
         id: outputPortsRepeater
-        model: root._visibleOutputPorts
+        model: root.outputPortModelKeys
 
         delegate: GraphNodePortRow {
             id: outputPortRow
+            modelData: root._visibleOutputPorts[index]
             portsLayer: root
             direction: "out"
 

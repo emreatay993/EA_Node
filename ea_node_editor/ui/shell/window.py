@@ -784,13 +784,21 @@ class ShellWindow(
             super().closeEvent(event)
             return
         self._shell_teardown_started = True
+        run_controller = getattr(self, "run_controller", None)
+        if run_controller is not None:
+            run_controller.close()
+        unsubscribe = getattr(self, "_execution_unsubscribe", None)
+        if callable(unsubscribe):
+            unsubscribe()
+            self._execution_unsubscribe = None
         for timer_name in ("metrics_timer", "graph_hint_timer", "autosave_timer"):
             timer = getattr(self, timer_name, None)
             if timer is not None:
                 timer.stop()
         try:
-            if hasattr(self, "run_state"):
-                self.run_projection_controller.clear_run_failure_focus()
+            run_projection = getattr(self, "run_projection_controller", None)
+            if run_projection is not None:
+                run_projection.clear_run_failure_focus()
             self._reset_viewer_session_bridge(reason="project_close")
             project_session_controller = getattr(self, "project_session_controller", None)
             if project_session_controller is not None:
@@ -800,5 +808,5 @@ class ShellWindow(
         finally:
             execution_client = getattr(self, "execution_client", None)
             if execution_client is not None:
-                execution_client.shutdown()
+                execution_client.shutdown(wait=False)
             super().closeEvent(event)

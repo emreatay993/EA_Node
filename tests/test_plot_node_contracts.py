@@ -357,12 +357,12 @@ def test_generic_plot_standard_properties_are_stable_and_colormap_is_scoped() ->
         spec = registry.get_spec(type_id)
         property_by_key = {prop.key: prop for prop in spec.properties}
         assert STANDARD_PROPERTY_KEYS.issubset(property_by_key)
-        assert property_by_key["backend"].default == AUTO_PLOT_BACKEND_ID
+        assert property_by_key["backend"].make_default() == AUTO_PLOT_BACKEND_ID
         assert property_by_key["backend"].enum_values == (AUTO_PLOT_BACKEND_ID, MATPLOTLIB_PLOT_BACKEND_ID)
         assert property_by_key["axis_limits"].type == "json"
         assert property_by_key["log_scales"].type == "json"
-        assert property_by_key["render_in_canvas"].default is True
-        assert property_by_key["archive_export_on_run"].default is False
+        assert property_by_key["render_in_canvas"].make_default() is True
+        assert property_by_key["archive_export_on_run"].make_default() is False
         assert property_by_key["static_export_format"].label == "Image Export Format"
         assert "frame_selector" not in property_by_key
         assert "animate" not in property_by_key

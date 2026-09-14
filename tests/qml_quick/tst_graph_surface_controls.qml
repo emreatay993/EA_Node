@@ -55,6 +55,33 @@ TestCase {
     }
 
     Component {
+        id: listProbeComponent
+        Controls.GraphSurfaceListEditor { width: 280; height: 140; values: ["a", "b"] }
+    }
+
+    function test_list_value_refresh_retains_existing_controls() {
+        var editor = createTemporaryObject(listProbeComponent, stage)
+        verify(editor !== null)
+        var view = findChild(editor, "graphSurfaceListView")
+        tryVerify(function() { return view.itemAtIndex(0) !== null && view.itemAtIndex(1) !== null })
+        var first = view.itemAtIndex(0)
+        var second = view.itemAtIndex(1)
+        editor.values = ["changed", "b"]
+        compare(JSON.stringify(editor.snapshot()), JSON.stringify(["changed", "b"]))
+        compare(view.itemAtIndex(0), first)
+        compare(view.itemAtIndex(1), second)
+        editor.values = ["changed", "b", "added"]
+        compare(editor.itemCount, 3)
+        compare(view.itemAtIndex(0), first)
+        editor.values = ["remaining"]
+        compare(editor.itemCount, 1)
+        compare(view.itemAtIndex(0), first)
+        editor.exactSelectors = true
+        editor.values = [1, "1"]
+        compare(JSON.stringify(editor.snapshot()), JSON.stringify([1, "1"]))
+    }
+
+    Component {
         id: probeComponent
 
         Item {

@@ -280,11 +280,12 @@ class _GraphCanvasPreferenceBridge(QObject):
 class GraphSceneBridgeTrackBTests(unittest.TestCase):
     def setUp(self) -> None:
         self.app = QApplication.instance() or QApplication([])
-        self.registry = build_default_registry()
+        self.registry = build_default_registry().fork()
         self.registry.register(_TrackBFlowchartDecisionNode)
         self.registry.register(_TrackBFlowchartConnectorNode)
         self.registry.register(_TrackBFlowchartPassthroughNode)
         self.registry.register(_TrackBSettingsGroupsNode)
+        self.registry.freeze()
         self.model = GraphModel()
         self.workspace_id = self.model.active_workspace.workspace_id
         self.preference_bridge = _GraphCanvasPreferenceBridge()

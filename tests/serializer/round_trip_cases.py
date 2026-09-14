@@ -122,7 +122,7 @@ class SerializerRoundTripMixin:
         self.assertEqual(reserialized_node["expanded_settings_group_ids"], [])
 
     def test_round_trip_preserves_and_normalizes_expanded_settings_group_ids(self) -> None:
-        registry = build_default_registry()
+        registry = build_default_registry().fork()
         spec = NodeTypeSpec(
             type_id="tests.settings_group_state",
             display_name="Settings Group State",
@@ -139,6 +139,7 @@ class SerializerRoundTripMixin:
             ),
         )
         registry.register_descriptor(spec, lambda: object())
+        registry.freeze()
         serializer = JsonProjectSerializer(registry)
         model = GraphModel()
         workspace = model.active_workspace

@@ -23,6 +23,7 @@ from ea_node_editor.execution.protocol_codec import (
 )
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.execution.worker_protocol import (
+    dispatch_generation_preparation,
     command_payload_type,
     dispatch_viewer_command,
     dispatch_viewer_invalidation,
@@ -34,6 +35,7 @@ from ea_node_editor.execution.worker_protocol import (
 )
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.execution.viewer_messages import InvalidateViewerSessionsCommand
+from ea_node_editor.execution.generation_messages import PrepareGenerationCommand
 
 _EVENT_WRITER_SENTINEL = object()
 
@@ -119,6 +121,11 @@ def _run_workflow_thread(
 def _dispatch_lifecycle_command(
     command: Any, event_queue: queue.Queue[Any], services: WorkerServices
 ) -> bool:
+    if isinstance(command, PrepareGenerationCommand):
+        dispatch_generation_preparation(
+            command, event_queue=event_queue, worker_services=services
+        )
+        return True
     if isinstance(command, InvalidateViewerSessionsCommand):
         dispatch_viewer_invalidation(
             command, event_queue=event_queue, worker_services=services

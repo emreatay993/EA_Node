@@ -242,8 +242,9 @@ class GraphNodeCommonActionTests(GraphSurfaceInputContractTestBase):
 class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
     def _viewer_registry(self) -> tuple[NodeRegistry, NodeTypeSpec]:
         spec = _viewer_surface_spec()
-        registry = build_default_registry()
+        registry = build_default_registry().fork()
         registry.register(lambda: _ViewerSurfacePlugin(spec))
+        registry.freeze()
         return registry, spec
 
     def test_standard_inline_enum_metrics_reserve_longest_option_width(self) -> None:
@@ -3945,7 +3946,7 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
                     return True
 
             model = GraphModel()
-            registry = build_default_registry()
+            registry = build_default_registry().fork()
             registry.register_descriptor(
                 NodeTypeSpec(
                     type_id="tests.dataflow_authoring",
@@ -3961,6 +3962,7 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
                 ),
                 lambda: None,
             )
+            registry.freeze()
             scene = GraphSceneBridge()
             scene.set_workspace(model, registry, model.active_workspace.workspace_id)
             shell_bridge = DataflowShellBridgeStub()

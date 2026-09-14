@@ -4,6 +4,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from ea_node_editor.execution.transport_fields import (
+    bool_field,
+    string_field,
+    string_list_field,
+)
+
 ExecutionBackendId = Literal[
     "process_isolated",
     "trusted_in_process",
@@ -23,11 +29,15 @@ _SUPPORTED_BACKENDS = {
 _EXTERNAL_RUNTIME_KINDS = {"external_process", "rust", "cpp", "foreign"}
 
 
-def _normalize_token(field_name: str, value: object, *, allow_auto: bool = False) -> str:
+def _normalize_token(
+    field_name: str, value: object, *, allow_auto: bool = False
+) -> str:
     normalized = str(value or "").strip()
     if not normalized:
         normalized = AUTO_BACKEND if allow_auto else PROCESS_ISOLATED_BACKEND
-    allowed = _SUPPORTED_BACKENDS if allow_auto else _SUPPORTED_BACKENDS - {AUTO_BACKEND}
+    allowed = (
+        _SUPPORTED_BACKENDS if allow_auto else _SUPPORTED_BACKENDS - {AUTO_BACKEND}
+    )
     if normalized not in allowed:
         allowed_text = ", ".join(sorted(allowed))
         raise ValueError(f"{field_name} must be one of: {allowed_text}.")
@@ -113,7 +123,10 @@ class ExecutionBackendPolicy:
         object.__setattr__(
             self,
             "runtime_backends",
-            tuple(RuntimeBackendContract.from_value(item) for item in self.runtime_backends),
+            tuple(
+                RuntimeBackendContract.from_value(item)
+                for item in self.runtime_backends
+            ),
         )
         object.__setattr__(self, "reason", str(self.reason).strip())
 
@@ -126,14 +139,18 @@ class ExecutionBackendPolicy:
         if isinstance(value, str):
             return cls(requested_backend=value)
         if not isinstance(value, Mapping):
-            raise TypeError("execution_backend must be a policy mapping, backend id string, or None.")
+            raise TypeError(
+                "execution_backend must be a policy mapping, backend id string, or None."
+            )
         runtime_backends = value.get("runtime_backends", ())
         if runtime_backends is None:
             runtime_backends = ()
         return cls(
             requested_backend=str(value.get("requested_backend", AUTO_BACKEND)),
             allow_trusted_in_process=bool(value.get("allow_trusted_in_process", False)),
-            allow_external_subprocess=bool(value.get("allow_external_subprocess", False)),
+            allow_external_subprocess=bool(
+                value.get("allow_external_subprocess", False)
+            ),
             runtime_backends=tuple(
                 RuntimeBackendContract.from_value(item)
                 for item in runtime_backends
@@ -148,7 +165,9 @@ class ExecutionBackendPolicy:
             "requested_backend": self.requested_backend,
             "allow_trusted_in_process": self.allow_trusted_in_process,
             "allow_external_subprocess": self.allow_external_subprocess,
-            "runtime_backends": [backend.to_payload() for backend in self.runtime_backends],
+            "runtime_backends": [
+                backend.to_payload() for backend in self.runtime_backends
+            ],
             "python_executable": self.python_executable,
             "reason": self.reason,
         }
@@ -169,7 +188,9 @@ class ExecutionBackendSelection:
         object.__setattr__(self, "backend_id", backend_id)
         object.__setattr__(self, "isolation", str(self.isolation).strip() or "process")
         object.__setattr__(self, "reason", str(self.reason).strip())
-        object.__setattr__(self, "python_executable", str(self.python_executable).strip())
+        object.__setattr__(
+            self, "python_executable", str(self.python_executable).strip()
+        )
         object.__setattr__(
             self,
             "runtime_backend_ids",
@@ -185,7 +206,9 @@ class ExecutionBackendSelection:
         if isinstance(value, str):
             return cls(backend_id=value)  # type: ignore[arg-type]
         if not isinstance(value, Mapping):
-            raise TypeError("execution backend selection must be a mapping, backend id string, or None.")
+            raise TypeError(
+                "execution backend selection must be a mapping, backend id string, or None."
+            )
         return cls(
             backend_id=str(value.get("backend_id", PROCESS_ISOLATED_BACKEND)),  # type: ignore[arg-type]
             isolation=str(value.get("isolation", "process")),
@@ -209,14 +232,21 @@ class ExecutionBackendSelection:
 
 
 class ExecutionBackendOrchestrator:
-    def select(self, policy: ExecutionBackendPolicy | Mapping[str, Any] | str | None = None) -> ExecutionBackendSelection:
+    def select(
+        self, policy: ExecutionBackendPolicy | Mapping[str, Any] | str | None = None
+    ) -> ExecutionBackendSelection:
         backend_policy = coerce_execution_backend_policy(policy)
-        runtime_backend_ids = tuple(backend.backend_id for backend in backend_policy.runtime_backends)
+        runtime_backend_ids = tuple(
+            backend.backend_id for backend in backend_policy.runtime_backends
+        )
         requested_backend = backend_policy.requested_backend
 
         if requested_backend in {"", AUTO_BACKEND, PROCESS_ISOLATED_BACKEND}:
             reason = "process_isolation_default"
-            if any(backend.requires_external_subprocess for backend in backend_policy.runtime_backends):
+            if any(
+                backend.requires_external_subprocess
+                for backend in backend_policy.runtime_backends
+            ):
                 reason = "process_isolation_for_external_runtime_contracts"
             return ExecutionBackendSelection(
                 backend_id=PROCESS_ISOLATED_BACKEND,
@@ -230,7 +260,10 @@ class ExecutionBackendOrchestrator:
                 raise ValueError(
                     "Trusted in-process execution requires allow_trusted_in_process=True."
                 )
-            if any(backend.requires_external_subprocess for backend in backend_policy.runtime_backends):
+            if any(
+                backend.requires_external_subprocess
+                for backend in backend_policy.runtime_backends
+            ):
                 raise ValueError(
                     "Trusted in-process execution cannot run external-process runtime backend contracts."
                 )
@@ -290,3 +323,37 @@ __all__ = [
     "coerce_execution_backend_policy",
     "coerce_execution_backend_selection",
 ]
+
+
+def decode_execution_backend(
+    payload: Mapping[str, Any],
+) -> ExecutionBackendSelection:
+    if "execution_backend" not in payload:
+        return ExecutionBackendSelection()
+    value = payload["execution_backend"]
+    if not isinstance(value, Mapping):
+        raise ValueError("execution_backend must be a mapping.")
+    normalized = {
+        "backend_id": string_field(
+            value,
+            "backend_id",
+            default=ExecutionBackendSelection().backend_id,
+            strip=True,
+        ),
+        "isolation": string_field(
+            value,
+            "isolation",
+            default="process",
+            strip=True,
+        ),
+        "reason": string_field(value, "reason", strip=True),
+        "trusted_in_process": bool_field(value, "trusted_in_process"),
+        "external_subprocess": bool_field(value, "external_subprocess"),
+        "python_executable": string_field(
+            value,
+            "python_executable",
+            strip=True,
+        ),
+        "runtime_backend_ids": string_list_field(value, "runtime_backend_ids"),
+    }
+    return coerce_execution_backend_selection(normalized)

@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
-from PyQt6.QtCore import QEvent, QUrl
+from PyQt6.QtCore import QEvent, QUrl, QTimer
 from PyQt6.QtWidgets import QMessageBox
 
 from ea_node_editor.addons.catalog import AddOnRegistration
@@ -21,6 +21,8 @@ from ea_node_editor.app_preferences import (
 )
 from ea_node_editor.common.scene_protocol import ENGINEERING_VIEWER_BACKEND_ID
 from ea_node_editor.execution.runtime import CorexRuntime
+from tests.queued_submission_support import QueuedSubmissionDriver
+from tests.qt_wait import wait_for_condition_or_raise
 from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -116,11 +118,28 @@ class _ViewerExecutionClientStub:
         self.open_calls: list[dict[str, Any]] = []
         self.start_calls: list[dict[str, Any]] = []
         self._callbacks: list[object] = []
+        self._submissions = QueuedSubmissionDriver(
+            schedule=lambda callback: QTimer.singleShot(0, callback),
+            prepare=lambda request: self.prepare_execution(request),
+            dispatch=lambda prepared: self.dispatch_prepared(prepared),
+            publish=self._publish, stop=self.stop_run,
+        )
         self._request_counter = 0
         self._solution_revisions: dict[str, int] = {}
 
-    def subscribe(self, callback) -> None:  # noqa: ANN001
+    def subscribe(self, callback):
         self._callbacks.append(callback)
+        return lambda: self._callbacks.remove(callback) if callback in self._callbacks else None
+
+    def _publish(self, event):
+        for callback in tuple(self._callbacks):
+            callback(event)
+
+    def submit_execution(self, request):
+        return self._submissions.submit(request)
+
+    def cancel_submissions(self, reason="user", *, workspace_id=None):
+        self._submissions.cancel_pending(reason, workspace_id=workspace_id)
 
     def _next_request_id(self) -> str:
         self._request_counter += 1
@@ -238,8 +257,8 @@ class _ViewerExecutionClientStub:
     def stop_run(self, run_id: str) -> None:
         return None
 
-    def shutdown(self) -> None:
-        return None
+    def shutdown(self, *, wait=True) -> None:
+        self._submissions.close()
 
 
 def _viewer_opened_event(
@@ -749,6 +768,10 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
                 restored_workspace = restored.model.project.workspaces[workspace_id]
                 self.assertIn(recovered_node_id, restored_workspace.nodes)
                 self._assert_absent_or_current_autosave(restored)
+                wait_for_condition_or_raise(
+                    lambda: bool(execution_client.start_calls), app=self.app,
+                    timeout_ms=5000,
+                )
                 self.assertEqual(len(execution_client.start_calls), 1)
                 self.assertEqual(
                     execution_client.start_calls[0]["target_node_ids"],

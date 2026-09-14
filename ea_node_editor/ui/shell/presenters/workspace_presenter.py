@@ -352,6 +352,8 @@ class ShellWorkspacePresenter(QObject):
             selected_workspace_id=self.active_workspace_id,
             active_run_id=getattr(run_state, "active_run_id", ""),
             active_run_workspace_id=getattr(run_state, "active_run_workspace_id", ""),
+            active_submission_id=run_state.active_submission_id,
+            active_submission_workspace_id=run_state.active_submission_workspace_id,
             engine_state=getattr(run_state, "engine_state_value", ""),
         )
 

@@ -61,12 +61,12 @@ def _authored_edges(snapshot: WorkspaceSnapshot) -> tuple:
     )
 
 
-def _authored_computation_equal(
+def _authored_property_change(
     before: WorkspaceSnapshot,
     after: WorkspaceSnapshot,
     registry: NodeRegistry,
-) -> bool:
-    """Avoid compilation and even property resolution for unchanged authored values.
+) -> ExecutionGraphChange | None:
+    """Resolve property-only edits without rebuilding unchanged graph structure.
 
     This also permits moving/formatting an invalid or incomplete node. Raw links
     and hierarchy stay conservative here; compilation resolves their meaning.
@@ -80,18 +80,34 @@ def _authored_computation_equal(
     if before_nodes.keys() != after_nodes.keys() or _authored_edges(
         before
     ) != _authored_edges(after):
-        return False
-    for node_id, old in before_nodes.items():
-        new = after_nodes[node_id]
+        return None
+    changed = []
+    for node_id, new in after_nodes.items():
+        old = before_nodes[node_id]
         if _authored_node_structure(old) != _authored_node_structure(new):
-            return False
+            return None
         if old.properties == new.properties:
             continue
         try:
             old_properties = registry.execution_properties(old.type_id, old.properties)
             new_properties = registry.execution_properties(new.type_id, new.properties)
-            if canonical_digest(old_properties) != canonical_digest(new_properties):
-                return False
+            properties_changed = canonical_digest(old_properties) != canonical_digest(
+                new_properties
+            )
+            declared = registry.get_spec(old.type_id)
+            if (
+                declared.runtime_behavior == "active"
+                and declared.instance_spec_resolver is None
+            ):
+                if resolve_instance_ports(
+                    declared, old.properties
+                ) != resolve_instance_ports(declared, new.properties):
+                    return None
+                if properties_changed:
+                    changed.append(node_id)
+                continue
+            if properties_changed:
+                return None
             # Resolvers are callable declarations: a misclassified property must
             # never hide an actual interface/readiness change behind this shortcut.
             old_spec = registry.resolve_spec(old.type_id, old.properties)
@@ -101,10 +117,10 @@ def _authored_computation_equal(
             ) != node_contract_digest(
                 new_spec, resolve_instance_ports(new_spec, new.properties)
             ):
-                return False
+                return None
         except (KeyError, TypeError, ValueError):
-            return False
-    return True
+            return None
+    return ExecutionGraphChange(bool(changed), tuple(changed))
 
 
 def _project_computation(
@@ -174,8 +190,11 @@ def compare_execution_graphs(
         raise ValueError(
             "Execution comparison requires a workspace ID and complete snapshots"
         )
-    if _authored_computation_equal(before_snapshot, after_snapshot, registry):
-        return ExecutionGraphChange(False)
+    property_change = _authored_property_change(
+        before_snapshot, after_snapshot, registry
+    )
+    if property_change is not None:
+        return property_change
     try:
         before = _project_computation(workspace_id, before_snapshot, registry)
     except (KeyError, TypeError, ValueError):

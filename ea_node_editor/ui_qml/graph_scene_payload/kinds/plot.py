@@ -103,7 +103,7 @@ def _plot_embedded_render_policy(
 
 
 def _node_properties_with_defaults(*, node: Any, spec: NodeTypeSpec) -> dict[str, Any]:
-    properties = {prop.key: copy.deepcopy(prop.default) for prop in getattr(spec, "properties", ())}
+    properties = {prop.key: prop.make_default() for prop in getattr(spec, "properties", ())}
     raw_properties = getattr(node, "properties", {}) if hasattr(node, "properties") else {}
     if isinstance(raw_properties, Mapping):
         properties.update(copy.deepcopy(dict(raw_properties)))

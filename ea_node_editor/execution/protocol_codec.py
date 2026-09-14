@@ -12,8 +12,8 @@ from typing import Any, TypeAlias
 
 from ea_node_editor.common.payload_tools import copy_json_safe
 from ea_node_editor.execution.backends import (
+    decode_execution_backend,
     ExecutionBackendSelection,
-    coerce_execution_backend_selection,
 )
 from ea_node_editor.execution.prepared_execution import (
     MAX_ACCEPTED_NODE_PAYLOADS_PER_PREPARATION,
@@ -21,12 +21,13 @@ from ea_node_editor.execution.prepared_execution import (
     MAX_ACCEPTED_PORT_RESULTS_PER_PREPARATION,
     MAX_PREPARED_NODES,
     AcceptedOutputPayload,
-    PreparedAction,
     PreparedNodeDecision,
     RecomputeMode,
     normalize_trigger_publication_generations,
 )
 from ea_node_editor.execution.registry_agreement import (
+    RegistryAgreement,
+    CatalogMismatchError,
     _addon_runtime_config_payload,
     _bounded_catalog_text,
     _catalog_fingerprint,
@@ -40,8 +41,11 @@ from ea_node_editor.execution.registry_agreement import (
     catalog_mismatch_message,
     normalize_addon_runtime_config,
     normalize_catalog_revisions,
-    normalize_plugin_bundle_refs,
-    runtime_registry_fingerprint,
+)
+from ea_node_editor.execution.generation_messages import (
+    PrepareGenerationCommand,
+    GenerationPreparedEvent,
+    GenerationPreparationFailedEvent,
 )
 from ea_node_editor.execution.run_messages import (
     CancelRunPreflightCommand,
@@ -88,9 +92,7 @@ from ea_node_editor.execution.viewer_messages import (
     viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.execution.runtime_snapshot import coerce_runtime_snapshot
-from ea_node_editor.nodes.function_plugin import EMPTY_PLUGIN_FINGERPRINT
 from ea_node_editor.runtime_contracts import (
-    DataTree,
     DataTypeCatalog,
     deserialize_runtime_value,
     serialize_runtime_value,
@@ -111,6 +113,7 @@ from ea_node_editor.execution.transport_fields import (
 
 WorkerCommand: TypeAlias = (
     StartRunCommand
+    | PrepareGenerationCommand
     | StopRunCommand
     | PauseRunCommand
     | ResumeRunCommand
@@ -127,6 +130,8 @@ WorkerCommand: TypeAlias = (
 )
 WorkerEvent: TypeAlias = (
     RunPreflightAcceptedEvent
+    | GenerationPreparedEvent
+    | GenerationPreparationFailedEvent
     | RunStartedEvent
     | RunStateEvent
     | RunCompletedEvent
@@ -194,40 +199,6 @@ _FIXED_RUN_EVENT_STATES = {
     RunFailedEvent: "error",
     RunStoppedEvent: "ready",
 }
-
-
-def _execution_backend_from_payload(
-    payload: Mapping[str, Any],
-) -> ExecutionBackendSelection:
-    if "execution_backend" not in payload:
-        return ExecutionBackendSelection()
-    value = payload["execution_backend"]
-    if not isinstance(value, Mapping):
-        raise ValueError("execution_backend must be a mapping.")
-    normalized = {
-        "backend_id": _string_field(
-            value,
-            "backend_id",
-            default=ExecutionBackendSelection().backend_id,
-            strip=True,
-        ),
-        "isolation": _string_field(
-            value,
-            "isolation",
-            default="process",
-            strip=True,
-        ),
-        "reason": _string_field(value, "reason", strip=True),
-        "trusted_in_process": _bool_field(value, "trusted_in_process"),
-        "external_subprocess": _bool_field(value, "external_subprocess"),
-        "python_executable": _string_field(
-            value,
-            "python_executable",
-            strip=True,
-        ),
-        "runtime_backend_ids": _string_list_field(value, "runtime_backend_ids"),
-    }
-    return coerce_execution_backend_selection(normalized)
 
 
 def _literal_value(
@@ -690,6 +661,12 @@ def command_to_dict(
     *,
     catalog: DataTypeCatalog | None = None,
 ) -> dict[str, Any]:
+    if type(command) is PrepareGenerationCommand:
+        return {
+            "type": command.type,
+            "request_id": command.request_id,
+            "agreement": command.agreement.to_payload(),
+        }
     if isinstance(command, InvalidateViewerSessionsCommand):
         payload = {
             "type": command.type,
@@ -715,7 +692,7 @@ def command_to_dict(
                 catalog_revisions=revisions,
             )
         command = coerce_start_run_command(command, catalog=catalog)
-        execution_backend = _execution_backend_from_payload(
+        execution_backend = decode_execution_backend(
             {"execution_backend": command.execution_backend.to_payload()}
         )
         payload = {
@@ -976,6 +953,8 @@ def event_to_dict(
     *,
     catalog: DataTypeCatalog | None = None,
 ) -> dict[str, Any]:
+    if type(event) in {GenerationPreparedEvent, GenerationPreparationFailedEvent}:
+        return {field.name: getattr(event, field.name) for field in fields(event)}
     if isinstance(event, NodeSettledEvent):
         status = _string_value(event.status, field_name="status").strip().lower()
         if status not in {"completed", "empty", "failed", "blocked"}:
@@ -1284,7 +1263,7 @@ def _start_run_command_from_payload(
             catalog,
         )
         if mismatch:
-            raise ValueError(mismatch)
+            raise CatalogMismatchError(mismatch)
     plugin_bundles, plugin_fingerprint, runtime_fingerprint = _plugin_agreement(
         payload.get("plugin_bundles", ()),
         payload.get("plugin_fingerprint", ""),
@@ -1340,9 +1319,11 @@ def _start_run_command_from_payload(
         workspace_id=_string_field(payload, "workspace_id"),
         trigger=dict(trigger_payload),
         runtime_snapshot=runtime_snapshot,
-        execution_backend=_execution_backend_from_payload(payload),
+        execution_backend=decode_execution_backend(payload),
         target_node_ids=normalize_target_node_ids(payload.get("target_node_ids", ())),
-        recompute_mode=RecomputeMode(payload.get("recompute_mode", "reuse_valid")).value,
+        recompute_mode=RecomputeMode(
+            payload.get("recompute_mode", "reuse_valid")
+        ).value,
         trigger_publications=_settled.settled_output_mapping_from_payload(
             payload.get("trigger_publications", {}),
             catalog=catalog,
@@ -1392,7 +1373,7 @@ def coerce_start_run_command(
                 catalog,
             )
             if mismatch:
-                raise ValueError(mismatch)
+                raise CatalogMismatchError(mismatch)
         plugin_bundles, plugin_fingerprint, runtime_fingerprint = _plugin_agreement(
             command.plugin_bundles,
             command.plugin_fingerprint,
@@ -1487,7 +1468,7 @@ def coerce_start_run_command(
             catalog,
         )
         if mismatch:
-            raise ValueError(mismatch)
+            raise CatalogMismatchError(mismatch)
     plugin_bundles, plugin_fingerprint, runtime_fingerprint = _plugin_agreement(
         command.get("plugin_bundles", ()),
         command.get("plugin_fingerprint", ""),
@@ -1544,9 +1525,11 @@ def coerce_start_run_command(
         workspace_id=_string_field(command, "workspace_id"),
         trigger=dict(raw_trigger),
         runtime_snapshot=runtime_snapshot,
-        execution_backend=_execution_backend_from_payload(command),
+        execution_backend=decode_execution_backend(command),
         target_node_ids=normalize_target_node_ids(command.get("target_node_ids", ())),
-        recompute_mode=RecomputeMode(command.get("recompute_mode", "reuse_valid")).value,
+        recompute_mode=RecomputeMode(
+            command.get("recompute_mode", "reuse_valid")
+        ).value,
         trigger_publications=_settled.normalize_settled_output_mapping(
             command.get("trigger_publications", {}),
             catalog=catalog,
@@ -1580,6 +1563,13 @@ def dict_to_command(
 ) -> WorkerCommand:
     payload = dict(copy_json_safe(payload, field_name="worker command"))
     command_type = _string_field(payload, "type")
+    if command_type == "prepare_generation":
+        if set(payload) != {"type", "request_id", "agreement"}:
+            raise ValueError("generation preparation fields are invalid")
+        return PrepareGenerationCommand(
+            request_id=payload["request_id"],
+            agreement=RegistryAgreement.from_payload(payload["agreement"]),
+        )
     if command_type == "start_run":
         return _start_run_command_from_payload(payload, catalog=catalog)
     if command_type == "stop_run":
@@ -1778,6 +1768,15 @@ def dict_to_event(
 ) -> WorkerEvent:
     payload = dict(copy_json_safe(payload, field_name="worker event"))
     event_type = _string_field(payload, "type")
+    if event_type in {"generation_prepared", "generation_preparation_failed"}:
+        event_class = (
+            GenerationPreparedEvent
+            if event_type == "generation_prepared"
+            else GenerationPreparationFailedEvent
+        )
+        if set(payload) != {field.name for field in fields(event_class)}:
+            raise ValueError("generation response fields are invalid")
+        return event_class(**payload)
     if event_type == "run_preflight_accepted":
         return RunPreflightAcceptedEvent(
             run_id=_string_field(payload, "run_id", strip=True),

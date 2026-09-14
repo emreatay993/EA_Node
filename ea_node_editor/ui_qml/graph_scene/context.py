@@ -37,7 +37,7 @@ def _synced_surface_title(node: NodeInstance, spec: NodeTypeSpec) -> str:
     if not _surface_title_sync_enabled(spec):
         return str(node.title).strip() or str(spec.display_name).strip()
     title_property = next(prop for prop in spec.properties if prop.key == "title")
-    return str(node.properties.get("title", title_property.default)).strip()
+    return str(node.properties.get("title", title_property.make_default())).strip()
 
 
 def _sync_surface_title(node: NodeInstance, spec: NodeTypeSpec) -> None:

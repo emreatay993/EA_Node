@@ -112,7 +112,7 @@ class PlanningAnnotationCatalogTests(unittest.TestCase):
                 font_family_spec = next(prop for prop in spec.properties if prop.key == "font_family")
                 self.assertEqual(font_family_spec.inspector_editor, "font_family")
             if type_id == "passive.annotation.text":
-                defaults = {prop.key: prop.default for prop in spec.properties}
+                defaults = {prop.key: prop.make_default() for prop in spec.properties}
                 self.assertEqual(defaults["horizontal_alignment"], "center")
                 self.assertEqual(defaults["vertical_alignment"], "middle")
             enum_key, enum_values = expected["enum_property"]

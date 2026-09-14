@@ -126,7 +126,7 @@ def test_registry_rejects_known_execution_dependencies(dependency):
             solution_provenance_inputs=(SolutionProvenanceInputSpec("path", "file"),),
         )
     else:
-        spec = replace(spec, properties=(replace(prop, affects_execution=0),))
+        spec = replace(spec, properties=(prop.with_changes(affects_execution=0),))
     with pytest.raises((ValueError, TypeError), match="affects.execution"):
         validate_node_spec(spec, data_types=NodeRegistry().data_types)
 
@@ -137,7 +137,7 @@ def test_registry_agreement_binds_execution_impact():
     first, second = NodeRegistry(), NodeRegistry()
     first.register_descriptor(spec, lambda: None)
     second.register_descriptor(
-        replace(spec, properties=(replace(prop, affects_execution=False),)),
+        replace(spec, properties=(prop.with_changes(affects_execution=False),)),
         lambda: None,
     )
     assert first.contract_fingerprint() != second.contract_fingerprint()

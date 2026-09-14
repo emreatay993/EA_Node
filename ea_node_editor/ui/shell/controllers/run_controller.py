@@ -5,12 +5,14 @@
 # Landmarks: RunController
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Any, Iterable, Literal, Protocol
 
 from ea_node_editor.developer_mode import developer_mode_capability_enabled
 from ea_node_editor.execution.backends import EXTERNAL_SUBPROCESS_BACKEND
 from ea_node_editor.execution.runtime_requests import ExecutionRequest
+from ea_node_editor.execution.submission_service import SubmissionHandle
 from ea_node_editor.execution.prepared_execution import SolutionStateChangedEvent
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.execution.python_environment import (
@@ -53,6 +55,7 @@ class _RunControllerHostProtocol(Protocol):
     run_controls_changed: Any
     run_failure_changed: Any
     node_execution_state_changed: Any
+
     def update_notification_counters(
         self, warning_count: int, error_count: int
     ) -> None: ...
@@ -66,15 +69,30 @@ class _RunControllerHostProtocol(Protocol):
     def show_selected_run_settings_dialog(self) -> None: ...
 
 
+@dataclass(frozen=True, slots=True)
+class _RunSubmission:
+    handle: SubmissionHandle
+    workspace_id: str
+    runtime_snapshot: Any
+    trigger_kind: str
+    target_node_ids: tuple[str, ...]
+
+
 class RunController:
     def __init__(
         self,
         host: _RunControllerHostProtocol,
         *,
         projection_controller: RunProjectionController,
+        schedule_next_turn: Callable[[Callable[[], None]], None],
     ) -> None:
         self._host = host
         self._projection = projection_controller
+        self._schedule_next_turn = schedule_next_turn
+        self._active_submission: _RunSubmission | None = None
+        self._pending_auto_snapshot: Any = None
+        self._auto_drain_scheduled = False
+        self._closed = False
         self._run_start_runtime_snapshots: dict[str, Any] = {}
         self._active_run_invalidated_node_ids: set[str] = set()
         self._solution_project_identity: int | None = None
@@ -120,6 +138,9 @@ class RunController:
         self._state.solution_mode_by_workspace_id[workspace_id] = mode
         if mode == "manual":
             self.clear_pending_auto_run()
+            submission = self._active_submission
+            if submission is not None and submission.trigger_kind == "auto":
+                self._cancel_preparing_submission("manual_mode")
         self._host.run_controls_changed.emit()
 
     def toggle_auto_run(self) -> None:
@@ -135,8 +156,10 @@ class RunController:
     def clear_pending_auto_run(self) -> None:
         self._state.pending_auto_run_workspace_id = ""
         self._state.pending_auto_run_target_node_ids.clear()
+        self._pending_auto_snapshot = None
 
     def reset_runtime_solution_state(self) -> None:
+        self._cancel_preparing_submission("project_replaced")
         state = self._state
         self.clear_pending_auto_run()
         state.solution_mode_by_workspace_id.clear()
@@ -152,6 +175,11 @@ class RunController:
         state = self._state
         workspaces = self._host.model.project.workspaces
         workspace_ids = set(workspaces)
+        if (
+            self._active_submission is not None
+            and self._active_submission.workspace_id not in workspace_ids
+        ):
+            self._cancel_preparing_submission("workspace_changed")
         for mapping in (
             state.solution_mode_by_workspace_id,
             state.latest_trigger_inputs_by_workspace_id,
@@ -197,6 +225,11 @@ class RunController:
             self.reset_runtime_solution_state()
         normalized_workspace_id = str(workspace_id or "").strip()
         if (
+            self._active_submission is not None
+            and self._active_submission.workspace_id != normalized_workspace_id
+        ):
+            self._cancel_preparing_submission("workspace_changed")
+        if (
             self._state.pending_auto_run_workspace_id
             and self._state.pending_auto_run_workspace_id != normalized_workspace_id
         ):
@@ -213,7 +246,7 @@ class RunController:
             self._queue_auto_run(normalized_workspace_id, set(target_node_ids))
 
     def run_workflow(self) -> None:
-        if self._state.active_run_id:
+        if self._state.active_run_id or self._state.active_submission_id:
             if self._state.engine_state_value == "paused":
                 self.resume_workflow()
             else:
@@ -241,13 +274,13 @@ class RunController:
         )
         self._host.console_panel.clear_all()
         self.clear_selected_run_preview()
-        run_id = self._prepare_and_dispatch(
+        submitted = self._submit_run(
             workspace_id=workspace_id,
             runtime_snapshot=runtime_snapshot,
             trigger_kind="manual",
             target_node_ids=self._active_node_ids(workspace),
         )
-        if not run_id:
+        if not submitted:
             self._host.console_panel.append_log(
                 "error", "Failed to start workflow run."
             )
@@ -265,7 +298,6 @@ class RunController:
                 clear_active_run=self.clear_active_run,
             )
             return
-        self._projection.set_run_ui_state("running", "Starting", 1, 0, 0, 0)
 
     def run_selected_nodes(
         self,
@@ -274,9 +306,10 @@ class RunController:
         preview_only: bool = False,
         preview_confirmed: bool = False,
         trigger_kind: Literal["manual", "auto"] = "manual",
+        runtime_snapshot: Any = None,
     ) -> None:
         normalized_trigger_kind = "auto" if trigger_kind == "auto" else "manual"
-        if self._state.active_run_id:
+        if self._state.active_run_id or self._state.active_submission_id:
             self._host.console_panel.append_log(
                 "warning", "A workflow run is already active."
             )
@@ -328,21 +361,22 @@ class RunController:
             return
         self._projection.clear_run_failure_focus()
         self.prune_runtime_solution_state()
-        runtime_snapshot = build_runtime_snapshot(
-            self._host.model.project,
-            workspace_id=workspace_id,
-            registry=self._host.registry,
-        )
+        if runtime_snapshot is None:
+            runtime_snapshot = build_runtime_snapshot(
+                self._host.model.project,
+                workspace_id=workspace_id,
+                registry=self._host.registry,
+            )
         self._host.console_panel.clear_all()
         if preview_enabled:
             self._host.console_panel.append_log("info", preview_text)
-        run_id = self._prepare_and_dispatch(
+        submitted = self._submit_run(
             workspace_id=workspace_id,
             runtime_snapshot=runtime_snapshot,
             trigger_kind=normalized_trigger_kind,
             target_node_ids=target_node_ids,
         )
-        if not run_id:
+        if not submitted:
             self._host.console_panel.append_log(
                 "error", "Failed to start selected run."
             )
@@ -357,10 +391,9 @@ class RunController:
             )
             return
         self.clear_selected_run_preview()
-        self._projection.set_run_ui_state("running", "Starting", 1, 0, 0, 0)
 
     def trigger_node(self, node_id: str) -> bool:
-        if self._state.active_run_id:
+        if self._state.active_run_id or self._state.active_submission_id:
             self._host.console_panel.append_log(
                 "warning", "A workflow run is already active."
             )
@@ -400,7 +433,7 @@ class RunController:
             else {}
         )
         self._host.console_panel.clear_all()
-        run_id = self._prepare_and_dispatch(
+        submitted = self._submit_run(
             workspace_id=workspace_id,
             runtime_snapshot=runtime_snapshot,
             trigger_kind="trigger",
@@ -408,7 +441,7 @@ class RunController:
             trigger_captures=trigger_captures,
             clicked_trigger_node_id=normalized_node_id,
         )
-        if not run_id:
+        if not submitted:
             self._host.console_panel.append_log("error", "Failed to trigger node.")
             self._projection.set_run_ui_state(
                 "error",
@@ -420,10 +453,9 @@ class RunController:
                 clear_active_run=self.clear_active_run,
             )
             return False
-        self._projection.set_run_ui_state("running", "Starting", 1, 0, 0, 0)
         return True
 
-    def _prepare_and_dispatch(
+    def _submit_run(
         self,
         *,
         workspace_id: str,
@@ -432,7 +464,7 @@ class RunController:
         target_node_ids: tuple[str, ...],
         trigger_captures: Mapping[str, SettledPortResult] | None = None,
         clicked_trigger_node_id: str = "",
-    ) -> str:
+    ) -> bool:
         client = self._host.execution_client
         request = ExecutionRequest(
             project_path=self._host.project_path,
@@ -453,23 +485,88 @@ class RunController:
             trigger_captures=dict(trigger_captures or {}),
             clicked_trigger_node_id=clicked_trigger_node_id,
         )
+        if self._closed:
+            return False
+        if trigger_kind != "auto":
+            self.clear_pending_auto_run()
         try:
-            prepared = client.prepare_execution(request)
-            self._projection.clear_port_availability_for_nodes(
-                workspace_id,
-                prepared.recompute_node_ids,
-            )
-            run_id = client.dispatch_prepared(prepared)
+            handle = client.submit_execution(request)
         except Exception as exc:  # noqa: BLE001
             self._host.console_panel.append_log("error", str(exc))
-            run_id = ""
-        self._projection.sync_solution_facts(workspace_id)
-        if not run_id:
-            return ""
-        self._state.active_run_id = run_id
-        self._state.active_run_workspace_id = workspace_id
-        self._run_start_runtime_snapshots[run_id] = runtime_snapshot
-        return run_id
+            return False
+        self._active_submission = _RunSubmission(
+            handle,
+            workspace_id,
+            runtime_snapshot,
+            trigger_kind,
+            tuple(target_node_ids),
+        )
+        self._state.active_submission_id = handle.submission_id
+        self._state.active_submission_workspace_id = workspace_id
+        self._active_run_invalidated_node_ids.clear()
+        self._projection.set_run_ui_state("preparing", "", 0, 1, 0, 0)
+        return True
+
+    @property
+    def is_closed(self) -> bool:
+        return self._closed
+
+    def close(self) -> None:
+        self._closed = True
+        self.clear_pending_auto_run()
+        if self._active_submission is not None:
+            self._active_submission.handle.cancel("project_close")
+        self._host.execution_client.cancel_submissions("project_close")
+
+    def _cancel_preparing_submission(self, reason: str) -> bool:
+        submission = self._active_submission
+        if submission is None or submission.handle.state not in {"queued", "preparing"}:
+            return False
+        return submission.handle.cancel(reason)
+
+    def handle_submission_event(self, event: Mapping[str, Any]) -> None:
+        submission = self._active_submission
+        if (
+            submission is None
+            or event.get("submission_id") != submission.handle.submission_id
+        ):
+            return
+        if event.get("type") == "submission_admitted":
+            run_id = str(event["run_id"])
+            self._state.active_run_id = run_id
+            self._state.active_run_workspace_id = submission.workspace_id
+            self._state.active_submission_id = ""
+            self._state.active_submission_workspace_id = ""
+            self._run_start_runtime_snapshots[run_id] = submission.runtime_snapshot
+            self._projection.clear_port_availability_for_nodes(
+                submission.workspace_id,
+                tuple(event.get("recompute_node_ids", ())),
+            )
+            self._projection.sync_solution_facts(submission.workspace_id)
+            self._projection.update_run_actions()
+            return
+        cancelled = event.get("type") == "submission_cancelled"
+        reason = str(event.get("reason", ""))
+        self.clear_active_run()
+        if cancelled:
+            if reason == "inputs_changed":
+                self._host.console_panel.append_log(
+                    "info",
+                    "Run cancelled because its inputs changed during preparation.",
+                )
+            self._projection.set_run_ui_state("ready", "Cancelled", 0, 0, 0, 0)
+        else:
+            self._host.console_panel.append_log(
+                "error", str(event.get("error", "Execution preparation failed."))
+            )
+            self._projection.set_run_ui_state("error", "Preparation Failed", 0, 0, 0, 1)
+        self._host.update_notification_counters(
+            self._host.console_panel.warning_count, self._host.console_panel.error_count
+        )
+        if cancelled and reason in {"superseded", "inputs_changed"}:
+            self.schedule_pending_auto_run()
+        else:
+            self.clear_pending_auto_run()
 
     def _execution_backend_policy_for_runtime_snapshot(
         self,
@@ -566,20 +663,23 @@ class RunController:
         self._host.update_engine_status("running", "Resuming")
 
     def stop_workflow(self) -> None:
-        if not self._state.active_run_id:
-            return
         self.clear_pending_auto_run()
-        self._host.execution_client.stop_run(self._state.active_run_id)
-        if self._state.engine_state_value == "paused":
-            self._host.update_engine_status("paused", "Stopping")
+        if self._active_submission is not None:
+            self._active_submission.handle.cancel("user")
+        elif self._state.active_run_id:
+            self._host.execution_client.stop_run(self._state.active_run_id)
         else:
-            self._host.update_engine_status("running", "Stopping")
+            return
+        self._host.update_engine_status(self._state.engine_state_value, "Stopping")
         self._projection.update_run_actions()
 
     def clear_active_run(self) -> None:
         self.consume_run_start_runtime_snapshot(self._state.active_run_id)
         self._state.active_run_id = ""
         self._state.active_run_workspace_id = ""
+        self._state.active_submission_id = ""
+        self._state.active_submission_workspace_id = ""
+        self._active_submission = None
         self._active_run_invalidated_node_ids.clear()
 
     def _selected_node_ids_from_scene(self, workspace: Any) -> tuple[str, ...]:
@@ -634,7 +734,9 @@ class RunController:
             normalized.append(node_id)
         return tuple(normalized)
 
-    def _queue_auto_run(self, workspace_id: str, target_node_ids: set[str]) -> None:
+    def _queue_auto_run(
+        self, workspace_id: str, target_node_ids: set[str], runtime_snapshot: Any = None
+    ) -> None:
         state = self._state
         normalized_workspace_id = str(workspace_id or "").strip()
         normalized_targets = {str(node_id or "").strip() for node_id in target_node_ids}
@@ -652,11 +754,28 @@ class RunController:
         else:
             state.pending_auto_run_workspace_id = normalized_workspace_id
             state.pending_auto_run_target_node_ids = normalized_targets
-        if not state.active_run_id:
-            self.drain_pending_auto_run()
+        self._pending_auto_snapshot = runtime_snapshot
+        self.schedule_pending_auto_run()
+
+    def schedule_pending_auto_run(self) -> None:
+        if (
+            self._closed
+            or self._auto_drain_scheduled
+            or self._state.active_run_id
+            or self._state.active_submission_id
+        ):
+            return
+        if not self._state.pending_auto_run_workspace_id:
+            return
+        self._auto_drain_scheduled = True
+        self._schedule_next_turn(self.drain_pending_auto_run)
 
     def drain_pending_auto_run(self) -> None:
+        self._auto_drain_scheduled = False
         state = self._state
+        if self._closed or state.active_run_id or state.active_submission_id:
+            return
+        runtime_snapshot = self._pending_auto_snapshot
         workspace_id = state.pending_auto_run_workspace_id
         target_node_ids = set(state.pending_auto_run_target_node_ids)
         self.clear_pending_auto_run()
@@ -681,6 +800,7 @@ class RunController:
             ordered_target_node_ids,
             preview_confirmed=True,
             trigger_kind="auto",
+            runtime_snapshot=runtime_snapshot,
         )
 
     def _active_node_ids(self, workspace: Any) -> tuple[str, ...]:
@@ -814,6 +934,8 @@ class RunController:
             after_snapshot=after_snapshot,
         )
         if not change.affects_execution:
+            if self._state.pending_auto_run_workspace_id == normalized_workspace_id:
+                self._pending_auto_snapshot = None
             return False
         workspace = self._host.model.project.workspaces.get(normalized_workspace_id)
         if workspace is None:
@@ -854,15 +976,34 @@ class RunController:
                     state.current_trigger_capture_node_ids_by_workspace_id.pop(
                         normalized_workspace_id, None
                     )
+        submission = self._active_submission
+        preparing_auto_targets: set[str] = set()
+        if (
+            submission is not None
+            and submission.workspace_id == normalized_workspace_id
+        ):
+            if submission.handle.state in {"queued", "preparing"}:
+                if submission.trigger_kind == "auto":
+                    preparing_auto_targets.update(submission.target_node_ids)
+                self._cancel_preparing_submission(
+                    "superseded"
+                    if submission.trigger_kind == "auto"
+                    else "inputs_changed"
+                )
+            else:
+                self._active_run_invalidated_node_ids.update(affected_node_ids)
         if (
             state.active_run_id
             and state.active_run_workspace_id == normalized_workspace_id
         ):
             self._active_run_invalidated_node_ids.update(affected_node_ids)
-        if not self._suppress_auto_run_for_script_apply and result.expired_node_ids:
+        if not self._suppress_auto_run_for_script_apply and (
+            result.expired_node_ids or preparing_auto_targets
+        ):
             self._queue_auto_run(
                 normalized_workspace_id,
-                set(result.expired_node_ids),
+                set(result.expired_node_ids) | preparing_auto_targets,
+                runtime_snapshot=runtime_snapshot,
             )
         return True
 

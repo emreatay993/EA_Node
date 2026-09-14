@@ -32,18 +32,6 @@ def test_invalid_enum_default_raises_exact_value_error() -> None:
         validate_node_spec(spec, data_types=NodeRegistry().data_types)
 
 
-def test_non_serializable_json_default_raises_exact_value_error() -> None:
-    spec = NodeTypeSpec(
-        type_id="tests.bad_json_default",
-        display_name="Bad Json Default",
-        category_path=("Tests",),
-        icon="",
-        ports=(PortSpec("value", "out", "data", "COREX.DataTypes.Any"),),
-        properties=(PropertySpec("payload", "json", {"obj": object()}, "Payload"),),
-    )
-
-    with pytest.raises(
-        ValueError,
-        match=r"^Invalid default for property payload \(json\): ",
-    ):
-        validate_node_spec(spec, data_types=NodeRegistry().data_types)
+def test_non_serializable_json_default_rejects_opaque_state_at_capture() -> None:
+    with pytest.raises(TypeError, match=r"^Unsupported property default type: object$"):
+        PropertySpec("payload", "json", {"obj": object()}, "Payload")

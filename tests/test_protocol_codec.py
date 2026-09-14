@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from ea_node_editor.execution.external_python_client import ExternalPythonExecutionClient
 from ea_node_editor.execution.process_client import ProcessExecutionClient
+from ea_node_editor.execution.generation_readiness import GenerationReadiness
 from ea_node_editor.execution.trusted_client import TrustedInProcessExecutionClient
 from ea_node_editor.execution.run_messages import (
     CancelRunPreflightCommand,
@@ -404,6 +405,7 @@ class ProtocolCodecTests(unittest.TestCase):
 
     def test_process_client_fails_before_queue_put(self) -> None:
         client = object.__new__(ProcessExecutionClient)
+        client._generation_readiness = GenerationReadiness()
         client._data_types = _catalog()  # noqa: SLF001
         client._command_queue = _RecordingQueue()  # noqa: SLF001
         client._callbacks = []  # noqa: SLF001
@@ -495,6 +497,7 @@ class ProtocolCodecTests(unittest.TestCase):
             ),
         }
         client = object.__new__(ProcessExecutionClient)
+        client._generation_readiness = GenerationReadiness()
         client._data_types = _catalog()  # noqa: SLF001
         client._command_queue = _RecordingQueue()  # noqa: SLF001
         client._callbacks = []  # noqa: SLF001

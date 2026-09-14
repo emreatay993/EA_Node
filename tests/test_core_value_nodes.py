@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-import json
+from tests.repo_owned_catalog_fixture import catalog_value
+
 from pathlib import Path
 
 import pytest
@@ -76,7 +76,7 @@ def test_converted_entries_match_pre_cutover_specs_without_descriptors(
     for type_id in _TYPE_IDS:
         assert isinstance(registry.entry_or_none(type_id), PythonFunctionEntry)
         assert registry.descriptor_or_none(type_id) is None
-        actual = json.loads(json.dumps(asdict(registry.get_spec(type_id))))
+        actual = catalog_value(registry.get_spec(type_id))
         assert actual == expected[type_id]
 
 

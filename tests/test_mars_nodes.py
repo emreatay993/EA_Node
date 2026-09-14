@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict, replace
+from tests.repo_owned_catalog_fixture import catalog_value
+
+from dataclasses import replace
 import json
 import os
 import queue
@@ -88,7 +90,7 @@ _MARS_SPECS = {
 
 def _mars_properties(type_id: str) -> dict[str, object]:
     return {
-        property_spec.key: property_spec.default
+        property_spec.key: property_spec.make_default()
         for property_spec in _MARS_SPECS[type_id].properties
     }
 
@@ -206,7 +208,7 @@ class MarsAddOnContractTests(unittest.TestCase):
             if row["spec"]["type_id"] in _MARS_SPECS
         }
         actual = {
-            type_id: json.loads(json.dumps(asdict(spec)))
+            type_id: catalog_value(spec)
             for type_id, spec in _MARS_SPECS.items()
         }
 
@@ -295,7 +297,7 @@ class MarsAddOnContractTests(unittest.TestCase):
         ):
             spec = _MARS_SPECS[type_id]
             properties = {
-                property_spec.key: property_spec.default
+                property_spec.key: property_spec.make_default()
                 for property_spec in spec.properties
             }
             issues = evaluate_node_readiness(
@@ -324,7 +326,7 @@ class MarsAddOnContractTests(unittest.TestCase):
     def test_batch_damage_requires_each_fatigue_property(self) -> None:
         spec = _MARS_SPECS[MARS_BATCH_SOLVE_NODE_TYPE_ID]
         properties = {
-            property_spec.key: property_spec.default
+            property_spec.key: property_spec.make_default()
             for property_spec in spec.properties
         }
         properties.update(
@@ -347,7 +349,7 @@ class MarsAddOnContractTests(unittest.TestCase):
     def test_run_job_uses_property_fallback_until_a_wire_overrides_it(self) -> None:
         spec = _MARS_SPECS[MARS_RUN_JOB_NODE_TYPE_ID]
         properties = {
-            property_spec.key: property_spec.default
+            property_spec.key: property_spec.make_default()
             for property_spec in spec.properties
         }
         properties["job"] = "job.json"

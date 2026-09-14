@@ -329,7 +329,7 @@ class GraphSurfaceBoundaryContractTests(GraphSurfaceInputContractTestBase):
                 self.assertIn(snippet, root_api_text)
 
     def test_graph_scene_payload_builder_publishes_normalized_render_quality_metadata(self) -> None:
-        registry: NodeRegistry = build_default_registry()
+        registry: NodeRegistry = build_default_registry().fork()
         spec = NodeTypeSpec(
             type_id="tests.render_quality_payload",
             display_name="Render Quality Payload",
@@ -342,6 +342,7 @@ class GraphSurfaceBoundaryContractTests(GraphSurfaceInputContractTestBase):
             },  # type: ignore[arg-type]
         )
         registry.register(lambda: _RenderQualityPayloadPlugin(spec))
+        registry.freeze()
 
         model = GraphModel()
         workspace_id = model.active_workspace.workspace_id

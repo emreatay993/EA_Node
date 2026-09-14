@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping
-from dataclasses import fields, is_dataclass, replace
-from enum import Enum
-import json
+from dataclasses import replace
 from pathlib import Path
 import re
 
@@ -22,6 +19,7 @@ from ea_node_editor.nodes.instance_resolution import (
 )
 from ea_node_editor.nodes.solution_provenance import trusted_solution_provenance_inputs
 from tests.repo_owned_catalog_fixture import (
+    catalog_value,
     load_current_repo_owned_catalog,
     load_solution_reuse_scopes,
 )
@@ -40,33 +38,6 @@ _INVENTORY_ROW = re.compile(
     r"`(?P<owner>[^`]+)` \| (?P<ports>.*?) \| (?P<properties>.*?) \| "
     r".* \| `(?P<test>[^`]+)` \|$"
 )
-
-
-def _catalog_value(value: object) -> object:
-    if callable(value):
-        return True
-    if is_dataclass(value):
-        return {
-            field.name: _catalog_value(getattr(value, field.name))
-            for field in fields(value)
-        }
-    if isinstance(value, Mapping):
-        return {
-            str(key): _catalog_value(item)
-            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
-        }
-    if isinstance(value, (tuple, list)):
-        return [_catalog_value(item) for item in value]
-    if isinstance(value, (set, frozenset)):
-        items = [_catalog_value(item) for item in value]
-        return sorted(items, key=lambda item: json.dumps(item, sort_keys=True))
-    if isinstance(value, Enum):
-        return _catalog_value(value.value)
-    if isinstance(value, Path):
-        return value.as_posix()
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-    raise TypeError(f"Unsupported catalog value: {type(value).__qualname__}")
 
 
 def _current_repo_owned_catalog() -> list[dict[str, object]]:
@@ -117,12 +88,12 @@ def _current_repo_owned_catalog() -> list[dict[str, object]]:
 
     catalog: list[dict[str, object]] = []
     for spec in sorted(specs, key=lambda item: item.type_id):
-        defaults = {property_spec.key: property_spec.default for property_spec in spec.properties}
+        defaults = {property_spec.key: property_spec.make_default() for property_spec in spec.properties}
         resolved_spec = resolve_instance_spec(spec, defaults)
         catalog.append(
             {
-                "spec": _catalog_value(spec),
-                "resolved_default_ports": _catalog_value(
+                "spec": catalog_value(spec),
+                "resolved_default_ports": catalog_value(
                     resolve_instance_ports(resolved_spec, defaults)
                 ),
             }

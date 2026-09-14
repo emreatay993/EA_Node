@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-import json
+from tests.repo_owned_catalog_fixture import catalog_value
+
 from pathlib import Path
 import pytest
 
@@ -171,7 +171,7 @@ def test_signal_plot_contract_is_exact_and_generic_siblings_remain(
         for row in load_current_repo_owned_catalog()
         if row["spec"]["type_id"] == SIGNAL_PLOT_TYPE_ID
     )
-    assert json.loads(json.dumps(asdict(spec))) == expected
+    assert catalog_value(spec) == expected
     entry = registry.get_entry(SIGNAL_PLOT_TYPE_ID)
     assert isinstance(entry, PythonFunctionEntry)
     assert entry.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
@@ -195,7 +195,7 @@ def test_signal_plot_contract_is_exact_and_generic_siblings_remain(
         "Image background color", "Data background color",
         "X mode", "X column", "Y columns", "Maximum rendered points", "Datetime X start", "Datetime X end",
     )
-    defaults = {prop.key: prop.default for prop in spec.properties}
+    defaults = {prop.key: prop.make_default() for prop in spec.properties}
     assert defaults == {
         "width": 600,
         "height": 400,
@@ -297,7 +297,7 @@ def test_signal_plot_function_adapter_preserves_present_overrides_and_warnings()
         namespace[declaration.function_name],  # type: ignore[arg-type]
     )
     values = _tree((1.0, 2.0))
-    properties = {prop.key: prop.default for prop in declaration.spec.properties}
+    properties = {prop.key: prop.make_default() for prop in declaration.spec.properties}
     properties.update(
         {
             "title": "property title",
@@ -405,7 +405,7 @@ def test_image_export_is_atomic_png_only_and_honors_overwrite(tmp_path: Path) ->
     assert result.outputs == {"written_path": str(output)}
     assert output.read_bytes() == image.encoded_bytes
     spec = build_default_registry().get_spec("io.image_export")
-    assert {prop.key: prop.default for prop in spec.properties}["overwrite"] is True
+    assert {prop.key: prop.make_default() for prop in spec.properties}["overwrite"] is True
     execute_image_export(context(output))
     with pytest.raises(FileExistsError):
         execute_image_export(context(output, overwrite=False))

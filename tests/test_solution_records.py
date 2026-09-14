@@ -420,6 +420,40 @@ def test_output_descriptors_bound_mixed_types_and_carriers() -> None:
         )
 
 
+def test_settled_projection_has_one_normalization_and_preserves_error_guards(monkeypatch) -> None:
+    from ea_node_editor.runtime_contracts import settled_results as module
+
+    result = SettledPortResult(status="value", value=DataTree.from_item("value"))
+    normalize = module.normalize_settled_output_mapping
+    calls = []
+    def counted(*args, **kwargs):
+        calls.append(True)
+        return normalize(*args, **kwargs)
+    monkeypatch.setattr(module, "normalize_settled_output_mapping", counted)
+    payload = module.settled_outputs_to_payload({"result": result})
+    assert calls == [True]
+    assert module.settled_output_mapping_from_payload(payload) == {"result": result}
+
+    class MalformedError(RootExecutionError):
+        def _to_payload(self):
+            return {"node_id": "node", "error": 42, "traceback": ""}
+    malformed = SettledPortResult(status="failed", errors=(MalformedError(error="bad"),))
+    with pytest.raises(TypeError, match="string"):
+        module.settled_outputs_to_payload({"result": malformed})
+
+
+def test_settled_tree_subclasses_cannot_hide_shape_limits(monkeypatch) -> None:
+    from ea_node_editor.runtime_contracts import settled_results as module
+
+    class MisleadingTree(DataTree):
+        @property
+        def branch_count(self):
+            return 0
+    monkeypatch.setattr(module, "MAX_DATA_TREE_BRANCHES_PER_OUTPUT", 1)
+    with pytest.raises(ValueError, match="branch count"):
+        SettledPortResult(status="value", value=MisleadingTree((((0,), (1,)), ((1,), (2,)))))
+
+
 def test_settled_results_are_strict_bounded_and_not_protocol_owned() -> None:
     result = SettledPortResult(status="value", value=DataTree.from_item("value"))
     assert SettledPortResult.from_payload(result.to_payload()) == result

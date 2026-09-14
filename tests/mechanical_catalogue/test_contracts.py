@@ -443,7 +443,7 @@ def test_catalog_validates_all_carriers_without_ansys_imports() -> None:
 
 
 def test_mechanical_backend_registers_all_five_semantic_contracts() -> None:
-    registry = build_builtin_registry()
+    registry = build_builtin_registry().fork()
     assert register_plugin_backends(
         (MECHANICAL_PLUGIN_BACKEND,), registry, "mechanical"
     ) == [
@@ -456,6 +456,7 @@ def test_mechanical_backend_registers_all_five_semantic_contracts() -> None:
         "mechanical.apdl_snippet",
         "mechanical.save_model",
     ]
+    registry.freeze()
     assert {
         spec.type_id
         for spec in registry.data_types.all_specs()

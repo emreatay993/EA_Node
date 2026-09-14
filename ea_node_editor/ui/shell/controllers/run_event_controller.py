@@ -50,6 +50,8 @@ class RunEventController:
         return self._host.run_state
 
     def handle_execution_event(self, event: dict[str, Any]) -> None:
+        if self._run_controller.is_closed:
+            return
         try:
             self._route_execution_event(event)
         except Exception:
@@ -66,6 +68,13 @@ class RunEventController:
 
     def _route_execution_event(self, event: dict[str, Any]) -> None:
         event_type = str(event.get("type", ""))
+        if event_type in {
+            "submission_admitted",
+            "submission_cancelled",
+            "submission_failed",
+        }:
+            self._run_controller.handle_submission_event(event)
+            return
         if (
             event_type
             in {
@@ -150,7 +159,7 @@ class RunEventController:
                 0,
                 clear_active_run=self._run_controller.clear_active_run,
             )
-            self._run_controller.drain_pending_auto_run()
+            self._run_controller.schedule_pending_auto_run()
         elif event_type == "run_failed":
             self._handle_run_failed(event)
         elif event_type == "run_stopped":

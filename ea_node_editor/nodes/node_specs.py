@@ -5,10 +5,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field, fields
 from typing import Any, Callable, Literal
 
 from ea_node_editor.nodes.solution_provenance import SolutionProvenanceInputSpec
+from ea_node_editor.nodes.property_defaults import PropertyDefaultTemplate
 from ea_node_editor.runtime_contracts.data_tree import DataAccess
 from ea_node_editor.nodes.category_paths import (
     CategoryPath,
@@ -236,7 +237,7 @@ class DynamicPortGroupSpec:
 class PropertySpec:
     key: str
     type: PropertyType
-    default: Any
+    default: InitVar[Any]
     label: str
     expose_port_toggle: bool = False
     enum_values: tuple[str, ...] = ()
@@ -266,8 +267,12 @@ class PropertySpec:
     list_item_step: float = 0.0
     # False declares authored presentation state, excluded from computational identity.
     affects_execution: bool = True
+    _default_template: PropertyDefaultTemplate = field(init=False, repr=False)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, default: Any) -> None:
+        object.__setattr__(self, "_default_template", PropertyDefaultTemplate.capture(default))
+        for name in ("enum_values", "enum_codes", "list_item_enum_values", "list_item_enum_codes"):
+            object.__setattr__(self, name, tuple(getattr(self, name)))
         object.__setattr__(
             self,
             "description",
@@ -300,6 +305,20 @@ class PropertySpec:
                 allow_empty=True,
             ),
         )
+
+    def make_default(self) -> Any:
+        """Return an independently mutable value; the declaration owns no aliases."""
+        return self._default_template.materialize()
+
+    def contract_values(self) -> dict[str, Any]:
+        """Project the original semantic declaration, excluding storage details."""
+        return {"default": self.make_default(), **{
+            item.name: getattr(self, item.name) for item in fields(self) if item.init
+        }}
+
+    def with_changes(self, **changes: Any) -> PropertySpec:
+        """Build a new declaration while retaining independently owned defaults."""
+        return PropertySpec(**(self.contract_values() | changes))
 
 
 @dataclass(slots=True, frozen=True)

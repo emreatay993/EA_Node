@@ -184,8 +184,9 @@ def _register_test_handle_type(registry) -> None:  # noqa: ANN001
 
 
 def _test_handle_worker_services() -> WorkerServices:
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     _register_test_handle_type(registry)
+    registry.freeze()
     services = WorkerServices()
     services.bind_data_types(registry.data_types)
     return services
@@ -771,8 +772,9 @@ class ExecutionWorkerTests(unittest.TestCase):
             0,
         )
 
-        registry = build_default_registry()
+        registry = build_default_registry().fork()
         registry.register(_TabularWarningSourcePlugin)
+        registry.freeze()
         event_queue: queue.Queue = queue.Queue()
         runtime_snapshot = self._runtime_snapshot(model, registry=registry)
 
@@ -867,18 +869,19 @@ class ExecutionWorkerTests(unittest.TestCase):
         )
         cache = RuntimePreparationCache()
 
-        import ea_node_editor.execution.worker_runtime as worker_runtime_module
+        import ea_node_editor.execution.compiled_snapshot_cache as cache_module
 
         with mock.patch.object(
-            worker_runtime_module,
+            cache_module,
             "compile_runtime_snapshot",
-            wraps=worker_runtime_module.compile_runtime_snapshot,
+            wraps=cache_module.compile_runtime_snapshot,
         ) as compile_mock:
             first = prepare_runtime(command, cache=cache)
             second = prepare_runtime(command, cache=cache)
 
         self.assertIs(first.registry, second.registry)
-        self.assertIs(first.workspace, second.workspace)
+        self.assertIsNot(first.workspace, second.workspace)
+        self.assertEqual(first.workspace, second.workspace)
         self.assertIsNot(first.plan, second.plan)
         self.assertEqual(compile_mock.call_count, 1)
 
@@ -1927,9 +1930,10 @@ def run(ctx):
             )
             model.project.metadata["artifact_store"] = artifact_store.metadata
 
-            registry = build_default_registry()
+            registry = build_default_registry().fork()
             registry.register(_ArtifactSourcePlugin)
             registry.register(_ArtifactSinkPlugin)
+            registry.freeze()
             runtime_snapshot = self._runtime_snapshot(model, registry=registry)
             event_queue: queue.Queue = queue.Queue()
 
@@ -2000,8 +2004,9 @@ def run(ctx):
             ws.workspace_id, "tests.tabular_runtime_source", "Source", 120, 0
         )
 
-        registry = build_default_registry()
+        registry = build_default_registry().fork()
         registry.register(_TabularRuntimeSourcePlugin)
+        registry.freeze()
         runtime_snapshot = self._runtime_snapshot(model, registry=registry)
         event_queue: queue.Queue = queue.Queue()
 
@@ -2064,10 +2069,11 @@ def run(ctx):
             ws.workspace_id, source.node_id, "handle", sink.node_id, "handle"
         )
 
-        registry = build_default_registry()
+        registry = build_default_registry().fork()
         _register_test_handle_type(registry)
         registry.register(_HandleSourcePlugin)
         registry.register(_HandleSinkPlugin)
+        registry.freeze()
         runtime_snapshot = self._runtime_snapshot(model, registry=registry)
         event_queue: queue.Queue = queue.Queue()
         worker_services = WorkerServices()
@@ -2127,9 +2133,10 @@ def run(ctx):
             0,
         )
 
-        registry = build_default_registry()
+        registry = build_default_registry().fork()
         _register_test_handle_type(registry)
         registry.register(_FailingDisposeHandleSourcePlugin)
+        registry.freeze()
         runtime_snapshot = self._runtime_snapshot(model, registry=registry)
         event_queue: queue.Queue = queue.Queue()
         worker_services = WorkerServices()
@@ -2177,9 +2184,10 @@ def run(ctx):
             0,
         )
 
-        registry = build_default_registry()
+        registry = build_default_registry().fork()
         _register_test_handle_type(registry)
         registry.register(_PersistentHandleSourcePlugin)
+        registry.freeze()
         runtime_snapshot = self._runtime_snapshot(model, registry=registry)
         event_queue: queue.Queue = queue.Queue()
         worker_services = WorkerServices()
@@ -2223,8 +2231,9 @@ def run(ctx):
         self.assertEqual(worker_services.handle_registry.active_handle_count, 0)
 
     def test_worker_main_resets_services_after_worker_exception(self) -> None:
-        registry = build_default_registry()
+        registry = build_default_registry().fork()
         _register_test_handle_type(registry)
+        registry.freeze()
         worker_services = WorkerServices()
         worker_services.bind_data_types(registry.data_types)
         model = GraphModel()
@@ -2281,8 +2290,9 @@ def run(ctx):
             worker_services.resolve_handle(persistent_ref)
 
     def test_worker_main_resets_services_once_on_normal_shutdown(self) -> None:
-        registry = build_default_registry()
+        registry = build_default_registry().fork()
         _register_test_handle_type(registry)
+        registry.freeze()
         worker_services = WorkerServices()
         worker_services.bind_data_types(registry.data_types)
         disposed: list[str] = []
@@ -2891,8 +2901,9 @@ def run(ctx):
     def test_run_workflow_treats_passive_only_workspace_as_successful_no_op(
         self,
     ) -> None:
-        registry = build_default_registry()
+        registry = build_default_registry().fork()
         registry.register(_PassiveNotePlugin)
+        registry.freeze()
 
         model = GraphModel()
         ws = model.active_workspace

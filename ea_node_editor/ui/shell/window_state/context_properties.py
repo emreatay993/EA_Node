@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from ea_node_editor.telemetry.status_service import EngineState
+
+from typing import TYPE_CHECKING, Any, Callable
 
 from ea_node_editor.ui.shell.window_actions import (
     build_window_menu_bar,
@@ -387,16 +389,16 @@ class ShellWindowContextPropertiesMixin:
         self.run_state.active_run_workspace_id = str(value)
 
     @property
-    def _engine_state_value(self: "ShellWindow") -> Literal["ready", "running", "paused", "error"]:
+    def _engine_state_value(self: "ShellWindow") -> EngineState:
         return self.run_state.engine_state_value
 
     @_engine_state_value.setter
     def _engine_state_value(
         self: "ShellWindow",
-        value: Literal["ready", "running", "paused", "error"] | str,
+        value: EngineState | str,
     ) -> None:
         normalized = str(value)
-        if normalized not in {"ready", "running", "paused", "error"}:
+        if normalized not in {"ready", "preparing", "running", "paused", "error"}:
             normalized = "ready"
         self.run_state.engine_state_value = normalized  # type: ignore[assignment]
 

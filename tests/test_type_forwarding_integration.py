@@ -32,7 +32,7 @@ IMAGE = "COREX.DataTypes.Image"
 
 @pytest.fixture
 def graph():
-    registry = build_builtin_registry()
+    registry = build_builtin_registry().fork()
     for name, type_id, direction in (("image", IMAGE, "out"), ("integer", INTEGER_DATA_TYPE_ID, "out"),
                                      ("decimal", DOUBLE_DATA_TYPE_ID, "out"), ("any", GRAPH_DATA_TYPE_ID, "out"),
                                      ("image_sink", IMAGE, "in"), ("number_sink", DOUBLE_DATA_TYPE_ID, "in")):
@@ -48,6 +48,7 @@ def graph():
             def spec(self):
                 return self.declared
         registry.register(lambda declared=spec: Plugin(declared))
+    registry.freeze()
     model = GraphModel()
     workspace = model.active_workspace
     mutation = ValidatedGraphMutation(model, workspace.workspace_id, registry)
@@ -236,12 +237,16 @@ def test_mixed_forwarded_values_convert_per_actual_item_and_each_revision_change
     calls = []
 
     def install(int_version="1", double_version="1", replace_owner=False):
+        nonlocal registry, mutation
+        registry = registry.fork()
         registry.register_plugin_bundle(PluginContractManifest(data_conversions=(
             DataConversionSpec(INTEGER_DATA_TYPE_ID, STRING_DATA_TYPE_ID,
                                lambda value: calls.append("integer") or f"int:{value}", int_version),
             DataConversionSpec(DOUBLE_DATA_TYPE_ID, STRING_DATA_TYPE_ID,
                                lambda value: calls.append("decimal") or f"float:{value}", double_version),
         )), (), owner_id="tests.conversions", replace_owner=replace_owner)
+        registry.freeze()
+        mutation = ValidatedGraphMutation(model, model.active_workspace.workspace_id, registry)
 
     install()
     integer, decimal, trigger = add(mutation, "integer"), add(mutation, "decimal"), add(mutation, "core.trigger")

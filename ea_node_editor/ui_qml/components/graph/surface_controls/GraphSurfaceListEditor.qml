@@ -24,8 +24,6 @@ Item {
         if (_syncing)
             return;
         _syncing = true;
-        itemModel.clear();
-        itemModel.dynamicRoles = root.exactSelectors;
         var source = [];
         try {
             var normalized = JSON.parse(JSON.stringify(values || []));
@@ -34,8 +32,14 @@ Item {
         } catch (error) {
             source = [];
         }
-        for (var index = 0; index < source.length; index++)
-            itemModel.append({"itemValue": source[index]});
+        for (var index = 0; index < source.length; index++) {
+            if (index >= itemModel.count)
+                itemModel.append({"itemValue": source[index]});
+            else if (itemModel.get(index).itemValue !== source[index])
+                itemModel.setProperty(index, "itemValue", source[index]);
+        }
+        if (itemModel.count > source.length)
+            itemModel.remove(source.length, itemModel.count - source.length);
         _syncing = false;
     }
 
@@ -67,7 +71,9 @@ Item {
     onExactSelectorsChanged: if (_ready) syncModel()
     Component.onCompleted: { _ready = true; syncModel(); }
 
-    ListModel { id: itemModel }
+    // Runtime selectors can switch between string and positional numeric keys.
+    // Keep one variant-valued model so that changes never coerce their identity.
+    ListModel { id: itemModel; dynamicRoles: true }
 
     ListView {
         id: listView

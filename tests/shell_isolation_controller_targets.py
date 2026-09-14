@@ -13,6 +13,14 @@ def _build_targets():
 
     return (
         ShellIsolationTarget.unittest_target(
+            "tests.test_shell_run_controller.ShellRunControllerTests.test_gui_remains_responsive_and_stop_cancels_blocked_preparation",
+            target_id="run_controller__test_gui_remains_responsive_and_stop_cancels_blocked_preparation",
+        ),
+        ShellIsolationTarget.unittest_target(
+            "tests.test_shell_run_controller.ShellRunControllerTests.test_plot_property_updates_retain_inline_rows_across_settings_and_ports",
+            target_id="run_controller__test_plot_property_updates_retain_inline_rows_across_settings_and_ports",
+        ),
+        ShellIsolationTarget.unittest_target(
             "tests.test_shell_run_controller.ShellRunControllerTests.test_media_toolbar_history_and_bulk_edits_preserve_real_workflow",
             target_id="run_controller__test_media_toolbar_history_and_bulk_edits_preserve_real_workflow",
         ),

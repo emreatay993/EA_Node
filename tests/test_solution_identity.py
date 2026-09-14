@@ -58,6 +58,50 @@ def _identity() -> NodeSolutionIdentity:
     )
 
 
+def test_build_identity_cache_is_single_flight(monkeypatch) -> None:
+    module = solution_identity_module
+    module._cached_corex_build_digest.cache_clear()
+    entered, release = threading.Event(), threading.Event()
+    calls, results = [], []
+    def build(_root):
+        calls.append(True)
+        entered.set()
+        assert release.wait(10)
+        return "a" * 64
+    monkeypatch.setattr(module, "_build_tree_digest", build)
+    workers = [threading.Thread(target=lambda: results.append(corex_build_digest())) for _ in range(2)]
+    try:
+        workers[0].start()
+        assert entered.wait(10)
+        workers[1].start()
+        release.set()
+        for worker in workers:
+            worker.join(10)
+            assert not worker.is_alive()
+        assert calls == [True] and results == ["a" * 64, "a" * 64]
+    finally:
+        release.set()
+        module._cached_corex_build_digest.cache_clear()
+
+
+def test_file_hash_rejects_growth_without_reading_unbounded_bytes(tmp_path, monkeypatch) -> None:
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"initial")
+    original = solution_identity_module.os.read
+    reads = []
+    def grow(descriptor, size):
+        reads.append(size)
+        if len(reads) == 1:
+            with source.open("ab") as stream:
+                stream.write(b"extra" * 1000)
+        return original(descriptor, size)
+    monkeypatch.setattr(solution_identity_module.os, "read", grow)
+    with pytest.raises(SolutionIdentityError) as error:
+        hash_file_provenance(source)
+    assert error.value.reason_code == "provenance_changed"
+    assert reads == [len(b"initial") + 1]
+
+
 def test_canonical_tagging_preserves_types_order_and_float_policy() -> None:
     first = {
         "map": {"b": 2, "a": 1},
@@ -79,6 +123,15 @@ def test_canonical_tagging_preserves_types_order_and_float_policy() -> None:
     assert canonical_digest(DataTree.from_list([1, 2])) != canonical_digest(
         DataTree.from_list([2, 1])
     )
+
+
+def test_mapping_encoding_preserves_existing_bytes_and_nan_key_tie_breaks() -> None:
+    assert canonical_digest({"z": {"values": [1, 2.0, None]}, "a": ("tag", True)}) == (
+        "f877a462fd7ff48865f511b630b4719199d81a148635bf961392e4a32add7f03"
+    )
+    first, second = float("nan"), float("nan")
+    for value in ({first: {"value": 2}, second: {"value": 1}}, {second: {"value": 1}, first: {"value": 2}}):
+        assert canonical_digest(value) == "d463f13dcf7f5ba8c56b214ad4955568d855e0184953bda89237855fa4b69a62"
 
 
 def test_data_tree_branches_count_toward_canonical_item_limit(monkeypatch) -> None:  # noqa: ANN001

@@ -9,7 +9,6 @@ import keyword
 import math
 import re
 from collections.abc import Callable, Mapping
-from dataclasses import replace
 from typing import Any
 
 from ea_node_editor.nodes.builtins.core_values import (
@@ -422,7 +421,7 @@ def type_id_tuple(value: Any, *, field: str) -> tuple[str, ...]:
 
 
 def _validate_property_default(prop: PropertySpec) -> None:
-    value = prop.default
+    value = prop.make_default()
     valid = (
         isinstance(value, str)
         if prop.type in {"str", "path"}
@@ -530,11 +529,10 @@ def apply_internal_control_overrides(
         raise DeclarationValueError(
             "sensitive properties require type json and a secret editor"
         )
-    default = values.get("_property_default", prop.default)
+    default = values.get("_property_default", prop.make_default())
     if "_property_default" in values and persistence_type:
         default = _materialize_typed_inline_default(default, persistence_type)
-    prop = replace(
-        prop,
+    prop = prop.with_changes(
         type=property_type,
         default=default,
         inline_editor=inline_editor,

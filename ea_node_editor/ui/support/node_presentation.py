@@ -377,7 +377,7 @@ def build_inline_property_items(
     }
     property_by_key = {str(prop.key): prop for prop in spec.properties}
     raw_value_by_key = {
-        str(prop.key): node.properties.get(prop.key, prop.default)
+        str(prop.key): node.properties.get(prop.key, prop.make_default())
         for prop in spec.properties
     }
     override_state_by_key = {

@@ -24,6 +24,12 @@ from ea_node_editor.execution.client_common import (
     _python_script_timeout_by_node_id,
     _registry_admitted,
 )
+from ea_node_editor.execution.prepared_dispatch import PreparedRunDispatch
+from ea_node_editor.execution.generation_messages import PrepareGenerationCommand
+from ea_node_editor.execution.generation_readiness import (
+    GenerationReadiness,
+    GenerationPreparation,
+)
 from ea_node_editor.execution.protocol_codec import (
     WorkerCommand,
     coerce_start_run_command,
@@ -46,6 +52,7 @@ from ea_node_editor.nodes.function_plugin import (
     EMPTY_PLUGIN_FINGERPRINT,
     PluginBundleRef,
 )
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
     DataTypeCatalog,
     DataTypeCatalogError,
@@ -55,6 +62,7 @@ from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 
 class ProcessExecutionClient(_ExecutionClientCommon):
     def __init__(self) -> None:
+        self._generation_readiness = GenerationReadiness()
         self._data_types: DataTypeCatalog | None = None
         self._catalog_generation_fingerprint = ""
         self._plugin_bundles: tuple[PluginBundleRef, ...] = ()
@@ -98,6 +106,45 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         )
         self._running = True
         self._listener_thread.start()
+
+    @_registry_admitted
+    def prepare_generation(self, registry: NodeRegistry) -> GenerationPreparation:
+        if not registry.is_frozen:
+            raise ValueError("generation preparation requires a frozen registry")
+        self._ensure_process()
+        with self._state_lock:
+            if self._active_run_id:
+                raise RuntimeError("worker generation is already executing a run")
+            self._bind_data_types(
+                registry.data_types,
+                plugin_bundles=registry.plugin_bundle_refs(),
+                plugin_fingerprint=registry.plugin_fingerprint(),
+                registry_contract_fingerprint=registry.contract_fingerprint(),
+                addon_runtime_config=registry.addon_runtime_config(),
+            )
+            generation = self._physical_generation_token
+            agreement = self._registry_agreement
+        preparation, created = self._generation_readiness.begin(generation, agreement)
+        if created:
+            try:
+                if not self._post_command(
+                    PrepareGenerationCommand(preparation.request_id, agreement)
+                ):
+                    raise RuntimeError("Failed to send worker generation preparation")
+            except Exception:
+                self._generation_readiness.retire(
+                    "worker generation preparation dispatch failed"
+                )
+                raise
+        return preparation
+
+    def _record_generation_readiness(
+        self, payload: dict[str, Any], generation: int | None
+    ) -> bool:
+        return self._generation_readiness.receive(payload, int(generation or 0))
+
+    def _retire_generation_readiness(self, reason: str) -> None:
+        self._generation_readiness.retire(reason)
 
     def _viewer_generation_is_live(self) -> bool:
         with self._state_lock:
@@ -164,6 +211,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
             listener_thread.start()
 
     def _recycle_catalog_generation(self) -> None:
+        self._retire_generation_readiness("registry generation replaced")
         with self._start_lock:
             with self._state_lock:
                 process = self._process
@@ -197,14 +245,17 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                 self._restore_physical_generation(retiring_generation)
                 raise
 
+    def _write_command_payload(self, payload: dict[str, Any]) -> None:
+        with self._state_lock:
+            command_queue = self._command_queue
+        if command_queue is None:
+            raise RuntimeError("Execution worker is not running.")
+        command_queue.put(payload)
+
     def _try_post_command(self, command: WorkerCommand) -> tuple[bool, str]:
         try:
             payload = self._encode_command(command)
-            with self._state_lock:
-                command_queue = self._command_queue
-            if command_queue is None:
-                raise RuntimeError("Execution worker is not running.")
-            command_queue.put(payload)
+            self._write_command_payload(payload)
             return True, ""
         except Exception as exc:  # noqa: BLE001
             message = f"Failed to dispatch command: {exc}"
@@ -318,7 +369,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         addon_runtime_config: tuple[tuple[str, bool], ...] = (),
         _reserved_run_id: str = "",
         _reservation_prepared: bool = False,
-        _prepared_command: StartRunCommand | None = None,
+        _prepared_command: PreparedRunDispatch | StartRunCommand | None = None,
     ) -> str:
         trigger_payload = dict(trigger or {})
         run_id = _reserved_run_id or f"run_{uuid.uuid4().hex[:8]}"
@@ -389,9 +440,10 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                     "addon_runtime_config": command_addon_runtime_config,
                 }
             )
-            command = coerce_start_run_command(
-                command_source,
-                catalog=self._data_types,
+            command = (
+                _prepared_command.materialize(self._data_types)
+                if type(_prepared_command) is PreparedRunDispatch
+                else coerce_start_run_command(command_source, catalog=self._data_types)
             )
             if (
                 command.run_id != run_id
@@ -421,7 +473,12 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                 )
                 self._clear_active_node_state_locked()
                 self._physical_generation_run_dispatched = True
-            if not self._dispatch_start_run_with_viewer_invalidation(command, self._post_command):
+            if not self._dispatch_start_run_with_viewer_invalidation(
+                command,
+                (lambda _command: self._post_prepared_start(_prepared_command))
+                if type(_prepared_command) is PreparedRunDispatch
+                else self._post_command,
+            ):
                 self._release_start_run(run_id)
                 return ""
             self._mark_start_run_dispatched(run_id)
@@ -634,6 +691,9 @@ class ProcessExecutionClient(_ExecutionClientCommon):
             try:
                 typed_event = self._decode_event(dict(event))
             except (TypeError, ValueError) as exc:
+                self._retire_generation_readiness(
+                    f"Received invalid worker event: {exc}"
+                )
                 if self._source_generation_is_current(generation_token):
                     self._emit_protocol_error(f"Received invalid worker event: {exc}")
                 continue
@@ -663,8 +723,8 @@ class ProcessExecutionClient(_ExecutionClientCommon):
             )
             if not self._source_generation_is_current(generation_token):
                 continue
-            self._dispatch_event(
-                typed_event,
+            self._dispatch_event_payload(
+                payload,
                 generation_token=generation_token,
             )
             if viewer_failure_event is not None:

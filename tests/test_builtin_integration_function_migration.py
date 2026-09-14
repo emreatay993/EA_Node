@@ -4,7 +4,8 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from tests.repo_owned_catalog_fixture import catalog_value
+
 import importlib
 import json
 from pathlib import Path
@@ -69,7 +70,7 @@ def test_exact_t12_entries_match_golden_and_remove_legacy_exports(
         assert isinstance(entry, PythonFunctionEntry)
         assert entry.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
         assert registry.descriptor_or_none(type_id) is None
-        assert json.loads(json.dumps(asdict(entry.spec))) == expected[type_id]
+        assert catalog_value(entry.spec) == expected[type_id]
     for type_id in _TRUSTED_EXCEPTIONS:
         assert isinstance(registry.get_entry(type_id), TrustedFactoryEntry)
         assert registry.descriptor_or_none(type_id) is not None

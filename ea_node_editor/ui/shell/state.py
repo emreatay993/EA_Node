@@ -13,6 +13,7 @@ from ea_node_editor.runtime_contracts.settled_results import (
     SettledPortResult,
 )
 from ea_node_editor.runtime_contracts.solution_records import NodeSolutionFact
+from ea_node_editor.telemetry.status_service import EngineState
 
 
 ScopeCameraKey: TypeAlias = tuple[str, str, tuple[str, ...]]
@@ -70,6 +71,8 @@ class ShellRunState:
     current_trigger_capture_node_ids_by_workspace_id: dict[str, set[str]] = field(default_factory=dict)
     active_run_id: str = ""
     active_run_workspace_id: str = ""
+    active_submission_id: str = ""
+    active_submission_workspace_id: str = ""
     node_execution_workspace_id: str = ""
     running_node_ids: set[str] = field(default_factory=set)
     completed_node_ids: set[str] = field(default_factory=set)
@@ -101,7 +104,7 @@ class ShellRunState:
     selected_run_preview_node_lookup: dict[str, str] = field(default_factory=dict)
     selected_run_preview_revision: int = 0
     node_execution_revision: int = 0
-    engine_state_value: Literal["ready", "running", "paused", "error"] = "ready"
+    engine_state_value: EngineState = "ready"
     failed_node_id: str = ""
     failed_workspace_id: str = ""
     failed_node_title: str = ""

@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
 from pathlib import Path
 import re
@@ -19,7 +18,7 @@ from ea_node_editor.nodes.function_plugin import INTERNAL_BUILTIN_FUNCTION_OWNER
 from ea_node_editor.nodes.registry import PythonFunctionEntry, TrustedFactoryEntry
 from ea_node_editor.runtime_contracts import TypedInlineValue
 from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
-from tests.test_corex_contract_catalog import _catalog_value
+from tests.repo_owned_catalog_fixture import catalog_value as _catalog_value
 
 
 _T15_CONVERTED_TYPE_IDS = (
@@ -164,9 +163,9 @@ print(json.dumps({
 
 def test_t15_typed_carrier_defaults_are_normalized_values(tmp_path: Path) -> None:
     registry = build_builtin_registry(generation_root=tmp_path / "generations")
-    plane_default = registry.get_spec("reference.plane_container").properties[0].default
+    plane_default = registry.get_spec("reference.plane_container").properties[0].make_default()
     view_defaults = {
-        prop.key: prop.default
+        prop.key: prop.make_default()
         for prop in registry.get_spec("utilities.construct_view").properties
     }
 

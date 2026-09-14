@@ -369,6 +369,13 @@ class MainWindowShellPassiveImageNodesTests(SharedMainWindowShellTestBase):
 
         button_name = "graphNodeFloatingToolbarAction_toggle_source_input"
         for expected_exposed in (True, False):
+            # Property acceptance precedes queued presentation and QML layout.
+            # Click coordinates must come from the frame a user can see.
+            rendered = QSignalSpy(self.window.qml_host.quick_window().afterRendering)
+            self.window.quick_widget.update()
+            wait_for_condition_or_raise(
+                lambda: len(rendered) > 0, timeout_ms=5000, app=self.app,
+            )
             button = self._find_qml_item(button_name)
             self.assertIsNotNone(button)
             assert button is not None

@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from ea_node_editor.graph.type_forwarding import GraphTypeResolver
+from ea_node_editor.graph.validated_mutation import ValidatedGraphMutation
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
 from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
 from ea_node_editor.ui_qml.graph_scene_mutation.policy import compatible_rewire_endpoint_snapshot
@@ -152,7 +153,8 @@ def test_proposed_feedback_resolves_again_instead_of_reusing_baseline(graph):
 
 
 def test_flow_capacity_direction_exposure_and_self_connections_remain_authoritative(graph):
-    registry, _, _, mutation = graph
+    registry, model, workspace, mutation = graph
+    registry = registry.fork()
     spec = NodeTypeSpec(
         type_id="tests.flow", display_name="Flow", category_path=("Tests",), icon="", properties=(),
         ports=(PortSpec("in", "in", "flow", "flow"),
@@ -163,6 +165,8 @@ def test_flow_capacity_direction_exposure_and_self_connections_remain_authoritat
         def spec(self):
             return spec
     registry.register(Plugin)
+    registry.freeze()
+    mutation = ValidatedGraphMutation(model, workspace.workspace_id, registry)
     source, origin, occupied, other = [add(mutation, "tests.flow") for _ in range(4)]
     moved = wire(mutation, source, origin, "out", "in")
     wire(mutation, other, occupied, "out", "in")

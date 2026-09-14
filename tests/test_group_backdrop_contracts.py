@@ -74,7 +74,7 @@ class GroupBackdropCatalogTests(unittest.TestCase):
         self.assertEqual(tuple(prop.key for prop in spec.properties), ("title",))
 
         title = spec.properties[0]
-        self.assertEqual(title.default, "")
+        self.assertEqual(title.make_default(), "")
         self.assertFalse(title.inspector_visible)
         self.assertEqual(title.inspector_editor, "")
         retired_type_id = "passive.annotation." + "comment" + "_backdrop"

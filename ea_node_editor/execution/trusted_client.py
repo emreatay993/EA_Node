@@ -24,6 +24,7 @@ from ea_node_editor.execution.client_common import (
     _python_script_timeout_by_node_id,
     _registry_admitted,
 )
+from ea_node_editor.execution.prepared_dispatch import PreparedRunDispatch
 from ea_node_editor.execution.protocol_codec import (
     WorkerCommand,
     coerce_start_run_command,
@@ -127,7 +128,9 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
             return False
 
     def retire_workspace(self, workspace_id: str) -> int:
-        return self._worker_services.mechanical_session_service.retire_workspace(workspace_id)
+        return self._worker_services.mechanical_session_service.retire_workspace(
+            workspace_id
+        )
 
     def _viewer_invalidation_access_guard(self):  # noqa: ANN201
         return self._start_lock
@@ -235,7 +238,7 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
         addon_runtime_config: tuple[tuple[str, bool], ...] = (),
         _reserved_run_id: str = "",
         _reservation_prepared: bool = False,
-        _prepared_command: StartRunCommand | None = None,
+        _prepared_command: PreparedRunDispatch | StartRunCommand | None = None,
     ) -> str:
         trigger_payload = dict(trigger or {})
         run_id = _reserved_run_id or f"run_{uuid.uuid4().hex[:8]}"
@@ -331,9 +334,10 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
                     "addon_runtime_config": command_addon_runtime_config,
                 }
             )
-            command = coerce_start_run_command(
-                command_source,
-                catalog=self._data_types,
+            command = (
+                _prepared_command.materialize(self._data_types)
+                if type(_prepared_command) is PreparedRunDispatch
+                else coerce_start_run_command(command_source, catalog=self._data_types)
             )
             if (
                 command.run_id != run_id
@@ -341,7 +345,8 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
                 or command.execution_backend != selection
             ):
                 raise ValueError("prepared command does not match reserved trusted run")
-            command = self._decode_command(self._encode_command(command))
+            if type(_prepared_command) is not PreparedRunDispatch:
+                command = self._decode_command(self._encode_command(command))
         except (TypeError, ValueError) as exc:
             self._release_start_run(run_id)
             self._emit_protocol_error(str(exc), run_id=run_id, command="start_run")
@@ -673,8 +678,8 @@ class TrustedInProcessExecutionClient(_ExecutionClientCommon):
             )
             if not self._source_generation_is_current(generation_token):
                 continue
-            self._dispatch_event(
-                typed_event,
+            self._dispatch_event_payload(
+                payload,
                 generation_token=generation_token,
             )
             if viewer_failure_event is not None:

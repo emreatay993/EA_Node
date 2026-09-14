@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Mapping
-from dataclasses import fields, is_dataclass
-from enum import Enum
 from functools import lru_cache
 from pathlib import Path
+from tests.repo_owned_catalog_fixture import catalog_value as _catalog_value
 
 import pytest
 
@@ -242,34 +240,6 @@ def _execute_spatial(
     return _spatial_function_adapters()[node_type_id].execute(
         _node_context(node_type_id, inputs)
     ).outputs
-
-
-def _catalog_value(value: object) -> object:
-    if callable(value):
-        return True
-    if is_dataclass(value):
-        return {
-            field.name: _catalog_value(getattr(value, field.name))
-            for field in fields(value)
-        }
-    if isinstance(value, Mapping):
-        return {
-            str(key): _catalog_value(item)
-            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
-        }
-    if isinstance(value, (tuple, list)):
-        return [_catalog_value(item) for item in value]
-    if isinstance(value, (set, frozenset)):
-        return sorted((_catalog_value(item) for item in value), key=str)
-    if isinstance(value, Enum):
-        return _catalog_value(value.value)
-    if isinstance(value, Path):
-        return value.as_posix()
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-    raise TypeError(f"Unsupported catalog value: {type(value).__qualname__}")
-
-
 
 
 _CONVERTED_SPATIAL_TYPE_IDS = (
@@ -1340,7 +1310,7 @@ def test_planar_tree_pattern_spec_is_abstract_handle_and_graph_root_only() -> No
         None,
     )
 
-    registry = bootstrap.build_builtin_registry()
+    registry = bootstrap.build_builtin_registry().fork()
     registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_CONTRACT_MANIFEST,
         (),
@@ -1349,6 +1319,7 @@ def test_planar_tree_pattern_spec_is_abstract_handle_and_graph_root_only() -> No
         source_label=spatial.__name__,
         replace_owner=True,
     )
+    registry.freeze()
     catalog = registry.data_types
     assert catalog.require(spatial.PLANAR_TREE_PATTERN_DATA_TYPE_ID) is spec
     assert catalog.is_assignable(
@@ -1384,7 +1355,7 @@ def test_planar_tree_pattern_abstract_validator_and_exact_handle_reject() -> Non
     assert all(spec.validate_item(value) is False for value in raw_values)
     assert spec.validate_item(handle) is False
 
-    registry = bootstrap.build_builtin_registry()
+    registry = bootstrap.build_builtin_registry().fork()
     registry.register_plugin_bundle(
         spatial.COREX_SPATIAL_VALUES_PLANAR_TREE_PATTERN_CANDIDATE_CONTRACT_MANIFEST,
         (),
@@ -1393,6 +1364,7 @@ def test_planar_tree_pattern_abstract_validator_and_exact_handle_reject() -> Non
         source_label=spatial.__name__,
         replace_owner=True,
     )
+    registry.freeze()
     for value in raw_values:
         with pytest.raises(DataTypeCatalogError, match="does not allow 'native'"):
             registry.data_types.validate_carrier(
@@ -1570,7 +1542,7 @@ def test_coordinate_system_payload_validation_is_strict() -> None:
 
 
 def test_coordinate_system_runtime_json_round_trip_is_catalog_checked() -> None:
-    registry = bootstrap.build_builtin_registry()
+    registry = bootstrap.build_builtin_registry().fork()
     registry.register_plugin_bundle(
         COREX_GEOMETRY_COORDINATE_SYSTEM_VALUE_CANDIDATE_CONTRACT_MANIFEST,
         (),
@@ -1587,6 +1559,7 @@ def test_coordinate_system_runtime_json_round_trip_is_catalog_checked() -> None:
         source_label=spatial.__name__,
         replace_owner=True,
     )
+    registry.freeze()
     catalog = registry.data_types
     entries = [1, -2.5, -0.0, 2, 0.0, 0, 0, 3.5, 0.0, 0.0, 0, -4]
     value = TypedInlineValue(

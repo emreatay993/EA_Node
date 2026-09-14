@@ -280,7 +280,7 @@ class GraphModelTrackBTests(unittest.TestCase):
         self.assertEqual(inserted.expanded_settings_group_ids, ("options",))
 
     def test_fragment_insertion_normalizes_settings_groups_for_registry(self) -> None:
-        registry = build_default_registry()
+        registry = build_default_registry().fork()
         spec = replace(
             registry.get_spec("core.logger"),
             type_id="tests.fragment_settings_groups",
@@ -298,6 +298,7 @@ class GraphModelTrackBTests(unittest.TestCase):
             ),
         )
         registry.register_descriptor(spec, lambda: Mock())
+        registry.freeze()
         model = GraphModel()
         workspace = model.active_workspace
         payload = {

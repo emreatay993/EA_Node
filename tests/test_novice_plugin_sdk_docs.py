@@ -120,7 +120,7 @@ def test_examples_build_one_candidate_registry_and_strain_runs_in_process(
         shutil.copyfile(example, plugin_root / example.name)
 
     generation_root = plugin_generations_dir()
-    registry = build_builtin_registry(generation_root=generation_root)
+    registry = build_builtin_registry(generation_root=generation_root).fork()
     result = discover_static_plugin_candidate(
         registry,
         roots=(plugin_root,),

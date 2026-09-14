@@ -29,7 +29,7 @@ PLOT = "COREX.DataTypes.Plot"
 
 
 def make_scene():
-    registry = build_builtin_registry()
+    registry = build_builtin_registry().fork()
     for name, type_id, direction in (("integer", INTEGER_DATA_TYPE_ID, "out"),
                                      ("decimal", DOUBLE_DATA_TYPE_ID, "out"),
                                      ("image_sink", IMAGE, "in"), ("number_sink", DOUBLE_DATA_TYPE_ID, "in")):
@@ -38,6 +38,7 @@ def make_scene():
                 required=True if direction == "in" else None,
                 accepted_data_types=(INTEGER_DATA_TYPE_ID,) if name == "number_sink" else ()),), properties=())
         registry.register_descriptor(spec, lambda: None)
+    registry.freeze()
     model = GraphModel()
     scene = GraphSceneBridge()
     scene.set_workspace(model, registry, model.active_workspace.workspace_id)

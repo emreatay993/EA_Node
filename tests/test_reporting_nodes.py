@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-import json
-from pathlib import Path
+from tests.repo_owned_catalog_fixture import catalog_value
+
 
 import pytest
 
@@ -64,7 +63,7 @@ def test_reporting_function_specs_match_frozen_catalog() -> None:
     }
 
     assert {
-        declaration.spec.type_id: json.loads(json.dumps(asdict(declaration.spec)))
+        declaration.spec.type_id: catalog_value(declaration.spec)
         for declaration in declarations
     } == expected
 

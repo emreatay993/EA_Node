@@ -470,7 +470,7 @@ def build_selected_node_property_items(
     }
     media_source_input_exposed = media_panel_source_input_exposed(node)
     for prop in ordered_properties:
-        current_value = node.properties.get(prop.key, prop.default)
+        current_value = node.properties.get(prop.key, prop.make_default())
         safe_current_value = qml_safe_spec_property_value(prop, current_value)
         presentation = presentation_by_key.get(str(prop.key))
         item = {
@@ -487,7 +487,7 @@ def build_selected_node_property_items(
                 else property_inspector_editor(prop)
             ),
             "group": getattr(prop, "group", "") or "Properties",
-            "dirty": current_value != prop.default,
+            "dirty": current_value != prop.make_default(),
             "sensitive": bool(getattr(prop, "sensitive", False)),
             "sensitive_scope_key": str(getattr(prop, "sensitive_scope_key", "") or ""),
             "reprotects_sensitive_properties": prop.key in sensitive_scope_keys,

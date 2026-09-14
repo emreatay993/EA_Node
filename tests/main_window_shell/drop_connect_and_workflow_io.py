@@ -36,7 +36,8 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
 
     def _register_deep_category_fixture(self) -> None:
         if self.window.registry.spec_or_none(self._DEEP_CATEGORY_TYPE_ID) is None:
-            self.window.registry.register_descriptor(
+            candidate = self.window.registry.fork()
+            candidate.register_descriptor(
                 NodeTypeSpec(
                     type_id=self._DEEP_CATEGORY_TYPE_ID,
                     display_name="Deep Category Result",
@@ -49,6 +50,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
                 ),
                 lambda: SimpleNamespace(),
             )
+            self._publish_fixture_registry(candidate)
         self.window.shell_library_presenter._invalidate_registry_items()
         self.window.node_library_changed.emit()
         self.app.processEvents()

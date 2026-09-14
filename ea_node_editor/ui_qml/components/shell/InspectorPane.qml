@@ -28,8 +28,7 @@ ShellCollapsibleSidePane {
     readonly property var selectedNodePortItems: root._contentReady ? (root._content.selected_node_port_items || []) : []
     readonly property var selectedNodeHeaderItems: root._contentReady ? (root._content.selected_node_header_items || []) : []
     readonly property var propertyPresentationLookup: root.propertiesRequested && root.graphCanvasStateBridgeRef
-        && typeof root.graphCanvasStateBridgeRef.property_presentation_lookup !== "undefined"
-        ? root.graphCanvasStateBridgeRef.property_presentation_lookup
+        ? (root.graphCanvasStateBridgeRef.property_presentation_lookup || ({}))
         : ({})
     property var selectedNodePropertyItems: []
     readonly property var selectedNodeLinkItems: root._contentReady ? (root._content.selected_node_link_items || []) : []

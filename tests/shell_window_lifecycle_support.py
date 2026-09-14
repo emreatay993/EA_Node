@@ -10,6 +10,7 @@ import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from PyQt6.QtCore import (
@@ -20,6 +21,7 @@ from PyQt6.QtCore import (
     QRectF,
     Qt,
     QUrl,
+    QTimer,
 )
 from PyQt6.QtGui import QImage, QPageLayout, QPageSize, QPainter, QPdfWriter
 from PyQt6.QtTest import QTest
@@ -53,29 +55,32 @@ from ea_node_editor.ui.shell.workspace_flow import ShellWorkspaceManagerAdapter
 from ea_node_editor.workspace.manager import WorkspaceManager
 from tests.conftest import ShellTestEnvironment
 from tests.qt_wait import wait_for_condition_or_raise
+from tests.queued_submission_support import QueuedSubmissionDriver
 
 
 class _ShellTestExecutionClient:
     def __init__(self, _registry: object | None = None) -> None:
         self._callbacks: list[object] = []
+        self._submissions = QueuedSubmissionDriver(
+            schedule=lambda callback: QTimer.singleShot(0, callback),
+            prepare=lambda request: SimpleNamespace(request=request, recompute_node_ids=request.target_node_ids),
+            dispatch=lambda prepared: "", publish=self._publish, stop=lambda run_id: None,
+        )
         self._solution_revision = 0
 
-    def subscribe(self, callback) -> None:  # noqa: ANN001
+    def subscribe(self, callback):
         self._callbacks.append(callback)
+        return lambda: self._callbacks.remove(callback) if callback in self._callbacks else None
 
-    def start_run(  # noqa: ANN001
-        self,
-        project_path: str,
-        workspace_id: str,
-        trigger=None,
-        *,
-        execution_backend=None,
-        target_node_ids=(),
-        trigger_publications=None,
-        trigger_captures=None,
-        clicked_trigger_node_id: str = "",
-    ) -> str:
-        return ""
+    def _publish(self, event):
+        for callback in tuple(self._callbacks):
+            callback(event)
+
+    def submit_execution(self, request):
+        return self._submissions.submit(request)
+
+    def cancel_submissions(self, reason="user", *, workspace_id=None):
+        self._submissions.cancel_pending(reason, workspace_id=workspace_id)
 
     def invalidate_solution(
         self,
@@ -97,7 +102,8 @@ class _ShellTestExecutionClient:
             reason_code=reason_code,
         )
 
-    def shutdown(self) -> None:
+    def shutdown(self, *, wait=True) -> None:
+        self._submissions.close()
         self._callbacks.clear()
 
 

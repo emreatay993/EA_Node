@@ -369,7 +369,7 @@ def test_path_string_remote_and_image_value_inputs_resolve_ready() -> None:
     assert "encoded_bytes" not in image.to_qml_payload()
 
 
-def test_state_bridge_uses_project_source_and_invalidates_media_lookup() -> None:
+def test_state_bridge_uses_project_source_and_invalidates_media_lookup(qapp) -> None:
     node = _node(source=str(_IMAGE_PATH), exposed=False)
     workspace = _workspace(node)
     project = SimpleNamespace(
@@ -418,7 +418,8 @@ def test_state_bridge_uses_project_source_and_invalidates_media_lookup() -> None
     scene_source.edges_changed.emit()
     scene_source.workspace_changed.emit(workspace.workspace_id)
     execution_source.node_execution_state_changed.emit()
-    assert notifications == 4
+    qapp.processEvents()
+    assert notifications == 1
 
 
 def test_exposed_source_is_disabled_and_has_no_dormant_file_issue(tmp_path: Path) -> None:

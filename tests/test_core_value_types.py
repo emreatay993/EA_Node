@@ -367,7 +367,7 @@ def _project_with_values(
     image: object | None = None,
 ) -> GraphModel:
     if image is None:
-        image = next(prop.default for prop in spec.properties if prop.key == "image")
+        image = next(prop.make_default() for prop in spec.properties if prop.key == "image")
     model = GraphModel()
     model.add_node(
         model.active_workspace.workspace_id,

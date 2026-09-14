@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Mapping
 
 from ea_node_editor.runtime_contracts import (
@@ -157,7 +156,7 @@ def resolve_dynamic_port_groups(
     resolved_properties = {
         prop.key: property_coercion.coerce_property_value(
             prop,
-            properties[prop.key] if prop.key in properties else prop.default,
+            properties[prop.key] if prop.key in properties else prop.make_default(),
             strict=prop.key not in properties,
             data_types=data_types,
         )
@@ -267,7 +266,7 @@ def resolve_instance_spec(
     if resolver is None:
         return spec
     resolved_properties = {
-        prop.key: copy.deepcopy(prop.default) for prop in spec.properties
+        prop.key: prop.make_default() for prop in spec.properties
     }
     resolved_properties.update(dict(properties))
     resolved = resolver(spec, resolved_properties)

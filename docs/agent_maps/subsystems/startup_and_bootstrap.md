@@ -4,6 +4,7 @@
 Use this for launch path, app lifetime, splash handoff, and startup authority changes.
 
 ## Start Here
+- `ea_node_editor/ui/shell/composition/startup_worker.py` — queued first-visible-frame built-in readiness; external Python and already requested execution skip background warm-up
 - `ea_node_editor/bootstrap.py`
 - `ea_node_editor/app.py`
 - `ea_node_editor/execution/runtime_cli.py`
@@ -19,6 +20,7 @@ Use this for launch path, app lifetime, splash handoff, and startup authority ch
 - Preserve `python -m ea_node_editor.bootstrap` as the source/dev launch route.
 - Frozen startup recognizes only the private Mechanical owner-child role before Qt/application imports; source owners continue to use the owner module directly.
 - Keep startup authority in `bootstrap` and `app`, with shell composition in `ui/shell`.
+- Before shared Qt contexts and QApplication are created, `ui_qml/qtquick_backend.py` configures a zero swap interval for the Windows desktop QQuickWidget host, avoiding GUI-thread presentation waits. Other platforms, offscreen runs, and the QQuickView host retain their format policy. Pre-Qt native tabular initialization stays in the existing bootstrap path.
 - Startup still calls session restore during shell bootstrap, but restore should leave the active project empty instead of reopening the last saved project.
 - For splash behavior, route through `ui/splash/opening_screen.py` and app handoff code; the splash should keep normal desktop z-order and not force itself above unrelated windows.
 - For shell dependency changes, keep `ShellWindowComposition` as the startup contract and use `ShellServices` as the attached dependency aggregate.

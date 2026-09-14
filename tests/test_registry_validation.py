@@ -1104,7 +1104,7 @@ class RegistryValidationTests(unittest.TestCase):
         dynamic_spec = replace(
             static_spec,
             type_id="tests.registry.typed_dynamic",
-            properties=(replace(typed_property, inspector_visible=False),),
+            properties=(typed_property.with_changes(inspector_visible=False),),
             dynamic_port_groups=(dynamic_group,),
         )
         registry.register_descriptor(dynamic_spec, _factory(dynamic_spec))
@@ -1224,12 +1224,12 @@ class RegistryValidationTests(unittest.TestCase):
             ),
         )
         for suffix, default, persistence_type_id, error_type in invalid_defaults:
-            invalid = spec(
-                f"tests.registry.typed_default_{suffix}",
-                default,
-                persistence_type_id,
-            )
             with self.subTest(suffix=suffix), self.assertRaises(error_type):
+                invalid = spec(
+                    f"tests.registry.typed_default_{suffix}",
+                    default,
+                    persistence_type_id,
+                )
                 registry.register_descriptor(invalid, _factory(invalid))
 
     def test_dynamic_resolver_failure_keeps_complete_registry_identity_unchanged(
@@ -1754,10 +1754,10 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(registered.description, "Masked value.")
 
         invalid_properties = (
-            replace(registered, type="str"),
-            replace(registered, inline_editor="", inspector_editor=""),
-            replace(registered, sensitive_scope_key="missing"),
-            replace(registered, sensitive=False, sensitive_scope_key=""),
+            registered.with_changes(type="str"),
+            registered.with_changes(inline_editor="", inspector_editor=""),
+            registered.with_changes(sensitive_scope_key="missing"),
+            registered.with_changes(sensitive=False, sensitive_scope_key=""),
         )
         for index, invalid_property in enumerate(invalid_properties):
             with self.subTest(index=index):
@@ -1897,15 +1897,14 @@ class RegistryValidationTests(unittest.TestCase):
         self,
     ) -> None:
         condition = PropertyConditionSpec("mode", ("Manual", "Manual"))
-        increasing = replace(
-            prop_interval_1d(
+        increasing = prop_interval_1d(
                 "increasing",
                 Interval1D(0.3, 0.7),
                 "Increasing",
                 minimum=0.0,
                 maximum=1.0,
                 step=0.2,
-            ),
+            ).with_changes(
             default=serialize_runtime_value(Interval1D(0.3, 0.7)),
         )
         decreasing = prop_interval_1d(
@@ -2026,10 +2025,7 @@ class RegistryValidationTests(unittest.TestCase):
         never = replace(
             base,
             properties=(
-                replace(
-                    base.properties[0],
-                    persistence_data_type_id=GRAPH_DATA_TYPE_ID,
-                ),
+                base.properties[0].with_changes(persistence_data_type_id=GRAPH_DATA_TYPE_ID),
             ),
         )
         with self.assertRaisesRegex(ValueError, "does not permit persistence"):
@@ -2064,7 +2060,7 @@ class RegistryValidationTests(unittest.TestCase):
         for case_index, condition in enumerate(invalid_conditions):
             properties = (
                 *base_properties[:-1],
-                replace(base_properties[-1], enabled_when=condition),
+                base_properties[-1].with_changes(enabled_when=condition),
             )
             spec = NodeTypeSpec(
                 type_id=f"tests.invalid_property_condition_{case_index}",
@@ -2090,14 +2086,14 @@ class RegistryValidationTests(unittest.TestCase):
             PropertySpec(
                 "value", "int", 1, "Value", inline_editor="number", searchable=True
             ),
-            replace(
-                prop_interval_1d(
+            prop_interval_1d(
                     "value",
                     Interval1D(0.0, 1.0),
                     "Value",
                     minimum=0.0,
                     maximum=10.0,
-                ),
+                ).with_changes(
+                default=Interval1D(0.0, 1.0),
                 searchable=True,
             ),
             PropertySpec(
@@ -2154,30 +2150,25 @@ class RegistryValidationTests(unittest.TestCase):
             step=0.001,
         )
         invalid_properties = (
-            replace(base, default=Interval1D(10.0, 0.0)),
-            replace(
-                base, default=Interval1D(0.0, 10.0), interval_direction="decreasing"
-            ),
-            replace(base, default=Interval1D(-1.0, 1.0)),
-            replace(base, default=[0.0, 1.0]),
-            replace(base, default=(0.0, 1.0)),
-            replace(base, default={"start": 0.0, "end": 1.0}),
-            replace(
-                base, default={"__ea_runtime_value__": "interval_1d", "start": 0.0}
-            ),
-            replace(
-                base,
+            base.with_changes(default=Interval1D(10.0, 0.0)),
+            base.with_changes(default=Interval1D(0.0, 10.0), interval_direction="decreasing"),
+            base.with_changes(default=Interval1D(-1.0, 1.0)),
+            base.with_changes(default=[0.0, 1.0]),
+            base.with_changes(default=(0.0, 1.0)),
+            base.with_changes(default={"start": 0.0, "end": 1.0}),
+            base.with_changes(default={"__ea_runtime_value__": "interval_1d", "start": 0.0}),
+            base.with_changes(
                 default={
                     "__ea_runtime_value__": "interval_1d",
                     "start": float("nan"),
                     "end": 1.0,
                 },
             ),
-            replace(base, minimum=1.0, maximum=1.0),
-            replace(base, maximum=float("inf")),
-            replace(base, step=-0.1),
-            replace(base, step=float("nan")),
-            replace(base, interval_direction="sideways"),  # type: ignore[arg-type]
+            base.with_changes(minimum=1.0, maximum=1.0),
+            base.with_changes(maximum=float("inf")),
+            base.with_changes(step=-0.1),
+            base.with_changes(step=float("nan")),
+            base.with_changes(interval_direction="sideways"),  # type: ignore[arg-type]
             PropertySpec(
                 "bounds",
                 "float",
@@ -2195,7 +2186,7 @@ class RegistryValidationTests(unittest.TestCase):
                 maximum=1.0,
                 interval_direction="increasing",
             ),
-            replace(base, inline_editor="slider"),
+            base.with_changes(inline_editor="slider"),
         )
         for case_index, prop in enumerate(invalid_properties):
             spec = NodeTypeSpec(
@@ -2640,7 +2631,7 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(data_output.data_access, "tree")
 
     def test_grouping_preserves_canonical_input_type_union(self) -> None:
-        registry = build_default_registry()
+        registry = build_default_registry().fork()
         typed_spec = NodeTypeSpec(
             type_id="tests.grouping.typed_input",
             display_name="Typed Input",

@@ -99,8 +99,9 @@ QtObject {
         window.run_controller.run_workflow()
         print("Shell probe: run requested", window.run_state.active_run_id,
               window.run_state.engine_state_value, run_events[before:], flush=True)
-        assert window.run_state.active_run_id, window.console_panel.errors_text or window.console_panel.output_text
-        spin(lambda: not window.run_state.active_run_id and isinstance(current(panel_id, "_surface_source"), PlotValue),
+        assert window.run_state.active_submission_id, window.console_panel.errors_text or window.console_panel.output_text
+        spin(lambda: not window.run_state.active_submission_id and not window.run_state.active_run_id
+             and isinstance(current(panel_id, "_surface_source"), PlotValue),
              "graph completion")
         assert not window.run_state.failed_node_ids
 

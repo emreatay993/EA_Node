@@ -11,6 +11,7 @@ from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from ea_node_editor.execution.prepared_execution import InvalidationResult
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.engineering_viewer import ENGINEERING_VIEWER_NODE_TYPE_ID
 from ea_node_editor.nodes.execution_context import NodeResult
 from ea_node_editor.nodes.node_specs import NodeRenderQualitySpec, NodeTypeSpec, PortSpec
@@ -140,7 +141,10 @@ class _ViewerExecutionClientStub:
     def invalidate_viewer_requests(self, _workspace_id: str, _node_ids) -> int:
         return 0
 
-    def shutdown(self) -> None:
+    def cancel_submissions(self, reason: str = "user", *, workspace_id=None) -> int:
+        return 0
+
+    def shutdown(self, *, wait: bool = True) -> None:
         return None
 
 
@@ -468,8 +472,14 @@ class ViewerHostAttachRefreshUnitTests(unittest.TestCase):
 
 class ViewerHostServiceTests(MainWindowShellTestBase):
     def setUp(self) -> None:
-        super().setUp()
-        self.window.registry.register(lambda: _ViewerOverlayPlugin(_viewer_overlay_spec()))
+        def fixture_registry(**kwargs):
+            registry = build_default_registry(**kwargs).fork()
+            registry.register(lambda: _ViewerOverlayPlugin(_viewer_overlay_spec()))
+            registry.freeze()
+            return registry
+
+        with patch("ea_node_editor.ui.shell.composition.primitives.build_default_registry", side_effect=fixture_registry):
+            super().setUp()
         self.window.execution_client = _ViewerExecutionClientStub()
         self.host_service = self.window.viewer_host_service
         self.bridge = self.window.viewer_session_bridge

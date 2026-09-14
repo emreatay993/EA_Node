@@ -135,12 +135,12 @@ class EngineeringViewerNodeTests(unittest.TestCase):
         self.assertEqual(ports["selections"].data_type, ENGINEERING_SELECTION_DATA_TYPE)
         self.assertEqual(spec.surface_family, "viewer")
         properties = {prop.key: prop for prop in spec.properties}
-        self.assertEqual(properties["representation"].default, "surface_with_edges")
+        self.assertEqual(properties["representation"].make_default(), "surface_with_edges")
         self.assertIn("wireframe_visible_edges", properties["representation"].enum_values)
-        self.assertFalse(properties["show_attribute_colors"].default)
-        self.assertTrue(properties["show_orientation_triad"].default)
-        self.assertTrue(properties["show_view_cube"].default)
-        self.assertFalse(properties["show_world_axes"].default)
+        self.assertFalse(properties["show_attribute_colors"].make_default())
+        self.assertTrue(properties["show_orientation_triad"].make_default())
+        self.assertTrue(properties["show_view_cube"].make_default())
+        self.assertFalse(properties["show_world_axes"].make_default())
 
     def test_execute_materializes_primary_and_overlay_in_one_viewer_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

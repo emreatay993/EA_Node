@@ -159,8 +159,9 @@ def _next_test_output(_properties) -> str:  # noqa: ANN001
 
 
 def _registry() -> NodeRegistry:
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     registry.register(_ArraySinkPlugin)
+    registry.freeze()
     return registry
 
 

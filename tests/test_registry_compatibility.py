@@ -541,19 +541,17 @@ def test_property_storage_metadata_changes_are_rejected_without_mutation() -> No
     candidate = replace(
         current,
         properties=(
-            replace(
-                current.properties[0],
+            current.properties[0].with_changes(
                 default=TypedInlineValue(_OTHER_INLINE_TYPE_ID, 1, {"ok": True}),
                 persistence_data_type_id=_OTHER_INLINE_TYPE_ID,
             ),
-            replace(
-                current.properties[1],
+            current.properties[1].with_changes(
                 inline_editor="",
                 inspector_editor="",
                 sensitive=False,
                 sensitive_scope_key="",
             ),
-            replace(current.properties[2], sensitive_scope_key="scope_b"),
+            current.properties[2].with_changes(sensitive_scope_key="scope_b"),
             *current.properties[3:],
         ),
     )

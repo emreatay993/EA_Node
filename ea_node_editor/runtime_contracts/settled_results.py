@@ -204,6 +204,8 @@ class SettledPortResult:
         if self.status == "value":
             if not isinstance(self.value, DataTree):
                 raise ValueError("value settled port results require a DataTree")
+            if type(self.value) is not DataTree:
+                object.__setattr__(self, "value", DataTree(self.value.branches))
             if self.errors:
                 raise ValueError("value settled port results cannot contain errors")
             _validate_tree(self.value)
@@ -219,8 +221,10 @@ class SettledPortResult:
         *,
         catalog: DataTypeCatalog | None = None,
     ) -> dict[str, Any]:
-        payload = self._to_payload(catalog=catalog)
-        return self.from_payload(payload, catalog=catalog)._to_payload(catalog=catalog)
+        normalized = normalize_settled_port_result(self, catalog=catalog)
+        payload = normalized._to_payload(catalog=catalog)
+        preflight_settled_output_mapping_payload({"result": payload})
+        return payload
 
     def _to_payload(
         self,
@@ -413,6 +417,10 @@ def preflight_settled_output_mapping_payload(
                 "settled result exceeds maximum root error count "
                 f"{MAX_ROOT_ERRORS_PER_RESULT}"
             )
+        for error in errors:
+            _exact_fields(error, _ERROR_FIELDS, field_name="root execution error")
+            for key in _ERROR_FIELDS:
+                _string(error[key], field_name=f"root error {key}")
     return len(value)
 
 
@@ -431,15 +439,11 @@ def settled_outputs_to_payload(
         key: result._to_payload(catalog=catalog)
         for key, result in normalized.items()
     }
-    reparsed = normalize_settled_output_mapping(
-        payload,
-        catalog=catalog,
-        max_outputs=max_outputs,
-    )
-    return {
-        key: result._to_payload(catalog=catalog)
-        for key, result in reparsed.items()
-    }
+    # Runtime-value serialization validates semantic carriers. This detached
+    # structural preflight enforces settled-result budgets without decoding
+    # arrays and PNGs again just to serialize them a second time.
+    preflight_settled_output_mapping_payload(payload, max_outputs=max_outputs)
+    return payload
 
 
 def settled_outputs_payload_size(

@@ -90,8 +90,9 @@ class _EdgeCrossingPipeProbeNode:
         return NodeResult(outputs={})
 
 def _build_edge_crossing_pipe_registry() -> NodeRegistry:
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     registry.register(_EdgeCrossingPipeProbeNode)
+    registry.freeze()
     return registry
 
 

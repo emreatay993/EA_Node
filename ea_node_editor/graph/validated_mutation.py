@@ -662,8 +662,8 @@ class ValidatedGraphMutation:
             ):
                 candidate_values[prop.key] = copy.deepcopy(previous)
                 continue
-            candidate_values[prop.key] = copy.deepcopy(prop.default)
-            if previous is not _MISSING and previous != prop.default:
+            candidate_values[prop.key] = prop.make_default()
+            if previous is not _MISSING and previous != prop.make_default():
                 reset_keys.append(prop.key)
 
         candidate_properties = self.registry.normalize_properties(

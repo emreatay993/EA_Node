@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, replace
+from tests.repo_owned_catalog_fixture import catalog_value
+
+from dataclasses import replace
 from functools import lru_cache
-import json
 import math
-from pathlib import Path
 
 import pytest
 
@@ -86,7 +86,7 @@ def test_geometry_function_declarations_match_golden() -> None:
         _CONVERTED_TYPE_IDS
     )
     assert {
-        declaration.spec.type_id: json.loads(json.dumps(asdict(declaration.spec)))
+        declaration.spec.type_id: catalog_value(declaration.spec)
         for declaration in declarations
     } == expected
 

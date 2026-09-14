@@ -633,7 +633,7 @@ class _SpecValidator:
 
         normalized_default = property_coercion.coerce_property_value(
             prop,
-            prop.default,
+            prop.make_default(),
             strict=True,
             data_types=self._data_types,
         )
@@ -1010,7 +1010,7 @@ class _SpecValidator:
                 raise ValueError(
                     f"Node {type_id} property {prop.key} list editor requires a json property and list_item_type"
                 )
-            if not isinstance(prop.default, list):
+            if not isinstance(prop.make_default(), list):
                 raise ValueError(
                     f"Node {type_id} property {prop.key} list editor default must be a list"
                 )
@@ -1024,7 +1024,7 @@ class _SpecValidator:
                     raise ValueError(
                         f"Node {type_id} property {prop.key} enum list metadata is invalid"
                     )
-                if any(item not in prop.list_item_enum_codes for item in prop.default):
+                if any(item not in prop.list_item_enum_codes for item in prop.make_default()):
                     raise ValueError(
                         f"Node {type_id} property {prop.key} enum list default contains an invalid code"
                     )
@@ -1054,7 +1054,7 @@ class _SpecValidator:
                     or not float(prop.list_item_minimum)
                     <= float(item)
                     <= float(prop.list_item_maximum)
-                    for item in prop.default
+                    for item in prop.make_default()
                 ):
                     raise ValueError(
                         f"Node {type_id} property {prop.key} list default is outside its bounds"
@@ -1076,7 +1076,7 @@ class _SpecValidator:
             )
         normalized_default = property_coercion.coerce_property_value(
             prop,
-            prop.default,
+            prop.make_default(),
             strict=True,
             data_types=self._data_types,
         )

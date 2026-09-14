@@ -134,7 +134,7 @@ def create_viewer_service_dependencies(
     primitives.scene.set_current_output_provider(
         lambda workspace_id, node_id, port_key: current_output_value(state.run_state, workspace_id, node_id, port_key)
     )
-    host.node_execution_state_changed.connect(primitives.scene.refresh_current_output_properties)
+    host.node_execution_state_changed.connect(primitives.scene.schedule_current_output_properties_refresh)
 
     def update_notification_counters() -> None:
         host.update_notification_counters(

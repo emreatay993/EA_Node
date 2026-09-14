@@ -92,7 +92,7 @@ def _discover(
     *,
     registry: NodeRegistry | None = None,
 ) -> tuple[NodeRegistry, tuple[PluginBundleRef, ...]]:
-    active_registry = registry or NodeRegistry()
+    active_registry = registry.fork() if registry is not None else NodeRegistry()
     result = discover_static_plugins(
         active_registry,
         roots=(plugin_root,),

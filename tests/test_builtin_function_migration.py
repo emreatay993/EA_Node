@@ -4,7 +4,8 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from tests.repo_owned_catalog_fixture import catalog_value
+
 import json
 from pathlib import Path
 import sys
@@ -143,7 +144,7 @@ def test_exact_t10_entries_match_golden_and_leave_truthful_descriptor_boundary(
         assert isinstance(entry, PythonFunctionEntry)
         assert entry.owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
         assert registry.descriptor_or_none(type_id) is None
-        assert json.loads(json.dumps(asdict(entry.spec))) == expected[type_id]
+        assert catalog_value(entry.spec) == expected[type_id]
 
     trusted_type_ids = {
         spec.type_id

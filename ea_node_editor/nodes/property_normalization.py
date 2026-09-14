@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Mapping
 from typing import Any
 
@@ -48,7 +47,7 @@ def normalize_properties(
     type_id = spec.type_id
     provided = dict(values or {})
     resolution_properties = {
-        prop.key: copy.deepcopy(prop.default) for prop in spec.properties
+        prop.key: prop.make_default() for prop in spec.properties
     }
     resolution_properties.update(provided)
     resolved_spec = _resolve_spec(
@@ -76,7 +75,7 @@ def normalize_properties(
                 prop.key,
                 property_coercion.coerce_property_value(
                     prop,
-                    prop.default,
+                    prop.make_default(),
                     strict=False,
                     data_types=data_types,
                 ),

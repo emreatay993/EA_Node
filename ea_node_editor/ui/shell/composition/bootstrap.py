@@ -93,6 +93,7 @@ def _configure_shell_window_host(host: "ShellWindow") -> None:
 
 
 def _run_shell_startup_sequence(host: "ShellWindow") -> None:
+    from ea_node_editor.ui.shell.composition.startup_worker import StartupWorkerWarmup
     host._create_actions()
     host._build_menu_bar()
     host.app_preferences_controller.load_into_host(host)
@@ -107,6 +108,7 @@ def _run_shell_startup_sequence(host: "ShellWindow") -> None:
         host.workspace_manager.active_workspace_id()
     )
     host._restore_script_editor_state()
+    host.startup_worker_warmup = StartupWorkerWarmup(host)
 
 
 def _build_shell_qml_host(host: "ShellWindow") -> ShellQmlHost:

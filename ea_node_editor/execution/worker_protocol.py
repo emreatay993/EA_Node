@@ -18,6 +18,11 @@ from ea_node_editor.execution.run_messages import (
     RunFailedEvent,
     RunStateEvent,
 )
+from ea_node_editor.execution.generation_messages import (
+    PrepareGenerationCommand,
+    GenerationPreparedEvent,
+    GenerationPreparationFailedEvent,
+)
 from ea_node_editor.execution.protocol_codec import (
     WorkerCommand,
     WorkerEvent,
@@ -25,12 +30,12 @@ from ea_node_editor.execution.protocol_codec import (
     event_to_dict,
 )
 from ea_node_editor.execution.registry_agreement import (
-    catalog_agreement_from_payload,
-    catalog_mismatch_message,
+    CatalogMismatchError,
     normalize_addon_runtime_config,
 )
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.runtime_contracts import DataTypeCatalog
+
 _CORRELATION_TEXT_LIMIT = 256
 
 
@@ -117,7 +122,9 @@ def _safe_correlation_text(raw_command: dict[str, Any], field_name: str) -> str:
     if not isinstance(value, str):
         return ""
     value = value.strip()
-    if not value or any(ord(character) < 32 or ord(character) == 127 for character in value):
+    if not value or any(
+        ord(character) < 32 or ord(character) == 127 for character in value
+    ):
         return ""
     return value[:_CORRELATION_TEXT_LIMIT]
 
@@ -143,9 +150,7 @@ def dispatch_viewer_command(
             workspace_invalidation_epoch=int(
                 getattr(command, "workspace_invalidation_epoch", 0)
             ),
-            node_invalidation_epoch=int(
-                getattr(command, "node_invalidation_epoch", 0)
-            ),
+            node_invalidation_epoch=int(getattr(command, "node_invalidation_epoch", 0)),
         )
     emit(event_queue, event, catalog=data_types)
 
@@ -185,6 +190,34 @@ def dispatch_viewer_invalidation(
     )
 
 
+def dispatch_generation_preparation(
+    command: PrepareGenerationCommand,
+    *,
+    event_queue: Queue,
+    worker_services: WorkerServices,
+    runtime_cache: Any = None,
+) -> None:
+    from ea_node_editor.execution.worker_runtime import (
+        DEFAULT_RUNTIME_PREPARATION_CACHE,
+    )
+
+    cache = runtime_cache or DEFAULT_RUNTIME_PREPARATION_CACHE
+    try:
+        registry, build_fingerprint = cache.prepare_generation(command.agreement)
+        worker_services.bind_data_types(registry.data_types)
+        event = GenerationPreparedEvent(
+            request_id=command.request_id,
+            registry_contract_fingerprint=registry.contract_fingerprint(),
+            runtime_registry_fingerprint=command.agreement.runtime_registry_fingerprint,
+            build_fingerprint=build_fingerprint,
+        )
+    except Exception as exc:
+        event = GenerationPreparationFailedEvent(
+            request_id=command.request_id, error=str(exc) or type(exc).__name__
+        )
+    emit(event_queue, event)
+
+
 def decode_command_payload(
     raw_command: Any,
     *,
@@ -199,7 +232,6 @@ def decode_command_payload(
     try:
         payload = copy_json_safe(raw_command, field_name="worker command")
         command_type = str(payload.get("type", "")).strip()
-        request_id = str(payload.get("request_id", "")).strip()
         active_catalog = catalog
         if active_catalog is None and worker_services is not None:
             try:
@@ -226,21 +258,15 @@ def decode_command_payload(
             )
             registry = cache.default_registry(addon_runtime_config)
             active_catalog = registry.data_types
-            expected_fingerprint, expected_revisions = (
-                catalog_agreement_from_payload(payload)
-            )
-            mismatch = catalog_mismatch_message(
-                expected_fingerprint,
-                expected_revisions,
-                active_catalog,
-            )
-            if mismatch:
+            try:
+                command = dict_to_command(dict(payload), catalog=active_catalog)
+            except CatalogMismatchError as exc:
                 emit(
                     event_queue,
                     RunFailedEvent(
                         run_id=raw_run_id.strip(),
                         workspace_id=raw_workspace_id.strip(),
-                        error=mismatch,
+                        error=str(exc),
                     ),
                 )
                 emit_run_state(
@@ -252,7 +278,6 @@ def decode_command_payload(
                     reason="catalog_mismatch",
                 )
                 return None
-            command = dict_to_command(dict(payload), catalog=active_catalog)
             if worker_services is not None:
                 worker_services.bind_data_types(active_catalog)
             return command

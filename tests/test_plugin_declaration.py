@@ -102,7 +102,7 @@ async def negate(ctx, value):
     assert scale.spec.category_path == ("Math", "Transforms")
     assert scale.spec.keywords == ("scale", "multiply")
     assert [port.key for port in scale.spec.ports] == ["value", "scaled", "factor"]
-    assert scale.spec.properties[0].default == 2.0
+    assert scale.spec.properties[0].make_default() == 2.0
     assert [(group.group_id, group.label) for group in scale.spec.settings_groups] == [
         ("data", "Data"),
         ("settings", "Settings"),
@@ -160,7 +160,7 @@ def controls(ctx, settings):
         "interval_slider",
         "list",
     ]
-    assert declaration.spec.properties[8].default == Interval1D(0.0, 1.0)
+    assert declaration.spec.properties[8].make_default() == Interval1D(0.0, 1.0)
     factor = next(port for port in declaration.spec.ports if port.key == "factor")
     assert factor.uses_property_default
 
@@ -678,12 +678,12 @@ def json_value(ctx, settings): return {}
         },
     )
     for declaration, carrier in zip((plane, point), expected, strict=True):
-        default = declaration.spec.properties[0].default
+        default = declaration.spec.properties[0].make_default()
         assert type(default) is TypedInlineValue
         assert asdict(default) == carrier
 
-    assert json_value.spec.properties[0].default == expected[0]
-    assert type(json_value.spec.properties[0].default) is dict
+    assert json_value.spec.properties[0].make_default() == expected[0]
+    assert type(json_value.spec.properties[0].make_default()) is dict
 
     registry = NodeRegistry()
     registry.data_types.register_many(
@@ -705,8 +705,8 @@ def json_value(ctx, settings): return {}
         registry.register_descriptor(declaration.spec, lambda: None)  # type: ignore[arg-type]
         normalized = registry.default_properties(declaration.spec.type_id)["value"]
         assert type(normalized) is TypedInlineValue
-        assert normalized == declaration.spec.properties[0].default
-        assert normalized is not declaration.spec.properties[0].default
+        assert normalized == declaration.spec.properties[0].make_default()
+        assert normalized is not declaration.spec.properties[0].make_default()
 
 
 @pytest.mark.parametrize(
@@ -909,9 +909,9 @@ def process_run(ctx, settings): return {"exit_code": 0}
         "tree",
     )
     assert process_run.spec.properties[1].type == "json"
-    assert process_run.spec.properties[1].default == []
+    assert process_run.spec.properties[1].make_default() == []
     assert process_run.spec.properties[1].inline_editor == ""
-    assert process_run.spec.properties[2].default == {}
+    assert process_run.spec.properties[2].make_default() == {}
 
 
 def test_internal_email_readiness_and_ssh_security_metadata_are_typed() -> None:
@@ -974,7 +974,7 @@ def host(ctx, private_key_path): return {"host": {}}
     protected_value = secret.spec.properties[0]
     assert (
         protected_value.type,
-        protected_value.default,
+        protected_value.make_default(),
         protected_value.inline_editor,
         protected_value.inspector_editor,
         protected_value.sensitive,

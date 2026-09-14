@@ -21,8 +21,9 @@ from ea_node_editor.execution.protocol_codec import (
     event_to_dict,
 )
 from ea_node_editor.execution.registry_agreement import (
+    RegistryAgreement,
+    catalog_revision_records,
     EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
-    catalog_agreement,
     normalize_addon_runtime_config,
     runtime_registry_fingerprint,
 )
@@ -49,6 +50,7 @@ from ea_node_editor.execution.viewer_messages import (
 from ea_node_editor.nodes.function_plugin import (
     EMPTY_PLUGIN_FINGERPRINT,
     PluginBundleRef,
+    PythonFunctionRef,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import (
@@ -193,43 +195,64 @@ class _ExecutionClientCommon:
             raise DataTypeCatalogError(
                 "registry contract differs from the active worker generation"
             )
+        bundles = tuple(plugin_bundles)
+        key = (
+            data_types,
+            bundles,
+            plugin_fingerprint,
+            requested_contract_fingerprint,
+            normalized_addon_runtime_config,
+        )
+        # Only immutable, constructor-owned references can identify a cached
+        # binding. Raw mapping inputs are always admitted anew.
+        cacheable = all(
+            type(bundle) is PluginBundleRef
+            and type(bundle.functions) is tuple
+            and all(
+                type(function) is PythonFunctionRef for function in bundle.functions
+            )
+            for bundle in bundles
+        )
+        if not cacheable or getattr(self, "_registry_agreement_key", None) != key:
+            agreement = RegistryAgreement(
+                requested_fingerprint,
+                catalog_revision_records(data_types),
+                bundles,
+                plugin_fingerprint,
+                requested_runtime_fingerprint,
+                requested_contract_fingerprint,
+                normalized_addon_runtime_config,
+            )
+            self._registry_agreement = agreement
+            self._registry_agreement_key = key if cacheable else None
+        agreement = self._registry_agreement
         self._data_types = data_types
-        self._catalog_generation_fingerprint = requested_fingerprint
-        self._plugin_bundles = tuple(plugin_bundles)
-        self._plugin_fingerprint = plugin_fingerprint
-        self._runtime_registry_generation_fingerprint = requested_runtime_fingerprint
-        self._registry_contract_generation_fingerprint = requested_contract_fingerprint
-        self._addon_runtime_config = normalized_addon_runtime_config
+        self._catalog_generation_fingerprint = agreement.catalog_fingerprint
+        self._plugin_bundles = agreement.plugin_bundles
+        self._plugin_fingerprint = agreement.plugin_fingerprint
+        self._runtime_registry_generation_fingerprint = (
+            agreement.runtime_registry_fingerprint
+        )
+        self._registry_contract_generation_fingerprint = (
+            agreement.registry_contract_fingerprint
+        )
+        self._addon_runtime_config = agreement.addon_runtime_config
 
     def _catalog_agreement(self) -> tuple[str, tuple[Any, ...]]:
-        return catalog_agreement(self._data_types)
+        agreement = self._registry_agreement
+        return agreement.catalog_fingerprint, agreement.catalog_revisions
 
-    def _plugin_agreement(
-        self,
-    ) -> tuple[tuple[PluginBundleRef, ...], str, str]:
-        catalog_fingerprint = self._data_types.fingerprint()
-        plugin_bundles = tuple(getattr(self, "_plugin_bundles", ()))
-        plugin_fingerprint = str(
-            getattr(self, "_plugin_fingerprint", EMPTY_PLUGIN_FINGERPRINT)
-        )
+    def _plugin_agreement(self) -> tuple[tuple[PluginBundleRef, ...], str, str]:
+        agreement = self._registry_agreement
         return (
-            plugin_bundles,
-            plugin_fingerprint,
-            runtime_registry_fingerprint(
-                catalog_fingerprint,
-                plugin_fingerprint,
-            ),
+            agreement.plugin_bundles,
+            agreement.plugin_fingerprint,
+            agreement.runtime_registry_fingerprint,
         )
 
-    def _registry_contract_agreement(
-        self,
-    ) -> tuple[str, tuple[tuple[str, bool], ...]]:
-        return (
-            _registry_contract_digest(
-                getattr(self, "_registry_contract_generation_fingerprint", "")
-            ),
-            normalize_addon_runtime_config(getattr(self, "_addon_runtime_config", ())),
-        )
+    def _registry_contract_agreement(self) -> tuple[str, tuple[tuple[str, bool], ...]]:
+        agreement = self._registry_agreement
+        return agreement.registry_contract_fingerprint, agreement.addon_runtime_config
 
     def _catalog_generation_fingerprint_value(self) -> str:
         with self._state_lock:
@@ -272,7 +295,16 @@ class _ExecutionClientCommon:
             self._execution_environment_digest = ""
             self._execution_environment_registry_fingerprint = ""
             self._execution_environment_selection_digest = ""
-            return generation_token
+        self._retire_generation_readiness("execution generation retired")
+        return generation_token
+
+    def _retire_generation_readiness(self, reason: str) -> None:
+        """Concrete built-in transports may have a pending generation handshake."""
+
+    def _record_generation_readiness(
+        self, payload: dict[str, Any], generation: int | None
+    ) -> bool:
+        return False
 
     def _restore_physical_generation(self, generation_token: int) -> None:
         with self._state_lock:
@@ -361,6 +393,7 @@ class _ExecutionClientCommon:
             raise TypeError("registry must be a NodeRegistry")
         if not registry.data_types.is_frozen:
             raise DataTypeCatalogError("replacement data-type catalog must be frozen")
+        registry.freeze()
         requested_fingerprint = registry.contract_fingerprint()
         with self._start_lock:
             with self._state_lock:
@@ -401,7 +434,7 @@ class _ExecutionClientCommon:
             )
         if not data_types.is_frozen:
             raise DataTypeCatalogError("data-type catalog must be frozen")
-        requested_fingerprint = data_types.fingerprint()
+        data_types.fingerprint()
         requested_contract_fingerprint = _registry_contract_digest(
             registry_contract_fingerprint
         )
@@ -512,6 +545,22 @@ class _ExecutionClientCommon:
     def _encode_command(self, command: WorkerCommand) -> dict[str, Any]:
         return command_to_dict(command, catalog=getattr(self, "_data_types", None))
 
+    def _post_prepared_start(self, dispatch) -> bool:
+        from ea_node_editor.execution.prepared_dispatch import PreparedRunDispatch
+
+        if type(dispatch) is not PreparedRunDispatch:
+            raise TypeError("dispatch must be a sealed PreparedRunDispatch")
+        try:
+            self._write_command_payload(dispatch.to_payload())
+            return True
+        except Exception as exc:  # noqa: BLE001
+            self._emit_protocol_error(
+                f"Failed to dispatch prepared run: {exc}",
+                run_id=dispatch.run_id,
+                command="start_run",
+            )
+            return False
+
     def _deliver_run_preflight_command(
         self, command: WorkerCommand
     ) -> tuple[bool, str]:
@@ -548,6 +597,14 @@ class _ExecutionClientCommon:
         generation_token: int | None = None,
     ) -> None:
         payload = event_to_dict(event, catalog=getattr(self, "_data_types", None))
+        self._dispatch_event_payload(payload, generation_token=generation_token)
+
+    def _dispatch_event_payload(
+        self, payload: dict[str, Any], *, generation_token: int | None = None
+    ) -> None:
+        """Publish a detached projection already decoded by the transport."""
+        if self._record_generation_readiness(payload, generation_token):
+            return
         if self._record_viewer_invalidation_ack(payload, generation_token):
             return
         if payload.get("type") == "workspace_retired":
@@ -579,7 +636,9 @@ class _ExecutionClientCommon:
             except Exception:
                 continue
 
-    def _retire_workspace_via_transport(self, workspace_id: str, *, timeout_sec: float = 10.0) -> int:
+    def _retire_workspace_via_transport(
+        self, workspace_id: str, *, timeout_sec: float = 10.0
+    ) -> int:
         normalized = str(workspace_id or "").strip()
         if not normalized:
             raise ValueError("workspace_id is required")
@@ -592,10 +651,14 @@ class _ExecutionClientCommon:
             self._workspace_retirement_waiters = waiters
         waiters[request_id] = (event, result)
         try:
-            if not self._post_command(RetireWorkspaceCommand(request_id=request_id, workspace_id=normalized)):
+            if not self._post_command(
+                RetireWorkspaceCommand(request_id=request_id, workspace_id=normalized)
+            ):
                 raise RuntimeError("Failed to dispatch workspace retirement")
             if not event.wait(timeout_sec):
-                raise TimeoutError("Execution worker did not acknowledge workspace retirement")
+                raise TimeoutError(
+                    "Execution worker did not acknowledge workspace retirement"
+                )
             if result.get("error"):
                 raise RuntimeError(str(result["error"]))
             return result.get("count", 0)
@@ -603,8 +666,11 @@ class _ExecutionClientCommon:
             waiters.pop(request_id, None)
 
     def _fail_workspace_retirements(self, error: str) -> None:
+        self._retire_generation_readiness(error)
         with self._viewer_request_lock:
-            for delivery in getattr(self, "_viewer_invalidation_deliveries", {}).values():
+            for delivery in getattr(
+                self, "_viewer_invalidation_deliveries", {}
+            ).values():
                 delivery.error = str(error)
                 delivery.acknowledged.set()
         for waiter in tuple(

@@ -1,3 +1,6 @@
+# Purpose: Own runtime workspace DTOs, field validation, and detached projections.
+# Map: subsystems/execution.md
+# Tests: tests/test_execution_submission.py, tests/test_runtime.py
 """Runtime workspace DTOs plus explicit graph conversion adapters.
 
 This module owns the execution-time document shape and explicit graph conversion
@@ -535,12 +538,23 @@ class RuntimeWorkspace:
         )
 
     def to_document(self) -> dict[str, Any]:
+        nodes = _require_sequence(self.nodes, field_name="runtime_workspace.nodes")
+        edges = _require_sequence(self.edges, field_name="runtime_workspace.edges")
+        if any(type(node) is not RuntimeNode for node in nodes):
+            raise ValueError("runtime_workspace.nodes must contain RuntimeNode values.")
+        if any(type(edge) is not RuntimeEdge for edge in edges):
+            raise ValueError("runtime_workspace.edges must contain RuntimeEdge values.")
+        document_fields = copy.deepcopy(self.document_fields)
+        _validate_workspace_document_fields(
+            _require_mapping(document_fields, field_name="runtime_workspace.document_fields")
+        )
         payload = {
-            "document_fields": copy.deepcopy(self.document_fields),
-            "nodes": [node.to_document() for node in self.nodes],
-            "edges": [edge.to_document() for edge in self.edges],
+            "document_fields": document_fields,
+            "nodes": [node.to_document() for node in nodes],
+            "edges": [edge.to_document() for edge in edges],
         }
-        RuntimeWorkspace.from_mapping(payload)
+        # Each owned child projects and validates its fields. Parsing those
+        # projections back into a second discarded workspace adds no checks.
         return payload
 
 

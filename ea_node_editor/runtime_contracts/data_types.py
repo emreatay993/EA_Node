@@ -127,6 +127,8 @@ class DataTypeCatalog:
         self._conversion_provenance: dict[tuple[str, str], _Provenance] = {}
         self._ancestors: dict[str, frozenset[str]] = {}
         self._frozen = False
+        self._frozen_snapshot: tuple[Mapping[str, object], ...] = ()
+        self._frozen_fingerprint = ""
 
     def register_many(
         self,
@@ -216,6 +218,8 @@ class DataTypeCatalog:
                 types=self._types,
                 conversions=self._conversions,
             )
+            self._frozen_snapshot = tuple(MappingProxyType(dict(record)) for record in self._snapshot_records())
+            self._frozen_fingerprint = self._records_fingerprint(self._frozen_snapshot)
             self._frozen = True
 
     @property
@@ -586,13 +590,19 @@ class DataTypeCatalog:
         self.validate_output(actual_type_id, validated_value)
 
     def fingerprint(self) -> str:
+        if self._frozen:
+            return self._frozen_fingerprint
+        return self._records_fingerprint(self._snapshot_records())
+
+    @staticmethod
+    def _records_fingerprint(records: Iterable[Mapping[str, object]]) -> str:
         semantic_records = tuple(
             {
                 key: value
                 for key, value in record.items()
                 if key != "source_label"
             }
-            for record in self._snapshot_records()
+            for record in records
         )
         payload = json.dumps(
             semantic_records,
@@ -603,6 +613,8 @@ class DataTypeCatalog:
         return hashlib.sha256(payload).hexdigest()
 
     def snapshot(self) -> tuple[Mapping[str, object], ...]:
+        if self._frozen:
+            return self._frozen_snapshot
         return tuple(
             MappingProxyType(dict(record)) for record in self._snapshot_records()
         )

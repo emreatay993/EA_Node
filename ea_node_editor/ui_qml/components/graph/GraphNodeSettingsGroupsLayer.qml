@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import "GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
+import "../common/PresentationModelKeys.js" as PresentationModelKeys
 import "surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 
 Item {
@@ -7,6 +8,10 @@ Item {
     objectName: "graphNodeSettingsGroupsLayer"
     property Item host: null
     readonly property var settingsGroups: host ? host.settingsGroups : []
+    property var _groupModelKeys: []
+    onSettingsGroupsChanged: root._groupModelKeys = PresentationModelKeys.retain(
+        root._groupModelKeys, PresentationModelKeys.groups(root.settingsGroups))
+    Component.onCompleted: root._groupModelKeys = PresentationModelKeys.groups(root.settingsGroups)
     readonly property var settingsBand: host ? host.settingsBand : ({})
     readonly property real bandYOffset: host && host.nodeData
         ? GraphNodeSurfaceMetrics.settingsBandYOffset(host.nodeData, host.settingsGroupLayoutHeight)
@@ -45,11 +50,15 @@ Item {
 
     Repeater {
         id: groupRepeater
-        model: root.settingsGroups
+        model: root._groupModelKeys
 
         delegate: Item {
             id: groupItem
-            property var groupData: modelData || ({})
+            property var groupData: root.settingsGroups[index] || ({})
+            property var itemModelKeys: []
+            onGroupDataChanged: groupItem.itemModelKeys = PresentationModelKeys.retain(
+                groupItem.itemModelKeys, PresentationModelKeys.settings(groupItem.groupData.items))
+            Component.onCompleted: groupItem.itemModelKeys = PresentationModelKeys.settings(groupItem.groupData.items)
             property var headerData: groupData.header || ({
                 "x": 0,
                 "y": Number(groupData.header_y || 0),
@@ -248,11 +257,11 @@ Item {
 
             Repeater {
                 id: itemRepeater
-                model: groupItem.groupData.items || []
+                model: groupItem.itemModelKeys
 
                 delegate: Item {
                     id: settingsItem
-                    property var itemData: modelData || ({})
+                    property var itemData: (groupItem.groupData.items || [])[index] || ({})
                     readonly property bool ownsPropertyLabel: Boolean(itemData.property)
                     readonly property real interactiveGeometryKey: {
                         var total = x + y + width + height + (visible ? 1 : 0);

@@ -28,7 +28,7 @@ def coerce_property_value(
     strict: bool,
     data_types: DataTypeCatalog | None = None,
 ) -> Any:
-    default = copy.deepcopy(prop.default)
+    default = prop.make_default()
     if value is None:
         if prop.nullable:
             return None

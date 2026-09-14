@@ -77,6 +77,7 @@ class SolutionStoreLimits:
     preparations_per_runtime: int = 64
     preparation_bytes_per_runtime: int = 268_435_456
 
+
 def _durable_record_matches(
     record: SolutionRecord,
     *,
@@ -95,40 +96,6 @@ def _durable_record_matches(
         and record.runtime_generation is None
         and record.reuse_eligible
     )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +153,16 @@ class _PreparationEntry:
     pinned_record_ids: set[str]
     trigger_reservation_id: str = ""
     adopted_workspace_revision: int | None = None
+    dispatching: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class PreparationState:
+    project_id: str
+    workspace_id: str
+    namespace_id: str
+    workspace_revision: int
+    facts: tuple[NodeSolutionFact, ...]
 
 
 @dataclass(slots=True)
@@ -210,8 +187,6 @@ class _TriggerReservation:
     owner_id: str
 
 
-
-
 class SolutionStore:
     def __init__(self, *, limits: SolutionStoreLimits | None = None) -> None:
         self._limits = limits or SolutionStoreLimits()
@@ -223,7 +198,9 @@ class SolutionStore:
         self._node_revisions: dict[tuple[str, str, str], int] = defaultdict(int)
         self._facts: dict[tuple[str, str, str], NodeSolutionFact] = {}
         self._records: dict[str, _RecordEntry] = {}
-        self._record_ids_by_node: dict[tuple[str, str, str], list[str]] = defaultdict(list)
+        self._record_ids_by_node: dict[tuple[str, str, str], list[str]] = defaultdict(
+            list
+        )
         self._reuse_index: dict[str, str] = {}
         self._preparations: dict[str, _PreparationEntry] = {}
         self._preparation_tombstones: dict[str, str] = {}
@@ -391,7 +368,9 @@ class SolutionStore:
                 ):
                     continue
                 fact = self._facts.get(
-                    self._fact_key(record.project_id, record.workspace_id, record.node_id)
+                    self._fact_key(
+                        record.project_id, record.workspace_id, record.node_id
+                    )
                 )
                 is_current = bool(
                     fact is not None
@@ -493,9 +472,7 @@ class SolutionStore:
         node_id: str,
         solution_key: str,
     ) -> bool:
-        fact = self._facts.get(
-            self._fact_key(project_id, workspace_id, node_id)
-        )
+        fact = self._facts.get(self._fact_key(project_id, workspace_id, node_id))
         return fact is None or bool(
             fact.freshness is SolutionFreshness.CURRENT
             and fact.retained_solution_key == solution_key
@@ -538,7 +515,11 @@ class SolutionStore:
     def _fact_key(
         self, project_id: str, workspace_id: str, node_id: str
     ) -> tuple[str, str, str]:
-        return (str(project_id).strip(), str(workspace_id).strip(), str(node_id).strip())
+        return (
+            str(project_id).strip(),
+            str(workspace_id).strip(),
+            str(node_id).strip(),
+        )
 
     def _never_fact_locked(
         self,
@@ -584,9 +565,7 @@ class SolutionStore:
                 for node_id in order
                 if node_id in facts_by_node
             ]
-            ordered.extend(
-                facts_by_node[node_id] for node_id in sorted(facts_by_node)
-            )
+            ordered.extend(facts_by_node[node_id] for node_id in sorted(facts_by_node))
             return tuple(ordered)
 
     def expired_node_ids(
@@ -608,9 +587,7 @@ class SolutionStore:
                 (),
             )
             if order:
-                ordered = tuple(
-                    node_id for node_id in order if node_id in expired
-                )
+                ordered = tuple(node_id for node_id in order if node_id in expired)
                 return (*ordered, *sorted(expired.difference(ordered)))
             return tuple(sorted(expired))
 
@@ -637,9 +614,7 @@ class SolutionStore:
                 solution_key=solution_key,
             ):
                 return None
-            fact = self._facts.get(
-                self._fact_key(project_id, workspace_id, node_id)
-            )
+            fact = self._facts.get(self._fact_key(project_id, workspace_id, node_id))
             record_id = self._reuse_index.get(solution_key)
             entry = self._records.get(record_id or "")
             if entry is not None:
@@ -655,16 +630,10 @@ class SolutionStore:
                     and record.workspace_id == workspace_id
                     and record.node_id == node_id
                     and generation_valid
-                    and (
-                        fact is None
-                        or fact.retained_record_id == record.record_id
-                    )
+                    and (fact is None or fact.retained_record_id == record.record_id)
                 ):
                     return record
-            if (
-                fact is not None
-                and fact.residency is not SolutionResidency.DURABLE
-            ):
+            if fact is not None and fact.residency is not SolutionResidency.DURABLE:
                 return None
             backend = (
                 self._durable_backend
@@ -797,8 +766,13 @@ class SolutionStore:
                 record.runtime_generation != runtime_generation
             ):
                 raise ValueError("solution record runtime generation is stale")
-            if record.residency is SolutionResidency.DURABLE and record.runtime_generation is not None:
-                raise ValueError("durable solution records cannot carry a runtime generation")
+            if (
+                record.residency is SolutionResidency.DURABLE
+                and record.runtime_generation is not None
+            ):
+                raise ValueError(
+                    "durable solution records cannot carry a runtime generation"
+                )
             if entry is not None and record.payload_locator is None:
                 payload_bytes = _canonical_json_bytes(
                     settled_outputs_to_payload(
@@ -873,7 +847,10 @@ class SolutionStore:
                     raise ValueError("durable solution backend changed during load")
                 existing_id = self._reuse_index.get(record.solution_key)
                 existing = self._records.get(existing_id or "")
-                if existing is not None and existing.record.result_digest != record.result_digest:
+                if (
+                    existing is not None
+                    and existing.record.result_digest != record.result_digest
+                ):
                     self._last_durable_reason_code = "durable_nondeterminism_conflict"
                     raise ValueError("durable_nondeterminism_conflict")
                 same_id = self._records.get(record.record_id)
@@ -883,13 +860,19 @@ class SolutionStore:
                 if existing is None:
                     new_entry = _RecordEntry(
                         record=record,
-                        payload=payload_bytes if record.payload_locator is not None else None,
-                        payload_size=len(payload_bytes) if record.payload_locator is not None else 0,
+                        payload=payload_bytes
+                        if record.payload_locator is not None
+                        else None,
+                        payload_size=len(payload_bytes)
+                        if record.payload_locator is not None
+                        else 0,
                         sequence=self._next_sequence(),
                         maximum_reuse_scope="durable",
                     )
                     self._records[record.record_id] = new_entry
-                    key = self._fact_key(record.project_id, record.workspace_id, record.node_id)
+                    key = self._fact_key(
+                        record.project_id, record.workspace_id, record.node_id
+                    )
                     self._record_ids_by_node[key].append(record.record_id)
                     self._reuse_index[record.solution_key] = record.record_id
                 self._install_lazy_durable_fact_locked(record)
@@ -918,7 +901,9 @@ class SolutionStore:
             with self._lock:
                 current_entry = self._records.get(record.record_id)
                 if current_entry is None or current_entry.record != record:
-                    raise ValueError("durable solution record changed during validation")
+                    raise ValueError(
+                        "durable solution record changed during validation"
+                    )
                 self._install_lazy_durable_fact_locked(record)
         return payload
 
@@ -959,20 +944,25 @@ class SolutionStore:
                 for node_id in self._workspace_execution_orders.get(workspace_key, ())
                 if node_id not in active_node_ids
             )
-            removed_node_ids = (*removed_node_ids, *(
-                node_id
-                for key in tuple(self._facts)
-                if key[:2] == workspace_key
-                and (node_id := key[2]) not in active_node_ids
-                and node_id not in removed_node_ids
-            ))
+            removed_node_ids = (
+                *removed_node_ids,
+                *(
+                    node_id
+                    for key in tuple(self._facts)
+                    if key[:2] == workspace_key
+                    and (node_id := key[2]) not in active_node_ids
+                    and node_id not in removed_node_ids
+                ),
+            )
             released_leases: list[Any] = []
             for node_id in removed_node_ids:
                 released_leases.extend(
                     self._remove_node_locked(project_id, workspace_id, node_id)
                 )
             self._workspace_execution_orders[workspace_key] = tuple(
-                node_id for node_id in plan.execution_order if node_id in active_node_ids
+                node_id
+                for node_id in plan.execution_order
+                if node_id in active_node_ids
             )
             self._workspace_revisions[workspace_key] += 1
             for node_id, contributing_roots in closure.items():
@@ -1107,7 +1097,9 @@ class SolutionStore:
         trigger_node_id: str,
     ) -> int:
         with self._lock:
-            return self._trigger_generations[(project_id, workspace_id, trigger_node_id)]
+            return self._trigger_generations[
+                (project_id, workspace_id, trigger_node_id)
+            ]
 
     def reserve_trigger_generation(
         self,
@@ -1140,6 +1132,22 @@ class SolutionStore:
         with self._lock:
             self._release_trigger_locked(str(reservation_id).strip())
 
+    def capture_preparation_state(
+        self, project_id: str, workspace_id: str
+    ) -> PreparationState:
+        with self._lock:
+            return PreparationState(
+                project_id,
+                workspace_id,
+                self._namespaces[project_id],
+                self._workspace_revisions[(project_id, workspace_id)],
+                tuple(
+                    fact
+                    for key, fact in self._facts.items()
+                    if key[:2] == (project_id, workspace_id)
+                ),
+            )
+
     def register_preparation(
         self,
         prepared: PreparedExecution,
@@ -1150,10 +1158,48 @@ class SolutionStore:
         generation_snapshot: Any,
         encoded_size: int,
         trigger_reservation_id: str = "",
+        captured_state: PreparationState | None = None,
     ) -> None:
         if encoded_size < 0:
             raise ValueError("encoded_size must be non-negative")
         with self._lock:
+            if captured_state is not None:
+                envelope = prepared.dispatch_envelope
+                state = captured_state
+                if (
+                    (envelope.project_id, envelope.workspace_id)
+                    != (state.project_id, state.workspace_id)
+                    or self._namespaces.get(state.project_id) != state.namespace_id
+                    or self._workspace_revisions[(state.project_id, state.workspace_id)]
+                    != state.workspace_revision
+                ):
+                    raise ValueError("prepared_workspace_revision_changed")
+                captured_facts = {fact.node_id: fact for fact in state.facts}
+                for payload in prepared.accepted_output_payloads:
+                    previous = captured_facts.get(payload.node_id)
+                    current = self._facts.get(
+                        self._fact_key(
+                            state.project_id, state.workspace_id, payload.node_id
+                        )
+                    )
+                    record = self._records.get(payload.record_id)
+                    if (
+                        current is None
+                        or current.freshness is not SolutionFreshness.CURRENT
+                        or current.retained_record_id != payload.record_id
+                        or current.retained_solution_key != payload.solution_key
+                        or record is None
+                        or record.record.result_digest != payload.result_digest
+                        or (
+                            previous is not None
+                            and previous.retained_record_id != payload.record_id
+                        )
+                        or (
+                            previous is None
+                            and payload.residency is SolutionResidency.SESSION
+                        )
+                    ):
+                        raise ValueError("prepared_solution_observation_changed")
             if prepared.preparation_id in self._preparations:
                 raise ValueError("preparation_id is already registered")
             if encoded_size > self._limits.preparation_bytes_per_runtime:
@@ -1164,8 +1210,13 @@ class SolutionStore:
                 or self._preparation_bytes_locked() + encoded_size
                 > self._limits.preparation_bytes_per_runtime
             ):
+                evictable = [
+                    item for item in self._preparations.values() if not item.dispatching
+                ]
+                if not evictable:
+                    raise ValueError("preparation capacity is reserved by dispatch")
                 oldest = min(
-                    self._preparations.values(),
+                    evictable,
                     key=lambda item: (item.sequence, item.prepared.preparation_id),
                 )
                 self._drop_preparation_locked(
@@ -1207,6 +1258,37 @@ class SolutionStore:
                 "preparation_unknown",
             )
             raise ValueError(reason)
+
+    def claim_preparation(self, prepared: PreparedExecution) -> _PreparationEntry:
+        """Give one dispatcher ownership; mismatched DTOs cannot affect the owner."""
+        with self._lock:
+            entry = self.preparation(prepared.preparation_id)
+            if entry.prepared != prepared:
+                raise ValueError("prepared execution does not match registered state")
+            if entry.dispatching:
+                raise ValueError("preparation_dispatching")
+            entry.dispatching = True
+            return entry
+
+    def validate_preparation_state(self, entry: _PreparationEntry) -> None:
+        with self._lock:
+            prepared = entry.prepared
+            if self.preparation(prepared.preparation_id) is not entry:
+                raise ValueError("prepared_registration_changed")
+            envelope = prepared.dispatch_envelope
+            if (
+                self._namespaces.get(envelope.project_id)
+                != prepared.solution_namespace_id
+            ):
+                raise ValueError("prepared_project_namespace_changed")
+            revision = self._workspace_revisions[
+                (envelope.project_id, envelope.workspace_id)
+            ]
+            if revision not in (
+                prepared.execution_affecting_workspace_revision,
+                entry.adopted_workspace_revision,
+            ):
+                raise ValueError("prepared_workspace_revision_changed")
 
     def consume_preparation(
         self,
@@ -1274,6 +1356,18 @@ class SolutionStore:
         with self._lock:
             self._drop_preparation_locked(preparation_id, reason)
 
+    def discard_unclaimed_preparation(self, prepared: PreparedExecution) -> None:
+        with self._lock:
+            entry = self._preparations.get(prepared.preparation_id)
+            if entry is None:
+                return
+            if entry.prepared != prepared:
+                raise ValueError("prepared execution does not match registered state")
+            if not entry.dispatching:
+                self._drop_preparation_locked(
+                    prepared.preparation_id, "preparation_cancelled"
+                )
+
     def release_run(self, run_id: str, reason: str = "") -> None:
         with self._lock:
             run = self._runs.pop(str(run_id).strip(), None)
@@ -1321,9 +1415,9 @@ class SolutionStore:
                 )
                 released_leases.extend(released)
                 if acceptance is not None:
-                    run.accepted_record_ids[
-                        str(event.get("node_id", "")).strip()
-                    ] = acceptance.record_id
+                    run.accepted_record_ids[str(event.get("node_id", "")).strip()] = (
+                        acceptance.record_id
+                    )
                 if diagnostic is not None:
                     diagnostics.append(diagnostic)
             elif resource_leases:
@@ -1372,8 +1466,7 @@ class SolutionStore:
         if (
             decision is None
             or str(event.get("solution_key", "")).strip() != decision.solution_key
-            or str(event.get("decision_reason", "")).strip()
-            != decision.reason_code
+            or str(event.get("decision_reason", "")).strip() != decision.reason_code
         ):
             return None, resource_leases, None
         status = str(event.get("status", "")).strip()
@@ -1524,7 +1617,11 @@ class SolutionStore:
                 if self._durable_project_id == envelope.project_id
                 else None
             )
-            if validation.eligible and validation.canonical_payload is not None and backend is not None:
+            if (
+                validation.eligible
+                and validation.canonical_payload is not None
+                and backend is not None
+            ):
                 try:
                     staged = backend.stage_record(
                         record,
@@ -1584,21 +1681,15 @@ class SolutionStore:
                     record = staged.record
                     locator = record.payload_locator
                     stored_payload = (
-                        validation.canonical_payload
-                        if locator is not None
-                        else None
+                        validation.canonical_payload if locator is not None else None
                     )
                     payload_size = len(stored_payload or b"")
             elif not validation.eligible:
                 self._last_durable_reason_code = validation.reason_code
             elif backend is None:
                 self._last_durable_reason_code = "durable_not_bound"
-        retained_resource_leases = (
-            resource_leases if record.reuse_eligible else ()
-        )
-        released_leases = list(
-            () if record.reuse_eligible else resource_leases
-        )
+        retained_resource_leases = resource_leases if record.reuse_eligible else ()
+        released_leases = list(() if record.reuse_eligible else resource_leases)
         entry = _RecordEntry(
             record=record,
             payload=stored_payload,
@@ -1676,10 +1767,8 @@ class SolutionStore:
             or record is None
             or record.record.record_id not in run.pinned_record_ids
             or str(event.get("record_id", "")).strip() != record.record.record_id
-            or str(event.get("residency", "")).strip()
-            != record.record.residency.value
-            or str(event.get("status", "")).strip()
-            != record.record.settlement_status
+            or str(event.get("residency", "")).strip() != record.record.residency.value
+            or str(event.get("status", "")).strip() != record.record.settlement_status
             or not resources_reusable
         ):
             return None, resource_leases, None
@@ -1750,7 +1839,10 @@ class SolutionStore:
         runtime_generation: int,
         resources_reusable: bool,
     ) -> tuple[tuple[SolutionOutputDescriptor, ...], bool]:
-        specs = {port_key: (data_type_id, data_access) for port_key, data_type_id, data_access in capture.output_specs}
+        specs = {
+            port_key: (data_type_id, data_access)
+            for port_key, data_type_id, data_access in capture.output_specs
+        }
         descriptors: list[SolutionOutputDescriptor] = []
         reusable = True
         payload = settled_outputs_to_payload(outputs, catalog=catalog)
@@ -2070,7 +2162,9 @@ class SolutionStore:
         with self._lock:
             return {
                 "records": len(self._records),
-                "payload_bytes": sum(item.payload_size for item in self._records.values()),
+                "payload_bytes": sum(
+                    item.payload_size for item in self._records.values()
+                ),
                 "preparations": len(self._preparations),
                 "preparation_bytes": self._preparation_bytes_locked(),
                 "runs": len(self._runs),
@@ -2117,14 +2211,20 @@ class SolutionStore:
             self._trigger_reservations.pop(reservation_id, None)
 
     def _is_record_pinned_locked(self, record_id: str) -> bool:
-        if any(fact.retained_record_id == record_id and fact.freshness is SolutionFreshness.CURRENT for fact in self._facts.values()):
+        if any(
+            fact.retained_record_id == record_id
+            and fact.freshness is SolutionFreshness.CURRENT
+            for fact in self._facts.values()
+        ):
             return True
         return any(
             record_id in entry.pinned_record_ids
             for entry in (*self._preparations.values(), *self._runs.values())
         )
 
-    def _workspace_totals_locked(self, project_id: str, workspace_id: str) -> tuple[int, int]:
+    def _workspace_totals_locked(
+        self, project_id: str, workspace_id: str
+    ) -> tuple[int, int]:
         entries = [
             item
             for item in self._records.values()
@@ -2171,10 +2271,10 @@ class SolutionStore:
             ]
             if not candidates:
                 return False, tuple(released_leases)
-            oldest = min(candidates, key=lambda item: (item.sequence, item.record.record_id))
-            released_leases.extend(
-                self._remove_record_locked(oldest.record.record_id)
+            oldest = min(
+                candidates, key=lambda item: (item.sequence, item.record.record_id)
             )
+            released_leases.extend(self._remove_record_locked(oldest.record.record_id))
         return True, tuple(released_leases)
 
     def _remove_record_locked(self, record_id: str) -> tuple[Any, ...]:
@@ -2186,7 +2286,9 @@ class SolutionStore:
             self._reuse_index.pop(record.solution_key, None)
         key = self._fact_key(record.project_id, record.workspace_id, record.node_id)
         record_ids = self._record_ids_by_node.get(key, [])
-        self._record_ids_by_node[key] = [item for item in record_ids if item != record_id]
+        self._record_ids_by_node[key] = [
+            item for item in record_ids if item != record_id
+        ]
         if not self._record_ids_by_node[key]:
             self._record_ids_by_node.pop(key, None)
         fact = self._facts.get(key)

@@ -44,6 +44,7 @@ MAX_CANONICAL_DEPTH = 32
 MAX_CANONICAL_ITEMS = 1_000_000
 MAX_CANONICAL_BYTES = 64 * 1024 * 1024
 
+
 class SolutionIdentityError(ValueError):
     """Fail-closed identity error carrying a stable, non-sensitive reason code."""
 
@@ -70,7 +71,11 @@ def _require_digest(field_name: str, value: object) -> str:
 
 
 def _require_text(field_name: str, value: object, *, allow_empty: bool = False) -> str:
-    if type(value) is not str or value != value.strip() or (not value and not allow_empty):
+    if (
+        type(value) is not str
+        or value != value.strip()
+        or (not value and not allow_empty)
+    ):
         raise _identity_error(
             "identity_field_invalid",
             f"{field_name} must be a trimmed string",
@@ -209,7 +214,11 @@ class _CanonicalEncoder:
                 ),
             }
         if value_type is PlotValue:
-            return {"t": "plot", "schema_version": 1, "signature": value.value_signature}
+            return {
+                "t": "plot",
+                "schema_version": 1,
+                "signature": value.value_signature,
+            }
         if value_type is ImageValue:
             return {
                 "t": "image",
@@ -247,18 +256,22 @@ class _CanonicalEncoder:
         )
 
     def _mapping(self, value: dict[object, object], depth: int) -> object:
-        items: list[tuple[bytes, bytes, object, object]] = []
+        groups: dict[bytes, list[tuple[object, object]]] = {}
         for key, item in value.items():
             tagged_key = self._tag(key, depth=depth + 1)
             encoded_key = _json_bytes(tagged_key)
             tagged_item = self._tag(item, depth=depth + 1)
-            encoded_item = _json_bytes(tagged_item)
-            items.append((encoded_key, encoded_item, tagged_key, tagged_item))
-        items.sort(key=lambda entry: (entry[0], entry[1]))
-        return {
-            "t": "map",
-            "v": [[key, item] for _key_bytes, _item_bytes, key, item in items],
-        }
+            groups.setdefault(encoded_key, []).append((tagged_key, tagged_item))
+        ordered = []
+        for encoded_key in sorted(groups):
+            entries = groups[encoded_key]
+            # Distinct NaN keys can have the same canonical representation.
+            # Only collisions need the value tie-breaker; serializing every
+            # subtree merely to sort unique keys repeats work at every depth.
+            if len(entries) > 1:
+                entries.sort(key=lambda entry: _json_bytes(entry[1]))
+            ordered.extend([key, item] for key, item in entries)
+        return {"t": "map", "v": ordered}
 
     def _set(self, value: set[object] | frozenset[object], depth: int) -> object:
         items = [self._tag(item, depth=depth + 1) for item in value]
@@ -276,9 +289,7 @@ class _CanonicalEncoder:
             tagged_branches.append(
                 {
                     "path": tagged_path,
-                    "items": [
-                        self._tag(item, depth=depth + 1) for item in items
-                    ],
+                    "items": [self._tag(item, depth=depth + 1) for item in items],
                 }
             )
         return {"t": "data_tree", "v": tagged_branches}
@@ -307,7 +318,9 @@ class ProvenanceHashPolicy:
         if type(self.schema_version) is not int or self.schema_version != 1:
             raise ValueError("ProvenanceHashPolicy.schema_version must be 1")
         if self.follow_symlinks_or_reparse_points is not False:
-            raise ValueError("Provenance hashing must not follow links or reparse points")
+            raise ValueError(
+                "Provenance hashing must not follow links or reparse points"
+            )
         for field_name in (
             "max_single_file_bytes",
             "max_directory_total_bytes",
@@ -383,9 +396,7 @@ def _same_file(
     expected_mtime = getattr(expected, "st_mtime_ns", None)
     actual_mtime = getattr(actual, "st_mtime_ns", None)
     return (
-        expected_mtime is None
-        or actual_mtime is None
-        or expected_mtime == actual_mtime
+        expected_mtime is None or actual_mtime is None or expected_mtime == actual_mtime
     )
 
 
@@ -483,10 +494,18 @@ def _hash_regular_file(
             )
         while True:
             _cancelled(cancel_event)
-            chunk = os.read(descriptor, _HASH_CHUNK_SIZE)
+            # Most build inputs are small. Bound allocation by the admitted
+            # size, with one extra byte to detect growth before another read.
+            chunk = os.read(
+                descriptor, min(_HASH_CHUNK_SIZE, expected.st_size - actual_size + 1)
+            )
             if not chunk:
                 break
             actual_size += len(chunk)
+            if actual_size > expected.st_size:
+                raise _identity_error(
+                    "provenance_changed", "provenance input grew while hashing"
+                )
             digest.update(chunk)
         final_opened = os.fstat(descriptor)
         if not _same_file(opened, final_opened, compare_size=True):
@@ -548,7 +567,9 @@ def hash_file_provenance(
         ) from None
 
 
-def _tree_entry(digest: Any, kind: bytes, relative_path: str, size_bytes: int = 0) -> None:
+def _tree_entry(
+    digest: Any, kind: bytes, relative_path: str, size_bytes: int = 0
+) -> None:
     try:
         path_bytes = relative_path.encode("utf-8")
     except UnicodeError:
@@ -718,7 +739,12 @@ class ExecutionEnvironmentIdentity:
     execution_policy_digest: str
 
     def __post_init__(self) -> None:
-        for field_name in ("backend", "isolation_mode", "interpreter_build", "platform"):
+        for field_name in (
+            "backend",
+            "isolation_mode",
+            "interpreter_build",
+            "platform",
+        ):
             _require_text(field_name, object.__getattribute__(self, field_name))
         _require_digest("execution_policy_digest", self.execution_policy_digest)
         for field_name, width in (("packages", 2), ("addons", 3), ("toolchains", 3)):
@@ -771,7 +797,9 @@ def _build_tree_digest(source_root: Path) -> str:
                 "corex_build_identity_unavailable",
                 "COREX build sources are unavailable",
             )
-        for candidate in sorted(package_root.rglob("*"), key=lambda item: item.as_posix()):
+        for candidate in sorted(
+            package_root.rglob("*"), key=lambda item: item.as_posix()
+        ):
             relative_parts = candidate.relative_to(source_root).parts
             if "__pycache__" in relative_parts or candidate.suffix in {".pyc", ".pyo"}:
                 continue
@@ -825,6 +853,9 @@ def _frozen_executable_build_digest(executable: Path) -> str:
     )
 
 
+_BUILD_IDENTITY_LOCK = threading.Lock()
+
+
 @lru_cache(maxsize=2)
 def _cached_corex_build_digest(authority: str, location: str) -> str:
     if authority == "frozen_executable":
@@ -838,15 +869,16 @@ def corex_build_digest(*, source_root: str | Path | None = None) -> str:
     try:
         if source_root is not None:
             return _build_tree_digest(Path(source_root))
-        if bool(getattr(sys, "frozen", False)):
+        with _BUILD_IDENTITY_LOCK:
+            if bool(getattr(sys, "frozen", False)):
+                return _cached_corex_build_digest(
+                    "frozen_executable",
+                    os.path.abspath(sys.executable),
+                )
             return _cached_corex_build_digest(
-                "frozen_executable",
-                os.path.abspath(sys.executable),
+                "source_tree",
+                str(Path(__file__).resolve().parents[2]),
             )
-        return _cached_corex_build_digest(
-            "source_tree",
-            str(Path(__file__).resolve().parents[2]),
-        )
     except SolutionIdentityError as exc:
         if exc.reason_code == "corex_build_identity_unavailable":
             raise
@@ -992,7 +1024,7 @@ def node_contract_digest(
                     "uses_property_default": port.uses_property_default,
                     "allow_empty_string": port.allow_empty_string,
                     "property_default": (
-                        properties[port.key].default
+                        properties[port.key].make_default()
                         if port.uses_property_default and port.key in properties
                         else None
                     ),
@@ -1071,7 +1103,10 @@ class AssembledNodeSolution:
 def solution_key(identity: NodeSolutionIdentity) -> str:
     if type(identity) is not NodeSolutionIdentity:
         raise TypeError("identity must be a NodeSolutionIdentity")
-    if type(identity.node_interface_revision) is not int or identity.node_interface_revision <= 0:
+    if (
+        type(identity.node_interface_revision) is not int
+        or identity.node_interface_revision <= 0
+    ):
         raise _identity_error(
             "node_interface_revision_invalid",
             "node interface revision must be positive",
@@ -1089,10 +1124,9 @@ def solution_key(identity: NodeSolutionIdentity) -> str:
     for dependency_key in identity.dependency_solution_keys:
         _require_digest("dependency_solution_key", dependency_key)
     property_keys = [key for key, _value in identity.authored_properties]
-    if (
-        any(type(key) is not str or not key or key != key.strip() for key in property_keys)
-        or len(property_keys) != len(set(property_keys))
-    ):
+    if any(
+        type(key) is not str or not key or key != key.strip() for key in property_keys
+    ) or len(property_keys) != len(set(property_keys)):
         raise _identity_error(
             "authored_properties_invalid",
             "authored properties require unique trimmed keys",
@@ -1240,15 +1274,22 @@ def assemble_node_solution(
         for edge in plan.incoming_edges_for(node_id):
             source_node_id = edge.source_node_id
             target_port = plan.ports_by_key[node_id][edge.target_port_key]
-            contract = plan.type_resolver.source_contract(source_node_id, edge.source_port_key)
+            contract = plan.type_resolver.source_contract(
+                source_node_id, edge.source_port_key
+            )
             incoming_type_ids.update(contract.type_ids)
-            compatibility = plan.type_resolver.compatibility(source_node_id, edge.source_port_key, target_port)
+            compatibility = plan.type_resolver.compatibility(
+                source_node_id, edge.source_port_key, target_port
+            )
             conversions = {
                 (member.source_type_id, member.matched_type_id)
-                for member in compatibility.members if member.status == "convertible"
+                for member in compatibility.members
+                if member.status == "convertible"
             }
             conversion_pairs.update(conversions)
-            conversion_id = ";".join(f"{source}->{target}" for source, target in sorted(conversions))
+            conversion_id = ";".join(
+                f"{source}->{target}" for source, target in sorted(conversions)
+            )
             incoming_identities.append(
                 IncomingEdgeIdentity(
                     source_node_id=source_node_id,
@@ -1284,8 +1325,11 @@ def assemble_node_solution(
             plan.node_ports[node_id],
             port_modifiers=node.port_modifiers,
             principal_input_port_id=node.principal_input_port_id,
-            source_contracts={port.key: plan.source_contracts[(node_id, port.key)].identity
-                              for port in plan.output_ports(node_id) if port.kind == "data"},
+            source_contracts={
+                port.key: plan.source_contracts[(node_id, port.key)].identity
+                for port in plan.output_ports(node_id)
+                if port.kind == "data"
+            },
         )
         provenance_hash = _node_input_provenance_digest(
             plan=plan,
@@ -1299,8 +1343,12 @@ def assemble_node_solution(
             for type_id in (port.data_type, *port.accepted_data_types)
         }
         used_type_ids.update(incoming_type_ids)
-        used_type_ids.update(type_id for port in plan.output_ports(node_id) if port.kind == "data"
-                             for type_id in plan.source_contracts[(node_id, port.key)].type_ids)
+        used_type_ids.update(
+            type_id
+            for port in plan.output_ports(node_id)
+            if port.kind == "data"
+            for type_id in plan.source_contracts[(node_id, port.key)].type_ids
+        )
         catalog_hash = catalog_revision_digest(
             registry.data_types,
             type_ids=tuple(sorted(used_type_ids)),

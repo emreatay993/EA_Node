@@ -14,7 +14,10 @@ from tests.passive_property_editor_fixtures import register_passive_editor_fixtu
 class MainWindowShellPassivePropertyEditorsTests(SharedMainWindowShellTestBase):
     def setUp(self) -> None:
         super().setUp()
-        register_passive_editor_fixture(self.window.registry)
+        if self.window.registry.spec_or_none("tests.passive_editor_fixture") is None:
+            candidate = self.window.registry.fork()
+            register_passive_editor_fixture(candidate)
+            self._publish_fixture_registry(candidate)
 
     def test_collapsed_inspector_skips_selection_and_runtime_property_projection(self) -> None:
         pane = self._find_qml_item("inspectorPane")

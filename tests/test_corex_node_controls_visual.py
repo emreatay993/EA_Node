@@ -228,9 +228,10 @@ class COREXNodeControlsVisualTests(PassiveGraphSurfaceHostTestBase):
                     active_shell_context,
                 )
 
-                registry = build_default_registry()
+                registry = build_default_registry().fork()
                 registry.register(P08SignalPlotFixtureNode)
                 registry.register(P08SignalPlotDecreasingFixtureNode)
+                registry.freeze()
                 model = GraphModel()
                 workspace = model.active_workspace
 

@@ -11,7 +11,7 @@ from ea_node_editor.telemetry.system_metrics import (
     read_system_metrics,
 )
 
-EngineState = Literal["ready", "running", "paused", "error"]
+EngineState = Literal["ready", "preparing", "running", "paused", "error"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +51,7 @@ class ShellStatusService:
             text = f"{text} ({details})"
         icon_map = {
             "ready": "R",
+            "preparing": "Run",
             "running": "Run",
             "paused": "P",
             "error": "!",

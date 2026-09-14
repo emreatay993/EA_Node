@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
+from dataclasses import fields, is_dataclass
+from enum import Enum
+from ea_node_editor.nodes.node_specs import PropertySpec
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +18,36 @@ SOLUTION_REUSE_CLASSIFICATION_PATH = (
     / "perf"
     / "COREX_SOLUTION_REUSE_CLASSIFICATION.md"
 )
+
+
+def catalog_value(value: object) -> object:
+    if callable(value):
+        return True
+    if is_dataclass(value):
+        values = value.contract_values() if isinstance(value, PropertySpec) else {
+            field.name: getattr(value, field.name) for field in fields(value)
+        }
+        return {
+            name: catalog_value(item) for name, item in values.items()
+        }
+    if isinstance(value, Mapping):
+        return {
+            str(key): catalog_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, (tuple, list)):
+        return [catalog_value(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        items = [catalog_value(item) for item in value]
+        return sorted(items, key=lambda item: json.dumps(item, sort_keys=True))
+    if isinstance(value, Enum):
+        return catalog_value(value.value)
+    if isinstance(value, Path):
+        return value.as_posix()
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    raise TypeError(f"Unsupported catalog value: {type(value).__qualname__}")
+
 
 
 def load_current_repo_owned_catalog(
@@ -64,6 +98,7 @@ def load_solution_reuse_scopes(
 
 
 __all__ = [
+    "catalog_value",
     "CURRENT_REPO_OWNED_CATALOG_PATH",
     "SOLUTION_REUSE_CLASSIFICATION_PATH",
     "load_current_repo_owned_catalog",

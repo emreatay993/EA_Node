@@ -368,7 +368,7 @@ def _plot_node_spec(definition: PlotNodeDefinition) -> NodeTypeSpec:
 
 
 def _property_defaults(spec: NodeTypeSpec) -> dict[str, Any]:
-    return {prop.key: copy.deepcopy(prop.default) for prop in spec.properties}
+    return {prop.key: prop.make_default() for prop in spec.properties}
 
 
 def _string_property(properties: Mapping[str, Any], key: str) -> str:

@@ -4,13 +4,14 @@ import copy
 import json
 import re
 import sys
+import threading
 import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 from types import SimpleNamespace
 
-from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, Qt
+from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, Qt, QTimer
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QMessageBox
@@ -48,6 +49,7 @@ from tests.shell_isolation_runtime import run_shell_isolation_target
 from tests.shell_isolation_runtime import ShellIsolationTarget
 from tests.shell_isolation_runtime import ShellIsolationTargetTimeout
 from tests.typed_handle_support import core_worker_services
+from tests.queued_submission_support import QueuedSubmissionDriver
 
 _SHELL_TEST_RUNNER = (
     "import sys, unittest; "
@@ -66,8 +68,14 @@ def _value_outputs(**values: object) -> dict[str, SettledPortResult]:
 
 
 class _ViewerExecutionClientStub:
-    def __init__(self, registry) -> None:  # noqa: ANN001
+    def __init__(self, registry, publish) -> None:  # noqa: ANN001
         self.registry = registry
+        self._submissions = QueuedSubmissionDriver(
+            schedule=lambda callback: QTimer.singleShot(0, callback),
+            prepare=lambda request: self.prepare_execution(request),
+            dispatch=lambda prepared: self.dispatch_prepared(prepared),
+            publish=publish, stop=self.stop_run,
+        )
         self.next_run_id = "run_live"
         self.start_calls: list[dict] = []
         self.pause_calls: list[str] = []
@@ -85,6 +93,12 @@ class _ViewerExecutionClientStub:
     def _next_request_id(self, prefix: str) -> str:
         self._request_counter += 1
         return f"{prefix}_{self._request_counter}"
+
+    def submit_execution(self, request):
+        return self._submissions.submit(request)
+
+    def cancel_submissions(self, reason="user", *, workspace_id=None):
+        self._submissions.cancel_pending(reason, workspace_id=workspace_id)
 
     def prepare_execution(self, request):  # noqa: ANN001, ANN201
         plan = ExecutionPlan(
@@ -299,8 +313,8 @@ class _ViewerExecutionClientStub:
         )
         return request_id
 
-    def shutdown(self) -> None:
-        return None
+    def shutdown(self, *, wait=True) -> None:
+        self._submissions.close()
 
 
 class _ViewerHostServiceStub:
@@ -438,6 +452,70 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             QTest.qWait(20)
         self.assertTrue(predicate(), "Timed out waiting for the real canvas/runtime")
 
+    def _flush_submission_events(self):
+        self.app.processEvents()
+        self._wait_until(lambda: not self.window.run_state.active_submission_id)
+
+    def test_gui_remains_responsive_and_stop_cancels_blocked_preparation(self):
+        window = self.window
+        window.run_controller.set_auto_run_enabled(False)
+        runtime = _CountingRuntime(registry=window.registry)
+        self.addCleanup(runtime.shutdown)
+        runtime.subscribe(window.execution_event.emit)
+        window.execution_client = runtime
+        window.scene.add_node_from_type("core.constant", x=20, y=20)
+        entered, release = threading.Event(), threading.Event()
+        beats = []
+        timer = QTimer()
+        timer.setInterval(5)
+        timer.timeout.connect(lambda: beats.append(True))
+        compute = runtime._preparation.compute
+
+        def blocked(*args, **kwargs):
+            entered.set()
+            assert release.wait(10)
+            return compute(*args, **kwargs)
+
+        try:
+            with patch.object(runtime._preparation, "compute", side_effect=blocked):
+                timer.start()
+                window.run_controller.run_workflow()
+                self.assertEqual(window.run_state.engine_state_value, "preparing")
+                self._wait_until(lambda: entered.is_set() and len(beats) >= 3, timeout=5)
+                self.assertFalse(window.action_pause.isEnabled())
+                self.assertTrue(window.action_stop.isEnabled())
+                window.run_controller.stop_workflow()
+                release.set()
+                self._wait_until(lambda: not window.run_state.active_submission_id)
+            self.assertEqual(runtime.dispatch_count, 0)
+            self.assertFalse(window.run_state.active_run_id)
+        finally:
+            release.set()
+            timer.stop()
+
+    def test_plot_property_updates_retain_inline_rows_across_settings_and_ports(self):
+        window = self.window
+        window.run_controller.set_auto_run_enabled(False)
+        plot = window.scene.add_node_from_type("plot.signal", x=20, y=20)
+        for group in window.registry.get_spec("plot.signal").settings_groups:
+            window.scene.set_node_settings_group_expanded(plot, group.group_id, True)
+        self.app.processEvents()
+        canvas = self._graph_canvas_item()
+        def rows():
+            return {
+                row.property("propertyKey"): row
+                for row in _graph_node_children(canvas, plot, "graphNodeInlinePropertyRow")
+            }
+        before = rows()
+        self.assertIn("marker_sizes", before)
+        self.assertIn("x_axis_label", before)
+        window.scene.set_node_properties(plot, {"marker_sizes": [8.0], "x_axis_label": "Time"})
+        self.app.processEvents()
+        after = rows()
+        self.assertEqual(set(before), set(after))
+        for key, row in before.items():
+            self.assertIs(row, after[key], key)
+
     def test_media_toolbar_history_and_bulk_edits_preserve_real_workflow(self):
         window = self.window
         window.run_controller.set_auto_run_enabled(False)
@@ -515,7 +593,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
     def test_disconnected_toggle_auto_run_preserves_current_viewer_until_separate_same_node_invalidation(
         self,
     ) -> None:
-        execution_client = _ViewerExecutionClientStub(self.window.registry)
+        execution_client = _ViewerExecutionClientStub(self.window.registry, self.window.execution_event.emit)
         self.window.execution_client = execution_client
         self.window.run_controller.set_auto_run_enabled(False)
         bridge = self.window.viewer_session_bridge
@@ -691,6 +769,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         ) as transport_release:
             self.window.scene.set_node_property(toggle_id, "value", True)
             self.app.processEvents()
+            self._wait_until(lambda: self.window.run_state.active_run_id == "run_live")
 
             self.assertEqual(
                 execution_client.start_calls[-1]["target_node_ids"], (toggle_id,)
@@ -1560,7 +1639,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(dict(graph_canvas.property("failedNodeLookup")), {node_id: True})
 
     def test_viewer_session_bridge_context_property_exists_and_rerun_invalidates_current_workspace(self) -> None:
-        execution_client = _ViewerExecutionClientStub(self.window.registry)
+        execution_client = _ViewerExecutionClientStub(self.window.registry, self.window.execution_event.emit)
         self.window.execution_client = execution_client
         self.window.run_controller.set_auto_run_enabled(False)
 
@@ -1589,6 +1668,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.app.processEvents()
 
         self.window.run_controller.run_workflow()
+        self._flush_submission_events()
         self.app.processEvents()
 
         workspace_epoch, node_epoch = bridge._viewer_epochs(  # noqa: SLF001
@@ -1623,7 +1703,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(self.window.run_state.active_run_workspace_id, workspace_id)
 
     def test_successful_dispatch_invalidates_exact_viewers_without_host_reset(self) -> None:
-        execution_client = _ViewerExecutionClientStub(self.window.registry)
+        execution_client = _ViewerExecutionClientStub(self.window.registry, self.window.execution_event.emit)
         self.window.execution_client = execution_client
         self.window.run_controller.set_auto_run_enabled(False)
         viewer_host_service = _ViewerHostServiceStub()
@@ -1662,6 +1742,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.app.processEvents()
 
         self.window.run_controller.run_workflow()
+        self._flush_submission_events()
         self.app.processEvents()
 
         workspace_epoch, node_epoch = bridge._viewer_epochs(  # noqa: SLF001
@@ -1693,7 +1774,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(bridge.session_state(node_id)["phase"], "blocked")
 
     def test_failed_dispatch_leaves_viewer_host_and_epochs_untouched(self) -> None:
-        execution_client = _ViewerExecutionClientStub(self.window.registry)
+        execution_client = _ViewerExecutionClientStub(self.window.registry, self.window.execution_event.emit)
         execution_client.next_run_id = ""
         self.window.execution_client = execution_client
         self.window.run_controller.set_auto_run_enabled(False)
@@ -1733,6 +1814,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.app.processEvents()
 
         self.window.run_controller.run_workflow()
+        self._flush_submission_events()
         self.app.processEvents()
 
         self.assertEqual(viewer_host_service.calls, [])
@@ -1817,6 +1899,11 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             patch.object(self.window.execution_client, "resume_run") as resume_run,
         ):
             QMetaObject.invokeMethod(run_control_button, "clicked")
+            self.app.processEvents()
+            self._flush_submission_events()
+            self.window.execution_event.emit({
+                "type": "run_started", "run_id": "run_owner", "workspace_id": workspace_a_id,
+            })
             self.app.processEvents()
 
             wait_for_condition_or_raise(
@@ -1916,7 +2003,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             )
 
     def test_fatal_run_failed_event_invalidates_viewer_sessions_as_worker_reset(self) -> None:
-        execution_client = _ViewerExecutionClientStub(self.window.registry)
+        execution_client = _ViewerExecutionClientStub(self.window.registry, self.window.execution_event.emit)
         self.window.execution_client = execution_client
         self.window.run_controller.set_auto_run_enabled(False)
 
@@ -2005,7 +2092,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(self.window.run_state.engine_state_value, "running")
 
     def test_new_run_clears_failed_node_highlight_before_start(self) -> None:
-        execution_client = _ViewerExecutionClientStub(self.window.registry)
+        execution_client = _ViewerExecutionClientStub(self.window.registry, self.window.execution_event.emit)
         self.window.execution_client = execution_client
         self.window.run_controller.set_auto_run_enabled(False)
 
@@ -2022,6 +2109,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(dict(graph_canvas.property("failedNodeLookup")), {failed_node_id: True})
 
         self.window.run_controller.run_workflow()
+        self._flush_submission_events()
         self.app.processEvents()
 
         self.assertEqual(self.window.run_state.failed_node_id, "")
@@ -2058,6 +2146,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             ):
                 self.window.run_state.developer_mode_active = True
                 self.window.run_controller.run_workflow()
+                self._flush_submission_events()
         self.assertTrue(prepare_mock.call_args.args[0].trigger["developer_mode"])
 
         with patch.object(
@@ -2071,6 +2160,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             ):
                 self.window.run_state.developer_mode_active = True
                 self.window.run_controller.run_workflow()
+                self._flush_submission_events()
         self.assertFalse(prepare_mock.call_args.args[0].trigger["developer_mode"])
 
 

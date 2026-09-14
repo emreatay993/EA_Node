@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../common" as Common
+import "../common/PresentationModelKeys.js" as PresentationModelKeys
 import "surface_controls" as SurfaceControls
 import "surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 
@@ -16,6 +17,7 @@ Item {
         ? modelOverride
         : (host ? host.inlineProperties : [])
     property bool _inlineDelegatesReady: false
+    property var _propertyModelKeys: []
     readonly property real _inlineLabelMinWidth: 78
     readonly property real _inlineLabelMaxWidth: 320
     readonly property real _inlineToggleControlReserveWidth: 32
@@ -231,9 +233,14 @@ Item {
 
     onInlinePropertiesChanged: {
         root._inlineDelegatesReady = false;
+        root._propertyModelKeys = PresentationModelKeys.retain(
+            root._propertyModelKeys, PresentationModelKeys.properties(root.inlineProperties));
         inlineDelegateSettleTimer.restart();
     }
-    Component.onCompleted: inlineDelegateSettleTimer.restart()
+    Component.onCompleted: {
+        root._propertyModelKeys = PresentationModelKeys.properties(root.inlineProperties);
+        inlineDelegateSettleTimer.restart();
+    }
 
     Timer {
         id: inlineDelegateSettleTimer
@@ -257,12 +264,12 @@ Item {
 
         Repeater {
             id: inlinePropertyRepeater
-            model: inlineProperties
+            model: root._propertyModelKeys
 
             delegate: Rectangle {
                 id: inlineRow
                 objectName: "graphNodeInlinePropertyRow"
-                readonly property var propertyData: root._presentationFor(modelData)
+                readonly property var propertyData: root._presentationFor(root.inlineProperties[index])
                 property string propertyKey: String(propertyData.key || "")
                 readonly property string editorKind: root._editorKind(propertyData)
                 readonly property bool editorEnabled: root._editorEnabled(propertyData)

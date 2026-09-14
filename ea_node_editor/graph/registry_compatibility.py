@@ -306,7 +306,7 @@ def _check_properties(
                 node_id=node_id,
                 member_key=current_prop.key,
             )
-        effective_value = saved_properties.get(current_prop.key, candidate_prop.default)
+        effective_value = saved_properties.get(current_prop.key, candidate_prop.make_default())
         if not is_saved_property_value_valid(
             candidate_prop,
             effective_value,
@@ -321,7 +321,7 @@ def _check_properties(
     for candidate_prop in candidate_spec.properties:
         if candidate_prop.key in current_by_key or is_saved_property_value_valid(
             candidate_prop,
-            candidate_prop.default,
+            candidate_prop.make_default(),
             data_types=candidate_data_types,
         ):
             continue

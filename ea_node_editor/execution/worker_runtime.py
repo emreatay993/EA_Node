@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 import os
 import threading
 from collections.abc import Mapping, Sequence
@@ -13,12 +11,14 @@ from ea_node_editor.common.payload_tools import (
     artifact_content_integrity,
     copy_json_safe,
 )
-from ea_node_editor.execution.compiler import compile_runtime_snapshot
+from ea_node_editor.execution.compiled_snapshot_cache import CompiledSnapshotCache
 from ea_node_editor.execution import execution_plan as _execution_plan
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.execution.run_messages import (
     StartRunCommand,
 )
 from ea_node_editor.execution.registry_agreement import (
+    RegistryAgreement,
     normalize_addon_runtime_config,
 )
 from ea_node_editor.execution.plugin_worker_runtime import WorkerPluginRuntime
@@ -109,9 +109,7 @@ class RuntimeArtifactService:
             serialize_runtime_value(payload, catalog=self._data_types),
             catalog=self._data_types,
         )
-        normalized_outputs = (
-            dict(normalized) if isinstance(normalized, dict) else {}
-        )
+        normalized_outputs = dict(normalized) if isinstance(normalized, dict) else {}
         self._verify_runtime_artifacts(normalized_outputs)
         return normalized_outputs
 
@@ -124,14 +122,18 @@ class RuntimeArtifactService:
             _runtime_markers_decoded=False,
         )
 
-    def materialize_authored_properties(self, properties: Mapping[str, Any]) -> dict[str, Any]:
+    def materialize_authored_properties(
+        self, properties: Mapping[str, Any]
+    ) -> dict[str, Any]:
         """Admit registered project-import refs only at the authored-property boundary.
 
         Runtime values, outputs, and path resolution still require typed carriers.
         Authored temp refs become carriers only after store/descriptor/content checks.
         """
         return self._materialize_persisted_value(
-            properties, _runtime_markers_decoded=False, _authored_staged_refs=True,
+            properties,
+            _runtime_markers_decoded=False,
+            _authored_staged_refs=True,
         )
 
     def _materialize_persisted_value(
@@ -184,9 +186,7 @@ class RuntimeArtifactService:
                     value,
                     catalog=self._data_types,
                 )
-                if isinstance(decoded, DataTree) or not isinstance(
-                    decoded, Mapping
-                ):
+                if isinstance(decoded, DataTree) or not isinstance(decoded, Mapping):
                     return self._materialize_persisted_value(
                         decoded,
                         _runtime_markers_decoded=True,
@@ -235,9 +235,7 @@ class RuntimeArtifactService:
         staged_prefix = f"{STAGED_ARTIFACT_REF_SCHEME}://"
         staged = text.casefold().startswith(staged_prefix)
         if staged and not _authored_staged_refs:
-            raise TypeError(
-                "artifact references must use RuntimeArtifactRef"
-            )
+            raise TypeError("artifact references must use RuntimeArtifactRef")
         prefix = staged_prefix if staged else saved_prefix
         if not text.startswith(prefix) or (_authored_staged_refs and text != value):
             raise ValueError("persisted artifact reference is malformed")
@@ -245,20 +243,20 @@ class RuntimeArtifactService:
         if not artifact_id or text != f"{prefix}{artifact_id}":
             raise ValueError("persisted artifact reference is malformed")
 
-        entry = self.store.staged_entry(artifact_id) if staged else self.store.managed_entry(artifact_id)
+        entry = (
+            self.store.staged_entry(artifact_id)
+            if staged
+            else self.store.managed_entry(artifact_id)
+        )
         if entry is None:
             raise FileNotFoundError(
                 f"artifact {artifact_id!r} is not registered in the active store"
             )
         if "runtime_artifact" not in entry.extra:
-            raise ValueError(
-                f"artifact {artifact_id!r} descriptor is missing"
-            )
+            raise ValueError(f"artifact {artifact_id!r} descriptor is missing")
         descriptor = entry.extra["runtime_artifact"]
         if not isinstance(descriptor, Mapping):
-            raise ValueError(
-                f"artifact {artifact_id!r} descriptor is invalid"
-            )
+            raise ValueError(f"artifact {artifact_id!r} descriptor is invalid")
         try:
             runtime_ref = RuntimeArtifactRef.from_artifact_ref(
                 text,
@@ -283,17 +281,13 @@ class RuntimeArtifactService:
             runtime_ref.scope != ("staged" if staged else "managed")
             or runtime_ref.artifact_id != artifact_id
         ):
-            raise ValueError(
-                f"artifact {artifact_id!r} descriptor does not match"
-            )
+            raise ValueError(f"artifact {artifact_id!r} descriptor does not match")
         self._verify_runtime_artifact(runtime_ref)
         return runtime_ref
 
     def resolve_path(self, value: Any) -> Any:
         if _is_untyped_artifact_reference(value):
-            raise TypeError(
-                "artifact references must use RuntimeArtifactRef"
-            )
+            raise TypeError("artifact references must use RuntimeArtifactRef")
         runtime_ref = coerce_runtime_artifact_ref(
             value,
             catalog=self._data_types,
@@ -304,9 +298,7 @@ class RuntimeArtifactService:
 
     def _verify_runtime_artifacts(self, value: Any) -> None:
         if _is_untyped_artifact_reference(value):
-            raise TypeError(
-                "artifact references must use RuntimeArtifactRef"
-            )
+            raise TypeError("artifact references must use RuntimeArtifactRef")
         if isinstance(value, RuntimeArtifactRef):
             self._verify_runtime_artifact(value)
             return
@@ -372,20 +364,14 @@ class RuntimeArtifactService:
         if _normalized_absolute_path(resolved_path) != _normalized_absolute_path(
             trusted_target
         ):
-            raise ValueError(
-                f"artifact {artifact_id!r} store target does not match"
-            )
+            raise ValueError(f"artifact {artifact_id!r} store target does not match")
 
         descriptor = entry.extra.get("runtime_artifact")
         expected_descriptor = runtime_ref.to_descriptor()
         if not isinstance(descriptor, Mapping):
-            raise ValueError(
-                f"artifact {artifact_id!r} descriptor is missing"
-            )
+            raise ValueError(f"artifact {artifact_id!r} descriptor is missing")
         if set(descriptor) != set(expected_descriptor):
-            raise ValueError(
-                f"artifact {artifact_id!r} descriptor fields do not match"
-            )
+            raise ValueError(f"artifact {artifact_id!r} descriptor fields do not match")
         for field_name, expected_value in expected_descriptor.items():
             actual_value = descriptor.get(field_name)
             if (
@@ -411,13 +397,9 @@ class RuntimeArtifactService:
                 f"artifact {artifact_id!r} payload could not be verified"
             ) from None
         if size_bytes != runtime_ref.size_bytes:
-            raise ValueError(
-                f"artifact {artifact_id!r} size_bytes does not match"
-            )
+            raise ValueError(f"artifact {artifact_id!r} size_bytes does not match")
         if sha256 != runtime_ref.sha256:
-            raise ValueError(
-                f"artifact {artifact_id!r} sha256 does not match"
-            )
+            raise ValueError(f"artifact {artifact_id!r} sha256 does not match")
         return resolved_path
 
 
@@ -456,7 +438,7 @@ class RuntimePreparationCache:
         self._registry: Any | None = None
         self._registry_provider_id: Any = 0
         self._registry_addon_runtime_config: tuple[tuple[str, bool], ...] | None = None
-        self._compiled_workspaces: dict[tuple[int, str, str], RuntimeWorkspace] = {}
+        self._compiled_snapshots = CompiledSnapshotCache()
         self._plugin_runtime = WorkerPluginRuntime()
 
     def default_registry(
@@ -481,10 +463,7 @@ class RuntimePreparationCache:
                     "Runtime preparation cache must be retired before add-on "
                     "configuration changes"
                 )
-            if (
-                self._registry is None
-                or self._registry_provider_id != provider_id
-            ):
+            if self._registry is None or self._registry_provider_id != provider_id:
                 self._plugin_runtime.clear()
                 self._registry = build_default_registry(
                     include_public_plugins=False,
@@ -492,8 +471,17 @@ class RuntimePreparationCache:
                 )
                 self._registry_provider_id = provider_id
                 self._registry_addon_runtime_config = normalized_config
-                self._compiled_workspaces.clear()
+                self._compiled_snapshots.clear()
             return self._registry
+
+    def prepare_generation(
+        self, agreement: RegistryAgreement
+    ) -> tuple[NodeRegistry, str]:
+        from ea_node_editor.execution.solution_identity import corex_build_digest
+
+        trusted = self.default_registry(agreement.addon_runtime_config)
+        registry = self._plugin_runtime.prepare_registry(agreement, trusted)
+        return registry, corex_build_digest()
 
     def prepare_plugin_registry(
         self,
@@ -512,45 +500,16 @@ class RuntimePreparationCache:
         workspace_id: str,
         registry: Any,
     ) -> RuntimeWorkspace:
-        cache_key = self._workspace_cache_key(
+        return self._compiled_snapshots.get(
             runtime_snapshot,
             workspace_id=workspace_id,
             registry=registry,
-        )
-        with self._lock:
-            cached = self._compiled_workspaces.get(cache_key)
-            if cached is not None:
-                return cached
-        compiled = compile_runtime_snapshot(
-            runtime_snapshot,
-            workspace_id=workspace_id,
-            registry=registry,
-        )
-        with self._lock:
-            return self._compiled_workspaces.setdefault(cache_key, compiled)
-
-    @staticmethod
-    def _workspace_cache_key(
-        runtime_snapshot: RuntimeSnapshot,
-        *,
-        workspace_id: str,
-        registry: Any,
-    ) -> tuple[int, str, str]:
-        snapshot_payload = runtime_snapshot.to_document(catalog=registry.data_types)
-        digest = hashlib.sha256(
-            json.dumps(
-                snapshot_payload,
-                sort_keys=True,
-                separators=(",", ":"),
-                ensure_ascii=True,
-            ).encode("utf-8")
-        ).hexdigest()
-        return (id(registry), str(workspace_id).strip(), digest)
+        ).workspace
 
     def clear(self) -> None:
         with self._lock:
             self._plugin_runtime.clear()
-            self._compiled_workspaces.clear()
+            self._compiled_snapshots.clear()
             self._registry = None
             self._registry_provider_id = 0
             self._registry_addon_runtime_config = None

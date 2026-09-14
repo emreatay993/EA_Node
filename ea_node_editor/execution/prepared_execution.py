@@ -5,13 +5,21 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import InitVar, dataclass, fields
+from dataclasses import InitVar, dataclass, field, fields
 from enum import Enum
 import hashlib
 import json
 from typing import TYPE_CHECKING, Any
 
-from ea_node_editor.execution.backends import ExecutionBackendSelection
+from ea_node_editor.execution.registry_agreement import (
+    RegistryAgreement,
+    _bounded_catalog_text,
+    catalog_mismatch_message,
+)
+from ea_node_editor.execution.backends import (
+    ExecutionBackendSelection,
+    decode_execution_backend,
+)
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
 from ea_node_editor.runtime_contracts.data_types import DataTypeCatalog
 from ea_node_editor.runtime_contracts.durable_values import (
@@ -214,9 +222,13 @@ def _reject_durable_session_carriers(
     if isinstance(value, Mapping):
         marker = value.get(_RUNTIME_VALUE_MARKER_KEY)
         if marker in _SESSION_ONLY_RUNTIME_MARKERS:
-            raise ValueError("durable accepted outputs cannot contain session-only carriers")
+            raise ValueError(
+                "durable accepted outputs cannot contain session-only carriers"
+            )
         if marker == "artifact_ref" and value.get("scope") != "managed":
-            raise ValueError("durable accepted outputs require managed artifact references")
+            raise ValueError(
+                "durable accepted outputs require managed artifact references"
+            )
         data_type_id = value.get("data_type_id")
         if marker in {"artifact_ref", "typed_inline", "image_value"}:
             if catalog is None:
@@ -252,9 +264,7 @@ def _settled_outputs_bytes(
     if not isinstance(value, Mapping):
         raise TypeError(f"{field_name} must be a mapping or bytes")
     if len(value) > MAX_OUTPUTS_PER_NODE:
-        raise ValueError(
-            f"{field_name} exceeds maximum count {MAX_OUTPUTS_PER_NODE}"
-        )
+        raise ValueError(f"{field_name} exceeds maximum count {MAX_OUTPUTS_PER_NODE}")
     payload = settled_outputs_to_payload(value, catalog=catalog)
     preflight_settled_output_mapping_payload(payload)
     return _canonical_json_bytes(payload, field_name=field_name)
@@ -295,8 +305,14 @@ class PreparedDispatchEnvelope:
     registry_contract_fingerprint: str
     addon_runtime_config: tuple[tuple[str, bool], ...]
     catalog: InitVar[DataTypeCatalog | None] = None
+    agreement: InitVar[RegistryAgreement | None] = None
+    _registry_agreement: RegistryAgreement = field(
+        init=False, repr=False, compare=False
+    )
 
-    def __post_init__(self, catalog: DataTypeCatalog | None) -> None:
+    def __post_init__(
+        self, catalog: DataTypeCatalog | None, agreement: RegistryAgreement | None
+    ) -> None:
         object.__setattr__(
             self,
             "project_path",
@@ -345,6 +361,13 @@ class PreparedDispatchEnvelope:
         )
         if not isinstance(self.execution_backend, ExecutionBackendSelection):
             raise TypeError("execution_backend must be an ExecutionBackendSelection")
+        object.__setattr__(
+            self,
+            "execution_backend",
+            decode_execution_backend(
+                {"execution_backend": self.execution_backend.to_payload()}
+            ),
+        )
         object.__setattr__(
             self,
             "target_node_ids",
@@ -397,104 +420,52 @@ class PreparedDispatchEnvelope:
         )
         if not isinstance(self.developer_mode, bool):
             raise TypeError("developer_mode must be a boolean")
-        for field_name in (
-            "catalog_fingerprint",
-            "plugin_fingerprint",
-            "runtime_registry_fingerprint",
-            "registry_contract_fingerprint",
-        ):
-            object.__setattr__(
-                self,
-                field_name,
-                _digest(getattr(self, field_name), field_name=field_name),
-            )
         if not isinstance(self.catalog_revisions, tuple):
             raise TypeError("catalog_revisions must be a tuple")
         if not isinstance(self.plugin_bundles, tuple):
             raise TypeError("plugin_bundles must be a tuple")
-        if not isinstance(self.addon_runtime_config, (list, tuple)):
-            raise TypeError("addon_runtime_config must be a list")
-        addon_runtime_config = []
-        seen_addons: set[str] = set()
-        for index, pair in enumerate(self.addon_runtime_config):
-            if not isinstance(pair, (list, tuple)) or len(pair) != 2:
-                raise TypeError(
-                    f"addon_runtime_config[{index}] must be an id/bool pair"
-                )
-            addon_id = _text(pair[0], field_name=f"addon_runtime_config[{index}].id")
-            if not isinstance(pair[1], bool):
-                raise TypeError(
-                    f"addon_runtime_config[{index}].enabled must be a boolean"
-                )
-            if addon_id in seen_addons:
-                raise ValueError("addon_runtime_config must not contain duplicate IDs")
-            seen_addons.add(addon_id)
-            addon_runtime_config.append((addon_id, pair[1]))
-        object.__setattr__(self, "addon_runtime_config", tuple(addon_runtime_config))
-
-    def _to_payload(
-        self, *, catalog: DataTypeCatalog | None = None
-    ) -> dict[str, Any]:
-        from ea_node_editor.execution.run_messages import StartRunCommand
-        from ea_node_editor.execution.protocol_codec import command_to_dict
-
-        runtime_snapshot = self.decode_runtime_snapshot(catalog=catalog)
-        command_payload = command_to_dict(
-            StartRunCommand(
-                run_id="prepared",
-                project_path=self.project_path,
-                workspace_id=self.workspace_id,
-                trigger=self.decode_trigger(catalog=catalog),
-                runtime_snapshot=runtime_snapshot,
-                execution_backend=self.execution_backend,
-                target_node_ids=self.target_node_ids,
-                recompute_mode=self.recompute_mode.value,
-                clicked_trigger_node_id=self.clicked_trigger_node_id,
-                trigger_publications=self.decode_trigger_publications(
-                    catalog=catalog
-                ),
-                trigger_captures=self.decode_trigger_captures(catalog=catalog),
-                developer_mode=self.developer_mode,
-                catalog_fingerprint=self.catalog_fingerprint,
-                catalog_revisions=self.catalog_revisions,
-                plugin_bundles=self.plugin_bundles,
-                plugin_fingerprint=self.plugin_fingerprint,
-                runtime_registry_fingerprint=self.runtime_registry_fingerprint,
-                registry_contract_fingerprint=self.registry_contract_fingerprint,
-                addon_runtime_config=self.addon_runtime_config,
-            ),
-            catalog=catalog,
-        )
-        command_payload.pop("type", None)
-        command_payload.pop("run_id", None)
-        for field_name in (
-            "preparation_id",
-            "solution_namespace_id",
-            "execution_affecting_workspace_revision",
-            "dispatch_runtime_generation",
-            "runtime_snapshot_fingerprint",
-            "execution_plan_fingerprint",
-            "workflow_interface_revision",
-            "workflow_interface_digest",
-            "execution_environment_digest",
-            "trigger_publication_generations",
-            "node_decisions",
-            "accepted_output_payloads",
-            "viewer_invalidation_node_ids",
-            "viewer_workspace_invalidation_epoch",
-            "viewer_node_invalidation_epochs",
-            "viewer_invalidation_reservation_id",
-            "viewer_epoch_snapshot_digest",
+        metadata = {
+            name: getattr(self, name) for name in RegistryAgreement.__dataclass_fields__
+        }
+        if agreement is None:
+            agreement = RegistryAgreement(**metadata)
+        elif type(agreement) is not RegistryAgreement or any(
+            value != getattr(agreement, name) for name, value in metadata.items()
         ):
-            command_payload.pop(field_name, None)
-        command_payload.update(
-            {
-                "project_id": self.project_id,
-                "trigger_capture_node_ids": list(self.trigger_capture_node_ids),
-                "recompute_mode": self.recompute_mode.value,
-            }
-        )
-        return command_payload
+            raise ValueError("registry agreement must match dispatch metadata")
+        if catalog is not None:
+            mismatch = catalog_mismatch_message(
+                agreement.catalog_fingerprint, agreement.catalog_revisions, catalog
+            )
+            if mismatch:
+                raise ValueError(mismatch)
+        for name in metadata:
+            object.__setattr__(self, name, getattr(agreement, name))
+        object.__setattr__(self, "_registry_agreement", agreement)
+
+    def _to_payload(self, *, catalog: DataTypeCatalog | None = None) -> dict[str, Any]:
+        return {
+            "project_path": self.project_path,
+            "project_id": self.project_id,
+            "workspace_id": self.workspace_id,
+            "trigger": _json_from_bytes(self.trigger, field_name="trigger"),
+            "runtime_snapshot": _json_from_bytes(
+                self.runtime_snapshot, field_name="runtime_snapshot"
+            ),
+            "execution_backend": self.execution_backend.to_payload(),
+            "target_node_ids": list(self.target_node_ids),
+            "clicked_trigger_node_id": self.clicked_trigger_node_id,
+            "trigger_capture_node_ids": list(self.trigger_capture_node_ids),
+            "trigger_publications": _json_from_bytes(
+                self.trigger_publications, field_name="trigger_publications"
+            ),
+            "trigger_captures": _json_from_bytes(
+                self.trigger_captures, field_name="trigger_captures"
+            ),
+            "recompute_mode": self.recompute_mode.value,
+            "developer_mode": self.developer_mode,
+            **self._registry_agreement.to_payload(),
+        }
 
     def decode_runtime_snapshot(
         self,
@@ -542,11 +513,8 @@ class PreparedDispatchEnvelope:
             field_name="trigger_captures",
         )
 
-    def to_payload(
-        self, *, catalog: DataTypeCatalog | None = None
-    ) -> dict[str, Any]:
-        payload = self._to_payload(catalog=catalog)
-        return self.from_payload(payload, catalog=catalog)._to_payload(catalog=catalog)
+    def to_payload(self, *, catalog: DataTypeCatalog | None = None) -> dict[str, Any]:
+        return self._to_payload(catalog=catalog)
 
     @classmethod
     def from_payload(
@@ -555,45 +523,21 @@ class PreparedDispatchEnvelope:
         *,
         catalog: DataTypeCatalog | None = None,
     ) -> PreparedDispatchEnvelope:
-        _exact_fields(payload, _DISPATCH_FIELDS, field_name="prepared dispatch envelope")
-        from ea_node_editor.execution.run_messages import StartRunCommand
-        from ea_node_editor.execution.protocol_codec import dict_to_command
-
-        command_payload = {
-            key: value
-            for key, value in payload.items()
-            if key not in {"project_id", "trigger_capture_node_ids"}
-        }
-        command_payload.update({"type": "start_run", "run_id": "prepared"})
-        command = dict_to_command(command_payload, catalog=catalog)
-        if not isinstance(command, StartRunCommand):
-            raise ValueError("prepared dispatch envelope must decode a start command")
-        return cls(
-            project_path=command.project_path,
-            project_id=payload["project_id"],
-            workspace_id=command.workspace_id,
-            trigger=command.trigger,
-            runtime_snapshot=_canonical_json_bytes(
-                payload["runtime_snapshot"],
-                field_name="runtime_snapshot",
-            ),
-            execution_backend=command.execution_backend,
-            target_node_ids=command.target_node_ids,
-            clicked_trigger_node_id=command.clicked_trigger_node_id,
-            trigger_capture_node_ids=payload["trigger_capture_node_ids"],
-            trigger_publications=command.trigger_publications,
-            trigger_captures=command.trigger_captures,
-            recompute_mode=payload["recompute_mode"],
-            developer_mode=command.developer_mode,
-            catalog_fingerprint=command.catalog_fingerprint,
-            catalog_revisions=command.catalog_revisions,
-            plugin_bundles=command.plugin_bundles,
-            plugin_fingerprint=command.plugin_fingerprint,
-            runtime_registry_fingerprint=command.runtime_registry_fingerprint,
-            registry_contract_fingerprint=command.registry_contract_fingerprint,
-            addon_runtime_config=command.addon_runtime_config,
-            catalog=catalog,
+        _exact_fields(
+            payload, _DISPATCH_FIELDS, field_name="prepared dispatch envelope"
         )
+        values = dict(payload)
+        for name in (
+            "runtime_snapshot",
+            "trigger",
+            "trigger_publications",
+            "trigger_captures",
+        ):
+            values[name] = _canonical_json_bytes(values[name], field_name=name)
+        values["execution_backend"] = decode_execution_backend(values)
+        values["catalog_revisions"] = tuple(values["catalog_revisions"])
+        values["plugin_bundles"] = tuple(values["plugin_bundles"])
+        return cls(**values, catalog=catalog)
 
 
 @dataclass(slots=True, frozen=True)
@@ -654,7 +598,7 @@ class PreparedNodeDecision:
         }
 
     def to_payload(self) -> dict[str, Any]:
-        return self.from_payload(self._to_payload())._to_payload()
+        return self._to_payload()
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> PreparedNodeDecision:
@@ -669,6 +613,7 @@ class AcceptedOutputPayload:
     result_digest identifies the complete record; output_digest authenticates
     the transferred mapping, which may be a port subset for READ_CURRENT.
     """
+
     node_id: str
     record_id: str
     solution_key: str
@@ -679,6 +624,9 @@ class AcceptedOutputPayload:
     outputs: Mapping[str, SettledPortResult] | bytes
     output_digest: str | None = None
     catalog: InitVar[DataTypeCatalog | None] = None
+    _output_count: int = field(init=False, repr=False, compare=False)
+    _commitment: str = field(init=False, repr=False, compare=False)
+    _encoded_size: int = field(init=False, repr=False, compare=False)
 
     def __post_init__(self, catalog: DataTypeCatalog | None) -> None:
         for field_name in ("node_id", "record_id"):
@@ -795,23 +743,40 @@ class AcceptedOutputPayload:
             _canonical_json_bytes(output_payload, field_name="accepted outputs"),
         )
 
+        object.__setattr__(self, "_output_count", len(output_payload))
+        metadata = {
+            item.name: getattr(self, item.name)
+            for item in fields(self)
+            if item.init and item.name != "outputs"
+        }
+        object.__setattr__(
+            self,
+            "_commitment",
+            hashlib.sha256(
+                _canonical_json_bytes(metadata, field_name="accepted output commitment")
+            ).hexdigest(),
+        )
+        object.__setattr__(
+            self,
+            "_encoded_size",
+            len(
+                _canonical_json_bytes(
+                    self._to_payload(), field_name="accepted output payload"
+                )
+            ),
+        )
+
     @property
     def output_count(self) -> int:
-        payload = _json_from_bytes(self.outputs, field_name="accepted outputs")
-        if not isinstance(payload, Mapping):
-            raise ValueError("accepted outputs must decode to a mapping")
-        return len(payload)
+        return self._output_count
+
+    @property
+    def encoded_size(self) -> int:
+        return self._encoded_size
 
     def commitment_digest(self) -> str:
-        """Bind output bytes and their identity, status, and lifetime metadata."""
-        metadata = {
-            field.name: getattr(self, field.name)
-            for field in fields(self)
-            if field.name != "outputs"
-        }
-        return hashlib.sha256(
-            _canonical_json_bytes(metadata, field_name="accepted output commitment")
-        ).hexdigest()
+        """Cached immutable status, identity and lifetime commitment."""
+        return self._commitment
 
     def select_ports(
         self,
@@ -863,9 +828,18 @@ class AcceptedOutputPayload:
             )
         )
 
-    def _to_payload(
-        self, *, catalog: DataTypeCatalog | None = None
-    ) -> dict[str, Any]:
+    def validate_for_catalog(self, catalog: DataTypeCatalog) -> None:
+        """Admit owned output bytes to a consumer's current frozen catalog."""
+        if not isinstance(catalog, DataTypeCatalog) or not catalog.is_frozen:
+            raise ValueError("accepted outputs require a frozen data-type catalog")
+        self.decode_outputs(catalog=catalog)
+        if self.residency is SolutionResidency.DURABLE:
+            _reject_durable_session_carriers(
+                _json_from_bytes(self.outputs, field_name="accepted outputs"),
+                catalog=catalog,
+            )
+
+    def _to_payload(self, *, catalog: DataTypeCatalog | None = None) -> dict[str, Any]:
         return {
             "node_id": self.node_id,
             "record_id": self.record_id,
@@ -881,11 +855,8 @@ class AcceptedOutputPayload:
             ),
         }
 
-    def to_payload(
-        self, *, catalog: DataTypeCatalog | None = None
-    ) -> dict[str, Any]:
-        payload = self._to_payload(catalog=catalog)
-        return self.from_payload(payload, catalog=catalog)._to_payload(catalog=catalog)
+    def to_payload(self, *, catalog: DataTypeCatalog | None = None) -> dict[str, Any]:
+        return self._to_payload(catalog=catalog)
 
     @classmethod
     def from_payload(
@@ -894,7 +865,9 @@ class AcceptedOutputPayload:
         *,
         catalog: DataTypeCatalog | None = None,
     ) -> AcceptedOutputPayload:
-        _exact_fields(payload, _ACCEPTED_OUTPUT_FIELDS, field_name="accepted output payload")
+        _exact_fields(
+            payload, _ACCEPTED_OUTPUT_FIELDS, field_name="accepted output payload"
+        )
         preflight_settled_output_mapping_payload(
             payload["outputs"],
             max_outputs=MAX_OUTPUTS_PER_NODE,
@@ -922,15 +895,16 @@ def validate_accepted_output_payload(
         or record.residency is not payload.residency
         or record.runtime_generation != payload.runtime_generation
     ):
-        raise ValueError("accepted output payload binding does not match solution record")
+        raise ValueError(
+            "accepted output payload binding does not match solution record"
+        )
     descriptor_statuses = {
         descriptor.port_key: descriptor.status
         for descriptor in record.output_descriptors
     }
     decoded_outputs = payload.decode_outputs(catalog=catalog)
     output_statuses = {
-        port_key: result.status
-        for port_key, result in decoded_outputs.items()
+        port_key: result.status for port_key, result in decoded_outputs.items()
     }
     if descriptor_statuses != output_statuses:
         raise ValueError(
@@ -963,7 +937,8 @@ def validate_current_output_payload(
     secrets, or session-bound typed snapshots after their producing run ends.
     This is a consumption check, not permission to persist the result.
     """
-    outputs = payload.to_payload(catalog=catalog)["outputs"]
+    payload.validate_for_catalog(catalog)
+    outputs = payload.to_payload()["outputs"]
     if not port_keys or (
         set(outputs) != set(port_keys)
         and not (payload.settlement_status == "empty" and not outputs)
@@ -993,12 +968,18 @@ class PreparedExecution:
     reused_node_ids: tuple[str, ...]
 
     def __post_init__(self) -> None:
+        for name in ("preparation_id", "solution_namespace_id"):
+            _bounded_catalog_text(
+                _text(getattr(self, name), field_name=name),
+                field_name=name,
+                max_length=1024,
+            )
         object.__setattr__(
             self,
             "preparation_id",
             _text(self.preparation_id, field_name="preparation_id"),
         )
-        if not isinstance(self.dispatch_envelope, PreparedDispatchEnvelope):
+        if type(self.dispatch_envelope) is not PreparedDispatchEnvelope:
             raise TypeError("dispatch_envelope must be a PreparedDispatchEnvelope")
         object.__setattr__(
             self,
@@ -1047,7 +1028,7 @@ class PreparedExecution:
                 f"node_decisions exceeds maximum count {MAX_PREPARED_NODES}"
             )
         decisions = tuple(self.node_decisions)
-        if any(not isinstance(item, PreparedNodeDecision) for item in decisions):
+        if any(type(item) is not PreparedNodeDecision for item in decisions):
             raise TypeError("node_decisions must contain PreparedNodeDecision values")
         node_ids = tuple(item.node_id for item in decisions)
         if len(node_ids) != len(set(node_ids)):
@@ -1066,7 +1047,7 @@ class PreparedExecution:
                 f"{MAX_ACCEPTED_NODE_PAYLOADS_PER_PREPARATION}"
             )
         accepted = tuple(self.accepted_output_payloads)
-        if any(not isinstance(item, AcceptedOutputPayload) for item in accepted):
+        if any(type(item) is not AcceptedOutputPayload for item in accepted):
             raise TypeError(
                 "accepted_output_payloads must contain AcceptedOutputPayload values"
             )
@@ -1089,6 +1070,16 @@ class PreparedExecution:
         if set(accepted_by_node) != reuse_node_ids:
             raise ValueError(
                 "accepted output payloads require exactly the matching reuse decisions"
+            )
+        encoded_bytes = (
+            len(b'{"accepted_output_payloads":[]}')
+            + sum(item.encoded_size for item in accepted)
+            + max(0, len(accepted) - 1)
+        )
+        if encoded_bytes > MAX_ACCEPTED_OUTPUT_PAYLOAD_BYTES:
+            raise ValueError(
+                "accepted_output_payloads exceeds maximum encoded size "
+                f"{MAX_ACCEPTED_OUTPUT_PAYLOAD_BYTES} bytes"
             )
         port_count = sum(item.output_count for item in accepted)
         if port_count > MAX_ACCEPTED_PORT_RESULTS_PER_PREPARATION:
@@ -1132,9 +1123,7 @@ class PreparedExecution:
         object.__setattr__(self, "recompute_node_ids", recompute)
         object.__setattr__(self, "reused_node_ids", reused)
 
-    def _to_payload(
-        self, *, catalog: DataTypeCatalog | None = None
-    ) -> dict[str, Any]:
+    def _to_payload(self, *, catalog: DataTypeCatalog | None = None) -> dict[str, Any]:
         return {
             "preparation_id": self.preparation_id,
             "dispatch_envelope": self.dispatch_envelope._to_payload(catalog=catalog),
@@ -1159,11 +1148,8 @@ class PreparedExecution:
             "reused_node_ids": list(self.reused_node_ids),
         }
 
-    def to_payload(
-        self, *, catalog: DataTypeCatalog | None = None
-    ) -> dict[str, Any]:
-        payload = self._to_payload(catalog=catalog)
-        return self.from_payload(payload, catalog=catalog)._to_payload(catalog=catalog)
+    def to_payload(self, *, catalog: DataTypeCatalog | None = None) -> dict[str, Any]:
+        return self._to_payload(catalog=catalog)
 
     @classmethod
     def from_payload(
@@ -1172,7 +1158,9 @@ class PreparedExecution:
         *,
         catalog: DataTypeCatalog | None = None,
     ) -> PreparedExecution:
-        _exact_fields(payload, _PREPARED_EXECUTION_FIELDS, field_name="prepared execution")
+        _exact_fields(
+            payload, _PREPARED_EXECUTION_FIELDS, field_name="prepared execution"
+        )
         raw_decisions = payload["node_decisions"]
         raw_accepted = payload["accepted_output_payloads"]
         if not isinstance(raw_decisions, (list, tuple)):
@@ -1314,7 +1302,7 @@ class InvalidationResult:
         }
 
     def to_payload(self) -> dict[str, Any]:
-        return self.from_payload(self._to_payload())._to_payload()
+        return self._to_payload()
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> InvalidationResult:
@@ -1380,7 +1368,7 @@ class SolutionStateChangedEvent:
         }
 
     def to_payload(self) -> dict[str, Any]:
-        return self.from_payload(self._to_payload())._to_payload()
+        return self._to_payload()
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> SolutionStateChangedEvent:
@@ -1393,11 +1381,16 @@ class SolutionStateChangedEvent:
 
 
 _DISPATCH_FIELDS = frozenset(PreparedDispatchEnvelope.__dataclass_fields__) - {
-    "catalog"
+    "catalog",
+    "agreement",
+    "_registry_agreement",
 }
 _DECISION_FIELDS = frozenset(PreparedNodeDecision.__dataclass_fields__)
 _ACCEPTED_OUTPUT_FIELDS = frozenset(AcceptedOutputPayload.__dataclass_fields__) - {
-    "catalog"
+    "catalog",
+    "_output_count",
+    "_commitment",
+    "_encoded_size",
 }
 _PREPARED_EXECUTION_FIELDS = frozenset(PreparedExecution.__dataclass_fields__)
 _INVALIDATION_FIELDS = frozenset(InvalidationResult.__dataclass_fields__)

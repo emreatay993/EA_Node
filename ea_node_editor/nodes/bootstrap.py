@@ -12,7 +12,7 @@ from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.settings import plugin_generations_dir, plugins_dir
 
 
-def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegistry:
+def _compose_builtin_registry(*, generation_root: Path | None = None) -> NodeRegistry:
     from ea_node_editor.nodes.builtin_catalog import register_builtin_catalog
 
     registry = NodeRegistry()
@@ -20,6 +20,11 @@ def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegist
         registry,
         generation_root=generation_root or plugin_generations_dir(),
     )
+    return registry
+
+
+def build_builtin_registry(*, generation_root: Path | None = None) -> NodeRegistry:
+    registry = _compose_builtin_registry(generation_root=generation_root)
     registry.freeze()
     return registry
 
@@ -40,7 +45,7 @@ def _build_trusted_registry(
     )
 
     resolved_generation_root = generation_root or plugin_generations_dir()
-    registry = build_builtin_registry(generation_root=resolved_generation_root)
+    registry = _compose_builtin_registry(generation_root=resolved_generation_root)
     registrations = registered_addon_registrations()
     if addon_runtime_config is None:
         from ea_node_editor.app_preferences import (

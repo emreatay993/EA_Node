@@ -16,7 +16,6 @@ from ea_node_editor.nodes.builtins.spatial_values import (
 )
 from ea_node_editor.nodes.builtins.viewer_viewport import (
     CONSTRUCT_VIEW_TYPE_ID,
-    DECONSTRUCT_VIEW_TYPE_ID,
     DEFAULT_CAMERA_POSITION,
     DEFAULT_CAMERA_TARGET,
     DEFAULT_CAMERA_UP_VECTOR,
@@ -302,11 +301,11 @@ def test_construct_defaults_are_hidden_same_key_item_properties() -> None:
         for port, prop in zip(inputs, construct.properties, strict=True)
     )
     properties = {prop.key: prop for prop in construct.properties}
-    assert properties["camera_position"].default == DEFAULT_CAMERA_POSITION
-    assert properties["camera_target"].default == DEFAULT_CAMERA_TARGET
-    assert properties["camera_up_vector"].default == DEFAULT_CAMERA_UP_VECTOR
+    assert properties["camera_position"].make_default() == DEFAULT_CAMERA_POSITION
+    assert properties["camera_target"].make_default() == DEFAULT_CAMERA_TARGET
+    assert properties["camera_up_vector"].make_default() == DEFAULT_CAMERA_UP_VECTOR
     assert all(
-        type(properties[key].default) is TypedInlineValue
+        type(properties[key].make_default()) is TypedInlineValue
         for key in ("camera_position", "camera_target", "camera_up_vector")
     )
     assert (

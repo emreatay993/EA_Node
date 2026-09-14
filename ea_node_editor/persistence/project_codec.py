@@ -912,7 +912,7 @@ class JsonProjectCodec:
             return
         if surface_title_property is not None:
             node.title = str(
-                node.properties.get("title", surface_title_property.default)
+                node.properties.get("title", surface_title_property.make_default())
             ).strip()
         workspace.nodes[node.node_id] = node
 

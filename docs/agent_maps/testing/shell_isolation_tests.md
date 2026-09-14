@@ -13,6 +13,7 @@ Use this for shell-backed workflows that need process isolation, shell target ca
 
 ## Common Changes
 - Add shell-backed targets to manifest-owned shell isolation catalogs.
+- Execution responsiveness adds two isolated controller targets for GUI heartbeat/Stop during blocked preparation and retained plot-editor identity. `tests/shell_isolation_controller_targets.py` and the manifest own these targets together. Test fixture declarations are staged in mutable forks and published through the existing shell registry transaction.
 - T25 owns an exact retained target-ID set without a target-count assertion: six lifecycle groups, one visible-recovery lifecycle scenario, and 42 other integration targets (28 main-window plus 14 script/project targets). Direct bridge, frame-rate, mutation-effect, run-event, and recent-project tests collect outside shell isolation; real composition/context, native parenting, repeated mount/close, project reset/timer cancellation, fullscreen/media handoff, viewer reparent/restore, and deterministic teardown remain grouped in serial child commands.
 - Keep catalog IDs unique and pairwise disjoint. Every pytest child command includes `-n 0`; the outer full shell-isolation phase remains capped at four workers and each target keeps the manifest-owned 360-second hard child timeout.
 - `MainWindowShellTestBase` owns shared full-shell QML traversal and Inspector lookup. Image and PDF subclasses retain ownership of their QML reference lists and teardown.

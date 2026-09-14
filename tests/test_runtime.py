@@ -37,6 +37,7 @@ from ea_node_editor.execution.viewer_messages import (
 from ea_node_editor.execution.protocol_codec import (
     command_to_dict,
 )
+from ea_node_editor.execution.prepared_dispatch import PreparedRunDispatch
 from ea_node_editor.execution.runtime import CorexRuntime
 from ea_node_editor.execution.runtime_requests import ExecutionRequest
 from ea_node_editor.execution.prepared_execution import (
@@ -349,6 +350,8 @@ class _PreparedClient:
         )
 
     def start_reserved_run(self, reservation, command):  # noqa: ANN001, ANN201
+        if type(command) is PreparedRunDispatch:
+            command = command.materialize(self.registry.data_types)
         self.operations.append("start_reserved_run")
         self.commands.append(command)
         if self.raise_on_start:
@@ -1485,7 +1488,7 @@ def test_passive_flow_cycle_compiles_out_of_invalidation_and_preparation() -> No
 
 
 def test_headless_boundaries_compile_once_and_preserve_authored_snapshot() -> None:
-    import ea_node_editor.execution.runtime as runtime_module
+    import ea_node_editor.execution.compiled_snapshot_cache as runtime_module
 
     runtime, _client, registry, model, workspace, node, snapshot = (
         _runtime_with_constant()
@@ -1527,7 +1530,7 @@ def test_headless_boundaries_compile_once_and_preserve_authored_snapshot() -> No
             )
 
             assert runtime.dispatch_prepared(prepared) == "run_1"
-            assert compile_mock.call_count == 2
+            assert compile_mock.call_count == 1
             invalidated = runtime.invalidate_solution(
                 model.project.project_id,
                 workspace.workspace_id,
@@ -1536,7 +1539,7 @@ def test_headless_boundaries_compile_once_and_preserve_authored_snapshot() -> No
                 "graph_changed",
             )
             assert invalidated.expired_node_ids == (node.node_id,)
-            assert compile_mock.call_count == 3
+            assert compile_mock.call_count == 1
     finally:
         runtime.shutdown()
 
@@ -1760,7 +1763,7 @@ def test_generation_replacement_evicts_records_and_project_reset_replaces_namesp
     assert runtime.solution_facts(model.project.project_id, workspace.workspace_id) == ()
 
 
-def test_invalidation_holds_lifecycle_through_plan_and_store(
+def test_reset_during_invalidation_discards_obsolete_plan(
     monkeypatch,
 ) -> None:  # noqa: ANN001
     import ea_node_editor.execution.runtime as runtime_module
@@ -1810,12 +1813,15 @@ def test_invalidation_holds_lifecycle_through_plan_and_store(
 
     replacer = threading.Thread(target=reset)
     replacer.start()
-    assert not reset_finished.wait(0.1)
-    release_plan.set()
+    try:
+        assert reset_finished.wait(5.0)
+    finally:
+        release_plan.set()
     invalidator.join(5.0)
     replacer.join(5.0)
     assert not invalidator.is_alive() and not replacer.is_alive()
-    assert errors == []
+    assert len(errors) == 1
+    assert "project_or_registry_changed" in str(errors[0])
     assert runtime.solution_facts(
         model.project.project_id,
         workspace.workspace_id,

@@ -24,8 +24,7 @@ QtObject {
         ? facts.stateBridge.completed_node_lookup
         : ({})
     readonly property var warningNodeLookup: facts.stateBridge
-        && typeof facts.stateBridge.warning_node_lookup !== "undefined"
-        ? facts.stateBridge.warning_node_lookup
+        ? (facts.stateBridge.warning_node_lookup || ({}))
         : ({})
     readonly property var runningNodeStartedAtMsLookup: facts.stateBridge
         ? facts.stateBridge.running_node_started_at_ms_lookup
@@ -34,8 +33,7 @@ QtObject {
         ? facts.stateBridge.node_elapsed_ms_lookup
         : ({})
     readonly property var nodeRunCountLookup: facts.stateBridge
-        && typeof facts.stateBridge.node_run_count_lookup !== "undefined"
-        ? facts.stateBridge.node_run_count_lookup
+        ? (facts.stateBridge.node_run_count_lookup || ({}))
         : ({})
     // The single normalization point for the elapsed-time unit preference.
     readonly property string nodeElapsedTimeUnit: facts.stateBridge
@@ -43,32 +41,25 @@ QtObject {
         ? (String(facts.stateBridge.graphics_node_elapsed_time_unit || "seconds").toLowerCase().trim() || "seconds")
         : "seconds"
     readonly property var freshRunNodeLookup: facts.stateBridge
-        && typeof facts.stateBridge.fresh_run_node_lookup !== "undefined"
-        ? facts.stateBridge.fresh_run_node_lookup
+        ? (facts.stateBridge.fresh_run_node_lookup || ({}))
         : ({})
     readonly property var nodeSolutionFreshnessLookup: facts.stateBridge
-        && typeof facts.stateBridge.node_solution_freshness_lookup !== "undefined"
-        ? facts.stateBridge.node_solution_freshness_lookup
+        ? (facts.stateBridge.node_solution_freshness_lookup || ({}))
         : ({})
     readonly property var propertyPresentationLookup: facts.stateBridge
-        && typeof facts.stateBridge.property_presentation_lookup !== "undefined"
-        ? facts.stateBridge.property_presentation_lookup
+        ? (facts.stateBridge.property_presentation_lookup || ({}))
         : ({})
     readonly property var portFlowStateLookup: facts.stateBridge
-        && typeof facts.stateBridge.port_flow_state_lookup !== "undefined"
-        ? facts.stateBridge.port_flow_state_lookup
+        ? (facts.stateBridge.port_flow_state_lookup || ({}))
         : ({})
     readonly property var portValuePreviewLookup: facts.stateBridge
-        && typeof facts.stateBridge.port_value_preview_lookup !== "undefined"
-        ? facts.stateBridge.port_value_preview_lookup
+        ? (facts.stateBridge.port_value_preview_lookup || ({}))
         : ({})
     readonly property var nodeDiagnosticLookup: facts.stateBridge
-        && typeof facts.stateBridge.node_diagnostic_lookup !== "undefined"
-        ? facts.stateBridge.node_diagnostic_lookup
+        ? (facts.stateBridge.node_diagnostic_lookup || ({}))
         : ({})
     readonly property var mediaPanelSourceLookup: facts.stateBridge
-        && typeof facts.stateBridge.media_panel_source_lookup !== "undefined"
-        ? facts.stateBridge.media_panel_source_lookup
+        ? (facts.stateBridge.media_panel_source_lookup || ({}))
         : ({})
     readonly property int nodeExecutionRevision: facts.stateBridge
         ? Number(facts.stateBridge.node_execution_revision)

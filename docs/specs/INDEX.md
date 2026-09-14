@@ -43,6 +43,7 @@ These rows summarize whole-capability status. `PARTIAL` means accepted backend a
 
 ### Implemented Features With Remaining Acceptance Checks
 
+- [Execution Responsiveness and Startup](../PLAN_COREX_EXECUTION_RESPONSIVENESS.md) — `IN PROGRESS — PERFORMANCE ACCEPTANCE NOT MET`; [implementation and verification evidence](perf/COREX_EXECUTION_RESPONSIVENESS_QA.md).
 - [Unified Canvas Paste and Drop](../PLAN_COREX_CANVAS_IMPORT.md) — `IMPLEMENTATION COMPLETE; NATIVE DRAG ACCEPTANCE PENDING`; shared mapping, chooser and persistent preference implemented; focused, integration and desktop evidence recorded with remaining limitations.
 
 ### Completed Semantic-Type Architecture and Evidence

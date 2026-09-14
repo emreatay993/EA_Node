@@ -48,7 +48,7 @@ def test_boolean_toggle_contract_and_runtime() -> None:
         BOOLEAN_DATA_TYPE_ID,
         "tree",
     )
-    assert (prop.key, prop.type, prop.default, prop.inline_editor, prop.inspector_editor) == (
+    assert (prop.key, prop.type, prop.make_default(), prop.inline_editor, prop.inspector_editor) == (
         "value",
         "bool",
         False,

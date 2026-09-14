@@ -1194,13 +1194,13 @@ def _sensitive_scope_updates(
             None,
         )
         current_scope = (
-            node.properties.get(scope_key, scope_spec.default)
+            node.properties.get(scope_key, scope_spec.make_default())
             if scope_spec is not None
             else None
         )
         if current_scope == expanded[scope_key]:
             continue
-        protected_value = node.properties.get(property_spec.key, property_spec.default)
+        protected_value = node.properties.get(property_spec.key, property_spec.make_default())
         if not _protected_value_is_set(protected_value):
             continue
         expanded[property_spec.key] = reprotect_secret(
@@ -1250,7 +1250,7 @@ def set_node_secret(
             None,
         )
         if scope_spec is not None:
-            scope = str(node.properties.get(scope_key, scope_spec.default))
+            scope = str(node.properties.get(scope_key, scope_spec.make_default()))
     protected_value = protect_secret(normalized_plaintext, scope)
     normalized = registry.normalize_property_value(
         node.type_id,
@@ -1301,13 +1301,13 @@ def clear_node_secret(self, node_id: str, key: str) -> bool:
     )
     if property_spec is None or not bool(getattr(property_spec, "sensitive", False)):
         return False
-    current_value = node.properties.get(property_spec.key, property_spec.default)
+    current_value = node.properties.get(property_spec.key, property_spec.make_default())
     if not _protected_value_is_set(current_value):
         return False
     normalized = registry.normalize_property_value(
         node.type_id,
         property_spec.key,
-        copy.deepcopy(property_spec.default),
+        property_spec.make_default(),
     )
     history_before = self._capture_history_snapshot()
     before_node = node.clone()

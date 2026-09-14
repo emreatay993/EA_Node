@@ -4,25 +4,13 @@ import copy
 import io
 import json
 import queue
-import threading
-import time
 import unittest
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from unittest.mock import patch
 
-from ea_node_editor.execution.external_python_client import ExternalPythonExecutionClient
-from ea_node_editor.execution.process_client import ProcessExecutionClient
-from ea_node_editor.execution.trusted_client import TrustedInProcessExecutionClient
 from ea_node_editor.execution.run_messages import (
-    CancelRunPreflightCommand,
-    CommitRunPreflightCommand,
     NodeSettledEvent,
     ProtocolErrorEvent,
-    RunCompletedEvent,
-    RunFailedEvent,
-    RunPreflightAcceptedEvent,
-    RunStateEvent,
-    RunStoppedEvent,
     ShutdownCommand,
     StartRunCommand,
 )
@@ -34,8 +22,6 @@ from ea_node_editor.execution.registry_agreement import (
 )
 from ea_node_editor.execution.viewer_messages import (
     OpenViewerSessionCommand,
-    QueryViewerSessionCommand,
-    viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.execution.protocol_codec import (
     command_to_dict,
@@ -43,24 +29,16 @@ from ea_node_editor.execution.protocol_codec import (
     dict_to_event,
     event_to_dict,
 )
-from ea_node_editor.execution.prepared_execution import (
-    AcceptedOutputPayload,
-    PreparedAction,
-    PreparedNodeDecision,
-)
 from ea_node_editor.runtime_contracts.settled_results import (
-    RootExecutionError,
     SettledPortResult,
 )
 from ea_node_editor.execution.runtime_dto import (
-    RuntimeEdge,
     RuntimeNode,
     RuntimeWorkspace,
 )
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
 from ea_node_editor.execution.stdio_worker import main as stdio_worker_main
-from ea_node_editor.execution.worker_protocol import decode_command_payload, emit
-from ea_node_editor.execution.worker_runner import RunControl
+from ea_node_editor.execution.worker_protocol import decode_command_payload
 from ea_node_editor.execution.worker_runtime import (
     DEFAULT_RUNTIME_PREPARATION_CACHE,
 )
@@ -79,7 +57,6 @@ from ea_node_editor.runtime_contracts import (
     TabularDataRef,
 )
 from ea_node_editor.runtime_contracts.data_types import MAX_PAYLOAD_SCHEMA_VERSION
-from ea_node_editor.runtime_contracts.solution_records import SolutionResidency
 
 
 @dataclass
@@ -517,7 +494,7 @@ class RegistryAgreementTests(unittest.TestCase):
     def test_malformed_catalog_revision_rejects_before_diagnostic_rendering(
         self,
     ) -> None:
-        malformed = CatalogRevisionRecord(
+        malformed = dict(
             kind="type",
             identity="Tests.InvalidSchema",
             payload_schema_version=MAX_PAYLOAD_SCHEMA_VERSION + 1,
@@ -526,6 +503,8 @@ class RegistryAgreementTests(unittest.TestCase):
             owner_version="1",
             semantic_digest="e" * 64,
         )
+        with self.assertRaises(ValueError):
+            CatalogRevisionRecord(**malformed)
         worker_catalog = DataTypeCatalog()
         worker_catalog.freeze()
 
@@ -740,7 +719,7 @@ class RegistryAgreementTests(unittest.TestCase):
         event_queue: queue.Queue = queue.Queue()
 
         with patch(
-            "ea_node_editor.execution.worker_protocol.dict_to_command"
+            "ea_node_editor.execution.protocol_codec.coerce_runtime_snapshot"
         ) as decode:
             command = decode_command_payload(
                 payload,
@@ -789,7 +768,7 @@ class RegistryAgreementTests(unittest.TestCase):
         event_queue: queue.Queue = queue.Queue()
 
         with patch(
-            "ea_node_editor.execution.worker_protocol.dict_to_command"
+            "ea_node_editor.execution.protocol_codec.coerce_runtime_snapshot"
         ) as decode:
             command = decode_command_payload(
                 payload,

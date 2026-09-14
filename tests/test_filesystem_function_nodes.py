@@ -64,16 +64,16 @@ def test_filesystem_declarations_have_exact_contract() -> None:
     )
 
     props = {type_id: {prop.key: prop for prop in spec.properties} for type_id, spec in specs.items()}
-    assert props["io.contents_in_directory"]["directory"].default == ""
-    assert props["io.contents_in_directory"]["search_pattern"].default == "*"
+    assert props["io.contents_in_directory"]["directory"].make_default() == ""
+    assert props["io.contents_in_directory"]["search_pattern"].make_default() == "*"
     depth = props["io.contents_in_directory"]["subdirectory_levels"]
-    assert (depth.default, depth.minimum, depth.maximum, depth.step, depth.inline_editor) == (0, 0, 10, 1, "slider")
+    assert (depth.make_default(), depth.minimum, depth.maximum, depth.step, depth.inline_editor) == (0, 0, 10, 1, "slider")
     content = props["io.contents_in_directory"]["content_type"]
-    assert (content.default, content.enum_values, content.enum_codes, content.inline_editor) == (0, ("Files", "Directories", "Files and Directories"), (0, 1, 2), "enum")
+    assert (content.make_default(), content.enum_values, content.enum_codes, content.inline_editor) == (0, ("Files", "Directories", "Files and Directories"), (0, 1, 2), "enum")
     mode = props["io.move_file"]["operation_mode"]
-    assert (mode.default, mode.enum_values, mode.enum_codes, mode.inline_editor) == (0, ("Copy", "Move"), (0, 1), "enum")
-    assert props["io.create_directory"]["create_recursive"].default is False
-    assert props["io.move_file"]["overwrite_target_file"].default is False
+    assert (mode.make_default(), mode.enum_values, mode.enum_codes, mode.inline_editor) == (0, ("Copy", "Move"), (0, 1), "enum")
+    assert props["io.create_directory"]["create_recursive"].make_default() is False
+    assert props["io.move_file"]["overwrite_target_file"].make_default() is False
     assert next(
         port
         for port in specs["io.construct_file_path"].ports

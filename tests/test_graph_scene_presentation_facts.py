@@ -355,7 +355,7 @@ def test_grouped_node_width_measures_only_visible_rows() -> None:
         spec,
         ports=tuple(replace(port, label=long_label) if port.key == "font_size" else port for port in spec.ports),
         properties=tuple(
-            replace(prop, type="enum", inline_editor="enum", enum_values=(long_label,))
+            prop.with_changes(type="enum", inline_editor="enum", enum_values=(long_label,))
             if prop.key == "font_size" else prop for prop in spec.properties
         ),
     )
@@ -373,8 +373,9 @@ def test_grouped_node_width_measures_only_visible_rows() -> None:
 
 @pytest.mark.parametrize("type_id", ["plot.signal", "core.logger", "core.if", "tests.settings_group_projection"])
 def test_ordinary_nodes_fit_contents_despite_saved_dimensions(type_id: str) -> None:
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     registry.register(_SettingsGroupProjectionNode)
+    registry.freeze()
     model = GraphModel()
     workspace = model.active_workspace
     node = model.add_node(workspace.workspace_id, type_id, "Content sizing", 40, 60)
@@ -412,8 +413,9 @@ def test_ordinary_nodes_fit_contents_despite_saved_dimensions(type_id: str) -> N
 
 @pytest.mark.parametrize("type_id", ["plot.signal", "tests.settings_group_projection"])
 def test_keep_expanded_width_uses_full_settings_metrics_in_all_payload_paths(type_id: str) -> None:
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     registry.register(_SettingsGroupProjectionNode)
+    registry.freeze()
     model = GraphModel()
     workspace = model.active_workspace
     node = model.add_node(
@@ -480,8 +482,9 @@ def test_dedicated_surfaces_preserve_manual_dimensions(type_id: str) -> None:
 
 
 def _settings_group_scene(*, expanded_group_ids: tuple[str, ...] = ()):
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     registry.register(_SettingsGroupProjectionNode)
+    registry.freeze()
     model = GraphModel()
     workspace = model.active_workspace
     source = model.add_node(workspace.workspace_id, "core.python_script", "Source", 0.0, 0.0)
@@ -739,8 +742,9 @@ def test_property_default_projects_on_the_input_and_is_removed_from_body_rows() 
 
 
 def test_common_property_projection_covers_ordinary_grouped_and_default_rows() -> None:
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     registry.register(_DeclarativePropertyProjectionNode)
+    registry.freeze()
     model = GraphModel()
     workspace = model.active_workspace
     node = model.add_node(
@@ -846,8 +850,9 @@ def test_common_property_projection_covers_ordinary_grouped_and_default_rows() -
 
 
 def test_disabled_edge_does_not_override_and_disconnect_restores_authored_condition_value() -> None:
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     registry.register(_DeclarativePropertyProjectionNode)
+    registry.freeze()
     model = GraphModel()
     workspace = model.active_workspace
     mutations = model.validated_mutations(workspace.workspace_id, registry)
@@ -904,8 +909,9 @@ def test_disabled_edge_does_not_override_and_disconnect_restores_authored_condit
 
 
 def test_upstream_interval_display_refresh_never_mutates_authored_serialization() -> None:
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     registry.register(_DeclarativePropertyProjectionNode)
+    registry.freeze()
     model = GraphModel()
     workspace = model.active_workspace
     source = model.add_node(
@@ -994,8 +1000,9 @@ def test_upstream_interval_display_refresh_never_mutates_authored_serialization(
 
 
 def test_direct_ports_payload_fallback_uses_enabled_edge_projection() -> None:
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     registry.register(_DeclarativePropertyProjectionNode)
+    registry.freeze()
     model = GraphModel()
     workspace = model.active_workspace
     source = model.add_node(

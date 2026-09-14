@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from tests.repo_owned_catalog_fixture import catalog_value
+
 import json
 import multiprocessing
 from pathlib import Path
@@ -541,7 +542,7 @@ def test_ssh_sftp_function_specs_match_pre_cutover_golden_exactly() -> None:
     }
 
     assert {
-        spec.type_id: json.loads(json.dumps(asdict(spec))) for spec in _specs()
+        spec.type_id: catalog_value(spec) for spec in _specs()
     } == expected
 
 
@@ -550,12 +551,12 @@ def test_ssh_sftp_properties_and_typed_credential_boundaries() -> None:
 
     secret_properties = {prop.key: prop for prop in specs["ssh_sftp.secret"].properties}
     value = secret_properties["protected_value"]
-    assert (value.type, value.default, value.label) == ("json", {}, "Value")
+    assert (value.type, value.make_default(), value.label) == ("json", {}, "Value")
     assert (value.inline_editor, value.inspector_editor) == ("secret", "secret")
     assert value.sensitive is True
     assert value.sensitive_scope_key == "data_protection_scope"
     scope = secret_properties["data_protection_scope"]
-    assert (scope.type, scope.default, scope.label) == (
+    assert (scope.type, scope.make_default(), scope.label) == (
         "enum",
         "Current user",
         "Data Protection Scope",
@@ -565,9 +566,9 @@ def test_ssh_sftp_properties_and_typed_credential_boundaries() -> None:
 
     host = specs["ssh_sftp.host"]
     host_properties = {prop.key: prop for prop in host.properties}
-    assert (host_properties["port"].type, host_properties["port"].default) == ("int", 22)
-    assert host_properties["use_openssh_agent"].default is False
-    assert host_properties["use_pageant"].default is False
+    assert (host_properties["port"].type, host_properties["port"].make_default()) == ("int", 22)
+    assert host_properties["use_openssh_agent"].make_default() is False
+    assert host_properties["use_pageant"].make_default() is False
     host_ports = {port.key: port for port in host.ports}
     assert host_ports["password"].data_type == ssh_sftp.SSH_SFTP_SECRET_DATA_TYPE_ID
     assert host_ports["password"].accepted_data_types == ()
@@ -582,7 +583,7 @@ def test_ssh_sftp_properties_and_typed_credential_boundaries() -> None:
     )
 
     script_property = specs["ssh_sftp.run_script"].properties[0]
-    assert (script_property.key, script_property.type, script_property.default) == (
+    assert (script_property.key, script_property.type, script_property.make_default()) == (
         "interpreter",
         "enum",
         "Bash",
@@ -593,7 +594,7 @@ def test_ssh_sftp_properties_and_typed_credential_boundaries() -> None:
     for type_id in ("ssh_sftp.upload", "ssh_sftp.download"):
         overwrite = specs[type_id].properties
         assert len(overwrite) == 1
-        assert (overwrite[0].key, overwrite[0].type, overwrite[0].default) == (
+        assert (overwrite[0].key, overwrite[0].type, overwrite[0].make_default()) == (
             "overwrite",
             "bool",
             False,

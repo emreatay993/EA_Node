@@ -14,6 +14,7 @@ Use this for node definitions, registry validation, built-in node families, data
 - `node registry builtins`
 
 ## Start Here
+- `ea_node_editor/nodes/property_defaults.py` — immutable default templates and independent native materialization
 - `corex/__init__.py`
 - `ea_node_editor/nodes/bootstrap.py`
 - `ea_node_editor/nodes/registry.py`
@@ -96,6 +97,8 @@ Use this for node definitions, registry validation, built-in node families, data
   function fingerprint serialization; public plugin callback rejection remains.
 
 ## Boundaries
+- Registry builders return fully frozen registries. Use `NodeRegistry.fork()` for mutable staging, then freeze before publication; every registration/configuration mutator rejects a frozen registry before doing work. Bootstrap composes all contributions before its final freeze. Worker function reconstruction uses an explicit mutable staging registry.
+- `PropertySpec` captures defaults without mutable aliases. Read them with `make_default()` and copy declarations with `with_changes(...)`; `contract_values()` preserves the original semantic fields for fingerprints/catalogue projection. `property_defaults.py` preserves list/tuple/mapping kinds and reconstructs supported semantic records, including detached inline payloads. Artifact manifest metadata is read-only. Catalogue snapshots and fingerprints are computed once at freeze.
 - Register built-ins through `build_builtin_registry()`; do not mutate catalog internals.
 - Keep `corex/` dependency-free and normalize its static declarations into the existing registry/presentation model; do not import public plugin source in GUI discovery.
 - Keep public function entries non-constructible through `NodeRegistry.create()` so trusted in-process execution cannot acquire their callable.

@@ -131,9 +131,10 @@ class _CompileWireNode:
 
 
 def _build_registry() -> NodeRegistry:
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     registry.register(_FlowEdgeLabelNode)
     registry.register(_CompileWireNode)
+    registry.freeze()
     return registry
 
 
@@ -528,8 +529,9 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     return NodeResult(outputs={})
 
             def build_registry() -> NodeRegistry:
-                registry = build_default_registry()
+                registry = build_default_registry().fork()
                 registry.register(_FlowEdgeLabelProbeNode)
+                registry.freeze()
                 return registry
 
             def to_variant(value):
@@ -625,8 +627,9 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     return NodeResult(outputs={})
 
             def build_registry():
-                registry = build_default_registry()
+                registry = build_default_registry().fork()
                 registry.register(_FlowEdgeLabelProbeNode)
+                registry.freeze()
                 return registry
 
             def named_child_items(root, object_name):

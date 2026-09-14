@@ -14,6 +14,15 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `optimization design handle`
 
 ## Start Here
+- `ea_node_editor/execution/environment_identity.py` — read-only built-in environment memo shared by preview and reservation; external probes stay on demand
+- `ea_node_editor/execution/generation_messages.py` and `ea_node_editor/execution/generation_readiness.py` — complete registry agreement command, correlated readiness and physical-generation retirement
+- `tests/test_generation_readiness.py` — startup side effects, immediate Run, cancellation, failure and restart checks
+- `ea_node_editor/execution/request_capture.py` — detached requests and submission-time solution-state commitments
+- `ea_node_editor/execution/preparation_service.py` — execution candidate computation outside lifecycle locks
+- `ea_node_editor/execution/submission_service.py` — one Qt-free executor, submission identities, ordered admission and cancellation
+- `ea_node_editor/execution/compiled_snapshot_cache.py` — bounded host/worker compilation reuse by full authored snapshot and registry identity
+- `tests/test_execution_submission.py` — barrier-controlled preparation, dispatch, cancellation and cache ownership checks
+- `ea_node_editor/execution/prepared_dispatch.py` — sealed preparation/reservation projection, detached DTOs and explicit catalog consumption checks
 - `ea_node_editor/execution/runtime_snapshot.py`
 - `ea_node_editor/execution/runtime_snapshot_assembly.py`
 - `ea_node_editor/execution/runtime_dto.py`
@@ -98,6 +107,12 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `ea_node_editor/ui_qml/` until execution contract changes are understood.
 
 ## Common Changes
+
+- Built-in readiness initializes worker declarations and authoritative build/environment identities without a workflow snapshot or node execution. `CorexRuntime.warm_up_builtin_generation()` shares the preparation executor; current-generation on-demand preparation uses the same handshake. Exact locally verified trusted declarations are reused while generation bytes are still verified and implementation imports remain lazy. Worker readiness is correlated by request and physical generation; replacement, death and shutdown retire pending replies. Environment previews memoize immutable digests without publishing client state. Build identity retains all file-integrity checks, bounds reads by the admitted size, and serializes first computation across host threads.
+
+- `CorexRuntime` captures request/registry/project/solution references, delegates candidate computation to `ExecutionPreparationService`, and registers only after revalidating captured state. `SolutionStore` gives one dispatcher a preparation claim; duplicate or altered requests cannot release its owner. Reservation, retirement and wire work run outside the lifecycle lock, followed by final guarded acceptance. `ExecutionSubmissionService` publishes correlated admission before any worker events and orders cancellation after an admitted StartRun write. Shutdown can cancel immediately and queue cleanup without waiting on preparation. The shared compiled-snapshot cache retains at most two entries and 64 MiB of encoded snapshots per host/worker; each consumer owns its mutable workspace DTO.
+
+- `RegistryAgreement` owns validated immutable metadata for a complete registry generation. Catalog revision records validate at construction; matching fingerprints still require a frozen catalog and validated peer records. Prepared values project directly without encode/decode self-checks; constructors enforce aggregate budgets and bindings. `PreparedRunDispatch` adds reservation identity, session-generation matching and normalized viewer epochs; process/stdio send its complete wire projection, while trusted execution receives a detached DTO. Raw commands retain complete admission, with catalog mismatch distinguished before carrier decoding. `tests/test_prepared_dispatch.py` proves wire parity, detached projections, single raw catalog admission and negative consumption/generation/subclass cases.
 
 - `graph_changes.py` owns computational before/after snapshot comparison. A raw authored-state shortcut avoids resolving unchanged invalid nodes; changed properties use `NodeRegistry.execution_properties` plus resolved contracts before skipping compilation. Compiled per-node interfaces, incoming edges, and hidden links determine roots; grouping-preserving edits stay current. Conservative fallback excludes compile-only roots and retains a successful after projection.
 - `PropertySpec.affects_execution=False` excludes only declared presentation properties from both invalidation and solution keys. Full snapshots and worker attestation retain them. Solution-key schema 4 and workflow-interface revision 4 bind the new semantics, including `allow_empty_string`. `tests/test_execution_graph_changes.py` and `tests/test_execution_property_contract.py` own the contract regressions.
@@ -227,3 +242,4 @@ Update when runtime DTOs, prepared-execution contracts, shared plan topology/fin
 ## 2026-07-11 Performance Ownership
 
 - `execution/compiler.py` reuses one invariant kernel and validation memo per compilation pass while preserving runtime DTO/compiler output. Runtime-snapshot DTO/copy redesign remains outside this performance program.
+- `execution/compiled_snapshot_cache.py` owns bounded compiled-snapshot reuse by the full authored payload and registry identity. The canonical dispatch fingerprint is computed lazily from the validated encoded snapshot and shared by the entry's consumers; invalidation does not compute an unused dispatch commitment.

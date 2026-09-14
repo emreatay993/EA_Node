@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 import gc
 import os
 from pathlib import Path
@@ -7,7 +8,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from PyQt6.QtCore import QEvent, QObject, Qt
+from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QApplication, QWidget
@@ -28,19 +29,47 @@ from ea_node_editor.telemetry.frame_rate import FrameRateSampler
 from ea_node_editor.ui.shell.window import ShellWindow
 from scripts import verification_manifest as manifest
 from tests.conftest import ShellTestEnvironment
+from tests.queued_submission_support import QueuedSubmissionDriver
 
 
 class _ShellTestExecutionClient:
     def __init__(self, registry: object | None = None) -> None:
         self._callbacks: list[object] = []
+        self._submissions = QueuedSubmissionDriver(
+            schedule=lambda callback: QTimer.singleShot(0, callback),
+            prepare=lambda request: self.prepare_execution(request),
+            dispatch=lambda prepared: self.dispatch_prepared(prepared),
+            publish=self._publish, stop=lambda run_id: self.stop_run(run_id),
+        )
         self._registry = registry
         self._solution_revisions: dict[str, int] = {}
         self._solution_node_ids_by_workspace: dict[str, set[str]] = {}
         self._project_solution_binding_revision = 0
         self._project_solution_save_contexts: dict[str, dict[str, object]] = {}
 
-    def subscribe(self, callback) -> None:  # noqa: ANN001
+    def subscribe(self, callback):  # noqa: ANN001, ANN201
         self._callbacks.append(callback)
+        return lambda: self._callbacks.remove(callback) if callback in self._callbacks else None
+
+    def _publish(self, event):
+        for callback in tuple(self._callbacks):
+            callback(event)
+
+    def submit_execution(self, request):
+        return self._submissions.submit(request)
+
+    def cancel_submissions(self, reason="user", *, workspace_id=None):
+        self._submissions.cancel_pending(reason, workspace_id=workspace_id)
+
+    def assert_registry_replaceable(self) -> None:
+        return None
+
+    def registry_publication_guard(self):
+        return nullcontext()
+
+    def replace_registry(self, registry) -> None:
+        self.cancel_submissions("registry_replaced")
+        self._registry = registry
 
     def prepare_execution(self, request):  # noqa: ANN001, ANN201
         return SimpleNamespace(
@@ -329,7 +358,8 @@ class _ShellTestExecutionClient:
     def stop_run(self, run_id: str) -> None:
         return None
 
-    def shutdown(self) -> None:
+    def shutdown(self, *, wait=True) -> None:
+        self._submissions.close()
         self._callbacks.clear()
         self._solution_node_ids_by_workspace.clear()
         self._project_solution_binding_revision += 1
@@ -379,6 +409,15 @@ class MainWindowShellTestBase(unittest.TestCase):
     Provides ``self.app``, ``self.window``, and convenient path accessors
     via ``self._env``.
     """
+
+    def _publish_fixture_registry(self, candidate) -> None:
+        """Publish staged declarations through the normal shell owner transaction."""
+        candidate.freeze()
+        coordinator = self.window.registry_replacement_coordinator
+        with patch.object(coordinator, "_candidate_builder", return_value=candidate):
+            result = coordinator.reload_plugins()
+        self.assertTrue(result.applied, result.report)
+        self.app.processEvents()
 
     def setUp(self) -> None:
         QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)

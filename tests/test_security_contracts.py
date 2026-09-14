@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from tests.repo_owned_catalog_fixture import catalog_value
+
 from collections.abc import Iterator, Mapping
-from dataclasses import asdict, replace
+from dataclasses import replace
 import json
-from pathlib import Path
 
 import pytest
 
@@ -275,7 +276,7 @@ def test_windows_authentication_function_spec_matches_frozen_catalog() -> None:
         if row["spec"]["type_id"] == WINDOWS_AUTHENTICATION_TYPE_ID
     )
 
-    assert json.loads(json.dumps(asdict(declaration.spec))) == expected
+    assert catalog_value(declaration.spec) == expected
 
 
 def test_windows_authentication_returns_fresh_run_scoped_opaque_handles(

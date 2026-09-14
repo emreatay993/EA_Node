@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.repo_owned_catalog_fixture import catalog_value
+
 import csv
 import json
 import queue
@@ -7,7 +9,6 @@ import smtplib
 import tempfile
 import types
 import unittest
-from dataclasses import asdict
 from pathlib import Path
 from unittest import mock
 
@@ -141,7 +142,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
         self.assertEqual(set(expected), converted_ids)
         for type_id in sorted(converted_ids):
             self.assertEqual(
-                json.loads(json.dumps(asdict(registry.get_spec(type_id)))),
+                catalog_value(registry.get_spec(type_id)),
                 expected[type_id],
             )
             self.assertIsInstance(registry.get_entry(type_id), PythonFunctionEntry)
@@ -180,7 +181,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
         self.assertTrue(process_ports["command"].uses_property_default)
 
         email_spec = registry.get_spec("io.email_send")
-        email_properties = {prop.key: prop.default for prop in email_spec.properties}
+        email_properties = {prop.key: prop.make_default() for prop in email_spec.properties}
         email_issues = evaluate_node_readiness(
             email_spec,
             port_has_value={},
@@ -361,7 +362,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
             declaration.spec,
             namespace[declaration.function_name],  # type: ignore[arg-type]
         )
-        properties = {prop.key: prop.default for prop in declaration.spec.properties}
+        properties = {prop.key: prop.make_default() for prop in declaration.spec.properties}
         properties.update(
             {
                 "smtp_host": "smtp.example.com",
@@ -436,7 +437,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
             declaration.spec,
             namespace[declaration.function_name],  # type: ignore[arg-type]
         )
-        properties = {prop.key: prop.default for prop in declaration.spec.properties}
+        properties = {prop.key: prop.make_default() for prop in declaration.spec.properties}
         properties.update({"sender": "from@example.com", "to": "to@example.com"})
 
         result = adapter.execute(_context(properties=properties))
@@ -622,7 +623,7 @@ class PathPointerNodeTests(unittest.TestCase):
         spec = PathPointerNodePlugin().spec()
         show_full = next(p for p in spec.properties if p.key == "show_full_path")
         self.assertEqual(show_full.type, "bool")
-        self.assertEqual(show_full.default, False)
+        self.assertEqual(show_full.make_default(), False)
         self.assertEqual(show_full.inspector_editor, "toggle")
         self.assertEqual(show_full.group, "Source")
 
@@ -659,7 +660,7 @@ class FolderExplorerNodeTests(unittest.TestCase):
         current_path = spec.properties[0]
         self.assertEqual(current_path.key, "current_path")
         self.assertEqual(current_path.type, "path")
-        self.assertEqual(current_path.default, default_user_desktop_path())
+        self.assertEqual(current_path.make_default(), default_user_desktop_path())
         self.assertEqual(current_path.inline_editor, "")
         self.assertEqual(current_path.inspector_editor, "path")
         self.assertEqual(current_path.group, "Source")

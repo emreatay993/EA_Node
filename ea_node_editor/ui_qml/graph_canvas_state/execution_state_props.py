@@ -1208,6 +1208,20 @@ class ExecutionStateProps:
     node_execution_state_changed = pyqtSignal()
     port_flow_state_changed = pyqtSignal()
 
+    def _invalidate_execution_projection(self, *_args) -> None:
+        # State is immediately readable; one queued notification projects the
+        # final values from this event-loop turn, including rapid settlements.
+        self._execution_projection_cache.clear()
+        if not self._port_flow_notification_timer.isActive():
+            self._port_flow_notification_timer.start(0)
+
+    def _cached_execution_projection(self, key, build) -> dict:
+        if key not in self._execution_projection_cache:
+            self._execution_projection_cache[key] = build()
+        # As with other cached scene models, nested projection records are
+        # read-only to Python consumers. QVariant conversion detaches QML data.
+        return dict(self._execution_projection_cache[key])
+
     @pyqtProperty("QVariantMap", notify=failure_highlight_changed)
     def failed_node_lookup(self) -> dict[str, bool]:
         execution_source = self._execution_source
@@ -1382,6 +1396,9 @@ class ExecutionStateProps:
 
     @pyqtProperty("QVariantMap", notify=port_flow_state_changed)
     def property_presentation_lookup(self) -> dict[str, dict[str, dict[str, Any]]]:
+        return self._cached_execution_projection("properties", self._build_property_presentations)
+
+    def _build_property_presentations(self) -> dict[str, dict[str, dict[str, Any]]]:
         records_by_node = self._active_workspace_retained_records(
             current_only=True
         )
@@ -1433,6 +1450,9 @@ class ExecutionStateProps:
 
     @pyqtProperty("QVariantMap", notify=port_flow_state_changed)
     def port_flow_state_lookup(self) -> dict[str, dict[str, str]]:
+        return self._cached_execution_projection("port_flow", self._build_port_flow_states)
+
+    def _build_port_flow_states(self) -> dict[str, dict[str, str]]:
         records_by_node = self._active_workspace_retained_records(current_only=True)
         solution_facts_by_node = self._active_workspace_solution_facts()
         node_payloads = [
@@ -1483,6 +1503,9 @@ class ExecutionStateProps:
 
     @pyqtProperty("QVariantMap", notify=port_flow_state_changed)
     def port_value_preview_lookup(self) -> dict[str, dict[str, dict[str, Any]]]:
+        return self._cached_execution_projection("port_preview", self._build_port_previews)
+
+    def _build_port_previews(self) -> dict[str, dict[str, dict[str, Any]]]:
         """Project bounded output summaries from the existing workspace cache."""
         records_by_node = self._active_workspace_retained_records()
         node_payloads = [

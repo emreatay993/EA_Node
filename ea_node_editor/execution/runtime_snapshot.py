@@ -1,3 +1,6 @@
+# Purpose: Assemble, validate, and project execution-owned runtime snapshots.
+# Map: subsystems/execution.md
+# Tests: tests/test_execution_submission.py, tests/test_runtime.py
 """Execution-owned runtime snapshot assembly boundary.
 
 The snapshot wire shape is passive. Project normalization, runtime snapshot
@@ -175,6 +178,10 @@ class RuntimeSnapshot:
         *,
         catalog: "DataTypeCatalog | None" = None,
     ) -> dict[str, Any]:
+        if not isinstance(self.workspaces, (tuple, list)) or any(
+            type(workspace) is not RuntimeWorkspace for workspace in self.workspaces
+        ):
+            raise ValueError("runtime_snapshot.workspaces must contain RuntimeWorkspace values.")
         workspaces_by_id = {
             workspace.workspace_id: workspace.to_document()
             for workspace in self.workspaces
@@ -203,9 +210,18 @@ class RuntimeSnapshot:
             ],
             "metadata": copy.deepcopy(self.metadata),
         }
+        _snapshot_nonnegative_int_field(payload, "schema_version")
+        for name in ("project_id", "name", "active_workspace_id"):
+            _snapshot_string_field(payload, name, strip=name != "name")
+        if not isinstance(payload["metadata"], Mapping) or any(
+            not isinstance(key, str) for key in payload["metadata"]
+        ):
+            raise ValueError("runtime_snapshot.metadata must have string mapping keys.")
         serialized = serialize_runtime_value(payload, catalog=catalog)
         document = dict(serialized) if isinstance(serialized, Mapping) else payload
-        RuntimeSnapshot.from_mapping(document, catalog=catalog)
+        # Workspace projections validate their owned children; the ordering
+        # above can only reference those projected workspace IDs. Raw ingress
+        # still goes through from_mapping, including semantic-value decoding.
         return document
 
 

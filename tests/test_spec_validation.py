@@ -86,10 +86,10 @@ class SpecValidationTests(unittest.TestCase):
                 groups = invalid if isinstance(invalid, tuple) else (invalid,)
                 properties = (hidden, other_hidden)
                 if name == "visible backing property":
-                    properties = (replace(hidden, inspector_visible=True), other_hidden)
+                    properties = (hidden.with_changes(inspector_visible=True), other_hidden)
                 elif name == "non-json backing property":
                     properties = (
-                        replace(hidden, type="str", default="alpha"),
+                        hidden.with_changes(type="str", default="alpha"),
                         other_hidden,
                     )
                 invalid_spec = replace(

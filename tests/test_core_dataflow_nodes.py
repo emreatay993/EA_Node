@@ -89,7 +89,7 @@ def test_subnode_pin_descriptors_publish_hidden_data_access_metadata() -> None:
         properties = {prop.key: prop for prop in spec.properties}
         access = properties[SUBNODE_PIN_DATA_ACCESS_PROPERTY]
         assert access.type == "enum"
-        assert access.default == "item"
+        assert access.make_default() == "item"
         assert access.enum_values == SUBNODE_PIN_DATA_ACCESS_VALUES
         assert access.inspector_visible is False
 
@@ -211,12 +211,12 @@ def test_stream_gate_uses_stable_output_ids_and_publishes_only_selected_tree() -
         port.key: port
         for port in resolve_instance_ports(
             spec,
-            {STREAM_GATE_OUTPUT_IDS_PROPERTY: properties[STREAM_GATE_OUTPUT_IDS_PROPERTY].default},
+            {STREAM_GATE_OUTPUT_IDS_PROPERTY: properties[STREAM_GATE_OUTPUT_IDS_PROPERTY].make_default()},
         )
     }
 
     assert tuple(port_id for port_id in DEFAULT_STREAM_GATE_OUTPUT_IDS) == ("output_0", "output_1")
-    assert properties[STREAM_GATE_OUTPUT_IDS_PROPERTY].default == ["output_0", "output_1"]
+    assert properties[STREAM_GATE_OUTPUT_IDS_PROPERTY].make_default() == ["output_0", "output_1"]
     assert properties[STREAM_GATE_OUTPUT_IDS_PROPERTY].inspector_visible is False
     assert tuple(port.key for port in spec.ports) == ("stream", "gate")
     assert len(spec.dynamic_port_groups) == 1

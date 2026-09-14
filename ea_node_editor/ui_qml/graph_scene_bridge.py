@@ -45,6 +45,9 @@ class GraphSceneBridge(GraphSceneBridgeBase):
         self._current_output_provider = None
         self._selector_metadata_signatures = {}
         self._runtime_schema_pending = False
+        self._runtime_schema_timer = QTimer(self)
+        self._runtime_schema_timer.setSingleShot(True)
+        self._runtime_schema_timer.timeout.connect(self.refresh_current_output_properties)
         app = QGuiApplication.instance()
         if isinstance(app, QGuiApplication):
             app.focusObjectChanged.connect(self._on_editor_focus_changed)
@@ -86,6 +89,10 @@ class GraphSceneBridge(GraphSceneBridgeBase):
             return None
         return self._current_output_provider(self._workspace_id, node_id, port_key)
 
+    def schedule_current_output_properties_refresh(self) -> None:
+        if not self._runtime_schema_timer.isActive():
+            self._runtime_schema_timer.start(0)
+
     def refresh_current_output_properties(self) -> None:
         if self._model is None:
             return
@@ -114,7 +121,7 @@ class GraphSceneBridge(GraphSceneBridgeBase):
 
     def _on_editor_focus_changed(self, _focused: QObject | None) -> None:
         if self._runtime_schema_pending:
-            QTimer.singleShot(0, self.refresh_current_output_properties)
+            self.schedule_current_output_properties_refresh()
 
     def rebuild_registry(self, registry: NodeRegistry) -> None:
         previous_registry = self._registry

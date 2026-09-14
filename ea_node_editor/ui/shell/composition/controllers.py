@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 
 from ea_node_editor.execution.runtime import CorexRuntime
 from ea_node_editor.persistence.solution_repository import SolutionRepositoryFactory
@@ -35,6 +36,7 @@ class ShellControllerDependencies:
     run_controller: RunController
     run_event_controller: RunEventController
     execution_client: object
+    execution_unsubscribe: Callable[[], None]
 
     def attach(self, host: "ShellWindow") -> None:
         host.search_scope_controller = self.search_scope_controller
@@ -45,6 +47,7 @@ class ShellControllerDependencies:
         host.run_controller = self.run_controller
         host.run_event_controller = self.run_event_controller
         host.execution_client = self.execution_client
+        host._execution_unsubscribe = self.execution_unsubscribe
 
 
 def _create_shell_execution_client(registry: "NodeRegistry") -> CorexRuntime:
@@ -70,6 +73,7 @@ def create_controller_dependencies(
     run_controller = RunController(
         host,
         projection_controller=run_projection_controller,
+        schedule_next_turn=lambda callback: QTimer.singleShot(0, callback),
     )
     run_event_controller = RunEventController(
         host,
@@ -77,7 +81,7 @@ def create_controller_dependencies(
         projection_controller=run_projection_controller,
     )
     execution_client = _create_shell_execution_client(registry)
-    execution_client.subscribe(host.execution_event.emit)
+    execution_unsubscribe = execution_client.subscribe(host.execution_event.emit)
     host.execution_event.connect(
         run_event_controller.handle_execution_event,
         Qt.ConnectionType.QueuedConnection,
@@ -91,6 +95,7 @@ def create_controller_dependencies(
         run_controller=run_controller,
         run_event_controller=run_event_controller,
         execution_client=execution_client,
+        execution_unsubscribe=execution_unsubscribe,
     )
 
 

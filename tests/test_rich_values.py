@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from tests.repo_owned_catalog_fixture import catalog_value
+
 import copy
-from dataclasses import asdict
 import json
-from pathlib import Path
 
 import pytest
 
@@ -18,7 +18,6 @@ from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import (
     build_builtin_registry,
-    build_default_registry,
 )
 from ea_node_editor.nodes.builtin_functions.ai_agent import SOURCE as AI_AGENT_SOURCE
 from ea_node_editor.nodes.builtin_functions.rich_values import (
@@ -343,7 +342,7 @@ def test_rich_value_function_specs_match_frozen_catalog() -> None:
     }
 
     assert {
-        declaration.spec.type_id: json.loads(json.dumps(asdict(declaration.spec)))
+        declaration.spec.type_id: catalog_value(declaration.spec)
         for declaration in declarations
     } == expected
 
@@ -432,12 +431,12 @@ def test_production_plane_container_default_is_independent_and_round_trips(
     registry = build_builtin_registry()
     spec = registry.get_spec(PLANE_CONTAINER_NODE_TYPE_ID)
     prop = next(item for item in spec.properties if item.key == "input")
-    assert type(prop.default) is TypedInlineValue
-    assert prop.default == IDENTITY_PLANE
-    assert prop.default is not IDENTITY_PLANE
-    assert prop.default.payload is not IDENTITY_PLANE.payload
+    assert type(prop.make_default()) is TypedInlineValue
+    assert prop.make_default() == IDENTITY_PLANE
+    assert prop.make_default() is not IDENTITY_PLANE
+    assert prop.make_default().payload is not IDENTITY_PLANE.payload
     assert prop.persistence_data_type_id == PLANE_DATA_TYPE_ID
-    registry.data_types.validate_carrier(PLANE_DATA_TYPE_ID, prop.default)
+    registry.data_types.validate_carrier(PLANE_DATA_TYPE_ID, prop.make_default())
 
     model = GraphModel()
     workspace = model.active_workspace

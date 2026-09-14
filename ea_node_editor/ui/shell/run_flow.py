@@ -35,6 +35,8 @@ def selected_workspace_run_control_state(
     active_run_id: str,
     active_run_workspace_id: str,
     engine_state: str,
+    active_submission_id: str = "",
+    active_submission_workspace_id: str = "",
 ) -> SelectedWorkspaceRunControlState:
     normalized_selected_workspace_id = str(selected_workspace_id or "").strip()
     normalized_active_run_id = str(active_run_id or "").strip()
@@ -43,15 +45,18 @@ def selected_workspace_run_control_state(
     selected_workspace_owns_active_run = bool(normalized_active_run_id) and (
         normalized_selected_workspace_id == normalized_active_run_workspace_id
     )
+    selected_workspace_owns_preparation = bool(active_submission_id) and (
+        normalized_selected_workspace_id == str(active_submission_workspace_id).strip()
+    )
     can_pause_active_workspace = selected_workspace_owns_active_run and normalized_engine_state in {"running", "paused"}
     pause_label: PauseLabel = (
         "Resume" if selected_workspace_owns_active_run and normalized_engine_state == "paused" else "Pause"
     )
     return SelectedWorkspaceRunControlState(
         selected_workspace_owns_active_run=selected_workspace_owns_active_run,
-        can_run_active_workspace=not selected_workspace_owns_active_run,
+        can_run_active_workspace=not (selected_workspace_owns_active_run or selected_workspace_owns_preparation),
         can_pause_active_workspace=can_pause_active_workspace,
-        can_stop_active_workspace=selected_workspace_owns_active_run,
+        can_stop_active_workspace=selected_workspace_owns_active_run or selected_workspace_owns_preparation,
         pause_label=pause_label,
     )
 

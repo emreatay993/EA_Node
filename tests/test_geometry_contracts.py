@@ -850,7 +850,6 @@ def test_d023_to_d030_geometry_boundaries_stay_exact_under_d032_bootstrap() -> N
 
 def test_d030_icoordinate_system_owner_replacement_is_atomic_and_reversible() -> None:
     registry = NodeRegistry()
-    registry.freeze()
     source_label = "ea_node_editor.nodes.builtins.geometry_contracts"
     registry.register_plugin_bundle(
         COREX_GEOMETRY_CLOSURE_CANDIDATE_CONTRACT_MANIFEST,
@@ -860,6 +859,7 @@ def test_d030_icoordinate_system_owner_replacement_is_atomic_and_reversible() ->
         source_label=source_label,
         replace_owner=True,
     )
+    registry.freeze()
     d029_snapshot = registry.data_types.snapshot()
     d029_type_ids = {spec.type_id for spec in registry.data_types.all_specs()}
     d029_owner_type_ids = {
@@ -876,8 +876,9 @@ def test_d030_icoordinate_system_owner_replacement_is_atomic_and_reversible() ->
         is COREX_GEOMETRY_CLOSURE_CANDIDATE_CONTRACT_MANIFEST
     )
 
+    candidate = registry.fork()
     with pytest.raises(DataTypeCatalogError, match="references unknown parent"):
-        registry.register_plugin_bundle(
+        candidate.register_plugin_bundle(
             PluginContractManifest(
                 data_types=COREX_GEOMETRY_COORDINATE_SYSTEM_CANDIDATE_DATA_TYPES[-1:]
             ),
@@ -888,6 +889,8 @@ def test_d030_icoordinate_system_owner_replacement_is_atomic_and_reversible() ->
             replace_owner=True,
         )
 
+    candidate.freeze()
+    assert candidate.data_types.snapshot() == d029_snapshot
     assert registry.data_types.snapshot() == d029_snapshot
     assert registry.data_types.is_frozen
     assert (
@@ -895,6 +898,7 @@ def test_d030_icoordinate_system_owner_replacement_is_atomic_and_reversible() ->
         is COREX_GEOMETRY_CLOSURE_CANDIDATE_CONTRACT_MANIFEST
     )
 
+    registry = registry.fork()
     registry.register_plugin_bundle(
         COREX_GEOMETRY_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST,
         (),
@@ -903,6 +907,7 @@ def test_d030_icoordinate_system_owner_replacement_is_atomic_and_reversible() ->
         source_label=source_label,
         replace_owner=True,
     )
+    registry.freeze()
     d030_type_ids = {spec.type_id for spec in registry.data_types.all_specs()}
     d030_owner_type_ids = {
         record["type_id"]
@@ -919,6 +924,7 @@ def test_d030_icoordinate_system_owner_replacement_is_atomic_and_reversible() ->
         is COREX_GEOMETRY_COORDINATE_SYSTEM_CANDIDATE_CONTRACT_MANIFEST
     )
 
+    registry = registry.fork()
     registry.register_plugin_bundle(
         COREX_GEOMETRY_CLOSURE_CANDIDATE_CONTRACT_MANIFEST,
         (),
@@ -927,6 +933,7 @@ def test_d030_icoordinate_system_owner_replacement_is_atomic_and_reversible() ->
         source_label=source_label,
         replace_owner=True,
     )
+    registry.freeze()
     assert registry.data_types.snapshot() == d029_snapshot
     assert registry.data_types.get(COORDINATE_SYSTEM_DATA_TYPE_ID) is None
     assert registry.data_types.is_frozen

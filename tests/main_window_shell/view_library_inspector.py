@@ -214,8 +214,9 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
                 ),
             ),
         )
-        self.window.registry.register_descriptor(spec, lambda: SimpleNamespace())
-        self.window.registry.register_descriptor(
+        candidate = self.window.registry.fork()
+        candidate.register_descriptor(spec, lambda: SimpleNamespace())
+        candidate.register_descriptor(
             NodeTypeSpec(
                 type_id=source_type_id,
                 display_name="Inspector Interval Source",
@@ -233,9 +234,11 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
             ),
             lambda: SimpleNamespace(),
         )
+        self._publish_fixture_registry(candidate)
         return type_id, source_type_id
 
     def test_qml_inspector_interval_commit_is_typed_single_undo_and_round_trips(self) -> None:
+        self.window.run_controller.set_auto_run_enabled(False)
         type_id, source_type_id = self._register_interval_inspector_fixture()
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type(type_id, x=120.0, y=80.0)
@@ -444,7 +447,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
             residency=SolutionResidency.SESSION,
             last_disposition=SolutionDisposition.RECOMPUTED,
         )
-        self.window.graph_canvas_state_bridge.port_flow_state_changed.emit()
+        self.window.node_execution_state_changed.emit()
         self.app.processEvents()
 
         wait_for_condition_or_raise(

@@ -906,6 +906,7 @@ def test_property_condition_uses_safe_upstream_value_and_disables_while_unavaila
     assert lookup["sectors"]["editor_enabled"] is True
 
     outputs["out"] = SettledPortResult(status="empty")
+    execution.node_execution_state_changed.emit()
     unavailable = bridge.property_presentation_lookup["sink"]
     assert unavailable["mode"]["display_value_available"] is False
     assert unavailable["sectors"]["condition_enabled"] is False
@@ -913,6 +914,7 @@ def test_property_condition_uses_safe_upstream_value_and_disables_while_unavaila
 
     scene.edges_model[0]["enabled"] = False
     mode_item["value"] = "Manual"
+    scene.edges_changed.emit()
     disabled_edge = bridge.property_presentation_lookup["sink"]
     assert disabled_edge["mode"]["display_value"] == "Manual"
     assert disabled_edge["sectors"]["condition_enabled"] is True
@@ -1505,7 +1507,7 @@ def test_canvas_readiness_uses_runtime_values_for_blank_false_and_zero() -> None
         assert bridge.port_flow_state_lookup["sink"]["in"] == "flowing"
 
 
-def test_port_flow_notifications_are_isolated_from_other_execution_facts() -> None:
+def test_port_flow_notifications_are_isolated_from_other_execution_facts(qapp) -> None:
     scene = _FlowSceneStub()
     execution = _FlowExecutionStub()
     bridge = GraphCanvasStateBridge(
@@ -1519,16 +1521,19 @@ def test_port_flow_notifications_are_isolated_from_other_execution_facts() -> No
 
     scene.nodes_changed.emit()
     scene.edges_changed.emit()
-    assert len(port_flow_changes) == 2
+    assert port_flow_changes == []
     assert execution_changes == []
 
     execution.node_execution_state_changed.emit()
-    assert len(port_flow_changes) == 3
+    assert port_flow_changes == []
     assert len(execution_changes) == 1
+    qapp.processEvents()
+    assert len(port_flow_changes) == 1
 
     scene.workspace_id = "other-workspace"
     scene.workspace_changed.emit(scene.workspace_id)
-    assert len(port_flow_changes) == 4
+    qapp.processEvents()
+    assert len(port_flow_changes) == 2
     assert len(execution_changes) == 2
 
 

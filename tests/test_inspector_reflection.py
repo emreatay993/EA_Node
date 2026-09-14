@@ -19,8 +19,9 @@ from tests.passive_property_editor_fixtures import (
 
 class InspectorReflectionTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.registry = build_default_registry()
+        self.registry = build_default_registry().fork()
         register_passive_editor_fixture(self.registry)
+        self.registry.freeze()
         self.model = GraphModel()
         self.workspace_id = self.model.active_workspace.workspace_id
         self.scene = GraphSceneBridge()

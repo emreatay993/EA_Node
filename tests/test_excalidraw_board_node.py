@@ -106,7 +106,7 @@ class ExcalidrawBoardNodeTests(unittest.TestCase):
         preview_ref_property = properties[EXCALIDRAW_PREVIEW_REF_PROPERTY]
 
         self.assertEqual(state_property.type, "json")
-        self.assertEqual(state_property.default, {})
+        self.assertEqual(state_property.make_default(), {})
         self.assertFalse(property_visible_in_inspector(state_property))
         self.assertEqual(preview_ref_property.type, "json")
         self.assertFalse(property_visible_in_inspector(preview_ref_property))

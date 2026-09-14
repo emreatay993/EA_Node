@@ -212,6 +212,33 @@ class AppBootstrapTests(unittest.TestCase):
 
         self.assertIn("Caveat", QtGui.QFontDatabase.families())
 
+    def test_widget_presentation_format_is_scoped_and_preserves_other_fields(self) -> None:
+        from ea_node_editor.ui_qml import qtquick_backend
+
+        requested = QtGui.QSurfaceFormat()
+        requested.setSwapInterval(1)
+        requested.setSamples(4)
+        requested.setDepthBufferSize(24)
+        for platform, qpa, host, expected in (
+            ("win32", "windows", "qquickwidget", True),
+            ("win32", "windows", "qquickview_container", False),
+            ("win32", "offscreen", "qquickwidget", False),
+            ("linux", "xcb", "qquickwidget", False),
+        ):
+            with self.subTest(platform=platform, qpa=qpa, host=host), patch.object(
+                qtquick_backend.sys, "platform", platform
+            ), patch.dict(os.environ, {"QT_QPA_PLATFORM": qpa, "EA_NODE_EDITOR_QML_HOST": host}), patch.object(
+                QtGui.QSurfaceFormat, "defaultFormat", return_value=requested
+            ), patch.object(QtGui.QSurfaceFormat, "setDefaultFormat") as publish:
+                qtquick_backend.configure_widget_presentation_format()
+                self.assertEqual(publish.call_count, int(expected))
+                if expected:
+                    actual = publish.call_args.args[0]
+                    self.assertEqual(actual.swapInterval(), 0)
+                    self.assertEqual(actual.samples(), 4)
+                    self.assertEqual(actual.depthBufferSize(), 24)
+                self.assertEqual(requested.swapInterval(), 1)
+
     def test_build_and_show_shell_window_uses_composition_root(self) -> None:
         fake_window = Mock()
         preferences_document = {"graphics": {"theme": {"theme_id": "packet-theme"}}}

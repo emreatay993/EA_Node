@@ -1,3 +1,6 @@
+# Purpose: Configure Qt Quick graphics and nonblocking Windows widget presentation.
+# Map: subsystems/startup_and_bootstrap.md
+# Tests: tests/test_main_bootstrap.py, tests/test_track_h_perf_harness.py
 from __future__ import annotations
 
 import logging
@@ -7,9 +10,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from PyQt6.QtCore import QT_VERSION_STR
+from PyQt6.QtGui import QSurfaceFormat
 from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 
-from ea_node_editor.ui_qml.qml_host_factory import qml_host_environment_snapshot
+from ea_node_editor.ui_qml.qml_host_factory import (
+    QML_HOST_QQUICKWIDGET,
+    qml_host_environment_snapshot,
+    select_qml_host_kind_from_environment,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -148,6 +156,24 @@ def select_qtquick_backend_from_environment() -> QtQuickBackendSelection:
     )
 
 
+def configure_widget_presentation_format() -> None:
+    """Keep Windows widget composition from waiting for display presentation.
+
+    QQuickWidget renders through the GUI thread. Its enclosing widget window
+    must not add a blocking swap wait to every status/plot update. Configure
+    the default before Qt creates the shared contexts and top-level surface;
+    changing only QQuickWidget's offscreen format does not configure that surface.
+    """
+    if (
+        not _is_windows_desktop_qpa_platform(_qt_qpa_platform_name())
+        or select_qml_host_kind_from_environment() != QML_HOST_QQUICKWIDGET
+    ):
+        return
+    surface_format = QSurfaceFormat(QSurfaceFormat.defaultFormat())
+    surface_format.setSwapInterval(0)
+    QSurfaceFormat.setDefaultFormat(surface_format)
+
+
 def configure_qtquick_backend() -> QtQuickBackendSelection:
     selection = select_qtquick_backend_from_environment()
     if selection.selected_backend == "software":
@@ -215,6 +241,7 @@ def qtquick_environment_snapshot() -> dict[str, Any]:
         "qsg_info": qsg_info_value,
         "qsg_info_capture_enabled": qsg_info_value.lower() in _TRUE_VALUES,
         "qsg_render_loop": os.environ.get("QSG_RENDER_LOOP", ""),
+        "default_surface_swap_interval": QSurfaceFormat.defaultFormat().swapInterval(),
         "qsg_rhi_backend_override": selection.requested_override,
         "qsg_rhi_backend_override_normalized": selection.normalized_override,
         "qtquick_backend_selected": selection.selected_backend,
@@ -261,6 +288,7 @@ __all__ = [
     "QtQuickBackendSelection",
     "WINDOWS_DESKTOP_DEFAULT_BACKEND",
     "configure_qtquick_backend",
+    "configure_widget_presentation_format",
     "enum_name",
     "graphics_api_label",
     "graphics_api_name",

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-import json
+from tests.repo_owned_catalog_fixture import catalog_value
+
 from pathlib import Path
 
 import pytest
@@ -93,7 +93,7 @@ def test_specs_match_golden_and_use_function_entries(tmp_path: Path) -> None:
     registry = build_builtin_registry(generation_root=tmp_path / "generations")
 
     for type_id in _TYPE_IDS:
-        assert json.loads(json.dumps(asdict(registry.get_spec(type_id)))) == expected[type_id]
+        assert catalog_value(registry.get_spec(type_id)) == expected[type_id]
         assert isinstance(registry.get_entry(type_id), PythonFunctionEntry)
         assert registry.descriptor_or_none(type_id) is None
 

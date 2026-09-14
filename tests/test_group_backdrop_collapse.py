@@ -46,8 +46,9 @@ class _GroupBackdropCollapseNode:
 
 
 def _build_registry() -> NodeRegistry:
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     registry.register(_GroupBackdropCollapseNode)
+    registry.freeze()
     return registry
 
 

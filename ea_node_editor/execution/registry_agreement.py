@@ -8,6 +8,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any, Literal
 
@@ -24,11 +25,6 @@ from ea_node_editor.nodes.function_plugin import (
 from ea_node_editor.runtime_contracts import DataTypeCatalog
 from ea_node_editor.runtime_contracts.data_types import MAX_PAYLOAD_SCHEMA_VERSION
 from ea_node_editor.settings import plugin_generations_dir
-from ea_node_editor.execution.transport_fields import (
-    bool_field as _bool_field,
-    nonnegative_int_field as _nonnegative_int_field,
-    string_field as _string_field,
-)
 
 _CATALOG_FINGERPRINT_LENGTH = 64
 _CATALOG_REVISION_RECORD_LIMIT = 4096
@@ -51,7 +47,11 @@ _PLUGIN_FUNCTION_NAME_LENGTH = 128
 _PLUGIN_UNAVAILABLE_REASON_LENGTH = 2048
 
 
-@dataclass(frozen=True)
+class CatalogMismatchError(ValueError):
+    """A validated peer catalog differs from the receiver's actual catalog."""
+
+
+@dataclass(frozen=True, slots=True)
 class CatalogRevisionRecord:
     kind: Literal["family", "type", "conversion"]
     identity: str
@@ -60,6 +60,104 @@ class CatalogRevisionRecord:
     owner_id: str
     owner_version: str
     semantic_digest: str
+
+    def __post_init__(self) -> None:
+        for name, value in _catalog_revision_values(self, index=0).items():
+            object.__setattr__(self, name, value)
+
+
+@dataclass(frozen=True, slots=True)
+class RegistryAgreement:
+    """Validated immutable metadata for one complete execution registry generation."""
+
+    catalog_fingerprint: str
+    catalog_revisions: tuple[CatalogRevisionRecord, ...]
+    plugin_bundles: tuple[PluginBundleRef, ...]
+    plugin_fingerprint: str
+    runtime_registry_fingerprint: str
+    registry_contract_fingerprint: str
+    addon_runtime_config: tuple[tuple[str, bool], ...]
+
+    def __post_init__(self) -> None:
+        fingerprint = _catalog_fingerprint(self.catalog_fingerprint)
+        records = normalize_catalog_revisions(self.catalog_revisions)
+        bundles, plugins, runtime = _plugin_agreement(
+            self.plugin_bundles,
+            self.plugin_fingerprint,
+            self.runtime_registry_fingerprint,
+            catalog_fingerprint=fingerprint,
+        )
+        values = dict(
+            catalog_fingerprint=fingerprint,
+            catalog_revisions=records,
+            plugin_bundles=bundles,
+            plugin_fingerprint=plugins,
+            runtime_registry_fingerprint=runtime,
+            registry_contract_fingerprint=_sha256_digest(
+                self.registry_contract_fingerprint,
+                field_name="registry_contract_fingerprint",
+            ),
+            addon_runtime_config=normalize_addon_runtime_config(
+                self.addon_runtime_config
+            ),
+        )
+        for name, value in values.items():
+            object.__setattr__(self, name, value)
+
+    @classmethod
+    def from_registry(cls, registry) -> RegistryAgreement:
+        if not registry.is_frozen:
+            raise ValueError("Execution requires a frozen node registry generation")
+        return cls(
+            registry.data_types.fingerprint(),
+            catalog_revision_records(registry.data_types),
+            registry.plugin_bundle_refs(),
+            registry.plugin_fingerprint(),
+            runtime_registry_fingerprint(
+                registry.data_types.fingerprint(), registry.plugin_fingerprint()
+            ),
+            registry.contract_fingerprint(),
+            registry.addon_runtime_config(),
+        )
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> RegistryAgreement:
+        return cls(
+            **{
+                name: payload[name]
+                for name in (
+                    "catalog_fingerprint",
+                    "catalog_revisions",
+                    "plugin_bundles",
+                    "plugin_fingerprint",
+                    "runtime_registry_fingerprint",
+                    "registry_contract_fingerprint",
+                    "addon_runtime_config",
+                )
+            }
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "catalog_fingerprint": self.catalog_fingerprint,
+            "catalog_revisions": [
+                _catalog_revision_payload(record) for record in self.catalog_revisions
+            ],
+            "plugin_bundles": [
+                _plugin_bundle_payload(bundle) for bundle in self.plugin_bundles
+            ],
+            "plugin_fingerprint": self.plugin_fingerprint,
+            "runtime_registry_fingerprint": self.runtime_registry_fingerprint,
+            "registry_contract_fingerprint": self.registry_contract_fingerprint,
+            "addon_runtime_config": [
+                {"addon_id": name, "enabled": enabled}
+                for name, enabled in self.addon_runtime_config
+            ],
+        }
+
+
+_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+_LOGICAL_IDENTIFIER_PATTERN = re.compile(r"[\w.:@+\-]*")
 
 
 def _bounded_catalog_text(
@@ -77,7 +175,7 @@ def _bounded_catalog_text(
         raise ValueError(f"{field_name} must be non-empty.")
     if len(value) > max_length:
         raise ValueError(f"{field_name} is too long.")
-    if any(not character.isprintable() for character in value):
+    if value and not str.isprintable(value):
         raise ValueError(f"{field_name} contains control characters.")
     return value
 
@@ -88,9 +186,7 @@ def _sha256_digest(value: object, *, field_name: str) -> str:
         field_name=field_name,
         max_length=_CATALOG_FINGERPRINT_LENGTH,
     )
-    if len(digest) != _CATALOG_FINGERPRINT_LENGTH or any(
-        character not in "0123456789abcdef" for character in digest
-    ):
+    if _SHA256_PATTERN.fullmatch(digest) is None:
         raise ValueError(f"{field_name} must be a 64-character lowercase SHA-256.")
     return digest
 
@@ -380,7 +476,7 @@ def _plugin_agreement(
 def _logical_catalog_identifier(value: str, *, field_name: str) -> str:
     if len(value) >= 2 and value[0].isalpha() and value[1] == ":":
         raise ValueError(f"{field_name} must be a path-free logical identifier.")
-    if any(not (character.isalnum() or character in "._:@+-") for character in value):
+    if _LOGICAL_IDENTIFIER_PATTERN.fullmatch(value) is None:
         raise ValueError(f"{field_name} must be a path-free logical identifier.")
     return value
 
@@ -471,11 +567,11 @@ def _catalog_revision_identity(
     return identity
 
 
-def _catalog_revision_record(
+def _catalog_revision_values(
     value: CatalogRevisionRecord | Mapping[str, object],
     *,
     index: int,
-) -> CatalogRevisionRecord:
+) -> dict[str, Any]:
     if isinstance(value, CatalogRevisionRecord):
         payload: Mapping[str, object] = {
             "kind": value.kind,
@@ -523,7 +619,7 @@ def _catalog_revision_record(
         raise ValueError(
             f"catalog_revisions[{index}].payload_schema_version is invalid."
         )
-    return CatalogRevisionRecord(
+    return dict(
         kind=kind,  # type: ignore[arg-type]
         identity=_catalog_revision_identity(
             payload["identity"],
@@ -562,6 +658,20 @@ def _catalog_revision_record(
             field_name=f"catalog_revisions[{index}].semantic_digest",
         ),
     )
+
+
+def _catalog_revision_record(
+    value: CatalogRevisionRecord | Mapping[str, object], *, index: int
+) -> CatalogRevisionRecord:
+    if type(value) is CatalogRevisionRecord:
+        return value
+    values = _catalog_revision_values(value, index=index)
+    # The same complete validator owns constructor and wire admission. Avoid
+    # repeating it when constructing the immutable result of this admission.
+    record = object.__new__(CatalogRevisionRecord)
+    for name, item in values.items():
+        object.__setattr__(record, name, item)
+    return record
 
 
 def normalize_catalog_revisions(value: object) -> tuple[CatalogRevisionRecord, ...]:
@@ -723,9 +833,12 @@ def catalog_mismatch_message(
 ) -> str:
     expected_fingerprint = _catalog_fingerprint(expected_fingerprint)
     expected_records = normalize_catalog_revisions(expected_revisions)
-    worker_fingerprint, worker_records = catalog_agreement(worker_catalog)
+    if not isinstance(worker_catalog, DataTypeCatalog) or not worker_catalog.is_frozen:
+        raise ValueError("catalog agreement requires a frozen data-type catalog")
+    worker_fingerprint = _catalog_fingerprint(worker_catalog.fingerprint())
     if expected_fingerprint == worker_fingerprint:
         return ""
+    worker_records = catalog_revision_records(worker_catalog)
 
     expected_by_identity = {
         (record.kind, record.identity): record for record in expected_records
@@ -823,7 +936,9 @@ def _trusted_catalog_revision_label(record: CatalogRevisionRecord) -> str:
 
 
 __all__ = [
+    "CatalogMismatchError",
     "CatalogRevisionRecord",
+    "RegistryAgreement",
     "EMPTY_REGISTRY_CONTRACT_FINGERPRINT",
     "catalog_agreement",
     "catalog_agreement_from_payload",

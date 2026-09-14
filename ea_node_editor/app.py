@@ -55,6 +55,10 @@ def prepare_qt_application_attributes() -> None:
 
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_Use96Dpi, False)
+    if QGuiApplication.instance() is None:
+        from ea_node_editor.ui_qml.qtquick_backend import configure_widget_presentation_format
+
+        configure_widget_presentation_format()
     _initialize_qt_webengine_quick()
     if QGuiApplication.instance() is None:
         QGuiApplication.setHighDpiScaleFactorRoundingPolicy(

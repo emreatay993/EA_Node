@@ -48,7 +48,6 @@ from ea_node_editor.ui.shell.runtime_clipboard import (
 from ea_node_editor.ui.shell.runtime_history import HistoryEntry
 
 if TYPE_CHECKING:
-    from ea_node_editor.nodes.node_specs import NodeTypeSpec
     from ea_node_editor.ui.shell.window import ShellWindow
 
 _PASTE_CASCADE_OFFSET_X = 40.0
@@ -132,7 +131,7 @@ class WorkspaceEditController:
         if property_spec is None:
             return
         coerced = coerce_editor_input_value(
-            property_spec.type, value, property_spec.default
+            property_spec.type, value, property_spec.make_default()
         )
         self.on_node_property_changed(node.node_id, property_spec.key, coerced)
 
@@ -371,7 +370,7 @@ class WorkspaceEditController:
                 if prop.key not in {"script", "timeout_sec"}
                 and prop.key in before_properties
                 and before_properties[prop.key] != node.properties.get(prop.key)
-                and node.properties.get(prop.key) == prop.default
+                and node.properties.get(prop.key) == prop.make_default()
             ]
             if reset_labels:
                 self._host.console_panel.append_log(

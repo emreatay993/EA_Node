@@ -46,8 +46,9 @@ class _PassiveIconPlugin:
 
 
 def _build_registry() -> NodeRegistry:
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     registry.register(_PassiveNotePlugin)
+    registry.freeze()
     return registry
 
 
@@ -109,7 +110,10 @@ class PassiveVisualMetadataTests(unittest.TestCase):
                 runtime_behavior="passive",
                 surface_family="annotation",
             )
+            self.registry = self.registry.fork()
             self.registry.register_descriptor(spec, lambda: _PassiveIconPlugin(spec))
+            self.registry.freeze()
+            self.scene.rebuild_registry(self.registry)
 
             node_id = self.scene.add_node_from_type(spec.type_id, 40.0, 60.0)
             node_payload = {item["node_id"]: item for item in self.scene.nodes_model}

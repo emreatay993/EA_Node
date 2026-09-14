@@ -1908,7 +1908,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             self.app.processEvents()
             dispatch_prepared.assert_called_once()
         self.assertFalse(self.window.action_run.isEnabled())
-        self.assertTrue(self.window.action_pause.isEnabled())
+        self.assertFalse(self.window.action_pause.isEnabled())
         self.assertTrue(self.window.action_stop.isEnabled())
 
         self.window._active_run_id = "run_test"

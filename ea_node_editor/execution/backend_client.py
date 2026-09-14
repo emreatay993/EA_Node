@@ -4,23 +4,17 @@
 # Landmarks: ExecutionBackendClient
 from __future__ import annotations
 
-import hashlib
-import importlib.metadata
-import json
-import platform
-import subprocess
-import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
-from pathlib import Path
 from typing import Any
 
 from ea_node_editor.common.coercions import normalize_path_text
 from ea_node_editor.execution.backends import (
+    PROCESS_ISOLATED_BACKEND,
     EXTERNAL_SUBPROCESS_BACKEND,
     TRUSTED_IN_PROCESS_BACKEND,
     ExecutionBackendOrchestrator,
@@ -40,9 +34,11 @@ from ea_node_editor.execution.client_generation import (
     _result_affecting_selection_payload,
     _ViewerInvalidationSnapshot,
 )
+from ea_node_editor.execution.environment_identity import EnvironmentIdentityCache
 from ea_node_editor.execution.external_python_client import (
     ExternalPythonExecutionClient,
 )
+from ea_node_editor.execution.prepared_dispatch import PreparedRunDispatch
 from ea_node_editor.execution.process_client import ProcessExecutionClient
 from ea_node_editor.execution.protocol_codec import (
     event_to_dict,
@@ -59,7 +55,10 @@ from ea_node_editor.execution.run_messages import (
     CommitRunPreflightCommand,
     ProtocolErrorEvent,
 )
-from ea_node_editor.execution.solution_identity import canonical_digest
+from ea_node_editor.execution.solution_identity import (
+    canonical_digest,
+    corex_build_digest,
+)
 from ea_node_editor.execution.trusted_client import TrustedInProcessExecutionClient
 from ea_node_editor.execution.viewer_messages import (
     VIEWER_RESPONSE_EVENT_TYPES,
@@ -77,76 +76,6 @@ from ea_node_editor.runtime_contracts import (
     RuntimeHandleRef,
 )
 from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
-
-_EXTERNAL_RUNTIME_IDENTITY_PROBE = r"""
-import hashlib
-import importlib.metadata
-import json
-import platform
-import sys
-from pathlib import Path
-
-names = json.loads(sys.argv[1])
-mapping = importlib.metadata.packages_distributions()
-packages = []
-for name in names:
-    distributions = mapping.get(name, ()) or (name,)
-    versions = []
-    for distribution in sorted(set(distributions)):
-        try:
-            versions.append((distribution, importlib.metadata.version(distribution)))
-        except importlib.metadata.PackageNotFoundError:
-            continue
-    packages.append((name, versions or [("", "missing")]))
-executable = Path(sys.executable)
-digest = hashlib.sha256()
-with executable.open("rb") as source:
-    for chunk in iter(lambda: source.read(1024 * 1024), b""):
-        digest.update(chunk)
-print(json.dumps({
-    "implementation": sys.implementation.name,
-    "cache_tag": sys.implementation.cache_tag or "",
-    "version": list(sys.version_info[:3]),
-    "platform": [platform.system(), platform.release(), platform.machine()],
-    "executable_size": executable.stat().st_size,
-    "executable_sha256": digest.hexdigest(),
-    "packages": packages,
-}, sort_keys=True, separators=(",", ":")))
-"""
-
-
-def _package_versions(package_names: tuple[str, ...]) -> tuple[tuple[str, object], ...]:
-    mapping = importlib.metadata.packages_distributions()
-    result = []
-    for name in package_names:
-        distributions = mapping.get(name, ()) or (name,)
-        versions = []
-        for distribution in sorted(set(distributions)):
-            try:
-                versions.append(
-                    (distribution, importlib.metadata.version(distribution))
-                )
-            except importlib.metadata.PackageNotFoundError:
-                continue
-        result.append((name, tuple(versions) or (("", "missing"),)))
-    return tuple(result)
-
-
-def _local_runtime_identity(package_names: tuple[str, ...]) -> dict[str, object]:
-    executable = Path(sys.executable)
-    digest = hashlib.sha256()
-    with executable.open("rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return {
-        "implementation": sys.implementation.name,
-        "cache_tag": sys.implementation.cache_tag or "",
-        "version": tuple(sys.version_info[:3]),
-        "platform": (platform.system(), platform.release(), platform.machine()),
-        "executable_size": executable.stat().st_size,
-        "executable_sha256": digest.hexdigest(),
-        "packages": _package_versions(package_names),
-    }
 
 
 @dataclass(frozen=True)
@@ -180,6 +109,7 @@ class ExecutionBackendClient:
         self, *, orchestrator: ExecutionBackendOrchestrator | None = None
     ) -> None:
         self._orchestrator = orchestrator or ExecutionBackendOrchestrator()
+        self._environment_identity = EnvironmentIdentityCache()
         self._process_client = ProcessExecutionClient()
         self._trusted_client = TrustedInProcessExecutionClient()
         self._external_python_client = ExternalPythonExecutionClient()
@@ -442,44 +372,7 @@ class ExecutionBackendClient:
                 == selection_digest
             ):
                 return str(client._execution_environment_digest)  # noqa: SLF001
-        declared_facts = registry.execution_environment_facts()
-        package_names = tuple(declared_facts.get("python_packages", ()))
-        if selection.backend_id == EXTERNAL_SUBPROCESS_BACKEND:
-            result = subprocess.run(
-                [
-                    selection.python_executable,
-                    "-c",
-                    _EXTERNAL_RUNTIME_IDENTITY_PROBE,
-                    json.dumps(package_names, separators=(",", ":")),
-                ],
-                capture_output=True,
-                check=False,
-                text=True,
-                timeout=10.0,
-            )
-            if result.returncode != 0:
-                raise RuntimeError("External Python runtime identity handshake failed.")
-            try:
-                runtime_facts = json.loads(result.stdout)
-            except json.JSONDecodeError as exc:
-                raise RuntimeError(
-                    "External Python runtime identity handshake was invalid."
-                ) from exc
-            if not isinstance(runtime_facts, Mapping):
-                raise RuntimeError(
-                    "External Python runtime identity handshake was invalid."
-                )
-        else:
-            runtime_facts = _local_runtime_identity(package_names)
-        environment_digest = canonical_digest(
-            {
-                "schema_version": 1,
-                "selection": selection_payload,
-                "runtime": dict(runtime_facts),
-                "declared": declared_facts,
-                "registry_contract_fingerprint": registry_fingerprint,
-            }
-        )
+        environment_digest = self._environment_identity.compute(selection, registry)
         if publish:
             with client._state_lock:  # noqa: SLF001
                 client._execution_environment_digest = environment_digest  # noqa: SLF001
@@ -490,6 +383,86 @@ class ExecutionBackendClient:
                     selection_digest
                 )
         return environment_digest
+
+    def prepare_builtin_generation(
+        self, registry: NodeRegistry, *, timeout: float = 30.0
+    ) -> ExecutionGenerationSnapshot:
+        """Initialize metadata and build identity without reserving a workflow run."""
+        return self._prepare_builtin_generation(
+            registry,
+            ExecutionBackendSelection(),
+            timeout=timeout,
+        )
+
+    def prepare_current_generation(
+        self, selection: ExecutionBackendSelection, registry: NodeRegistry
+    ) -> ExecutionGenerationSnapshot | None:
+        if selection.backend_id != PROCESS_ISOLATED_BACKEND:
+            return None
+        current = self.execution_generation_snapshot(
+            selection, registry_contract_fingerprint=registry.contract_fingerprint()
+        )
+        if current.available:
+            return current
+        return self._prepare_builtin_generation(
+            registry, selection, timeout=30.0
+        )
+
+    def _prepare_builtin_generation(
+        self,
+        registry: NodeRegistry,
+        selection: ExecutionBackendSelection,
+        *,
+        timeout: float,
+    ) -> ExecutionGenerationSnapshot:
+        with self.registry_publication_guard():
+            if (
+                self._published_registry is not None
+                and self._published_registry.contract_fingerprint()
+                != registry.contract_fingerprint()
+            ):
+                raise ValueError("registry changed before generation preparation")
+            preparation = self._process_client.prepare_generation(registry)
+        # The worker verifies declarations while the host computes its existing
+        # authoritative environment/build identity. No lifecycle lock spans I/O.
+        environment_digest = self._environment_identity.compute(selection, registry)
+        expected_build = corex_build_digest()
+        try:
+            response = preparation.result(timeout)
+        except TimeoutError:
+            self.cancel_generation_preparation(
+                "worker generation preparation timed out"
+            )
+            raise
+        if response.build_fingerprint != expected_build:
+            raise ValueError("worker build identity differs from the host")
+        with self.registry_publication_guard():
+            if (
+                self._published_registry is not None
+                and self._published_registry.contract_fingerprint()
+                != registry.contract_fingerprint()
+            ):
+                raise ValueError("registry changed during generation preparation")
+            client = self._process_client
+            with client._state_lock:  # noqa: SLF001
+                if (
+                    client._accepted_physical_generation_token
+                    != preparation.physical_generation
+                ):  # noqa: SLF001
+                    raise ValueError("worker ended during generation preparation")
+                client._execution_environment_digest = environment_digest  # noqa: SLF001
+                client._execution_environment_registry_fingerprint = (
+                    registry.contract_fingerprint()
+                )  # noqa: SLF001
+                client._execution_environment_selection_digest = canonical_digest(
+                    _result_affecting_selection_payload(selection)
+                )  # noqa: SLF001
+            return self._generation_snapshot_for_client(client, selection)
+
+    def cancel_generation_preparation(
+        self, reason: str = "generation preparation cancelled"
+    ) -> None:
+        self._process_client._retire_generation_readiness(reason)  # noqa: SLF001
 
     def execution_generation_snapshot(
         self,
@@ -852,7 +825,8 @@ class ExecutionBackendClient:
 
         if not isinstance(reservation, ExecutionRunReservation):
             raise TypeError("reservation must be an ExecutionRunReservation")
-        if not isinstance(command, StartRunCommand):
+        prepared_dispatch = command if type(command) is PreparedRunDispatch else None
+        if not isinstance(command, StartRunCommand) and prepared_dispatch is None:
             raise TypeError("command must be a StartRunCommand")
         with self._active_lock:
             stored = self._run_reservations.pop(reservation.run_id, None)
@@ -863,6 +837,8 @@ class ExecutionBackendClient:
         if registry is None:
             client._release_start_run(reservation.run_id)  # noqa: SLF001
             raise RuntimeError("start_reserved_run requires a published registry")
+        if prepared_dispatch is not None:
+            command = prepared_dispatch.materialize(registry.data_types)
         if (
             command.run_id != reservation.run_id
             or command.workspace_id != reservation.workspace_id
@@ -940,7 +916,7 @@ class ExecutionBackendClient:
                 addon_runtime_config=registry.addon_runtime_config(),
                 _reserved_run_id=reservation.run_id,
                 _reservation_prepared=True,
-                _prepared_command=command,
+                _prepared_command=prepared_dispatch or command,
             )
         except Exception:
             client._release_start_run(reservation.run_id)  # noqa: SLF001
@@ -1784,6 +1760,9 @@ class ExecutionBackendClient:
     def replace_registry(self, registry: NodeRegistry) -> bool:
         if not isinstance(registry, NodeRegistry):
             raise TypeError("registry must be a NodeRegistry")
+        if not registry.data_types.is_frozen:
+            raise DataTypeCatalogError("replacement data-type catalog must be frozen")
+        registry.freeze()
         requested_fingerprint = registry.contract_fingerprint()
         published_registry = self._published_registry
         if (
@@ -1999,7 +1978,9 @@ class ExecutionBackendClient:
         if any(thread.is_alive() for thread in threads):
             raise TimeoutError("Workspace retirement exceeded its shared bound")
         if errors:
-            raise RuntimeError(f"Workspace retirement failed: {errors[0]}") from errors[0]
+            raise RuntimeError(f"Workspace retirement failed: {errors[0]}") from errors[
+                0
+            ]
         return sum(results)
 
     def _client_for_run(self, run_id: str) -> Any:

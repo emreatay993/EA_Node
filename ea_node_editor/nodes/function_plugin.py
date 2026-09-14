@@ -13,11 +13,10 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass, replace
 from enum import Enum
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any
 
 from corex import _Settings
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
-from ea_node_editor.nodes.node_specs import NodeTypeSpec
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PropertySpec
 from ea_node_editor.runtime_contracts.scientific_values import (
     materialize_script_values, snapshot_scientific_values,
 )
@@ -120,6 +119,8 @@ class PluginBundleRef:
             "approved_generation_root",
             _trimmed("approved_generation_root", self.approved_generation_root),
         )
+        if isinstance(self.functions, tuple):
+            object.__setattr__(self, "functions", tuple(self.functions))
         if not isinstance(self.functions, tuple) or not all(
             isinstance(item, PythonFunctionRef) for item in self.functions
         ):
@@ -150,9 +151,12 @@ def _stable_fingerprint_value(value: object, *, approved_callbacks: tuple = ()) 
     if callable(value) and value in approved_callbacks:
         return {"__callable__": f"{value.__module__}:{value.__qualname__}"}
     if is_dataclass(value):
+        values = value.contract_values() if isinstance(value, PropertySpec) else {
+            field.name: getattr(value, field.name) for field in fields(value)
+        }
         return {
-            field.name: _stable_fingerprint_value(getattr(value, field.name), approved_callbacks=approved_callbacks)
-            for field in fields(value)
+            name: _stable_fingerprint_value(item, approved_callbacks=approved_callbacks)
+            for name, item in values.items()
         }
     if isinstance(value, Mapping):
         return {

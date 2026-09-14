@@ -86,8 +86,8 @@ class ProcessRunNodeTests(unittest.TestCase):
         self.assertTrue(ports["command"].uses_property_default)
         self.assertTrue(ports["args"].uses_property_default)
         self.assertEqual(properties["args"].type, "json")
-        self.assertEqual(properties["args"].default, [])
-        self.assertEqual(normalize_args(properties["args"].default), [])
+        self.assertEqual(properties["args"].make_default(), [])
+        self.assertEqual(normalize_args(properties["args"].make_default()), [])
 
     def test_normalize_args_and_env_accept_json_and_shell_text(self) -> None:
         self.assertEqual(normalize_args(["a", 2, True]), ["a", "2", "True"])

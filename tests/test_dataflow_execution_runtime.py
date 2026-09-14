@@ -454,9 +454,10 @@ _TEST_PLUGINS = (
 
 
 def _registry():
-    registry = build_default_registry()
+    registry = build_default_registry().fork()
     for plugin in _TEST_PLUGINS:
         registry.register(plugin)
+    registry.freeze()
     return registry
 
 

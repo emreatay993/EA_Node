@@ -253,20 +253,20 @@ class DecoratorSdkTests(unittest.TestCase):
         )
 
         self.assertEqual(enabled.type, "bool")
-        self.assertTrue(enabled.default)
+        self.assertTrue(enabled.make_default())
         self.assertEqual(enabled.inspector_editor, "toggle")
 
         self.assertEqual(threshold.type, "float")
-        self.assertAlmostEqual(float(threshold.default), 1.5, places=3)
+        self.assertAlmostEqual(float(threshold.make_default()), 1.5, places=3)
 
         self.assertEqual(mode.type, "enum")
-        self.assertEqual(mode.default, "fast")
+        self.assertEqual(mode.make_default(), "fast")
         self.assertEqual(mode.enum_values, ("fast", "safe"))
         self.assertTrue(mode.searchable)
 
         self.assertEqual(sectors.enabled_when, condition)
         self.assertEqual(interval.type, "interval_1d")
-        self.assertEqual(interval.default, Interval1D(10.0, 0.0))
+        self.assertEqual(interval.make_default(), Interval1D(10.0, 0.0))
         self.assertEqual(interval.inline_editor, "interval_slider")
         self.assertEqual(interval.interval_direction, "decreasing")
         self.assertEqual(interval.enabled_when, condition)

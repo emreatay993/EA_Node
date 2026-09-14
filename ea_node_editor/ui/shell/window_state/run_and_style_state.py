@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterable, Literal
+from ea_node_editor.telemetry.status_service import EngineState
+
+from typing import TYPE_CHECKING, Any, Iterable
 
 from PyQt6.QtCore import pyqtSlot
 
@@ -252,7 +254,7 @@ class ShellWindowRunAndStyleStateMixin:
 
     def update_engine_status(
         self: "ShellWindow",
-        state: Literal["ready", "running", "paused", "error"],
+        state: EngineState,
         details: str = "",
     ) -> None:
         self.shell_host_presenter.update_engine_status(state, details)

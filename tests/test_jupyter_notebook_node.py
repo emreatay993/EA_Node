@@ -93,7 +93,7 @@ class JupyterNotebookNodeTests(unittest.TestCase):
         )
         self.assertEqual(properties["frontend"].inspector_editor, "enum")
         self.assertEqual(properties["autostart"].type, "bool")
-        self.assertTrue(properties["autostart"].default)
+        self.assertTrue(properties["autostart"].make_default())
         self.assertEqual(properties["server_state"].type, "json")
         self.assertFalse(properties["server_state"].inspector_visible)
         self.assertFalse(properties["show_title"].inspector_visible)

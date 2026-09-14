@@ -30,7 +30,7 @@ from .function_plugin import (
     PythonFunctionRef,
     plugin_fingerprint,
 )
-from .node_specs import NodeTypeSpec, PortSpec
+from .node_specs import NodeTypeSpec, PortSpec, PropertySpec
 from .solution_provenance import trusted_solution_provenance_inputs
 from .plugin_contracts import (
     NodePlugin,
@@ -103,11 +103,13 @@ def _contract_value(value: object) -> object:
             )
         return {"__callable__": f"{module}:{qualname}"}
     if is_dataclass(value) and not isinstance(value, type):
+        values = value.contract_values() if isinstance(value, PropertySpec) else {
+            item.name: getattr(value, item.name) for item in fields(value)
+        }
         return {
             "__type__": f"{type(value).__module__}:{type(value).__qualname__}",
             **{
-                item.name: _contract_value(getattr(value, item.name))
-                for item in fields(value)
+                name: _contract_value(item) for name, item in values.items()
             },
         }
     if isinstance(value, Mapping):
@@ -184,14 +186,36 @@ class NodeRegistry:
             addon_runtime_config
         )
         self._contract_fingerprint = ""
+        self._frozen = False
 
     @property
     def data_types(self) -> DataTypeCatalog:
         return self._data_types
 
     def freeze(self) -> None:
+        if self._frozen:
+            return
         self._data_types.freeze()
         self._contract_fingerprint = ""
+        self.contract_fingerprint()
+        self._frozen = True
+
+    @property
+    def is_frozen(self) -> bool:
+        return self._frozen
+
+    def _require_mutable(self) -> None:
+        if self._frozen:
+            raise ValueError("Node registry is frozen; fork it before staging changes")
+
+    def fork(self) -> NodeRegistry:
+        """Stage a new generation without changing the published parent."""
+        staged = NodeRegistry(data_types=self._data_types.fork(), addon_runtime_config=self._addon_runtime_config)
+        for name in ("_entries", "_contract_manifests", "_contract_manifest_versions",
+                     "_owner_source_identities", "_plugin_bundle_refs"):
+            setattr(staged, name, dict(getattr(self, name)))
+        staged._plugin_fingerprint = self._plugin_fingerprint
+        return staged
 
     def plugin_contract_manifest(self, owner_id: str) -> PluginContractManifest | None:
         return self._contract_manifests.get(str(owner_id).strip())
@@ -209,6 +233,7 @@ class NodeRegistry:
         python_function_entries: Iterable[PythonFunctionEntry] = (),
         plugin_bundle: PluginBundleRef | None = None,
     ) -> None:
+        self._require_mutable()
         normalized_owner_id = str(owner_id).strip()
         if not normalized_owner_id:
             raise ValueError(
@@ -256,7 +281,6 @@ class NodeRegistry:
                 "Plugin bundle manifest must be a PluginContractManifest or None"
             )
         normalized_owner_version = str(owner_version)
-        was_frozen = self._data_types.is_frozen
         staged_catalog = self._data_types.fork(
             excluding_owner_id=normalized_owner_id if replace_owner else "",
         )
@@ -377,8 +401,6 @@ class NodeRegistry:
             staged._owner_source_identities[normalized_owner_id] = (
                 committed_source_identity
             )
-        if was_frozen:
-            staged.freeze()
         self._data_types = staged._data_types
         self._entries = staged._entries
         self._contract_manifests = staged._contract_manifests
@@ -395,6 +417,7 @@ class NodeRegistry:
         provenance: PluginProvenance | None = None,
         owner_id: str = "",
     ) -> None:
+        self._require_mutable()
         plugin = factory()
         spec = plugin.spec()
         self.register_descriptor(
@@ -412,6 +435,7 @@ class NodeRegistry:
         provenance: PluginProvenance | None = None,
         owner_id: str = "",
     ) -> None:
+        self._require_mutable()
         if isinstance(spec, PluginDescriptor):
             descriptor = spec
             spec = descriptor.spec
@@ -443,6 +467,7 @@ class NodeRegistry:
         *,
         owner_id: str = "",
     ) -> None:
+        self._require_mutable()
         descriptor_items = tuple(descriptors)
         staged_entries = dict(self._entries)
         normalized_owner_id = str(owner_id).strip()
@@ -485,6 +510,7 @@ class NodeRegistry:
         owner_id: str = "",
         unavailable_reason: str = "",
     ) -> None:
+        self._require_mutable()
         self._register_python_function(
             spec,
             function_ref,
@@ -503,6 +529,7 @@ class NodeRegistry:
         owner_id: str = "",
         unavailable_reason: str = "",
     ) -> None:
+        self._require_mutable()
         normalized_owner_id = str(owner_id).strip() or function_ref.bundle_id
         trusted_builtin = bool(
             normalized_owner_id == "corex:builtin:functions" and provenance is None
@@ -541,6 +568,7 @@ class NodeRegistry:
         unavailable_reason: str,
         trusted_solution_reuse: bool,
     ) -> None:
+        self._require_mutable()
         if not isinstance(function_ref, PythonFunctionRef):
             raise TypeError("function_ref must be a PythonFunctionRef")
         normalized_owner_id = str(owner_id).strip() or function_ref.bundle_id
@@ -690,6 +718,7 @@ class NodeRegistry:
         *,
         plugin_fingerprint: str,
     ) -> None:
+        self._require_mutable()
         if not isinstance(bundles, tuple) or not all(
             isinstance(bundle, PluginBundleRef) for bundle in bundles
         ):
@@ -726,6 +755,7 @@ class NodeRegistry:
         self,
         value: Iterable[tuple[str, bool]],
     ) -> None:
+        self._require_mutable()
         self._addon_runtime_config = _normalize_addon_runtime_config(value)
         self._contract_fingerprint = ""
 

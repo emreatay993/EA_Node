@@ -19,7 +19,7 @@ from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 
 @pytest.fixture
 def graph():
-    registry = build_builtin_registry()
+    registry = build_builtin_registry().fork()
     registry.register_descriptor(
         NodeTypeSpec(
             "tests.display",
@@ -57,6 +57,7 @@ def graph():
     ]
 
     def compare(before):
+        registry.freeze()
         return compare_execution_graphs(
             workspace.workspace_id,
             registry=registry,
@@ -102,6 +103,28 @@ def test_cosmetic_records_skip_compilation(graph, monkeypatch, field, value):
         unexpected,
     )
     assert not graph.compare(before).affects_execution
+
+
+def test_static_property_edits_identify_exact_roots_without_compiling(graph, monkeypatch):
+    before = graph.workspace.capture_snapshot()
+    graph.nodes[1].properties["value"] = "changed"
+    def unexpected(*args, **kwargs):
+        pytest.fail("fixed-declaration property edit compiled the workflow")
+    monkeypatch.setattr("ea_node_editor.execution.graph_changes.compile_runtime_workspace_snapshot", unexpected)
+    change = graph.compare(before)
+    assert change.changed_root_node_ids == (graph.nodes[1].node_id,)
+    assert not change.removed_node_ids
+
+
+def test_static_property_change_roots_follow_the_new_authored_order(graph):
+    before = graph.workspace.capture_snapshot()
+    graph.nodes[0].properties["value"] = "first"
+    graph.nodes[1].properties["value"] = "second"
+    after = graph.workspace.capture_snapshot()
+    after = replace(after, nodes=dict(reversed(tuple(after.nodes.items()))))
+    change = compare_execution_graphs(graph.workspace.workspace_id, before_snapshot=before,
+        after_snapshot=after, registry=graph.registry)
+    assert change.changed_root_node_ids == (graph.nodes[1].node_id, graph.nodes[0].node_id)
 
 
 def test_unfamiliar_presentation_property_and_mixed_edit(graph, monkeypatch):

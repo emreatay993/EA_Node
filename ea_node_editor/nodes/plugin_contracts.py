@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import Callable, Literal, Protocol, TypeVar
 
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
@@ -274,7 +275,7 @@ class ArtifactDescriptor:
     toolchain_id: str = ""
     formats: tuple[str, ...] = ()
     platform_tags: tuple[str, ...] = ()
-    metadata: dict[str, str] = field(default_factory=dict)
+    metadata: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "artifact_id", _normalize_trimmed_string("artifact.artifact_id", self.artifact_id))
@@ -299,7 +300,7 @@ class ArtifactDescriptor:
             "platform_tags",
             _normalize_string_tuple("artifact.platform_tags", self.platform_tags),
         )
-        object.__setattr__(self, "metadata", _normalize_string_dict("artifact.metadata", self.metadata))
+        object.__setattr__(self, "metadata", MappingProxyType(_normalize_string_dict("artifact.metadata", self.metadata)))
 
     @classmethod
     def from_value(cls, value: object) -> "ArtifactDescriptor":

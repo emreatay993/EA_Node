@@ -47,6 +47,7 @@ from ea_node_editor.ui.support.solution_output_cache import (
 )
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
 from ea_node_editor.runtime_contracts import DataTree, ImageValue
+from tests.queued_submission_support import QueuedSubmissionDriver
 
 
 _PNG_BYTES = base64.b64decode(
@@ -197,6 +198,9 @@ class _ExecutionClientStub:
         self.registry = registry
         self.next_run_id = "run_live"
         self.start_calls: list[dict] = []
+        self.submission_calls = []
+        self.schedule = None
+        self.deliver_event = None
         self.pause_calls: list[str] = []
         self.resume_calls: list[str] = []
         self.stop_calls: list[str] = []
@@ -204,13 +208,14 @@ class _ExecutionClientStub:
         self.solution_revisions: dict[str, int] = {}
         self.invalidate_calls: list[dict] = []
 
-    def prepare_execution(self, request):  # noqa: ANN001, ANN201
-        return SimpleNamespace(
-            request=request,
-            recompute_node_ids=tuple(request.target_node_ids),
-        )
+    def submit_execution(self, request):  # noqa: ANN001, ANN201
+        self.submission_calls.append(request)
+        return self.submissions.submit(request)
 
-    def dispatch_prepared(self, prepared) -> str:  # noqa: ANN001
+    def cancel_submissions(self, reason="user", *, workspace_id=None):
+        self.submissions.cancel_pending(reason, workspace_id=workspace_id)
+
+    def _record_start(self, prepared):  # noqa: ANN001, ANN201
         request = prepared.request
         trigger = dict(request.trigger)
         trigger["runtime_snapshot"] = request.runtime_snapshot
@@ -419,6 +424,7 @@ class _RunHostStub:
 
     def __init__(self, *, default_mode: str = "manual") -> None:
         self.run_state = ShellRunState()
+        self.next_turn_callbacks = []
         self.project_path = "demo.cxproj"
         self.model = GraphModel()
         self.workspace_manager = _WorkspaceManagerStub(
@@ -445,6 +451,19 @@ class _RunHostStub:
         self._job_counters = (0, 0, 0, 0)
         self._failure_clear_count = 0
         self.selected_run_settings_dialog_open_count = 0
+
+    def register_test_node(self, plugin) -> None:
+        candidate = self.registry.fork()
+        candidate.register(plugin)
+        candidate.freeze()
+        self.registry = candidate
+        self.execution_client.registry = candidate
+
+    def flush_turns(self) -> None:
+        while self.next_turn_callbacks:
+            callbacks, self.next_turn_callbacks = self.next_turn_callbacks, []
+            for callback in callbacks:
+                callback()
 
     def update_notification_counters(self, warnings: int, errors: int) -> None:
         self._notifications = (warnings, errors)
@@ -474,11 +493,21 @@ def _run_controller(host: _RunHostStub) -> RunController:
     controller = RunController(
         host,  # type: ignore[arg-type]
         projection_controller=_run_projection_controller(host),
+        schedule_next_turn=lambda callback: host.next_turn_callbacks.append(callback),
     )
     host.run_event_controller = RunEventController(
         host,  # type: ignore[arg-type]
         run_controller=controller,
         projection_controller=host.run_projection_controller,
+    )
+    host.execution_client.schedule = lambda callback: host.next_turn_callbacks.append(callback)
+    host.execution_client.deliver_event = host.run_event_controller.handle_execution_event
+    host.execution_client.submissions = QueuedSubmissionDriver(
+        schedule=host.execution_client.schedule,
+        prepare=lambda request: SimpleNamespace(request=request, recompute_node_ids=request.target_node_ids),
+        dispatch=host.execution_client._record_start,
+        publish=host.execution_client.deliver_event,
+        stop=host.execution_client.stop_run,
     )
     return controller
 
@@ -496,6 +525,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host.model.set_node_property(workspace.workspace_id, node.node_id, "show_title", False)
         self.assertFalse(controller.invalidate_solution_for_graph_change(workspace.workspace_id,
             before_snapshot=before, after_snapshot=workspace.capture_snapshot()))
+        host.flush_turns()
         self.assertEqual(host.execution_client.invalidate_calls, [])
         self.assertEqual(host.execution_client.start_calls, [])
         self.assertFalse(host.run_state.pending_auto_run_target_node_ids)
@@ -536,6 +566,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 after_snapshot=host.model.active_workspace.capture_snapshot(),
             )
         )
+        host.flush_turns()
         self.assertEqual(host.execution_client.invalidate_calls, [])
 
         active = host.model.add_node(
@@ -566,6 +597,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 after_snapshot=host.model.active_workspace.capture_snapshot(),
             )
         )
+        host.flush_turns()
         invalidation = host.execution_client.invalidate_calls[-1]
         self.assertEqual(invalidation["changed_root_node_ids"], [])
         self.assertEqual(invalidation["expired_node_ids"], [])
@@ -578,6 +610,7 @@ class RunControllerUnitTests(unittest.TestCase):
         controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_workflow()
+        host.flush_turns()
 
         self.assertEqual(host.console_panel.clear_count, 1)
         self.assertEqual(host.run_state.active_run_id, "run_live")
@@ -585,17 +618,17 @@ class RunControllerUnitTests(unittest.TestCase):
             host.run_state.active_run_workspace_id,
             host.model.active_workspace.workspace_id,
         )
-        self.assertEqual(host.run_state.engine_state_value, "running")
-        self.assertEqual(host._engine_status, ("running", "Starting"))
-        self.assertEqual(host._job_counters, (1, 0, 0, 0))
+        self.assertEqual(host.run_state.engine_state_value, "preparing")
+        self.assertEqual(host._engine_status, ("preparing", ""))
+        self.assertEqual(host._job_counters, (0, 1, 0, 0))
         self.assert_run_controls(
             host,
             run_enabled=False,
-            pause_enabled=True,
+            pause_enabled=False,
             stop_enabled=True,
             pause_label="Pause",
         )
-        self.assertEqual(host.run_controls_changed.calls, 1)
+        self.assertEqual(host.run_controls_changed.calls, 2)
 
         start_call = host.execution_client.start_calls[-1]
         self.assertEqual(start_call["project_path"], "demo.cxproj")
@@ -685,6 +718,7 @@ class RunControllerUnitTests(unittest.TestCase):
             "python_executable"
         ]
         _run_controller(host).run_workflow()  # type: ignore[arg-type]
+        host.flush_turns()
         calls.append(host.execution_client.start_calls[-1])
 
         for trigger_kind in ("manual", "auto"):
@@ -699,6 +733,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 [logger.node_id],
                 trigger_kind=trigger_kind,
             )
+            host.flush_turns()
             calls.append(host.execution_client.start_calls[-1])
 
         host = _RunHostStub()
@@ -710,6 +745,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertTrue(
             _run_controller(host).trigger_node(trigger.node_id)  # type: ignore[arg-type]
         )
+        host.flush_turns()
         calls.append(host.execution_client.start_calls[-1])
 
         self.assertEqual(
@@ -754,10 +790,12 @@ class RunControllerUnitTests(unittest.TestCase):
                 before_snapshot=before,
                 after_snapshot=workspace.capture_snapshot(),
             )
+            host.flush_turns()
 
         host.script_editor.apply_callback = apply_draft
 
         controller.run_workflow()
+        host.flush_turns()
 
         self.assertEqual(host.script_editor.apply_calls, 1)
         self.assertEqual(len(host.execution_client.start_calls), 1)
@@ -783,6 +821,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=before,
             after_snapshot=workspace.capture_snapshot(),
         )
+        host.flush_turns()
         self.assertEqual(len(host.execution_client.start_calls), 2)
         self.assertEqual(
             host.execution_client.start_calls[-1]["trigger"]["kind"],
@@ -796,6 +835,7 @@ class RunControllerUnitTests(unittest.TestCase):
         controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_workflow()
+        host.flush_turns()
 
         self.assertEqual(host.script_editor.apply_calls, 1)
         self.assertEqual(host.execution_client.start_calls, [])
@@ -831,6 +871,7 @@ class RunControllerUnitTests(unittest.TestCase):
         controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_selected_nodes([logger.node_id])
+        host.flush_turns()
 
         start_call = host.execution_client.start_calls[-1]
         self.assertEqual(start_call["target_node_ids"], (logger.node_id,))
@@ -849,6 +890,7 @@ class RunControllerUnitTests(unittest.TestCase):
 
         self.assertEqual(controller.solution_mode(workspace_id), "auto")
         controller.evaluate_workspace_on_open(workspace_id)
+        host.flush_turns()
 
         self.assertEqual(
             host.run_state.solution_mode_by_workspace_id, {workspace_id: "auto"}
@@ -878,6 +920,7 @@ class RunControllerUnitTests(unittest.TestCase):
         controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.toggle_auto_run()
+        host.flush_turns()
 
         self.assertEqual(
             host.execution_client.start_calls[-1]["trigger"]["kind"], "auto"
@@ -911,6 +954,7 @@ class RunControllerUnitTests(unittest.TestCase):
         }
 
         self.assertTrue(controller.trigger_node(trigger.node_id))
+        host.flush_turns()
         start_call = host.execution_client.start_calls[-1]
         self.assertEqual(start_call["target_node_ids"], (trigger.node_id,))
         self.assertEqual(start_call["clicked_trigger_node_id"], trigger.node_id)
@@ -929,6 +973,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 "result": latest_publication,
             }
         )
+        host.flush_turns()
         self.assertEqual(
             host.run_state.latest_trigger_inputs_by_workspace_id[workspace_id][
                 trigger.node_id
@@ -951,6 +996,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 "fatal": True,
             }
         )
+        host.flush_turns()
         self.assertEqual(
             host.run_state.trigger_publications_by_workspace_id[workspace_id][
                 trigger.node_id
@@ -959,6 +1005,7 @@ class RunControllerUnitTests(unittest.TestCase):
         )
 
         self.assertTrue(controller.trigger_node(trigger.node_id))
+        host.flush_turns()
         self.assertEqual(
             host.execution_client.start_calls[-1]["trigger_captures"],
             {trigger.node_id: latest_publication},
@@ -970,6 +1017,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 "workspace_id": workspace_id,
             }
         )
+        host.flush_turns()
         self.assertEqual(
             host.run_state.trigger_publications_by_workspace_id[workspace_id][
                 trigger.node_id
@@ -978,6 +1026,7 @@ class RunControllerUnitTests(unittest.TestCase):
         )
 
         self.assertTrue(controller.trigger_node(trigger.node_id))
+        host.flush_turns()
 
         revision_before_publish = host.run_state.node_execution_revision
         host.run_event_controller.handle_execution_event(
@@ -989,6 +1038,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 "result": latest_publication,
             }
         )
+        host.flush_turns()
         self.assertEqual(
             host.run_state.latest_trigger_inputs_by_workspace_id[workspace_id][
                 trigger.node_id
@@ -1011,8 +1061,10 @@ class RunControllerUnitTests(unittest.TestCase):
                 "workspace_id": workspace_id,
             }
         )
+        host.flush_turns()
 
         controller.run_workflow()
+        host.flush_turns()
         self.assertEqual(
             host.execution_client.start_calls[-1]["trigger_publications"],
             {trigger.node_id: latest_publication},
@@ -1052,6 +1104,7 @@ class RunControllerUnitTests(unittest.TestCase):
         controller = _run_controller(host)  # type: ignore[arg-type]
 
         self.assertTrue(controller.trigger_node(trigger.node_id))
+        host.flush_turns()
 
         self.assertEqual(host.script_editor.apply_calls, 1)
         runtime_workspace = host.execution_client.start_calls[0]["trigger"][
@@ -1120,7 +1173,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self,
     ) -> None:
         host = _RunHostStub()
-        host.registry.register(_PassthroughDependencyPlugin)
+        host.register_test_node(_PassthroughDependencyPlugin)
         workspace_id = host.model.active_workspace.workspace_id
         source = host.model.add_node(
             workspace_id, "test.passthrough_dependency", "Source", 0, 0
@@ -1166,6 +1219,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
+        host.flush_turns()
 
         self.assertEqual(
             set(host.execution_client.start_calls[-1]["target_node_ids"]),
@@ -1190,8 +1244,8 @@ class RunControllerUnitTests(unittest.TestCase):
         self,
     ) -> None:
         host = _RunHostStub()
-        host.registry.register(_PassthroughDependencyPlugin)
-        host.registry.register(_RequiredPureDataPlugin)
+        host.register_test_node(_PassthroughDependencyPlugin)
+        host.register_test_node(_RequiredPureDataPlugin)
         workspace_id = host.model.active_workspace.workspace_id
         source = host.model.add_node(
             workspace_id, "test.passthrough_dependency", "Source", 0, 0
@@ -1211,6 +1265,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
+        host.flush_turns()
         self.assertEqual(host.execution_client.start_calls, [])
 
         controller.set_auto_run_enabled(True)
@@ -1222,6 +1277,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=rename_before,
             after_snapshot=rename_after,
         )
+        host.flush_turns()
         self.assertEqual(host.execution_client.start_calls, [])
 
         disconnected_snapshot = before_snapshot
@@ -1230,6 +1286,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=disconnected_snapshot,
             after_snapshot=after_snapshot,
         )
+        host.flush_turns()
 
         start_call = host.execution_client.start_calls[-1]
         self.assertEqual(start_call["trigger"]["kind"], "auto")
@@ -1240,7 +1297,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self,
     ) -> None:
         host = _RunHostStub()
-        host.registry.register(_RequiredPureDataPlugin)
+        host.register_test_node(_RequiredPureDataPlugin)
         workspace_id = host.model.active_workspace.workspace_id
         target = host.model._add_node_record(
             workspace_id,
@@ -1259,6 +1316,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
+        host.flush_turns()
         self.assertEqual(len(host.execution_client.start_calls), 1)
         self.assertEqual(
             host.execution_client.start_calls[0]["target_node_ids"], (target.node_id,)
@@ -1268,8 +1326,8 @@ class RunControllerUnitTests(unittest.TestCase):
         self,
     ) -> None:
         host = _RunHostStub()
-        host.registry.register(_PassthroughDependencyPlugin)
-        host.registry.register(_RequiredPureDataPlugin)
+        host.register_test_node(_PassthroughDependencyPlugin)
+        host.register_test_node(_RequiredPureDataPlugin)
         workspace_id = host.model.active_workspace.workspace_id
         first = host.model.add_node(
             workspace_id, "test.passthrough_dependency", "First", 0, 0
@@ -1297,6 +1355,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
+        host.flush_turns()
         self.assertEqual(len(host.execution_client.start_calls), 1)
 
         host.run_state.active_run_id = ""
@@ -1310,6 +1369,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=before_last_removal,
             after_snapshot=after_last_removal,
         )
+        host.flush_turns()
         self.assertEqual(len(host.execution_client.start_calls), 1)
         self.assertEqual(
             host.execution_client.start_calls[0]["target_node_ids"], (target.node_id,)
@@ -1317,8 +1377,8 @@ class RunControllerUnitTests(unittest.TestCase):
 
     def test_auto_run_property_edit_targets_all_active_downstream_nodes(self) -> None:
         host = _RunHostStub()
-        host.registry.register(_PassthroughDependencyPlugin)
-        host.registry.register(_RequiredPureDataPlugin)
+        host.register_test_node(_PassthroughDependencyPlugin)
+        host.register_test_node(_RequiredPureDataPlugin)
         workspace_id = host.model.active_workspace.workspace_id
         source = host.model.add_node(
             workspace_id, "test.passthrough_dependency", "Source", 0, 0
@@ -1361,6 +1421,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
+        host.flush_turns()
 
         targets = set(host.execution_client.start_calls[-1]["target_node_ids"])
         self.assertEqual(
@@ -1386,6 +1447,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
+        host.flush_turns()
 
         self.assertEqual(
             host.execution_client.start_calls[-1]["target_node_ids"], (panel.node_id,)
@@ -1400,6 +1462,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 outputs=_value_outputs(output="1"),
             )
         )
+        host.flush_turns()
 
         nodes, _backdrops, _minimap, edges = (
             GraphScenePayloadBuilder().rebuild_partitioned_models(
@@ -1463,6 +1526,7 @@ class RunControllerUnitTests(unittest.TestCase):
                     before_snapshot=before_snapshot,
                     after_snapshot=after_snapshot,
                 )
+                host.flush_turns()
 
                 self.assertEqual(len(host.execution_client.start_calls), 1)
                 self.assertEqual(
@@ -1472,7 +1536,7 @@ class RunControllerUnitTests(unittest.TestCase):
 
     def test_auto_run_edge_enable_change_targets_the_consumer(self) -> None:
         host = _RunHostStub()
-        host.registry.register(_PassthroughDependencyPlugin)
+        host.register_test_node(_PassthroughDependencyPlugin)
         workspace_id = host.model.active_workspace.workspace_id
         source = host.model.add_node(
             workspace_id,
@@ -1509,6 +1573,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
+        host.flush_turns()
 
         self.assertEqual(
             host.execution_client.start_calls[0]["target_node_ids"],
@@ -1541,6 +1606,7 @@ class RunControllerUnitTests(unittest.TestCase):
                     before_snapshot=before_snapshot,
                     after_snapshot=after_snapshot,
                 )
+                host.flush_turns()
 
                 self.assertEqual(len(host.execution_client.start_calls), 1)
                 self.assertEqual(
@@ -1552,8 +1618,8 @@ class RunControllerUnitTests(unittest.TestCase):
         self,
     ) -> None:
         host = _RunHostStub()
-        host.registry.register(_PassthroughDependencyPlugin)
-        host.registry.register(_RequiredPureDataPlugin)
+        host.register_test_node(_PassthroughDependencyPlugin)
+        host.register_test_node(_RequiredPureDataPlugin)
         workspace_id = host.model.active_workspace.workspace_id
         source = host.model.add_node(
             workspace_id, "test.passthrough_dependency", "Source", 0, 0
@@ -1578,6 +1644,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 before_snapshot=before_snapshot,
                 after_snapshot=after_snapshot,
             )
+            host.flush_turns()
 
         self.assertEqual(host.execution_client.start_calls, [])
         self.assertEqual(
@@ -1594,6 +1661,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 "elapsed_ms": 10.0,
             }
         )
+        host.flush_turns()
         self.assertNotIn(
             target.node_id,
             host.run_state.cached_node_output_records_by_workspace_id.get(
@@ -1608,6 +1676,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 "workspace_id": workspace_id,
             }
         )
+        host.flush_turns()
         self.assertEqual(len(host.execution_client.start_calls), 1)
         self.assertEqual(
             host.execution_client.start_calls[0]["trigger"]["kind"], "auto"
@@ -1667,6 +1736,7 @@ class RunControllerUnitTests(unittest.TestCase):
                 "fatal": True,
             }
         )
+        host.flush_turns()
 
         self.assertEqual(host.execution_client.start_calls, [])
         self.assertEqual(host.run_state.pending_auto_run_workspace_id, "")
@@ -1702,6 +1772,7 @@ class RunControllerUnitTests(unittest.TestCase):
                         outputs=_value_outputs(result=result),
                     )
                 )
+                host.flush_turns()
         host.run_state.active_run_id = ""
         host.run_state.active_run_workspace_id = ""
 
@@ -1712,6 +1783,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=before_snapshot,
             after_snapshot=host.model.active_workspace.capture_snapshot(),
         )
+        host.flush_turns()
 
         self.assertTrue(changed)
         records = host.run_state.cached_node_output_records_by_workspace_id[
@@ -1785,6 +1857,7 @@ class RunControllerUnitTests(unittest.TestCase):
             )
             event["elapsed_ms"] = float(index * 100)
             host.run_event_controller.handle_execution_event(event)
+            host.flush_turns()
         host.run_state.active_run_id = ""
         host.run_state.active_run_workspace_id = ""
         before_snapshot = host.model.active_workspace.capture_snapshot()
@@ -1798,6 +1871,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=before_snapshot,
             after_snapshot=after_snapshot,
         )
+        host.flush_turns()
 
         self.assertTrue(changed)
         self.assertEqual(
@@ -1847,6 +1921,7 @@ class RunControllerUnitTests(unittest.TestCase):
             before_snapshot=cosmetic_before,
             after_snapshot=cosmetic_after,
         )
+        host.flush_turns()
 
         self.assertFalse(cosmetic_changed)
         self.assertIs(
@@ -1880,6 +1955,7 @@ class RunControllerUnitTests(unittest.TestCase):
         controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_selected_nodes([group.node_id])
+        host.flush_turns()
 
         start_call = host.execution_client.start_calls[-1]
         self.assertEqual(start_call["target_node_ids"], (logger.node_id,))
@@ -1898,6 +1974,7 @@ class RunControllerUnitTests(unittest.TestCase):
         controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_selected_nodes([script.node_id])
+        host.flush_turns()
 
         self.assertEqual(host.execution_client.start_calls, [])
         self.assertEqual(host.script_editor.apply_calls, 0)
@@ -1909,6 +1986,7 @@ class RunControllerUnitTests(unittest.TestCase):
             host.run_state.selected_run_preview_node_lookup, {script.node_id: "run"}
         )
         controller.confirm_selected_run_preview()
+        host.flush_turns()
 
         self.assertEqual(len(host.execution_client.start_calls), 1)
         self.assertEqual(host.script_editor.apply_calls, 1)
@@ -1934,6 +2012,7 @@ class RunControllerUnitTests(unittest.TestCase):
             [script.node_id],
             trigger_kind="auto",
         )
+        host.flush_turns()
 
         self.assertEqual(host.script_editor.apply_calls, 0)
         self.assertEqual(len(host.execution_client.start_calls), 1)
@@ -1953,14 +2032,15 @@ class RunControllerUnitTests(unittest.TestCase):
         controller = _run_controller(host)  # type: ignore[arg-type]
 
         controller.run_workflow()
+        host.flush_turns()
 
         self.assertEqual(
-            host.console_panel.logs[-1], ("error", "Failed to start workflow run.")
+            host.console_panel.logs[-1], ("error", "start failed")
         )
         self.assertEqual(host._notifications, (0, 1))
         self.assertEqual(host.run_state.active_run_id, "")
         self.assertEqual(host.run_state.engine_state_value, "error")
-        self.assertEqual(host._engine_status, ("error", "Start Failed"))
+        self.assertEqual(host._engine_status, ("error", "Preparation Failed"))
         self.assertEqual(host._job_counters, (0, 0, 0, 1))
         self.assert_run_controls(
             host,
@@ -1969,7 +2049,7 @@ class RunControllerUnitTests(unittest.TestCase):
             stop_enabled=False,
             pause_label="Pause",
         )
-        self.assertEqual(host.run_controls_changed.calls, 1)
+        self.assertEqual(host.run_controls_changed.calls, 2)
 
     def test_toggle_pause_resume_and_stop_route_to_execution_client(self) -> None:
         host = _RunHostStub()

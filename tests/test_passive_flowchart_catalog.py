@@ -219,16 +219,16 @@ class PassiveFlowchartCatalogTests(unittest.TestCase):
                 expected["ports"],
             )
             self.assertEqual(tuple(prop.key for prop in spec.properties), expected["properties"])
-            self.assertEqual(spec.properties[0].default, expected["display_name"])
+            self.assertEqual(spec.properties[0].make_default(), expected["display_name"])
             self.assertEqual(
-                spec.properties[1].default,
+                spec.properties[1].make_default(),
                 expected.get("body_default", expected["display_name"]),
             )
             self.assertEqual(spec.properties[1].inspector_editor, "textarea")
             if "live_default" in expected:
                 self.assertEqual(spec.properties[2].type, "bool")
                 self.assertEqual(spec.properties[2].label, "Live")
-                self.assertEqual(spec.properties[2].default, expected["live_default"])
+                self.assertEqual(spec.properties[2].make_default(), expected["live_default"])
             self.assertTrue(all(port.kind == "flow" for port in spec.ports))
             self.assertTrue(all(port.data_type == "flow" for port in spec.ports))
 
