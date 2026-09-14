@@ -12,6 +12,16 @@ from ea_node_editor.ui.icon_registry import (
 
 
 class IconRegistryTests(unittest.TestCase):
+    def test_configure_data_icon_is_tintable_and_visible_at_toolbar_sizes(self) -> None:
+        bridge = UiIconRegistryBridge()
+        self.assertTrue(bridge.has("table-configure"))
+        self.assertEqual(bridge.label("table-configure"), "Configure Data")
+        for size in (15, 20, 24):
+            for color in ("#24324b", "#edf0f7"):
+                image = icon_pixmap("table-configure", size=size, color=color).toImage()
+                self.assertGreater(sum(image.pixelColor(x, y).alpha() > 32
+                                       for y in range(image.height()) for x in range(image.width())), 20)
+
     def test_known_icons_resolve_to_existing_files(self) -> None:
         for name in (
             "code",

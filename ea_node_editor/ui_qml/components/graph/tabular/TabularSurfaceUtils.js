@@ -317,6 +317,6 @@ function nodeEmptyDescription(payload, sourcePath) {
         return message;
     var hasPath = stringValue(sourcePath, "").trim().length > 0;
     return hasPath
-        ? "Open fullscreen to load a bounded preview window from this dataset."
-        : "Drive the Path port from a file source, or open fullscreen to pick one.";
+        ? "Use Configure data in the toolbar to prepare this dataset."
+        : "Use Configure data in the toolbar, or connect a file to the Path port.";
 }

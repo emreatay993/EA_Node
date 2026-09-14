@@ -97,6 +97,7 @@ _ICON_SPECS: dict[str, IconSpec] = {
     "edge-arrow-none": IconSpec(name="edge-arrow-none", label="No Arrow", relative_path="edge-arrow-none.svg"),
     "label-off": IconSpec(name="label-off", label="Remove Label", relative_path="label-off.svg"),
     "fullscreen": IconSpec(name="fullscreen", label="Fullscreen", relative_path="fullscreen.svg"),
+    "table-configure": IconSpec(name="table-configure", label="Configure Data", relative_path="table-configure.svg"),
     "content-only": IconSpec(name="content-only", label="Content Only", relative_path="content-only.svg"),
     "node-chrome": IconSpec(name="node-chrome", label="Node Chrome", relative_path="node-chrome.svg"),
     "title-heading": IconSpec(name="title-heading", label="Title", relative_path="title-heading.svg"),

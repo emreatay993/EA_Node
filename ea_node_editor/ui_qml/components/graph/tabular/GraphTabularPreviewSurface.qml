@@ -1,6 +1,5 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
-import "../surface_controls" as GraphSurfaceControls
 import "../surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 import "../surface_controls/SourceStorageModeUtils.js" as SourceStorageModeUtils
 import "TabularSurfaceUtils.js" as TabularUtils
@@ -19,6 +18,7 @@ Item {
     readonly property string nodeId: String(nodeData.node_id || "")
     readonly property string sourcePath: String(nodeProperties.path || "")
     readonly property bool hasSourcePath: sourcePath.trim().length > 0
+    readonly property bool selectionReviewRequired: Object.keys(nodeProperties.data_view_migration_notice || ({})).length > 0
     readonly property string sourceStorageMode: SourceStorageModeUtils.sourceModeForPath(sourcePath)
     // Refreshed (not bound): cold sources answer with a transient "loading"
     // state while the managed cache builds on a worker; the retry timer below
@@ -86,18 +86,24 @@ Item {
     readonly property real contentRightMargin: bodyRegionHosted ? 0 : (host ? Number(host.surfaceMetrics.body_right_margin || 10) : 10)
     readonly property real contentTopMargin: bodyRegionHosted ? 0 : (host ? Number(host.surfaceMetrics.body_top || 30) : 30)
     readonly property real contentBottomMargin: bodyRegionHosted ? 0 : (host ? Number(host.surfaceMetrics.body_bottom_margin || 10) : 10)
-    readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists([
-        SurfaceControlGeometry.rectList(SurfaceControlGeometry.rectFromItem(gridPanel, host)),
-        configureButton.embeddedInteractiveRects
-    ])
+    readonly property var embeddedInteractiveRects: SurfaceControlGeometry.rectList(SurfaceControlGeometry.rectFromItem(gridPanel, host))
     readonly property var surfaceActions: [
+        {
+            "id": "fullscreen",
+            "label": "Configure data",
+            "description": "Choose a source, map arrays and set output rules.",
+            "icon": "table-configure",
+            "kind": "surface",
+            "enabled": fullscreenAvailable,
+            "primary": true
+        },
         {
             "id": "editSource",
             "label": "Source",
             "icon": "search",
             "kind": "surface",
             "enabled": true,
-            "primary": sourcePath.trim().length === 0,
+            "primary": false,
             "popover_layout": "source_storage",
             "popoverActions": [
                 {
@@ -130,14 +136,6 @@ Item {
             "icon": "file-text",
             "kind": "surface",
             "enabled": exportAvailable,
-            "primary": false
-        },
-        {
-            "id": "fullscreen",
-            "label": "Configure data",
-            "icon": "fullscreen",
-            "kind": "tabular",
-            "enabled": fullscreenAvailable,
             "primary": false
         }
     ]
@@ -415,7 +413,7 @@ Item {
             id: gridPanel
             objectName: "graphNodeTabularPreviewGrid"
             width: parent.width
-            height: Math.max(44, parent.height - (surface.showStatusSummary ? 32 : 0) - 36)
+            height: Math.max(44, parent.height - (surface.showStatusSummary ? 32 : 0) - (surface.selectionReviewRequired ? 22 : 0))
             host: surface.host
             compact: true
             preview: surface.previewPayload
@@ -435,7 +433,7 @@ Item {
             id: emptyStatePanel
             objectName: "graphNodeTabularPreviewPlaceholder"
             width: parent.width
-            height: Math.max(44, parent.height - (surface.showStatusSummary ? 32 : 0) - 36)
+            height: Math.max(44, parent.height - (surface.showStatusSummary ? 32 : 0) - (surface.selectionReviewRequired ? 22 : 0))
             visible: !surface.previewReady
 
             Column {
@@ -468,30 +466,15 @@ Item {
 
             }
         }
-        Row {
+        Text {
+            objectName: "graphNodeTabularSelectionReview"
             width: parent.width
-            height: 28
-            spacing: 8
-            Text {
-                width: Math.max(0, parent.width - configureButton.width - 8)
-                height: parent.height
-                verticalAlignment: Text.AlignVCenter
-                text: Object.keys(surface.nodeProperties.data_view_migration_notice || ({})).length ? "Selection review" : ""
-                color: surface.statusWarnColor
-                font.pixelSize: 10
-                elide: Text.ElideRight
-            }
-            GraphSurfaceControls.GraphSurfaceButton {
-                id: configureButton
-                objectName: "graphNodeTabularConfigure"
-                host: surface.host
-                text: "Configure data..."
-                tooltipCategory: "general"
-                width: Math.min(155, parent.width)
-                height: 28
-                enabled: surface.fullscreenAvailable
-                onClicked: surface._requestContentFullscreen()
-            }
+            height: 16
+            visible: surface.selectionReviewRequired
+            text: "Selection review · Configure data in the toolbar"
+            color: surface.statusWarnColor
+            font.pixelSize: 10
+            elide: Text.ElideRight
         }
     }
 }

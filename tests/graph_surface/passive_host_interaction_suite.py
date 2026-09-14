@@ -2903,10 +2903,15 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
-    def test_selection_required_tabular_surface_opens_composer_without_committing(self) -> None:
+    def test_tabular_floating_toolbar_configures_all_preview_states_without_committing(self) -> None:
         self._run_qml_probe(
-            "tabular-selection-required-composer",
+            "tabular-floating-toolbar-composer",
             """
+            from ea_node_editor.ui.icon_registry import UiIconRegistryBridge, UiIconImageProvider, UI_ICON_PROVIDER_ID
+            ui_icons = UiIconRegistryBridge()
+            engine.rootContext().setContextProperty("uiIcons", ui_icons)
+            engine.addImageProvider(UI_ICON_PROVIDER_ID, UiIconImageProvider())
+
             class ConfigureBridgeStub(QObject):
                 def __init__(self):
                     super().__init__()
@@ -2986,23 +2991,49 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 {"nodeData": payload, "canvasItem": canvas_item},
             )
             window = attach_host_to_window(host, width=720, height=520)
+            host.setProperty("toolbarActive", True)
+            toolbar = create_component(
+                components_dir / "graph" / "overlay" / "GraphNodeFloatingToolbar.qml",
+                {"host": host, "visibleSceneRectPayload": {"x": 0, "y": 0, "width": 720, "height": 520}},
+            )
+            toolbar.setParentItem(window.contentItem())
             try:
                 loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+                surface = host.findChild(QObject, "graphNodeTabularSurface")
                 grid = host.findChild(QObject, "graphNodeTabularPreviewGrid")
-                button = host.findChild(QObject, "graphNodeTabularConfigure")
-                assert loader is not None and grid is not None and button is not None
-                settle_events(8)
-                assert not grid.property("visible")
-                assert button.property("visible") and button.property("enabled")
+                assert loader is not None and surface is not None and grid is not None
+                assert host.findChild(QObject, "graphNodeTabularConfigure") is None
                 assert host.findChild(QObject, "graphNodeTabularSelectorCombo") is None
-                rects = variant_list(loader.property("embeddedInteractiveRects"))
-                assert len(rects) == 1, rects
-                assert abs(rect_field(rects[0], "height") - 28.0) < 0.75
-                QTest.mouseClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, item_scene_point(button, 0.5, 0.5))
+                for state in ("selection_required", "placeholder", "ready", "error"):
+                    payload["properties"]["path"] = "" if state == "placeholder" else "C:/tmp/workbook.xlsx"
+                    payload["preview"] = {
+                        "state": state, "content_kind": "tabular", "preview_kind": "table" if state == "ready" else "",
+                        "window": {"columns": ["Value"], "rows": [{"Value": 1}], "row_offset": 0, "column_offset": 0},
+                        "metadata": {"row_count": 1, "column_count": 1},
+                    }
+                    host.setProperty("nodeData", payload)
+                    settle_events(8)
+                    button = named_item(toolbar, "graphNodeFloatingToolbarAction_fullscreen")
+                    assert button.property("visible") and button.property("enabled"), state
+                    assert button.property("iconName") == "table-configure"
+                    assert "image://ui-icons/table-configure?" in button.property("resolvedIconSource")
+                    assert not button.property("labelVisible")
+                    assert button.property("tooltipText").startswith("Configure data")
+                    actions = variant_list(loader.property("surfaceActions"))
+                    assert actions[0]["id"] == "fullscreen" and actions[0]["primary"]
+                    rects = variant_list(loader.property("embeddedInteractiveRects"))
+                    assert len(rects) == (1 if state == "ready" else 0), (state, rects)
+                    assert grid.height() >= surface.height() - 33, (grid.height(), surface.height())
+                    mouse_click(window, item_scene_point(button))
+                    settle_events(4)
+                    assert not any(key in (canvas_item.last_committed_properties or {}) for key in ("path", "data_view", "selected_object"))
+                assert bridge.opens == ["node_tabular_selector"] * 4
+                button.forceActiveFocus()
+                QTest.keyClick(window, Qt.Key.Key_Return)
                 settle_events(4)
-                assert bridge.opens == ["node_tabular_selector"]
-                assert not any(key in (canvas_item.last_committed_properties or {}) for key in ("path", "data_view", "selected_object"))
+                assert bridge.opens == ["node_tabular_selector"] * 5
             finally:
+                toolbar.deleteLater()
                 dispose_host_window(host, window)
                 canvas_item.deleteLater()
                 app.processEvents()

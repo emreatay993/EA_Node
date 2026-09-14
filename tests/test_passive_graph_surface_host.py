@@ -1668,8 +1668,8 @@ class TabularGraphSurfaceQmlTests(PassiveGraphSurfaceHostTestBase):
                 assert len(variant_list(loader.property("embeddedInteractiveRects"))) >= 1
 
                 actions = variant_list(loader.property("surfaceActions"))
-                assert [action["id"] for action in actions] == ["editSource", "exportVisibleRows", "fullscreen"], actions
-                source_action = actions[0]
+                assert [action["id"] for action in actions] == ["fullscreen", "editSource", "exportVisibleRows"], actions
+                source_action = actions[1]
                 assert source_action["kind"] == "surface"
                 assert source_action["icon"] == "search"
                 assert not bool(source_action["primary"])
@@ -1684,12 +1684,15 @@ class TabularGraphSurfaceQmlTests(PassiveGraphSurfaceHostTestBase):
                 assert bool(source_storage_actions[0]["checked"])
                 assert source_storage_actions[1]["source_mode"] == "managed_copy"
                 assert source_storage_actions[1]["toolbar_text"] == "Internal"
-                export_action = actions[1]
+                export_action = actions[2]
                 assert export_action["kind"] == "surface"
                 assert export_action["icon"] == "file-text"
                 assert bool(export_action["enabled"])
-                assert actions[2]["kind"] == "tabular"
-                assert bool(actions[2]["enabled"])
+                assert actions[0]["kind"] == "surface"
+                assert actions[0]["label"] == "Configure data"
+                assert actions[0]["icon"] == "table-configure"
+                assert bool(actions[0]["enabled"])
+                assert bool(actions[0]["primary"])
                 assert canvas_item.requests[0][1]["row_limit"] == 50
                 assert canvas_item.requests[0][1]["column_limit"] == 50
 
@@ -1701,7 +1704,7 @@ class TabularGraphSurfaceQmlTests(PassiveGraphSurfaceHostTestBase):
                 settle_events(3)
                 assert bridge.browse_requests == [False]
                 assert not any(key in (canvas_item.last_committed_properties or {}) for key in ("path", "data_view", "selected_object"))
-                assert host.findChild(QObject, "graphNodeTabularConfigure") is not None
+                assert host.findChild(QObject, "graphNodeTabularConfigure") is None
 
                 QMetaObject.invokeMethod(
                     surface,
@@ -1819,12 +1822,13 @@ class TabularGraphSurfaceQmlTests(PassiveGraphSurfaceHostTestBase):
                 assert empty_cta is None
 
                 actions = variant_list(loader.property("surfaceActions"))
-                assert [action["id"] for action in actions] == ["editSource", "exportVisibleRows", "fullscreen"], actions
-                assert bool(actions[0]["enabled"])
-                assert bool(actions[0]["primary"])
-                assert actions[0]["popover_layout"] == "source_storage"
-                assert not bool(actions[1]["enabled"])
+                assert [action["id"] for action in actions] == ["fullscreen", "editSource", "exportVisibleRows"], actions
+                assert bool(actions[1]["enabled"])
+                assert not bool(actions[1]["primary"])
+                assert actions[1]["popover_layout"] == "source_storage"
                 assert not bool(actions[2]["enabled"])
+                assert not bool(actions[0]["enabled"])  # No fullscreen bridge in this isolated host.
+                assert host.findChild(QObject, "graphNodeTabularConfigure") is None
             finally:
                 dispose_host_window(host, window)
                 engine.deleteLater()

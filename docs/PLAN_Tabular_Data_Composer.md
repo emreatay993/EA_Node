@@ -37,6 +37,10 @@ Implementation baseline: `3a5648d678c5fd4b9ad63432e3a0908ea2f08213` on `main`, 2
 
 The T11 visual follow-up supersedes the original plain-control layout. It preserves all data-view, Apply/Cancel, source-integrity and export semantics. No global Qt style or unrelated Constant/viewer geometry was changed. The earlier broad-suite failures remain disclosed above; T11's affected-surface verification is green. Source/test inventories were regenerated. The physical-simulation plan/index row, AGENTS changes, graph-canvas snapshot and strain-gage CSV are excluded from the tabular publication.
 
+### T12 — Configure action in the floating toolbar
+
+The user requested moving Configure data out of the node body, adding an appropriate icon, and committing/pushing to main. Implementation and verification are complete: the action now leads the existing floating toolbar, with a tintable table-and-sliders SVG registered in the shared icon system. It reuses the fullscreen action ID and surface-action dispatch to open the same draft session. The inline button and reserved row are removed; migration-review text is retained and empty-state guidance points to the toolbar. **181 checks and 35 subtests passed**, including real toolbar mouse/Enter dispatch in empty, selection-required, ready and error states, no configuration mutations, recovered preview space, and tinted icon rendering at 15/20/24 pixels. Agent-map, traceability, Markdown-link and whitespace checks passed. Unrelated dirty paths are excluded from publication; the task response and Git remote identify the published revision. The preceding T11 implementation was published as `36c9ea6b` on main.
+
 ### Initial implementation acceptance — 2026-09-14 (before T11)
 
 **Outcome:** Implementation complete; tabular acceptance passed; repository-wide acceptance is not green. The primary agent performed all implementation and verification. No implementation/review subagents, commits, staging, push, installer or publication were used.
@@ -53,7 +57,7 @@ The T11 visual follow-up supersedes the original plain-control layout. It preser
 
 ### Composition and output behavior
 
-- Preserve the compact graph node with filename, view name, output dimensions, bounded preview and a persistent **Configure data...** action.
+- Preserve the compact graph node with filename, view name, output dimensions and bounded preview. Per T12, **Configure data** lives in its floating toolbar rather than the node body.
 - Use the approved interactive mockup as the layout reference. The fullscreen editor contains a searchable source browser, composition controls and the resulting preview.
 - Simple single-table files open directly. Archives with multiple members require an explicit source choice.
 - **Build table:** choose values, an optional row coordinate, and optional column labels. A row coordinate becomes an ordinary first column; otherwise the table has presentation-only row numbers.
