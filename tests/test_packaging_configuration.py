@@ -806,6 +806,11 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert 'dependency = "pyqtgraph"' in build_package_source
     assert 'dependency = "ansys-mechanical-core"' in build_package_source
     assert 'dependency = "ansys-workbench-core"' in build_package_source
+    assert (
+        "ansys_workbench_core = [bool]$parsed.ansys_workbench_core"
+        in build_package_source
+    )
+    assert build_package_source.count('ansys_workbench_core = "unknown"') == 3
     assert 'dependency = "cadquery-ocp-novtk"' in build_package_source
     assert '@{ Key = "ocp"; Display = "cadquery-ocp-novtk" }' in build_package_source
     assert "ansys_dpf" not in build_package_source
