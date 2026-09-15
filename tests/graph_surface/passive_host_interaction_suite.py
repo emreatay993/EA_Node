@@ -3023,7 +3023,8 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     assert actions[0]["id"] == "fullscreen" and actions[0]["primary"]
                     rects = variant_list(loader.property("embeddedInteractiveRects"))
                     assert len(rects) == (1 if state == "ready" else 0), (state, rects)
-                    assert grid.height() >= surface.height() - 33, (grid.height(), surface.height())
+                    available_height = surface.height() - float(surface.property("contentTopMargin")) - float(surface.property("contentBottomMargin"))
+                    assert grid.height() >= available_height - 33, (grid.height(), available_height)
                     mouse_click(window, item_scene_point(button))
                     settle_events(4)
                     assert not any(key in (canvas_item.last_committed_properties or {}) for key in ("path", "data_view", "selected_object"))
@@ -3036,6 +3037,50 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 toolbar.deleteLater()
                 dispose_host_window(host, window)
                 canvas_item.deleteLater()
+                app.processEvents()
+            """,
+        )
+
+    def test_tabular_preview_stays_inside_panel_border_when_resized_and_scrolled(self) -> None:
+        self._run_qml_probe(
+            "tabular-preview-panel-inset",
+            """
+            payload = node_payload()
+            payload.update(node_id="tabular_bounds", type_id="tabular.input", title="Tabular Data Input",
+                           surface_spec=surface_spec_payload_for_values(type_id="tabular.input"),
+                           width=420.0, height=300.0, inline_properties=[], ports=[])
+            names = ["Column " + str(index) for index in range(12)]
+            payload["properties"] = {"path": "C:/tmp/history.tsv", "data_view_migration_notice": {"previous_selection": {}}}
+            payload["preview"] = {
+                "state": "ready", "preview_kind": "table", "content_kind": "tabular",
+                "window": {"columns": names, "rows": [{name: row for name in names} for row in range(50)],
+                           "row_offset": 0, "column_offset": 0, "total_rows": 50, "total_columns": 12},
+            }
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            window = attach_host_to_window(host, width=1400, height=1100)
+            try:
+                surface = host.findChild(QObject, "graphNodeTabularSurface")
+                grid = host.findChild(QObject, "graphNodeTabularPreviewGrid")
+                table = host.findChild(QObject, "graphNodeTabularPreviewTableView")
+                notice = host.findChild(QObject, "graphNodeTabularSelectionReview")
+                for width, height, zoom in ((360, 240, 1), (620, 420, 1.5)):
+                    host.setWidth(width)
+                    host.setHeight(height)
+                    host.setScale(zoom)
+                    settle_events(6)
+                    table.setProperty("contentX", 400)
+                    table.setProperty("contentY", 260)
+                    settle_events(6)
+                    origin = grid.mapToItem(surface, QPointF(0, 0))
+                    border = float(host.property("resolvedBorderWidth"))
+                    assert origin.x() >= border + 2, (origin.x(), border)
+                    assert origin.x() + grid.width() <= surface.width() - border - 2
+                    assert grid.property("clip")
+                    assert grid.mapToItem(surface, QPointF(0, grid.height())).y() < notice.mapToItem(surface, QPointF(0, 0)).y()
+                    assert notice.mapToItem(surface, QPointF(0, notice.height())).y() <= surface.height() - border
+                    assert not window.grabWindow().isNull()
+            finally:
+                dispose_host_window(host, window)
                 app.processEvents()
             """,
         )

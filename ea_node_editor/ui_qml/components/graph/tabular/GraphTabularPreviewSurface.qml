@@ -82,10 +82,16 @@ Item {
         && String(host.surfaceLayout.content_region || "host") === "body"
     readonly property real minimumBodyWidth: 320.0
     readonly property real minimumBodyHeight: 154.0
-    readonly property real contentLeftMargin: bodyRegionHosted ? 0 : (host ? Number(host.surfaceMetrics.body_left_margin || 10) : 10)
-    readonly property real contentRightMargin: bodyRegionHosted ? 0 : (host ? Number(host.surfaceMetrics.body_right_margin || 10) : 10)
-    readonly property real contentTopMargin: bodyRegionHosted ? 0 : (host ? Number(host.surfaceMetrics.body_top || 30) : 30)
-    readonly property real contentBottomMargin: bodyRegionHosted ? 0 : (host ? Number(host.surfaceMetrics.body_bottom_margin || 10) : 10)
+    readonly property real panelBorderWidth: host ? Number(host.resolvedBorderWidth || 1) : 1
+    readonly property real panelCornerRadius: host ? Number(host.resolvedCornerRadius || 6) : 6
+    // The body-region offsets place the panel, not its contents. Keep the grid
+    // inside its stroke and rounded corners, including thicker selected borders.
+    readonly property real panelContentInset: Math.ceil(Math.max(6,
+        panelCornerRadius - Math.max(0, panelCornerRadius - panelBorderWidth) * Math.SQRT1_2))
+    readonly property real contentLeftMargin: bodyRegionHosted ? panelContentInset : Math.max(panelContentInset, host ? Number(host.surfaceMetrics.body_left_margin || 10) : 10)
+    readonly property real contentRightMargin: bodyRegionHosted ? panelContentInset : Math.max(panelContentInset, host ? Number(host.surfaceMetrics.body_right_margin || 10) : 10)
+    readonly property real contentTopMargin: bodyRegionHosted ? panelContentInset : Math.max(panelContentInset, host ? Number(host.surfaceMetrics.body_top || 30) : 30)
+    readonly property real contentBottomMargin: bodyRegionHosted ? panelContentInset : Math.max(panelContentInset, host ? Number(host.surfaceMetrics.body_bottom_margin || 10) : 10)
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.rectList(SurfaceControlGeometry.rectFromItem(gridPanel, host))
     readonly property var surfaceActions: [
         {
@@ -338,14 +344,15 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: host ? Number(host.resolvedCornerRadius || 6) : 6
+        radius: surface.panelCornerRadius
         color: surface.panelFillColor
-        border.width: host ? Number(host.resolvedBorderWidth || 1) : 1
+        border.width: surface.panelBorderWidth
         border.color: surface.panelBorderColor
     }
 
     Column {
         id: contentColumn
+        clip: true
         anchors.left: parent.left
         anchors.leftMargin: surface.contentLeftMargin
         anchors.right: parent.right

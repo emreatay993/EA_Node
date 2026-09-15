@@ -5,6 +5,7 @@ import EA.NodeEditor 1.0
 Item {
     id: viewport
     objectName: "tabularTableViewport"
+    clip: true
 
     property var preview: ({})
     property var tableViewState: ({})

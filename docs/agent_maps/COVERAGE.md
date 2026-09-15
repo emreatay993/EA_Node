@@ -40,7 +40,7 @@ Settings-section size transitions use shared 180 ms width/height animations with
 - [Surface Input And Inline Controls](feature_routes/surface_input_and_inline_controls.md)
 - [Port Availability And Default Values](feature_routes/port_availability_and_default_values.md)
 - [Plotter Nodes](feature_routes/plotter_nodes.md)
-- [Tabular Data Add-on And Preview](feature_routes/tabular_data_addon_preview.md) — composed views, isolated queries, themed composer controls, floating-toolbar configuration and responsive QML acceptance
+- [Tabular Data Add-on And Preview](feature_routes/tabular_data_addon_preview.md) — composed views, isolated queries, themed composer controls, border-safe previews, floating-toolbar configuration and CSV/TSV QML acceptance
 - [MARS Solver Add-on](feature_routes/mars_solver_addon.md)
 - [Neutral CAD/FE Engineering Viewer](feature_routes/neutral_cad_fe_engineering_viewer.md)
 - [Managed Artifacts And Project Data](feature_routes/managed_artifacts_project_data.md)

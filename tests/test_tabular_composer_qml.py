@@ -51,7 +51,7 @@ def visual_child(item, name):
 
 
 @pytest.fixture
-def rendered(tmp_path, qapp):
+def rendered(tmp_path, qapp, request):
     register_qml_types()
     previous_font = qapp.font()
     font_id = -1
@@ -64,6 +64,15 @@ def rendered(tmp_path, qapp):
     props = {"path": str(source), "data_view_name": "Temperature history", "data_view": {
         "version": 1, "mode": "table", "segments": [{"blocks": [{"member": "values", "labels_member": "labels", "unit": "C"}],
                                                        "coordinate": {"member": "time_s", "name": "time_s", "unit": "s"}}]}}
+    if hasattr(request, "param"):
+        import csv
+        suffix, delimiter = request.param
+        source = tmp_path / ("example." + suffix)
+        with source.open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.writer(stream, delimiter=delimiter)
+            writer.writerow(["time_s", "Housing", "Shaft", "Gear"])
+            writer.writerows([[row, row * 3, row * 3 + 1, row * 3 + 2] for row in range(20)])
+        props = {"path": str(source), "data_view": {"version": 1, "mode": "source"}}
     loader = TabularLoaderCacheService(cache_dir=tmp_path / "cache")
     session = TabularComposerSession(read_properties=lambda: props, apply_properties=lambda values: bool(props.update(values) is None),
                                      project_context=lambda: (None, None),
@@ -106,6 +115,64 @@ def test_composer_loads_real_mapping_and_apply_action(rendered, qapp, tmp_path):
     QTest.mouseClick(view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, position)
     qapp.processEvents()
     assert props["data_view_name"] == "Renamed history"
+
+
+@pytest.mark.parametrize("rendered", [("csv", ","), ("tsv", "\t"), ("txt", ";")], indirect=True)
+def test_delimited_file_configure_apply_reopen_and_export(rendered, qapp, tmp_path):
+    import csv
+    import json
+    from ea_node_editor.addons.tabular_data.input_node import tabular_load_options_from_node_properties
+    from ea_node_editor.ui.tabular_composer_export import export_composer_data
+
+    view, session, props = rendered
+    root = view.rootObject()
+    original_source = Path(props["path"]).read_bytes()
+    assert session.catalogue.total == 1
+    assert session.state["preview"]["metadata"]["row_count"] == 20
+    assert session.state["preview"]["window"]["columns"] == ["time_s", "Housing", "Shaft", "Gear"]
+    assert not root.findChild(QObject, "tabularComposerArrayMode").property("enabled")
+    click(view, root.findChild(QObject, "tabularComposerTableMode"))
+    wait_for(qapp, lambda: not session.state["busy"])
+    assert session.state["valid"], session.state["error"]
+    click(view, root.findChild(QObject, "tabularComposerRulesTab"))
+    qapp.processEvents()
+    click(view, root.findChild(QObject, "tabularComposerAddCondition"))
+    wait_for(qapp, lambda: not session.state["busy"])
+    value = visual_child(root, "tabularComposerFilterValue")
+    click(view, value)
+    QTest.keyClick(view, Qt.Key.Key_5)
+    QTest.keyClick(view, Qt.Key.Key_Return)
+    wait_for(qapp, lambda: not session.state["busy"])
+    count = root.findChild(QObject, "tabularComposerOutputCount")
+    # A condition adds a form row; scroll the editor before using its range control.
+    editor = root.findChild(QObject, "tabularComposerEditor").property("contentItem")
+    editor.setProperty("contentY", max(0, editor.property("contentHeight") - editor.height()))
+    qapp.processEvents()
+    QTest.qWait(40)
+    click(view, count)
+    QTest.keyClick(view, Qt.Key.Key_3)
+    QTest.keyClick(view, Qt.Key.Key_Return)
+    wait_for(qapp, lambda: not session.state["busy"])
+    assert session.state["valid"], session.state["error"]
+    assert session.state["draft"]["data_view"]["output"]["row_limit"] == 3
+    click(view, root.findChild(QObject, "tabularComposerApply"))
+    qapp.processEvents()
+    assert not session.state["dirty"]
+    restored = json.loads(json.dumps(props))
+    fresh = TabularLoaderCacheService(cache_dir=tmp_path / "fresh-cache")
+    source_path = Path(restored["path"])
+    ref = fresh.open_source(source_path, tabular_load_options_from_node_properties(restored))
+    assert fresh.schema(ref).row_count == 3  # Cold refs may defer their exact count until read.
+    values = fresh.column_arrays(ref, columns=["time_s", "Housing"])
+    assert values["time_s"].tolist() == [6, 7, 8]
+    assert values["Housing"].tolist() == [18, 21, 24]
+    target = tmp_path / "configured.csv"
+    export_composer_data(properties=restored, project_context=(None, None), preview={}, scope="output",
+                         selection={}, output_path=target, service=fresh)
+    with target.open(newline="", encoding="utf-8") as stream:
+        exported = list(csv.DictReader(stream))
+    assert [int(row["time_s"]) for row in exported] == [6, 7, 8]
+    assert source_path.read_bytes() == original_source
 
 
 def test_mapping_validation_hides_old_rows_and_recovers(rendered, qapp):
