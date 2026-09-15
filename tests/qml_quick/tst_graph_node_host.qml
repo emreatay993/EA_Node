@@ -532,10 +532,10 @@ TestCase {
         }
         var expected = {
             "unlocked_input": {
-                "topology_hash": "d0078e01",
-                "geometry_hash": "598ed08e",
-                "qquickitem_count": 135,
-                "loader_count": 0,
+                "topology_hash": "220c37cf",
+                "geometry_hash": "64e29a98",
+                "qquickitem_count": 36,
+                "loader_count": 1,
                 "canvas_count": 1
             },
             "unlocked_output": {
@@ -640,6 +640,183 @@ TestCase {
         compare(overriddenRow.currentEmbeddedInteractiveRects().length, 0)
     }
 
+    function groupedPortPayload(expanded, value, overridden) {
+        var payload = t21PortPayload()
+        payload.ports[0].settings_group_id = "options"
+        payload.ports[0].settings_property_key = "payload"
+        payload.ports[0].handle_visible = expanded
+        payload.ports[0].default_property.value = value
+        payload.ports[0].default_property.display_value = value
+        payload.ports[0].default_property.overridden_by_input = Boolean(overridden)
+        payload.ports[0].default_property.editor_enabled = !overridden
+        if (!expanded)
+            payload.ports[0].default_property = null
+        payload.inline_properties = []
+        return payload
+    }
+
+    function test_group_toggle_retains_port_rows_editors_and_drafts() {
+        var host = createHost(groupedPortPayload(false, "original", false))
+        verify(host !== null)
+        compare(findNamedItems(host, "graphNodeInputPortRow").length, 0)
+        var output = findNamedItems(host, "graphNodeOutputPortRow")[0]
+        host.nodeData = groupedPortPayload(true, "original", false)
+        var row = findNamedItems(host, "graphNodeInputPortRow")[0]
+        verify(row !== undefined)
+        var editor = findNamedItems(row, "graphNodeInlineValueEditor")[0]
+        verify(editor !== undefined)
+        editor.insert(editor.length, " draft")
+        compare(editor.text, "original draft")
+        editor.forceActiveFocus()
+        verify(editor.activeFocus)
+
+        host.nodeData = groupedPortPayload(false, "original", false)
+        var retained = findNamedItems(host, "graphNodeInputPortRow")
+        compare(retained.length, 1, "Closing a group must retain its visited port row")
+        compare(retained[0], row)
+        verify(!row.visible)
+        verify(!editor.activeFocus)
+        verify(!editor.enabled)
+        compare(row.currentEmbeddedInteractiveRects().length, 0)
+        compare(findNamedItems(row, "graphNodeInlineValueEditor")[0], editor)
+        var hiddenData = row.portData
+        var hiddenPoint = row.portPoint
+        var layer = findNamedItems(row, "graphNodeInputDefaultProperty")[0]
+        var hiddenWidth = layer.width
+        var hiddenHeight = layer.height
+        var shifted = groupedPortPayload(false, "original", false)
+        shifted.ports[0].presentation_anchor = {"x": 0, "y": 400, "aggregate": true}
+        shifted.ports[0].layout_row = 20
+        shifted.width += 100
+        host.nodeData = shifted
+        verify(row.portData === hiddenData, "Hidden geometry updates must not republish port data")
+        verify(row.portPoint === hiddenPoint, "Hidden rows must not observe host geometry")
+        compare(layer.width, hiddenWidth)
+        compare(layer.height, hiddenHeight)
+        host.nodeData = groupedPortPayload(true, "original", false)
+        compare(findNamedItems(host, "graphNodeInputPortRow")[0], row)
+        compare(findNamedItems(row, "graphNodeInlineValueEditor")[0], editor)
+        compare(editor.text, "original draft")
+        verify(row.visible)
+        compare(findNamedItems(host, "graphNodeOutputPortRow")[0], output)
+
+        host.nodeData = groupedPortPayload(false, "original", false)
+        host.nodeData = groupedPortPayload(true, "changed upstream", true)
+        compare(findNamedItems(row, "graphNodeInlineValueEditor")[0], editor)
+        compare(editor.text, "changed upstream")
+        verify(!editor.enabled)
+        compare(row.currentEmbeddedInteractiveRects().length, 0)
+    }
+
+    function test_retained_ports_follow_visibility_topology_and_property_contract() {
+        var host = createHost(groupedPortPayload(true, "original", false))
+        var row = findNamedItems(host, "graphNodeInputPortRow")[0]
+        var output = findNamedItems(host, "graphNodeOutputPortRow")[0]
+        var editor = findNamedItems(row, "graphNodeInlineValueEditor")[0]
+        var payload = groupedPortPayload(true, "original", false)
+        payload.ports.unshift({"key": "added", "label": "Added", "direction": "in", "kind": "data"})
+        host.nodeData = payload
+        compare(findNamedItems(host, "graphNodeInputPortRow").length, 2)
+        compare(row.presentationIndex, 1)
+        compare(findNamedItems(row, "graphNodeInlineValueEditor")[0], editor)
+        var added = findNamedItems(host, "graphNodeInputPortRow").filter(function(item) {
+            return item.propertyKey === "added"
+        })[0]
+        verify(added !== undefined)
+
+        payload = groupedPortPayload(true, "original", false)
+        payload.ports.push({"key": "added", "label": "Renamed", "direction": "in", "kind": "data"})
+        host.nodeData = payload
+        compare(row.presentationIndex, 0)
+        compare(added.presentationIndex, 1)
+        compare(added.portData.label, "Renamed")
+        compare(findNamedItems(row, "graphNodeInlineValueEditor")[0], editor)
+
+        payload = groupedPortPayload(true, "original", false)
+        payload.ports[0].exposed = false
+        host.nodeData = payload
+        compare(findNamedItems(host, "graphNodeInputPortRow").length, 1)
+        compare(findNamedItems(host, "graphNodeInputPortRow")[0], row)
+        verify(!row.visible)
+        compare(row.currentEmbeddedInteractiveRects().length, 0)
+        host.nodeData = groupedPortPayload(true, "original", false)
+        verify(row.visible)
+        compare(findNamedItems(row, "graphNodeInlineValueEditor")[0], editor)
+
+        host.portLayerActive = false
+        verify(!row.visible)
+        verify(!output.visible)
+        host.portLayerActive = true
+        verify(row.visible)
+        verify(output.visible)
+
+        payload = groupedPortPayload(false, "original", false)
+        payload.ports[0].settings_property_key = ""
+        host.nodeData = payload
+        compare(findNamedItems(row, "graphNodeInlineValueEditor").length, 0)
+        compare(row.defaultProperty, null)
+        payload.ports = [payload.ports[1]]
+        host.nodeData = JSON.parse(JSON.stringify(payload))
+        compare(findNamedItems(host, "graphNodeInputPortRow").length, 0)
+        compare(findNamedItems(host, "graphNodeOutputPortRow")[0], output)
+
+        payload = groupedPortPayload(true, "new node", false)
+        payload.node_id = "different_node"
+        host.nodeData = payload
+        verify(findNamedItems(host, "graphNodeOutputPortRow")[0] !== output)
+        compare(findNamedItems(host, "graphNodeInlineValueEditor")[0].text, "new node")
+    }
+
+    function test_retained_searchable_editor_closes_keyboard_popup_when_hidden_data() {
+        return [{tag: "group_collapse", collapse: true}, {tag: "port_layer_hidden", collapse: false}]
+    }
+
+    function test_retained_searchable_editor_closes_keyboard_popup_when_hidden(data) {
+        var payload = groupedPortPayload(true, "Alpha", false)
+        payload.ports[0].default_property.inline_editor = "enum"
+        payload.ports[0].default_property.searchable = true
+        payload.ports[0].default_property.enum_values = ["Alpha", "Beta"]
+        var host = createHost(payload)
+        var control = findNamedItems(host, "graphNodeInlineSearchableEnumEditor")[0]
+        verify(control !== undefined)
+        mouseClick(control, control.width * 0.5, control.height * 0.5)
+        keyClick(Qt.Key_Down)
+        var options = findChild(control, "graphSelectorOptions")
+        verify(options !== null)
+        verify(options.visible)
+        verify(options.activeFocus)
+        if (data.collapse)
+            host.nodeData = groupedPortPayload(false, "Alpha", false)
+        else
+            host.portLayerActive = false
+        verify(!control.visible)
+        tryCompare(options, "visible", false)
+        verify(!options.activeFocus)
+        compare(findNamedItems(host, "graphNodeInlineSearchableEnumEditor")[0], control)
+    }
+
+    function test_rejected_and_cancelled_group_requests_clear_transient_grips() {
+        var host = createHost(groupedPortPayload(false, "original", false))
+        var initial = host._settingsGroupPortPresentation
+        host.beginSettingsGroupAnimation()
+        compare(JSON.stringify(host._settingsGroupPortPresentation), JSON.stringify(initial))
+        wait(0) // No accepted model update arrived for this request.
+        verify(!host._settingsGroupAnimationArmed)
+        compare(findNamedItems(host, "graphNodeInputPortRow").length, 0)
+
+        host.nodeData = groupedPortPayload(true, "original", false)
+        var row = findNamedItems(host, "graphNodeInputPortRow")[0]
+        host.beginSettingsGroupAnimation()
+        host.nodeData = groupedPortPayload(false, "original", false)
+        verify(row.visible)
+        verify(row.portData.settings_group_transition_only)
+        verify(!row.defaultEditorVisible)
+        host.cancelSettingsGroupAnimation()
+        verify(!host.settingsGroupAnimationRunning)
+        verify(!row.visible)
+        compare(row.currentEmbeddedInteractiveRects().length, 0)
+    }
+
     function test_port_row_consumes_flow_type_tooltip_and_accessibility_facts() {
         var payload = t21PortPayload()
         payload.ports[0].data_type_label = "Text"
@@ -664,11 +841,21 @@ TestCase {
         compare(String(inputDot.color).toLowerCase(), "#ff543e")
         verify(inputMouse.accessiblePortText.indexOf("Payload") >= 0)
         verify(inputMouse.accessiblePortText.indexOf("Text") >= 0)
+        compare(inputMouse.portHelpTooltipText, "")
+        inputMouse.forceActiveFocus()
         verify(inputMouse.portHelpTooltipText.length > 0)
+        var help = inputMouse.portHelpTooltipText
+        outputMouse.forceActiveFocus()
+        compare(inputMouse.portHelpTooltipText, "")
+        mouseMove(inputMouse, inputMouse.width * 0.5, inputMouse.height * 0.5)
+        compare(inputMouse.portHelpTooltipText, help)
         verify(outputDot.inactiveState)
         verify(outputDot.lockedState)
         compare(outputMouse.inactiveTooltipText, "Output is unavailable")
         compare(outputMouse.cursorShape, Qt.ForbiddenCursor)
+        host.portLayerActive = false
+        compare(inputMouse.portHelpTooltipText, "")
+        verify(inputMouse.accessiblePortText.indexOf("Payload") >= 0)
     }
 
     function test_port_row_dynamic_remove_and_label_edit_keep_directional_geometry() {

@@ -211,8 +211,11 @@ class PortTypePresentationQmlTests(PassiveGraphSurfaceHostTestBase):
                 assert str(availability_mouse.property("inactiveTooltipText")) == (
                     "Source temporarily unavailable"
                 )
+                input_mouse.forceActiveFocus()
                 input_help = str(input_mouse.property("portHelpTooltipText"))
+                availability_mouse.forceActiveFocus()
                 availability_help = str(availability_mouse.property("portHelpTooltipText"))
+                output_mouse.forceActiveFocus()
                 output_help = str(output_mouse.property("portHelpTooltipText"))
                 assert "Accepts: String, Graph Data" in input_help
                 assert "Integer cannot feed the current input" not in input_help

@@ -869,21 +869,27 @@ Item {
     readonly property bool _shadowVisible: chromeLayout.shadowVisible
     readonly property int nodeTextRenderType: chromeLayout.nodeTextRenderType
 
-    // Keep old member grips visible while their wires converge onto the
-    // collapsed aggregate. The transient rows own no editors or labels.
-    readonly property var _settingsGroupPortPresentation: {
-        if (!settingsGroupAnimationRunning || !nodeData)
+    // Preserve old member grips during the requested model update as well as
+    // the running animation, so collapse never hides then recreates their
+    // presentation before the size Behavior starts. Editors and labels stay hidden.
+    readonly property var _settingsGroupTransitionPresentation: {
+        if (!nodeData)
             return nodeData;
+        var changed = false;
         var ports = (nodeData.ports || []).map(function(port) {
             if (port.handle_visible !== false || !_settingsGroupStartVisiblePorts[String(port.key)])
                 return port;
+            changed = true;
             return Object.assign({}, port, {
                 "handle_visible": true, "settings_group_transition_only": true,
                 "default_property": null
             });
         });
-        return Object.assign({}, nodeData, {"ports": ports});
+        return changed ? Object.assign({}, nodeData, {"ports": ports}) : nodeData;
     }
+    readonly property var _settingsGroupPortPresentation:
+        _settingsGroupAnimationArmed || settingsGroupAnimationRunning
+            ? _settingsGroupTransitionPresentation : nodeData
     readonly property var inputPorts: {
         if (!card.portLayerActive)
             return [];

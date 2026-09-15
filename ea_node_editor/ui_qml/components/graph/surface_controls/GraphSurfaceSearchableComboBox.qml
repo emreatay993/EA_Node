@@ -183,7 +183,7 @@ FocusScope {
     }
 
     function _refreshPopup() {
-        if (!editor.activeFocus) {
+        if (!control.visible || !control.enabled || !editor.activeFocus) {
             popup.close();
             return;
         }
@@ -196,7 +196,7 @@ FocusScope {
     }
 
     function _commitOption(option) {
-        if (!option)
+        if (!control.visible || !control.enabled || !option)
             return;
         var nextIndex = Number(option.sourceIndex);
         var nextValue = String(option.value || "");
@@ -223,6 +223,16 @@ FocusScope {
     }
     onActiveFocusChanged: {
         if (!activeFocus && !popup.containsPress)
+            popup.close();
+    }
+    // The options list lives in the window overlay and can own keyboard focus.
+    // Retaining a hidden owner must still dismiss that detached popup.
+    onVisibleChanged: {
+        if (!visible)
+            popup.close();
+    }
+    onEnabledChanged: {
+        if (!enabled)
             popup.close();
     }
 

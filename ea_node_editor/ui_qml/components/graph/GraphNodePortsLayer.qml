@@ -84,12 +84,110 @@ Item {
             return [list[0]];
         return list;
     }
-    property var inputPortModelKeys: []
-    property var outputPortModelKeys: []
-    on_VisibleInputPortsChanged: root.inputPortModelKeys = PresentationModelKeys.retain(
-        root.inputPortModelKeys, PresentationModelKeys.ports(root._visibleInputPorts))
-    on_VisibleOutputPortsChanged: root.outputPortModelKeys = PresentationModelKeys.retain(
-        root.outputPortModelKeys, PresentationModelKeys.ports(root._visibleOutputPorts))
+    // Reconcile visited ports by identity. Closing a group only hides its rows;
+    // ports in groups that have never opened do not construct controls yet.
+    readonly property var _portPresentation: {
+        var node = root.host ? root.host._settingsGroupPortPresentation : null;
+        var ports = node ? node.ports || [] : [];
+        var byKey = Object.create(null);
+        var topology = {"in": [], "out": []};
+        var visibleRows = {"in": Object.create(null), "out": Object.create(null)};
+        for (var i = 0; i < ports.length; ++i) {
+            var port = ports[i];
+            var direction = GraphNodeSurfaceMetrics.portLayoutDirection(port);
+            if (!topology[direction])
+                continue;
+            var key = String(port.key || "");
+            byKey[key] = port;
+            topology[direction].push(key);
+        }
+        var visible = {
+            "in": root.host && root.host.portLayerActive
+                ? GraphNodeSurfaceMetrics.visiblePortsForDirection(node, "in") : [],
+            "out": root.host && root.host.portLayerActive
+                ? GraphNodeSurfaceMetrics.visiblePortsForDirection(node, "out") : []
+        };
+        for (var side in visible) {
+            if (root.hostLockedPlaceholder && visible[side].length > 1)
+                visible[side] = [visible[side][0]];
+            for (var index = 0; index < visible[side].length; ++index) {
+                var shown = visible[side][index];
+                var shownKey = String(shown.key || "");
+                byKey[shownKey] = shown;
+                visibleRows[side][shownKey] = index;
+            }
+        }
+        return {"byKey": byKey, "topology": topology, "visibleRows": visibleRows};
+    }
+    on_PortPresentationChanged: root._syncPortModels()
+
+    ListModel { id: inputPortModel }
+    ListModel { id: outputPortModel }
+    property bool _portModelsUpdating: false
+    property string _appliedPortPresentationSignature: ""
+
+    function _publishPortRow(row, direction) {
+        if (!row)
+            return;
+        var port = root._portPresentation.byKey[row.portKey];
+        var visible = root._portPresentation.visibleRows[direction][row.portKey];
+        var visibleIndex = visible === undefined ? -1 : visible;
+        // Hidden rows need semantic changes, but their aggregate anchor can move
+        // with another group without invalidating any retained controls.
+        var comparison = visibleIndex < 0 ? Object.assign({}, port) : port;
+        if (visibleIndex < 0) {
+            delete comparison.presentation_anchor;
+            delete comparison.layout_row;
+        }
+        var signature = JSON.stringify(comparison);
+        if (row._publishedPortSignature !== signature || row.presentationIndex < 0 && visibleIndex >= 0) {
+            row._publishedPortSignature = signature;
+            row.modelData = port;
+        }
+        row.presentationIndex = visibleIndex;
+    }
+
+    function _syncPortModel(model, direction) {
+        var topology = root._portPresentation.topology[direction];
+        var visible = root._portPresentation.visibleRows[direction];
+        var retained = Object.create(null);
+        for (var oldIndex = 0; oldIndex < model.count; ++oldIndex)
+            retained[model.get(oldIndex).portKey] = true;
+        var targetIndex = 0;
+        for (var i = 0; i < topology.length; ++i) {
+            var key = topology[i];
+            if (!retained[key] && visible[key] === undefined)
+                continue;
+            var existing = targetIndex;
+            while (existing < model.count && model.get(existing).portKey !== key)
+                existing += 1;
+            if (existing === model.count)
+                model.insert(targetIndex, {"portKey": key});
+            else if (existing !== targetIndex)
+                model.move(existing, targetIndex, 1);
+            targetIndex += 1;
+        }
+        if (model.count > targetIndex)
+            model.remove(targetIndex, model.count - targetIndex);
+    }
+
+    function _syncPortModels() {
+        var signature = JSON.stringify(root._portPresentation);
+        if (signature === root._appliedPortPresentationSignature)
+            return;
+        root._appliedPortPresentationSignature = signature;
+        root._portModelsUpdating = true;
+        try {
+            root._syncPortModel(inputPortModel, "in");
+            root._syncPortModel(outputPortModel, "out");
+            for (var i = 0; i < inputPortsRepeater.count; ++i)
+                root._publishPortRow(inputPortsRepeater.itemAt(i), "in");
+            for (var j = 0; j < outputPortsRepeater.count; ++j)
+                root._publishPortRow(outputPortsRepeater.itemAt(j), "out");
+        } finally {
+            root._portModelsUpdating = false;
+        }
+    }
     property var dynamicPortGroups: []
     property int dynamicPortGroupModelRevision: 0
     property int _dynamicPortGroupSyncGeneration: 0
@@ -98,10 +196,12 @@ Item {
     property var _dynamicPortGroupFallbackGroups: null
     signal dynamicPortGroupsApplied(string nodeId, int revision)
     readonly property real _interactiveRectGeometryKey: {
+        if (root._portModelsUpdating)
+            return 0;
         var total = inputPortsRepeater.count;
         for (var index = 0; index < inputPortsRepeater.count; ++index) {
             var row = inputPortsRepeater.itemAt(index);
-            if (!row)
+            if (!row || !row.visible)
                 continue;
             total += row.x + row.y + row.width + row.height + (row.visible ? 1 : 0);
             var rects = row.currentEmbeddedInteractiveRects();
@@ -113,7 +213,7 @@ Item {
         }
         for (var outputIndex = 0; outputIndex < outputPortsRepeater.count; ++outputIndex) {
             var outputRow = outputPortsRepeater.itemAt(outputIndex);
-            if (!outputRow)
+            if (!outputRow || !outputRow.visible)
                 continue;
             total += outputRow.x + outputRow.y + outputRow.width + outputRow.height
                 + (outputRow.visible ? 1 : 0);
@@ -134,16 +234,18 @@ Item {
         return total;
     }
     readonly property var embeddedInteractiveRects: {
+        if (root._portModelsUpdating)
+            return [];
         var _geometryKey = root._interactiveRectGeometryKey;
         var lists = [];
         for (var index = 0; index < inputPortsRepeater.count; ++index) {
             var row = inputPortsRepeater.itemAt(index);
-            if (row)
+            if (row && row.visible)
                 lists.push(row.currentEmbeddedInteractiveRects());
         }
         for (var outputIndex = 0; outputIndex < outputPortsRepeater.count; ++outputIndex) {
             var outputRow = outputPortsRepeater.itemAt(outputIndex);
-            if (outputRow)
+            if (outputRow && outputRow.visible)
                 lists.push(outputRow.currentEmbeddedInteractiveRects());
         }
         for (var groupIndex = 0; groupIndex < dynamicPortGroupRepeater.count; ++groupIndex) {
@@ -157,14 +259,17 @@ Item {
 
     onHostChanged: root._scheduleDynamicPortGroupSync()
     onContextNodeIdChanged: {
+        inputPortModel.clear();
+        outputPortModel.clear();
+        root._appliedPortPresentationSignature = "";
+        root._syncPortModels();
         root.dynamicPortGroups = [];
         root._dynamicPortGroupFallbackNodeId = "";
         root._dynamicPortGroupFallbackGroups = null;
         root._scheduleDynamicPortGroupSync();
     }
     Component.onCompleted: {
-        root.inputPortModelKeys = PresentationModelKeys.ports(root._visibleInputPorts);
-        root.outputPortModelKeys = PresentationModelKeys.ports(root._visibleOutputPorts);
+        root._syncPortModels();
         root.settingsGroupModelKeys = PresentationModelKeys.groups(root.settingsGroups);
         root._scheduleDynamicPortGroupSync();
     }
@@ -424,7 +529,7 @@ Item {
         var repeater = direction === "in" ? inputPortsRepeater : outputPortsRepeater;
         for (var index = 0; index < repeater.count; ++index) {
             var row = repeater.itemAt(index);
-            if (!row || String(row.propertyKey || "") !== portKey)
+            if (!row || !row.visible || String(row.propertyKey || "") !== portKey)
                 continue;
             if (row.portMouseAreaItem && row.portMouseAreaItem.containsMouse)
                 return true;
@@ -446,7 +551,7 @@ Item {
             var repeater = repeaters[repeaterIndex];
             for (var index = 0; index < repeater.count; ++index) {
                 var row = repeater.itemAt(index);
-                if (row && root._dynamicPortControlRevealActive(row.portData))
+                if (row && row.visible && root._dynamicPortControlRevealActive(row.portData))
                     return true;
             }
         }
@@ -918,7 +1023,7 @@ Item {
             : outputPortsRepeater;
         for (var index = 0; index < repeaters.count; ++index) {
             var row = repeaters.itemAt(index);
-            if (row && row.refocusLabelEditor
+            if (row && row.visible && row.refocusLabelEditor
                     && String(row.propertyKey || "") === root.editingPortKey) {
                 row.refocusLabelEditor();
                 return;
@@ -1029,11 +1134,14 @@ Item {
 
     Repeater {
         id: inputPortsRepeater
-        model: root.inputPortModelKeys
+        model: inputPortModel
+        onItemAdded: function(index, item) { root._publishPortRow(item, "in"); }
 
         delegate: GraphNodePortRow {
             id: inputPortRow
-            modelData: root._visibleInputPorts[index]
+            required property string portKey
+            modelData: null
+            presentationIndex: -1
             portsLayer: root
             direction: "in"
             defaultPropertyItem: defaultPropertyLayer
@@ -1088,23 +1196,43 @@ Item {
                 id: defaultPropertyLayer
                 objectName: "graphNodeInputDefaultProperty"
                 property string propertyKey: inputPortRow.propertyKey
+                property real _retainedLayoutWidth: 0
+                property real _retainedLayoutHeight: 0
+                property real _retainedContentHeight: 0
+                onWidthChanged: {
+                    if (inputPortRow.defaultEditorVisible)
+                        _retainedLayoutWidth = width;
+                }
+                onHeightChanged: {
+                    if (inputPortRow.defaultEditorVisible)
+                        _retainedLayoutHeight = height;
+                }
+                onContentHeightOverrideChanged: {
+                    if (inputPortRow.defaultEditorVisible)
+                        _retainedContentHeight = contentHeightOverride;
+                }
                 x: 0
                 y: 0
-                width: root.host ? root.host.width : 0
-                height: root.host && root.host.settingsGroupAnimationRunning
+                width: inputPortRow.defaultEditorVisible || !inputPortRow.defaultEditorRetained
+                    ? inputPortRow.width : _retainedLayoutWidth
+                height: !inputPortRow.defaultEditorRetained ? inputPortRow.height
+                    : !inputPortRow.defaultEditorVisible ? _retainedLayoutHeight
+                    : root.host && root.host.settingsGroupAnimationRunning
                     ? Math.min(inputPortRow.height, Math.max(0,
                         root.host.settingsGroupContentBottom(String(inputPortRow.portData.settings_group_id || ""))
                             - inputPortRow.y))
                     : inputPortRow.height
-                clip: Boolean(root.host && root.host.settingsGroupAnimationRunning)
+                clip: inputPortRow.defaultEditorVisible
+                    && Boolean(root.host && root.host.settingsGroupAnimationRunning)
                 visible: inputPortRow.defaultEditorVisible
-                enabled: root.host ? !root.host.surfaceInteractionLocked
+                enabled: visible && root.host ? !root.host.surfaceInteractionLocked
                     && !root.host.settingsGroupAnimationRunning : false
                 host: root.host
-                modelOverride: inputPortRow.defaultEditorVisible
+                modelOverride: inputPortRow.defaultEditorRetained
                     ? [inputPortRow.defaultProperty]
                     : []
-                contentHeightOverride: inputPortRow.height
+                contentHeightOverride: inputPortRow.defaultEditorVisible || !inputPortRow.defaultEditorRetained
+                    ? inputPortRow.height : _retainedContentHeight
                 contentTopOverride: 0
                 z: 4
             }
@@ -1113,11 +1241,14 @@ Item {
 
     Repeater {
         id: outputPortsRepeater
-        model: root.outputPortModelKeys
+        model: outputPortModel
+        onItemAdded: function(index, item) { root._publishPortRow(item, "out"); }
 
         delegate: GraphNodePortRow {
             id: outputPortRow
-            modelData: root._visibleOutputPorts[index]
+            required property string portKey
+            modelData: null
+            presentationIndex: -1
             portsLayer: root
             direction: "out"
 

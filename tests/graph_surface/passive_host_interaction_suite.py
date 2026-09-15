@@ -1343,8 +1343,17 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     assert abs(card.height() - payload["height"]) < 0.1
                     assert (node.custom_width, node.custom_height) == persisted_size
                     if not node.expanded_settings_group_ids:
-                        assert not any(item.property("propertyKey") in ("show_legend", "labels")
-                            for item in named_child_items(card, "graphNodeInputPortDot"))
+                        retained_rows = [
+                            item for item in named_child_items(card, "graphNodeInputPortRow")
+                            if item.property("propertyKey") in ("show_legend", "labels")
+                        ]
+                        assert len(retained_rows) == 2
+                        for row in retained_rows:
+                            assert not row.isVisible()
+                            assert variant_value(row.currentEmbeddedInteractiveRects()) == []
+                        assert not any(item.isVisible()
+                            for item in named_child_items(card, "graphNodeInputPortDot")
+                            if item.property("propertyKey") in ("show_legend", "labels"))
 
                 collapsed = (card.width(), card.height())
                 first_header_top = group_top()
@@ -1368,6 +1377,12 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     if editor.isVisible() and editor.height() > 0:
                         bottom = editor.mapToItem(card, QPointF(0, editor.height())).y()
                         assert bottom <= group_top("signal_plot_options") + 0.1
+                        inline_row = named_child_items(editor, "graphNodeInlinePropertyRow")[0]
+                        assert abs(inline_row.height() - editor.parentItem().height()) < 0.1, (
+                            "full-editor-layout-under-animation-clip",
+                            editor.property("propertyKey"), inline_row.height(),
+                            editor.parentItem().height(), editor.height(),
+                        )
                 ancestor = default_editor.parentItem()
                 while ancestor is not None and ancestor is not clip:
                     ancestor = ancestor.parentItem()
@@ -1377,7 +1392,19 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 assert_finished()
 
                 expanded = (card.width(), card.height())
+                grip_visibility_changes = []
+                tracked_grips = []
+                for row in named_child_items(card, "graphNodeInputPortRow"):
+                    if row.property("propertyKey") in ("show_legend", "labels"):
+                        changed = lambda row=row: grip_visibility_changes.append(row.isVisible())
+                        row.visibleChanged.connect(changed)
+                        tracked_grips.append((row, changed))
                 click_header()
+                for row, changed in tracked_grips:
+                    row.visibleChanged.disconnect(changed)
+                assert all(grip_visibility_changes), (
+                    "collapse-must-keep-transition-grips-visible", grip_visibility_changes
+                )
                 QTest.qWait(60)
                 assert collapsed[0] < card.width() < expanded[0]
                 assert collapsed[1] < card.height() < expanded[1]
@@ -1404,7 +1431,9 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 for key in ("show_legend", "labels"):
                     port = named_item(card, "graphNodeInputPortDot", key)
                     center = port.mapToItem(card, QPointF(port.width()/2, port.height()/2)).y()
-                    assert center >= captured_centers[key]
+                    assert center >= captured_centers[key], (
+                        "reversed-expansion-port-center", key, center, captured_centers[key]
+                    )
                 assert_live_geometry(check_pixels=False)
                 assert_finished()
                 click_header()
@@ -3289,12 +3318,8 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert bool(output_mouse.property("tooltipOnlyPortLabelActive"))
             assert input_mouse.property("portLabelTooltipText") == "Primary Input Payload"
             assert output_mouse.property("portLabelTooltipText") == "Dispatch Result Token"
-            assert "Payload consumed by the transformation." in input_mouse.property("portHelpTooltipText"), input_mouse.property("portHelpTooltipText")
-            assert "Input, payload, Item" in input_mouse.property("portHelpTooltipText"), input_mouse.property("portHelpTooltipText")
-            assert input_mouse.property("portHelpTooltipText").endswith("Empty"), input_mouse.property("portHelpTooltipText")
-            assert "Result emitted by the transformation." in output_mouse.property("portHelpTooltipText"), output_mouse.property("portHelpTooltipText")
-            assert "Output, payload, Item" in output_mouse.property("portHelpTooltipText"), output_mouse.property("portHelpTooltipText")
-            assert output_mouse.property("portHelpTooltipText").endswith("No current output"), output_mouse.property("portHelpTooltipText")
+            assert input_mouse.property("portHelpTooltipText") == ""
+            assert output_mouse.property("portHelpTooltipText") == ""
             assert node_help_tooltip is not None, "missing graphNodeHelpToolTip"
             assert node_help_tooltip.property("category") == "general", node_help_tooltip.property("category")
             assert int(node_help_tooltip.property("textFormat")) == 1, node_help_tooltip.property("textFormat")
@@ -3309,6 +3334,15 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
 
             window = attach_host_to_window(host)
             try:
+                input_mouse.forceActiveFocus()
+                assert "Payload consumed by the transformation." in input_mouse.property("portHelpTooltipText")
+                assert "Input, payload, Item" in input_mouse.property("portHelpTooltipText")
+                assert input_mouse.property("portHelpTooltipText").endswith("Empty")
+                output_mouse.forceActiveFocus()
+                assert "Result emitted by the transformation." in output_mouse.property("portHelpTooltipText")
+                assert "Output, payload, Item" in output_mouse.property("portHelpTooltipText")
+                assert output_mouse.property("portHelpTooltipText").endswith("No current output")
+                host.forceActiveFocus()
                 QTest.mouseMove(window, item_scene_point(node_title))
                 QTest.qWait(50)
                 settle_events(5)
@@ -3358,7 +3392,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert abs(float(input_label.property("opacity")) - 0.52) < 0.01
             assert bool(inactive_slash.property("visible"))
             assert input_label.property("helpTooltipCategory") == "general"
-            assert "Path supplied by the upstream result file." in input_label.property("helpTooltipText")
+            assert input_label.property("helpTooltipText") == ""
             assert input_mouse.property("inactiveTooltipText") == "Driven by result_file"
             assert input_mouse.property("cursorShape") == Qt.CursorShape.ForbiddenCursor
 
@@ -3377,6 +3411,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 settle_events(5)
                 assert bool(input_label.property("helpTooltipHovered"))
                 assert input_label.property("helpTooltipCategory") == "general"
+                assert "Path supplied by the upstream result file." in input_label.property("helpTooltipText")
             finally:
                 dispose_host_window(host, window)
             """,

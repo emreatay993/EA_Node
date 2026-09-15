@@ -18,9 +18,11 @@ Item {
     readonly property bool isInput: direction === "in"
     readonly property Item host: portsLayer ? portsLayer.host : null
     readonly property var portData: modelData || ({})
+    property string _publishedPortSignature: ""
+    property int presentationIndex: index
     property int rowIndex: isFinite(Number(portData && portData.layout_row))
         ? Number(portData.layout_row)
-        : index
+        : Math.max(0, presentationIndex)
     property string propertyKey: portsLayer ? portsLayer._portKey(portData) : ""
     readonly property bool handleVisible: !isInput
         || (portData && portData.handle_visible !== undefined
@@ -39,20 +41,34 @@ Item {
         : false
     readonly property bool lockedState: placeholderLockedState
         || (!isInput && inactiveState)
-    readonly property var defaultProperty: isInput && portData && portData.default_property
-        ? portData.default_property
-        : null
-    readonly property bool defaultEditorVisible: isInput
+    readonly property var presentedDefaultProperty: isInput && portData.default_property
+        ? portData.default_property : null
+    property var defaultProperty: null
+    property string _defaultPropertySignature: "null"
+    property string _defaultPropertyGroupId: ""
+    onPortDataChanged: row._syncDefaultProperty()
+    Component.onCompleted: row._syncDefaultProperty()
+    readonly property bool defaultEditorRetained: isInput
         && !placeholderLockedState
         && defaultProperty !== null
         && portsLayer
         && portsLayer._defaultEditorSupported(defaultProperty)
-    readonly property var portPoint: host
-        ? host.localPortPointForPort(direction, rowIndex, portData)
-        : ({"x": 0.0, "y": 0.0})
-    readonly property var portLayoutPoint: host
-        ? host.localPortLayoutPointForPort(direction, rowIndex, portData)
-        : portPoint
+    readonly property bool defaultEditorVisible: defaultEditorRetained
+        && presentationIndex >= 0
+        && presentedDefaultProperty !== null
+        && !Boolean(portData.settings_group_transition_only)
+    readonly property point portPoint: {
+        if (presentationIndex < 0 || !host)
+            return Qt.point(0, 0);
+        var point = host.localPortPointForPort(direction, rowIndex, portData);
+        return Qt.point(point.x, point.y);
+    }
+    readonly property point portLayoutPoint: {
+        if (presentationIndex < 0 || !host)
+            return Qt.point(0, 0);
+        var point = host.localPortLayoutPointForPort(direction, rowIndex, portData);
+        return Qt.point(point.x, point.y);
+    }
     readonly property real dotDiameter: portDot.width
     readonly property real metricRowHeight: portsLayer
         ? portsLayer._resolvedPortRowHeight()
@@ -62,15 +78,19 @@ Item {
     readonly property alias labelContainerItem: labelContainer
     readonly property alias labelEditorItem: labelEditor
     readonly property alias removeButtonItem: removeButton
+    readonly property string requestedHelpTooltipText: visible && enabled
+        && (portMouse.effectiveHoverActive || portMouse.activeFocus
+            || labelText.helpTooltipHovered || labelMouse.activeFocus)
+        ? portsLayer._portHelpTooltipText(portData) : ""
 
     objectName: isInput ? "graphNodeInputPortRow" : "graphNodeOutputPortRow"
     x: 0
     y: isInput
         ? portLayoutPoint.y - (portsLayer
-            ? portsLayer._defaultEditorAnchorOffset(defaultProperty, height)
+            ? portsLayer._defaultEditorAnchorOffset(presentedDefaultProperty, height)
             : 0)
         : portPoint.y - height * 0.5
-    width: host ? host.width : 0
+    width: visible && host ? host.width : 0
     height: Math.max(
         dotDiameter,
         metricRowHeight,
@@ -78,7 +98,26 @@ Item {
             ? portsLayer._defaultEditorHeight(defaultProperty)
             : 0
     )
-    visible: handleVisible
+    visible: presentationIndex >= 0 && handleVisible
+    enabled: visible && !Boolean(portData.settings_group_transition_only)
+
+    function _syncDefaultProperty() {
+        var current = isInput && portData.default_property ? portData.default_property : null;
+        var groupId = String(portData.settings_group_id || "");
+        // Group collapse clears the presentation descriptor, not the property.
+        // Retain only that contract; true property removal/reassignment clears it.
+        if (!current && defaultProperty && groupId.length > 0
+                && groupId === _defaultPropertyGroupId
+                && String(portData.settings_property_key || "") === String(defaultProperty.key || "")
+                && (portData.handle_visible === false || Boolean(portData.settings_group_transition_only)))
+            return;
+        var signature = JSON.stringify(current);
+        if (signature !== _defaultPropertySignature) {
+            _defaultPropertySignature = signature;
+            defaultProperty = current;
+        }
+        _defaultPropertyGroupId = groupId;
+    }
 
     function currentEmbeddedInteractiveRects() {
         if (!visible)
@@ -360,7 +399,7 @@ Item {
                 "inactive"
             )
             property string portLabelTooltipText: row.portsLayer._portLabelText(row.portData)
-            property string portHelpTooltipText: row.portsLayer._portHelpTooltipText(row.portData)
+            property string portHelpTooltipText: row.requestedHelpTooltipText
             property string inactiveTooltipText: row.portsLayer._portInactiveTooltipText(row.portData)
             property string accessiblePortText: row.portsLayer._portAccessibleText(row.portData)
             Accessible.name: accessiblePortText
@@ -706,7 +745,7 @@ Item {
             property string propertyKey: labelContainer.propertyKey
             property int effectiveRenderType: renderType
             property string helpTooltipCategory: "general"
-            property string helpTooltipText: row.portsLayer._portHelpTooltipText(row.portData)
+            property string helpTooltipText: row.requestedHelpTooltipText
             property bool helpTooltipHovered: labelMouse.containsMouse
             visible: labelContainer.labelTextVisible && !labelContainer.isEditing
             anchors.verticalCenter: parent.verticalCenter
