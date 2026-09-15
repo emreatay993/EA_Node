@@ -6,7 +6,6 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from ea_node_editor.common.artifact_refs import ManagedArtifactRef, StagedArtifactRef, parse_artifact_ref
-from ea_node_editor.common.coercions import normalize_path_text
 from .artifact_store import ProjectArtifactStore
 
 
@@ -15,8 +14,7 @@ def _coerce_path_string(value: str | Path | None) -> str:
         return str(value).strip()
     if value is None:
         return ""
-    # Text from a Panel or a pasted Windows "Copy as path" arrives quoted.
-    return normalize_path_text(str(value))
+    return str(value).strip()
 
 
 def _path_from_file_url(value: str) -> Path | None:

@@ -81,6 +81,24 @@ def _registry() -> NodeRegistry:
     return registry
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ('"C:\\cad\\part.stl"', "C:\\cad\\part.stl"),
+        ("  'C:\\cad\\part.stl'  ", "C:\\cad\\part.stl"),
+        ('"C:\\cad\\part.stl', '"C:\\cad\\part.stl'),
+        ("C:\\cad\\part.stl", "C:\\cad\\part.stl"),
+        (Path("C:/cad/part.stl"), Path("C:/cad/part.stl")),
+    ],
+)
+def test_path_type_normalizes_windows_copy_as_path_quoting(
+    value: object, expected: object
+) -> None:
+    catalog = NodeRegistry().data_types
+
+    assert catalog.normalize_input(PATH_DATA_TYPE_ID, value) == expected
+
+
 def test_json_value_hierarchy_is_exact_bounded_and_marks_broad_types() -> None:
     catalog = _registry().data_types
     json_value = catalog.require(JSON_VALUE_DATA_TYPE_ID)

@@ -25,18 +25,6 @@ class ProjectArtifactResolutionTests(unittest.TestCase):
         self.assertEqual(url_resolution.absolute_path, absolute_path)
         self.assertTrue(url_resolution.resolved)
 
-    def test_resolve_accepts_windows_copy_as_path_quoting(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            absolute_path = Path(temp_dir) / "part.stl"
-            resolver = ProjectArtifactResolver(project_path=None, project_metadata=None)
-
-            for text in (f'"{absolute_path}"', f"  '{absolute_path}'  "):
-                with self.subTest(text=text):
-                    resolution = resolver.resolve(text)
-                    self.assertEqual(resolution.kind, "external_path")
-                    self.assertEqual(resolution.source_value, str(absolute_path))
-                    self.assertEqual(resolution.absolute_path, absolute_path)
-
     def test_resolve_managed_artifact_ref_uses_project_sidecar_layout(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             project_path = Path(temp_dir) / "artifact_demo.cxproj"

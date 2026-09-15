@@ -684,8 +684,8 @@ def test_real_process_connected_path_retains_current_source_but_not_computation(
         scene.runtime.shutdown()
 
 
-def test_real_process_connected_quoted_windows_path_reaches_cad_import(tmp_path):
-    """Windows "Copy as path" text from a Panel must survive source provenance capture."""
+def test_real_process_path_ports_receive_unquoted_windows_copy_as_path_text(tmp_path):
+    """Path ports canonicalize wired text before provenance capture or any node sees it."""
     pyvista = pytest.importorskip("pyvista")
     part = tmp_path / "part.stl"
     pyvista.Cube().triangulate().save(part)
@@ -708,7 +708,9 @@ def test_real_process_connected_quoted_windows_path_reaches_cad_import(tmp_path)
         0,
         properties={"length_unit": "mm"},
     )
+    deconstruct = model.add_node(wid, "io.deconstruct_file_path", "Parts", 300, 200)
     model.add_edge(wid, panel.node_id, "output", cad.node_id, "path")
+    model.add_edge(wid, panel.node_id, "output", deconstruct.node_id, "file_path")
     runtime = CorexRuntime(registry=registry)
     try:
         result = runtime.run(
@@ -717,7 +719,7 @@ def test_real_process_connected_quoted_windows_path_reaches_cad_import(tmp_path)
                     model.project, workspace_id=wid, registry=registry
                 ),
                 workspace_id=wid,
-                target_node_ids=(cad.node_id,),
+                target_node_ids=(cad.node_id, deconstruct.node_id),
                 recompute_mode=RecomputeMode.FORCE_RECOMPUTE,
             ),
             timeout=120,
@@ -730,6 +732,11 @@ def test_real_process_connected_quoted_windows_path_reaches_cad_import(tmp_path)
         assert result.status == "completed", result.events
         assert settled[cad.node_id]["status"] == "completed", settled[cad.node_id]
         assert settled[cad.node_id]["outputs"]["scene"]["status"] == "value"
+        parts = settled[deconstruct.node_id]["outputs"]
+        assert [
+            [item for _path, items in parts[key].value.branches for item in items]
+            for key in ("directory", "file_extension")
+        ] == [[str(tmp_path)], [".stl"]], parts
     finally:
         runtime.shutdown()
 

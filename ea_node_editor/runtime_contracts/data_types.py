@@ -85,6 +85,9 @@ class DataTypeSpec:
     capabilities: frozenset[str] = frozenset()
     payload_schema_version: int = 1
     implementation_version: str = "1"
+    # Canonicalizes an accepted item before any node receives it on a port of
+    # this type (for example, Path strips Windows "Copy as path" quotes).
+    normalize_input: Callable[[object], object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -398,6 +401,27 @@ class DataTypeCatalog:
             f"{target_type_id!r}"
         )
 
+    def normalize_input(self, target_type_id: str, value: object) -> object:
+        """Return ``value`` canonicalized by the target type, if it declares a normalizer.
+
+        Items the type's validator rejects (for example an Image on a port that
+        also accepts Path) are returned unchanged.
+        """
+        spec = self.require(target_type_id)
+        if (
+            spec.normalize_input is None
+            or value is None
+            or not _validator_accepts(spec, value)
+        ):
+            return value
+        normalized = spec.normalize_input(value)
+        if not _validator_accepts(spec, normalized):
+            raise DataTypeCatalogError(
+                f"input normalizer for data type {target_type_id!r} produced "
+                "an invalid value"
+            )
+        return normalized
+
     def convert_typed_input(
         self,
         source_type_id: str,
@@ -651,6 +675,7 @@ class DataTypeCatalog:
                     "payload_schema_version": spec.payload_schema_version,
                     "implementation_version": spec.implementation_version,
                     "has_untyped_coercer": spec.coerce_untyped_input is not None,
+                    "has_input_normalizer": spec.normalize_input is not None,
                     **_provenance_record(self._type_provenance[type_id]),
                 }
             )
@@ -713,6 +738,10 @@ def _validate_type_spec(spec: object) -> None:
     ):
         raise DataTypeCatalogError(
             f"type {spec.type_id!r} untyped coercer must be callable"
+        )
+    if spec.normalize_input is not None and not callable(spec.normalize_input):
+        raise DataTypeCatalogError(
+            f"type {spec.type_id!r} input normalizer must be callable"
         )
     if not isinstance(spec.description, str):
         raise DataTypeCatalogError(

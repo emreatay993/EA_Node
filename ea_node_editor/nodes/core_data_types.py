@@ -9,6 +9,7 @@ import os
 from collections.abc import Mapping
 from numbers import Real
 
+from ea_node_editor.common.coercions import normalize_path_text
 from ea_node_editor.common.payload_tools import (
     INLINE_PAYLOAD_MAX_BYTES,
     copy_json_safe,
@@ -182,6 +183,10 @@ def _coerce_path(value: object) -> object:
     return os.fspath(value) if isinstance(value, os.PathLike) else str(value)
 
 
+def _normalize_path_input(value: object) -> object:
+    return normalize_path_text(value) if isinstance(value, str) else value
+
+
 def _is_engineering_scene(value: object) -> bool:
     return (
         isinstance(value, RuntimeHandleRef)
@@ -331,6 +336,7 @@ CORE_DATA_TYPES = (
         _coerce_path,
         parents=_GRAPH_PARENT,
         carriers=frozenset({"native", "artifact"}),
+        normalize_input=_normalize_path_input,
     ),
     DataTypeSpec(
         JSON_DATA_TYPE_ID,

@@ -577,6 +577,36 @@ def test_untyped_input_coerces_only_when_invalid_and_output_never_coerces() -> N
     assert calls == ["4"]
 
 
+def test_input_normalizer_canonicalizes_only_items_the_type_accepts() -> None:
+    catalog = catalog_with(
+        dataclasses.replace(
+            type_spec("Test.Text", validator=lambda value: isinstance(value, str)),
+            normalize_input=str.upper,
+        ),
+        type_spec("Test.Plain", validator=lambda value: isinstance(value, str)),
+    )
+
+    assert catalog.normalize_input("Test.Text", "abc") == "ABC"
+    assert catalog.normalize_input("Test.Text", 7) == 7
+    assert catalog.normalize_input("Test.Text", None) is None
+    assert catalog.normalize_input("Test.Plain", "abc") == "abc"
+
+
+def test_input_normalizer_must_be_callable_and_return_an_accepted_value() -> None:
+    with pytest.raises(DataTypeCatalogError, match="input normalizer must be callable"):
+        catalog_with(
+            dataclasses.replace(type_spec("Test.Bad"), normalize_input="strip")  # type: ignore[arg-type]
+        )
+    catalog = catalog_with(
+        dataclasses.replace(
+            type_spec("Test.Text", validator=lambda value: isinstance(value, str)),
+            normalize_input=len,
+        )
+    )
+    with pytest.raises(DataTypeCatalogError, match="produced an invalid value"):
+        catalog.normalize_input("Test.Text", "abc")
+
+
 def test_abstract_output_uses_concrete_descendant_validators() -> None:
     catalog = catalog_with(
         type_spec(

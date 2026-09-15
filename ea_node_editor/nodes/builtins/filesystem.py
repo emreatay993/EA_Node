@@ -36,14 +36,7 @@ def _path_text(value: Any, *, label: str, allow_empty: bool = False) -> str:
         raise TypeError(f"{label} must be a text path.")
     if "\0" in text:
         raise ValueError(f"{label} must not contain a null character.")
-    reference_text = text.strip()
-    if (
-        len(reference_text) >= 2
-        and reference_text[0] == reference_text[-1]
-        and reference_text[0] in "\"'"
-    ):
-        reference_text = reference_text[1:-1].strip()
-    if reference_text.lower().startswith(("saved://", "temp://")):
+    if normalize_path_text(text).lower().startswith(("saved://", "temp://")):
         raise TypeError(f"{label} does not accept artifact references.")
     if not text and not allow_empty:
         raise NodeInputNotReadyError(f"{label} is required.")
@@ -54,10 +47,7 @@ def _required_path(ctx: ExecutionContext, key: str, label: str) -> str:
     value = _configured_value(ctx, key)
     if value is None:
         raise NodeInputNotReadyError(f"{label} is required.")
-    text = normalize_path_text(_path_text(value, label=label))
-    if not text:
-        raise NodeInputNotReadyError(f"{label} is required.")
-    return text
+    return _path_text(value, label=label)
 
 
 def _file_component(value: Any, *, label: str, allow_empty: bool = False) -> str:
@@ -78,7 +68,7 @@ def _validate_final_file_name(file_name: str) -> None:
 
 
 def _resolved_path(ctx: ExecutionContext, value: Any, *, label: str) -> Path:
-    text = normalize_path_text(_path_text(value, label=label))
+    text = _path_text(value, label=label)
     return (ctx.resolve_path_value(text) or Path(text)).absolute()
 
 

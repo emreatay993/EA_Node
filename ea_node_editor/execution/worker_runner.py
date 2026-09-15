@@ -17,7 +17,6 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-from ea_node_editor.common.coercions import normalize_path_text
 from ea_node_editor.execution.run_messages import (
     CancelRunPreflightCommand,
     CommitRunPreflightCommand,
@@ -1109,7 +1108,9 @@ class NodeExecutor:
             else:
                 tree = DataTree.from_item(value)
             tree = self._prepare_untyped_tree(node_id, port, tree)
-            return self._apply_input_modifiers(node, port.key, tree)
+            return self._apply_input_modifiers(
+                node, port.key, self._normalize_port_tree(port, tree)
+            )
 
         raw_results = [
             self.node_outputs.get(edge.source_node_id, {}).get(
@@ -1138,7 +1139,23 @@ class NodeExecutor:
         if not trees:
             return SettledPortResult(status="empty")
         tree = trees[0].merge(*trees[1:])
-        return self._apply_input_modifiers(node, port.key, tree)
+        return self._apply_input_modifiers(
+            node, port.key, self._normalize_port_tree(port, tree)
+        )
+
+    def _normalize_port_tree(self, port: Any, tree: DataTree) -> DataTree:
+        """Let the port's declared data type canonicalize every accepted item."""
+        type_id = str(port.data_type).strip()
+        spec = self._data_types.get(type_id)
+        if spec is None or spec.normalize_input is None:
+            return tree
+        return DataTree(
+            (
+                path,
+                tuple(self._data_types.normalize_input(type_id, item) for item in items),
+            )
+            for path, items in tree.branches
+        )
 
     @staticmethod
     def _candidate_type_ids(port: Any) -> tuple[str, ...]:
@@ -1753,8 +1770,8 @@ class NodeExecutor:
                 continue
             value = ctx.inputs.get(declaration.property_key)
             path = ctx.resolve_path_value(value)
-            if path is None and isinstance(value, str) and normalize_path_text(value):
-                path = Path(normalize_path_text(value)).expanduser().resolve()
+            if path is None and isinstance(value, str) and value.strip():
+                path = Path(value).expanduser().resolve()
             if path is not None:
                 fingerprint = hash_file_provenance(path)
                 previous = self._executing_source_provenance.setdefault(

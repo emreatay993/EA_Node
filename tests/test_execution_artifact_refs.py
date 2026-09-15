@@ -1310,6 +1310,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
             )
             port = SimpleNamespace(
                 key="path",
+                data_type=PATH_DATA_TYPE_ID,
                 uses_property_default=True,
                 data_access="item",
             )
@@ -1401,6 +1402,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
             node_id = "node"
             port = SimpleNamespace(
                 key="path",
+                data_type=PATH_DATA_TYPE_ID,
                 uses_property_default=True,
                 data_access="item",
                 required=True,
