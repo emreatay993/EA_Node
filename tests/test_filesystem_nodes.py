@@ -97,6 +97,26 @@ def test_deconstruct_uses_final_extension_and_handles_root_and_unc_paths() -> No
         }
 
 
+def test_whole_path_inputs_accept_windows_copy_as_path_quoting(tmp_path: Path) -> None:
+    (tmp_path / "part.stl").write_text("solid part\n", encoding="utf-8")
+    quoted_file = f'"{tmp_path / "part.stl"}"'
+    quoted_directory = f'"{tmp_path}"'
+
+    assert execute_deconstruct_file_path(_context(inputs={"file_path": quoted_file})).outputs == {
+        "directory": str(tmp_path),
+        "file_name": "part",
+        "file_extension": ".stl",
+    }
+    assert execute_construct_file_path(
+        _context(inputs={"directory": quoted_directory, "file_name": "part", "file_extension": ".stl"})
+    ).outputs == {"file_path": str(tmp_path / "part.stl")}
+    assert execute_contents_in_directory(
+        _context(inputs={"directory": quoted_directory})
+    ).outputs == {"content_paths": [str(tmp_path / "part.stl")]}
+    with pytest.raises(NodeInputNotReadyError):
+        execute_deconstruct_file_path(_context(inputs={"file_path": '""'}))
+
+
 @pytest.mark.parametrize("executor,inputs", [
     (execute_combine_file_paths, {}),
     (execute_construct_file_path, {}),

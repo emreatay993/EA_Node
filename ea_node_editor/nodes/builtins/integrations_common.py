@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ea_node_editor.common.coercions import normalize_path_text
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeInputNotReadyError
 
 
@@ -13,14 +14,11 @@ def pick_optional_path(ctx: ExecutionContext, *, input_key: str, property_key: s
     )
     if candidate is None:
         return None
-    text = str(candidate).strip()
-    if (
-        isinstance(candidate, str)
-        and len(text) >= 2
-        and text[0] == text[-1]
-        and text[0] in "\"'"
-    ):
-        text = text[1:-1].strip()
+    text = (
+        normalize_path_text(candidate)
+        if isinstance(candidate, str)
+        else str(candidate).strip()
+    )
     if not text:
         return None
     resolved_path = ctx.resolve_path_value(text if isinstance(candidate, str) else candidate)

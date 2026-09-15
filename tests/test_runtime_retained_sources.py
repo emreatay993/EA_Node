@@ -684,6 +684,56 @@ def test_real_process_connected_path_retains_current_source_but_not_computation(
         scene.runtime.shutdown()
 
 
+def test_real_process_connected_quoted_windows_path_reaches_cad_import(tmp_path):
+    """Windows "Copy as path" text from a Panel must survive source provenance capture."""
+    pyvista = pytest.importorskip("pyvista")
+    part = tmp_path / "part.stl"
+    pyvista.Cube().triangulate().save(part)
+    registry = build_default_registry(include_public_plugins=False)
+    model = GraphModel()
+    wid = model.active_workspace.workspace_id
+    panel = model.add_node(
+        wid,
+        "data.panel",
+        "Path",
+        0,
+        0,
+        properties={"value": f'"{part}"', "interpretation": "text"},
+    )
+    cad = model.add_node(
+        wid,
+        "engineering.cad_import",
+        "CAD",
+        300,
+        0,
+        properties={"length_unit": "mm"},
+    )
+    model.add_edge(wid, panel.node_id, "output", cad.node_id, "path")
+    runtime = CorexRuntime(registry=registry)
+    try:
+        result = runtime.run(
+            ExecutionRequest(
+                runtime_snapshot=build_runtime_snapshot(
+                    model.project, workspace_id=wid, registry=registry
+                ),
+                workspace_id=wid,
+                target_node_ids=(cad.node_id,),
+                recompute_mode=RecomputeMode.FORCE_RECOMPUTE,
+            ),
+            timeout=120,
+        )
+        settled = {
+            event["node_id"]: event
+            for event in result.events
+            if event["type"] == "node_settled"
+        }
+        assert result.status == "completed", result.events
+        assert settled[cad.node_id]["status"] == "completed", settled[cad.node_id]
+        assert settled[cad.node_id]["outputs"]["scene"]["status"] == "value"
+    finally:
+        runtime.shutdown()
+
+
 @pytest.fixture
 def retained_scene(tmp_path, monkeypatch, request):
     scene = _scene(tmp_path, client=_PreparedClient())

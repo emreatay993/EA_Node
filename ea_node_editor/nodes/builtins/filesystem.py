@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
+from ea_node_editor.common.coercions import normalize_path_text
 from ea_node_editor.nodes.execution_context import (
     ExecutionContext,
     NodeInputNotReadyError,
@@ -53,7 +54,10 @@ def _required_path(ctx: ExecutionContext, key: str, label: str) -> str:
     value = _configured_value(ctx, key)
     if value is None:
         raise NodeInputNotReadyError(f"{label} is required.")
-    return _path_text(value, label=label)
+    text = normalize_path_text(_path_text(value, label=label))
+    if not text:
+        raise NodeInputNotReadyError(f"{label} is required.")
+    return text
 
 
 def _file_component(value: Any, *, label: str, allow_empty: bool = False) -> str:
@@ -74,7 +78,7 @@ def _validate_final_file_name(file_name: str) -> None:
 
 
 def _resolved_path(ctx: ExecutionContext, value: Any, *, label: str) -> Path:
-    text = _path_text(value, label=label)
+    text = normalize_path_text(_path_text(value, label=label))
     return (ctx.resolve_path_value(text) or Path(text)).absolute()
 
 

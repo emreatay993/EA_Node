@@ -8,6 +8,7 @@ import copy
 import json
 from typing import Any
 
+from ea_node_editor.common.coercions import normalize_path_text
 from ea_node_editor.runtime_contracts import (
     DataTypeCatalog,
     INTERVAL_1D_DATA_TYPE,
@@ -67,7 +68,10 @@ def coerce_property_value(
                     return value.ref
                 return value
             return copy.deepcopy(value)
-        if prop.type in {"str", "path"}:
+        if prop.type == "path":
+            # Windows "Copy as path" yields a quoted path; accept it verbatim.
+            return normalize_path_text(str(value))
+        if prop.type == "str":
             return str(value)
         if prop.type == "int":
             if isinstance(value, bool):

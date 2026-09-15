@@ -17,6 +17,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
+from ea_node_editor.common.coercions import normalize_path_text
 from ea_node_editor.execution.run_messages import (
     CancelRunPreflightCommand,
     CommitRunPreflightCommand,
@@ -1752,8 +1753,8 @@ class NodeExecutor:
                 continue
             value = ctx.inputs.get(declaration.property_key)
             path = ctx.resolve_path_value(value)
-            if path is None and isinstance(value, str) and value.strip():
-                path = Path(value).expanduser().resolve()
+            if path is None and isinstance(value, str) and normalize_path_text(value):
+                path = Path(normalize_path_text(value)).expanduser().resolve()
             if path is not None:
                 fingerprint = hash_file_provenance(path)
                 previous = self._executing_source_provenance.setdefault(
