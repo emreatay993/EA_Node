@@ -31,6 +31,7 @@ Use this for package builds, installer builds, signing checks, generated archite
 ## Common Changes
 - Canvas grid shaders are baked with `scripts/build_canvas_grid_shader.ps1 -Qsb <Qt-bin/qsb.exe>` from `ea_node_editor/ui_qml/components/graph_canvas/shaders/grid.frag`. Commit the generated `grid.frag.qsb`; setuptools and PyInstaller must include it. The pack contains GLSL, HLSL, Metal and SPIR-V and requires no runtime shader compiler tool.
 - Every package profile preflights exact Python 3.11 and `importlib.metadata.version("xy") == "0.0.6"` before PyInstaller, collects only XY's declarative `components` entrypoint, metadata, and `_native_lib/xy_core.dll`, and ships the Apache-2.0 notice. `-DependencyProbeOnly` executes this release gate without building. Do not collect all XY submodules because its optional pyplot/Reflex surfaces pull unrelated stacks into base packages. Packaged Signal Plot rendering is native and does not require Chromium or .NET.
+- `scripts/build_windows_package.ps1` accepts an explicit packaging environment root through `-VirtualEnvironmentPath`/`-VenvPath`. Without one, it auto-detects exactly one valid repository-root `venv\` or `.venv\`; if both exist, it requires an explicit selection rather than guessing.
 - Regenerate generated architecture diagrams and icons from documented scripts.
 - Every source/wheel/frozen build includes the top-level `corex` SDK. Default
   Windows package acceptance runs startup, a static-discovery-to-process-worker

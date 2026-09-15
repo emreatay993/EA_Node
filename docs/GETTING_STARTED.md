@@ -80,6 +80,10 @@ For a packaged build, the validated base flow is:
 .\scripts\build_windows_package.ps1 -PackageProfile base -Clean
 ```
 
+The script auto-detects `venv\` or `.venv\` when only one is present. Use
+`-VirtualEnvironmentPath <path>` to select a custom environment or to choose
+between them when both exist.
+
 That command writes the packaged app under
 `artifacts\pyinstaller\dist\base\COREX_Node_Editor\` and runs the packaged exe
 under `QT_QPA_PLATFORM=offscreen` with startup autoquit enabled. The smoke must

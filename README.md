@@ -475,8 +475,8 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 
 ## Building a Windows Installer
 
-Build Windows releases from PowerShell using the project-local virtual
-environment and the repo packaging scripts:
+Build Windows releases from PowerShell using a Windows virtual environment and
+the repo packaging scripts:
 
 ```powershell
 # From a fresh clone
@@ -500,8 +500,10 @@ Key outputs:
 
 Notes:
 
-- Use `venv\Scripts\python.exe`; the packaging scripts expect the project-local
-  Windows-style virtual environment.
+- `build_windows_package.ps1` automatically uses `venv\` or `.venv\` when
+  exactly one exists. Pass `-VirtualEnvironmentPath <path>` (or `-VenvPath`) to
+  select a custom environment. If both standard environments exist, select one
+  explicitly; the script does not guess.
 - This is a one-folder PyInstaller build, not a single-file standalone `.exe`.
 - `build_windows_package.ps1` runs an offscreen startup smoke test by default.
   The smoke enables startup autoquit and fails on timeout, startup error dialog,

@@ -5,6 +5,8 @@ param(
     [switch]$DependencyProbeOnly,
     [ValidateSet("base", "viewer", "web", "full")]
     [string]$PackageProfile = "base",
+    [Alias("VenvPath")]
+    [string]$VirtualEnvironmentPath = "",
     [string]$DependencyMatrixPath = "",
     [string]$MarsSourcePath = "..\MARS_",
     [string]$MarsWheelPath = "",
@@ -17,10 +19,65 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $repoRoot
 
-$pythonExe = Join-Path $repoRoot "venv\Scripts\python.exe"
-if (-not (Test-Path $pythonExe)) {
-    throw "Virtualenv Python was not found at $pythonExe"
+function Resolve-BuildVirtualEnvironmentPython {
+    param(
+        [string]$RequestedPath = ""
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedPath)) {
+        $environmentRoot = if ([System.IO.Path]::IsPathRooted($RequestedPath)) {
+            $RequestedPath
+        }
+        else {
+            Join-Path $repoRoot $RequestedPath
+        }
+        $pythonPath = Join-Path $environmentRoot "Scripts\python.exe"
+        if (-not (Test-Path -LiteralPath $pythonPath -PathType Leaf)) {
+            throw (
+                "The requested virtual environment does not contain Scripts\python.exe: $environmentRoot. " +
+                "Pass the virtual environment root with -VirtualEnvironmentPath."
+            )
+        }
+
+        $resolvedPython = (Resolve-Path -LiteralPath $pythonPath).Path
+        Write-Host "Packaging virtual environment: $((Resolve-Path -LiteralPath $environmentRoot).Path) (explicit)"
+        return $resolvedPython
+    }
+
+    $detectedEnvironments = @()
+    foreach ($environmentName in @("venv", ".venv")) {
+        $environmentRoot = Join-Path $repoRoot $environmentName
+        $pythonPath = Join-Path $environmentRoot "Scripts\python.exe"
+        if (Test-Path -LiteralPath $pythonPath -PathType Leaf) {
+            $detectedEnvironments += [PSCustomObject]@{
+                Name = $environmentName
+                Root = (Resolve-Path -LiteralPath $environmentRoot).Path
+                Python = (Resolve-Path -LiteralPath $pythonPath).Path
+            }
+        }
+    }
+
+    if ($detectedEnvironments.Count -gt 1) {
+        $detectedNames = ($detectedEnvironments | ForEach-Object { $_.Name }) -join ", "
+        throw (
+            "Multiple packaging virtual environments were found: $detectedNames. " +
+            "Choose one explicitly with -VirtualEnvironmentPath venv or -VirtualEnvironmentPath .venv."
+        )
+    }
+    if ($detectedEnvironments.Count -eq 1) {
+        $detectedEnvironment = $detectedEnvironments[0]
+        Write-Host "Packaging virtual environment: $($detectedEnvironment.Root) (auto-detected)"
+        return $detectedEnvironment.Python
+    }
+
+    throw (
+        "No packaging virtual environment was found. " +
+        "Pass -VirtualEnvironmentPath <path>, or create venv or .venv in the repository root."
+    )
 }
+
+$pythonExe = Resolve-BuildVirtualEnvironmentPython -RequestedPath $VirtualEnvironmentPath
+Write-Host "Packaging Python: $pythonExe"
 
 $specFile = Join-Path $repoRoot "ea_node_editor.spec"
 if (-not (Test-Path $specFile)) {

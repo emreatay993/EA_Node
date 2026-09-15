@@ -731,6 +731,24 @@ def test_corex_runtime_wheel_cleans_only_repo_build_before_building() -> None:
     assert source.index(cleanup) < source.index(corex_wheel) < source.index(mars_wheel)
 
 
+def test_windows_package_virtual_environment_selection_contract() -> None:
+    build_package_source = BUILD_PACKAGE_PATH.read_text(encoding="utf-8")
+
+    assert '[Alias("VenvPath")]' in build_package_source
+    assert '$VirtualEnvironmentPath = ""' in build_package_source
+    assert "function Resolve-BuildVirtualEnvironmentPython" in build_package_source
+    assert '@("venv", ".venv")' in build_package_source
+    assert '$detectedEnvironments.Count -gt 1' in build_package_source
+    assert "Multiple packaging virtual environments were found" in build_package_source
+    assert "Choose one explicitly with -VirtualEnvironmentPath venv" in build_package_source
+    assert '$detectedEnvironments.Count -eq 1' in build_package_source
+    assert (
+        "Resolve-BuildVirtualEnvironmentPython -RequestedPath $VirtualEnvironmentPath"
+        in build_package_source
+    )
+    assert 'Join-Path $repoRoot "venv\\Scripts\\python.exe"' not in build_package_source
+
+
 def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None:
     build_package_source = BUILD_PACKAGE_PATH.read_text(encoding="utf-8")
     app_source = APP_PATH.read_text(encoding="utf-8")

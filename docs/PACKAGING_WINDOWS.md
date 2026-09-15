@@ -12,7 +12,9 @@ packaging venv includes the optional `tabular` stack.
 
 ## Prerequisites
 
-- Use the project venv at `venv\`.
+- Use a Windows virtual environment containing Python 3.11 and the required
+  packaging dependencies. Pass its root with `-VirtualEnvironmentPath` when it
+  is not the repository's only `venv\` or `.venv\` directory.
 - Keep the MARS repository at the default sibling path `..\MARS_`, or pass an
   existing local wheel with `-MarsWheelPath`.
 - Base profile: install `.[dev]` for the full developer/package stack, or at
@@ -41,6 +43,20 @@ Base package with the default startup smoke check:
 .\scripts\build_windows_package.ps1 -PackageProfile base -Clean
 ```
 
+The package script automatically uses `venv\` or `.venv\` when exactly one of
+them contains `Scripts\python.exe`. To select a custom environment, or resolve
+the ambiguity when both standard directories exist, pass its root explicitly:
+
+```powershell
+.\scripts\build_windows_package.ps1 -VirtualEnvironmentPath C:\venvs\corex-build -PackageProfile base -Clean
+.\scripts\build_windows_package.ps1 -VirtualEnvironmentPath .venv -PackageProfile base -Clean
+```
+
+Relative environment paths are resolved from the repository root. `-VenvPath`
+is a short alias for `-VirtualEnvironmentPath`. If both `venv\` and `.venv\`
+are valid and no explicit path is supplied, the script stops and asks for a
+selection instead of guessing.
+
 Use this as the default Windows packaging command. A successful run builds the
 `COREX_Node_Editor.exe` folder payload and then performs an offscreen startup
 smoke check, a public function-plugin process-worker smoke that must return
@@ -64,6 +80,8 @@ Full developer-style package without the startup smoke check:
 
 Useful flags:
 
+- `-VirtualEnvironmentPath <path>` (alias `-VenvPath`): use the specified
+  virtual environment root instead of automatic `venv\`/`.venv\` detection.
 - `-SkipSmoke`: build only, no startup smoke check.
 - `-SmokeSeconds <int>`: timeout for each packaged smoke check (default `30`).
 - `-DependencyMatrixPath <path>`: override the generated dependency policy CSV.
