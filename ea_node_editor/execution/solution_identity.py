@@ -367,7 +367,7 @@ def _cancelled(cancel_event: threading.Event | None) -> None:
     if cancel_event is not None and cancel_event.is_set():
         raise _identity_error(
             "provenance_cancelled",
-            "provenance hashing was cancelled",
+            "Reading this path input was cancelled",
         )
 
 
@@ -405,7 +405,8 @@ def _checked_stat(path: Path) -> os.stat_result:
     if _is_link(file_stat):
         raise _identity_error(
             "provenance_link_forbidden",
-            "provenance inputs must not contain links or reparse points",
+            f"Shortcuts and symbolic links aren't supported for path inputs — "
+            f"point this input directly at the real file or folder: {path}",
         )
     return file_stat
 
@@ -419,7 +420,7 @@ def _require_same_directory(path: Path, expected: os.stat_result) -> None:
     ):
         raise _identity_error(
             "provenance_changed",
-            "provenance directory changed while hashing",
+            f"The folder changed while it was being read — try running again: {path}",
         )
 
 
@@ -444,7 +445,7 @@ def _directory_entry_snapshot(
         except FileNotFoundError:
             raise _identity_error(
                 "provenance_changed",
-                "provenance directory changed while hashing",
+                f"The folder changed while it was being read — try running again: {directory}",
             ) from None
         records.append((entry_path, entry_stat))
         facts.append(
@@ -472,12 +473,14 @@ def _hash_regular_file(
     if not stat.S_ISREG(expected.st_mode):
         raise _identity_error(
             "provenance_not_regular",
-            "provenance input is not a regular file",
+            f"This path doesn't point to a regular file — check that it isn't "
+            f"a folder, shortcut, or device path: {path}",
         )
     if expected.st_size > policy.max_single_file_bytes:
         raise _identity_error(
             "provenance_limit_exceeded",
-            "provenance file exceeds the byte limit",
+            f"This file is too large for COREX to track as a path input "
+            f"(it exceeds the size limit): {path}",
         )
     flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_CLOEXEC", 0)
     flags |= getattr(os, "O_NOFOLLOW", 0)
@@ -490,7 +493,7 @@ def _hash_regular_file(
         if not _same_file(expected, opened, compare_size=True):
             raise _identity_error(
                 "provenance_changed",
-                "provenance input changed while hashing",
+                f"The file changed while it was being read — try running again: {path}",
             )
         while True:
             _cancelled(cancel_event)
@@ -504,14 +507,15 @@ def _hash_regular_file(
             actual_size += len(chunk)
             if actual_size > expected.st_size:
                 raise _identity_error(
-                    "provenance_changed", "provenance input grew while hashing"
+                    "provenance_changed",
+                    f"The file grew larger while it was being read — try running again: {path}",
                 )
             digest.update(chunk)
         final_opened = os.fstat(descriptor)
         if not _same_file(opened, final_opened, compare_size=True):
             raise _identity_error(
                 "provenance_changed",
-                "provenance input changed while hashing",
+                f"The file changed while it was being read — try running again: {path}",
             )
     finally:
         os.close(descriptor)
@@ -525,7 +529,7 @@ def _hash_regular_file(
     ):
         raise _identity_error(
             "provenance_changed",
-            "provenance input changed while hashing",
+            f"The file changed while it was being read — try running again: {path}",
         )
     return actual_size
 
@@ -553,17 +557,17 @@ def hash_file_provenance(
     except FileNotFoundError:
         raise _identity_error(
             "provenance_missing",
-            "provenance input is missing",
+            f"Can't find the file: {resolved}",
         ) from None
     except PermissionError:
         raise _identity_error(
             "provenance_permission_denied",
-            "provenance input cannot be read",
+            f"Permission denied — can't read the file: {resolved}",
         ) from None
     except OSError:
         raise _identity_error(
             "provenance_inspection_failed",
-            "provenance input could not be inspected",
+            f"Couldn't read the file: {resolved}",
         ) from None
 
 
@@ -575,7 +579,7 @@ def _tree_entry(
     except UnicodeError:
         raise _identity_error(
             "provenance_name_invalid",
-            "provenance input contains an invalid name",
+            f"This folder contains a file name COREX can't read: {relative_path!r}",
         ) from None
     digest.update(kind)
     digest.update(len(path_bytes).to_bytes(8, "big"))
@@ -599,13 +603,14 @@ def hash_directory_provenance(
         if depth > policy.max_directory_depth:
             raise _identity_error(
                 "provenance_limit_exceeded",
-                "provenance directory exceeds the depth limit",
+                f"This folder is nested too deeply for COREX to track — point "
+                f"the path input at a shallower folder: {directory}",
             )
         expected_directory = _checked_stat(directory)
         if not stat.S_ISDIR(expected_directory.st_mode):
             raise _identity_error(
                 "provenance_not_directory",
-                "provenance input is not a directory",
+                f"This path doesn't point to a folder: {directory}",
             )
         entries, entry_facts = _directory_entry_snapshot(
             directory,
@@ -614,7 +619,8 @@ def hash_directory_provenance(
         if len(entries) > policy.max_directory_entries - entry_count:
             raise _identity_error(
                 "provenance_limit_exceeded",
-                "provenance directory exceeds the entry limit",
+                f"This folder has too many files and subfolders for COREX to "
+                f"track: {directory}",
             )
         for entry_path, entry_stat in entries:
             _cancelled(cancel_event)
@@ -623,7 +629,8 @@ def hash_directory_provenance(
             if entry_count > policy.max_directory_entries:
                 raise _identity_error(
                     "provenance_limit_exceeded",
-                    "provenance directory exceeds the entry limit",
+                    f"This folder has too many files and subfolders for COREX to "
+                    f"track: {directory}",
                 )
             entry_name = entry_path.name
             relative_path = (
@@ -637,12 +644,14 @@ def hash_directory_provenance(
             if not stat.S_ISREG(entry_stat.st_mode):
                 raise _identity_error(
                     "provenance_not_regular",
-                    "provenance directory contains an unsupported entry",
+                    f"This folder contains an item COREX can't track (such as a "
+                    f"symbolic link or special file): {relative_path}",
                 )
             if total_bytes + entry_stat.st_size > policy.max_directory_total_bytes:
                 raise _identity_error(
                     "provenance_limit_exceeded",
-                    "provenance directory exceeds the byte limit",
+                    f"This folder's total contents are too large for COREX to "
+                    f"track: {directory}",
                 )
             _tree_entry(digest, b"F", relative_path, entry_stat.st_size)
             total_bytes += _hash_regular_file(
@@ -655,7 +664,8 @@ def hash_directory_provenance(
             if total_bytes > policy.max_directory_total_bytes:
                 raise _identity_error(
                     "provenance_limit_exceeded",
-                    "provenance directory exceeds the byte limit",
+                    f"This folder's total contents are too large for COREX to "
+                    f"track: {directory}",
                 )
             _require_same_directory(directory, expected_directory)
         _final_entries, final_entry_facts = _directory_entry_snapshot(
@@ -665,7 +675,7 @@ def hash_directory_provenance(
         if final_entry_facts != entry_facts:
             raise _identity_error(
                 "provenance_changed",
-                "provenance directory changed while hashing",
+                f"The folder changed while it was being read — try running again: {directory}",
             )
 
     try:
@@ -681,17 +691,17 @@ def hash_directory_provenance(
     except FileNotFoundError:
         raise _identity_error(
             "provenance_missing",
-            "provenance input is missing",
+            f"Can't find the folder: {path}",
         ) from None
     except PermissionError:
         raise _identity_error(
             "provenance_permission_denied",
-            "provenance input cannot be read",
+            f"Permission denied — can't read the folder: {path}",
         ) from None
     except OSError:
         raise _identity_error(
             "provenance_inspection_failed",
-            "provenance input could not be inspected",
+            f"Couldn't read the folder: {path}",
         ) from None
 
 
@@ -1222,7 +1232,8 @@ def _node_input_provenance_digest(
         if not isinstance(raw_path, str) or not raw_path.strip():
             raise SolutionIdentityError(
                 "provenance_input_missing",
-                "declared solution provenance input is unavailable",
+                "This node needs a file or folder path before it can run — "
+                "set the path property or connect an input source",
             )
         provenance = (
             hash_file_provenance(raw_path)
