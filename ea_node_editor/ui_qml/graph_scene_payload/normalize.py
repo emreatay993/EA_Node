@@ -9,7 +9,6 @@ import math
 import re
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
-from urllib.parse import quote
 
 from PyQt6.QtCore import QUrl
 
@@ -21,9 +20,6 @@ from ea_node_editor.nodes.builtins.web_viewer import (
 )
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
-from ea_node_editor.ui.media_preview_provider import (
-    LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
-)
 from ea_node_editor.ui.port_availability import (
     edge_availability_warning,
 )
@@ -112,13 +108,6 @@ def _resolved_web_page_navigation_location(
         project_metadata=project_metadata,
     )
     return resolved_url or source
-
-
-def _image_preview_source_url(source_url: str) -> str:
-    normalized = str(source_url or "").strip()
-    if not normalized:
-        return ""
-    return f"image://{LOCAL_MEDIA_PREVIEW_PROVIDER_ID}/preview?source={quote(normalized, safe='')}"
 
 
 def _float_property(value: object, default: float) -> float:

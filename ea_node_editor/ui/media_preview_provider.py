@@ -1,15 +1,18 @@
+# Purpose: Describe local images and serve them through the local-media-preview image provider.
+# Map: feature_routes/media_image_video_pdf_refocus.md
+# Tests: tests/test_passive_image_nodes.py, tests/test_preview_image_ids.py
 from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import parse_qs, unquote
 
 from PyQt6.QtCore import QSize, QUrl
 from PyQt6.QtGui import QImage, QImageReader
 from PyQt6.QtQuick import QQuickImageProvider
 
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
+from ea_node_editor.ui.preview_image_ids import preview_image_params, preview_image_url
 
 LOCAL_MEDIA_PREVIEW_PROVIDER_ID = "local-media-preview"
 _PreviewProjectContext = tuple[str | Path | None, dict[str, Any] | None]
@@ -50,15 +53,11 @@ def _local_file_url(path: Path) -> str:
     return QUrl.fromLocalFile(str(path)).toString()
 
 
-def _requested_source(image_id: str) -> str:
-    _path, _separator, query = str(image_id or "").partition("?")
-    if not query:
+def local_image_preview_url(source: str) -> str:
+    normalized = str(source or "").strip()
+    if not normalized:
         return ""
-    parsed = parse_qs(query, keep_blank_values=False)
-    values = parsed.get("source")
-    if not values:
-        return ""
-    return unquote(values[-1])
+    return preview_image_url(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, {"source": normalized})
 
 
 def _local_image_reader(path: Path) -> QImageReader:
@@ -195,7 +194,7 @@ class LocalMediaPreviewImageProvider(QQuickImageProvider):
         super().__init__(QQuickImageProvider.ImageType.Image)
 
     def requestImage(self, image_id: str, requested_size: QSize) -> tuple[QImage, QSize]:  # type: ignore[override]
-        source = _requested_source(image_id)
+        source = preview_image_params(image_id).get("source", "")
         path = _local_path_from_source(source)
         if path is None or not path.exists() or not path.is_file():
             return QImage(), QSize()
@@ -212,5 +211,6 @@ __all__ = [
     "LocalMediaPreviewImageProvider",
     "describe_local_image",
     "local_image_dimensions",
+    "local_image_preview_url",
     "set_media_preview_project_context_provider",
 ]

@@ -1,9 +1,12 @@
+# Purpose: Describe local PDF pages and render them through the local-pdf-preview image provider.
+# Map: feature_routes/media_image_video_pdf_refocus.md
+# Tests: tests/test_pdf_preview_provider.py, tests/test_preview_image_ids.py
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import parse_qs, quote, unquote
 
 from PyQt6.QtCore import QRectF, QSize, Qt, QUrl
 from PyQt6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen
@@ -11,6 +14,7 @@ from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtQuick import QQuickImageProvider
 
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
+from ea_node_editor.ui.preview_image_ids import preview_image_params, preview_image_url
 
 LOCAL_PDF_PREVIEW_PROVIDER_ID = "local-pdf-preview"
 _DEFAULT_PREVIEW_WIDTH = 268
@@ -43,17 +47,6 @@ def _preview_resolver() -> ProjectArtifactResolver:
     )
 
 
-def _query_value(image_id: str, key: str) -> str:
-    _path, _separator, query = str(image_id or "").partition("?")
-    if not query:
-        return ""
-    parsed = parse_qs(query, keep_blank_values=False)
-    values = parsed.get(key)
-    if not values:
-        return ""
-    return unquote(values[-1])
-
-
 def _parse_page_number(value: Any) -> int:
     if isinstance(value, bool):
         return _DEFAULT_PAGE_NUMBER
@@ -74,13 +67,10 @@ def _preview_url(source: str, page_number: int, file_stamp_token: str) -> str:
     normalized = str(source or "").strip()
     if not normalized:
         return ""
-    params = [
-        f"source={quote(normalized, safe='')}",
-        f"page={int(page_number)}",
-    ]
-    if file_stamp_token:
-        params.append(f"stamp={quote(file_stamp_token, safe='')}")
-    return f"image://{LOCAL_PDF_PREVIEW_PROVIDER_ID}/preview?{'&'.join(params)}"
+    return preview_image_url(
+        LOCAL_PDF_PREVIEW_PROVIDER_ID,
+        {"source": normalized, "page": int(page_number), "stamp": file_stamp_token},
+    )
 
 
 def _normalized_requested_size(requested_size: QSize) -> QSize:
@@ -228,126 +218,122 @@ def _cached_pdf_page_point_size(
         document.close()
 
 
-def _source_stats(path: Path) -> tuple[int, int] | None:
+@dataclass(frozen=True, slots=True)
+class _LocalPdfFile:
+    path: Path
+    modified_ns: int
+    file_size: int
+
+    @property
+    def stamp_token(self) -> str:
+        return f"{self.modified_ns}-{self.file_size}"
+
+
+def _stat_local_pdf(path: Path) -> _LocalPdfFile | None:
     try:
         stats = path.stat()
     except OSError:
         return None
-    return int(stats.st_mtime_ns), int(stats.st_size)
+    return _LocalPdfFile(path, int(stats.st_mtime_ns), int(stats.st_size))
 
 
-def _pdf_info(source: str, page_number: Any) -> dict[str, Any]:
+def _preview_info(
+    state: str,
+    message: str,
+    requested_page_number: int,
+    *,
+    resolved_source_url: str = "",
+    preview_url: str = "",
+    page_count: int = 0,
+    resolved_page_number: int | None = None,
+    file_stamp_token: str = "",
+    page_point_size: tuple[float, float] = (0.0, 0.0),
+) -> dict[str, Any]:
+    return {
+        "state": state,
+        "message": message,
+        "resolved_source_url": resolved_source_url,
+        "preview_url": preview_url,
+        "page_count": page_count,
+        "requested_page_number": requested_page_number,
+        "resolved_page_number": (
+            max(1, requested_page_number) if resolved_page_number is None else resolved_page_number
+        ),
+        "file_stamp_token": file_stamp_token,
+        "page_point_width": float(page_point_size[0]),
+        "page_point_height": float(page_point_size[1]),
+    }
+
+
+def _inspect_pdf(source: str, page_number: Any) -> tuple[dict[str, Any], _LocalPdfFile | None]:
+    """Return the QML preview description and, when ready, the inspected local file."""
     requested_page_number = _parse_page_number(page_number)
     raw_source = str(source or "").strip()
     if not raw_source:
-        return {
-            "state": "placeholder",
-            "message": "Choose a local PDF file to preview it here.",
-            "resolved_source_url": "",
-            "preview_url": "",
-            "page_count": 0,
-            "requested_page_number": requested_page_number,
-            "resolved_page_number": max(1, requested_page_number),
-            "file_stamp_token": "",
-            "page_point_width": 0.0,
-            "page_point_height": 0.0,
-        }
+        return _preview_info("placeholder", "Choose a local PDF file to preview it here.", requested_page_number), None
 
+    unresolved_preview_url = _preview_url(raw_source, requested_page_number, "")
     path = _local_path_from_source(raw_source)
     if path is None:
-        return {
-            "state": "error",
-            "message": "PDF previews support only absolute local file paths.",
-            "resolved_source_url": "",
-            "preview_url": _preview_url(raw_source, requested_page_number, ""),
-            "page_count": 0,
-            "requested_page_number": requested_page_number,
-            "resolved_page_number": max(1, requested_page_number),
-            "file_stamp_token": "",
-            "page_point_width": 0.0,
-            "page_point_height": 0.0,
-        }
+        message = "PDF previews support only absolute local file paths."
+        return _preview_info("error", message, requested_page_number, preview_url=unresolved_preview_url), None
     if not path.exists() or not path.is_file():
-        return {
-            "state": "error",
-            "message": "Unable to find the selected PDF file.",
-            "resolved_source_url": "",
-            "preview_url": _preview_url(raw_source, requested_page_number, ""),
-            "page_count": 0,
-            "requested_page_number": requested_page_number,
-            "resolved_page_number": max(1, requested_page_number),
-            "file_stamp_token": "",
-            "page_point_width": 0.0,
-            "page_point_height": 0.0,
-        }
+        message = "Unable to find the selected PDF file."
+        return _preview_info("error", message, requested_page_number, preview_url=unresolved_preview_url), None
+    pdf_file = _stat_local_pdf(path)
+    if pdf_file is None:
+        message = "Unable to inspect the selected PDF file."
+        return _preview_info("error", message, requested_page_number, preview_url=unresolved_preview_url), None
 
-    stats = _source_stats(path)
-    if stats is None:
-        return {
-            "state": "error",
-            "message": "Unable to inspect the selected PDF file.",
-            "resolved_source_url": "",
-            "preview_url": _preview_url(raw_source, requested_page_number, ""),
-            "page_count": 0,
-            "requested_page_number": requested_page_number,
-            "resolved_page_number": max(1, requested_page_number),
-            "file_stamp_token": "",
-            "page_point_width": 0.0,
-            "page_point_height": 0.0,
-        }
-
-    modified_ns, file_size = stats
-    page_count = _cached_pdf_page_count(str(path), modified_ns, file_size)
-    resolved_source_url = QUrl.fromLocalFile(str(path)).toString()
-    file_stamp_token = f"{modified_ns}-{file_size}"
+    path_text = str(pdf_file.path)
+    resolved_source_url = QUrl.fromLocalFile(path_text).toString()
+    stamp_token = pdf_file.stamp_token
+    page_count = _cached_pdf_page_count(path_text, pdf_file.modified_ns, pdf_file.file_size)
     if page_count is None:
-        return {
-            "state": "error",
-            "message": "Unable to load a local PDF preview.",
-            "resolved_source_url": resolved_source_url,
-            "preview_url": _preview_url(resolved_source_url, requested_page_number, file_stamp_token),
-            "page_count": 0,
-            "requested_page_number": requested_page_number,
-            "resolved_page_number": max(1, requested_page_number),
-            "file_stamp_token": file_stamp_token,
-            "page_point_width": 0.0,
-            "page_point_height": 0.0,
-        }
+        return _preview_info(
+            "error",
+            "Unable to load a local PDF preview.",
+            requested_page_number,
+            resolved_source_url=resolved_source_url,
+            preview_url=_preview_url(resolved_source_url, requested_page_number, stamp_token),
+            file_stamp_token=stamp_token,
+        ), None
 
     resolved_page_number = min(max(requested_page_number, 1), page_count)
-    page_point_size = _cached_pdf_page_point_size(str(path), modified_ns, file_size, resolved_page_number)
-    page_point_width, page_point_height = page_point_size or (0.0, 0.0)
+    page_point_size = _cached_pdf_page_point_size(
+        path_text, pdf_file.modified_ns, pdf_file.file_size, resolved_page_number
+    )
     if requested_page_number != resolved_page_number:
         message = f"Requested page {requested_page_number}; showing page {resolved_page_number} of {page_count}."
     else:
         message = f"Page {resolved_page_number} of {page_count}."
-    return {
-        "state": "ready",
-        "message": message,
-        "resolved_source_url": resolved_source_url,
-        "preview_url": _preview_url(resolved_source_url, resolved_page_number, file_stamp_token),
-        "page_count": page_count,
-        "requested_page_number": requested_page_number,
-        "resolved_page_number": resolved_page_number,
-        "file_stamp_token": file_stamp_token,
-        "page_point_width": float(page_point_width),
-        "page_point_height": float(page_point_height),
-    }
+    return _preview_info(
+        "ready",
+        message,
+        requested_page_number,
+        resolved_source_url=resolved_source_url,
+        preview_url=_preview_url(resolved_source_url, resolved_page_number, stamp_token),
+        page_count=page_count,
+        resolved_page_number=resolved_page_number,
+        file_stamp_token=stamp_token,
+        page_point_size=page_point_size or (0.0, 0.0),
+    ), pdf_file
 
 
 def describe_pdf_preview(source: str, page_number: Any) -> dict[str, Any]:
-    return dict(_pdf_info(source, page_number))
+    info, _pdf_file = _inspect_pdf(source, page_number)
+    return info
 
 
 def clamp_pdf_page_number(source: str, page_number: Any) -> int | None:
-    info = _pdf_info(source, page_number)
+    info = describe_pdf_preview(source, page_number)
     if str(info.get("state", "")) != "ready":
         return None
     return int(info["resolved_page_number"])
 
 
 def local_pdf_page_dimensions(source: str, page_number: Any) -> tuple[float, float] | None:
-    info = _pdf_info(source, page_number)
+    info = describe_pdf_preview(source, page_number)
     if str(info.get("state", "")) != "ready":
         return None
     width = float(info.get("page_point_width", 0.0))
@@ -370,18 +356,7 @@ def _flatten_pdf_page_to_paper(image: QImage) -> QImage:
     return page
 
 
-def _render_pdf_page_image_for_path(
-    path_text: str,
-    modified_ns: int,
-    file_size: int,
-    page_number: int,
-    requested_width: int,
-    requested_height: int,
-) -> QImage:
-    del modified_ns
-    del file_size
-
-    requested_size = QSize(max(1, requested_width), max(1, requested_height))
+def _render_pdf_page_image_for_path(path_text: str, page_number: int, requested_size: QSize) -> QImage:
     document = QPdfDocument(None)
     try:
         error = document.load(path_text)
@@ -413,36 +388,17 @@ def render_pdf_page_image(
     else:
         target_size = _normalized_requested_size(QSize(_DEFAULT_PREVIEW_WIDTH, _DEFAULT_PREVIEW_HEIGHT))
 
-    info = _pdf_info(source, page_number)
-    state = str(info.get("state", "placeholder"))
-    if state == "placeholder":
-        return _placeholder_image(target_size), dict(info)
-    if state != "ready":
-        return _error_image(target_size, str(info.get("message", ""))), dict(info)
-
-    path = _local_path_from_source(str(info.get("resolved_source_url", "")))
-    file_stamp_token = str(info.get("file_stamp_token", ""))
-    if path is None or not file_stamp_token:
-        return _error_image(target_size, "Unable to render the selected PDF page."), dict(info)
-    try:
-        modified_text, file_size_text = file_stamp_token.split("-", 1)
-        modified_ns = int(modified_text)
-        file_size = int(file_size_text)
-    except (TypeError, ValueError):
-        stats = _source_stats(path)
-        if stats is None:
-            return _error_image(target_size, "Unable to render the selected PDF page."), dict(info)
-        modified_ns, file_size = stats
-
+    info, pdf_file = _inspect_pdf(source, page_number)
+    if info["state"] == "placeholder":
+        return _placeholder_image(target_size), info
+    if pdf_file is None:
+        return _error_image(target_size, str(info["message"])), info
     image = _render_pdf_page_image_for_path(
-        str(path),
-        modified_ns,
-        file_size,
+        str(pdf_file.path),
         int(info["resolved_page_number"]),
-        int(target_size.width()),
-        int(target_size.height()),
+        target_size,
     )
-    return image, dict(info)
+    return image, info
 
 
 class LocalPdfPreviewImageProvider(QQuickImageProvider):
@@ -450,42 +406,11 @@ class LocalPdfPreviewImageProvider(QQuickImageProvider):
         super().__init__(QQuickImageProvider.ImageType.Image)
 
     def requestImage(self, image_id: str, requested_size: QSize) -> tuple[QImage, QSize]:  # type: ignore[override]
-        source = _query_value(image_id, "source")
-        page_number = _parse_page_number(_query_value(image_id, "page"))
-        info = _pdf_info(source, page_number)
-        state = str(info.get("state", "placeholder"))
-        target_size = _normalized_requested_size(requested_size)
-
-        if state == "placeholder":
-            image = _placeholder_image(target_size)
-            return image, image.size()
-        if state != "ready":
-            image = _error_image(target_size, str(info.get("message", "")))
-            return image, image.size()
-
-        path = _local_path_from_source(str(info.get("resolved_source_url", "")))
-        file_stamp_token = str(info.get("file_stamp_token", ""))
-        if path is None or not file_stamp_token:
-            image = _error_image(target_size, "Unable to render the selected PDF page.")
-            return image, image.size()
-        try:
-            modified_text, file_size_text = file_stamp_token.split("-", 1)
-            modified_ns = int(modified_text)
-            file_size = int(file_size_text)
-        except (TypeError, ValueError):
-            stats = _source_stats(path)
-            if stats is None:
-                image = _error_image(target_size, "Unable to render the selected PDF page.")
-                return image, image.size()
-            modified_ns, file_size = stats
-
-        image = _render_pdf_page_image_for_path(
-            str(path),
-            modified_ns,
-            file_size,
-            int(info["resolved_page_number"]),
-            int(target_size.width()),
-            int(target_size.height()),
+        params = preview_image_params(image_id)
+        image, _info = render_pdf_page_image(
+            params.get("source", ""),
+            params.get("page", ""),
+            requested_size,
         )
         return image, image.size()
 

@@ -19,6 +19,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - `ea_node_editor/ui/shell/media_panel_action_service.py`
 - `ea_node_editor/ui/media_preview_provider.py`
 - `ea_node_editor/ui/pdf_preview_provider.py`
+- `ea_node_editor/ui/preview_image_ids.py` — single encode/decode codec for local image/PDF preview provider ids
 - `ea_node_editor/ui/video_trim.py`
 - `ea_node_editor/ui/project_review_deck.py`
 - `ea_node_editor/ui_qml/graph_canvas_state/execution_state_props.py`
@@ -42,6 +43,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - `tests/test_content_fullscreen_bridge.py`
 - `tests/test_passive_image_nodes.py`
 - `tests/test_pdf_preview_provider.py`
+- `tests/test_preview_image_ids.py` — QML-engine round trip of published preview URLs for paths containing # or %XX
 - `tests/test_project_review_deck.py`
 - `tests/main_window_shell/passive_image_nodes.py`
 - `tests/main_window_shell/passive_pdf_nodes.py`
@@ -63,6 +65,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - Input exposure disables the inspector Source editor, Browse, Internalize, Repair, crop Save/Replace, and trim Replace. Display actions, Open Source, fullscreen, frame capture, and valid trim Copy remain mode-gated.
 - Image crop/transform/animation state remains in `GraphMediaImageRenderer.qml`; animation ownership is loader-local and pauses/releases on proxy, crop, offscreen, fullscreen, source, or mode transitions.
 - PDF inline preview owns page clamping through `pdf_preview_provider.py`; fullscreen uses `PdfDocument`/`PdfMultiPageView`. Graph mutation does not rewrite authored page values.
+- Local image and PDF previews share the `image://<provider>/preview?key=value` id format. Python builds them through `media_preview_provider.local_image_preview_url` and the PDF description's `preview_url`; QML builds local-media-preview ids through `GraphMediaPanelSourceUtils.js` `previewSourceUrl` with `encodeURIComponent`. Both providers decode only through `ui/preview_image_ids.py`, exactly once, because Qt passes the query still encoded: a second decode turns a file URL's `%23` into a fragment, so paths containing `#` or `%XX` fail inline. Prove changes by loading a published URL for such a path through a QML engine, not with hand-built ids.
 - `GraphMediaVideoPlaybackCore.qml` owns the shared per-renderer player/audio, source lifecycle, seek, clip, bookmark, marker, thumbnail-primer, rate/time, and transient-state behavior. Inline retains graph-property persistence, node/capture/timestamp actions, selection/autoplay, and artifact release; fullscreen retains controls, trim calls, resume, and close-state handoff. `ui/media_video_state.py` is the single Python normalization owner.
 - Same-node fullscreen ownership clears the corresponding inline core source so only fullscreen decodes it; other inline video nodes retain independent loaded/playing cores. Closing/reopening restores paused or playing position, and nonzero paused handoffs skip thumbnail priming.
 - Inline and fullscreen consume the same effective source. Fullscreen uses `content_kind="media"` with dynamic `media_payload.media_kind` and refreshes on execution, topology, exposure, node, or workspace changes.
@@ -78,7 +81,7 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_media_panel.py tests/test_media_panel_creation_preferences.py tests/test_media_panel_source_resolution.py tests/test_media_video_state.py tests/test_media_panel_qml_surface.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_video_trim.py tests/test_project_review_deck.py tests/test_pdf_preview_provider.py tests/test_passive_image_nodes.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_video_trim.py tests/test_project_review_deck.py tests/test_pdf_preview_provider.py tests/test_preview_image_ids.py tests/test_passive_image_nodes.py --ignore=venv -q
 $env:QT_QPA_PLATFORM = "offscreen"
 .\venv\Scripts\python.exe -m pytest `
   "tests/test_shell_isolation_phase.py::test_shell_isolation_target[main_window__passive_image_nodes__editors_and_storage]" `

@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote, urlsplit
+from urllib.parse import urlsplit
 
 from PyQt6.QtCore import QUrl
 
@@ -19,8 +19,8 @@ from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolv
 from ea_node_editor.runtime_contracts import DataTree, ImageValue, PlotValue, RuntimeArtifactRef
 from ea_node_editor.ui.image_value_preview_provider import image_value_preview_source
 from ea_node_editor.ui.media_preview_provider import (
-    LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
     describe_local_image,
+    local_image_preview_url,
 )
 from ea_node_editor.ui.pdf_preview_provider import describe_pdf_preview
 from ea_node_editor.ui.support.solution_output_cache import current_output_value, retained_output_record
@@ -192,13 +192,6 @@ def _non_ready(
     )
 
 
-def _image_preview_url(source_url: str) -> str:
-    return (
-        f"image://{LOCAL_MEDIA_PREVIEW_PROVIDER_ID}/preview?"
-        f"source={quote(source_url, safe='')}"
-    )
-
-
 def _resolve_value(
     value: object,
     *,
@@ -351,7 +344,7 @@ def _resolve_value(
                 state="invalid",
                 message=str(image_preview.get("message", "") or "The image could not be decoded."),
             )
-        preview_url = _image_preview_url(resolved_url)
+        preview_url = local_image_preview_url(resolved_url)
     elif media_kind == "pdf":
         pdf_preview = describe_pdf_preview(resolved_url, page_number)
         if str(pdf_preview.get("state", "")) != _READY_STATE:
