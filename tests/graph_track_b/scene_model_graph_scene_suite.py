@@ -1002,6 +1002,34 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
             places=6,
         )
 
+    def test_content_sized_settings_toggle_avoids_custom_height_payload_builds(self) -> None:
+        node_id = self.scene.add_node_from_type("tests.track_b_settings_groups", 40.0, 60.0)
+        workspace = self.model.active_workspace
+        self.assertIsNone(workspace.nodes[node_id].custom_height)
+        builder = self.scene._payload_builder
+        for collapsed in (False, True):
+            self.scene.set_node_collapsed(node_id, collapsed)
+            # Populate the current view so the measured command uses its normal delta path.
+            self.assertTrue(self.scene.nodes_model)
+            for expanded in (True, False):
+                with self.subTest(collapsed=collapsed, expanded=expanded):
+                    with patch.object(
+                        builder,
+                        "build_node_payloads_for_ids",
+                        wraps=builder.build_node_payloads_for_ids,
+                    ) as build_payloads:
+                        self.assertTrue(self.scene.set_node_settings_group_expanded(
+                            node_id, "general", expanded,
+                        ))
+                    # One final publication, plus current bounds for expansion collision
+                    # avoidance. Content-sized nodes need no before/after height probes.
+                    self.assertEqual(build_payloads.call_count, 2 if expanded and not collapsed else 1)
+                    self.assertIsNone(workspace.nodes[node_id].custom_height)
+                    payload = next(item for item in self.scene.nodes_model if item["node_id"] == node_id)
+                    self.assertEqual(payload["collapsed"], collapsed)
+                    self.assertEqual(workspace.nodes[node_id].expanded_settings_group_ids,
+                                     ("general",) if expanded else ())
+
     def test_settings_group_expansion_moves_a_real_overlapping_neighbor(self) -> None:
         node_id = self.scene.add_node_from_type(
             "tests.track_b_settings_groups",

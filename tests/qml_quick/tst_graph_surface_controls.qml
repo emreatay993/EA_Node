@@ -278,6 +278,7 @@ TestCase {
                 property color inlineRowBorderColor: "#4a4f5a"
                 property color inlineLabelColor: "#d0d5de"
                 property color inlineDrivenTextColor: "#bdc5d3"
+                property color scopeBadgeColor: "#1d8ce0"
                 property color inlineInputBackgroundColor: "#223344"
                 property color inlineInputBorderColor: "#556677"
                 property color inlineInputTextColor: "#ddeeff"
@@ -751,6 +752,115 @@ TestCase {
         wait(0);
         keyClick(Qt.Key_Return);
         compare(commits[commits.length - 1], 1);
+    }
+
+    function inlineEditorCases() {
+        return [
+            {tag: "toggle", kind: "toggle", name: "graphNodeInlineToggleEditor", value: true},
+            {tag: "enum", kind: "enum", name: "graphNodeInlineEnumEditor", value: "one"},
+            {tag: "searchable_enum", kind: "enum", name: "graphNodeInlineSearchableEnumEditor", value: "one", searchable: true},
+            {tag: "interval_fields", kind: "interval_fields", name: "graphNodeInlineIntervalFieldsEditor", value: {start: 2, end: 8}},
+            {tag: "list", kind: "list", name: "graphNodeInlineListEditor", value: ["one", "two"]},
+            {tag: "slider", kind: "slider", name: "graphNodeInlineSliderEditor", value: 3},
+            {tag: "interval_slider", kind: "interval_slider", name: "graphNodeInlineIntervalSliderEditor", value: {start: 2, end: 8}},
+            {tag: "text", kind: "text", name: "graphNodeInlineValueEditor", value: "hello"},
+            {tag: "number", kind: "number", name: "graphNodeInlineValueEditor", value: 3},
+            {tag: "path", kind: "path", name: "graphNodeInlinePathEditor", value: "C:/folder/input.csv"},
+            {tag: "color", kind: "color", name: "graphNodeInlineColorEditor", value: "#112233"},
+            {tag: "textarea", kind: "textarea", name: "graphNodeInlineTextareaEditor", value: "notes"},
+            {tag: "secret", kind: "secret", name: "graphNodeInlineSecretEditor", value: {has_value: true}}
+        ]
+    }
+
+    function test_inline_row_constructs_only_its_effective_editor_data() {
+        return inlineEditorCases()
+    }
+
+    function test_inline_row_constructs_only_its_effective_editor(data) {
+        var property = {
+            key: "value", label: "Value", type: "str", inline_editor: data.kind,
+            value: data.value, searchable: Boolean(data.searchable), editor_enabled: true,
+            minimum: 0, maximum: 10, step: 1, enum_values: ["one", "two"]
+        }
+        var root = createProbe({inlineProperties: [property]})
+        verify(root !== null)
+        var layer = root.probeInlineLayer
+        var editor = findChild(layer, data.name)
+        verify(editor !== null, data.name + " is constructed synchronously")
+        compare(editor.propertyKey, "value")
+        var row = findChild(layer, "graphNodeInlinePropertyRow")
+        verify(row.activeEditor.width > 0)
+        verify(row.activeEditor.height > 0)
+        tryVerify(function() { return layer.embeddedInteractiveRects.length === 1 })
+        var rect = layer.embeddedInteractiveRects[0]
+        var editorPosition = row.activeEditor.mapToItem(layer, 0, 0)
+        verify(near(editorPosition.x, rect.x))
+        verify(editorPosition.y >= rect.y - 0.5)
+        verify(near(row.activeEditor.width, rect.width))
+        verify(row.activeEditor.height <= rect.height + 0.5)
+        var fitsText = ["text", "number", "enum", "path", "color"].indexOf(data.kind) >= 0
+        if (fitsText)
+            tryVerify(function() { return layer.requiredTextFitNodeWidth > 0 })
+        else
+            compare(layer.requiredTextFitNodeWidth, 0)
+        var cases = inlineEditorCases()
+        for (var index = 0; index < cases.length; index++) {
+            if (cases[index].name !== data.name)
+                compare(findChild(layer, cases[index].name), null, cases[index].name + " must not be constructed")
+        }
+
+        property = Object.assign({}, property, {label: "Updated label", status_chip_text: "Stored"})
+        root.inlineProperties = [property]
+        compare(findChild(layer, data.name), editor, "Ordinary presentation updates retain the editor")
+        root.probeInlineHost.executionFacts = {
+            propertyPresentationLookup: {probe_node: {
+                value: Object.assign({}, property, {
+                    editor_enabled: false,
+                    editor_disabled_reason: "Value supplied by connected input."
+                })
+            }}
+        }
+        compare(findChild(layer, data.name), editor, "Runtime override updates retain the editor")
+        tryVerify(function() { return layer.embeddedInteractiveRects.length === 0 })
+        if (row.activeEditor.editorEnabled !== undefined)
+            compare(row.activeEditor.editorEnabled, false)
+        else
+            compare(row.activeEditor.enabled, false)
+    }
+
+    function test_inline_row_switches_searchable_enum_without_replacing_row() {
+        var property = {key: "mode", label: "Mode", inline_editor: "enum", value: "two",
+            enum_values: ["one", "two"], searchable: false}
+        var root = createProbe({inlineProperties: [property]})
+        var layer = root.probeInlineLayer
+        var row = findChild(layer, "graphNodeInlinePropertyRow")
+        verify(findChild(layer, "graphNodeInlineEnumEditor") !== null)
+        compare(findChild(layer, "graphNodeInlineSearchableEnumEditor"), null)
+        root.inlineProperties = [Object.assign({}, property, {searchable: true})]
+        compare(findChild(layer, "graphNodeInlinePropertyRow"), row)
+        compare(findChild(layer, "graphNodeInlineEnumEditor"), null)
+        var searchable = findChild(layer, "graphNodeInlineSearchableEnumEditor")
+        verify(searchable !== null)
+        compare(searchable.selectedValue, "two")
+        root.inlineProperties = [property]
+        compare(findChild(layer, "graphNodeInlinePropertyRow"), row)
+        compare(findChild(layer, "graphNodeInlineSearchableEnumEditor"), null)
+        compare(findChild(layer, "graphNodeInlineEnumEditor").currentIndex, 1)
+    }
+
+    function test_inline_textarea_keeps_focused_draft_during_payload_refresh() {
+        var property = {key: "notes", label: "Notes", inline_editor: "textarea", value: "saved"}
+        var root = createProbe({inlineProperties: [property]})
+        var layer = root.probeInlineLayer
+        var editor = findChild(layer, "graphNodeInlineTextareaEditor")
+        verify(editor !== null)
+        editor.forceActiveFocus()
+        tryCompare(editor, "activeFocus", true)
+        editor.text = "unfinished draft"
+        root.inlineProperties = [Object.assign({}, property, {label: "Updated notes"})]
+        compare(findChild(layer, "graphNodeInlineTextareaEditor"), editor)
+        compare(editor.text, "unfinished draft")
+        compare(editor.activeFocus, true)
     }
 
     function near(actual, expected) {

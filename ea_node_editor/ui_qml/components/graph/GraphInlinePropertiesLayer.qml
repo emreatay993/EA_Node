@@ -5,6 +5,10 @@ import "../common/PresentationModelKeys.js" as PresentationModelKeys
 import "surface_controls" as SurfaceControls
 import "surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 
+// Purpose: Render inline property rows with only their effective editor instantiated.
+// Map: feature_routes/surface_input_and_inline_controls.md
+// Tests: tests/qml_quick/tst_graph_surface_controls.qml, tests/test_graph_surface_input_inline.py
+
 Item {
     id: root
     objectName: "graphInlinePropertiesLayer"
@@ -277,17 +281,11 @@ Item {
                 readonly property bool stackedEditor: root._isStackedEditor(propertyData)
                 readonly property real baseRowHeight: host ? host._inlineRowHeight : 26
                 readonly property string disabledReason: String(propertyData.editor_disabled_reason || "")
+                readonly property Item activeEditor: editorLoader.item ? editorLoader.item.control : null
                 readonly property real editorTextFitWidth: {
-                    if (editorKind === "enum")
-                        return propertyData.searchable
-                            ? Number(searchableEnumEditor.textFitWidth)
-                            : Number(enumEditor.textFitWidth);
-                    if (editorKind === "text" || editorKind === "number")
-                        return Number(valueEditor.textFitWidth);
-                    if (editorKind === "path")
-                        return Number(pathEditor.textFitWidth);
-                    if (editorKind === "color")
-                        return Number(colorEditor.textFitWidth);
+                    if (activeEditor && (editorKind === "enum" || editorKind === "text"
+                            || editorKind === "number" || editorKind === "path" || editorKind === "color"))
+                        return Number(activeEditor.textFitWidth);
                     return 0.0;
                 }
 
@@ -300,7 +298,7 @@ Item {
                 Accessible.description: disabledReason
 
                 function currentInteractiveRectList() {
-                    if (!inlineRow.editorEnabled)
+                    if (!inlineRow.editorEnabled || !inlineRow.activeEditor)
                         return [];
                     var editorX = Number(inlineControlsColumn.x) + Number(editorArea.x);
                     var editorY = Number(inlineControlsColumn.y)
@@ -308,10 +306,10 @@ Item {
                     var editorWidth = Number(editorArea.width);
                     var editorHeight = Number(editorArea.height);
                     if (inlineRow.editorKind === "toggle") {
-                        editorX += Math.max(0, editorWidth - Number(toggleEditor.width));
-                        editorY += Math.max(0, (editorHeight - Number(toggleEditor.height)) * 0.5);
-                        editorWidth = Number(toggleEditor.width);
-                        editorHeight = Number(toggleEditor.height);
+                        editorX += Math.max(0, editorWidth - Number(inlineRow.activeEditor.width));
+                        editorY += Math.max(0, (editorHeight - Number(inlineRow.activeEditor.height)) * 0.5);
+                        editorWidth = Number(inlineRow.activeEditor.width);
+                        editorHeight = Number(inlineRow.activeEditor.height);
                     }
                     return SurfaceControlGeometry.rectList({
                         "x": editorX,
@@ -436,329 +434,437 @@ Item {
                         ? Math.max(0, inlineRow.height - y)
                         : inlineRow.height
 
-                    SurfaceControls.GraphSurfaceCheckBox {
-                        id: toggleEditor
-                        objectName: "graphNodeInlineToggleEditor"
-                        property string propertyKey: String(inlineRow.propertyData.key || "")
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: inlineRow.editorKind === "toggle" && inlineRow.displayValueAvailable
-                        enabled: inlineRow.editorEnabled
-                        checked: Boolean(root._displayValue(inlineRow.propertyData))
-                        host: root.host
-                        text: ""
-                        Accessible.name: inlineLabel.text
-                        Accessible.description: inlineRow.disabledReason
-                        onControlStarted: root._beginInteraction()
-                        onClicked: root._commitInlineProperty(inlineRow.propertyData.key, checked)
-                    }
-
-                    SurfaceControls.GraphSurfaceComboBox {
-                        id: enumEditor
-                        objectName: "graphNodeInlineEnumEditor"
-                        property string propertyKey: String(inlineRow.propertyData.key || "")
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: inlineRow.editorKind === "enum"
-                            && !Boolean(inlineRow.propertyData.searchable)
-                        enabled: inlineRow.editorEnabled
-                        host: root.host
-                        model: inlineRow.propertyData.enum_values || []
-                        currentIndex: {
-                            if (!inlineRow.displayValueAvailable)
-                                return -1;
-                            var codes = inlineRow.propertyData.enum_codes || [];
-                            if (codes.length > 0)
-                                return codes.indexOf(root._displayValue(inlineRow.propertyData));
-                            var values = inlineRow.propertyData.enum_values || [];
-                            return values.indexOf(root._displayText(inlineRow.propertyData));
-                        }
-                        displayText: inlineRow.displayValueAvailable
-                            ? (currentIndex >= 0 ? String(model[currentIndex]) : root._displayText(inlineRow.propertyData))
-                            : "\u2014"
-                        Accessible.name: inlineLabel.text
-                        Accessible.description: inlineRow.disabledReason
-                        onControlStarted: root._beginInteraction()
-                        onActivated: function(selectedIndex) {
-                            var values = inlineRow.propertyData.enum_values || [];
-                            if (selectedIndex < 0 || selectedIndex >= values.length)
-                                return;
-                            var codes = inlineRow.propertyData.enum_codes || [];
-                            root._commitInlineProperty(
-                                inlineRow.propertyData.key,
-                                codes.length === values.length
-                                    ? codes[selectedIndex]
-                                    : String(values[selectedIndex])
-                            );
-                        }
-                    }
-
-                    SurfaceControls.GraphSurfaceIntervalFields {
-                        id: intervalFieldsEditor
-                        objectName: "graphNodeInlineIntervalFieldsEditor"
+                    // Construct only this row's editor. Value/presentation refreshes retain
+                    // the same component and its focused draft; editor-kind changes replace it.
+                    Loader {
+                        id: editorLoader
                         anchors.fill: parent
-                        visible: inlineRow.editorKind === "interval_fields"
-                        propertyKey: String(inlineRow.propertyData.key || "")
-                        editorEnabled: inlineRow.editorEnabled
-                        host: root.host
-                        value: root._displayValue(inlineRow.propertyData)
-                        onControlStarted: root._beginInteraction()
-                        onCommitRequested: function(value) {
-                            root._commitInlineProperty(inlineRow.propertyData.key, value);
+                        sourceComponent: {
+                            switch (inlineRow.editorKind) {
+                            case "toggle": return toggleEditorComponent;
+                            case "enum": return Boolean(inlineRow.propertyData.searchable)
+                                ? searchableEnumEditorComponent : enumEditorComponent;
+                            case "interval_fields": return intervalFieldsEditorComponent;
+                            case "list": return listEditorComponent;
+                            case "slider": return sliderEditorComponent;
+                            case "interval_slider": return intervalEditorComponent;
+                            case "text":
+                            case "number": return valueEditorComponent;
+                            case "path": return pathEditorComponent;
+                            case "color": return colorEditorComponent;
+                            case "textarea": return textareaEditorComponent;
+                            case "secret": return secretEditorComponent;
+                            default: return null;
+                            }
                         }
                     }
 
-                    SurfaceControls.GraphSurfaceListEditor {
-                        id: listEditor
-                        objectName: "graphNodeInlineListEditor"
-                        anchors.fill: parent
-                        visible: inlineRow.editorKind === "list"
-                        propertyKey: String(inlineRow.propertyData.key || "")
-                        editorEnabled: inlineRow.editorEnabled
-                        host: root.host
-                        values: root._displayValue(inlineRow.propertyData) || []
-                        itemType: String(inlineRow.propertyData.list_item_type || "str")
-                        enumValues: inlineRow.propertyData.list_item_enum_values || []
-                        enumCodes: inlineRow.propertyData.list_item_enum_codes || []
-                        exactSelectors: Boolean(inlineRow.propertyData.exact_selectors)
-                        minimum: inlineRow.propertyData.list_item_minimum
-                        maximum: inlineRow.propertyData.list_item_maximum
-                        stepSize: Number(inlineRow.propertyData.list_item_step || 0)
-                        onControlStarted: root._beginInteraction()
-                        onCommitRequested: function(value) {
-                            root._commitInlineProperty(inlineRow.propertyData.key, value);
+                    Component {
+                        id: toggleEditorComponent
+
+                        Item {
+                            property alias control: toggleEditor
+
+                            SurfaceControls.GraphSurfaceCheckBox {
+                                id: toggleEditor
+                                objectName: "graphNodeInlineToggleEditor"
+                                property string propertyKey: String(inlineRow.propertyData.key || "")
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: inlineRow.displayValueAvailable
+                                enabled: inlineRow.editorEnabled
+                                checked: Boolean(root._displayValue(inlineRow.propertyData))
+                                host: root.host
+                                text: ""
+                                Accessible.name: inlineLabel.text
+                                Accessible.description: inlineRow.disabledReason
+                                onControlStarted: root._beginInteraction()
+                                onClicked: root._commitInlineProperty(inlineRow.propertyData.key, checked)
+                            }
                         }
                     }
 
-                    SurfaceControls.GraphSurfaceSearchableComboBox {
-                        id: searchableEnumEditor
-                        objectName: "graphNodeInlineSearchableEnumEditor"
-                        property string propertyKey: String(inlineRow.propertyData.key || "")
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: inlineRow.editorKind === "enum"
-                            && Boolean(inlineRow.propertyData.searchable)
-                        enabled: inlineRow.editorEnabled
-                        host: root.host
-                        model: inlineRow.propertyData.enum_values || []
-                        optionCodes: inlineRow.propertyData.enum_codes || []
-                        exactSelectors: Boolean(inlineRow.propertyData.exact_selectors)
-                        selectedValue: inlineRow.displayValueAvailable
-                            ? root._displayValue(inlineRow.propertyData)
-                            : ""
-                        placeholderText: "\u2014"
-                        Accessible.name: inlineLabel.text
-                        Accessible.description: inlineRow.disabledReason
-                        onControlStarted: root._beginInteraction()
-                        onValueActivated: function(value) {
-                            var values = inlineRow.propertyData.enum_values || [];
-                            if (!Boolean(inlineRow.propertyData.exact_selectors) && values.indexOf(value) < 0)
-                                return;
-                            root._commitInlineProperty(inlineRow.propertyData.key, value);
+                    Component {
+                        id: enumEditorComponent
+
+                        Item {
+                            property alias control: enumEditor
+
+                            SurfaceControls.GraphSurfaceComboBox {
+                                id: enumEditor
+                                objectName: "graphNodeInlineEnumEditor"
+                                property string propertyKey: String(inlineRow.propertyData.key || "")
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                enabled: inlineRow.editorEnabled
+                                host: root.host
+                                model: inlineRow.propertyData.enum_values || []
+                                currentIndex: {
+                                    if (!inlineRow.displayValueAvailable)
+                                        return -1;
+                                    var codes = inlineRow.propertyData.enum_codes || [];
+                                    if (codes.length > 0)
+                                        return codes.indexOf(root._displayValue(inlineRow.propertyData));
+                                    var values = inlineRow.propertyData.enum_values || [];
+                                    return values.indexOf(root._displayText(inlineRow.propertyData));
+                                }
+                                displayText: inlineRow.displayValueAvailable
+                                    ? (currentIndex >= 0 ? String(model[currentIndex]) : root._displayText(inlineRow.propertyData))
+                                    : "\u2014"
+                                Accessible.name: inlineLabel.text
+                                Accessible.description: inlineRow.disabledReason
+                                onControlStarted: root._beginInteraction()
+                                onActivated: function(selectedIndex) {
+                                    var values = inlineRow.propertyData.enum_values || [];
+                                    if (selectedIndex < 0 || selectedIndex >= values.length)
+                                        return;
+                                    var codes = inlineRow.propertyData.enum_codes || [];
+                                    root._commitInlineProperty(
+                                        inlineRow.propertyData.key,
+                                        codes.length === values.length
+                                            ? codes[selectedIndex]
+                                            : String(values[selectedIndex])
+                                    );
+                                }
+                            }
                         }
                     }
 
-                    SurfaceControls.GraphSurfaceSlider {
-                        id: sliderEditor
-                        objectName: "graphNodeInlineSliderEditor"
-                        property string propertyKey: String(inlineRow.propertyData.key || "")
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: inlineRow.editorKind === "slider"
-                        enabled: inlineRow.editorEnabled
-                        host: root.host
-                        from: Number(inlineRow.propertyData.minimum)
-                        to: Number(inlineRow.propertyData.maximum)
-                        stepSize: Number(inlineRow.propertyData.step) > 0
-                            ? Number(inlineRow.propertyData.step)
-                            : (String(inlineRow.propertyData.type) === "int" ? 1 : 0)
-                        valueType: String(inlineRow.propertyData.type || "float")
-                        displayValueAvailable: inlineRow.displayValueAvailable
-                        showRangeCaptions: true
-                        Accessible.name: inlineLabel.text
-                        Accessible.description: inlineRow.disabledReason.length > 0
-                            ? inlineRow.disabledReason
-                            : "Minimum " + minimumCaptionText
-                                + ", current " + currentCaptionText
-                                + ", maximum " + maximumCaptionText + "."
-                        onControlStarted: root._beginInteraction()
-                        onCommitRequested: function(value) {
-                            if (!inlineRow.editorEnabled)
-                                return;
-                            root._commitInlineProperty(
-                                inlineRow.propertyData.key,
-                                String(inlineRow.propertyData.type) === "int" ? Math.round(value) : value
-                            );
+                    Component {
+                        id: intervalFieldsEditorComponent
+
+                        Item {
+                            property alias control: intervalFieldsEditor
+
+                            SurfaceControls.GraphSurfaceIntervalFields {
+                                id: intervalFieldsEditor
+                                objectName: "graphNodeInlineIntervalFieldsEditor"
+                                anchors.fill: parent
+                                propertyKey: String(inlineRow.propertyData.key || "")
+                                editorEnabled: inlineRow.editorEnabled
+                                host: root.host
+                                value: root._displayValue(inlineRow.propertyData)
+                                onControlStarted: root._beginInteraction()
+                                onCommitRequested: function(value) {
+                                    root._commitInlineProperty(inlineRow.propertyData.key, value);
+                                }
+                            }
                         }
                     }
 
-                    Binding {
-                        target: sliderEditor
-                        property: "value"
-                        value: inlineRow.displayValueAvailable
-                            ? Number(root._displayValue(inlineRow.propertyData))
-                            : (Number(sliderEditor.from) + Number(sliderEditor.to)) * 0.5
-                        when: sliderEditor.visible && !sliderEditor.interactionActive
-                        restoreMode: Binding.RestoreNone
-                    }
+                    Component {
+                        id: listEditorComponent
 
-                    SurfaceControls.GraphSurfaceIntervalSlider {
-                        id: intervalEditor
-                        objectName: "graphNodeInlineIntervalSliderEditor"
-                        property string propertyKey: String(inlineRow.propertyData.key || "")
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: inlineRow.editorKind === "interval_slider"
-                        enabled: inlineRow.editorEnabled
-                        host: root.host
-                        from: Number(inlineRow.propertyData.minimum)
-                        to: Number(inlineRow.propertyData.maximum)
-                        stepSize: Math.max(0, Number(inlineRow.propertyData.step) || 0)
-                        semanticStart: {
-                            var value = root._displayValue(inlineRow.propertyData);
-                            return value && value.start !== undefined ? Number(value.start) : Number(from);
-                        }
-                        semanticEnd: {
-                            var value = root._displayValue(inlineRow.propertyData);
-                            return value && value.end !== undefined ? Number(value.end) : Number(to);
-                        }
-                        displayValueAvailable: inlineRow.displayValueAvailable
-                        intervalDirection: String(
-                            inlineRow.propertyData.interval_direction || "increasing"
-                        )
-                        valueType: "float"
-                        Accessible.name: inlineLabel.text
-                        Accessible.description: {
-                            var value = root._displayValue(inlineRow.propertyData);
-                            var semantic = value && value.start !== undefined && value.end !== undefined
-                                ? "Start " + String(value.start) + ", End " + String(value.end) + "."
-                                : "Start and End unavailable.";
-                            return inlineRow.disabledReason.length > 0
-                                ? semantic + " " + inlineRow.disabledReason
-                                : semantic;
-                        }
-                        onControlStarted: root._beginInteraction()
-                        onCommitRequested: function(intervalValue) {
-                            if (!inlineRow.editorEnabled)
-                                return;
-                            root._commitInlineProperty(inlineRow.propertyData.key, intervalValue);
+                        Item {
+                            property alias control: listEditor
+
+                            SurfaceControls.GraphSurfaceListEditor {
+                                id: listEditor
+                                objectName: "graphNodeInlineListEditor"
+                                anchors.fill: parent
+                                propertyKey: String(inlineRow.propertyData.key || "")
+                                editorEnabled: inlineRow.editorEnabled
+                                host: root.host
+                                values: root._displayValue(inlineRow.propertyData) || []
+                                itemType: String(inlineRow.propertyData.list_item_type || "str")
+                                enumValues: inlineRow.propertyData.list_item_enum_values || []
+                                enumCodes: inlineRow.propertyData.list_item_enum_codes || []
+                                exactSelectors: Boolean(inlineRow.propertyData.exact_selectors)
+                                minimum: inlineRow.propertyData.list_item_minimum
+                                maximum: inlineRow.propertyData.list_item_maximum
+                                stepSize: Number(inlineRow.propertyData.list_item_step || 0)
+                                onControlStarted: root._beginInteraction()
+                                onCommitRequested: function(value) {
+                                    root._commitInlineProperty(inlineRow.propertyData.key, value);
+                                }
+                            }
                         }
                     }
 
-                    SurfaceControls.GraphSurfaceTextField {
-                        id: valueEditor
-                        objectName: "graphNodeInlineValueEditor"
-                        property string propertyKey: String(inlineRow.propertyData.key || "")
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: inlineRow.editorKind === "text" || inlineRow.editorKind === "number"
-                        enabled: inlineRow.editorEnabled
-                        host: root.host
-                        text: root._displayText(inlineRow.propertyData)
-                        Accessible.name: inlineLabel.text
-                        Accessible.description: inlineRow.disabledReason
-                        onControlStarted: root._beginInteraction()
-                        onAccepted: root._commitInlineProperty(inlineRow.propertyData.key, text)
-                        onEditingFinished: root._commitInlineProperty(inlineRow.propertyData.key, text)
-                    }
+                    Component {
+                        id: searchableEnumEditorComponent
 
-                    SurfaceControls.GraphSurfacePathEditor {
-                        id: pathEditor
-                        visible: inlineRow.editorKind === "path"
-                        anchors.fill: parent
-                        enabled: inlineRow.editorEnabled
-                        host: root.host
-                        propertyKey: String(inlineRow.propertyData.key || "")
-                        committedText: root._displayText(inlineRow.propertyData)
-                        shortenDisplayPathWhenInactive: root._isPathPointerPathProperty(inlineRow.propertyData)
-                            && !root._pathPointerShowFullPath()
-                        fieldObjectName: "graphNodeInlinePathEditor"
-                        browseButtonObjectName: "graphNodeInlinePathBrowseButton"
-                        browsePathResolver: function(currentPath) {
-                            return host && host.browseNodePropertyPath
-                                ? host.browseNodePropertyPath(inlineRow.propertyData.key, currentPath)
-                                : "";
-                        }
-                        onControlStarted: root._beginInteraction()
-                        onCommitRequested: function(value) {
-                            root._commitInlineProperty(inlineRow.propertyData.key, value);
+                        Item {
+                            property alias control: searchableEnumEditor
+
+                            SurfaceControls.GraphSurfaceSearchableComboBox {
+                                id: searchableEnumEditor
+                                objectName: "graphNodeInlineSearchableEnumEditor"
+                                property string propertyKey: String(inlineRow.propertyData.key || "")
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                enabled: inlineRow.editorEnabled
+                                host: root.host
+                                model: inlineRow.propertyData.enum_values || []
+                                optionCodes: inlineRow.propertyData.enum_codes || []
+                                exactSelectors: Boolean(inlineRow.propertyData.exact_selectors)
+                                selectedValue: inlineRow.displayValueAvailable
+                                    ? root._displayValue(inlineRow.propertyData)
+                                    : ""
+                                placeholderText: "\u2014"
+                                Accessible.name: inlineLabel.text
+                                Accessible.description: inlineRow.disabledReason
+                                onControlStarted: root._beginInteraction()
+                                onValueActivated: function(value) {
+                                    var values = inlineRow.propertyData.enum_values || [];
+                                    if (!Boolean(inlineRow.propertyData.exact_selectors) && values.indexOf(value) < 0)
+                                        return;
+                                    root._commitInlineProperty(inlineRow.propertyData.key, value);
+                                }
+                            }
                         }
                     }
 
-                    SurfaceControls.GraphSurfaceColorEditor {
-                        id: colorEditor
-                        visible: inlineRow.editorKind === "color"
-                        anchors.fill: parent
-                        enabled: inlineRow.editorEnabled
-                        host: root.host
-                        propertyKey: String(inlineRow.propertyData.key || "")
-                        committedText: root._displayText(inlineRow.propertyData)
-                        fieldObjectName: "graphNodeInlineColorEditor"
-                        pickButtonObjectName: "graphNodeInlineColorPickerButton"
-                        colorResolver: function(currentValue) {
-                            return host && host.pickNodePropertyColor
-                                ? host.pickNodePropertyColor(inlineRow.propertyData.key, currentValue)
-                                : "";
-                        }
-                        onControlStarted: root._beginInteraction()
-                        onCommitRequested: function(value) {
-                            root._commitInlineProperty(inlineRow.propertyData.key, value);
+                    Component {
+                        id: sliderEditorComponent
+
+                        Item {
+                            property alias control: sliderEditor
+
+                            SurfaceControls.GraphSurfaceSlider {
+                                id: sliderEditor
+                                objectName: "graphNodeInlineSliderEditor"
+                                property string propertyKey: String(inlineRow.propertyData.key || "")
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                enabled: inlineRow.editorEnabled
+                                host: root.host
+                                from: Number(inlineRow.propertyData.minimum)
+                                to: Number(inlineRow.propertyData.maximum)
+                                stepSize: Number(inlineRow.propertyData.step) > 0
+                                    ? Number(inlineRow.propertyData.step)
+                                    : (String(inlineRow.propertyData.type) === "int" ? 1 : 0)
+                                valueType: String(inlineRow.propertyData.type || "float")
+                                displayValueAvailable: inlineRow.displayValueAvailable
+                                showRangeCaptions: true
+                                Accessible.name: inlineLabel.text
+                                Accessible.description: inlineRow.disabledReason.length > 0
+                                    ? inlineRow.disabledReason
+                                    : "Minimum " + minimumCaptionText
+                                        + ", current " + currentCaptionText
+                                        + ", maximum " + maximumCaptionText + "."
+                                onControlStarted: root._beginInteraction()
+                                onCommitRequested: function(value) {
+                                    if (!inlineRow.editorEnabled)
+                                        return;
+                                    root._commitInlineProperty(
+                                        inlineRow.propertyData.key,
+                                        String(inlineRow.propertyData.type) === "int" ? Math.round(value) : value
+                                    );
+                                }
+                            }
+
+                            Binding {
+                                target: sliderEditor
+                                property: "value"
+                                value: inlineRow.displayValueAvailable
+                                    ? Number(root._displayValue(inlineRow.propertyData))
+                                    : (Number(sliderEditor.from) + Number(sliderEditor.to)) * 0.5
+                                when: sliderEditor.visible && !sliderEditor.interactionActive
+                                restoreMode: Binding.RestoreNone
+                            }
                         }
                     }
 
-                    SurfaceControls.GraphSurfaceTextareaEditor {
-                        id: textareaEditor
-                        visible: inlineRow.editorKind === "textarea"
-                        anchors.fill: parent
-                        enabled: inlineRow.editorEnabled
-                        host: root.host
-                        propertyKey: String(inlineRow.propertyData.key || "")
-                        committedText: root._displayText(inlineRow.propertyData)
-                        fieldObjectName: "graphNodeInlineTextareaEditor"
-                        onControlStarted: root._beginInteraction()
-                        onCommitRequested: function(value) {
-                            root._commitInlineProperty(inlineRow.propertyData.key, value);
-                        }
-                    }
+                    Component {
+                        id: intervalEditorComponent
 
-                    Common.SecretEditor {
-                        id: secretEditor
-                        objectName: "graphNodeInlineSecretEditor"
-                        property string propertyKey: String(inlineRow.propertyData.key || "")
-                        anchors.fill: parent
-                        visible: inlineRow.editorKind === "secret"
-                        editorEnabled: inlineRow.editorEnabled
-                        hasValue: Boolean(
-                            root._displayValue(inlineRow.propertyData)
-                            && root._displayValue(inlineRow.propertyData).has_value
-                        )
-                        accessibleName: inlineLabel.text
-                        textColor: host ? host.inlineLabelColor : "#d0d5de"
-                        mutedTextColor: host ? host.inlineDrivenTextColor : "#95a0b8"
-                        fieldColor: host ? host.inlineRowColor : "#24262c"
-                        borderColor: host ? host.inlineRowBorderColor : "#515968"
-                        accentColor: host ? host.scopeBadgeColor : "#2f8cff"
-                        onReplaceRequested: function(plaintext) {
-                            root._beginInteraction()
-                            if (host && host.nodeData)
-                                host.sensitivePropertyReplaceRequested(
-                                    String(host.nodeData.node_id || ""),
-                                    inlineRow.propertyData.key,
-                                    plaintext
+                        Item {
+                            property alias control: intervalEditor
+
+                            SurfaceControls.GraphSurfaceIntervalSlider {
+                                id: intervalEditor
+                                objectName: "graphNodeInlineIntervalSliderEditor"
+                                property string propertyKey: String(inlineRow.propertyData.key || "")
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                enabled: inlineRow.editorEnabled
+                                host: root.host
+                                from: Number(inlineRow.propertyData.minimum)
+                                to: Number(inlineRow.propertyData.maximum)
+                                stepSize: Math.max(0, Number(inlineRow.propertyData.step) || 0)
+                                semanticStart: {
+                                    var value = root._displayValue(inlineRow.propertyData);
+                                    return value && value.start !== undefined ? Number(value.start) : Number(from);
+                                }
+                                semanticEnd: {
+                                    var value = root._displayValue(inlineRow.propertyData);
+                                    return value && value.end !== undefined ? Number(value.end) : Number(to);
+                                }
+                                displayValueAvailable: inlineRow.displayValueAvailable
+                                intervalDirection: String(
+                                    inlineRow.propertyData.interval_direction || "increasing"
                                 )
+                                valueType: "float"
+                                Accessible.name: inlineLabel.text
+                                Accessible.description: {
+                                    var value = root._displayValue(inlineRow.propertyData);
+                                    var semantic = value && value.start !== undefined && value.end !== undefined
+                                        ? "Start " + String(value.start) + ", End " + String(value.end) + "."
+                                        : "Start and End unavailable.";
+                                    return inlineRow.disabledReason.length > 0
+                                        ? semantic + " " + inlineRow.disabledReason
+                                        : semantic;
+                                }
+                                onControlStarted: root._beginInteraction()
+                                onCommitRequested: function(intervalValue) {
+                                    if (!inlineRow.editorEnabled)
+                                        return;
+                                    root._commitInlineProperty(inlineRow.propertyData.key, intervalValue);
+                                }
+                            }
                         }
-                        onClearRequested: {
-                            root._beginInteraction()
-                            if (host && host.nodeData)
-                                host.sensitivePropertyClearRequested(
-                                    String(host.nodeData.node_id || ""),
-                                    inlineRow.propertyData.key
+                    }
+
+                    Component {
+                        id: valueEditorComponent
+
+                        Item {
+                            property alias control: valueEditor
+
+                            SurfaceControls.GraphSurfaceTextField {
+                                id: valueEditor
+                                objectName: "graphNodeInlineValueEditor"
+                                property string propertyKey: String(inlineRow.propertyData.key || "")
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                enabled: inlineRow.editorEnabled
+                                host: root.host
+                                text: root._displayText(inlineRow.propertyData)
+                                Accessible.name: inlineLabel.text
+                                Accessible.description: inlineRow.disabledReason
+                                onControlStarted: root._beginInteraction()
+                                onAccepted: root._commitInlineProperty(inlineRow.propertyData.key, text)
+                                onEditingFinished: root._commitInlineProperty(inlineRow.propertyData.key, text)
+                            }
+                        }
+                    }
+
+                    Component {
+                        id: pathEditorComponent
+
+                        Item {
+                            property alias control: pathEditor
+
+                            SurfaceControls.GraphSurfacePathEditor {
+                                id: pathEditor
+                                anchors.fill: parent
+                                enabled: inlineRow.editorEnabled
+                                host: root.host
+                                propertyKey: String(inlineRow.propertyData.key || "")
+                                committedText: root._displayText(inlineRow.propertyData)
+                                shortenDisplayPathWhenInactive: root._isPathPointerPathProperty(inlineRow.propertyData)
+                                    && !root._pathPointerShowFullPath()
+                                fieldObjectName: "graphNodeInlinePathEditor"
+                                browseButtonObjectName: "graphNodeInlinePathBrowseButton"
+                                browsePathResolver: function(currentPath) {
+                                    return host && host.browseNodePropertyPath
+                                        ? host.browseNodePropertyPath(inlineRow.propertyData.key, currentPath)
+                                        : "";
+                                }
+                                onControlStarted: root._beginInteraction()
+                                onCommitRequested: function(value) {
+                                    root._commitInlineProperty(inlineRow.propertyData.key, value);
+                                }
+                            }
+                        }
+                    }
+
+                    Component {
+                        id: colorEditorComponent
+
+                        Item {
+                            property alias control: colorEditor
+
+                            SurfaceControls.GraphSurfaceColorEditor {
+                                id: colorEditor
+                                anchors.fill: parent
+                                enabled: inlineRow.editorEnabled
+                                host: root.host
+                                propertyKey: String(inlineRow.propertyData.key || "")
+                                committedText: root._displayText(inlineRow.propertyData)
+                                fieldObjectName: "graphNodeInlineColorEditor"
+                                pickButtonObjectName: "graphNodeInlineColorPickerButton"
+                                colorResolver: function(currentValue) {
+                                    return host && host.pickNodePropertyColor
+                                        ? host.pickNodePropertyColor(inlineRow.propertyData.key, currentValue)
+                                        : "";
+                                }
+                                onControlStarted: root._beginInteraction()
+                                onCommitRequested: function(value) {
+                                    root._commitInlineProperty(inlineRow.propertyData.key, value);
+                                }
+                            }
+                        }
+                    }
+
+                    Component {
+                        id: textareaEditorComponent
+
+                        Item {
+                            property alias control: textareaEditor
+
+                            SurfaceControls.GraphSurfaceTextareaEditor {
+                                id: textareaEditor
+                                anchors.fill: parent
+                                enabled: inlineRow.editorEnabled
+                                host: root.host
+                                propertyKey: String(inlineRow.propertyData.key || "")
+                                committedText: root._displayText(inlineRow.propertyData)
+                                fieldObjectName: "graphNodeInlineTextareaEditor"
+                                onControlStarted: root._beginInteraction()
+                                onCommitRequested: function(value) {
+                                    root._commitInlineProperty(inlineRow.propertyData.key, value);
+                                }
+                            }
+                        }
+                    }
+
+                    Component {
+                        id: secretEditorComponent
+
+                        Item {
+                            property alias control: secretEditor
+
+                            Common.SecretEditor {
+                                id: secretEditor
+                                objectName: "graphNodeInlineSecretEditor"
+                                property string propertyKey: String(inlineRow.propertyData.key || "")
+                                anchors.fill: parent
+                                editorEnabled: inlineRow.editorEnabled
+                                hasValue: Boolean(
+                                    root._displayValue(inlineRow.propertyData)
+                                    && root._displayValue(inlineRow.propertyData).has_value
                                 )
+                                accessibleName: inlineLabel.text
+                                textColor: host ? host.inlineLabelColor : "#d0d5de"
+                                mutedTextColor: host ? host.inlineDrivenTextColor : "#95a0b8"
+                                fieldColor: host ? host.inlineRowColor : "#24262c"
+                                borderColor: host ? host.inlineRowBorderColor : "#515968"
+                                accentColor: host ? host.scopeBadgeColor : "#2f8cff"
+                                onReplaceRequested: function(plaintext) {
+                                    root._beginInteraction()
+                                    if (host && host.nodeData)
+                                        host.sensitivePropertyReplaceRequested(
+                                            String(host.nodeData.node_id || ""),
+                                            inlineRow.propertyData.key,
+                                            plaintext
+                                        )
+                                }
+                                onClearRequested: {
+                                    root._beginInteraction()
+                                    if (host && host.nodeData)
+                                        host.sensitivePropertyClearRequested(
+                                            String(host.nodeData.node_id || ""),
+                                            inlineRow.propertyData.key
+                                        )
+                                }
+                            }
                         }
                     }
 

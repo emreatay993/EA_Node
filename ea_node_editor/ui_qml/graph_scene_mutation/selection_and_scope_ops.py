@@ -863,7 +863,11 @@ def set_node_settings_group_expanded(
     if final_group_ids == node.expanded_settings_group_ids:
         return True
 
-    presentation_model = copy.deepcopy(model) if bool(node.collapsed) else model
+    presentation_model = (
+        copy.deepcopy(model)
+        if node.custom_height is not None and bool(node.collapsed)
+        else model
+    )
     presentation_node = presentation_model.project.workspaces[
         workspace.workspace_id
     ].nodes[normalized_node_id]
@@ -901,7 +905,13 @@ def set_node_settings_group_expanded(
             None,
         )
 
-    before_payload = presentation_payload(node.expanded_settings_group_ids)
+    # Only manually sized bodies need before/after band-height compensation.
+    # Ordinary cards get their current size from the final geometry publication.
+    before_payload = (
+        presentation_payload(node.expanded_settings_group_ids)
+        if node.custom_height is not None
+        else None
+    )
     collision_updates: dict[str, tuple[float, float]] = {}
     mutations = self._record_mutations()
     history_group = self._scene_context.grouped_history_action(
@@ -913,7 +923,7 @@ def set_node_settings_group_expanded(
             normalized_node_id,
             final_group_ids,
         )
-        after_payload = presentation_payload(final_group_ids)
+        after_payload = presentation_payload(final_group_ids) if before_payload is not None else None
         if (
             node.custom_height is not None
             and before_payload is not None
