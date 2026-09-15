@@ -43,7 +43,7 @@ class ViewportBridgeTrackBTests(unittest.TestCase):
         self.assertAlmostEqual(view.center_y, 150.0, places=6)
 
         self.assertTrue(view.frame_scene_rect(QRectF(-10.0, -10.0, 20.0, 20.0)))
-        self.assertAlmostEqual(view.zoom, 3.0, places=6)
+        self.assertAlmostEqual(view.zoom, 5.0, places=6)
 
     def test_frame_scene_rect_rejects_empty_bounds(self) -> None:
         view = ViewportBridge()

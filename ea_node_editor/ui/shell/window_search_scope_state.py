@@ -212,7 +212,7 @@ class WindowSearchScopeController:
         if state is None:
             return False
         zoom, pan_x, pan_y = state
-        self._host.view.set_zoom(max(0.1, min(3.0, float(zoom))))
+        self._host.view.set_zoom(float(zoom))
         self._host.view.centerOn(float(pan_x), float(pan_y))
         return True
 

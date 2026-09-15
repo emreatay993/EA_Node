@@ -10,6 +10,8 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 ## Start Here
 - `ea_node_editor/ui_qml/MainShell.qml`
 - `ea_node_editor/ui_qml/components/shell/ShellRunToolbar.qml`
+- `ea_node_editor/ui_qml/components/common/ZoomControl.qml`
+- `tests/qml_quick/tst_zoom_control.qml`
 - `ea_node_editor/ui_qml/components/shell/WorkspaceCenterPane.qml`
 - `ea_node_editor/ui_qml/components/shell/InspectorPane.qml`
 - `ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml`
@@ -80,6 +82,7 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - `NativePresentationHandoff` is not a QML surface or QObject. Separate viewer/plot instances own only cached-preview render gating and queued completion; QML context names, meta-objects, viewer/plot public slots, native widget identity, and overlay geometry stay with the existing bridges/hosts.
 - Keep shell context bootstrapping centralized.
 - Keep Run, Run Selected, runtime-only Auto/Manual/Pause state, active scope breadcrumbs, and the compact project file label together in `ShellRunToolbar.qml`. `ShellWorkspaceBridge` projects the selected workspace's live solution mode; `RunController` initializes it from the app-wide default, evaluates Auto on open, and owns Trigger click/capture requests.
+- `ZoomControl.qml` is a compact reusable controlled input: percent-valued `zoom` comes from the parent and `zoomRequested(percent)` requests changes without overwriting that binding. It supports live slider/track input, typed/clamped values, optional precision/suffix, focused arrow keys, and right-click Reset Zoom. `ShellRunToolbar.qml` converts percent to scale through `ViewportBridge.set_zoom`; the bridge owns 0.1-5.0 clamping and exposes limits to QML. View/scope camera restoration delegates clamping to that same bridge. Component gestures are covered by `tests/qml_quick/tst_zoom_control.qml`; the real toolbar/camera path is covered by `tests/test_shell_run_controller.py::ShellRunControllerTests::test_toolbar_zoom_control_tracks_viewport_and_restored_camera`.
 - Keep production view/workspace tab styling in `ShellLabeledTabStrip.qml`.
 - View-tab canvas export actions route from `WorkspaceCenterPane.qml` through `ShellWorkspaceBridge.request_export_view(...)` / `request_export_all_views(...)` to the workspace and graph-canvas presenters.
 - Keep `WorkspaceCenterPane.qml` bottom-console channel tabs, scroll views, and vertical resize handle aligned with `ShellWorkspaceBridge` console text/count properties and focused QML tests.

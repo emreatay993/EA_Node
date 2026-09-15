@@ -112,7 +112,7 @@ class WorkspaceViewNavOps:
         if workspace_id not in self._host.model.project.workspaces:
             return
         view_state = self._host.model.workspace_view_mutations(workspace_id).active_view_state()
-        self._host.view.set_zoom(max(0.1, min(3.0, view_state.zoom)))
+        self._host.view.set_zoom(view_state.zoom)
         self._host.view.centerOn(view_state.pan_x, view_state.pan_y)
 
     def visible_scene_rect(self) -> QRectF:

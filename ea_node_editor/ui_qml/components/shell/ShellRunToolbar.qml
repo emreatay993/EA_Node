@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
+import "../common" as Common
 
 Rectangle {
     id: root
@@ -191,10 +192,15 @@ Rectangle {
             horizontalAlignment: Text.AlignRight
             elide: Text.ElideMiddle
         }
-        Text {
-            text: "Zoom: " + Math.round(root.viewBridgeRef.zoom_value * 100) + "%"
-            color: root.themePalette.muted_fg
-            font.pixelSize: 12
+        Common.ZoomControl {
+            objectName: "shellRunToolbarZoomControl"
+            Layout.alignment: Qt.AlignVCenter
+            themePalette: root.themePalette
+            enabled: !!root.viewBridgeRef
+            zoom: root.viewBridgeRef ? root.viewBridgeRef.zoom_value * 100 : 100
+            minZoom: root.viewBridgeRef ? root.viewBridgeRef.minimum_zoom * 100 : 10
+            maxZoom: root.viewBridgeRef ? root.viewBridgeRef.maximum_zoom * 100 : 500
+            onZoomRequested: function(percent) { root.viewBridgeRef.set_zoom(percent / 100); }
         }
         Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: root.themePalette.border }
         ShellButton {

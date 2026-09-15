@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 from types import SimpleNamespace
 
-from PyQt6.QtCore import Q_ARG, Q_RETURN_ARG, QMetaObject, QObject, QPoint, QPointF, Qt, QTimer
+from PyQt6.QtCore import Q_ARG, Q_RETURN_ARG, QMetaObject, QObject, QPoint, QPointF, QRectF, Qt, QTimer
 from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
@@ -2212,6 +2212,40 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(library_bridge.graph_search_query, self.window.shell_library_presenter.graph_search_query)
         self.assertEqual(workspace_bridge.project_display_name, self.window.shell_workspace_presenter.project_display_name)
         self.assertEqual(inspector_bridge.selected_node_title, self.window.shell_inspector_presenter.selected_node_title)
+
+    def test_toolbar_zoom_control_tracks_viewport_and_restored_camera(self) -> None:
+        root = self.window.quick_widget.rootObject()
+        control = _named_qquick_item(root, "shellRunToolbarZoomControl")
+        self.assertIsNotNone(control)
+        view = self.window.view
+        view.centerOn(42.0, -18.0)
+        QMetaObject.invokeMethod(
+            control, "setZoom", Qt.ConnectionType.DirectConnection, Q_ARG("QVariant", 450.0)
+        )
+        self.app.processEvents()
+        self.assertAlmostEqual(view.zoom, 4.5)
+        self.assertAlmostEqual(view.center_x, 42.0)
+        self.assertAlmostEqual(view.center_y, -18.0)
+        self.assertEqual(control.property("maxZoom"), 500.0)
+        nav = self.window.workspace_navigation_controller
+        nav.save_active_view_state()
+        view.set_zoom(1.0)
+        nav.restore_active_view_state()
+        self.app.processEvents()
+        self.assertAlmostEqual(view.zoom, 4.5)
+        self.assertEqual(control.property("zoom"), 450.0)
+        self.window.search_scope_controller.remember_scope_camera()
+        view.set_zoom(1.0)
+        self.assertTrue(self.window.search_scope_controller.restore_scope_camera())
+        self.assertAlmostEqual(view.zoom, 4.5)
+        view.adjust_zoom_at_viewport_point(0.5, 100.0, 100.0)
+        self.app.processEvents()
+        self.assertEqual(control.property("zoom"), 225.0)
+        view.frame_scene_rect(QRectF(0, 0, 1200, 800))
+        self.app.processEvents()
+        self.assertAlmostEqual(control.property("zoom"), view.zoom * 100)
+        QMetaObject.invokeMethod(control, "resetZoom", Qt.ConnectionType.DirectConnection)
+        self.assertAlmostEqual(view.zoom, 1.0)
 
     def test_selected_workspace_toolbar_buttons_follow_run_owner_state_and_warning_path(self) -> None:
         root_object = self.window.quick_widget.rootObject()

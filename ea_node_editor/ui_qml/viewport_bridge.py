@@ -17,7 +17,7 @@ from ea_node_editor.ui_qml.graph_canvas_viewport_index import (
 )
 
 MIN_ZOOM = 0.1
-MAX_ZOOM = 3.0
+MAX_ZOOM = 5.0
 FRAME_PADDING_PX = 80.0
 
 
@@ -46,6 +46,14 @@ class ViewportBridge(QObject):
     @pyqtProperty(float, notify=view_state_changed)
     def zoom_value(self) -> float:
         return self._zoom
+
+    @pyqtProperty(float, constant=True)
+    def minimum_zoom(self) -> float:
+        return MIN_ZOOM
+
+    @pyqtProperty(float, constant=True)
+    def maximum_zoom(self) -> float:
+        return MAX_ZOOM
 
     @pyqtProperty(float, notify=view_state_changed)
     def center_x(self) -> float:
@@ -176,6 +184,7 @@ class ViewportBridge(QObject):
         self.view_state_changed.emit()
         return True
 
+    @pyqtSlot(float)
     def set_zoom(self, zoom: float) -> None:
         self.set_view_state(zoom, self._center_x, self._center_y)
 
