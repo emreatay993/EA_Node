@@ -141,6 +141,7 @@ def _node_delta(
     payloads: list[dict[str, Any]],
     *,
     reason: str = "node_position_delta",
+    backdrop_payloads: list[dict[str, Any]] | None = None,
     added_node_ids: list[str] | None = None,
     removed_node_ids: list[str] | None = None,
     visibility_may_change: bool = True,
@@ -149,7 +150,7 @@ def _node_delta(
         "kind": "node_delta",
         "reason": reason,
         "nodes": payloads,
-        "backdrop_nodes": [],
+        "backdrop_nodes": list(backdrop_payloads or []),
         "removed_node_ids": list(removed_node_ids or []),
         "added_node_ids": list(added_node_ids or []),
         "visibility_may_change": visibility_may_change,
@@ -322,8 +323,16 @@ class _SceneSource(QObject):
         self._selected_node_ids = {node_id}
         self.selection_changed.emit()
 
-    def set_nodes(self, nodes: list[dict[str, Any]], node_delta_payload: dict[str, Any] | None = None) -> None:
+    def set_nodes(
+        self,
+        nodes: list[dict[str, Any]],
+        node_delta_payload: dict[str, Any] | None = None,
+        *,
+        backdrops: list[dict[str, Any]] | None = None,
+    ) -> None:
         self._nodes = list(nodes)
+        if backdrops is not None:
+            self._backdrops = list(backdrops)
         self._node_delta_payload = dict(node_delta_payload or {})
         self.nodes_changed.emit()
 
@@ -996,6 +1005,35 @@ class GraphCanvasViewportVirtualizationTests(unittest.TestCase):
         minimap = next(payload for payload in bridge.minimap_nodes_model if payload["node_id"] == "visible")
         self.assertEqual((endpoint["x"], endpoint["y"]), (48.0, 32.0))
         self.assertEqual((minimap["x"], minimap["y"]), (48.0, 32.0))
+
+    def test_scene_node_projections_include_group_backdrops_and_their_targeted_deltas(self) -> None:
+        node = _node_payload("node", x=10.0, y=10.0)
+        group = _backdrop_payload("group", x=-40.0, y=-40.0)
+        scene = _SceneSource(nodes=[node], backdrops=[group])
+        view = _ViewportBridgeStub({"x": -100.0, "y": -100.0, "width": 500.0, "height": 500.0})
+        bridge = GraphCanvasStateBridge(scene_bridge=scene, view_bridge=view)
+
+        self.assertEqual([payload["node_id"] for payload in bridge.edge_endpoint_nodes_model], ["node", "group"])
+        self.assertEqual([payload["node_id"] for payload in bridge.visible_scene_nodes_payloads], ["node", "group"])
+        self.assertEqual([payload["node_id"] for payload in bridge.visible_nodes_payloads], ["node"])
+        self.assertEqual(bridge.visible_scene_node_payload("group")["node_id"], "group")
+        bridge.minimap_nodes_model
+        bridge.locked_node_status_summary
+        endpoint_signals: list[str] = []
+        bridge.edge_endpoint_nodes_changed.connect(lambda: endpoint_signals.append("endpoint"))
+
+        resized_group = dict(group, width=480.0, height=260.0)
+        scene.set_nodes(
+            [node],
+            node_delta_payload=_node_delta([], backdrop_payloads=[resized_group], reason="geometry_delta"),
+            backdrops=[resized_group],
+        )
+        self.app.processEvents()
+
+        self.assertEqual(endpoint_signals, [])
+        self.assertEqual([payload["node_id"] for payload in bridge.edge_endpoint_nodes_model], ["node", "group"])
+        endpoint = next(payload for payload in bridge.edge_endpoint_nodes_model if payload["node_id"] == "group")
+        self.assertEqual((endpoint["width"], endpoint["height"]), (480.0, 260.0))
 
     def test_pure_addition_delta_appends_targeted_projections_without_endpoint_rebind(self) -> None:
         existing = _node_payload("existing", x=10.0, y=10.0)
@@ -2041,8 +2079,9 @@ class GraphCanvasViewportVirtualizationTests(unittest.TestCase):
     def test_qml_node_only_scene_mutation_does_not_replace_edge_payload(self) -> None:
         source_node = _node_payload("source", x=0.0, y=0.0)
         target_node = _node_payload("target", x=320.0, y=0.0)
+        group_node = _backdrop_payload("group", x=-60.0, y=160.0)
         edge_a = _edge_payload("edge-a")
-        scene = _SceneSource(nodes=[source_node, target_node], edges=[edge_a])
+        scene = _SceneSource(nodes=[source_node, target_node], edges=[edge_a], backdrops=[group_node])
         view = _ViewportBridgeStub({"x": -100.0, "y": -100.0, "width": 640.0, "height": 480.0})
         state_bridge = GraphCanvasStateBridge(scene_bridge=scene, view_bridge=view)
         command_bridge = GraphCanvasCommandBridge(view_bridge=view)
@@ -2159,6 +2198,28 @@ class GraphCanvasViewportVirtualizationTests(unittest.TestCase):
         node_delta_by_id = _variant_value(edge_layer.property("_nodePayloadDeltaById"))
         self.assertEqual(node_delta_by_id["added"]["node_id"], "added")
         self.assertEqual(int(root_layers.property("profileDelegateDestroyCount")), delegate_destroy_count)
+
+        renamed_group = dict(group_node, title="Group renamed")
+        scene.set_nodes(
+            [source_node, renamed_target, added_node],
+            node_delta_payload=_node_delta(
+                [],
+                backdrop_payloads=[renamed_group],
+                reason="title_payload_delta",
+                visibility_may_change=False,
+            ),
+            backdrops=[renamed_group],
+        )
+        _wait_for(
+            lambda: (
+                _variant_value(edge_layer.property("_nodePayloadDeltaById")).get("group", {}).get("title")
+                == "Group renamed"
+            ),
+            timeout_ms=1500,
+            app=self.app,
+            message="Timed out waiting for the Group-only node delta to reach the edge node map.",
+        )
+        self.assertEqual(endpoint_projection_rebinds, [])
 
     def test_qml_edge_payload_structural_deltas_mutate_in_place_without_payload_reset(self) -> None:
         source_node = _node_payload("source", x=0.0, y=0.0)

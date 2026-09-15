@@ -417,7 +417,8 @@ function applyNodePayloadDelta(edgeLayer, deltaPayload) {
     var addedNodeIds = deltaPayload.added_node_ids || [];
     if ((deltaPayload.removed_node_ids || []).length > 0)
         return false;
-    var payloads = deltaPayload.nodes || [];
+    // Group backdrops carry ports too, so the edge node map holds both collections.
+    var payloads = (deltaPayload.nodes || []).concat(deltaPayload.backdrop_nodes || []);
     if (addedNodeIds.length > 0) {
         var addedLookup = {};
         for (var addedIndex = 0; addedIndex < addedNodeIds.length; addedIndex++) {
@@ -427,19 +428,13 @@ function applyNodePayloadDelta(edgeLayer, deltaPayload) {
             addedLookup[addedNodeId] = true;
         }
         var seenPayloadLookup = {};
-        var payloadGroups = [payloads, deltaPayload.backdrop_nodes || []];
-        var payloadCount = 0;
-        for (var groupIndex = 0; groupIndex < payloadGroups.length; groupIndex++) {
-            var group = payloadGroups[groupIndex];
-            for (var payloadIndex = 0; payloadIndex < group.length; payloadIndex++) {
-                var deltaPayloadNodeId = String(group[payloadIndex] && group[payloadIndex].node_id || "").trim();
-                if (!deltaPayloadNodeId || !addedLookup[deltaPayloadNodeId] || seenPayloadLookup[deltaPayloadNodeId])
-                    return false;
-                seenPayloadLookup[deltaPayloadNodeId] = true;
-                payloadCount += 1;
-            }
+        for (var payloadIndex = 0; payloadIndex < payloads.length; payloadIndex++) {
+            var deltaPayloadNodeId = String(payloads[payloadIndex] && payloads[payloadIndex].node_id || "").trim();
+            if (!deltaPayloadNodeId || !addedLookup[deltaPayloadNodeId] || seenPayloadLookup[deltaPayloadNodeId])
+                return false;
+            seenPayloadLookup[deltaPayloadNodeId] = true;
         }
-        if (payloadCount !== addedNodeIds.length)
+        if (payloads.length !== addedNodeIds.length)
             return false;
     }
     var next = {};

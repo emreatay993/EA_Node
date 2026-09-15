@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
@@ -23,6 +24,7 @@ from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
 GROUP_BACKDROP_TYPE_ID = "passive.annotation.group_backdrop"
 LOGGER_TYPE_ID = "core.logger"
+FLOWCHART_PROCESS_TYPE_ID = "passive.flowchart.process"
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -99,6 +101,24 @@ class _ViewportBridgeStub(QObject):
         return self.visible_scene_rect_payload
 
 
+class _ConnectPortsControllerStub:
+    def __init__(self, interactions: GraphInteractions) -> None:
+        self._interactions = interactions
+        self.connect_calls: list[tuple[str, str, str, str]] = []
+
+    def request_connect_ports(
+        self,
+        node_a_id: str,
+        port_a_key: str,
+        node_b_id: str,
+        port_b_key: str,
+        append_requested: bool = False,
+    ) -> bool:
+        request = (str(node_a_id), str(port_a_key), str(node_b_id), str(port_b_key))
+        self.connect_calls.append(request)
+        return bool(self._interactions.connect_ports(*request, append_requested).ok)
+
+
 class GroupBackdropInteractionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -132,9 +152,13 @@ class GroupBackdropInteractionTests(unittest.TestCase):
         self.scene.set_node_geometry(node_id, x, y, width, height)
         return node_id
 
-    def _create_canvas(self) -> tuple[QObject, QQuickWindow]:
+    def _create_canvas(self, *, workspace_edit_controller: object | None = None) -> tuple[QObject, QQuickWindow]:
         state_bridge = GraphCanvasStateBridge(scene_bridge=self.scene, view_bridge=self.view)
-        command_bridge = GraphCanvasCommandBridge(scene_bridge=self.scene, view_bridge=self.view)
+        command_bridge = GraphCanvasCommandBridge(
+            scene_bridge=self.scene,
+            view_bridge=self.view,
+            workspace_edit_controller=workspace_edit_controller,
+        )
 
         engine = QQmlEngine()
         engine.rootContext().setContextProperty("themeBridge", ThemeBridge(theme_id="stitch_dark"))
@@ -612,6 +636,131 @@ class GroupBackdropInteractionTests(unittest.TestCase):
             app=self.app,
             message="Timed out waiting for group live-drag offsets to clear from both hosts.",
         )
+
+    def test_graph_canvas_group_ports_connect_by_click_and_wire_drop(self) -> None:
+        backdrop_id = self._add_group_backdrop(-400.0, -200.0, 420.0, 260.0)
+        upper_id = self.scene.add_node_from_type(FLOWCHART_PROCESS_TYPE_ID, 150.0, -100.0)
+        lower_id = self.scene.add_node_from_type(FLOWCHART_PROCESS_TYPE_ID, 150.0, 150.0)
+        controller = _ConnectPortsControllerStub(GraphInteractions(self.scene, self.registry))
+        canvas, _window = self._create_canvas(workspace_edit_controller=controller)
+
+        _wait_for(
+            lambda: len(_named_child_items(canvas, "graphGroupBackdropInputCard")) == 1,
+            timeout_ms=1500,
+            app=self.app,
+            message="Timed out waiting for the group input host to appear.",
+        )
+        backdrop_port = _variant_value(canvas._scenePortData(backdrop_id, "right"))
+        self.assertIsInstance(backdrop_port, dict)
+        self.assertEqual((backdrop_port["kind"], backdrop_port["direction"]), ("flow", "neutral"))
+
+        canvas.handlePortClick(backdrop_id, "right", "neutral", 0.0, 0.0, 0)
+        canvas.handlePortClick(upper_id, "left", "neutral", 0.0, 0.0, 0)
+        self.app.processEvents()
+        canvas.handlePortClick(lower_id, "left", "neutral", 0.0, 0.0, 0)
+        canvas.handlePortClick(backdrop_id, "bottom", "neutral", 0.0, 0.0, 0)
+        self.app.processEvents()
+
+        self.assertEqual(
+            controller.connect_calls,
+            [(backdrop_id, "right", upper_id, "left"), (lower_id, "left", backdrop_id, "bottom")],
+        )
+        self.assertIsNone(canvas.property("pendingConnectionPort"))
+
+        lower_payload = self._scene_payload(lower_id)
+        backdrop_payload = self._scene_payload(backdrop_id)
+        press_x = float(lower_payload["x"]) + float(lower_payload["width"]) * 0.5
+        press_y = float(lower_payload["y"])
+        release_x = float(backdrop_payload["x"]) + float(backdrop_payload["width"]) * 0.5
+        release_y = float(backdrop_payload["y"])
+        canvas.beginPortWireDrag(
+            lower_id,
+            "top",
+            "neutral",
+            press_x,
+            press_y,
+            float(canvas.sceneToScreenX(press_x)),
+            float(canvas.sceneToScreenY(press_y)),
+            0,
+        )
+        canvas.finishPortWireDrag(
+            lower_id,
+            "top",
+            "neutral",
+            release_x,
+            release_y,
+            float(canvas.sceneToScreenX(release_x)),
+            float(canvas.sceneToScreenY(release_y)),
+            True,
+            0,
+        )
+        self.app.processEvents()
+
+        self.assertEqual(controller.connect_calls[-1], (lower_id, "top", backdrop_id, "top"))
+        self.assertEqual(
+            {
+                (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key)
+                for edge in self._workspace().edges.values()
+            },
+            {
+                (backdrop_id, "right", upper_id, "left"),
+                (lower_id, "left", backdrop_id, "bottom"),
+                (lower_id, "top", backdrop_id, "top"),
+            },
+        )
+
+    def test_graph_canvas_group_port_edges_anchor_at_port_and_follow_group_moves(self) -> None:
+        backdrop_id = self._add_group_backdrop(-400.0, -200.0, 420.0, 260.0)
+        target_id = self.scene.add_node_from_type(FLOWCHART_PROCESS_TYPE_ID, 150.0, 150.0)
+        edge_id = self.scene.add_edge(backdrop_id, "right", target_id, "left")
+        canvas, _window = self._create_canvas()
+        edge_layer = canvas.findChild(QObject, "graphCanvasEdgeLayer")
+        self.assertIsNotNone(edge_layer)
+
+        def _edge_payload() -> dict[str, object]:
+            return next(edge for edge in self.scene.edges_model if edge["edge_id"] == edge_id)
+
+        def _source_endpoint_at_port() -> bool:
+            point = _variant_value(edge_layer.edgeEndpointScenePoint(edge_id, "source"))
+            payload = _edge_payload()
+            return (
+                isinstance(point, dict)
+                and abs(float(point["x"]) - float(payload["sx"])) <= 1.0
+                and abs(float(point["y"]) - float(payload["sy"])) <= 1.0
+            )
+
+        _wait_for(
+            _source_endpoint_at_port,
+            timeout_ms=1500,
+            app=self.app,
+            message="Timed out waiting for the Group edge to start at the Group's right port.",
+        )
+        self.assertAlmostEqual(float(_edge_payload()["sy"]), -200.0 + 130.0, delta=1.0)
+
+        self.scene.move_node(backdrop_id, -360.0, -120.0)
+        self.assertAlmostEqual(float(_edge_payload()["sy"]), -120.0 + 130.0, delta=1.0)
+        _wait_for(
+            _source_endpoint_at_port,
+            timeout_ms=1500,
+            app=self.app,
+            message="Timed out waiting for the Group edge to follow the moved Group port.",
+        )
+
+        canvas.beginPortWireDrag(
+            target_id,
+            "left",
+            "neutral",
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            Qt.KeyboardModifier.ControlModifier.value,
+        )
+        wire_state = _variant_value(canvas.property("wireDragState"))
+        self.assertIsInstance(wire_state, dict)
+        self.assertTrue(wire_state["rewire"])
+        self.assertEqual(wire_state["moving_edges"][0]["fixed_node_id"], backdrop_id)
+        canvas.cancelWireDrag()
 
     def test_graph_canvas_scene_state_redraws_group_backdrop_live_resize_only_for_connected_ports(self) -> None:
         class _EdgeLayerCounter(QObject):

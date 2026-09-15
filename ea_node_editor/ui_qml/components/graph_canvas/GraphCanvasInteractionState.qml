@@ -52,12 +52,14 @@ QtObject {
         return root.canvasItem ? (root.canvasItem.edgePayload || []) : [];
     }
 
+    // Every port-bearing node, Groups included. Regular nodes come first so their
+    // ports win distance ties over a Group port they overlap.
     function _sceneNodes() {
         if (!root.sceneBridge)
             return [];
-        if (root.sceneBridge.visible_nodes_payloads !== undefined)
-            return root.sceneBridge.visible_nodes_payloads || [];
-        return root.sceneBridge.nodes_model || [];
+        if (root.sceneBridge.visible_scene_nodes_payloads !== undefined)
+            return root.sceneBridge.visible_scene_nodes_payloads || [];
+        return (root.sceneBridge.nodes_model || []).concat(root.sceneBridge.backdrop_nodes_model || []);
     }
 
     function _scenePortData(nodeId, portKey) {

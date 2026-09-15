@@ -26,6 +26,7 @@ Use this for pointer routing, canvas input layers, hit testing, node drag/resize
 - `ea_node_editor/ui/dialogs/input_reference_dialog.py` documents user-facing canvas keyboard and mouse gestures. Update it when canvas selection, pan/zoom, port, node, edge, minimap, or cancellation gestures change.
 
 ## Routing Notes
+- Port lookup, click-to-connect, wire-drop candidates, and Ctrl-drag rewire in `GraphCanvasInteractionState.qml` resolve nodes through `_sceneNodes()`, which reads the merged `visible_scene_nodes_payloads` (regular nodes first, then Groups). Do not point new port or hit-test code at `visible_nodes_payloads`, which excludes Groups.
 - Group input overlays sit above the edge layer. Preserve explicit edge hit delegation there: use non-mutating `GraphCanvas.edgeAtScreen(...)` for hover/cursor checks and `GraphCanvas.handleEdgePressAtScreen(...)` for left/right press handling before Group drag or selection starts.
 - The Group drag cursor belongs only on empty Group hit areas. Hovering an edge inside a Group should keep the edge cursor behavior, not the Group hand cursor.
 - Bare Text annotation corner handles use the horizontal-resize cursor and ignore pointer Y deltas; their surface owns the content-measured height.

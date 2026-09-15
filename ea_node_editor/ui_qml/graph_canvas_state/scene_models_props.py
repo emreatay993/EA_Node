@@ -82,6 +82,18 @@ def _minimap_bounds_payload(payloads: list[dict[str, Any]]) -> dict[str, float]:
     }
 
 
+def _scene_node_payloads(scene_state_source: object) -> list[dict[str, Any]]:
+    """Return every scene node payload: regular nodes first, then group backdrops.
+
+    The scene keeps group backdrops in their own collection only so they render
+    beneath edges. Consumers that resolve nodes, ports, or geometry need both.
+    """
+    return [
+        *_copy_list(_source_attr(scene_state_source, "nodes_model", [])),
+        *_copy_list(_source_attr(scene_state_source, "backdrop_nodes_model", [])),
+    ]
+
+
 def _locked_node_status_summary(payloads: list[Any]) -> dict[str, Any]:
     locked_node_count = 0
     focus_addon_ids: list[str] = []
@@ -251,7 +263,7 @@ class SceneModelsProps:
         if not self._edge_endpoint_nodes_model_dirty:
             return
         self._edge_endpoint_nodes_model_dirty = False
-        payloads = _copy_list(_source_attr(self._scene_state_source, "nodes_model", []))
+        payloads = _scene_node_payloads(self._scene_state_source)
         self._edge_endpoint_nodes_model_cache = _edge_endpoint_nodes_payload(payloads)
         self._edge_endpoint_node_index_by_id = {
             node_id: index
@@ -402,13 +414,13 @@ class SceneModelsProps:
                 or _locked_node_status_summary(node_payloads)["lockedNodeCount"]
             ):
                 return False, False
-            if not self._append_targeted_endpoint_payloads(node_payloads):
+            if not self._append_targeted_endpoint_payloads(all_payloads):
                 return False, False
             return self._append_targeted_minimap_payloads(added_node_ids)
 
         if not self._is_targeted_projection_delta(delta):
             return False, False
-        if node_payloads and not self._replace_targeted_endpoint_payloads(node_payloads):
+        if all_payloads and not self._replace_targeted_endpoint_payloads(all_payloads):
             return False, False
         minimap_handled, minimap_changed = self._replace_targeted_minimap_payloads(node_ids)
         return minimap_handled, minimap_changed

@@ -391,7 +391,6 @@ Item {
     }
     function _sceneNodePayload(nodeId) { return GraphCanvasRootApi.invoke(sceneState, "sceneNodePayload", [nodeId], null); }
     function _sceneBackdropNodesModel() { return GraphCanvasRootApi.invoke(sceneState, "sceneBackdropNodesModel", [], []); }
-    function _sceneAllNodesModel() { return GraphCanvasRootApi.invoke(sceneState, "sceneAllNodesModel", [], []); }
     function _sceneEdgePayload(edgeId) { return GraphCanvasRootApi.invoke(sceneState, "sceneEdgePayload", [edgeId], null); }
     function _liveEdgePayload(edgeId) {
         var edgeLayer = rootLayers.edgeLayerItem;

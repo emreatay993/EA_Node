@@ -522,13 +522,26 @@ class VisibleSceneModelOps:
         self._ensure_visible_scene_models_current()
         return self._visible_backdrop_nodes_model.payloads()
 
+    @pyqtProperty("QVariantList", notify=visible_scene_models_changed)
+    def visible_scene_nodes_payloads(self) -> list[Any]:
+        """Visible regular nodes first, then visible group backdrops.
+
+        The two visible models stay separate for render layering; node, port,
+        and hit-test lookups read this merged view instead.
+        """
+        self._ensure_visible_scene_models_current()
+        return self._visible_scene_node_payloads()
+
+    def _visible_scene_node_payloads(self) -> list[Any]:
+        return [*self._visible_nodes_model.payloads(), *self._visible_backdrop_nodes_model.payloads()]
+
     @pyqtSlot(str, result="QVariantMap")
     def visible_scene_node_payload(self, node_id: str) -> dict[str, Any]:
         normalized = normalize_node_id(node_id)
         if not normalized:
             return {}
         self._ensure_visible_scene_models_current()
-        for payload in (*self._visible_nodes_model.payloads(), *self._visible_backdrop_nodes_model.payloads()):
+        for payload in self._visible_scene_node_payloads():
             if isinstance(payload, Mapping) and normalize_node_id(payload.get("node_id")) == normalized:
                 return dict(payload)
         return {}

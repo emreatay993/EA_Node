@@ -41,6 +41,7 @@ from ea_node_editor.ui_qml.bridge_runtime import (
     copy_dict as _copy_dict,
     source_attr as _source_attr,
 )
+from ea_node_editor.ui_qml.graph_canvas_state.scene_models_props import _scene_node_payloads
 from ea_node_editor.ui_qml.graph_canvas_viewport_index import (
     normalize_node_id,
 )
@@ -1402,10 +1403,7 @@ class ExecutionStateProps:
         records_by_node = self._active_workspace_retained_records(
             current_only=True
         )
-        node_payloads = [
-            *(_source_attr(self._scene_state_source, "nodes_model", []) or []),
-            *(_source_attr(self._scene_state_source, "backdrop_nodes_model", []) or []),
-        ]
+        node_payloads = _scene_node_payloads(self._scene_state_source)
         return resolve_runtime_property_presentations(
             node_payloads=node_payloads,
             edge_payloads=_source_attr(self._scene_state_source, "edges_model", []),
@@ -1459,10 +1457,7 @@ class ExecutionStateProps:
     def _build_port_flow_states(self) -> dict[str, dict[str, str]]:
         records_by_node = self._active_workspace_retained_records(current_only=True)
         solution_facts_by_node = self._active_workspace_solution_facts()
-        node_payloads = [
-            *(_source_attr(self._scene_state_source, "nodes_model", []) or []),
-            *(_source_attr(self._scene_state_source, "backdrop_nodes_model", []) or []),
-        ]
+        node_payloads = _scene_node_payloads(self._scene_state_source)
         edge_payloads = _source_attr(self._scene_state_source, "edges_model", [])
         lookup = resolve_runtime_port_flow_states(
             node_payloads=node_payloads,
@@ -1512,10 +1507,7 @@ class ExecutionStateProps:
     def _build_port_previews(self) -> dict[str, dict[str, dict[str, Any]]]:
         """Project bounded output summaries from the existing workspace cache."""
         records_by_node = self._active_workspace_retained_records()
-        node_payloads = [
-            *(_source_attr(self._scene_state_source, "nodes_model", []) or []),
-            *(_source_attr(self._scene_state_source, "backdrop_nodes_model", []) or []),
-        ]
+        node_payloads = _scene_node_payloads(self._scene_state_source)
         registry = getattr(getattr(self, "_scene_bridge", None), "_registry", None)
         data_types = getattr(registry, "data_types", None)
         lookup: dict[str, dict[str, dict[str, Any]]] = {}
@@ -1633,10 +1625,7 @@ class ExecutionStateProps:
             "runtime_warning_messages_by_workspace_id"
         )
         port_states_by_node = self.port_flow_state_lookup
-        node_payloads = [
-            *(_source_attr(self._scene_state_source, "nodes_model", []) or []),
-            *(_source_attr(self._scene_state_source, "backdrop_nodes_model", []) or []),
-        ]
+        node_payloads = _scene_node_payloads(self._scene_state_source)
         records_by_node = self._active_workspace_retained_records(
             current_only=True
         )

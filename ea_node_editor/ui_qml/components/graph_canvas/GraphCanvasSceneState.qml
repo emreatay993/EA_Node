@@ -113,12 +113,8 @@ QtObject {
         return [];
     }
 
-    function visibleSceneNodesModel() {
-        return root._bridgeModel("visible_nodes_payloads");
-    }
-
-    function visibleSceneBackdropNodesModel() {
-        return root._bridgeModel("visible_backdrop_nodes_payloads");
+    function visibleSceneAllNodesModel() {
+        return root._bridgeModel("visible_scene_nodes_payloads");
     }
 
     function sceneAllNodesModel() {
@@ -147,14 +143,10 @@ QtObject {
         if (!normalized)
             return null;
         var stateBridge = root.sceneStateBridge();
-        var visiblePayload = null;
-        if (stateBridge && stateBridge.visible_scene_node_payload)
-            visiblePayload = stateBridge.visible_scene_node_payload(normalized);
-        if (!visiblePayload || !visiblePayload.node_id) {
-            visiblePayload = root._findNodePayloadInModel(root.visibleSceneNodesModel(), normalized)
-                || root._findNodePayloadInModel(root.visibleSceneBackdropNodesModel(), normalized);
-        }
-        if (visiblePayload)
+        var visiblePayload = stateBridge && stateBridge.visible_scene_node_payload
+            ? stateBridge.visible_scene_node_payload(normalized)
+            : root._findNodePayloadInModel(root.visibleSceneAllNodesModel(), normalized);
+        if (visiblePayload && visiblePayload.node_id)
             return visiblePayload;
         var nodes = root.sceneAllNodesModel();
         return root._findNodePayloadInModel(nodes, normalized);
