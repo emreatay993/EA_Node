@@ -41,8 +41,12 @@ Item {
     readonly property string nodeHelpMutedColor: String(root.tooltipThemePalette.muted_fg || "#95a0b8")
     readonly property string nodeHelpDividerColor: String(root.tooltipThemePalette.border || "#3a3d45")
     readonly property string nodeHelpText: root._nodeHelpTooltipText()
+    readonly property string presentationStatus: host && host.loadedSurfaceItem
+        ? String(host.loadedSurfaceItem.presentationStatus || "") : ""
+    readonly property bool presentationBadgeVisible: presentationStatus.length > 0
+        && !!host && !host.isFailedNode
     readonly property bool warningBadgeVisible: root.host
-        ? root.host.isDiagnosticWarningNode && !root.host.isFailedNode
+        ? root.host.isDiagnosticWarningNode && !root.host.isFailedNode && !presentationBadgeVisible
         : false
     readonly property var warningDiagnosticRows: root.host && root.host.nodeDiagnostic
         ? (root.host.nodeDiagnostic.rows || [])
@@ -639,6 +643,59 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    Rectangle {
+        id: presentationBadge
+        objectName: "graphNodePresentationBadge"
+        visible: root.presentationBadgeVisible
+        x: warningBadge.x
+        y: warningBadge.y
+        width: warningBadge.width
+        height: warningBadge.height
+        radius: width * 0.5
+        color: root.host ? root.host.surfaceColor : "#202228"
+        border.width: 1
+        border.color: root.host ? root.host.warningOutlineColor : "#E8A838"
+        readonly property bool updating: root.presentationStatus === "updating"
+        readonly property string statusText: updating ? "Updating" : "Out of date"
+        Accessible.name: statusText
+
+        Image {
+            id: presentationIcon
+            objectName: "graphNodePresentationIcon"
+            anchors.centerIn: parent
+            width: parent.width - 4
+            height: width
+            source: typeof uiIcons !== "undefined" && uiIcons
+                ? uiIcons.sourceSized(presentationBadge.updating ? "browser-reload" : "clock-update",
+                                      Math.ceil(width), String(presentationBadge.border.color)) : ""
+            sourceSize: Qt.size(width, height)
+            fillMode: Image.PreserveAspectFit
+            RotationAnimator on rotation {
+                from: 0
+                to: 360
+                duration: 1200
+                loops: Animation.Infinite
+                running: presentationBadge.visible && presentationBadge.updating
+            }
+        }
+        HoverHandler { id: presentationBadgeHover }
+        Common.ManagedToolTip {
+            objectName: "graphNodePresentationToolTip"
+            policyBridge: root.tooltipPolicyBridge
+            category: "general"
+            active: presentationBadgeHover.hovered
+            text: presentationBadge.statusText + " — showing the last completed plot."
+                + (root.host && root.host.isDiagnosticWarningNode
+                   ? "\n" + String(root.host.nodeDiagnostic.tooltip_text || "") : "")
+            delay: 240
+            screenStablePositioning: true
+            screenStablePlacement: root.nodeTooltipPlacement
+            anchorScale: root.nodeTooltipAnchorScale
+            screenGap: 8
+            Accessible.name: text
         }
     }
 

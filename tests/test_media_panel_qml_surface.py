@@ -18,6 +18,96 @@ _REAL_VIDEO_FIXTURE_SHA256 = "8e57fae7a077c667a4f922762fb344a9fd073a78037df67614
 
 
 class MediaPanelQmlSurfaceTests(PassiveGraphSurfaceHostTestBase):
+    def test_plot_frames_swap_only_after_decode_and_ignore_superseded_requests(self) -> None:
+        self._run_qml_probe(
+            "media-plot-decoded-frame-swap",
+            """
+            import threading
+            import time
+            from PyQt6.QtCore import QSize
+            from PyQt6.QtGui import QColor, QImage
+            from PyQt6.QtQuick import QQuickImageProvider
+
+            entered, release = threading.Event(), threading.Event()
+            class ControlledImages(QQuickImageProvider):
+                def __init__(self):
+                    super().__init__(QQuickImageProvider.ImageType.Image,
+                                     QQuickImageProvider.Flag.ForceAsynchronousImageLoading)
+
+                def requestImage(self, image_id, requested_size):
+                    if image_id in {'slow', 'superseded', 'cancelled'}:
+                        entered.set()
+                        assert release.wait(10)
+                    if image_id == 'failed':
+                        return QImage(), QSize()
+                    image = QImage(80, 60, QImage.Format.Format_ARGB32)
+                    image.fill(QColor('blue' if image_id == 'old' else 'orange'))
+                    return image, image.size()
+
+            provider = ControlledImages()
+            engine.addImageProvider('controlled-plot', provider)
+            def resolution(key):
+                url = 'image://controlled-plot/' + key
+                return {'state': 'ready', 'media_kind': 'plot',
+                        'preview_source_url': url, 'resolved_source_url': url}
+            renderer = create_component(components_dir / 'graph/passive/GraphMediaImageRenderer.qml',
+                {'sourceResolution': resolution('old'), 'width': 360, 'height': 280})
+            window = attach_host_to_window(renderer, 400, 320)
+            viewport = named_item(renderer, 'graphNodeMediaPreviewViewport')
+            def wait_for(predicate):
+                deadline = time.monotonic() + 5
+                while not predicate() and time.monotonic() < deadline:
+                    QTest.qWait(10)
+                assert predicate(), (renderer.property('previewState'), viewport.property('plotFrameIndex'))
+            def active_source():
+                return viewport.property('plotFrame').property('source').toString()
+            try:
+                wait_for(lambda: renderer.property('previewState') == 'ready')
+                original_index = viewport.property('plotFrameIndex')
+                renderer.setProperty('sourceResolution', resolution('slow'))
+                wait_for(entered.is_set)
+                assert renderer.property('previewState') == 'ready'
+                assert renderer.property('previewSwapPending')
+                assert not renderer.property('pixelActionsAvailable')
+                assert active_source().endswith('/old')
+                assert viewport.property('plotFrameIndex') == original_index
+                release.set()
+                wait_for(lambda: not renderer.property('previewSwapPending'))
+                assert active_source().endswith('/slow')
+                assert viewport.property('plotFrameIndex') != original_index
+
+                entered.clear()
+                release.clear()
+                renderer.setProperty('sourceResolution', resolution('superseded'))
+                wait_for(entered.is_set)
+                renderer.setProperty('sourceResolution', resolution('latest'))
+                assert active_source().endswith('/slow')
+                release.set()
+                wait_for(lambda: not renderer.property('previewSwapPending'))
+                assert active_source().endswith('/latest')
+
+                entered.clear()
+                release.clear()
+                renderer.setProperty('sourceResolution', resolution('cancelled'))
+                wait_for(entered.is_set)
+                renderer.setProperty('sourceResolution', {'state': 'unavailable'})
+                assert viewport.property('plotFrameIndex') == -1
+                assert not renderer.property('previewSwapPending')
+                release.set()
+                QTest.qWait(50)
+                assert viewport.property('plotFrameIndex') == -1
+                assert renderer.property('previewState') == 'error'
+
+                renderer.setProperty('sourceResolution', resolution('failed'))
+                wait_for(lambda: renderer.property('previewState') == 'error')
+                assert not renderer.property('previewSwapPending')
+                assert viewport.property('plotFrameIndex') == -1
+            finally:
+                release.set()
+                dispose_host_window(renderer, window)
+            """,
+        )
+
     def test_media_panel_uses_stable_panel_contract(self) -> None:
         registry = build_default_registry()
         spec = registry.get_spec("media.panel")

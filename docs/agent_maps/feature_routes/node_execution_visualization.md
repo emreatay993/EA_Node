@@ -10,6 +10,8 @@ Use this for node execution state projection, declarative readiness diagnostics,
 - `bounded rich preview`
 
 ## Start Here
+- `ea_node_editor/ui/media_panel_presentation.py` — labeled previous Plot pixels without changing current output facts
+- `tests/test_media_panel_presentation.py` — source identity, publication ordering and update-state guards
 - `ea_node_editor/ui/image_value_preview_provider.py` — idempotent immutable preview registration within the active provider
 - `tests/test_image_value.py` — immutable preview identity, cache/provider lifetime and decode avoidance
 - `ea_node_editor/ui_qml/graph_canvas_state/execution_state_props.py` - owning Qt projection for workspace-scoped runtime facts.
@@ -32,6 +34,12 @@ Use this for node execution state projection, declarative readiness diagnostics,
 - Do not begin in the generic tests directory; use the focused test above.
 
 ## Runtime Fact Matrix
+
+Canvas-only Plot presentation may retain a previous decoded frame during a real
+update. `GraphSurfaceBase.presentationStatus` feeds the shared upper-right header
+indicator at the warning/error badge geometry. Updating animates; Out of date is
+static. Actual failure wins, and temporary warning details remain in the update
+tooltip. This display state never fills stale data grips or changes runtime facts.
 
 | Fact | Event or state owner | Projection and QML consumer | Freshness and limits |
 | --- | --- | --- | --- |

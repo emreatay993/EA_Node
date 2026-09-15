@@ -13,6 +13,7 @@ Use this for tooltip manager behavior, tooltip policy tiers, central tooltip cop
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml` - schema-backed node help and warning-diagnostic badge tooltips.
 - `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml` - schema-backed port help plus status-only flow summaries.
 - `tests/test_passive_graph_surface_host.py`
+- `tests/test_media_panel_qml_surface.py` — update indicator geometry, warning precedence and image handoff
 
 ## Focused Verification
 ```powershell
@@ -27,6 +28,12 @@ Use this for tooltip manager behavior, tooltip policy tiers, central tooltip cop
 Viewer capability-disabled copy belongs in `viewer.json`; shared viewer
 controls must keep disabled items hoverable and show the exact unavailable
 reason.
+
+The shared header presentation indicator reuses the warning/error badge bounds.
+Updating uses a rotating reload icon; Out of date is static. Its `general`
+ManagedToolTip and accessible name explain the previous Plot preview, including
+any warning text whose overlapping badge is temporarily suppressed. Execution
+failure retains priority.
 
 The board-preview retry button declares the `general` category explicitly and
 uses the shared `GraphSurfaceButton` label tooltip. Keep new controls out of the

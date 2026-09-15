@@ -13,6 +13,10 @@ GraphShared.GraphSurfaceBase {
     id: surface
     objectName: "graphNodeMediaImageRenderer"
     property var sourceResolution: ({})
+    property bool currentSourceReady: true
+    readonly property bool isPlotPreview: String(sourceResolution.media_kind || "") === "plot"
+    readonly property bool previewSwapPending: previewViewport.plotSwapPending
+    readonly property bool pixelActionsAvailable: currentSourceReady && !previewSwapPending
     property bool rendererReleased: false
     property bool cropModeActive: false
     property real draftCropX: 0.0
@@ -115,7 +119,7 @@ GraphShared.GraphSurfaceBase {
     readonly property bool appliedImageMirrorVertical: propBool("mirror_vertical", false)
     readonly property bool imageAspectRatioLocked: propBool("lock_aspect_ratio", false)
     readonly property bool aspectRatioLocked: imageAspectRatioLocked
-    readonly property bool imageTransformAvailable: previewState === "ready"
+    readonly property bool imageTransformAvailable: pixelActionsAvailable && previewState === "ready"
         && !cropModeActive
     readonly property bool hasEffectiveCrop: !GraphMediaPanelGeometry.isFullCropRect(normalizedStoredCropRect)
     readonly property bool hasEffectiveDraftCrop: !GraphMediaPanelGeometry.isFullCropRect(normalizedDraftCropRect)
@@ -124,7 +128,7 @@ GraphShared.GraphSurfaceBase {
     readonly property real appliedClipY: Number(appliedSourceClipRect.y || 0)
     readonly property real appliedClipWidth: Number(appliedSourceClipRect.width || 0)
     readonly property real appliedClipHeight: Number(appliedSourceClipRect.height || 0)
-    readonly property bool cropToolAvailable: !proxySurfaceActive
+    readonly property bool cropToolAvailable: pixelActionsAvailable && !proxySurfaceActive
         && previewState === "ready"
         && sourcePixelWidth > 0
         && sourcePixelHeight > 0
@@ -297,6 +301,10 @@ GraphShared.GraphSurfaceBase {
     }
 
     onCropModeActiveChanged: _syncCropCursor()
+    onPixelActionsAvailableChanged: {
+        if (!pixelActionsAvailable && cropModeActive)
+            _cancelCropEdit();
+    }
     onHoveredCropHandleChanged: _syncCropCursor()
     onActiveCropHandleChanged: _syncCropCursor()
 
@@ -617,6 +625,8 @@ GraphShared.GraphSurfaceBase {
     }
 
     function dispatchSurfaceAction(actionId) {
+        if (!pixelActionsAvailable)
+            return false;
         var normalized = String(actionId || "");
         _beginInlineInteraction();
         if (normalized === "crop") {

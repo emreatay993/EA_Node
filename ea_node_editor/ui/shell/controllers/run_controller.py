@@ -503,6 +503,7 @@ class RunController:
         )
         self._state.active_submission_id = handle.submission_id
         self._state.active_submission_workspace_id = workspace_id
+        self._state.active_execution_node_ids = set(target_node_ids)
         self._active_run_invalidated_node_ids.clear()
         self._projection.set_run_ui_state("preparing", "", 0, 1, 0, 0)
         return True
@@ -537,6 +538,7 @@ class RunController:
             self._state.active_run_workspace_id = submission.workspace_id
             self._state.active_submission_id = ""
             self._state.active_submission_workspace_id = ""
+            self._state.active_execution_node_ids = set(event.get("recompute_node_ids", ()))
             self._run_start_runtime_snapshots[run_id] = submission.runtime_snapshot
             self._projection.clear_port_availability_for_nodes(
                 submission.workspace_id,
@@ -669,6 +671,7 @@ class RunController:
         elif self._state.active_run_id:
             self._host.execution_client.stop_run(self._state.active_run_id)
         else:
+            self._host.run_controls_changed.emit()
             return
         self._host.update_engine_status(self._state.engine_state_value, "Stopping")
         self._projection.update_run_actions()
@@ -679,6 +682,7 @@ class RunController:
         self._state.active_run_workspace_id = ""
         self._state.active_submission_id = ""
         self._state.active_submission_workspace_id = ""
+        self._state.active_execution_node_ids.clear()
         self._active_submission = None
         self._active_run_invalidated_node_ids.clear()
 

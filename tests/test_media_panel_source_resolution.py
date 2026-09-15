@@ -412,6 +412,7 @@ def test_state_bridge_uses_project_source_and_invalidates_media_lookup(qapp) -> 
         "resolved_source_url",
         "preview_source_url",
         "message",
+        "previous_plot_preview",
     }
 
     scene_source.nodes_changed.emit()

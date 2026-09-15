@@ -8,6 +8,8 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 - `ea_node_editor/nodes/builtins/passive_mail.py`
 - `ea_node_editor/nodes/file_dialog_filters.py`
 - `ea_node_editor/ui/media_panel_source.py`
+- `ea_node_editor/ui/media_panel_presentation.py` — canvas-only previous Plot preview, identity/route binding and update status
+- `tests/test_media_panel_presentation.py`
 - `ea_node_editor/ui/xy_plot_session.py`
 - `ea_node_editor/web_host/xy_transport.py`
 - `ea_node_editor/ui_qml/components/web/XYPlotHost.qml`
@@ -47,7 +49,9 @@ Use this for the active unified Media Panel, its derived image/PDF/video rendere
 ## Source And Runtime Rules
 - `media.panel` is one active sink with an optional exposed `source` input and private `_surface_source` output. The accepted input union is Path, String, exact `ImageValue`, or exact `PlotValue`; runtime cardinality is one Item and the input never uses the authored property as an execution default.
 - Source input exposure selects authority. Hidden means the authored `source` property is used without a run. Exposed means only settled connected input is considered, including when unwired or non-ready; never fall back to the dormant property.
-- `ui/media_panel_source.py` is the Python authority for actions, Project Review Deck, fullscreen, and the QML-safe `mediaPanelSourceLookup`. Only `ready` publishes URLs; waiting/running/empty/failed/blocked/stale/invalid states clear the renderer and carry a message.
+- `ui/media_panel_source.py` remains the strict Python authority for actions, Project Review Deck and fullscreen. Only `ready` publishes current URLs/raw values. The canvas lookup adds a separate `previous_plot_preview` through `ui/media_panel_presentation.py`; it never turns a stale result into current data.
+- Canvas Plot updates retain the last observed immutable preview with an upper-right Updating icon; idle Manual/Stop shows an Out of date icon. Metadata binds the exact observed record, producer, source route and actual project/workspace lifetime. Failure/empty/unavailable output, source rewiring/removal and context replacement clear the preview. A guarded active-update fallback covers newer CURRENT facts whose cache entry has not arrived; it reads the bound prior entry in the existing bounded UI cache, not arbitrary history.
+- `GraphMediaPanelSurface.qml` distinguishes current source/action readiness from display readiness. `GraphMediaImageViewport.qml` switches actual image buffers only after successful decode, rejecting superseded/cancelled requests and clearing decode failures. Old pixels cannot enable crop/export/fullscreen. The shared `GraphNodeHeaderLayer.qml` reuses diagnostic badge geometry and tooltip policy; no body text obscures the plot during regeneration.
 - Connected runtime media resolves only the output cache entry named by the node's retained solution fact. An expired retained record projects `stale` without rendering; expired-without-record and never-run nodes expose no cached source. Fullscreen, graph commands/presenters, and Project Review Deck inherit this one selector through `resolve_media_panel_source(...)`.
 - `nodes/file_dialog_filters.py` owns the shared image/PDF/video suffixes, combined filter, and source classification. Do not recreate suffix tables in clipboard, drop, or preview consumers.
 - Connected `ImageValue` uses `image_value_preview_source()`; bytes never enter QML. Matching immutable content reuses its active-provider URL before decoding/publication, preserving the Media renderer during geometry/formatting refreshes. Cache loss, provider replacement and changed content still register normally; mutable viewer previews keep their revision semantics. Project Review Deck materializes images only inside its existing temporary export area.

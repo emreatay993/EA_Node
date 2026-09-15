@@ -53,6 +53,8 @@ Settings-section size transitions use shared 180 ms width/height animations with
 
 ## Current ownership notes
 
+- Canvas-only Plot presentation retains the last decoded frame during recomputation while strict source/current-result consumers remain unchanged. The media and visualization routes own metadata-bound prior previews and asynchronous image handoff; the run-controller route owns target-scoped remaining-work UI facts; the tooltip route owns the shared upper-right updating/out-of-date icon geometry and policy.
+
 - Retained table/array source bindings and inherited provenance guard CURRENT boundaries through materialized results. The execution and tabular maps own source integrity, read scopes, lifecycle validation and computational-versus-occurrence Plot identity; the runtime-contract map owns typed metadata. Immutable image preview registration preserves URLs/renderers across cosmetic edits, covered by the media/visualization/run-controller maps and real QML gestures.
 
 - The tooltip route owns the board-preview retry button's explicit general-category policy and the accepted missing-category audit. Its wording and rendering remain in the shared surface control.

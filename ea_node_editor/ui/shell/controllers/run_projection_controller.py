@@ -118,6 +118,8 @@ class RunProjectionController:
         node_id: str,
         invalidated_during_run: bool = False,
     ) -> str:
+        if self._state.active_run_workspace_id == workspace_id:
+            self._state.active_execution_node_ids.discard(node_id)
         status = str(event.get("status", "completed") or "completed").strip().lower()
         warning_messages = self._normalize_warning_messages(event.get("warnings", ()))
         outputs = normalize_settled_output_mapping(

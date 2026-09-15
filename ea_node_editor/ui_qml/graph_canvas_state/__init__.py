@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 from PyQt6.QtCore import QObject, QTimer, pyqtProperty
 
+from ea_node_editor.ui.media_panel_presentation import MediaPanelPresentation
+
 from ea_node_editor.ui_qml.bridge_runtime import connect_signal as _connect_signal
 from ea_node_editor.ui_qml.graph_canvas_state.execution_state_props import (
     ExecutionStateProps,
@@ -97,6 +99,7 @@ class GraphCanvasStateBridge(
         self._app_preferences_source = app_preferences_source
         self._graphics_source = graphics_source
         self._execution_source = execution_source
+        self._media_panel_presentation = MediaPanelPresentation()
         self._execution_projection_cache: dict[str, dict] = {}
         self._port_flow_notification_timer = QTimer(self)
         self._port_flow_notification_timer.setSingleShot(True)
@@ -161,6 +164,7 @@ class GraphCanvasStateBridge(
         _connect_signal(execution_source, "run_failure_changed", self._invalidate_visible_scene_models)
         _connect_signal(execution_source, "node_execution_state_changed", self.node_execution_state_changed.emit)
         _connect_signal(execution_source, "node_execution_state_changed", self._invalidate_execution_projection)
+        _connect_signal(execution_source, "run_controls_changed", self._invalidate_execution_projection)
         _connect_signal(execution_source, "node_execution_state_changed", self._invalidate_visible_scene_models)
         _connect_signal(view_bridge, "view_state_changed", self.view_state_changed.emit)
         _connect_signal(view_bridge, "view_state_changed", self._handle_view_state_changed)

@@ -10,23 +10,33 @@ Rectangle {
     property var surface: null
     property var overlayInteractiveRects: []
     default property alias overlayData: overlayLayer.data
-    readonly property int previewImageStatus: root.surface && root.surface.imageAnimationSupported
+    property int plotFrameIndex: -1
+    property bool plotDecodeFailed: false
+    readonly property bool plotFramesActive: !!surface && surface.isPlotPreview
+    readonly property var plotFrame: plotFrameIndex === 0 ? appliedImage
+        : (plotFrameIndex === 1 ? stagedPlotImage : null)
+    readonly property string requestedPlotUrl: plotFramesActive ? surface.previewSourceUrl : ""
+    readonly property bool plotSwapPending: plotFramesActive && !plotDecodeFailed
+        && !!plotFrame && plotFrame.source.toString() !== requestedPlotUrl
+    readonly property int previewImageStatus: plotFramesActive
+        ? (plotDecodeFailed ? Image.Error : (plotFrame ? plotFrame.status : Image.Loading))
+        : root.surface && root.surface.imageAnimationSupported
         ? (root.animatedImageItem ? root.animatedImageItem.status : Image.Loading)
         : sourceImageProbe.status
     readonly property real sourcePixelWidth: !!root.surface
         && root.surface.imageAnimationSupported
         ? Number(root.surface.imagePreviewInfo.source_pixel_width || 0)
-        : (!!root.surface
+        : (plotFramesActive ? (plotFrame ? plotFrame.implicitWidth : 0) : (!!root.surface
             && sourceImageProbe.status === Image.Ready
             ? Number(sourceImageProbe.implicitWidth || 0)
-            : 0)
+            : 0))
     readonly property real sourcePixelHeight: !!root.surface
         && root.surface.imageAnimationSupported
         ? Number(root.surface.imagePreviewInfo.source_pixel_height || 0)
-        : (!!root.surface
+        : (plotFramesActive ? (plotFrame ? plotFrame.implicitHeight : 0) : (!!root.surface
             && sourceImageProbe.status === Image.Ready
             ? Number(sourceImageProbe.implicitHeight || 0)
-            : 0)
+            : 0))
     readonly property var animatedImageItem: appliedAnimatedImageLoader.item
     readonly property bool animationObjectLoaded: !!root.animatedImageItem
         && root.animatedImageItem.source.toString().length > 0
@@ -129,6 +139,35 @@ Rectangle {
         : "transparent"
     clip: true
 
+    onRequestedPlotUrlChanged: requestPlotFrame()
+    Component.onCompleted: requestPlotFrame()
+
+    function requestPlotFrame() {
+        if (!plotFramesActive || !requestedPlotUrl.length) {
+            plotFrameIndex = -1;
+            stagedPlotImage.source = "";
+            return;
+        }
+        plotDecodeFailed = false;
+        if (plotFrame && plotFrame.source.toString() === requestedPlotUrl)
+            return;
+        var next = plotFrameIndex === 0 ? stagedPlotImage : appliedImage;
+        next.source = requestedPlotUrl;
+        acceptPlotFrame(next);
+    }
+
+    function acceptPlotFrame(frame) {
+        if (!plotFramesActive || frame.source.toString() !== requestedPlotUrl)
+            return;
+        if (frame.status === Image.Ready) {
+            plotFrameIndex = frame === appliedImage ? 0 : 1;
+            plotDecodeFailed = false;
+        } else if (frame.status === Image.Error) {
+            plotDecodeFailed = true;
+            plotFrameIndex = -1;
+        }
+    }
+
     Item {
         anchors.fill: parent
 
@@ -137,7 +176,7 @@ Rectangle {
             visible: false
             asynchronous: true
             cache: true
-            source: root.surface && root.surface.imageAnimationSupported
+            source: root.plotFramesActive || (root.surface && root.surface.imageAnimationSupported)
                 ? ""
                 : (root.surface ? root.surface.previewSourceUrl : "")
         }
@@ -187,11 +226,28 @@ Rectangle {
                         cache: true
                         mipmap: true
                         fillMode: Image.Stretch
-                        source: root.surface && !root.surface.imageAnimationSupported
+                        source: root.surface && !root.plotFramesActive && !root.surface.imageAnimationSupported
                             ? root.surface.previewSourceUrl
                             : ""
-                        visible: source.toString().length > 0
+                        visible: root.plotFramesActive ? root.plotFrameIndex === 0 : source.toString().length > 0
                         smooth: true
+                        onStatusChanged: root.acceptPlotFrame(appliedImage)
+                    }
+
+                    Image {
+                        id: stagedPlotImage
+                        objectName: "graphNodeMediaStagedPlotImage"
+                        x: appliedImage.x
+                        y: appliedImage.y
+                        width: appliedImage.width
+                        height: appliedImage.height
+                        asynchronous: true
+                        cache: true
+                        mipmap: true
+                        fillMode: Image.Stretch
+                        visible: root.plotFramesActive && root.plotFrameIndex === 1
+                        smooth: true
+                        onStatusChanged: root.acceptPlotFrame(stagedPlotImage)
                     }
 
                     Loader {

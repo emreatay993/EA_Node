@@ -40,6 +40,30 @@ GraphShared.GraphSurfaceBase {
     readonly property string mediaKind: String(sourceResolution.media_kind || "")
     readonly property bool sourceReady: sourceState === "ready"
         && (mediaKind === "image" || mediaKind === "plot" || mediaKind === "pdf" || mediaKind === "video")
+    readonly property var previousPlotPreview: sourceResolution.previous_plot_preview || ({})
+    readonly property bool displayingPreviousPlot: !sourceReady
+        && String(previousPlotPreview.preview_source_url || "").length > 0
+    // Read one projection snapshot: derived-property notifications can otherwise
+    // momentarily combine the new strict state with the previous display fields.
+    readonly property var displayResolution: {
+        var source = sourceResolution;
+        var previous = source.previous_plot_preview || ({});
+        if (String(source.state || "") !== "ready"
+                && String(previous.preview_source_url || "").length > 0)
+            return ({"state": "ready", "media_kind": "plot", "input_exposed": true,
+                "resolved_source_url": previous.preview_source_url,
+                "preview_source_url": previous.preview_source_url});
+        return source;
+    }
+    readonly property bool displayReady: String(displayResolution.state || "") === "ready"
+    readonly property string displayMediaKind: String(displayResolution.media_kind || "")
+    readonly property bool previewSwapPending: loadedRenderer
+        ? Boolean(loadedRenderer.previewSwapPending) : false
+    readonly property bool currentPreviewReady: sourceReady && !previewSwapPending
+    presentationStatus: loadedRenderer && loadedRenderer.previewState === "error" ? ""
+        : displayingPreviousPlot
+        ? String(previousPlotPreview.status || "out_of_date")
+        : (previewSwapPending ? "updating" : "")
     readonly property string authoredSource: propValue("source")
     readonly property string sourceStorageMode: SourceStorageModeUtils.sourceModeForPath(authoredSource)
     readonly property bool sourceEditingEnabled: !inputExposed && !blocksHostInteraction
@@ -61,13 +85,16 @@ GraphShared.GraphSurfaceBase {
             ? (inputConnected ? "Run the connected media source." : "Connect a Path, String, Image, or Plot value to Source.")
             : "Choose an image, PDF, or video source.")
     )
-    readonly property string rendererKey: sourceReady
-        ? [
-            mediaKind,
-            String(sourceResolution.resolved_source_url || ""),
-            String(sourceResolution.preview_source_url || "")
-        ].join("\u001f")
-        : sourceState
+    readonly property string rendererKey: {
+        var source = sourceResolution;
+        var previous = source.previous_plot_preview || ({});
+        if ((source.state === "ready" && source.media_kind === "plot")
+                || String(previous.preview_source_url || "").length > 0)
+            return "plot:" + String(source.plot_display_key || "");
+        if (source.state === "ready")
+            return [source.media_kind, source.resolved_source_url, source.preview_source_url].join("\u001f");
+        return String(source.state || "invalid");
+    }
     readonly property var loadedRenderer: rendererLoader.item
     readonly property bool blocksHostInteraction: loadedRenderer
         ? Boolean(loadedRenderer.blocksHostInteraction)
@@ -79,7 +106,7 @@ GraphShared.GraphSurfaceBase {
     readonly property bool aspectRatioLocked: loadedRenderer
         ? Boolean(loadedRenderer.aspectRatioLocked)
         : false
-    readonly property var modeActions: loadedRenderer
+    readonly property var modeActions: currentPreviewReady && loadedRenderer
         && Array.isArray(loadedRenderer.surfaceActions)
         ? loadedRenderer.surfaceActions
         : []
@@ -110,15 +137,17 @@ GraphShared.GraphSurfaceBase {
     }
 
     function _syncRenderer() {
+        if (rendererActive && loadedRendererKey === rendererKey && displayReady)
+            return;
         if (rendererLoader.item && rendererLoader.item.release)
             rendererLoader.item.release();
         rendererActive = false;
         loadedRendererKey = rendererKey;
-        if (!sourceReady)
+        if (!displayReady)
             return;
         var expectedKey = loadedRendererKey;
         Qt.callLater(function() {
-            if (dispatcher.sourceReady && dispatcher.loadedRendererKey === expectedKey)
+            if (dispatcher.displayReady && dispatcher.loadedRendererKey === expectedKey)
                 dispatcher.rendererActive = true;
         });
     }
@@ -224,7 +253,7 @@ GraphShared.GraphSurfaceBase {
             "primary": false
         });
         var fullscreenAction = host && host.surfaceFullscreenAction
-            ? host.surfaceFullscreenAction(fullscreenAvailable && sourceReady && !blocksHostInteraction, false)
+            ? host.surfaceFullscreenAction(fullscreenAvailable && currentPreviewReady && !blocksHostInteraction, false)
             : null;
         if (fullscreenAction)
             actions.push(fullscreenAction);
@@ -312,7 +341,7 @@ GraphShared.GraphSurfaceBase {
     }
 
     function _requestContentFullscreen() {
-        if (!sourceReady || !host || !host.requestSurfaceContentFullscreen)
+        if (!currentPreviewReady || !host || !host.requestSurfaceContentFullscreen)
             return false;
         var state = loadedRenderer && loadedRenderer.fullscreenRuntimeState
             ? loadedRenderer.fullscreenRuntimeState()
@@ -348,7 +377,7 @@ GraphShared.GraphSurfaceBase {
             return _requestContentFullscreen();
         if (normalized === "repair")
             return fileIssueActive ? _browseProperty("", true) : false;
-        if (loadedRenderer && loadedRenderer.dispatchSurfaceAction)
+        if (currentPreviewReady && loadedRenderer && loadedRenderer.dispatchSurfaceAction)
             return Boolean(loadedRenderer.dispatchSurfaceAction(normalized));
         return false;
     }
@@ -357,7 +386,7 @@ GraphShared.GraphSurfaceBase {
         id: rendererLoader
         anchors.fill: parent
         active: dispatcher.rendererActive
-        sourceComponent: (dispatcher.mediaKind === "image" || dispatcher.mediaKind === "plot")
+        sourceComponent: (dispatcher.displayMediaKind === "image" || dispatcher.displayMediaKind === "plot")
             ? imageRendererComponent
             : (dispatcher.mediaKind === "pdf"
                 ? pdfRendererComponent
@@ -368,7 +397,8 @@ GraphShared.GraphSurfaceBase {
         id: imageRendererComponent
         GraphMediaImageRenderer {
             host: dispatcher.host
-            sourceResolution: dispatcher.sourceResolution
+            sourceResolution: dispatcher.displayResolution
+            currentSourceReady: dispatcher.sourceReady
         }
     }
 
@@ -391,7 +421,7 @@ GraphShared.GraphSurfaceBase {
     Rectangle {
         objectName: "graphNodeMediaStatePlaceholder"
         anchors.fill: parent
-        visible: !dispatcher.sourceReady
+        visible: !dispatcher.displayReady
         radius: dispatcher.surfaceShowFrame
             ? (host ? Number(host.resolvedCornerRadius || 6) : 6)
             : 0

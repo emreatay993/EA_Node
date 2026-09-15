@@ -73,6 +73,7 @@ class ShellRunState:
     active_run_workspace_id: str = ""
     active_submission_id: str = ""
     active_submission_workspace_id: str = ""
+    active_execution_node_ids: set[str] = field(default_factory=set)
     node_execution_workspace_id: str = ""
     running_node_ids: set[str] = field(default_factory=set)
     completed_node_ids: set[str] = field(default_factory=set)

@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 from types import SimpleNamespace
 
-from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, QPoint, QPointF, Qt, QTimer
+from PyQt6.QtCore import Q_ARG, Q_RETURN_ARG, QMetaObject, QObject, QPoint, QPointF, Qt, QTimer
 from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
@@ -653,6 +653,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         surface = named("graphNodeMediaSurface", media)
         self._wait_until(lambda: surface.property("sourceState") == "ready"
                          and surface.property("rendererActive"))
+        self._wait_until(lambda: surface.property("loadedRenderer").property("previewState") == "ready")
         window.run_controller.set_auto_run_enabled(True)
         table_result = node_result(table)
         state_changes, table_flow_changes = [], []
@@ -708,13 +709,15 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             action()
             wait_run(event_index, expected_nodes)
             self._wait_until(lambda: surface.property("sourceState") == "ready"
-                             and surface.property("rendererActive"))
+                             and surface.property("rendererActive")
+                             and not surface.property("previewSwapPending"))
             self.assertEqual(runtime.dispatch_count, baseline[0] + 1)
             self.assertEqual(runtime.invalidation_count, baseline[1] + 1)
             self.assertIn("stale", [state[0] for state in state_changes])
-            self.assertIn(False, [state[1] for state in state_changes])
-            self.assertNotEqual(renderer_state()[2], old_renderer[2])
             if preserve_table:
+                self.assertTrue(all(state[1] for state in state_changes), state_changes)
+                self.assertTrue(all(state[3] is old_renderer[3] for state in state_changes), state_changes)
+                self.assertEqual(renderer_state()[2], old_renderer[2])
                 self.assertEqual(node_result(table), table_result)
                 self.assertEqual(set(table_flow_changes), {"flowing"})
 
@@ -799,13 +802,14 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             self.assertEqual(len(scheduled), 1)
             pending = set(window.run_state.pending_auto_run_target_node_ids)
             self.assertEqual(pending, {panel, plot, media})
-            self.assertEqual(renderer_state()[:2], ("stale", False))
+            self.assertEqual(renderer_state()[:2], ("stale", True))
+            self.assertEqual(surface.property("presentationStatus"), "updating")
             queued_counts = counts()
             move_panel()
             self.assertEqual(counts(), queued_counts)
             self.assertEqual(window.run_state.pending_auto_run_target_node_ids, pending)
             self.assertEqual(node_result(table), table_result)
-            self.assertEqual(renderer_state()[:2], ("stale", False))
+            self.assertEqual(renderer_state()[:2], ("stale", True))
         scheduled[0]()
         wait_run(event_index, (panel, plot, media))
         self._wait_until(lambda: surface.property("sourceState") == "ready"
@@ -815,6 +819,128 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(node_result(table), table_result)
         self.assertEqual(set(table_flow_changes), {"flowing"})
         cosmetic(move_panel)
+
+        # Actual slider keyboard gestures retain the completed image while Auto
+        # is queued, during preparation, and after rapid superseding edits.
+        cosmetic(lambda: window.scene.set_node_properties(media, {
+            "rotation_degrees": 0, "fit_mode": "contain",
+        }))
+        updating_proof = Path(__file__).resolve().parents[1] / "artifacts" / "plot_updating_preview"
+        updating_proof.mkdir(parents=True, exist_ok=True)
+        previous_renderer = surface.property("loadedRenderer")
+        previous_url = previous_renderer.property("previewSourceUrl")
+        badge = named("graphNodePresentationBadge", media)
+        warning_badge = named("graphNodeWarningBadge", media)
+
+        def slider_step(key):
+            slider = named("graphNodeInlineSliderEditor", plot, key)
+            before = workspace.nodes[plot].properties[key]
+            slider.forceActiveFocus()
+            QTest.keyClick(slider.window(), Qt.Key.Key_Right)
+            self.assertEqual(workspace.nodes[plot].properties[key], before + 1)
+            self.app.processEvents()
+
+        def retained(status):
+            self._wait_until(lambda: surface.property("presentationStatus") == status)
+            self.assertIs(surface.property("loadedRenderer"), previous_renderer)
+            self.assertTrue(surface.property("rendererActive"))
+            self.assertEqual(previous_renderer.property("previewState"), "ready")
+            self.assertFalse(surface.property("sourceReady"))
+            self.assertFalse(previous_renderer.property("pixelActionsAvailable"))
+            self.assertFalse(previous_renderer.property("cropToolAvailable"))
+            for action in ("fullscreen", "crop", "save_crop_image", "rotate_clockwise"):
+                self.assertFalse(QMetaObject.invokeMethod(surface, "dispatchSurfaceAction",
+                    Qt.ConnectionType.DirectConnection, Q_RETURN_ARG("QVariant"), Q_ARG("QVariant", action)))
+            self.assertTrue(badge.property("visible"))
+            self.assertEqual(badge.property("statusText"), "Updating" if status == "updating" else "Out of date")
+            self.assertEqual((badge.x(), badge.y(), badge.width(), badge.height()),
+                             (warning_badge.x(), warning_badge.y(), warning_badge.width(), warning_badge.height()))
+            self.assertFalse(warning_badge.property("visible"))
+            self.assertEqual(node_result(table), table_result)
+
+        scheduled = []
+        with patch.object(window.run_controller, "_schedule_next_turn", scheduled.append):
+            slider_step("width")
+            retained("updating")
+            self.assertEqual(previous_renderer.property("previewSourceUrl"), previous_url)
+            QTest.qWait(100)
+            self.assertTrue(window.quick_widget.grabFramebuffer().save(str(updating_proof / "width-queued.png")))
+            # Framebuffer crop includes the shared badge's half-height outside
+            # the card; grabbing just the card itself clips that badge.
+            media_card = self._graph_node_card(media)
+            window.view.set_view_state(1.0,
+                workspace.nodes[media].x + media_card.width() * 0.5,
+                workspace.nodes[media].y + media_card.height() * 0.5)
+            QTest.qWait(150)
+            media_card = self._graph_node_card(media)
+            top_left = media_card.mapToScene(QPointF(-12, -12))
+            bottom_right = media_card.mapToScene(QPointF(media_card.width() + 12, media_card.height() + 12))
+            frame = window.quick_widget.grabFramebuffer()
+            scale = frame.devicePixelRatio()
+            closeup = frame.copy(round(top_left.x() * scale), round(top_left.y() * scale),
+                                 round((bottom_right.x() - top_left.x()) * scale),
+                                 round((bottom_right.y() - top_left.y()) * scale))
+            self.assertTrue(closeup.save(str(updating_proof / "media-updating-closeup.png")))
+            window.view.set_view_state(0.6, 440, 150)
+            QTest.qWait(100)
+            window.run_controller.stop_workflow()
+            retained("out_of_date")
+            # No scene edit is needed to refresh Stop or Manual cancellation.
+            slider_step("font_size")
+            retained("updating")
+            window.run_controller.set_auto_run_enabled(False)
+            retained("out_of_date")
+            self.assertTrue(window.quick_widget.grabFramebuffer().save(str(updating_proof / "manual-out-of-date.png")))
+        for callback in scheduled:
+            callback()
+
+        window.run_controller.set_auto_run_enabled(True)
+        entered, release = threading.Event(), threading.Event()
+        compute = runtime._preparation.compute
+
+        def blocked_preview_prepare(*args, **kwargs):
+            entered.set()
+            assert release.wait(10)
+            return compute(*args, **kwargs)
+
+        try:
+            with patch.object(runtime._preparation, "compute", side_effect=blocked_preview_prepare):
+                slider_step("font_size")
+                self._wait_until(entered.is_set, timeout=5)
+                retained("updating")
+                self.assertEqual(window.run_state.engine_state_value, "preparing")
+                self.assertTrue(window.quick_widget.grabFramebuffer().save(str(updating_proof / "font-preparing.png")))
+                window.run_controller.set_auto_run_enabled(False)
+                release.set()
+                self._wait_until(lambda: not window.run_state.active_submission_id)
+                retained("out_of_date")
+        finally:
+            release.set()
+
+        window.run_controller.set_auto_run_enabled(True)
+        scheduled = []
+        event_index = len(events)
+        with patch.object(window.run_controller, "_schedule_next_turn", scheduled.append):
+            for key in ("width", "font_size", "width"):
+                slider_step(key)
+                retained("updating")
+        self.assertEqual(len(scheduled), 1)
+        scheduled[0]()
+        wait_run(event_index, (plot, media))
+        self._wait_until(lambda: surface.property("sourceReady") and not surface.property("previewSwapPending"))
+        self.assertIs(surface.property("loadedRenderer"), previous_renderer)
+        self.assertNotEqual(previous_renderer.property("previewSourceUrl"), previous_url)
+        self.assertEqual(previous_renderer.property("previewState"), "ready")
+        self.assertEqual(surface.property("presentationStatus"), "")
+        self.assertFalse(badge.property("visible"))
+        self.assertEqual(node_result(table), table_result)
+        from ea_node_editor.ui.media_panel_source import resolve_media_panel_source
+        latest_plot = resolve_media_panel_source(node=workspace.nodes[media], workspace=workspace,
+                                                run_state=window.run_state).raw_value
+        self.assertEqual(latest_plot.settings.width, workspace.nodes[plot].properties["width"])
+        self.assertEqual(latest_plot.settings.font_size, workspace.nodes[plot].properties["font_size"])
+        QTest.qWait(100)
+        self.assertTrue(window.quick_widget.grabFramebuffer().save(str(updating_proof / "latest-ready.png")))
 
         changed_source = Path(self._temp_dir.name) / "changed-series.csv"
         changed_source.write_text("value\n4\n3\n2\n1\n0\n", encoding="utf-8")

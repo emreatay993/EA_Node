@@ -1433,19 +1433,23 @@ class ExecutionStateProps:
         )
         metadata = getattr(project, "metadata", None)
         project_path = str(getattr(project_source, "project_path", "") or "").strip()
+        self._media_panel_presentation.begin(project, workspace, run_state)
         lookup: dict[str, dict[str, Any]] = {}
         for node in getattr(workspace, "nodes", {}).values():
             if str(getattr(node, "type_id", "") or "").strip() != MEDIA_PANEL_TYPE_ID:
                 continue
             node_id = normalize_node_id(getattr(node, "node_id", ""))
             if node_id:
-                lookup[node_id] = resolve_media_panel_source(
+                resolution = resolve_media_panel_source(
                     node=node,
                     workspace=workspace,
                     run_state=run_state,
                     project_path=project_path or None,
                     project_metadata=metadata if isinstance(metadata, Mapping) else None,
-                ).to_qml_payload()
+                )
+                lookup[node_id] = self._media_panel_presentation.project(
+                    node=node, workspace=workspace, run_state=run_state, resolution=resolution,
+                )
         return lookup
 
     @pyqtProperty("QVariantMap", notify=port_flow_state_changed)

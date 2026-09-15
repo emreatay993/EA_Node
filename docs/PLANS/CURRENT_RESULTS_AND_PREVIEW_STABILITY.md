@@ -237,3 +237,75 @@ $env:QT_QPA_PLATFORM = "offscreen"
 Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 .\venv\Scripts\python.exe -m pytest tests/test_execution_artifact_refs.py tests/test_ssh_sftp_runtime.py tests/test_signal_plot_scientific_integration.py tests/test_runtime_retained_sources.py tests/test_execution_worker.py -m "not slow" -q
 ```
+
+## Follow-up: Keep the last completed plot visible during updates
+
+Status: **IMPLEMENTED AND REVIEWED**.
+Baseline: `9e43e6e9`.
+
+The user provided a video changing Signal Plot Width and Font size, then approved
+keeping the last completed plot visible with an Updating indicator and requested
+commit/push to this repository's `main`. This changes the earlier presentation
+policy that deliberately hid previews during genuine computational updates; it
+does not change runtime freshness, scheduling, or accepted-output authority.
+
+| Task | Owner | Status | Verification / next action |
+| --- | --- | --- | --- |
+| F01 Canvas presentation and regressions | plot_update_preview | Accepted | 195 tests / 28 subtests; final projection/source/shell cohort 47 passed; decoder/capture follow-ups pass |
+| F02 Review, documentation and publication | Coordinator / independent reviewer | Verified for publication | Final re-review clear; common surface/tooltip 151 tests / 35 subtests and docs/lint checks pass; user-authorized main publication |
+
+- Keep the canonical media source resolver strict. A canvas-only projection may
+  publish a clearly labeled previous immutable Plot preview while the retained
+  source is stale/running; it must not publish old content as current input,
+  exportable output, or an interactive fullscreen plot.
+- Use the existing retained output record rather than a second execution cache.
+  Updating appears for queued/preparing/running work; idle Manual/Stop shows an
+  Out of date state. The user's follow-up selected an icon at the shared node
+  warning/error position and size, rather than a text badge over the plot.
+  Failure/empty/unavailable output, removed producers,
+  disconnected inputs and workspace/project replacement clear the old preview.
+- Keep the image renderer alive and swap to the new decoded preview when ready;
+  avoid tearing down the old renderer during regeneration or introducing timers
+  that merely hide the transition. Preserve other media types' existing behavior.
+- Verify Width/Font-size updates, rapid superseding edits, Manual/Stop, failures,
+  source removal/rewiring, no initial result, unchanged upstream facts and run
+  counts, strict current-result/fullscreen/export boundaries, and actual QML
+  rendering. Reuse the existing isolated shell target where practical.
+- One active implementation writer; fresh independent review before acceptance.
+  Update affected agent maps and this record, then run focused route and document
+  checks. Preserve pre-existing dirty files and publish only this follow-up.
+
+### Follow-up evidence
+
+- The canonical media source resolver and execution package are unchanged.
+  Canvas presentation carries separate previous-preview metadata and keeps
+  fullscreen/export/current-input authority strict. Old-pixel actions are disabled.
+- The updating indicator uses the existing reload icon and exactly reuses the
+  shared warning badge's position and dimensions. Its tooltip and accessibility
+  text identify the update; idle stale state uses a static icon, warning details
+  remain available, and actual failure takes precedence.
+- Real Width/Font-size gestures and queued/preparing/Manual/Stop states preserve
+  renderer identity and the completed plot while runtime facts remain stale.
+  The newest authored width/font settings are verified in the final Plot value.
+- A controlled asynchronous image provider proves delayed decode continuity,
+  supersession, cancellation without revival, and decode-failure cleanup. The
+  renderer switches actual image objects only after successful decoding.
+- Independent review identified and corrected unrelated-run and completed-work
+  status leaks. UI work metadata is scoped to relevant remaining nodes and clears
+  through existing notifications. Publication-order guards cover matching new
+  current records arriving before visual settlement and the narrower active-work
+  fact/cache gap without accepting arbitrary previous history.
+- The owning media/source/actions/fullscreen/XY/runtime-CURRENT/run-controller
+  and shell route gate passed **195 tests and 28 subtests**. The final scoped
+  projection/source/shell recheck passed **47 tests**; decoder/shell follow-ups
+  and the final capture run also passed. Changed-file Ruff and whitespace pass.
+- The coordinator inspected the upright retained plot and upper-right indicator
+  in `artifacts/plot_updating_preview/media-updating-closeup.png`. Additional
+  queued, preparing, Manual and ready frames are retained in the same ignored
+  artifact directory. These are real offscreen QML render/gesture proofs.
+- Final independent re-review accepted the publication-order guards without
+  remaining findings. The common graph input contract, inline input, passive
+  host, passive image and tooltip-copy gates passed **151 tests and 35 subtests**.
+  Agent-map/index, traceability, Markdown-link, changed-Python Ruff and whitespace
+  checks pass. Verification stayed on these owning routes; no unrelated runtime
+  redesign, broad fast rerun or pre-existing dirty-file cleanup was performed.

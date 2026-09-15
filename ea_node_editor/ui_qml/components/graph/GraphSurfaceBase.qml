@@ -13,6 +13,8 @@ import QtQuick 2.15
 Item {
     id: surfaceBase
     property Item host: null
+    // Shared header status; empty unless the surface displays a previous result.
+    property string presentationStatus: ""
 
     readonly property var nodeProperties: host && host.nodeData && host.nodeData.properties
         ? host.nodeData.properties

@@ -107,6 +107,22 @@ class RunProjectionControllerTests(unittest.TestCase):
         self.assertIsNotNone(retained)
         self.assertEqual(retained["run_id"], "run_3")
 
+    def test_settlement_removes_only_its_node_from_pending_presentation_work(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        node = host.model.add_node(workspace_id, "core.constant", "Completed", 0, 0)
+        _run_controller(host)
+        state = host.run_state
+        state.active_run_id = "run"
+        state.active_run_workspace_id = workspace_id
+        state.active_execution_node_ids = {node.node_id, "unrelated-slow-node"}
+        event = _accepted_settlement(host, workspace_id=workspace_id, node_id=node.node_id,
+                                    run_id="run", outputs=_value_outputs(value=1))
+        host.run_projection_controller.project_node_settled(event, workspace_id=workspace_id,
+                                                            node_id=node.node_id)
+        self.assertEqual(state.active_execution_node_ids, {"unrelated-slow-node"})
+        self.assertEqual(state.active_run_id, "run")
+
     def test_ui_solution_cache_global_eviction_and_metadata_only_fallback(self) -> None:
         state = ShellRunState()
         catalog = build_default_registry().data_types
