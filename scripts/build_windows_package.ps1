@@ -10,6 +10,7 @@ param(
     [string]$DependencyMatrixPath = "",
     [string]$MarsSourcePath = "..\MARS_",
     [string]$MarsWheelPath = "",
+    [switch]$ExcludeMars,
     [ValidateRange(2, 60)]
     [int]$SmokeSeconds = 30
 )
@@ -18,6 +19,13 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $repoRoot
+
+if (
+    $ExcludeMars -and
+    ($PSBoundParameters.ContainsKey("MarsSourcePath") -or -not [string]::IsNullOrWhiteSpace($MarsWheelPath))
+) {
+    throw "-ExcludeMars cannot be combined with -MarsSourcePath or -MarsWheelPath."
+}
 
 function Resolve-BuildVirtualEnvironmentPython {
     param(
@@ -179,11 +187,12 @@ function Assert-CorexRuntimeBundle {
     if ($manifest.schema_version -ne 2) {
         throw "$Label runtime manifest schema_version must be 2: $manifestPath"
     }
-    foreach ($packageId in @("corex", "mars")) {
-        $package = $manifest.packages.$packageId
-        if ($null -eq $package) {
-            throw "$Label runtime manifest missing package '$packageId': $manifestPath"
-        }
+    if ($null -eq $manifest.packages -or $null -eq $manifest.packages.corex) {
+        throw "$Label runtime manifest missing package 'corex': $manifestPath"
+    }
+    foreach ($packageProperty in @($manifest.packages.PSObject.Properties)) {
+        $packageId = [string]$packageProperty.Name
+        $package = $packageProperty.Value
         $wheelName = [string]$package.wheel
         if ([string]::IsNullOrWhiteSpace($wheelName) -or [System.IO.Path]::GetFileName($wheelName) -ne $wheelName) {
             throw "$Label runtime package '$packageId' has an invalid bundled wheel name."
@@ -201,7 +210,8 @@ function New-CorexRuntimeBundle {
         [string]$DistPath,
         [Parameter(Mandatory = $true)]
         [ValidateSet("base", "viewer", "web", "full")]
-        [string]$Profile
+        [string]$Profile,
+        [switch]$ExcludeMarsPackage
     )
 
     $runtimeBundlePath = Resolve-PackagedRuntimeBundlePath -DistPath $DistPath
@@ -249,60 +259,66 @@ function New-CorexRuntimeBundle {
     }
     Copy-Item -Path $runtimeWheel.FullName -Destination $runtimeBundlePath -Force
 
-    if (-not [string]::IsNullOrWhiteSpace($MarsWheelPath)) {
-        $resolvedMarsWheelPath = Resolve-LocalRuntimePath -PathValue $MarsWheelPath
-        if ([System.IO.Path]::GetExtension($resolvedMarsWheelPath) -ne ".whl") {
-            throw "MARS runtime package must be a local wheel: $resolvedMarsWheelPath"
+    $marsRuntimeWheel = $null
+    if (-not $ExcludeMarsPackage) {
+        if (-not [string]::IsNullOrWhiteSpace($MarsWheelPath)) {
+            $resolvedMarsWheelPath = Resolve-LocalRuntimePath -PathValue $MarsWheelPath
+            if ([System.IO.Path]::GetExtension($resolvedMarsWheelPath) -ne ".whl") {
+                throw "MARS runtime package must be a local wheel: $resolvedMarsWheelPath"
+            }
+            $marsRuntimeWheel = Get-Item $resolvedMarsWheelPath
         }
-        $marsRuntimeWheel = Get-Item $resolvedMarsWheelPath
+        else {
+            $resolvedMarsSourcePath = Resolve-LocalRuntimePath -PathValue $MarsSourcePath
+            $marsWheelBuildRoot = Join-Path $wheelBuildRoot "mars"
+            New-Item -ItemType Directory -Path $marsWheelBuildRoot -Force | Out-Null
+            $marsWheelBuildProcess = Start-Process -FilePath $pythonExe -ArgumentList @(
+                "-m",
+                "build",
+                "--wheel",
+                "--outdir",
+                $marsWheelBuildRoot,
+                $resolvedMarsSourcePath
+            ) -PassThru -Wait -NoNewWindow
+            if ($marsWheelBuildProcess.ExitCode -ne 0) {
+                throw "MARS runtime wheel build failed with exit code $($marsWheelBuildProcess.ExitCode)."
+            }
+            $marsRuntimeWheels = @(Get-ChildItem -Path $marsWheelBuildRoot -Filter "*.whl" -File)
+            if ($marsRuntimeWheels.Count -ne 1) {
+                throw "MARS runtime wheel build must create exactly one wheel in $marsWheelBuildRoot"
+            }
+            $marsRuntimeWheel = $marsRuntimeWheels[0]
+        }
+        Copy-Item -Path $marsRuntimeWheel.FullName -Destination $runtimeBundlePath -Force
     }
-    else {
-        $resolvedMarsSourcePath = Resolve-LocalRuntimePath -PathValue $MarsSourcePath
-        $marsWheelBuildRoot = Join-Path $wheelBuildRoot "mars"
-        New-Item -ItemType Directory -Path $marsWheelBuildRoot -Force | Out-Null
-        $marsWheelBuildProcess = Start-Process -FilePath $pythonExe -ArgumentList @(
-            "-m",
-            "build",
-            "--wheel",
-            "--outdir",
-            $marsWheelBuildRoot,
-            $resolvedMarsSourcePath
-        ) -PassThru -Wait -NoNewWindow
-        if ($marsWheelBuildProcess.ExitCode -ne 0) {
-            throw "MARS runtime wheel build failed with exit code $($marsWheelBuildProcess.ExitCode)."
-        }
-        $marsRuntimeWheels = @(Get-ChildItem -Path $marsWheelBuildRoot -Filter "*.whl" -File)
-        if ($marsRuntimeWheels.Count -ne 1) {
-            throw "MARS runtime wheel build must create exactly one wheel in $marsWheelBuildRoot"
-        }
-        $marsRuntimeWheel = $marsRuntimeWheels[0]
-    }
-    Copy-Item -Path $marsRuntimeWheel.FullName -Destination $runtimeBundlePath -Force
 
     $corexMetadata = Get-WheelPackageMetadata -WheelPath $runtimeWheel.FullName
-    $marsMetadata = Get-WheelPackageMetadata -WheelPath $marsRuntimeWheel.FullName
+    $manifestPackages = [ordered]@{
+        corex = [ordered]@{
+            distribution = $corexMetadata.distribution
+            version = $corexMetadata.version
+            wheel = $runtimeWheel.Name
+            extras = @("all")
+            required = $true
+            console_scripts = @()
+        }
+    }
+    if (-not $ExcludeMarsPackage) {
+        $marsMetadata = Get-WheelPackageMetadata -WheelPath $marsRuntimeWheel.FullName
+        $manifestPackages.mars = [ordered]@{
+            distribution = $marsMetadata.distribution
+            version = $marsMetadata.version
+            wheel = $marsRuntimeWheel.Name
+            extras = @()
+            required = $false
+            console_scripts = @("MARSBatch")
+        }
+    }
 
     $manifest = [ordered]@{
         schema_version = 2
         package_profile = $Profile
-        packages = [ordered]@{
-            corex = [ordered]@{
-                distribution = $corexMetadata.distribution
-                version = $corexMetadata.version
-                wheel = $runtimeWheel.Name
-                extras = @("all")
-                required = $true
-                console_scripts = @()
-            }
-            mars = [ordered]@{
-                distribution = $marsMetadata.distribution
-                version = $marsMetadata.version
-                wheel = $marsRuntimeWheel.Name
-                extras = @()
-                required = $false
-                console_scripts = @("MARSBatch")
-            }
-        }
+        packages = $manifestPackages
     }
     $manifestPath = Join-Path $runtimeBundlePath $runtimeManifestFileName
     $manifestJson = $manifest | ConvertTo-Json -Depth 8
@@ -313,6 +329,9 @@ function New-CorexRuntimeBundle {
     )
     Assert-CorexRuntimeBundle -RuntimeBundlePath $runtimeBundlePath -Label "Packaged COREX runtime bundle"
     Write-Host "Runtime bundle written: $runtimeBundlePath"
+    if ($ExcludeMarsPackage) {
+        Write-Host "MARS runtime package excluded from the bundle."
+    }
 }
 
 function Read-SmokeLog {
@@ -1227,7 +1246,7 @@ if (-not (Test-Path $exePath)) {
     throw "Expected executable was not created: $exePath"
 }
 
-New-CorexRuntimeBundle -DistPath $distDir -Profile $PackageProfile
+New-CorexRuntimeBundle -DistPath $distDir -Profile $PackageProfile -ExcludeMarsPackage:$ExcludeMars
 
 Write-Host "Build complete: $exePath"
 

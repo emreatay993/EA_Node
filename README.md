@@ -530,6 +530,10 @@ Full developer-style packaging uses `-PackageProfile full` from a venv with
 .\scripts\build_windows_installer.ps1 -PackageProfile full
 ```
 
+Add `-ExcludeMars` to the package command to omit the external MARS runtime
+wheel. The resulting dist folder and installer remain valid COREX packages,
+but they cannot install the MARS add-on from their runtime bundle.
+
 The `full` profile requires every current application runtime extra, including
 PyMechanical, viewer/plot backends, tabular data backends, Excel, HPC, web, and
 media. Ansys DPF is excluded from every application package profile; its

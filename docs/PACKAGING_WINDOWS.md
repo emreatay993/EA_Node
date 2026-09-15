@@ -15,8 +15,8 @@ packaging venv includes the optional `tabular` stack.
 - Use a Windows virtual environment containing Python 3.11 and the required
   packaging dependencies. Pass its root with `-VirtualEnvironmentPath` when it
   is not the repository's only `venv\` or `.venv\` directory.
-- Keep the MARS repository at the default sibling path `..\MARS_`, or pass an
-  existing local wheel with `-MarsWheelPath`.
+- Unless using `-ExcludeMars`, keep the MARS repository at the default sibling
+  path `..\MARS_`, or pass an existing local wheel with `-MarsWheelPath`.
 - Base profile: install `.[dev]` for the full developer/package stack, or at
   minimum `build` and `pyinstaller` in that venv for a minimal smokeable
   package with a managed-runtime wheel.
@@ -78,10 +78,23 @@ Full developer-style package without the startup smoke check:
 .\scripts\build_windows_package.ps1 -PackageProfile full -Clean -SkipSmoke
 ```
 
+Full developer-style package without the external MARS runtime wheel:
+
+```powershell
+.\scripts\build_windows_package.ps1 -PackageProfile full -ExcludeMars -Clean -SkipSmoke
+```
+
+`-ExcludeMars` omits the `mars-modal-response-solver` wheel and the `mars`
+entry from the packaged runtime manifest. COREX-owned MARS add-on metadata and
+integration code remain in the application, but the add-on cannot be installed
+from that package because it contains no MARS runtime payload.
+
 Useful flags:
 
 - `-VirtualEnvironmentPath <path>` (alias `-VenvPath`): use the specified
   virtual environment root instead of automatic `venv\`/`.venv\` detection.
+- `-ExcludeMars`: omit the external MARS runtime wheel. Do not combine it with
+  `-MarsSourcePath` or `-MarsWheelPath`.
 - `-SkipSmoke`: build only, no startup smoke check.
 - `-SmokeSeconds <int>`: timeout for each packaged smoke check (default `30`).
 - `-DependencyMatrixPath <path>`: override the generated dependency policy CSV.
@@ -98,17 +111,18 @@ Useful flags:
 - Viewer executable: `artifacts\pyinstaller\dist\viewer\COREX_Node_Editor\COREX_Node_Editor.exe`
 - Full executable: `artifacts\pyinstaller\dist\full\COREX_Node_Editor\COREX_Node_Editor.exe`
 - Managed runtime manifest: `artifacts\pyinstaller\dist\<profile>\COREX_Node_Editor\runtime\runtime_manifest.json`
-- Managed runtime wheels: `artifacts\pyinstaller\dist\<profile>\COREX_Node_Editor\runtime\corex_node_editor-*.whl` and `mars_modal_response_solver-1.0.0-*.whl`
+- Managed runtime wheels: `artifacts\pyinstaller\dist\<profile>\COREX_Node_Editor\runtime\corex_node_editor-*.whl` and, unless `-ExcludeMars` is used, `mars_modal_response_solver-1.0.0-*.whl`
 - Dependency matrix CSV: `artifacts\releases\packaging\<profile>\dependency_matrix.csv`
 
 The build script sets `EA_NODE_EDITOR_PACKAGE_PROFILE` for the PyInstaller run,
 verifies the expected executable exists, and by default runs three packaged
 acceptance checks: offscreen startup with `EA_PROFILE_AUTOQUIT=1`, isolated
 public function execution with the expected result `37`, and native Signal
-Plot rendering with valid PNG bytes. It also builds a COREX runtime wheel, writes
-`runtime\runtime_manifest.json` schema v2 with keyed `corex` and `mars`
-packages. It copies both wheels into the packaged app so Workflow Settings or
-the MARS Add-On Manager action can prepare the managed runtime later.
+Plot rendering with valid PNG bytes. It also builds a COREX runtime wheel and
+writes `runtime\runtime_manifest.json` schema v2. By default the manifest and
+bundle contain keyed `corex` and `mars` packages; `-ExcludeMars` produces a
+COREX-only runtime bundle. With the default bundle, Workflow Settings or the
+MARS Add-On Manager action can prepare the managed runtime later.
 
 There is no separate tabular package profile. Tabular availability is decided by
 the installed Python modules in the packaging venv: `numpy`, `pandas`, `polars`,

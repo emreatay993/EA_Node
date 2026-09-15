@@ -19,7 +19,7 @@ Use this for the `mars.corex` add-on, managed MARS installation, guided MARS nod
 - MARS owns the `mars-modal-response-solver` wheel, `MARSBatch`, schema-v1 jobs, JSONL events/results, and numerical execution.
 - Desktop and worker processes do not import `mars_solver`; generated functions delegate to COREX-owned helpers that launch the absolute console script beside the selected COREX Python.
 - Source COREX installs only editable MARS with `--no-deps` into `sys.executable`; it does not create a venv, upgrade pip, reinstall COREX, or touch the retained AppData runtime.
-- Frozen COREX keeps the app-managed AppData venv, installs contained COREX and MARS wheels, and applies `--no-deps` only to MARS.
+- Frozen COREX keeps the app-managed AppData venv, installs the contained COREX wheel and, when bundled, the MARS wheel; `--no-deps` applies only to MARS. A package built with `-ExcludeMars` has no installable MARS runtime payload.
 - Workflow Settings keeps its separate `prepare_managed_runtime()` behavior; MARS installation routes through `prepare_addon_runtime()`.
 - External workflow workers inherit the desktop-selected add-on Python path, so a configured Workflow Settings interpreter does not redirect MARSBatch lookup.
 - Managed package setup has no default five-minute ceiling; pip output is streamed through the Add-On Manager bridge so long installs remain visibly active.

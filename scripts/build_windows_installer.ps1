@@ -164,11 +164,12 @@ function Assert-CorexRuntimeBundlePayload {
     if ($manifest.schema_version -ne 2) {
         throw "$Label runtime manifest schema_version must be 2: $manifestPath"
     }
-    foreach ($packageId in @("corex", "mars")) {
-        $package = $manifest.packages.$packageId
-        if ($null -eq $package) {
-            throw "$Label runtime manifest missing package '$packageId': $manifestPath"
-        }
+    if ($null -eq $manifest.packages -or $null -eq $manifest.packages.corex) {
+        throw "$Label runtime manifest missing package 'corex': $manifestPath"
+    }
+    foreach ($packageProperty in @($manifest.packages.PSObject.Properties)) {
+        $packageId = [string]$packageProperty.Name
+        $package = $packageProperty.Value
         $wheelName = [string]$package.wheel
         if ([string]::IsNullOrWhiteSpace($wheelName) -or [System.IO.Path]::GetFileName($wheelName) -ne $wheelName) {
             throw "$Label runtime package '$packageId' has an invalid bundled wheel name."

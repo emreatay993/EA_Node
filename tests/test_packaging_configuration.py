@@ -846,17 +846,33 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert "[System.Text.UTF8Encoding]::new($false)" in build_package_source
     assert r'$MarsSourcePath = "..\MARS_"' in build_package_source
     assert '$MarsWheelPath = ""' in build_package_source
+    assert '[switch]$ExcludeMars' in build_package_source
+    assert '$PSBoundParameters.ContainsKey("MarsSourcePath")' in build_package_source
+    assert (
+        "-ExcludeMars cannot be combined with -MarsSourcePath or -MarsWheelPath."
+        in build_package_source
+    )
     assert 'function New-CorexRuntimeBundle' in build_package_source
     assert 'function Get-WheelPackageMetadata' in build_package_source
     assert '"build"' in build_package_source
     assert '"--wheel"' in build_package_source
     assert 'schema_version = 2' in build_package_source
-    assert 'packages = [ordered]@{' in build_package_source
+    assert 'packages = $manifestPackages' in build_package_source
+    assert '$manifestPackages.mars = [ordered]@{' in build_package_source
     assert 'console_scripts = @("MARSBatch")' in build_package_source
-    assert 'foreach ($packageId in @("corex", "mars"))' in build_package_source
+    manifest_package_loop = (
+        "foreach ($packageProperty in @($manifest.packages.PSObject.Properties))"
+    )
+    assert manifest_package_loop in build_package_source
+    assert 'foreach ($packageId in @("corex", "mars"))' not in build_package_source
+    assert "runtime manifest missing package 'corex'" in build_package_source
     assert 'extras = @("all")' in build_package_source
     assert 'Assert-CorexRuntimeBundle -RuntimeBundlePath $runtimeBundlePath' in build_package_source
-    assert 'New-CorexRuntimeBundle -DistPath $distDir -Profile $PackageProfile' in build_package_source
+    assert (
+        'New-CorexRuntimeBundle -DistPath $distDir -Profile $PackageProfile '
+        '-ExcludeMarsPackage:$ExcludeMars'
+    ) in build_package_source
+    assert 'MARS runtime package excluded from the bundle.' in build_package_source
     assert 'artifacts\\releases\\packaging\\$PackageProfile\\dependency_matrix.csv' in build_package_source
     assert 'Resolve-PyInstallerProfilePath -Kind "dist" -Profile $PackageProfile' in build_package_source
     assert 'Resolve-PyInstallerProfilePath -Kind "build" -Profile $PackageProfile' in build_package_source
@@ -903,7 +919,9 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert '$runtimeBundleDirName = "runtime"' in build_installer_source
     assert '$runtimeManifestFileName = "runtime_manifest.json"' in build_installer_source
     assert '$manifest.schema_version -ne 2' in build_installer_source
-    assert 'foreach ($packageId in @("corex", "mars"))' in build_installer_source
+    assert manifest_package_loop in build_installer_source
+    assert 'foreach ($packageId in @("corex", "mars"))' not in build_installer_source
+    assert "runtime manifest missing package 'corex'" in build_installer_source
     assert 'function Assert-CorexRuntimeBundlePayload' in build_installer_source
     assert 'Assert-CorexRuntimeBundlePayload -AppRoot $payloadRoot -Label "Installer payload"' in build_installer_source
     assert 'Assert-CorexRuntimeBundlePayload -AppRoot (Join-Path $validationInstallRoot $packageAppName) -Label "Installed app"' in build_installer_source
