@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import replace as _dataclass_replace
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,9 +52,13 @@ _PRESENTATION_OVERLAY = "overlay"
 _PRESENTATION_DETACHED = "detached"
 _PRESENTATION_RETAINED_INLINE = "retained_inline"
 _MAX_VIEWER_PREVIEW_EDGE_PX = 1280
-# Warm-up renders have no node rect to aim at, so they render wider than a
-# viewer node's viewport usually is and let the proxy surface crop inwards.
-_WARMUP_PREVIEW_SIZE = QSize(960, 540)
+# Fallback only: used when the node's own viewport rect cannot be resolved.
+# Wider than a viewer node's viewport usually is, so the proxy surface crops
+# inwards rather than losing height it never captured.
+_FALLBACK_PREVIEW_RENDER_SIZE = QSize(960, 540)
+_MAX_PREVIEW_RENDER_EDGE_PX = 960
+# Below this relative aspect error a re-render buys nothing visible.
+_PREVIEW_ASPECT_TOLERANCE = 0.02
 
 def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
@@ -645,7 +650,7 @@ class ViewerHostService(QObject):
     def _capture_embedded_exit_state(self, key: _OverlayKey) -> bool:
         """Capture the live frame and report whether demotion was deferred."""
         source_before = self._preview_state.preview_source(key)
-        self._preview_state.capture_live_state(key)
+        self._capture_live_state(key)
         source_after = self._preview_state.preview_source(key)
         if not source_after or source_after == source_before:
             return False
@@ -1477,7 +1482,7 @@ class ViewerHostService(QObject):
         window = self._detached_windows.get(key)
         if window is None:
             return True
-        self._preview_state.capture_live_state(key)
+        self._capture_live_state(key)
         widget = window.widget
         if widget is not None:
             bound = self._bound_overlays.get(key)
@@ -1499,7 +1504,7 @@ class ViewerHostService(QObject):
         window = self._detached_windows.get(key)
         if window is None:
             return True
-        self._preview_state.capture_live_state(key)
+        self._capture_live_state(key)
         widget = window.widget
         redock_ready = True
         if widget is not None:
@@ -1676,14 +1681,14 @@ class ViewerHostService(QObject):
                     # Live presentation is ending (inline exit, fullscreen
                     # close, detached close). Refresh the proxy frame while
                     # the widget still shows what the user was looking at.
-                    self._preview_state.capture_live_state(key)
+                    self._capture_live_state(key)
                 if self._retain_inline_binding(key):
                     continue
-                self._preview_state.capture_live_state(key)
+                self._capture_live_state(key)
                 self._release_binding(key, reason="inactive")
                 continue
             if desired[0].backend_id != bound.snapshot.backend_id or desired[1] is not bound.binder:
-                self._preview_state.capture_live_state(key)
+                self._capture_live_state(key)
                 self._release_binding(key, reason="inactive")
 
         errors.extend(self._retarget_overlay_bindings_before_overlay_reconcile(desired_overlays))
@@ -1749,7 +1754,7 @@ class ViewerHostService(QObject):
                 self._show_bound_widget(key, bound)
                 continue
             if bound is not None:
-                self._preview_state.capture_live_state(key)
+                self._capture_live_state(key)
                 if bound.binder is binder and bound.widget is not None:
                     current_widget = bound.widget
             prepared_for_bind = False
@@ -2444,22 +2449,79 @@ class ViewerHostService(QObject):
                 snapshots.append(snapshot)
         return snapshots
 
+    def _capture_live_state(self, key: _OverlayKey) -> None:
+        """Capture the live frame, then correct its aspect if it cannot crop.
+
+        A frame captured while the widget was fullscreen or detached carries
+        that presentation's aspect. Cropping it into the node is exact only
+        while the capture is the wider of the two; when it is not, re-render
+        it offscreen at the node's own rect instead of showing a frame that
+        has lost height the node would have drawn.
+        """
+        self._preview_state.capture_live_state(key)
+        if self._preview_reframe_needed(key):
+            self._preview_warmup.enqueue([key])
+
+    def _preview_reframe_needed(self, key: _OverlayKey) -> bool:
+        stored = self._preview_state.preview_size(key)
+        target = self._node_viewport_size(key)
+        if stored is None or target is None:
+            return False
+        if stored.height() <= 0 or target.height() <= 0:
+            return False
+        stored_aspect = stored.width() / stored.height()
+        target_aspect = target.width() / target.height()
+        if stored_aspect <= 0.0 or target_aspect <= 0.0:
+            return False
+        # Cropping only loses content when the node is the wider of the two.
+        return target_aspect > stored_aspect * (1.0 + _PREVIEW_ASPECT_TOLERANCE)
+
+    def _node_viewport_size(self, key: _OverlayKey) -> QSize | None:
+        overlay_manager = self._overlay_manager
+        resolver = getattr(overlay_manager, "viewer_viewport_size", None)
+        if not callable(resolver):
+            return None
+        try:
+            return resolver(key[1], workspace_id=key[0])
+        except Exception as exc:  # noqa: BLE001
+            self._set_last_error(str(exc))
+            return None
+
+    def _preview_render_size(self, key: _OverlayKey) -> QSize:
+        size = self._node_viewport_size(key)
+        if size is None or size.width() <= 0 or size.height() <= 0:
+            return _FALLBACK_PREVIEW_RENDER_SIZE
+        longest_edge = max(size.width(), size.height())
+        if longest_edge >= _MAX_PREVIEW_RENDER_EDGE_PX:
+            scale = _MAX_PREVIEW_RENDER_EDGE_PX / float(longest_edge)
+        else:
+            # Render above the node's scene size so the frame stays sharp when
+            # the canvas is zoomed in or the display has a high pixel ratio.
+            scale = min(2.0, _MAX_PREVIEW_RENDER_EDGE_PX / float(longest_edge))
+        return QSize(
+            max(1, round(size.width() * scale)),
+            max(1, round(size.height() * scale)),
+        )
+
     def _queue_preview_warmups(self, snapshots: list[_ViewerHostSessionSnapshot]) -> None:
-        """Give never-activated viewer nodes a first frame to show."""
+        """Queue offscreen renders for nodes with no frame, or an unusable one."""
         if self._shutdown:
             return
         self._preview_warmup.enqueue(
             snapshot.overlay_key
             for snapshot in snapshots
-            if self._warmup_wanted_for_snapshot(snapshot)
+            if self._preview_render_wanted(snapshot)
         )
 
-    def _warmup_wanted_for_snapshot(self, snapshot: _ViewerHostSessionSnapshot) -> bool:
+    def _preview_render_wanted(self, snapshot: _ViewerHostSessionSnapshot) -> bool:
         key = snapshot.overlay_key
         if snapshot.phase != "open" or key[0] != self._active_workspace_id():
             return False
         if not snapshot.transport:
             return False
+        if self._preview_reframe_needed(key):
+            # Has a frame, but one the node cannot crop without losing height.
+            return True
         if self._preview_state.has_preview(key):
             return False
         # A live binding is about to produce a real frame of its own.
@@ -2469,7 +2531,7 @@ class ViewerHostService(QObject):
         if self._shutdown:
             return False
         snapshot = self._snapshot_for_key(key)
-        return snapshot is not None and self._warmup_wanted_for_snapshot(snapshot)
+        return snapshot is not None and self._preview_render_wanted(snapshot)
 
     def _render_warmup_preview(self, key: _OverlayKey) -> None:
         snapshot = self._snapshot_for_key(key)
@@ -2483,8 +2545,13 @@ class ViewerHostService(QObject):
         if not callable(render):
             return
         request = snapshot.bind_request(container=None, current_widget=None)
+        # Prefer the camera of the frame we just captured over the projected
+        # one, which the worker may not have echoed back yet.
+        captured_camera = self._preview_state.cached_view_state(key)
+        if isinstance(captured_camera, Mapping) and captured_camera:
+            request = _dataclass_replace(request, camera_state=dict(captured_camera))
         try:
-            image = render(request, _WARMUP_PREVIEW_SIZE)
+            image = render(request, self._preview_render_size(key))
         except ViewerWidgetNoBind:
             # The transport is not ready yet; a later sync re-queues the key.
             return

@@ -209,7 +209,11 @@ class _WarmupBinder:
         )
         if self.error is not None:
             raise self.error
-        return self.image.copy()
+        # A real renderer honours the requested size; the aspect it returns is
+        # what decides whether the node can crop the frame.
+        rendered = QImage(QSize(size), QImage.Format.Format_ARGB32)
+        rendered.fill(self.image.pixelColor(0, 0))
+        return rendered
 
 
 class _RecordingBinder:
@@ -1681,6 +1685,86 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
                 "image://viewer-preview-cache/"
             )
         )
+
+    def test_warmup_renders_at_the_node_viewport_aspect(self) -> None:
+        """Rendering at the node's own rect means there is nothing to crop."""
+        binder = _WarmupBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node(width=520.0, height=300.0)
+
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=node_id,
+            live_mode="proxy",
+            cache_state="proxy_ready",
+        )
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertEqual(len(binder.render_calls), 1, binder.render_calls)
+        rendered = binder.render_calls[0]["size"]
+        viewport = self.overlay_manager.viewer_viewport_size(node_id, workspace_id=self.workspace_id)
+        self.assertIsNotNone(viewport)
+        self.assertAlmostEqual(
+            rendered.width() / rendered.height(),
+            viewport.width() / viewport.height(),
+            places=2,
+        )
+        self.assertLessEqual(max(rendered.width(), rendered.height()), 960)
+
+    def test_a_frame_the_node_cannot_crop_is_re_rendered_at_its_own_rect(self) -> None:
+        """A too-narrow capture would lose height, so re-render instead."""
+        binder = _WarmupBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node(width=900.0, height=200.0)
+        key = (self.workspace_id, node_id)
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=node_id,
+            live_mode="proxy",
+            cache_state="proxy_ready",
+        )
+        self.app.processEvents()
+        self.app.processEvents()
+        renders_after_warmup = len(binder.render_calls)
+
+        # A tall capture cannot supply the width this wide node would draw.
+        self.host_service._preview_state.store_preview(
+            key,
+            QImage(120, 400, QImage.Format.Format_ARGB32),
+            ("signature",),
+        )
+        self.assertTrue(self.host_service._preview_reframe_needed(key))
+
+        self.host_service.sync()
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertGreater(len(binder.render_calls), renders_after_warmup)
+        self.assertFalse(self.host_service._preview_reframe_needed(key))
+
+    def test_a_frame_the_node_can_crop_is_left_alone(self) -> None:
+        binder = _WarmupBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node(width=400.0, height=320.0)
+        key = (self.workspace_id, node_id)
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=node_id,
+            live_mode="proxy",
+            cache_state="proxy_ready",
+        )
+        self.app.processEvents()
+        self.app.processEvents()
+
+        # A fullscreen-shaped capture: wider than the node, so cropping is exact.
+        self.host_service._preview_state.store_preview(
+            key,
+            QImage(1280, 540, QImage.Format.Format_ARGB32),
+            ("signature",),
+        )
+
+        self.assertFalse(self.host_service._preview_reframe_needed(key))
 
     def test_a_warmed_up_viewer_is_not_warmed_up_again(self) -> None:
         binder = _WarmupBinder()

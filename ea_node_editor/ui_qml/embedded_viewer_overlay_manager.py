@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from PyQt6 import sip
-from PyQt6.QtCore import QEvent, QObject, QPointF, QRect, QRectF, Qt, QTimer, pyqtSlot
+from PyQt6.QtCore import QEvent, QObject, QPointF, QRect, QRectF, QSize, Qt, QTimer, pyqtSlot
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QWidget
 
@@ -627,6 +627,34 @@ class EmbeddedViewerOverlayManager(QObject):
         if record is None:
             return None
         return record.container
+
+    def viewer_viewport_size(self, node_id: str, *, workspace_id: str = "") -> QSize | None:
+        """The node's viewer viewport size in scene units.
+
+        Answers "how big would the live view be here?" without requiring a
+        live overlay, so an offscreen preview render can use the node's own
+        aspect ratio instead of guessing one.
+        """
+        normalized_node_id = _string(node_id)
+        if not normalized_node_id:
+            return None
+        payload = self._node_payloads_by_id({normalized_node_id}).get(normalized_node_id)
+        if payload is None:
+            return None
+        scene_width = max(0.0, _number(payload.get("width"), 0.0))
+        scene_height = max(0.0, _number(payload.get("height"), 0.0))
+        if scene_width <= 0.0 or scene_height <= 0.0:
+            return None
+        rect = self._geometry_service.viewer_live_rect(
+            payload,
+            scene_width=scene_width,
+            scene_height=scene_height,
+        )
+        width = max(0.0, float(rect.get("width", 0.0)))
+        height = max(0.0, float(rect.get("height", 0.0)))
+        if width <= 0.0 or height <= 0.0:
+            return None
+        return QSize(max(1, round(width)), max(1, round(height)))
 
     def overlay_geometry_ready(self, node_id: str, *, workspace_id: str = "") -> bool:
         resolved_workspace_id = _string(workspace_id) or self._active_workspace_id()

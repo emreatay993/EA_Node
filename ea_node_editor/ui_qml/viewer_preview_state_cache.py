@@ -90,6 +90,7 @@ class ViewerPreviewStateCache:
         self._render_signatures: dict[OverlayKey, tuple[Any, ...]] = {}
         self._live_frame_dirty: set[OverlayKey] = set()
         self._stale_previews: set[OverlayKey] = set()
+        self._preview_sizes: dict[OverlayKey, QSize] = {}
         self._revision = 0
 
     # ----------------------------------------------------------------- reads
@@ -105,6 +106,10 @@ class ViewerPreviewStateCache:
     def has_preview(self, key: OverlayKey) -> bool:
         provider = self._provider
         return bool(provider is not None and provider.has_preview(key[0], key[1]))
+
+    def preview_size(self, key: OverlayKey) -> QSize | None:
+        """Size of the stored frame, for callers that must match its aspect."""
+        return self._preview_sizes.get(key) if self.has_preview(key) else None
 
     def preview_stale(self, key: OverlayKey) -> bool:
         """The cached frame predates the node's current visual settings.
@@ -231,6 +236,7 @@ class ViewerPreviewStateCache:
 
     def clear_preview(self, key: OverlayKey) -> None:
         self._stale_previews.discard(key)
+        self._preview_sizes.pop(key, None)
         provider = self._provider
         if provider is None:
             return
@@ -273,6 +279,7 @@ class ViewerPreviewStateCache:
         self._view_states.clear()
         self._live_frame_dirty.clear()
         self._stale_previews.clear()
+        self._preview_sizes.clear()
         if changed:
             self._bump_revision()
 
@@ -315,6 +322,7 @@ class ViewerPreviewStateCache:
         if provider is None:
             return
         if provider.set_preview(key[0], key[1], image, signature=signature):
+            self._preview_sizes[key] = image.size()
             self._bump_revision()
 
     def _bump_revision(self) -> None:
