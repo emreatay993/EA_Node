@@ -14,33 +14,6 @@ def _rich_text_extra_keys(content_key: str) -> tuple[str, ...]:
         *(rich_text_style_property_key(content_key, key) for key in RICH_TEXT_SLOT_STYLE_KEYS),
     )
 
-_EXPECTED_PLANNING_SPECS = {
-    "passive.planning.task_card": {
-        "display_name": "Task Card",
-        "surface_variant": "task_card",
-        "properties": ("title", "body", *_rich_text_extra_keys("body"), "owner", "due_date", "status"),
-        "enum_property": ("status", ("todo", "in_progress", "blocked", "done")),
-    },
-    "passive.planning.milestone_card": {
-        "display_name": "Milestone Card",
-        "surface_variant": "milestone_card",
-        "properties": ("title", "body", *_rich_text_extra_keys("body"), "target_date", "status"),
-        "enum_property": ("status", ("planned", "at_risk", "done")),
-    },
-    "passive.planning.risk_card": {
-        "display_name": "Risk Card",
-        "surface_variant": "risk_card",
-        "properties": ("title", "body", *_rich_text_extra_keys("body"), "severity", "mitigation"),
-        "enum_property": ("severity", ("low", "medium", "high", "critical")),
-    },
-    "passive.planning.decision_card": {
-        "display_name": "Decision Card",
-        "surface_variant": "decision_card",
-        "properties": ("title", "body", *_rich_text_extra_keys("body"), "state", "outcome"),
-        "enum_property": ("state", ("open", "decided", "deferred")),
-    },
-}
-
 _EXPECTED_ANNOTATION_SPECS = {
     "passive.annotation.sticky_note": {
         "display_name": "Sticky Note",
@@ -90,41 +63,13 @@ _EXPECTED_CARDINAL_PORTS = (
 )
 
 
-class PlanningAnnotationCatalogTests(unittest.TestCase):
-    def test_default_registry_registers_locked_planning_catalog_specs(self) -> None:
-        registry = build_default_registry()
-
-        for type_id, expected in _EXPECTED_PLANNING_SPECS.items():
-            spec = registry.get_spec(type_id)
-
-            self.assertEqual(spec.display_name, expected["display_name"])
-            self.assertEqual(spec.category, "Planning")
-            self.assertEqual(spec.runtime_behavior, "passive")
-            self.assertEqual(spec.surface_family, "planning")
-            self.assertEqual(spec.surface_variant, expected["surface_variant"])
-            self.assertFalse(spec.collapsible)
-            self.assertEqual(
-                tuple((port.key, port.direction, port.allow_multiple_connections, port.side) for port in spec.ports),
-                _EXPECTED_CARDINAL_PORTS,
-            )
-            self.assertEqual(tuple(prop.key for prop in spec.properties), expected["properties"])
-            if type_id == "passive.annotation.text":
-                font_family_spec = next(prop for prop in spec.properties if prop.key == "font_family")
-                self.assertEqual(font_family_spec.inspector_editor, "font_family")
-            if type_id == "passive.annotation.text":
-                defaults = {prop.key: prop.make_default() for prop in spec.properties}
-                self.assertEqual(defaults["horizontal_alignment"], "center")
-                self.assertEqual(defaults["vertical_alignment"], "middle")
-            enum_key, enum_values = expected["enum_property"]
-            enum_spec = next(prop for prop in spec.properties if prop.key == enum_key)
-            self.assertEqual(enum_spec.enum_values, enum_values)
-
-    def test_planning_and_annotation_use_rectangular_cardinal_anchor_points(self) -> None:
+class AnnotationCatalogTests(unittest.TestCase):
+    def test_annotation_uses_rectangular_cardinal_anchor_points(self) -> None:
         registry = build_default_registry()
 
         for type_id in (
-            "passive.planning.task_card",
             "passive.annotation.sticky_note",
+            "passive.annotation.callout",
         ):
             spec = registry.get_spec(type_id)
             node = NodeInstance(
@@ -169,8 +114,12 @@ class PlanningAnnotationCatalogTests(unittest.TestCase):
                 _EXPECTED_CARDINAL_PORTS,
             )
             self.assertEqual(tuple(prop.key for prop in spec.properties), expected["properties"])
-
-
+            if type_id == "passive.annotation.text":
+                font_family_spec = next(prop for prop in spec.properties if prop.key == "font_family")
+                self.assertEqual(font_family_spec.inspector_editor, "font_family")
+                defaults = {prop.key: prop.make_default() for prop in spec.properties}
+                self.assertEqual(defaults["horizontal_alignment"], "center")
+                self.assertEqual(defaults["vertical_alignment"], "middle")
 
 
 if __name__ == "__main__":

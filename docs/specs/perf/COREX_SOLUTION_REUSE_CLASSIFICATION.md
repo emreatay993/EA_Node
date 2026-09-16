@@ -33,10 +33,10 @@ IDs joined by LF with a final LF.
 | `session` | 28 |
 | `never` | 53 |
 | Executable subtotal | 109 |
-| Excluded passive | 35 |
+| Excluded passive | 31 |
 | Excluded compile-only | 3 |
-| Excluded subtotal | 38 |
-| Repo-owned total | 147 |
+| Excluded subtotal | 34 |
+| Repo-owned total | 143 |
 
 ## Scope Meanings
 
@@ -259,10 +259,6 @@ the scheduler excludes them before solution-record classification.
 | `passive.flowchart.timestamp` | Timestamp | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_flowchart.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
 | `passive.flowchart.x` | X | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_flowchart.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
 | `passive.media.mail_panel` | Mail Panel | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_mail.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
-| `passive.planning.decision_card` | Decision Card | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_planning.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
-| `passive.planning.milestone_card` | Milestone Card | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_planning.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
-| `passive.planning.risk_card` | Risk Card | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_planning.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
-| `passive.planning.task_card` | Task Card | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_planning.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
 | `web.page_viewer` | Web Page Viewer | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/web_viewer.py` | `passive_display_only` | `tests/test_web_page_viewer_node.py` |
 
 ## Runtime Eligibility Notes
@@ -276,7 +272,7 @@ the scheduler excludes them before solution-record classification.
   carrier.
 - `session` rows never publish durable records unless a later accepted
   classification revision supplies complete portable provenance and codecs.
-- Public declarations remain outside the 147-row repo-owned total and cannot
+- Public declarations remain outside the 143-row repo-owned total and cannot
   increase any total in this document.
 
 ## Validation Contract
@@ -284,9 +280,9 @@ the scheduler excludes them before solution-record classification.
 Review and implementation checks must prove all of the following:
 
 1. The executable table has exactly 109 unique repo-owned type IDs and the excluded
-   table has exactly 38 unique IDs with no overlap.
+   table has exactly 34 unique IDs with no overlap.
 2. Executable totals are exactly 29 `durable`, 27 `session`, and 53 `never`.
-3. The excluded table contains exactly 35 passive and 3 compile-only rows.
+3. The excluded table contains exactly 31 passive and 3 compile-only rows.
 4. Every executable row contains all fourteen required columns and every excluded
    row contains all seven required columns.
 5. `engineering.cad_import` and `model.viewer` are `session` with the exact
@@ -294,7 +290,7 @@ Review and implementation checks must prove all of the following:
 6. Runtime-discovered public declarations are hard-locked to `never` without
    recording private IDs or paths.
 7. `tests/fixtures/node_catalog/current_repo_owned_catalog.json` contains exactly
-   the 147 classified rows.
+   the 143 classified rows.
 
 This draft intentionally contains no implementation or acceptance claim. Metadata
 edits remain forbidden until independent classification review closes all findings

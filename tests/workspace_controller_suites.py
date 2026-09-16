@@ -885,7 +885,7 @@ class WorkspaceDropConnectControllerValidationTests(unittest.TestCase):
         workspace = model.active_workspace
         workspace_id = workspace.workspace_id
         target = model.add_node(
-            workspace_id, "passive.planning.task_card", "Existing", 120.0, 120.0
+            workspace_id, "passive.annotation.callout", "Existing", 120.0, 120.0
         )
         new_node = model.add_node(
             workspace_id, "passive.media.mail_panel", "Inserted", 420.0, 120.0
@@ -910,7 +910,7 @@ class WorkspaceDropConnectControllerValidationTests(unittest.TestCase):
                     "source_port_key": "right",
                     "target_node_id": new_node.node_id,
                     "target_port_key": "left",
-                    "label": "Task Card.right -> Mail Panel.left",
+                    "label": "Callout.right -> Mail Panel.left",
                 }
             ],
         )
@@ -993,7 +993,7 @@ class WorkspaceDropConnectControllerValidationTests(unittest.TestCase):
             workspace_id, "passive.media.mail_panel", "Target", 640.0, 100.0
         )
         new_node = model.add_node(
-            workspace_id, "passive.planning.task_card", "Inserted", 340.0, 100.0
+            workspace_id, "passive.annotation.callout", "Inserted", 340.0, 100.0
         )
         original_edge = model.add_edge(
             workspace_id, source.node_id, "right", target.node_id, "left"
@@ -1016,7 +1016,7 @@ class WorkspaceDropConnectControllerValidationTests(unittest.TestCase):
                 {
                     "new_input_port": "left",
                     "new_output_port": "right",
-                    "label": "Sticky Note.right -> Task Card.left, Task Card.right -> Mail Panel.left",
+                    "label": "Sticky Note.right -> Callout.left, Callout.right -> Mail Panel.left",
                 }
             ],
         )

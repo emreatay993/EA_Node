@@ -385,7 +385,6 @@ class QuickInsertProjectionTests(unittest.TestCase):
         self.assertTrue(results)
         results_by_type = {str(item.get("type_id", "")): item for item in results}
         self.assertIn("passive.flowchart.process", results_by_type)
-        self.assertIn("passive.planning.task_card", results_by_type)
         self.assertIn("passive.annotation.sticky_note", results_by_type)
         self.assertIn("passive.media.mail_panel", results_by_type)
         self.assertNotIn("core.start", results_by_type)
@@ -394,7 +393,7 @@ class QuickInsertProjectionTests(unittest.TestCase):
             ["top", "right", "bottom", "left"],
         )
         self.assertEqual(
-            results_by_type["passive.planning.task_card"]["compatible_port_labels"],
+            results_by_type["passive.annotation.sticky_note"]["compatible_port_labels"],
             ["top", "right", "bottom", "left"],
         )
         self.assertEqual(

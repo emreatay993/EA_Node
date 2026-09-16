@@ -17,13 +17,13 @@ This compact index gives agents deterministic aliases for QML components, symbol
 
 | Metric | Count |
 | --- | ---: |
-| QML files | 180 |
+| QML files | 179 |
 | Repeater constructs | 87 |
 | Loader constructs | 27 |
 | Signal handlers | 919 |
 | Connections targets | 49 |
-| Property bindings | 7629 |
-| Local component refs | 290 |
+| Property bindings | 7557 |
+| Local component refs | 289 |
 
 ## Component Families
 
@@ -34,7 +34,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `components/graph` | 27 |
 | `components/graph/jupyter` | 1 |
 | `components/graph/overlay` | 7 |
-| `components/graph/passive` | 28 |
+| `components/graph/passive` | 27 |
 | `components/graph/plot` | 2 |
 | `components/graph/surface_controls` | 16 |
 | `components/graph/tabular` | 3 |
@@ -109,7 +109,6 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `GraphNumberSliderSurface.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSurface.qml` | `GraphShared.GraphSurfaceBase` | `Item`, `Rectangle`, `Text`, `HoverHandler`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceSlider`, `Binding`, `SurfaceControls.GraphSurfaceDoubleClickTarget` | _None_ |
 | `GraphPanelEditorPopover.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphPanelEditorPopover.qml` | `FocusScope` | `Common.DialogSurface`, `ColumnLayout`, `RowLayout`, `Text`, `ToolButton`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceTextArea`, `CheckBox`, ... +2 more | `source` |
 | `GraphPanelSurface.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphPanelSurface.qml` | `GraphShared.GraphSurfaceBase` | `Item`, `Text`, `ListView`, `Rectangle`, `MouseArea`, `TextArea` | `ListView`, `model`, `delegate` |
-| `GraphPlanningCardSurface.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphPlanningCardSurface.qml` | `GraphShared.GraphSurfaceBase` | `Rectangle`, `Item`, `Column`, `Row`, `Text`, `GraphRichTextBlock` | _None_ |
 | `GraphRichTextBlock.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphRichTextBlock.qml` | `GraphShared.GraphSurfaceBase` | `Timer`, `Item`, `Rectangle`, `Text`, `TextArea`, `SurfaceControls.GraphSurfaceInteractiveRegion`, `SurfaceControls.GraphSurfaceDoubleClickTarget`, `Connections` | _None_ |
 | `GraphSelectSettingsPopover.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphSelectSettingsPopover.qml` | `FocusScope` | `ListModel`, `Common.DialogSurface`, `ColumnLayout`, `Rectangle`, `RowLayout`, `CheckBox`, `Text`, `ListView`, ... +3 more | `ListView`, `model`, `delegate` |
 | `GraphSelectSurface.qml` | `ea_node_editor/ui_qml/components/graph/passive/GraphSelectSurface.qml` | `GraphShared.GraphSurfaceBase` | `Item`, `Rectangle`, `Text`, `HoverHandler`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceButton`, `SurfaceControls.GraphSurfaceComboBox` | `model` |
@@ -1328,24 +1327,6 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Connections: _None_
 - Property bindings: `binding` `anchors.fill` -> `parent`; `binding` `anchors.margins`; `binding` `visible` -> `surface.structuredMode`; `binding` `text` -> `surface.placeholderVisible`, `surface.placeholderText`, `surface.panelValue`; `binding` `color` -> `surface.placeholderVisible`; `binding` `font.pointSize` -> `surface.panelFontSize`; `binding` `horizontalAlignment` -> `surface._resolvedTextAlignment`; `binding` `verticalAlignment` -> `Text.AlignVCenter`; `binding` `wrapMode` -> `Text.Wrap`; `binding` `renderType` -> `surface.host`, `surface.host.nodeTextRenderType`, `Text.CurveRendering`; `binding` `visible` -> `surface.structuredMode`, `surface.displayRows.length`; `binding` `clip`; `binding` `interactive`; `binding` `boundsBehavior` -> `Flickable.StopAtBounds`; `binding` `width` -> `ListView.view.width`; `binding` `height` -> `branchRow`, `surface.panelFontPixelSize`; `binding` `color` -> `branchRow`; `binding` `anchors.leftMargin`; ... +36 more
 - Local component refs: _None_
-
-### `GraphPlanningCardSurface.qml`
-
-- Path: `ea_node_editor/ui_qml/components/graph/passive/GraphPlanningCardSurface.qml`
-- Root component: `GraphShared.GraphSurfaceBase`
-- Agent route aliases: `GraphPlanningCardSurface`, `GraphPlanningCardSurface.qml`, `ea_node_editor/ui_qml/components/graph/passive/GraphPlanningCardSurface.qml`, `ea_node_editor\ui_qml\components\graph\passive\GraphPlanningCardSurface.qml`
-- Imports: `QtQuick 2.15`, `".." as GraphShared`
-- IDs: `surface`, `bodyBounds`, `headerRow`, `variantLabel`, `statusChip`, `chipTextLabel`, `richBody`
-- Object names: `graphNodePlanningSurface`, `graphNodePlanningRichTextBlock`
-- Properties: `planningVariant: string`, `panelFillColor: color`, `panelBorderColor: color`, `bodyTextColor: color`, `mutedTextColor: color`, `metaLabelColor: color`, `leftMetaLabel: string`, `leftMetaValue: string`, `rightMetaLabel: string`, `rightMetaValue: string`, `detailMetaLabel: string`, `detailMetaValue: string`, `chipText: string`, `chipFillColor: color`, `chipBorderColor: color`, `bodyFontSize: real`, `metaFontSize: real`, `chipFontSize: real`, ... +2 more
-- Signals: _None_
-- Functions: `_variantLabel`, `_chipText`, `_chipFillColor`, `_leftMetaLabel`, `_leftMetaValue`, `_rightMetaLabel`, `_rightMetaValue`, `_detailMetaLabel`, `_detailMetaValue`, `requestInlineEditAt`, `commitInlineEditFromExternalInteraction`, `dispatchSurfaceAction`
-- Instantiates: `Rectangle`, `Item`, `Column`, `Row`, `Text`, `GraphRichTextBlock`
-- Dynamic constructs: _None_
-- Signal handlers: _None_
-- Connections: _None_
-- Property bindings: `binding` `implicitHeight` -> `host`, `Number`, `host.surfaceMetrics.body_height`; `binding` `anchors.fill` -> `parent`; `binding` `radius` -> `host`, `Number`, `host.resolvedCornerRadius`; `binding` `color` -> `surface.panelFillColor`; `binding` `border.width` -> `host`, `Number`, `host.resolvedBorderWidth`; `binding` `border.color` -> `surface.panelBorderColor`; `binding` `anchors.left` -> `parent.left`; `binding` `anchors.leftMargin` -> `host`, `Number`, `host.surfaceMetrics.body_left_margin`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.rightMargin` -> `host`, `Number`, `host.surfaceMetrics.body_right_margin`; `binding` `anchors.top` -> `parent.top`; `binding` `anchors.topMargin` -> `host`, `Number`, `host.surfaceMetrics.body_top`; `binding` `anchors.bottom` -> `parent.bottom`; `binding` `anchors.bottomMargin` -> `host`, `Number`, `host.surfaceMetrics.body_bottom_margin`; `binding` `clip`; `binding` `spacing`; `binding` `width` -> `parent.width`; `binding` `text` -> `surface._variantLabel`; ... +54 more
-- Local component refs: `localComponent` `GraphRichTextBlock`: `ea_node_editor/ui_qml/components/graph/passive/GraphRichTextBlock.qml`
 
 ### `GraphRichTextBlock.qml`
 

@@ -526,18 +526,17 @@ class SerializerRoundTripMixin:
         workspace = model.active_workspace
         node = model.add_node(
             workspace.workspace_id,
-            "passive.planning.task_card",
-            "Task",
+            "passive.annotation.sticky_note",
+            "Sticky Note",
             25.0,
             45.0,
             properties={
-                "title": "Task",
+                "title": "Sticky Note",
                 "body": "**Markdown** body",
                 "body_format": "markdown",
                 "body_font_size": 24,
                 "body_font_weight": "bold",
                 "body_text_color": "#112233",
-                "status": "todo",
             },
         )
 
@@ -548,7 +547,7 @@ class SerializerRoundTripMixin:
             loaded = serializer.load(str(path))
 
         loaded_node = loaded.workspaces[workspace.workspace_id].nodes[node.node_id]
-        self.assertEqual(loaded_node.type_id, "passive.planning.task_card")
+        self.assertEqual(loaded_node.type_id, "passive.annotation.sticky_note")
         self.assertEqual(loaded_node.properties["body"], "**Markdown** body")
         self.assertEqual(loaded_node.properties["body_format"], "markdown")
         self.assertEqual(loaded_node.properties["body_font_size"], 24)

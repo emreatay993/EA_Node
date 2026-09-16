@@ -55,9 +55,6 @@ TestCase {
         if (family === "annotation") {
             componentKey = "annotation"
             qmlComponent = "passive/GraphAnnotationNoteSurface.qml"
-        } else if (family === "planning") {
-            componentKey = "planning"
-            qmlComponent = "passive/GraphPlanningCardSurface.qml"
         } else if (family === "flowchart") {
             componentKey = "flowchart"
             qmlComponent = "passive/GraphFlowchartNodeSurface.qml"
@@ -190,7 +187,7 @@ TestCase {
 
     function passiveSurfacePayload(family, variant, title, properties, width, height) {
         var payload = nodePayload(family, variant)
-        payload.node_id = "node_planning_annotation_surface_test"
+        payload.node_id = "node_passive_surface_test"
         payload.type_id = "tests.passive_surface"
         payload.title = title
         payload.properties = properties
@@ -486,20 +483,6 @@ TestCase {
         tryVerify(function() { return findNamedItems(annotationHost, "graphNodeAnnotationBodyText").length === 1 })
         var annotationText = findNamedItems(annotationHost, "graphNodeAnnotationBodyText")[0]
         compare(annotationText.effectiveRenderType, annotationHost.nodeTextRenderType)
-
-        var planningPayload = nodePayload("planning", "task_card")
-        planningPayload.runtime_behavior = "passive"
-        planningPayload.properties = {
-            "body": "Follow up with render pass",
-            "status": "in progress",
-            "owner": "Alex",
-            "due_date": "Tomorrow"
-        }
-        var planningHost = createHost(planningPayload)
-        verify(planningHost !== null)
-        tryVerify(function() { return findNamedItems(planningHost, "graphNodePlanningBodyText").length === 1 })
-        var planningText = findNamedItems(planningHost, "graphNodePlanningBodyText")[0]
-        compare(planningText.effectiveRenderType, planningHost.nodeTextRenderType)
     }
 
     function test_port_row_topology_and_directional_children_stay_stable() {
@@ -1516,35 +1499,6 @@ TestCase {
         compare(bodyText.font.pixelSize, 17)
         verify(bodyText.font.bold)
         compare(String(bodyText.color).toLowerCase(), "#204060")
-    }
-
-    function test_graph_node_host_loads_shared_planning_card_surface() {
-        var payload = passiveSurfacePayload(
-            "planning",
-            "task_card",
-            "Ship parser",
-            {
-                "title": "Ship parser",
-                "body": "Finalize validation and release notes.",
-                "owner": "Platform",
-                "due_date": "2026-03-31",
-                "status": "in_progress"
-            },
-            248,
-            168
-        )
-        var host = createHost(payload)
-        verify(host !== null)
-        tryVerify(function() {
-            return findNamedItems(host, "graphNodePlanningSurface").length === 1
-        }, 1000)
-        var loader = findNamedItems(host, "graphNodeSurfaceLoader")[0]
-        compare(loader.loadedSurfaceKey, "planning")
-        verify(loader.contentHeight > 0)
-        compare(findNamedItems(host, "graphNodeInputPortMouseArea").length, 2)
-        compare(findNamedItems(host, "graphNodeOutputPortMouseArea").length, 2)
-        verify(allVisible(findNamedItems(host, "graphNodeInputPortLabel"), false))
-        verify(allVisible(findNamedItems(host, "graphNodeOutputPortLabel"), false))
     }
 
     function test_graph_node_host_loads_shared_annotation_note_surface() {

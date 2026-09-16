@@ -52,7 +52,7 @@ class MainWindowShellPassiveStyleContextMenuTests(SharedMainWindowShellTestBase)
         node_context_popup = graph_canvas.findChild(QObject, "graphCanvasNodeContextPopup")
         self.assertIsNotNone(node_context_popup)
 
-        passive_id = self.window.scene.add_node_from_type("passive.planning.task_card", 120.0, 80.0)
+        passive_id = self.window.scene.add_node_from_type("passive.annotation.sticky_note", 120.0, 80.0)
         text_id = self.window.scene.add_node_from_type("passive.annotation.text", 320.0, 80.0)
         standard_id = self.window.scene.add_node_from_type("core.logger", 420.0, 80.0)
         self.app.processEvents()

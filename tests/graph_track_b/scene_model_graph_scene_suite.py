@@ -2118,7 +2118,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         ]
         passthrough_id = self.scene.add_node_from_type("tests.track_b_flowchart_passthrough", 2500.0, 40.0)
         beyond_passthrough_id = self.scene.add_node_from_type("passive.flowchart.decision", 2720.0, 40.0)
-        disconnected_planning_id = self.scene.add_node_from_type("passive.planning.task_card", 3000.0, 240.0)
+        disconnected_note_id = self.scene.add_node_from_type("passive.annotation.sticky_note", 3000.0, 240.0)
         for left_id, right_id in zip(node_ids, node_ids[1:]):
             self.model.add_edge(self.workspace_id, left_id, "right", right_id, "left")
         self.model.add_edge(self.workspace_id, node_ids[-1], "bottom", node_ids[0], "top")
@@ -2133,13 +2133,13 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
             "border_width": 3.0,
         }
         old_target_style = {"fill_color": "#FFEAA7", "border_width": 1.0}
-        disconnected_planning_style = {"fill_color": "#FAB1A0"}
+        disconnected_note_style = {"fill_color": "#FAB1A0"}
         workspace.nodes[node_ids[2]].visual_style = dict(source_style)
         workspace.nodes[node_ids[0]].visual_style = dict(old_target_style)
         workspace.nodes[node_ids[-1]].visual_style = dict(old_target_style)
         workspace.nodes[beyond_passthrough_id].visual_style = dict(old_target_style)
         workspace.nodes[passthrough_id].visual_style = {"fill_color": "#D63031"}
-        workspace.nodes[disconnected_planning_id].visual_style = dict(disconnected_planning_style)
+        workspace.nodes[disconnected_note_id].visual_style = dict(disconnected_note_style)
 
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
@@ -2154,7 +2154,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
             self.assertEqual(workspace.nodes[candidate_id].visual_style, source_style)
         self.assertEqual(workspace.nodes[beyond_passthrough_id].visual_style, source_style)
         self.assertEqual(workspace.nodes[passthrough_id].visual_style, {"fill_color": "#D63031"})
-        self.assertEqual(workspace.nodes[disconnected_planning_id].visual_style, disconnected_planning_style)
+        self.assertEqual(workspace.nodes[disconnected_note_id].visual_style, disconnected_note_style)
 
         undo_entry = history.undo_workspace(self.workspace_id, workspace)
         self.assertIsNotNone(undo_entry)
@@ -2165,7 +2165,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(workspace.nodes[node_ids[0]].visual_style, old_target_style)
         self.assertEqual(workspace.nodes[node_ids[-1]].visual_style, old_target_style)
         self.assertEqual(workspace.nodes[beyond_passthrough_id].visual_style, old_target_style)
-        self.assertEqual(workspace.nodes[disconnected_planning_id].visual_style, disconnected_planning_style)
+        self.assertEqual(workspace.nodes[disconnected_note_id].visual_style, disconnected_note_style)
 
         redo_entry = history.redo_workspace(self.workspace_id, workspace)
         self.assertIsNotNone(redo_entry)
@@ -2175,16 +2175,16 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(workspace.nodes[node_ids[0]].visual_style, source_style)
         self.assertEqual(workspace.nodes[node_ids[-1]].visual_style, source_style)
         self.assertEqual(workspace.nodes[beyond_passthrough_id].visual_style, source_style)
-        self.assertEqual(workspace.nodes[disconnected_planning_id].visual_style, disconnected_planning_style)
+        self.assertEqual(workspace.nodes[disconnected_note_id].visual_style, disconnected_note_style)
 
     def test_propagate_passive_node_style_empty_source_clears_connected_targets(self) -> None:
         workspace = self.model.project.workspaces[self.workspace_id]
         source_id = self.scene.add_node_from_type("passive.flowchart.process", 20.0, 40.0)
         target_id = self.scene.add_node_from_type("passive.flowchart.decision", 260.0, 40.0)
-        disconnected_planning_id = self.scene.add_node_from_type("passive.planning.task_card", 500.0, 40.0)
+        disconnected_note_id = self.scene.add_node_from_type("passive.annotation.sticky_note", 500.0, 40.0)
         self.scene.add_edge(source_id, "right", target_id, "left")
         workspace.nodes[target_id].visual_style = {"fill_color": "#FFEAA7", "border_width": 2.0}
-        workspace.nodes[disconnected_planning_id].visual_style = {"fill_color": "#FAB1A0"}
+        workspace.nodes[disconnected_note_id].visual_style = {"fill_color": "#FAB1A0"}
 
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
@@ -2193,7 +2193,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertTrue(self.scene.propagate_passive_node_style(source_id))
         self.assertEqual(workspace.nodes[source_id].visual_style, {})
         self.assertEqual(workspace.nodes[target_id].visual_style, {})
-        self.assertEqual(workspace.nodes[disconnected_planning_id].visual_style, {"fill_color": "#FAB1A0"})
+        self.assertEqual(workspace.nodes[disconnected_note_id].visual_style, {"fill_color": "#FAB1A0"})
         self.assertEqual(history.undo_depth(self.workspace_id), 1)
 
     def test_flowchart_scene_payloads_publish_family_metrics_and_shape_aware_anchors(self) -> None:
@@ -2261,29 +2261,29 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(vertical_edge.target_port_key, "top")
 
     def test_connect_nodes_selects_facing_cardinal_ports_for_non_flowchart_passive_nodes(self) -> None:
-        planning_source_id = self.scene.add_node_from_type("passive.planning.task_card", 20.0, 30.0)
-        planning_target_id = self.scene.add_node_from_type("passive.planning.task_card", 360.0, 90.0)
+        callout_source_id = self.scene.add_node_from_type("passive.annotation.callout", 20.0, 30.0)
+        callout_target_id = self.scene.add_node_from_type("passive.annotation.callout", 360.0, 90.0)
         note_source_id = self.scene.add_node_from_type("passive.annotation.sticky_note", 720.0, 40.0)
         note_target_id = self.scene.add_node_from_type("passive.annotation.sticky_note", 720.0, 320.0)
 
-        planning_edge_id = self.scene.connect_nodes(planning_source_id, planning_target_id)
+        callout_edge_id = self.scene.connect_nodes(callout_source_id, callout_target_id)
         note_edge_id = self.scene.connect_nodes(note_source_id, note_target_id)
 
         workspace = self.model.project.workspaces[self.workspace_id]
-        planning_edge = workspace.edges[planning_edge_id]
+        callout_edge = workspace.edges[callout_edge_id]
         note_edge = workspace.edges[note_edge_id]
 
-        self.assertEqual(planning_edge.source_node_id, planning_source_id)
-        self.assertEqual(planning_edge.source_port_key, "right")
-        self.assertEqual(planning_edge.target_node_id, planning_target_id)
-        self.assertEqual(planning_edge.target_port_key, "left")
+        self.assertEqual(callout_edge.source_node_id, callout_source_id)
+        self.assertEqual(callout_edge.source_port_key, "right")
+        self.assertEqual(callout_edge.target_node_id, callout_target_id)
+        self.assertEqual(callout_edge.target_port_key, "left")
         self.assertEqual(note_edge.source_node_id, note_source_id)
         self.assertEqual(note_edge.source_port_key, "bottom")
         self.assertEqual(note_edge.target_node_id, note_target_id)
         self.assertEqual(note_edge.target_port_key, "top")
 
     def test_non_flowchart_passive_edge_payloads_publish_cardinal_side_metadata(self) -> None:
-        source_id = self.scene.add_node_from_type("passive.planning.task_card", 20.0, 30.0)
+        source_id = self.scene.add_node_from_type("passive.annotation.sticky_note", 20.0, 30.0)
         target_id = self.scene.add_node_from_type(
             "passive.media.mail_panel", 360.0, 90.0
         )
@@ -2292,7 +2292,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
         edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}[edge_id]
 
-        self.assertEqual(node_payload[source_id]["surface_family"], "planning")
+        self.assertEqual(node_payload[source_id]["surface_family"], "annotation")
         self.assertEqual(node_payload[target_id]["surface_family"], "media")
         self.assertEqual(edge_payload["source_port_side"], "right")
         self.assertEqual(edge_payload["target_port_side"], "left")
@@ -2331,18 +2331,15 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         workspace = self.model.project.workspaces[self.workspace_id]
         self.assertEqual(len(workspace.edges), 0)
 
-    def test_planning_and_annotation_scene_payloads_publish_properties_and_keep_titles_synced(self) -> None:
-        task_id = self.scene.add_node_from_type("passive.planning.task_card", 40.0, 60.0)
+    def test_annotation_scene_payloads_publish_properties_and_keep_titles_synced(self) -> None:
+        callout_id = self.scene.add_node_from_type("passive.annotation.callout", 40.0, 60.0)
         note_id = self.scene.add_node_from_type("passive.annotation.sticky_note", 340.0, 80.0)
         text_id = self.scene.add_node_from_type("passive.annotation.text", 640.0, 90.0)
 
-        self.scene.set_node_property(task_id, "title", "Ship parser")
-        self.scene.set_node_property(task_id, "body", "Finalize validation and release notes.")
-        self.scene.set_node_property(task_id, "body_format", "markdown")
-        self.scene.set_node_property(task_id, "body_font_size", 19)
-        self.scene.set_node_property(task_id, "owner", "Platform")
-        self.scene.set_node_property(task_id, "due_date", "2026-03-31")
-        self.scene.set_node_property(task_id, "status", "in_progress")
+        self.scene.set_node_property(callout_id, "title", "Ship parser")
+        self.scene.set_node_property(callout_id, "body", "Finalize validation and release notes.")
+        self.scene.set_node_property(callout_id, "body_format", "markdown")
+        self.scene.set_node_property(callout_id, "body_font_size", 19)
         self.scene.set_node_title(note_id, "Release note")
         self.scene.set_node_property(note_id, "body", "Track follow-up messaging for the rollout.")
         self.scene.set_node_property(text_id, "text", "**Bare** text")
@@ -2352,23 +2349,22 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
         workspace = self.model.project.workspaces[self.workspace_id]
         node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
-        task_payload = node_payload[task_id]
+        callout_payload = node_payload[callout_id]
         note_payload = node_payload[note_id]
         text_payload = node_payload[text_id]
 
-        self.assertEqual(workspace.nodes[task_id].title, "Ship parser")
+        self.assertEqual(workspace.nodes[callout_id].title, "Ship parser")
         self.assertEqual(workspace.nodes[note_id].title, "Release note")
         self.assertEqual(workspace.nodes[note_id].properties["title"], "Release note")
 
-        self.assertEqual(task_payload["surface_family"], "planning")
-        self.assertEqual(task_payload["surface_variant"], "task_card")
-        self.assertEqual(task_payload["title"], "Ship parser")
-        self.assertEqual(task_payload["properties"]["body_format"], "markdown")
-        self.assertEqual(task_payload["properties"]["body_font_size"], 19)
-        self.assertEqual(task_payload["properties"]["owner"], "Platform")
-        self.assertEqual(task_payload["properties"]["status"], "in_progress")
-        self.assertGreaterEqual(task_payload["surface_metrics"]["min_height"], 148.0)
-        self.assertTrue(bool(task_payload["surface_metrics"]["use_host_chrome"]))
+        self.assertEqual(callout_payload["surface_family"], "annotation")
+        self.assertEqual(callout_payload["surface_variant"], "callout")
+        self.assertEqual(callout_payload["title"], "Ship parser")
+        self.assertEqual(callout_payload["properties"]["body"], "Finalize validation and release notes.")
+        self.assertEqual(callout_payload["properties"]["body_format"], "markdown")
+        self.assertEqual(callout_payload["properties"]["body_font_size"], 19)
+        self.assertGreaterEqual(callout_payload["surface_metrics"]["min_height"], 132.0)
+        self.assertTrue(bool(callout_payload["surface_metrics"]["use_host_chrome"]))
         self.assertEqual(note_payload["surface_family"], "annotation")
         self.assertEqual(note_payload["surface_variant"], "sticky_note")
         self.assertEqual(note_payload["title"], "Release note")
@@ -2387,17 +2383,17 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual([port["key"] for port in text_payload["ports"]], ["top", "right", "bottom", "left"])
 
     def test_batch_title_updates_keep_titles_synced_for_passive_nodes_and_canonical_for_standard_and_subnode_nodes(self) -> None:
-        task_id = self.scene.add_node_from_type("passive.planning.task_card", 40.0, 60.0)
+        callout_id = self.scene.add_node_from_type("passive.annotation.callout", 40.0, 60.0)
         logger_id = self.scene.add_node_from_type("core.logger", 340.0, 80.0)
         shell_id = self.scene.add_node_from_type("core.subnode", 640.0, 100.0)
 
         self.assertFalse(self.scene.set_node_properties(shell_id, {"title": "   "}))
         self.assertTrue(
             self.scene.set_node_properties(
-                task_id,
+                callout_id,
                 {
                     "title": "Ship parser",
-                    "owner": "Platform",
+                    "body": "Platform",
                 },
             )
         )
@@ -2415,21 +2411,21 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         workspace = self.model.project.workspaces[self.workspace_id]
         node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
 
-        task_node = workspace.nodes[task_id]
+        callout_node = workspace.nodes[callout_id]
         logger_node = workspace.nodes[logger_id]
         shell_node = workspace.nodes[shell_id]
 
-        self.assertEqual(task_node.title, "Ship parser")
-        self.assertEqual(task_node.properties["title"], "Ship parser")
-        self.assertEqual(task_node.properties["owner"], "Platform")
+        self.assertEqual(callout_node.title, "Ship parser")
+        self.assertEqual(callout_node.properties["title"], "Ship parser")
+        self.assertEqual(callout_node.properties["body"], "Platform")
         self.assertEqual(logger_node.title, "Primary Logger")
         self.assertEqual(logger_node.properties["message"], "Updated from batch")
         self.assertNotIn("title", logger_node.properties)
         self.assertEqual(shell_node.title, "Nested Workflow")
         self.assertNotIn("title", shell_node.properties)
 
-        self.assertEqual(node_payload[task_id]["title"], "Ship parser")
-        self.assertEqual(node_payload[task_id]["properties"]["title"], "Ship parser")
+        self.assertEqual(node_payload[callout_id]["title"], "Ship parser")
+        self.assertEqual(node_payload[callout_id]["properties"]["title"], "Ship parser")
         self.assertEqual(node_payload[logger_id]["title"], "Primary Logger")
         self.assertNotIn("title", node_payload[logger_id]["properties"])
         self.assertEqual(node_payload[shell_id]["title"], "Nested Workflow")

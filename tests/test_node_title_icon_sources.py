@@ -213,8 +213,8 @@ def test_title_icon_source_for_passive_spec_honors_show_title_icon_opt_in(
 ) -> None:
     """Passive specs that set ``show_title_icon=True`` render their icon.
 
-    Default-passive suppression exists for flowchart/planning/annotation/
-    media families that draw their own body art; data-source-style passive
+    Default-passive suppression exists for flowchart/annotation/media
+    families that draw their own body art; data-source-style passive
     nodes (``io.path_pointer``) opt back in via this flag.
     """
     icon_path = tmp_path / "passive.svg"

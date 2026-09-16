@@ -15,7 +15,6 @@ from .surface_contract import (
     PASSIVE_PORT_DOT_RADIUS,
     PASSIVE_PORT_SIDE_MARGIN,
     PASSIVE_SURFACE_RESIZE_HANDLE_SIZE,
-    PLANNING_VARIANT_LAYOUTS,
     STANDARD_COLLAPSED_HEIGHT,
     STANDARD_COLLAPSED_WIDTH,
     GraphNodeSurfaceMetrics,
@@ -23,11 +22,6 @@ from .surface_contract import (
     _resolved_dimensions,
     _visible_port_count,
 )
-
-
-def normalize_planning_variant(variant: str) -> str:
-    normalized = str(variant or "").strip().lower()
-    return normalized if normalized in PLANNING_VARIANT_LAYOUTS else "task_card"
 
 
 def normalize_annotation_variant(variant: str) -> str:
@@ -125,11 +119,6 @@ def _passive_panel_surface_metrics(
         use_host_chrome=layout.use_host_chrome,
         use_host_shadow=layout.use_host_shadow,
     )
-
-
-def _planning_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeSurfaceMetrics:
-    layout = PLANNING_VARIANT_LAYOUTS[normalize_planning_variant(spec.surface_variant)]
-    return _passive_panel_surface_metrics(node, layout)
 
 
 def _annotation_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeSurfaceMetrics:

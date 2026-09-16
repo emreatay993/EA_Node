@@ -3337,7 +3337,7 @@ class RegistryValidationTests(unittest.TestCase):
             for accepted_type in port.accepted_data_types
         }
 
-        self.assertEqual(len(registry.all_specs()), 144)
+        self.assertEqual(len(registry.all_specs()), 140)
         self.assertEqual(len(data_ports), 440)
         self.assertEqual(len(resolved_data_ports), 445)
         self.assertEqual(len(primary_type_ids), 58)

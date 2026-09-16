@@ -202,7 +202,7 @@ def generic_flow(template: dict | None = None) -> FlowSpec:
                      options=("active", "passive", "compile_only"),
                      help="active executes, passive is visual-only, compile_only stages."),
             WizField("surface_family", "Surface", "enum", "standard",
-                     options=("standard", "flowchart", "planning", "annotation",
+                     options=("standard", "flowchart", "annotation",
                               "group_backdrop", "media", "viewer"),
                      help="Visual rendering family for the node chrome."),
         ],

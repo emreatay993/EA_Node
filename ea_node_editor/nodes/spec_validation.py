@@ -84,7 +84,6 @@ class _SpecValidator:
     _SUPPORTED_SURFACE_FAMILIES = {
         "standard",
         "flowchart",
-        "planning",
         "annotation",
         "group_backdrop",
         "media",

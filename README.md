@@ -12,7 +12,7 @@ Recent UI/UX architecture highlights:
 - Bridge-first shell/canvas QML context using `shellLibraryBridge`, `shellWorkspaceBridge`, `shellInspectorBridge`, `graphCanvasStateBridge`, `graphCanvasCommandBridge`, `graphActionBridge`, and typed viewer/add-on/status bridges instead of raw `mainWindow` / `sceneBridge` / `viewBridge` globals
 - Custom graph-theme library/editor with built-in read-only themes, custom duplication/CRUD, and live apply for the active explicit custom theme
 - Graphics preferences now persist in `app_preferences.json` separately from project `.cxproj` files and `last_session.json`
-- Passive visual node families now ship in the main graph model for flowcharting, planning, annotation, and local image/PDF presentation
+- Passive visual node families now ship in the main graph model for flowcharting, annotation, and local image/PDF presentation
 - Dependency-gated `Tabular Data Input` now ships under `Data`, opening table and dense-array sources through lazy refs with bounded inline/fullscreen previews and direct generic plot-node auto-mapping
 - Dedicated `Group` passive grouping nodes render on an under-edge layer, appear under `Utilities > Canvas`, wrap the current selection with shortcut `C`, derive nested membership from geometry, and keep collapse/clipboard behavior distinct from note-style annotation cards
 - Passive `flow` edges support labels and per-edge style overrides while remaining excluded from runtime compilation and worker execution
@@ -95,7 +95,6 @@ ea_node_editor/
       passive_annotation.py
       passive_flowchart.py
       passive_media.py
-      passive_planning.py
       subnode.py
   persistence/
     migration.py
@@ -199,7 +198,6 @@ ea_node_editor/
           GraphAnnotationNoteSurface.qml
           GraphFlowchartNodeSurface.qml
           GraphMediaPanelSurface.qml
-          GraphPlanningCardSurface.qml
         tabular/
           GraphTabularPreviewSurface.qml
           TabularDataGrid.qml
@@ -343,10 +341,10 @@ COREX does not install dependencies or mutate environments.
 
 ## Passive Visual Authoring
 
-- Passive flowchart, planning, annotation, image, and PDF nodes stay in the normal workspace graph and save into the same `.cxproj` document as executable nodes.
-- Passive visual nodes now share the same four logical-flow handles (`top`, `right`, `bottom`, `left`) for presentation-only `flow` authoring across flowchart, planning, annotation, and media families.
+- Passive flowchart, annotation, image, and PDF nodes stay in the normal workspace graph and save into the same `.cxproj` document as executable nodes.
+- Passive visual nodes now share the same four logical-flow handles (`top`, `right`, `bottom`, `left`) for presentation-only `flow` authoring across flowchart, annotation, and media families.
 - `flow` edges are presentation-only graph connections. They support labels, branch styling, and multi-incoming targets where the target port spec allows it, but they do not reach the compiler or worker runtime graph.
-- Passive nodes render through the graph host/factory path, which keeps standard `NodeCard` contracts stable while loading specialized flowchart, planning, annotation, and media surfaces.
+- Passive nodes render through the graph host/factory path, which keeps standard `NodeCard` contracts stable while loading specialized flowchart, annotation, and media surfaces.
 - Right-click a passive node or `flow` edge to edit style overrides, copy/paste them, reset to defaults, or save them as project-local presets stored under `metadata.ui.passive_style_presets`.
 - Image and PDF panels resolve local filesystem sources only. PDF panels intentionally stay in single-page preview mode.
 

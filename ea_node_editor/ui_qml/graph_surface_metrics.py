@@ -25,7 +25,6 @@ from ea_node_editor.ui_qml.graph_geometry.panel_metrics import (
     normalize_annotation_variant as _normalize_annotation_variant_impl,
     normalize_group_backdrop_variant as _normalize_group_backdrop_variant_impl,
     normalize_media_variant as _normalize_media_variant_impl,
-    normalize_planning_variant as _normalize_planning_variant_impl,
 )
 from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
     node_surface_metrics as _node_surface_metrics_impl,
@@ -65,10 +64,6 @@ def standard_inline_body_height(
 
 def normalize_flowchart_variant(variant: str) -> str:
     return _normalize_flowchart_variant_impl(variant)
-
-
-def normalize_planning_variant(variant: str) -> str:
-    return _normalize_planning_variant_impl(variant)
 
 
 def normalize_annotation_variant(variant: str) -> str:
@@ -266,7 +261,6 @@ __all__ = [
     'normalize_group_backdrop_variant',
     'normalize_flowchart_variant',
     'normalize_media_variant',
-    'normalize_planning_variant',
     'resolved_node_surface_size',
     'standard_inline_body_height',
     'surface_port_local_point',

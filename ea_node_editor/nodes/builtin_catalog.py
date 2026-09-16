@@ -64,9 +64,6 @@ from ea_node_editor.nodes.builtins.passive_flowchart import (
     PASSIVE_FLOWCHART_NODE_DESCRIPTORS,
 )
 from ea_node_editor.nodes.builtins.passive_mail import PASSIVE_MAIL_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.passive_planning import (
-    PASSIVE_PLANNING_NODE_DESCRIPTORS,
-)
 from ea_node_editor.nodes.builtins.plot import PLOT_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.reporting import (
     COREX_REPORTING_CONTRACT_MANIFEST,
@@ -141,7 +138,6 @@ _TRUSTED_BUILTIN_DESCRIPTORS = (
     *PLOT_NODE_DESCRIPTORS,
     *SUBNODE_NODE_DESCRIPTORS,
     *PASSIVE_FLOWCHART_NODE_DESCRIPTORS,
-    *PASSIVE_PLANNING_NODE_DESCRIPTORS,
     *PASSIVE_ANNOTATION_NODE_DESCRIPTORS,
     *MEDIA_PANEL_NODE_DESCRIPTORS,
     *PASSIVE_MAIL_NODE_DESCRIPTORS,
@@ -192,10 +188,6 @@ _TRUSTED_BUILTIN_TYPE_IDS = frozenset(
         "passive.flowchart.x",
         "media.panel",
         "passive.media.mail_panel",
-        "passive.planning.decision_card",
-        "passive.planning.milestone_card",
-        "passive.planning.risk_card",
-        "passive.planning.task_card",
         "plot.bar",
         "plot.contour",
         "plot.heatmap",

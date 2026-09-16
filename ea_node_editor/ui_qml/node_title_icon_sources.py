@@ -54,8 +54,8 @@ def title_icon_source_for_node_payload(
     *,
     provenance: PluginProvenance | None = None,
 ) -> str:
-    # Passive nodes suppress the title icon by default (flowchart, planning,
-    # annotation, and media families draw their own body art). Data-source-
+    # Passive nodes suppress the title icon by default (flowchart, annotation,
+    # and media families draw their own body art). Data-source-
     # style passive nodes can opt back in via ``NodeTypeSpec.show_title_icon``.
     if not _title_icon_payload_eligible(spec):
         return ""

@@ -705,7 +705,6 @@ _UTILITIES_CATEGORY_PATH = ("Utilities",)
 _CANVAS_CATEGORY_PATH = ("Utilities", "Canvas")
 _FLOWCHART_CATEGORY_PATH = ("Flowchart",)
 _INPUT_OUTPUT_CATEGORY_PATH = ("Input / Output",)
-_PLANNING_CATEGORY_PATH = ("Planning",)
 
 
 class LibraryProjectionRegistryCoverageTests(unittest.TestCase):
@@ -740,22 +739,6 @@ class LibraryProjectionRegistryCoverageTests(unittest.TestCase):
         )
         self.assertTrue(results)
         self.assertTrue(all(spec.category == "Flowchart" for spec in results))
-
-    def test_planning_category_exposes_locked_passive_catalog(self) -> None:
-        registry = build_default_registry()
-        results = _library_filter(registry, category_path=_PLANNING_CATEGORY_PATH)
-
-        self.assertEqual(
-            {spec.type_id for spec in results},
-            {
-                "passive.planning.task_card",
-                "passive.planning.milestone_card",
-                "passive.planning.risk_card",
-                "passive.planning.decision_card",
-            },
-        )
-        self.assertTrue(results)
-        self.assertTrue(all(spec.category == "Planning" for spec in results))
 
     def test_annotation_category_exposes_locked_passive_catalog(self) -> None:
         registry = build_default_registry()

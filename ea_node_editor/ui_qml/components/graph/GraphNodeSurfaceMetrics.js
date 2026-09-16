@@ -44,10 +44,6 @@ function _flowchartContract() {
     return _contractSection("flowchart");
 }
 
-function _planningContract() {
-    return _contractSection("planning");
-}
-
 function _annotationContract() {
     return _contractSection("annotation");
 }
@@ -186,14 +182,6 @@ function flowchartBodyTextPlacement(variant) {
         || value === "cube_front_face")
         return value;
     return "center";
-}
-
-function _planningVariantLayout(variant) {
-    var contract = _planningContract();
-    var layouts = _variantLayouts(contract);
-    var normalized = _normalizedVariant(variant, layouts, "task_card");
-    var layout = layouts[normalized];
-    return layout && typeof layout === "object" ? layout : {};
 }
 
 function _annotationVariantLayout(variant) {
@@ -1067,13 +1055,6 @@ function surfaceMetrics(node, widthOverride, heightOverride, graphLabelPixelSize
         return _panelSurfaceMetrics(node, source, heightOverride);
     if (family === "flowchart")
         return _flowchartSurfaceMetrics(node, source, heightOverride);
-    if (family === "planning")
-        return _passivePanelSurfaceMetrics(
-            node,
-            source,
-            _planningVariantLayout(node && node.surface_variant),
-            heightOverride
-        );
     if (family === "annotation")
         return _passivePanelSurfaceMetrics(
             node,

@@ -249,12 +249,6 @@ _SURFACE_SPECS_BY_FAMILY: dict[str, SurfaceSpec] = {
         qml_component="passive/GraphFlowchartNodeSurface.qml",
         input_capabilities=_BASIC_CANVAS_INPUT,
     ),
-    "planning": SurfaceSpec(
-        family="planning",
-        component_key="planning",
-        qml_component="passive/GraphPlanningCardSurface.qml",
-        input_capabilities=_BASIC_CANVAS_INPUT,
-    ),
     "annotation": SurfaceSpec(
         family="annotation",
         component_key="annotation",

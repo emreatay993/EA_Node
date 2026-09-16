@@ -11,9 +11,9 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 
 | Metric | Count |
 | --- | ---: |
-| Route entries | 247 |
+| Route entries | 246 |
 | Agent-map entries | 67 |
-| QML component entries | 180 |
+| QML component entries | 179 |
 
 ## Agent Map Routes
 
@@ -41,7 +41,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 | `feature_route:feature-routes-neutral-cad-fe-engineering-viewer` | `feature_route` | `docs/agent_maps/feature_routes/neutral_cad_fe_engineering_viewer.md` | 9 | 8 | - | `neutral`, `cad`, `engineering`, `viewer`, `settings`, `expansion`, `node`, `editor`, `nodes`, `builtin`, ... +39 more |
 | `feature_route:feature-routes-node-execution-visualization` | `feature_route` | `docs/agent_maps/feature_routes/node_execution_visualization.md` | 12 | 5 | 2 | `node`, `execution`, `visualization`, `grip`, `flow`, `state`, `live`, `port`, `runtime`, `per`, ... +141 more |
 | `feature_route:feature-routes-node-title-icons-theme-sources` | `feature_route` | `docs/agent_maps/feature_routes/node_title_icons_theme_sources.md` | 5 | - | 1 | `node`, `title`, `icons`, `and`, `theme`, `sources`, `editor`, `nodes`, `builtins`, `icon`, ... +30 more |
-| `feature_route:feature-routes-passive-surface-loading-contracts` | `feature_route` | `docs/agent_maps/feature_routes/passive_surface_loading_contracts.md` | 18 | 3 | 13 | `passive`, `surface`, `loading`, `and`, `contracts`, `node`, `editor`, `qml`, `graph`, `metrics`, ... +112 more |
+| `feature_route:feature-routes-passive-surface-loading-contracts` | `feature_route` | `docs/agent_maps/feature_routes/passive_surface_loading_contracts.md` | 17 | 3 | 12 | `passive`, `surface`, `loading`, `and`, `contracts`, `node`, `editor`, `qml`, `graph`, `metrics`, ... +110 more |
 | `feature_route:feature-routes-performance-harness-graph-stress` | `feature_route` | `docs/agent_maps/feature_routes/performance_harness_graph_stress.md` | 9 | 3 | 3 | `performance`, `harness`, `and`, `graph`, `stress`, `1200`, `nodes`, `notched`, `port`, `rendering`, ... +113 more |
 | `feature_route:feature-routes-persistent-node-elapsed-times` | `feature_route` | `docs/agent_maps/feature_routes/persistent_node_elapsed_times.md` | 6 | - | 2 | `persistent`, `node`, `elapsed`, `times`, `editor`, `persistence`, `serializer`, `execution`, `qml`, `graph`, ... +43 more |
 | `feature_route:feature-routes-plotter-nodes` | `feature_route` | `docs/agent_maps/feature_routes/plotter_nodes.md` | 47 | 2 | 3 | `plotter`, `nodes`, `node`, `editor`, `execution`, `plot`, `backend`, `matplotlib`, `pyqtgraph`, `pyvista`, ... +846 more |
@@ -83,7 +83,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 | `subsystem:subsystems-web-assets-host-chromium-excalidraw` | `subsystem` | `docs/agent_maps/subsystems/web_assets_host_chromium_excalidraw.md` | 5 | - | - | `web`, `assets`, `host`, `chromium`, `and`, `excalidraw`, `node`, `editor`, `nodes`, `builtins`, ... +15 more |
 | `subsystem:subsystems-workspace-projects-session-library` | `subsystem` | `docs/agent_maps/subsystems/workspace_projects_session_library.md` | 15 | 5 | - | `workspace`, `projects`, `session`, `and`, `library`, `node`, `editor`, `shell`, `controllers`, `project`, ... +39 more |
 | `testing:testing-docs-traceability-hygiene` | `testing` | `docs/agent_maps/testing/docs_traceability_hygiene.md` | 6 | 9 | - | `docs`, `traceability`, `and`, `hygiene`, `tests`, `scripts`, `check`, `markdown`, `links`, `test`, ... +48 more |
-| `testing:testing-qml-and-graph-surface-tests` | `testing` | `docs/agent_maps/testing/qml_and_graph_surface_tests.md` | - | 73 | - | `qml`, `and`, `graph`, `surface`, `tests`, `quick`, `tst`, `node`, `host`, `controls`, ... +225 more |
+| `testing:testing-qml-and-graph-surface-tests` | `testing` | `docs/agent_maps/testing/qml_and_graph_surface_tests.md` | - | 73 | - | `qml`, `and`, `graph`, `surface`, `tests`, `quick`, `tst`, `node`, `host`, `controls`, ... +224 more |
 | `testing:testing-shell-isolation-tests` | `testing` | `docs/agent_maps/testing/shell_isolation_tests.md` | 1 | 11 | - | `shell`, `isolation`, `tests`, `test`, `phase`, `runtime`, `main`, `window`, `lifecycle`, `isolated`, ... +91 more |
 | `testing:testing-verification-runner` | `testing` | `docs/agent_maps/testing/verification_runner.md` | 3 | 6 | - | `verification`, `runner`, `scripts`, `run`, `manifest`, `node`, `editor`, `pytest`, `defaults`, `tests`, ... +34 more |
 
@@ -171,7 +171,6 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 | `qml:graphnumberslidersurface` | `GraphNumberSliderSurface.qml` | `docs/agent_maps/subsystems/passive_media_tabular_surfaces.md` | `ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSurface.qml` | `graphnumberslidersurface`, `node`, `editor`, `qml`, `components`, `graph`, `passive`, `graphshared`, ... +47 more |
 | `qml:graphpaneleditorpopover` | `GraphPanelEditorPopover.qml` | `docs/agent_maps/subsystems/passive_media_tabular_surfaces.md` | `ea_node_editor/ui_qml/components/graph/passive/GraphPanelEditorPopover.qml` | `graphpaneleditorpopover`, `node`, `editor`, `qml`, `components`, `graph`, `passive`, `focusscope`, ... +36 more |
 | `qml:graphpanelsurface` | `GraphPanelSurface.qml` | `docs/agent_maps/subsystems/passive_media_tabular_surfaces.md` | `ea_node_editor/ui_qml/components/graph/passive/GraphPanelSurface.qml` | `graphpanelsurface`, `node`, `editor`, `qml`, `components`, `graph`, `passive`, `graphshared`, ... +65 more |
-| `qml:graphplanningcardsurface` | `GraphPlanningCardSurface.qml` | `docs/agent_maps/subsystems/passive_media_tabular_surfaces.md` | `ea_node_editor/ui_qml/components/graph/passive/GraphPlanningCardSurface.qml` | `graphplanningcardsurface`, `node`, `editor`, `qml`, `components`, `graph`, `passive`, `graphshared`, ... +37 more |
 | `qml:graphplotsurface` | `GraphPlotSurface.qml` | `docs/agent_maps/subsystems/viewer_surfaces.md` | `ea_node_editor/ui_qml/components/graph/plot/GraphPlotSurface.qml` | `graphplotsurface`, `node`, `editor`, `qml`, `components`, `graph`, `plot`, `item`, ... +15 more |
 | `qml:graphplotsurfacebody` | `GraphPlotSurfaceBody.qml` | `docs/agent_maps/subsystems/viewer_surfaces.md` | `ea_node_editor/ui_qml/components/graph/plot/GraphPlotSurfaceBody.qml` | `graphplotsurfacebody`, `node`, `editor`, `qml`, `components`, `graph`, `plot`, `item`, ... +70 more |
 | `qml:graphrichtextblock` | `GraphRichTextBlock.qml` | `docs/agent_maps/subsystems/passive_media_tabular_surfaces.md` | `ea_node_editor/ui_qml/components/graph/passive/GraphRichTextBlock.qml` | `graphrichtextblock`, `node`, `editor`, `qml`, `components`, `graph`, `passive`, `graphshared`, ... +177 more |

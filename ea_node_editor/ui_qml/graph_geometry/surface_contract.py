@@ -323,7 +323,6 @@ INLINE_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "inline")
 STANDARD_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "standard")
 PASSIVE_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "passive")
 FLOWCHART_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "flowchart")
-PLANNING_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "planning")
 ANNOTATION_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "annotation")
 GROUP_BACKDROP_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "group_backdrop")
 MEDIA_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "media")
@@ -371,9 +370,6 @@ PASSIVE_PORT_DOT_RADIUS = _contract_number(PASSIVE_CONTRACT, "port_dot_radius")
 
 FLOWCHART_VARIANT_LAYOUTS = _build_flowchart_variant_layouts(
     _contract_mapping(FLOWCHART_CONTRACT, "variants")
-)
-PLANNING_VARIANT_LAYOUTS = _build_passive_panel_layouts(
-    _contract_mapping(PLANNING_CONTRACT, "variants")
 )
 ANNOTATION_VARIANT_LAYOUTS = _build_passive_panel_layouts(
     _contract_mapping(ANNOTATION_CONTRACT, "variants")

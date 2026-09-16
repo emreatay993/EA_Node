@@ -1263,10 +1263,6 @@ def node_surface_metrics(
             workspace_nodes,
             visible_ports_override=visible_ports_override,
         )
-    if family == "planning":
-        from .panel_metrics import _planning_surface_metrics
-
-        return _planning_surface_metrics(node, spec)
     if family == "annotation":
         from .panel_metrics import _annotation_surface_metrics
 

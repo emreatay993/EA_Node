@@ -54,7 +54,6 @@ SolutionReuseScope = Literal["never", "session", "durable"]
 SurfaceFamily = Literal[
     "standard",
     "flowchart",
-    "planning",
     "annotation",
     "group_backdrop",
     "media",
@@ -385,7 +384,7 @@ class NodeTypeSpec:
     #
     # By default, passive nodes suppress the header icon (see
     # ``title_icon_source_for_node_payload``) because the passive flowchart,
-    # planning, annotation, and media families draw their own body art and a
+    # annotation, and media families draw their own body art and a
     # title-bar icon would clash. Data-source-style passive nodes (e.g.
     # ``io.path_pointer``) have no such body art and benefit from the icon,
     # so they set this flag to opt back in. Active and compile_only nodes

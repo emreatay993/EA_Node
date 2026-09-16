@@ -9,7 +9,7 @@ Date: `2026-05-03`
 - Dedicated graph-theme pipeline for node/edge visuals: `ThemeBridge` keeps shell/canvas chrome on `stitch_dark` / `stitch_light`, while `graphThemeBridge` resolves built-in and custom graph themes for `NodeCard`, `EdgeLayer`, and graph payload presentation.
 - Custom graph-theme library/editor with built-in read-only themes, custom duplication/CRUD, inline token editing, and live apply when editing the active explicit custom theme.
 - Versioned `app_preferences.json` persistence for graphics, shell-theme, and graph-theme preferences, kept separate from project `.cxproj` data and `last_session.json`.
-- Passive visual authoring families for flowchart, planning, annotation, and local media panels, all stored in the existing workspace graph model.
+- Passive visual authoring families for flowchart, annotation, and local media panels, all stored in the existing workspace graph model.
 - Shared header inline node-title editing across standard, passive, collapsed, and scope-capable node shells, using the same rename/history mutation path and preserving a dedicated `OPEN` badge for scope entry on subnode shells.
 - Passive `flow` edge routing, labels, and style overrides with runtime exclusion from compiler/worker execution.
 - Project-local passive node and flow-edge style presets persisted inside `.cxproj` metadata.

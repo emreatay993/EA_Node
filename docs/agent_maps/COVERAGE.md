@@ -158,8 +158,8 @@ Settings-section size transitions use shared 180 ms width/height animations with
   through the guarded registry replacement coordinator.
 - The reserved built-in bundle owns exactly 76 inert function declarations under
   `nodes/builtin_functions/`; trusted helpers and data contracts remain under
-  `nodes/builtins/`, and the original migration inventory pins 53 trusted
-  exceptions across its 139-row catalog baseline; the current catalog has 147 rows.
+  `nodes/builtins/`, and the original migration inventory pins 49 trusted
+  exceptions across its 135-row catalog baseline; the current catalog has 143 rows.
 - Public filesystem discovery is nodes-owned in `plugin_loader.py`; shared
   function materialization/fingerprinting lives in `function_bundle.py`, built-in
   contributions in `builtin_catalog.py`, and trusted backend contributions in
@@ -181,7 +181,7 @@ Settings-section size transitions use shared 180 ms width/height animations with
   `docs/PLUGIN_MIGRATION_GUIDE.md`. The old Signal Plot declaration is retained
   only as an internal visual fixture under `tests/fixtures/node_controls/`.
 - The exact current catalog is `tests/fixtures/node_catalog/current_repo_owned_catalog.json`;
-  `tests/repo_owned_catalog_fixture.py` loads its 147 rows for catalog, migration,
+  `tests/repo_owned_catalog_fixture.py` loads its 143 rows for catalog, migration,
   solution-reuse, and documentation checks. Closeout evidence lives in
   `docs/specs/perf/COREX_NOVICE_PLUGIN_SDK_QA_MATRIX.md`.
 - Core integrations contribute eight reserved function entries plus the trusted

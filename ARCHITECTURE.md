@@ -14,7 +14,7 @@ a current implementation router.
 ## What this app does
 COREX Node Editor is a desktop visual workflow editor that:
 - lets users build node graphs on a QML canvas,
-- supports passive visual authoring families for flowcharts, planning boards, annotations, and local media panels on the same canvas,
+- supports passive visual authoring families for flowcharts, annotations, and local media panels on the same canvas,
 - supports nested subnode scopes (graph hierarchy),
 - executes workflows in a separate worker process,
 - persists projects as versioned `.cxproj` JSON with optional sibling `.data` managed-file sidecars,
@@ -96,7 +96,7 @@ Design intent:
 
 - Passive nodes use the same registry and serializer path as executable nodes, but `NodeTypeSpec.runtime_behavior` marks them as `passive` so they never compile into the worker graph.
 - `PortKind.flow` is the authoring-only connection kind for passive diagrams. `flow` edges remain visible, labeled, and styleable in the scene, but they do not affect Run.
-- Surface routing is declarative through `surface_family` / `surface_variant`, which keeps public QML discoverability stable while letting the graph host swap between standard cards, flowchart silhouettes, planning cards, annotation notes, Groups, and media panels.
+- Surface routing is declarative through `surface_family` / `surface_variant`, which keeps public QML discoverability stable while letting the graph host swap between standard cards, flowchart silhouettes, annotation notes, Groups, and media panels.
 - Passive style editing is project-local. Node and flow-edge presets are stored under `metadata.ui.passive_style_presets` inside the `.cxproj` document rather than in app-wide preferences.
 - Media panels resolve local filesystem sources only. Image panels display local image files, and PDF panels render a single-page QtPdf preview through the Python-side preview provider.
 

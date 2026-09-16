@@ -1823,7 +1823,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             _build_edge_crossing_pipe_registry(),
             model.active_workspace.workspace_id,
         )
-        node_id = scene.add_node_from_type("passive.planning.task_card", 120.0, 120.0)
+        node_id = scene.add_node_from_type("passive.annotation.sticky_note", 120.0, 120.0)
         scene.clear_selection()
 
         self.canvas.deleteLater()
@@ -1867,7 +1867,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             timeout_message="Timed out waiting for passive graph canvas node host to appear.",
         )
         node_card = _named_child_items(self.canvas, "graphNodeCard")[0]
-        self.assertEqual(str(node_card.property("surfaceFamily")), "planning")
+        self.assertEqual(str(node_card.property("surfaceFamily")), "annotation")
         self.assertTrue(bool(node_card.property("isPassiveNode")))
         selected_halo = node_card.findChild(QObject, "graphNodeSelectedHalo")
         selected_glow_source = node_card.findChild(QObject, "graphNodeSelectedGlowSource")
@@ -1916,7 +1916,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             _build_edge_crossing_pipe_registry(),
             model.active_workspace.workspace_id,
         )
-        node_id = scene.add_node_from_type("passive.planning.task_card", 120.0, 120.0)
+        node_id = scene.add_node_from_type("passive.annotation.sticky_note", 120.0, 120.0)
         scene.set_node_visual_style(
             node_id,
             {
@@ -1972,7 +1972,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             timeout_message="Timed out waiting for styled passive graph canvas node host to appear.",
         )
         node_card = _named_child_items(self.canvas, "graphNodeCard")[0]
-        self.assertEqual(str(node_card.property("surfaceFamily")), "planning")
+        self.assertEqual(str(node_card.property("surfaceFamily")), "annotation")
         self.assertTrue(bool(node_card.property("isPassiveNode")))
         selected_halo = node_card.findChild(QObject, "graphNodeSelectedHalo")
         selected_glow_source = node_card.findChild(QObject, "graphNodeSelectedGlowSource")

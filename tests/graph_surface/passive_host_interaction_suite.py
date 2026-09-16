@@ -1906,7 +1906,6 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 "plot": "line",
                 "viewer": "",
                 "flowchart": "process",
-                "planning": "",
                 "annotation": "text",
                 "group_backdrop": "",
                 "media": "image",

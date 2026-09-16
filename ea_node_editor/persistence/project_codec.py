@@ -876,7 +876,6 @@ class JsonProjectCodec:
                 return
             if str(spec.surface_family or "").strip() in {
                 "flowchart",
-                "planning",
                 "annotation",
                 "group_backdrop",
             }:

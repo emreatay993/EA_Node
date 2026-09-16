@@ -1,9 +1,9 @@
 {
   "version": 2,
   "summary": {
-    "entries": 247,
+    "entries": 246,
     "map_entries": 67,
-    "qml_component_entries": 180
+    "qml_component_entries": 179
   },
   "entries": [
     {
@@ -4625,7 +4625,6 @@
         "ea_node_editor/ui_qml/components/graph/passive/GraphAnnotationNoteSurface.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphBareTextSurface.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphFlowchartNodeSurface.qml",
-        "ea_node_editor/ui_qml/components/graph/passive/GraphPlanningCardSurface.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphTimestampDateTimePopover.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceMetricContract.json"
       ],
@@ -4646,7 +4645,6 @@
         "ea_node_editor/ui_qml/components/graph/passive/GraphAnnotationNoteSurface.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphBareTextSurface.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphFlowchartNodeSurface.qml",
-        "ea_node_editor/ui_qml/components/graph/passive/GraphPlanningCardSurface.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphTimestampDateTimePopover.qml"
       ],
       "keywords": [
@@ -4678,7 +4676,6 @@
         "graphannotationnotesurface",
         "graphbaretextsurface",
         "graphflowchartnodesurface",
-        "graphplanningcardsurface",
         "graphtimestampdatetimepopover",
         "graphnodesurfacemetriccontract",
         "json",
@@ -4763,7 +4760,6 @@
         "viewport",
         "virtualization",
         "surfaces",
-        "planning",
         "catalog",
         "group",
         "backdrop",
@@ -4784,7 +4780,7 @@
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_passive_node_contracts.py tests/test_passive_graph_surface_host.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_graph_canvas_viewport_virtualization.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_flowchart_surfaces.py tests/test_flowchart_visual_polish.py --ignore=venv -q",
-        ".\\venv\\Scripts\\python.exe -m pytest tests/test_planning_annotation_catalog.py tests/test_group_backdrop_contracts.py --ignore=venv -q -n 0",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_annotation_catalog.py tests/test_group_backdrop_contracts.py --ignore=venv -q -n 0",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_panel_surface.py --ignore=venv -q"
       ],
       "start_here": [
@@ -4807,7 +4803,6 @@
         "ea_node_editor/ui_qml/components/graph/passive/GraphAnnotationNoteSurface.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphBareTextSurface.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphFlowchartNodeSurface.qml",
-        "ea_node_editor/ui_qml/components/graph/passive/GraphPlanningCardSurface.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphTimestampDateTimePopover.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceMetricContract.json",
         "tests/qml_quick/tst_graph_node_host.qml",
@@ -18430,71 +18425,6 @@
       "section_anchors": []
     },
     {
-      "route_key": "qml:graphplanningcardsurface",
-      "kind": "qml_component",
-      "title": "GraphPlanningCardSurface.qml",
-      "map_path": "docs/agent_maps/subsystems/passive_media_tabular_surfaces.md",
-      "source_candidates": [
-        "ea_node_editor/ui_qml/components/graph/passive/GraphPlanningCardSurface.qml"
-      ],
-      "test_candidates": [],
-      "qml_candidates": [
-        "ea_node_editor/ui_qml/components/graph/passive/GraphPlanningCardSurface.qml"
-      ],
-      "keywords": [
-        "graphplanningcardsurface",
-        "node",
-        "editor",
-        "qml",
-        "components",
-        "graph",
-        "passive",
-        "graphshared",
-        "graphsurfacebase",
-        "planningvariant",
-        "string",
-        "panelfillcolor",
-        "color",
-        "panelbordercolor",
-        "bodytextcolor",
-        "mutedtextcolor",
-        "metalabelcolor",
-        "leftmetalabel",
-        "leftmetavalue",
-        "rightmetalabel",
-        "rightmetavalue",
-        "detailmetalabel",
-        "detailmetavalue",
-        "chiptext",
-        "chipfillcolor",
-        "chipbordercolor",
-        "bodyfontsize",
-        "real",
-        "metafontsize",
-        "chipfontsize",
-        "embeddedinteractiverects",
-        "var",
-        "surfaceactions",
-        "variantlabel",
-        "requestinlineeditat",
-        "commitinlineeditfromexternalinteraction",
-        "dispatchsurfaceaction",
-        "surface",
-        "bodybounds",
-        "headerrow",
-        "statuschip",
-        "chiptextlabel",
-        "richbody",
-        "graphnodeplanningsurface",
-        "graphnodeplanningrichtextblock"
-      ],
-      "aliases": [],
-      "focused_verification": [],
-      "start_here": [],
-      "do_not_start_here": [],
-      "section_anchors": []
-    },
-    {
       "route_key": "qml:graphplotsurface",
       "kind": "qml_component",
       "title": "GraphPlotSurface.qml",
@@ -27083,7 +27013,6 @@
         "ea_node_editor/nodes/builtins/passive_flow_ports.py",
         "ea_node_editor/nodes/builtins/passive_flowchart.py",
         "ea_node_editor/nodes/builtins/passive_mail.py",
-        "ea_node_editor/nodes/builtins/passive_planning.py",
         "ea_node_editor/nodes/builtins/plot/__init__.py",
         "ea_node_editor/nodes/builtins/plot/generic.py",
         "ea_node_editor/nodes/builtins/plot/property_edit_adapter.py",
@@ -27107,7 +27036,8 @@
         "ea_node_editor/nodes/declaration_engine.py",
         "ea_node_editor/nodes/decorators.py",
         "ea_node_editor/nodes/execution_context.py",
-        "ea_node_editor/nodes/file_dialog_filters.py"
+        "ea_node_editor/nodes/file_dialog_filters.py",
+        "ea_node_editor/nodes/function_bundle.py"
       ],
       "test_candidates": [
         "tests/fixtures/node_catalog/current_repo_owned_catalog.json",
@@ -28196,7 +28126,6 @@
         "ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSurface.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphPanelEditorPopover.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphPanelSurface.qml",
-        "ea_node_editor/ui_qml/components/graph/passive/GraphPlanningCardSurface.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphRichTextBlock.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphSelectSettingsPopover.qml",
         "ea_node_editor/ui_qml/components/graph/passive/GraphSelectSurface.qml",
@@ -28213,7 +28142,8 @@
         "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceDoubleClickTarget.qml",
         "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInlineTextEditor.qml",
         "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInteractiveRegion.qml",
-        "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalFields.qml"
+        "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalFields.qml",
+        "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml"
       ],
       "keywords": [
         "qml",
@@ -30252,7 +30182,7 @@
         "tests/test_mutation_ui_effects.py",
         "tests/qml_quick/tst_graph_node_port_context_menu.qml",
         "tests/qml_quick/tst_graph_action_presentation.qml",
-        "tests/test_planning_annotation_catalog.py",
+        "tests/test_annotation_catalog.py",
         "tests/test_flowchart_surfaces.py",
         "tests/test_group_backdrop_contracts.py",
         "tests/graph_surface_pointer_regression.py::run_qml_probe",
@@ -30411,7 +30341,6 @@
         "context",
         "menu",
         "action",
-        "planning",
         "annotation",
         "catalog",
         "flowchart",
@@ -30525,7 +30454,7 @@
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_flow_edge_labels.py tests/test_graph_surface_input_controls.py tests/graph_track_b/scene_model_graph_scene_suite.py -k \"active_data_wire or display_mode or request_rewire_edges or ctrl_drag\" --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_data_type_ui_projection.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_graph_surface_input_controls.py tests/test_passive_graph_surface_host.py tests/test_shell_theme.py -k \"ctrl_drag_reassigns_selected_or_sole_edge_endpoint_without_quick_insert or ports_use_projected_input_state_and_keep_edge_reason_out_of_port_text or family_accent_binding_updates_when_graph_theme_changes or graph_theme_bridge_resolves_family_tokens_to_the_active_data_role\" --ignore=venv -q",
-        ".\\venv\\Scripts\\python.exe -m pytest tests/test_planning_annotation_catalog.py tests/test_flowchart_surfaces.py tests/test_group_backdrop_contracts.py --ignore=venv -q -n 0",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_annotation_catalog.py tests/test_flowchart_surfaces.py tests/test_group_backdrop_contracts.py --ignore=venv -q -n 0",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_select_surface.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_trigger_surface.py tests/test_trigger_node.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_corex_node_controls_visual.py --ignore=venv -q",

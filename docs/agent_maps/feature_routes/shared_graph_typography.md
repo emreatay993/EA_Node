@@ -21,7 +21,7 @@ Use this for shared typography controls, node header text, flow-edge labels and 
 - `GraphRichTextBlock.qml` is the canonical reusable markdown/plain rendering, source editing, style toolbar, and style copy/paste owner for prose-oriented passive graph text.
 - Bare annotation text stores whole-object text properties as node properties and normalizes shared text settings through `text_style.py`; `GraphBareTextSurface.qml` is now a thin wrapper around the reusable rich-text block.
 - Bare annotation text does not expose the generic passive `visual_style` context actions; its colors and typography stay on the property-owned floating-toolbar path.
-- Annotation note body/subtitle, planning card body, and non-timestamp flowchart body/cube text use prefixed rich-text slot fields such as `body_format`, `body_font_size`, and `body_text_color`. Groups have no rich-text slot fields.
+- Annotation note body/subtitle and non-timestamp flowchart body/cube text use prefixed rich-text slot fields such as `body_format`, `body_font_size`, and `body_text_color`. Groups have no rich-text slot fields.
 - Existing non-bare prose slots default to `plain` format and inherited visual style sentinels so old literal markdown-like text and passive style authority stay stable until users change rich-text style.
 - Bare annotation text defaults to centered horizontal alignment and middle vertical alignment; its inline editor should preserve the same visual alignment when editing.
 - New bare annotation Text nodes default to the bundled Caveat family; existing nodes retain their saved font family, and an empty legacy family still follows Qt's application font.

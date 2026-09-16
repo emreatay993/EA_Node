@@ -35,13 +35,6 @@ from ea_node_editor.nodes.builtins.passive_mail import (
     PASSIVE_MAIL_NODE_PLUGINS,
     PASSIVE_MEDIA_MAIL_PANEL_TYPE_ID,
 )
-from ea_node_editor.nodes.builtins.passive_planning import (
-    PASSIVE_PLANNING_DECISION_CARD_TYPE_ID,
-    PASSIVE_PLANNING_MILESTONE_CARD_TYPE_ID,
-    PASSIVE_PLANNING_NODE_PLUGINS,
-    PASSIVE_PLANNING_RISK_CARD_TYPE_ID,
-    PASSIVE_PLANNING_TASK_CARD_TYPE_ID,
-)
 from ea_node_editor.nodes.builtins.web_viewer import (
     WEB_PAGE_VIEWER_NODE_PLUGINS,
     WEB_PAGE_VIEWER_TYPE_ID,
@@ -80,7 +73,6 @@ class PassiveNodeContractsTests(unittest.TestCase):
     def test_passive_plugins_publish_passive_surface_contracts_and_noop_execution(self) -> None:
         for plugin_cls in (
             *PASSIVE_FLOWCHART_NODE_PLUGINS,
-            *PASSIVE_PLANNING_NODE_PLUGINS,
             *PASSIVE_ANNOTATION_NODE_PLUGINS,
             *PASSIVE_MAIL_NODE_PLUGINS,
             *WEB_PAGE_VIEWER_NODE_PLUGINS,
@@ -99,7 +91,6 @@ class PassiveNodeContractsTests(unittest.TestCase):
     def test_passive_plugins_publish_normalized_render_quality_metadata(self) -> None:
         for plugin_cls in (
             *PASSIVE_FLOWCHART_NODE_PLUGINS,
-            *PASSIVE_PLANNING_NODE_PLUGINS,
             *PASSIVE_ANNOTATION_NODE_PLUGINS,
             *PASSIVE_MAIL_NODE_PLUGINS,
             *WEB_PAGE_VIEWER_NODE_PLUGINS,
@@ -178,10 +169,6 @@ class PassiveNodeContractsTests(unittest.TestCase):
     def test_non_flow_passive_nodes_publish_cardinal_neutral_flow_ports(self) -> None:
         registry = build_default_registry()
         passive_type_ids = (
-            PASSIVE_PLANNING_TASK_CARD_TYPE_ID,
-            PASSIVE_PLANNING_MILESTONE_CARD_TYPE_ID,
-            PASSIVE_PLANNING_RISK_CARD_TYPE_ID,
-            PASSIVE_PLANNING_DECISION_CARD_TYPE_ID,
             PASSIVE_ANNOTATION_STICKY_NOTE_TYPE_ID,
             PASSIVE_ANNOTATION_CALLOUT_TYPE_ID,
             PASSIVE_ANNOTATION_SECTION_HEADER_TYPE_ID,
@@ -199,22 +186,15 @@ class PassiveNodeContractsTests(unittest.TestCase):
             self.assertTrue(all(port.side == port.key for port in spec.ports))
             self.assertTrue(all(port.allow_multiple_connections for port in spec.ports))
 
-    def test_registry_default_properties_cover_media_and_planning_defaults(self) -> None:
+    def test_registry_default_properties_cover_media_and_passive_defaults(self) -> None:
         registry = build_default_registry()
 
-        task_defaults = registry.default_properties(PASSIVE_PLANNING_TASK_CARD_TYPE_ID)
-        risk_defaults = registry.default_properties(PASSIVE_PLANNING_RISK_CARD_TYPE_ID)
         media_defaults = registry.default_properties(MEDIA_PANEL_TYPE_ID)
         web_defaults = registry.default_properties(WEB_PAGE_VIEWER_TYPE_ID)
         decision_defaults = registry.default_properties(PASSIVE_FLOWCHART_DECISION_TYPE_ID)
         timestamp_defaults = registry.default_properties(PASSIVE_FLOWCHART_TIMESTAMP_TYPE_ID)
         text_defaults = registry.default_properties(PASSIVE_ANNOTATION_TEXT_TYPE_ID)
 
-        self.assertEqual(task_defaults["title"], "Task")
-        self.assertEqual(task_defaults["body_format"], "plain")
-        self.assertEqual(task_defaults["body_font_size"], 0)
-        self.assertEqual(task_defaults["status"], "todo")
-        self.assertEqual(risk_defaults["severity"], "medium")
         self.assertEqual(decision_defaults["title"], "Decision")
         self.assertEqual(decision_defaults["body"], "Decision")
         self.assertEqual(decision_defaults["body_format"], "plain")
@@ -263,10 +243,6 @@ class PassiveNodeContractsTests(unittest.TestCase):
             (PASSIVE_ANNOTATION_STICKY_NOTE_TYPE_ID, "body"),
             (PASSIVE_ANNOTATION_CALLOUT_TYPE_ID, "body"),
             (PASSIVE_ANNOTATION_SECTION_HEADER_TYPE_ID, "subtitle"),
-            (PASSIVE_PLANNING_TASK_CARD_TYPE_ID, "body"),
-            (PASSIVE_PLANNING_MILESTONE_CARD_TYPE_ID, "body"),
-            (PASSIVE_PLANNING_RISK_CARD_TYPE_ID, "body"),
-            (PASSIVE_PLANNING_DECISION_CARD_TYPE_ID, "body"),
             (PASSIVE_FLOWCHART_PROCESS_TYPE_ID, "body"),
         ):
             properties = {prop.key: prop for prop in registry.get_spec(type_id).properties}
@@ -281,7 +257,6 @@ class PassiveNodeContractsTests(unittest.TestCase):
     def test_title_icon_passive_plugins_remain_ineligible(self) -> None:
         for plugin_cls in (
             *PASSIVE_FLOWCHART_NODE_PLUGINS,
-            *PASSIVE_PLANNING_NODE_PLUGINS,
             *PASSIVE_ANNOTATION_NODE_PLUGINS,
             *PASSIVE_MAIL_NODE_PLUGINS,
             *WEB_PAGE_VIEWER_NODE_PLUGINS,

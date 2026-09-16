@@ -15,10 +15,10 @@ Custom Workflows remain copied graph snapshots, and Python Script keeps its pers
 | Claim | Exact value | Proof owner |
 | --- | ---: | --- |
 | Public API | 17 public `corex` exports | `corex.__all__`, `tests/test_architecture_boundaries.py` |
-| Migration inventory | 139 classified type IDs | `docs/specs/requirements/COREX_NOVICE_PLUGIN_SDK_MIGRATION_INVENTORY.md`, `tests/test_corex_contract_catalog.py` |
+| Migration inventory | 135 classified type IDs | `docs/specs/requirements/COREX_NOVICE_PLUGIN_SDK_MIGRATION_INVENTORY.md`, `tests/test_corex_contract_catalog.py` |
 | Function conversion | 78 converted type IDs | 76 reserved built-in function entries plus 7 Tabular and 3 MARS entries |
-| Trusted boundary | 53 trusted internal exceptions | migration inventory and `tests/test_remaining_builtin_function_migration.py` |
-| Current catalog | 139 repo-owned rows | `tests/fixtures/node_catalog/current_repo_owned_catalog.json` |
+| Trusted boundary | 49 trusted internal exceptions | migration inventory and `tests/test_remaining_builtin_function_migration.py` |
+| Current catalog | 143 repo-owned rows | `tests/fixtures/node_catalog/current_repo_owned_catalog.json` |
 | Model Viewer default | `surface_with_edges` | `tests/test_corex_contract_catalog.py` |
 
 The exact public export order is `node`, `input`, `output`, `text`, `text_area`, `number`, `switch`, `dropdown`, `slider`, `color`, `path`, `interval`, `list`, `Any`, `Image`, `Color`, `Interval`.

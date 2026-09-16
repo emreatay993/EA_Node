@@ -226,34 +226,6 @@
       "nodes": [
         {
           "collapsed": false,
-          "custom_height": 208,
-          "custom_width": 320,
-          "exposed_ports": {},
-          "node_id": "node_37e3aaef46",
-          "parent_node_id": null,
-          "properties": {
-            "body": "Confirm branch labels, preview panels, and preset round-trip.",
-            "due_date": "2026-03-18",
-            "owner": "QA",
-            "status": "in_progress",
-            "title": "QA Task"
-          },
-          "title": "QA task",
-          "type_id": "passive.planning.task_card",
-          "visual_style": {
-            "accent_color": "#E2A35D",
-            "border_color": "#C97A2B",
-            "border_width": 2,
-            "corner_radius": 18,
-            "fill_color": "#FFF4E7",
-            "header_color": "#FFE8CF",
-            "text_color": "#4D2D12"
-          },
-          "x": 520,
-          "y": 420
-        },
-        {
-          "collapsed": false,
           "custom_height": null,
           "custom_width": null,
           "exposed_ports": {

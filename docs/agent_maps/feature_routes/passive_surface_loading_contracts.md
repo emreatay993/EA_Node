@@ -19,7 +19,6 @@ Use this for passive node host loading, surface contracts, metrics, surface sizi
 - `ea_node_editor/ui_qml/components/graph/passive/GraphAnnotationNoteSurface.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphBareTextSurface.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphFlowchartNodeSurface.qml`
-- `ea_node_editor/ui_qml/components/graph/passive/GraphPlanningCardSurface.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphTimestampDateTimePopover.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceMetricContract.json`
 - `tests/qml_quick/tst_graph_node_host.qml`
@@ -38,7 +37,7 @@ Use this for passive node host loading, surface contracts, metrics, surface sizi
 ## Annotation Text Notes
 - `passive.annotation.text` is a passive annotation node with cardinal passive ports and a chrome-free `annotation`/`text` surface.
 - The surface loads through `SurfaceSpec` component key `annotation_text` and renders `GraphBareTextSurface.qml`.
-- `GraphBareTextSurface.qml` delegates markdown/plain rendering, source editing, and text-style toolbar actions to `GraphRichTextBlock.qml`, the shared prose rich-text component used by annotation notes, planning card bodies, and non-timestamp flowchart body/cube text. Groups do not use rich text or body content.
+- `GraphBareTextSurface.qml` delegates markdown/plain rendering, source editing, and text-style toolbar actions to `GraphRichTextBlock.qml`, the shared prose rich-text component used by annotation notes and non-timestamp flowchart body/cube text. Groups do not use rich text or body content.
 - Bare Text height follows the measured rendered/editor content plus padding, while the user controls width only; height changes reuse the normal resize preview/finish path so geometry remains persisted.
 - Its metric contract sets `use_host_chrome=false` and `use_host_shadow=false`; keep the fill transparent and ports active.
 - `GraphNodeHost.qml` excludes only this bare-text annotation surface from host subtree bitmap caching, preserving live Qt-rendered text while leaving normal passive and active node cache behavior intact.
@@ -54,7 +53,7 @@ Use this for passive node host loading, surface contracts, metrics, surface sizi
 - The timestamp flowchart variant owns its `live` body-rendering mode and timestamp-only toolbar actions; the manual date/time editor is hosted by `GraphCanvasRootLayers.qml` through `GraphTimestampDateTimePopover.qml`.
 - Non-timestamp flowchart `body`, `body_top`, and `body_right` fields use reusable rich-text slots; timestamp `body` stays plain and keeps the live/manual timestamp contract.
 - `FlowchartShapeCanvas.qml` owns the reusable vector silhouettes for graph surfaces and library previews; keep its pure-QML host, variant, fallback, and timestamp behavior aligned with `tests/qml_quick/tst_graph_node_host.qml`, while `tests/test_flowchart_visual_polish.py` retains source and Python-integration coverage.
-- `tests/qml_quick/tst_graph_node_host.qml` also owns pure-QML planning/annotation host rendering, library flowchart aspect-ratio fitting, and Group backdrop title/chrome checks. Python retains planning catalogue/metric facts, flowchart geometry and drop-preview integration, and Group catalogue/model/serialization facts.
+- `tests/qml_quick/tst_graph_node_host.qml` also owns pure-QML annotation host rendering, library flowchart aspect-ratio fitting, and Group backdrop title/chrome checks. Python retains annotation catalogue/metric facts, flowchart geometry and drop-preview integration, and Group catalogue/model/serialization facts.
 
 ## Selected Glow Notes
 - Passive selected outline/glow colour is graph-theme-owned in `GraphNodeHostTheme.qml` (`card_selected_border` -> `selectedOutlineColor` -> `selectedGlowColor`); passive `visual_style.border_color` remains the idle outline override, and selected passive borders thicken above the idle width.
@@ -73,7 +72,7 @@ Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction Silent
 .\venv\Scripts\python.exe -m pytest tests/test_passive_node_contracts.py tests/test_passive_graph_surface_host.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_viewport_virtualization.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_flowchart_surfaces.py tests/test_flowchart_visual_polish.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_planning_annotation_catalog.py tests/test_group_backdrop_contracts.py --ignore=venv -q -n 0
+.\venv\Scripts\python.exe -m pytest tests/test_annotation_catalog.py tests/test_group_backdrop_contracts.py --ignore=venv -q -n 0
 .\venv\Scripts\python.exe -m pytest tests/test_panel_surface.py --ignore=venv -q
 ```
 

@@ -160,8 +160,8 @@ class PathPointerNodePlugin:
             keywords=("path", "file", "folder"),
             runtime_behavior="passive",
             # Passive data-source: opt back into the title-bar icon. The
-            # default passive suppression targets flowchart/planning/
-            # annotation/media families that draw their own body art, which
+            # default passive suppression targets flowchart/annotation/media
+            # families that draw their own body art, which
             # this node does not. See ``NodeTypeSpec.show_title_icon``.
             show_title_icon=True,
             ports=(

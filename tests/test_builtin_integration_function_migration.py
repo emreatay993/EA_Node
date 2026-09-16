@@ -62,7 +62,7 @@ def test_exact_t12_entries_match_golden_and_remove_legacy_exports(
         if row["spec"]["type_id"] in _CONVERTED_TYPE_IDS
     }
 
-    assert len(golden_rows) == 147
+    assert len(golden_rows) == 143
     assert len(_CONVERTED_TYPE_IDS) == 14
     assert set(expected) == set(_CONVERTED_TYPE_IDS)
     for type_id in _CONVERTED_TYPE_IDS:
