@@ -148,17 +148,54 @@ def test_a_missing_frame_is_captured_even_without_a_dirty_mark(qapp) -> None:  #
     assert cache.preview_source(KEY)
 
 
-def test_visual_option_change_keeps_the_camera_and_drops_the_frame(qapp) -> None:  # noqa: ANN001
+def test_visual_option_change_keeps_the_frame_and_marks_it_stale(qapp) -> None:  # noqa: ANN001
+    """The node keeps showing its last frame instead of emptying out."""
     del qapp
-    cache, _host, _provider = _cache()
+    cache, host, _provider = _cache()
     cache.capture_live_state(KEY)
     camera = cache.cached_view_state(KEY)
+    source = cache.preview_source(KEY)
+    revisions = host.revisions
 
     restyled = replace(_Snapshot(), options={"representation": "wireframe"})
     cache.migrate_viewer_state(KEY, restyled)
 
     assert cache.cached_view_state(KEY) == camera
-    assert not cache.has_preview(KEY)
+    assert cache.has_preview(KEY)
+    assert cache.preview_source(KEY) == source
+    assert cache.preview_stale(KEY)
+    assert host.revisions == revisions + 1
+
+    # Marking again must not churn the revision QML binds to.
+    cache.migrate_viewer_state(KEY, restyled)
+    assert host.revisions == revisions + 1
+
+
+def test_the_next_live_exit_clears_the_stale_mark(qapp) -> None:  # noqa: ANN001
+    del qapp
+    snapshot = _Snapshot()
+    cache, _host, _provider = _cache(snapshot)
+    cache.capture_live_state(KEY)
+    cache.migrate_viewer_state(KEY, replace(snapshot, options={"representation": "wireframe"}))
+    assert cache.preview_stale(KEY)
+
+    cache.mark_live_frame_dirty(KEY)
+    cache.capture_live_state(KEY)
+
+    assert cache.has_preview(KEY)
+    assert not cache.preview_stale(KEY)
+
+
+def test_a_cleared_frame_is_never_reported_as_stale(qapp) -> None:  # noqa: ANN001
+    del qapp
+    snapshot = _Snapshot()
+    cache, _host, _provider = _cache(snapshot)
+    cache.capture_live_state(KEY)
+    cache.migrate_viewer_state(KEY, replace(snapshot, options={"representation": "wireframe"}))
+
+    cache.clear_preview(KEY)
+
+    assert not cache.preview_stale(KEY)
 
 
 def test_new_geometry_drops_the_camera_as_well(qapp) -> None:  # noqa: ANN001
@@ -171,6 +208,7 @@ def test_new_geometry_drops_the_camera_as_well(qapp) -> None:  # noqa: ANN001
 
     assert cache.cached_view_state(KEY) is None
     assert not cache.has_preview(KEY)
+    assert not cache.preview_stale(KEY)
 
 
 def test_sync_signatures_drops_state_for_keys_that_are_gone(qapp) -> None:  # noqa: ANN001

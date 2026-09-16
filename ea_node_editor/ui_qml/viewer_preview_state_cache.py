@@ -89,6 +89,7 @@ class ViewerPreviewStateCache:
         self._view_states: dict[OverlayKey, tuple[tuple[Any, ...], object]] = {}
         self._render_signatures: dict[OverlayKey, tuple[Any, ...]] = {}
         self._live_frame_dirty: set[OverlayKey] = set()
+        self._stale_previews: set[OverlayKey] = set()
         self._revision = 0
 
     # ----------------------------------------------------------------- reads
@@ -104,6 +105,15 @@ class ViewerPreviewStateCache:
     def has_preview(self, key: OverlayKey) -> bool:
         provider = self._provider
         return bool(provider is not None and provider.has_preview(key[0], key[1]))
+
+    def preview_stale(self, key: OverlayKey) -> bool:
+        """The cached frame predates the node's current visual settings.
+
+        A visual-option change keeps the frame rather than dropping the node
+        back to an empty placeholder; the surface dims it and shows a status
+        badge until the next live exit captures the settings in use.
+        """
+        return key in self._stale_previews and self.has_preview(key)
 
     def preview_image(self, key: OverlayKey) -> QImage:
         """The cached frame itself, for clipboard and screenshot export."""
@@ -172,6 +182,7 @@ class ViewerPreviewStateCache:
             return
         self._set_preview(key, image, signature)
         self._live_frame_dirty.discard(key)
+        self._stale_previews.discard(key)
 
     def restore_view_state(
         self,
@@ -219,22 +230,41 @@ class ViewerPreviewStateCache:
     # ---------------------------------------------------------- invalidation
 
     def clear_preview(self, key: OverlayKey) -> None:
+        self._stale_previews.discard(key)
         provider = self._provider
         if provider is None:
             return
         if provider.clear_preview(key[0], key[1]):
             self._bump_revision()
 
+    def _mark_preview_stale(self, key: OverlayKey) -> None:
+        if key in self._stale_previews:
+            return
+        self._stale_previews.add(key)
+        self._bump_revision()
+
     def clear_viewer_state(self, key: OverlayKey) -> None:
         self._view_states.pop(key, None)
         self.clear_preview(key)
 
     def migrate_viewer_state(self, key: OverlayKey, snapshot: Any) -> None:
-        """Keep the camera across a visual-option change, drop the frame."""
+        """Reconcile cached state with a changed session projection.
+
+        A visual-option change leaves the transported geometry alone, so both
+        the camera and the frame stay usable and the frame is only marked
+        stale. New geometry invalidates both.
+        """
+        camera_signature = self.camera_signature(snapshot)
         cached = self._view_states.get(key)
-        if cached is not None and cached[0] != self.camera_signature(snapshot):
+        geometry_changed = cached is not None and cached[0] != camera_signature
+        if geometry_changed:
             self._view_states.pop(key, None)
-        self.clear_preview(key)
+            self.clear_preview(key)
+            return
+        if self.has_preview(key):
+            self._mark_preview_stale(key)
+        else:
+            self.clear_preview(key)
 
     def clear_all(self) -> None:
         provider = self._provider
@@ -242,6 +272,7 @@ class ViewerPreviewStateCache:
         self._render_signatures.clear()
         self._view_states.clear()
         self._live_frame_dirty.clear()
+        self._stale_previews.clear()
         if changed:
             self._bump_revision()
 

@@ -315,6 +315,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     self.screenshot_calls = []
                     self.copy_calls = []
                     self._cached_preview_source = "image://viewer-preview-cache/preview?workspace=ws_main&node=node_viewer_surface_host&revision=1"
+                    self._cached_preview_stale = False
 
                 @pyqtProperty(int, notify=state_changed)
                 def active_overlay_count(self):
@@ -343,6 +344,12 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     if str(node_id) != "node_viewer_surface_host":
                         return ""
                     return self._cached_preview_source
+
+                @pyqtSlot(str, result=bool)
+                def cached_preview_stale(self, node_id):
+                    if str(node_id) != "node_viewer_surface_host":
+                        return False
+                    return bool(self._cached_preview_stale)
 
                 @pyqtSlot(str, result=bool)
                 def embedded_live_overlay_ready(self, node_id):
@@ -382,9 +389,15 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             engine.addImageProvider(UI_ICON_PROVIDER_ID, UiIconImageProvider())
             engine.addImageProvider(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider())
             engine.addImageProvider(VIEWER_PREVIEW_CACHE_PROVIDER_ID, ViewerPreviewCacheImageProvider())
-            engine.rootContext().setContextProperty("uiIcons", UiIconRegistryBridge())
-            engine.rootContext().setContextProperty("themeBridge", ThemeBridgeStub())
-            engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridgeStub())
+            # setContextProperty does not take ownership, so these bridges must
+            # stay referenced from Python or QML sees an undefined context
+            # property once they are collected.
+            uiIconsBridge = UiIconRegistryBridge()
+            themeBridgeStub = ThemeBridgeStub()
+            graphThemeBridgeStub = GraphThemeBridgeStub()
+            engine.rootContext().setContextProperty("uiIcons", uiIconsBridge)
+            engine.rootContext().setContextProperty("themeBridge", themeBridgeStub)
+            engine.rootContext().setContextProperty("graphThemeBridge", graphThemeBridgeStub)
             viewerHostServiceStub = ViewerHostServiceStub()
             engine.rootContext().setContextProperty("viewerHostService", viewerHostServiceStub)
 
@@ -1306,6 +1319,62 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert abs(painted_height - item_height) < 0.51, (painted_height, item_height)
                 assert painted_width > item_width + 1.0, (painted_width, item_width)
                 assert bool(cached_image.property("clip"))
+            finally:
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
+    def test_stale_cached_preview_is_dimmed_and_badged_instead_of_dropped(self) -> None:
+        """A visual-option change must not empty the node back to the placeholder."""
+        self._run_qml_probe(
+            "viewer-surface-host-stale-preview-badge",
+            """
+            bridge = ViewerSessionBridgeStub()
+            bridge._set_state(
+                cache_state="proxy_ready",
+                options={"live_mode": "proxy"},
+            )
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            cached_image = host.findChild(QObject, "graphNodeViewerCachedPreviewImage")
+            badge = host.findChild(QObject, "graphNodeViewerStalePreviewBadge")
+            badge_icon = host.findChild(QObject, "graphNodeViewerStalePreviewBadgeIcon")
+            assert surface is not None, "surface missing"
+            assert cached_image is not None, "cached_image missing"
+            assert badge is not None, "badge missing"
+            assert badge_icon is not None, "badge_icon missing"
+
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                settle_events(5)
+                assert bool(surface.property("cachedPreviewVisible")), "preview hidden"
+                assert not bool(surface.property("cachedPreviewStale")), "unexpectedly stale"
+                assert not bool(badge.property("visible")), "badge shown while current"
+                assert abs(float(cached_image.property("opacity")) - 1.0) < 0.001, float(cached_image.property("opacity"))
+
+                viewerHostServiceStub._cached_preview_stale = True
+                viewerHostServiceStub._preview_cache_revision += 1
+                viewerHostServiceStub.preview_cache_changed.emit()
+                settle_events(5)
+
+                assert bool(surface.property("cachedPreviewStale")), "stale not observed"
+                assert bool(badge.property("visible")), "badge missing"
+                assert bool(cached_image.property("visible")), "frame dropped instead of dimmed"
+                assert float(cached_image.property("opacity")) < 1.0, float(cached_image.property("opacity"))
+                assert not bool(surface.property("viewerShowsPlaceholder")), "fell back to placeholder"
+
+                # The registered clock-update glyph, not the "!" fallback.
+                badge_icon_source = badge_icon.property("source")
+                badge_icon_text = (
+                    badge_icon_source.toString()
+                    if hasattr(badge_icon_source, "toString")
+                    else str(badge_icon_source)
+                )
+                assert badge_icon_text.startswith("image://ui-icons/"), badge_icon_text
             finally:
                 dispose_host_window(host, window)
                 engine.deleteLater()

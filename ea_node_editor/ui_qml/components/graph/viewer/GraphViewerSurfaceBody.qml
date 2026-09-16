@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import "../../common" as Common
 import "../surface_controls" as GraphSurfaceControls
 import "../surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 
@@ -268,6 +269,15 @@ Item {
         ? Number(viewerHostServiceRef.preview_cache_revision)
         : 0
     readonly property string cachedPreviewSource: _cachedPreviewSource()
+    readonly property bool cachedPreviewStale: _cachedPreviewStale()
+    readonly property var viewerSharedTypography: host ? host.graphSharedTypography : null
+    readonly property int viewerBadgePixelSize: viewerSharedTypography
+        ? viewerSharedTypography.badgePixelSize
+        : 9
+    readonly property int viewerStaleBadgeSize: Math.max(16, viewerBadgePixelSize + 6)
+    readonly property int viewerStaleIconSize: Math.round(viewerStaleBadgeSize * 0.68)
+    readonly property string viewerStalePreviewTitle:
+        "Preview is out of date - double-click to activate the 3D view."
     readonly property bool cachedPreviewVisible: !contentFullscreenOpen
         && !liveOverlayReady
         && cachedPreviewSource.length > 0
@@ -726,6 +736,17 @@ Item {
         return String(surface.viewerHostServiceRef.cached_preview_source(surface.viewerNodeId) || "");
     }
 
+    function _cachedPreviewStale() {
+        var revision = surface.previewCacheRevision;
+        if (revision < 0)
+            return false;
+        if (!surface.viewerHostServiceRef || !surface.viewerHostServiceRef.cached_preview_stale)
+            return false;
+        if (!surface.viewerNodeId.length)
+            return false;
+        return Boolean(surface.viewerHostServiceRef.cached_preview_stale(surface.viewerNodeId));
+    }
+
     function _embeddedLiveOverlayReady() {
         var revision = surface.hostOverlayRevision;
         if (revision < 0)
@@ -1063,6 +1084,10 @@ Item {
                         cache: true
                         smooth: true
                         mipmap: true
+                        // Dimmed rather than discarded: the frame is still the
+                        // most useful thing this node can show until the next
+                        // live exit captures the settings now in effect.
+                        opacity: surface.cachedPreviewStale ? 0.78 : 1.0
                     }
 
                     Rectangle {
@@ -1072,6 +1097,59 @@ Item {
                         color: "transparent"
                         border.width: 1
                         border.color: host ? Qt.alpha(host.scopeBadgeBorderColor, 0.7) : "#4c7bc0"
+                    }
+
+                    Rectangle {
+                        id: stalePreviewBadge
+                        objectName: "graphNodeViewerStalePreviewBadge"
+                        visible: surface.cachedPreviewVisible && surface.cachedPreviewStale
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.margins: 6
+                        width: surface.viewerStaleBadgeSize
+                        height: width
+                        radius: width * 0.5
+                        color: host ? host.warningOutlineColor : "#E8A838"
+                        border.width: 1
+                        border.color: host ? host.warningOutlineColor : "#E8A838"
+                        Accessible.name: surface.viewerStalePreviewTitle
+
+                        Image {
+                            id: stalePreviewBadgeIcon
+                            objectName: "graphNodeViewerStalePreviewBadgeIcon"
+                            anchors.centerIn: parent
+                            width: surface.viewerStaleIconSize
+                            height: width
+                            source: surface._iconSource("clock-update", surface.viewerStaleIconSize, "#FFFFFF")
+                            visible: String(source).length > 0
+                            smooth: true
+                            mipmap: true
+                        }
+
+                        Text {
+                            objectName: "graphNodeViewerStalePreviewBadgeFallback"
+                            anchors.centerIn: parent
+                            visible: !stalePreviewBadgeIcon.visible
+                            text: "!"
+                            color: "#FFFFFF"
+                            font.pixelSize: surface.viewerBadgePixelSize
+                            font.bold: true
+                            renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                        }
+
+                        HoverHandler {
+                            id: stalePreviewBadgeHover
+                        }
+
+                        Common.ManagedToolTip {
+                            objectName: "graphNodeViewerStalePreviewToolTip"
+                            policyBridge: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
+                            category: "warning"
+                            active: stalePreviewBadgeHover.hovered
+                            text: surface.viewerStalePreviewTitle
+                            delay: 240
+                            Accessible.name: text
+                        }
                     }
                 }
 

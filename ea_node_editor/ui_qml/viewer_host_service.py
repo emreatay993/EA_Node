@@ -688,6 +688,14 @@ class ViewerHostService(QObject):
         return "" if key is None else self._preview_state.preview_source(key)
 
     @pyqtSlot(str, result=bool)
+    def cached_preview_stale(self, node_id: str) -> bool:
+        """Whether the cached frame predates the node's visual settings."""
+        if self._shutdown:
+            return False
+        key = self._key_for_node_id(node_id)
+        return False if key is None else self._preview_state.preview_stale(key)
+
+    @pyqtSlot(str, result=bool)
     def open_detached_viewer(self, node_id: str) -> bool:
         if self._shutdown:
             return False
