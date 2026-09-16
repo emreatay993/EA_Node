@@ -29,8 +29,8 @@ _RAW_BUILT_IN_NODE_PRESETS = (
         },
     },
     {
-        "preset_id": "builtin_node_planning_warm",
-        "name": "Planning Warm",
+        "preset_id": "builtin_node_rounded_amber",
+        "name": "Rounded Amber",
         "style": {
             "fill_color": "#FFF4E7",
             "border_color": "#C97A2B",
@@ -40,8 +40,8 @@ _RAW_BUILT_IN_NODE_PRESETS = (
         },
     },
     {
-        "preset_id": "builtin_node_planning_slate",
-        "name": "Planning Slate",
+        "preset_id": "builtin_node_rounded_slate",
+        "name": "Rounded Slate",
         "style": {
             "fill_color": "#EEF2F7",
             "border_color": "#4F6478",
