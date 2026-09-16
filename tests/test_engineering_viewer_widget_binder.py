@@ -1197,12 +1197,60 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             self.assertTrue(all(call["show_scalar_bar"] is False for call in color_calls))
             binder.shutdown()
 
+    def test_view_cube_scales_with_the_render_window(self) -> None:
+        """A 120px cube fills an inline node but is lost in fullscreen."""
+
+        class _Representation:
+            def __init__(self) -> None:
+                self.size = (120, 120)
+
+            def GetSize(self):  # noqa: N802
+                return self.size
+
+            def SetSize(self, width, height):  # noqa: N802
+                self.size = (int(width), int(height))
+
+        class _Cube:
+            def __init__(self) -> None:
+                self.representation = _Representation()
+
+            def GetRepresentation(self):  # noqa: N802
+                return self.representation
+
+        def _state_for(width, height):
+            cube = _Cube()
+            interactor = SimpleNamespace(
+                render_window=SimpleNamespace(GetSize=lambda: (width, height))
+            )
+            state = SimpleNamespace(view_cube_widget=cube, view_cube_resize_observer=None)
+            binder = EngineeringViewerWidgetBinder(
+                interactor_factory=lambda parent: _FakeInteractor(parent),
+                background_loading=False,
+            )
+            try:
+                binder._sync_view_cube_scale(interactor, state)
+            finally:
+                binder.shutdown()
+            return cube.representation.size
+
+        # An inline node viewport: well under the fixed default.
+        inline = _state_for(516, 300)
+        self.assertEqual(inline, (48, 48))
+
+        # A fullscreen viewport: the cap keeps it from growing without bound.
+        fullscreen = _state_for(2560, 1400)
+        self.assertEqual(fullscreen, (120, 120))
+
+        # Tiny viewports still get a readable cube rather than a speck.
+        tiny = _state_for(180, 120)
+        self.assertEqual(tiny, (44, 44))
+
     def test_view_cube_cleanup_uses_widget_component(self) -> None:
         interactor = _FakeInteractor()
         cube = interactor.add_camera_orientation_widget()
         other_cube = interactor.add_camera_orientation_widget()
         interactor.widgets = SimpleNamespace(camera_widgets=interactor.camera_widgets)
-        state = SimpleNamespace(view_cube_widget=cube)
+        state = SimpleNamespace(view_cube_widget=cube, view_cube_resize_observer=None)
 
         with patch.object(
             _FakeInteractor, "camera_widgets", new_callable=PropertyMock, create=True

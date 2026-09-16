@@ -47,6 +47,13 @@ _SHOW_MESH_EDGES_OPTION = "show_mesh_edges"
 _SHOW_ATTRIBUTE_COLORS_OPTION = "show_attribute_colors"
 _SHOW_ORIENTATION_TRIAD_OPTION = "show_orientation_triad"
 _SHOW_VIEW_CUBE_OPTION = "show_view_cube"
+# vtkCameraOrientationRepresentation is sized in pixels and defaults to
+# 120x120, so it keeps that size no matter how small the render window is:
+# roughly a tenth of a fullscreen viewer but nearly half of an inline node.
+# Scale it with the window instead, with a floor that keeps it readable.
+_VIEW_CUBE_WINDOW_FRACTION = 0.16
+_VIEW_CUBE_MIN_EDGE_PX = 44
+_VIEW_CUBE_MAX_EDGE_PX = 120
 _SHOW_WORLD_AXES_OPTION = "show_world_axes"
 _MAX_SHARED_MEMORY_ASSET_COUNT = 32
 _MAX_SHARED_MEMORY_SEGMENT_BYTES = 512 * 1024 * 1024
@@ -131,6 +138,7 @@ class _EngineeringWidgetState:
     selection_last_click_position: tuple[int, int] | None = None
     selection_last_click_time: float = 0.0
     view_cube_widget: Any | None = None
+    view_cube_resize_observer: tuple[Any, Any] | None = None
     orientation_triad_widget: Any | None = None
     orientation_triad_actor: Any | None = None
     triad_drag_observers: list[tuple[Any, Any]] = field(default_factory=list)
@@ -356,6 +364,7 @@ class EngineeringViewerWidgetBinder(QObject):
             state.pending_camera_state.clear()
             state.initial_camera_reset_pending = False
         self._sync_orientation_aids(widget, state, state.current_options)
+        self._sync_view_cube_scale(widget, state)
         if not state.selection_observers:
             self._install_selection_picking(widget, state)
         if not state.interaction_observers:
@@ -2321,6 +2330,8 @@ class EngineeringViewerWidgetBinder(QObject):
                 anchor = getattr(representation, "AnchorToLowerLeft", None)
                 if callable(anchor):
                     anchor()
+                self._sync_view_cube_scale(interactor, state)
+                self._install_view_cube_resize(interactor, state)
         elif not show_cube and state.view_cube_widget is not None:
             self._remove_view_cube(interactor, state)
 
@@ -2351,6 +2362,76 @@ class EngineeringViewerWidgetBinder(QObject):
             setter = getattr(actor, "SetVisibility", None)
             if callable(setter):
                 setter(1 if show_world_axes else 0)
+
+    def _sync_view_cube_scale(self, interactor: QWidget, state: _EngineeringWidgetState) -> None:
+        """Keep the orientation cube proportional to the render window."""
+        widget = state.view_cube_widget
+        if widget is None:
+            return
+        representation = getattr(widget, "GetRepresentation", lambda: None)()
+        set_size = getattr(representation, "SetSize", None)
+        if not callable(set_size):
+            return
+        window_size = self._render_window_size(interactor)
+        if window_size is None:
+            return
+        edge = int(round(min(window_size) * _VIEW_CUBE_WINDOW_FRACTION))
+        edge = max(_VIEW_CUBE_MIN_EDGE_PX, min(_VIEW_CUBE_MAX_EDGE_PX, edge))
+        get_size = getattr(representation, "GetSize", None)
+        if callable(get_size):
+            try:
+                if tuple(int(value) for value in get_size()) == (edge, edge):
+                    return
+            except Exception:  # noqa: BLE001
+                pass
+        set_size(edge, edge)
+
+    @staticmethod
+    def _render_window_size(interactor: QWidget) -> tuple[int, int] | None:
+        render_window = getattr(interactor, "render_window", None)
+        get_size = getattr(render_window, "GetSize", None)
+        if not callable(get_size):
+            return None
+        try:
+            width, height = (int(value) for value in get_size())
+        except Exception:  # noqa: BLE001
+            return None
+        if width <= 0 or height <= 0:
+            return None
+        return width, height
+
+    def _install_view_cube_resize(self, interactor: QWidget, state: _EngineeringWidgetState) -> None:
+        """Re-scale the cube when the viewer is resized or reparented."""
+        if state.view_cube_resize_observer is not None:
+            return
+        target = getattr(interactor, "iren", None) or getattr(interactor, "interactor", None)
+        raw = getattr(target, "interactor", target)
+        add_observer = getattr(raw, "AddObserver", None)
+        if not callable(add_observer):
+            return
+
+        def _on_configure(*_args: Any) -> None:
+            self._sync_view_cube_scale(interactor, state)
+
+        try:
+            tag = add_observer("ConfigureEvent", _on_configure)
+        except Exception:  # noqa: BLE001
+            return
+        state.view_cube_resize_observer = (raw, tag)
+
+    @staticmethod
+    def _detach_view_cube_resize(state: _EngineeringWidgetState) -> None:
+        observed = state.view_cube_resize_observer
+        state.view_cube_resize_observer = None
+        if observed is None:
+            return
+        raw, tag = observed
+        remove_observer = getattr(raw, "RemoveObserver", None)
+        if callable(remove_observer):
+            try:
+                remove_observer(tag)
+            except Exception:  # noqa: BLE001
+                pass
 
     def _add_world_axes(self, interactor: QWidget, state: _EngineeringWidgetState) -> None:
         bounds = self._combined_bounds(
@@ -2599,6 +2680,7 @@ class EngineeringViewerWidgetBinder(QObject):
 
     @staticmethod
     def _remove_view_cube(interactor: QWidget, state: _EngineeringWidgetState) -> None:
+        EngineeringViewerWidgetBinder._detach_view_cube_resize(state)
         widget = state.view_cube_widget
         disable = getattr(widget, "Off", None)
         get_interactor = getattr(widget, "GetInteractor", None)
