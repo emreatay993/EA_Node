@@ -1326,6 +1326,58 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_entering_live_mode_does_not_resize_the_viewport(self) -> None:
+        """The strip reserves room for its longest label.
+
+        The live status line is longer than the preview one, so a strip sized
+        to the current text grew a line on entering live mode and shortened
+        the viewport under it. That changed the aspect a frame was captured at
+        versus the aspect it was displayed at.
+        """
+        self._run_qml_probe(
+            "viewer-surface-host-stable-viewport",
+            """
+            bridge = ViewerSessionBridgeStub()
+            bridge._set_state(cache_state="proxy_ready", options={"live_mode": "proxy"})
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+
+            payload = viewer_payload()
+            for drop in ("width", "height", "surface_metrics", "viewer_surface"):
+                payload.pop(drop, None)
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            strip = host.findChild(QObject, "graphNodeViewerStatusStrip")
+            text = host.findChild(QObject, "graphNodeViewerStatusText")
+            viewport = host.findChild(QObject, "graphNodeViewerViewport")
+            assert strip is not None
+            assert viewport is not None
+
+            window = attach_host_to_window(host, width=1200, height=900)
+            try:
+                settle_events(6)
+                preview_strip = float(strip.property("height"))
+                preview_vp = (float(viewport.property("width")), float(viewport.property("height")))
+                assert int(text.property("lineCount")) == 1, int(text.property("lineCount"))
+
+                bridge._set_state(cache_state="live_ready", options={"live_mode": "full"})
+                settle_events(6)
+
+                assert surface.property("viewerLiveMode") == "full"
+                assert abs(float(strip.property("height")) - preview_strip) < 0.01, (
+                    float(strip.property("height")), preview_strip
+                )
+                assert abs(float(viewport.property("width")) - preview_vp[0]) < 0.01
+                assert abs(float(viewport.property("height")) - preview_vp[1]) < 0.01
+                # At the authored default size the longer live line still fits.
+                assert int(text.property("lineCount")) == 1, int(text.property("lineCount"))
+            finally:
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
     def test_stale_cached_preview_is_dimmed_and_badged_instead_of_dropped(self) -> None:
         """A visual-option change must not empty the node back to the placeholder."""
         self._run_qml_probe(

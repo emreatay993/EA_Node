@@ -155,6 +155,15 @@ Item {
             ? "Closing"
             : (viewerRunRequired ? "Blocked" : (viewerCanOpen ? "Open" : "Close")))
     readonly property string playbackButtonText: viewerPlaying ? "Pause" : "Play"
+    readonly property string viewerLiveStatusLabel:
+        "Live mode - click outside the node to return to preview"
+    readonly property string viewerPreviewStatusLabel:
+        "Double-click the viewer for live mode"
+    // The longest label the strip can show for an open session. The strip
+    // reserves room for it so switching modes never resizes the viewport
+    // beneath, which would change the aspect a frame is captured at versus
+    // the aspect it is displayed at.
+    readonly property string viewerStatusHeightReference: viewerLiveStatusLabel
     readonly property string viewerStatusLabel: {
         if (!surface.viewerBridgeAvailable)
             return "Viewer bridge unavailable";
@@ -175,10 +184,10 @@ Item {
             && surface.viewerLiveMode === "full"
             && surface.viewerLiveOpenStatus === "ready"
         ) {
-            return "Live mode - click outside the node to return to preview";
+            return surface.viewerLiveStatusLabel;
         }
         if (surface.viewerSessionOpen)
-            return "Double-click the viewer for live mode";
+            return surface.viewerPreviewStatusLabel;
         return "Ready to open viewer session";
     }
     readonly property string viewerHintText: {
@@ -938,7 +947,11 @@ Item {
                 id: statusStrip
                 objectName: "graphNodeViewerStatusStrip"
                 width: parent.width
-                height: Math.max(24, statusText.implicitHeight + 10)
+                height: Math.max(
+                    24,
+                    statusHeightReference.implicitHeight + 10,
+                    statusText.implicitHeight + 10
+                )
                 color: "transparent"
                 border.width: 0
 
@@ -972,6 +985,20 @@ Item {
                         font.bold: true
                         wrapMode: Text.WordWrap
                         renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                    }
+
+                    Text {
+                        // Never painted: it only holds the strip open for the
+                        // longest label, so the viewport height is the same in
+                        // live and preview mode.
+                        id: statusHeightReference
+                        objectName: "graphNodeViewerStatusHeightReference"
+                        visible: false
+                        width: statusText.width
+                        text: surface.viewerStatusHeightReference
+                        font.pixelSize: statusText.font.pixelSize
+                        font.bold: statusText.font.bold
+                        wrapMode: statusText.wrapMode
                     }
 
                     Rectangle {

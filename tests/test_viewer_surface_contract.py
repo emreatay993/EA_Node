@@ -18,7 +18,19 @@ from ea_node_editor.runtime_contracts import (
     GRAPH_DATA_TYPE_ID,
     VIEWER_SESSION_DATA_TYPE_ID,
 )
+from ea_node_editor.ui_qml.graph_geometry.surface_contract import (
+    VIEWER_BODY_LEFT_MARGIN,
+    VIEWER_BODY_RIGHT_MARGIN,
+    VIEWER_DEFAULT_BODY_HEIGHT,
+    VIEWER_DEFAULT_WIDTH,
+)
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
+
+# Derived from the contract rather than pinned, so raising the viewer's
+# default size does not turn these into arithmetic puzzles.
+_VIEWER_BODY_CHROME = 60.0
+_VIEWER_DEFAULT_HEIGHT = VIEWER_DEFAULT_BODY_HEIGHT + _VIEWER_BODY_CHROME
+_VIEWER_BODY_WIDTH = VIEWER_DEFAULT_WIDTH - VIEWER_BODY_LEFT_MARGIN - VIEWER_BODY_RIGHT_MARGIN
 from ea_node_editor.ui_qml.graph_surface_metrics import (
     node_surface_metrics,
     viewer_surface_contract_payload,
@@ -496,13 +508,13 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             surface_metrics=metrics,
         )
 
-        self.assertEqual(metrics.default_width, 340.0)
-        self.assertEqual(metrics.default_height, 236.0)
+        self.assertEqual(metrics.default_width, VIEWER_DEFAULT_WIDTH)
+        self.assertEqual(metrics.default_height, _VIEWER_DEFAULT_HEIGHT)
         self.assertEqual(metrics.min_width, 320.0)
         self.assertEqual(metrics.min_height, 208.0)
         self.assertEqual(metrics.body_top, 30.0)
-        self.assertEqual(metrics.body_height, 176.0)
-        self.assertEqual(metrics.port_top, 206.0)
+        self.assertEqual(metrics.body_height, VIEWER_DEFAULT_BODY_HEIGHT)
+        self.assertEqual(metrics.port_top, 30.0 + VIEWER_DEFAULT_BODY_HEIGHT)
         self.assertEqual(metrics.title_right_margin, 42.0)
         self.assertNotIn("show_header_background", metrics.to_payload())
         self.assertNotIn("show_accent_bar", metrics.to_payload())
@@ -510,9 +522,9 @@ class ViewerSurfaceContractTests(unittest.TestCase):
         self.assertEqual(
             contract,
             {
-                "body_rect": {"x": 14.0, "y": 30.0, "width": 312.0, "height": 176.0},
-                "proxy_rect": {"x": 14.0, "y": 30.0, "width": 312.0, "height": 176.0},
-                "live_rect": {"x": 14.0, "y": 30.0, "width": 312.0, "height": 176.0},
+                "body_rect": {"x": 14.0, "y": 30.0, "width": _VIEWER_BODY_WIDTH, "height": VIEWER_DEFAULT_BODY_HEIGHT},
+                "proxy_rect": {"x": 14.0, "y": 30.0, "width": _VIEWER_BODY_WIDTH, "height": VIEWER_DEFAULT_BODY_HEIGHT},
+                "live_rect": {"x": 14.0, "y": 30.0, "width": _VIEWER_BODY_WIDTH, "height": VIEWER_DEFAULT_BODY_HEIGHT},
                 "overlay_target": "body",
                 "proxy_surface_supported": True,
                 "live_surface_supported": True,
@@ -584,7 +596,7 @@ class ViewerSurfaceContractTests(unittest.TestCase):
         self.assertEqual(payload["surface_spec"]["fullscreen"]["content_kind"], "viewer")
         self.assertTrue(payload["surface_spec"]["native_overlay"]["required"])
         self.assertIn("stylus", payload["surface_spec"]["input_capabilities"]["devices"])
-        self.assertEqual(payload["surface_metrics"]["default_height"], 236.0)
+        self.assertEqual(payload["surface_metrics"]["default_height"], _VIEWER_DEFAULT_HEIGHT)
         self.assertEqual(payload["viewer_surface"]["overlay_target"], "body")
         self.assertEqual(payload["viewer_surface"]["live_rect"]["x"], 14.0)
         self.assertEqual(payload["viewer_surface"]["live_rect"]["y"], 30.0)
@@ -655,12 +667,12 @@ class ViewerSurfaceContractTests(unittest.TestCase):
         node.expanded_settings_group_ids = ("general",)
         expanded_group_payload = payload()
 
-        self.assertEqual(collapsed_group_payload["height"], 272.0)
-        self.assertEqual(expanded_group_payload["height"], 290.0)
+        self.assertEqual(collapsed_group_payload["height"], _VIEWER_DEFAULT_HEIGHT + 36.0)
+        self.assertEqual(expanded_group_payload["height"], _VIEWER_DEFAULT_HEIGHT + 54.0)
         self.assertEqual(collapsed_group_payload["settings_band"]["height"], 36.0)
         self.assertEqual(expanded_group_payload["settings_band"]["height"], 54.0)
-        self.assertEqual(collapsed_group_payload["surface_metrics"]["body_height"], 176.0)
-        self.assertEqual(expanded_group_payload["surface_metrics"]["body_height"], 176.0)
+        self.assertEqual(collapsed_group_payload["surface_metrics"]["body_height"], VIEWER_DEFAULT_BODY_HEIGHT)
+        self.assertEqual(expanded_group_payload["surface_metrics"]["body_height"], VIEWER_DEFAULT_BODY_HEIGHT)
         self.assertEqual(
             collapsed_group_payload["viewer_surface"]["body_rect"],
             expanded_group_payload["viewer_surface"]["body_rect"],
