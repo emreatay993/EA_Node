@@ -102,6 +102,9 @@ class _FakeActorProperty:
     def SetOpacity(self, value: float) -> None:  # noqa: N802
         self.opacity = value
 
+    def GetOpacity(self) -> float:  # noqa: N802
+        return self.opacity
+
     def SetEdgeVisibility(self, value: int) -> None:  # noqa: N802
         self.edge_visibility = bool(value)
 
@@ -293,6 +296,8 @@ class _FakePicker:
         self.actors.append(actor)
 
     def Pick(self, *_args) -> int:  # noqa: ANN002, N802
+        # VTK pickers skip actors drawn at zero opacity.
+        self.actors = [actor for actor in self.actors if actor.property.opacity > 0.0]
         return int(bool(self.actors))
 
     def GetActor(self):  # noqa: ANN201, N802
@@ -305,15 +310,37 @@ class _FakePicker:
         return self.index
 
 
-class _FakeInteractorStyle:
-    def __init__(self) -> None:
-        self.enabled = True
+class _FakeTrackballStyle:
+    """Observe mouse events like VTK's trackball style.
 
-    def GetEnabled(self) -> bool:  # noqa: N802
-        return self.enabled
+    Construct it after the binder has installed its observers: the fake
+    interactor runs observers in registration order, and the real style
+    observes at priority 0. A press the style receives grabs mouse focus
+    until the release, which hides move and release events from ordinary
+    observers, as it does on a live interactor.
+    """
 
-    def SetEnabled(self, value: int) -> None:  # noqa: N802
-        self.enabled = bool(value)
+    def __init__(self, interactor: _FakeInteractor) -> None:
+        self.interactor = interactor
+        self.presses: list[tuple[int, int]] = []
+        self.moves: list[tuple[int, int]] = []
+        self.releases: list[tuple[int, int]] = []
+        self.observer_ids = {
+            interactor.add_observer("LeftButtonPressEvent", self._press),
+            interactor.add_observer("MouseMoveEvent", self._move),
+            interactor.add_observer("LeftButtonReleaseEvent", self._release),
+        }
+
+    def _press(self, *_args) -> None:  # noqa: ANN002
+        self.presses.append(self.interactor.event_position)
+        self.interactor.focus_observer_ids = set(self.observer_ids)
+
+    def _move(self, *_args) -> None:  # noqa: ANN002
+        self.moves.append(self.interactor.event_position)
+
+    def _release(self, *_args) -> None:  # noqa: ANN002
+        self.releases.append(self.interactor.event_position)
+        self.interactor.focus_observer_ids = set()
 
 
 class _FakeInteractor(QWidget):
@@ -340,7 +367,6 @@ class _FakeInteractor(QWidget):
         self.camera_widgets: list[_FakeOrientationWidget] = []
         self.renderer = _FakeRenderer()
         self.axes_calls: list[dict[str, object]] = []
-        self.interactor_style = _FakeInteractorStyle()
         self.event_position = (0, 0)
         self.render_size = (1000, 500)
         self.reset_clipping_calls = 0
@@ -348,6 +374,8 @@ class _FakeInteractor(QWidget):
         self.shift_key = False
         self.invoked_events: list[str] = []
         self.abort_stack: list[bool] = []
+        self.passive_observer_ids: set[int] = set()
+        self.focus_observer_ids: set[int] = set()
         self.device_pixel_ratio = 1.0
         self.native_ready = True
         self.close_calls = 0
@@ -414,9 +442,6 @@ class _FakeInteractor(QWidget):
     def get_event_position(self) -> tuple[int, int]:
         return self.event_position
 
-    def get_interactor_style(self) -> _FakeInteractorStyle:
-        return self.interactor_style
-
     def GetRenderWindow(self):  # noqa: ANN201, N802
         return self if self.native_ready else None
 
@@ -447,33 +472,60 @@ class _FakeInteractor(QWidget):
 
     def remove_observer(self, observer_id: int) -> None:
         self._observers.pop(observer_id, None)
+        self.passive_observer_ids.discard(observer_id)
+        self.focus_observer_ids.discard(observer_id)
 
-    def GetCommand(self, _observer_id: int) -> _FakeObserverCommand:  # noqa: N802
-        return _FakeObserverCommand(self)
+    def GetCommand(self, observer_id: int) -> _FakeObserverCommand:  # noqa: N802
+        return _FakeObserverCommand(self, observer_id)
+
+    def attach_trackball_style(self) -> _FakeTrackballStyle:
+        return _FakeTrackballStyle(self)
 
     def trigger(self, event_name: str, *, position: tuple[int, int] | None = None) -> None:
         if position is not None:
             self.event_position = position
-        # Observers run in registration order; an aborted event skips the rest,
-        # like vtkCommand.SetAbortFlag on a real interactor.
+        # Dispatch like vtkObject::InvokeEvent: passive observers first, then a
+        # focus holder observing the event on its own, otherwise every other
+        # observer. Observers run in registration order, and an aborted event
+        # skips the rest, like vtkCommand.SetAbortFlag.
+        observers = [
+            (observer_id, callback)
+            for observer_id, (registered_name, callback) in list(self._observers.items())
+            if registered_name == event_name
+        ]
+        for observer_id, callback in observers:
+            if observer_id in self.passive_observer_ids:
+                callback(self, event_name)
+        active = [
+            (observer_id, callback)
+            for observer_id, callback in observers
+            if observer_id not in self.passive_observer_ids
+        ]
+        focused = [value for value in active if value[0] in self.focus_observer_ids]
         self.abort_stack.append(False)
         try:
-            for registered_name, callback in list(self._observers.values()):
-                if registered_name == event_name:
-                    callback(self, event_name)
-                    if self.abort_stack[-1]:
-                        break
+            for _observer_id, callback in focused or active:
+                callback(self, event_name)
+                if self.abort_stack[-1]:
+                    break
         finally:
             self.abort_stack.pop()
 
 
 class _FakeObserverCommand:
-    def __init__(self, owner: _FakeInteractor) -> None:
+    def __init__(self, owner: _FakeInteractor, observer_id: int) -> None:
         self.owner = owner
+        self.observer_id = observer_id
 
     def SetAbortFlag(self, value: int) -> None:  # noqa: N802
         if self.owner.abort_stack:
             self.owner.abort_stack[-1] = bool(value)
+
+    def SetPassiveObserver(self, value: int) -> None:  # noqa: N802
+        if value:
+            self.owner.passive_observer_ids.add(self.observer_id)
+        else:
+            self.owner.passive_observer_ids.discard(self.observer_id)
 
 
 def _request(
@@ -1386,10 +1438,12 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 {"#ef4444", "#22c55e", "#3b82f6"},
             )
 
+            style = widget.attach_trackball_style()
             render_calls = widget.render_calls
             widget.trigger("LeftButtonPressEvent", position=(900, 50))
             self.assertTrue(state.triad_drag_active)
-            self.assertFalse(widget.interactor_style.enabled)
+            self.assertEqual(style.presses, [])
+            self.assertEqual(widget.invoked_events, ["StartInteractionEvent"])
             widget.trigger("MouseMoveEvent", position=(920, 70))
             self.assertEqual(widget.camera.azimuth_calls, [-8.0])
             self.assertEqual(widget.camera.elevation_calls, [8.0])
@@ -1398,7 +1452,14 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             self.assertGreater(widget.render_calls, render_calls)
             widget.trigger("LeftButtonReleaseEvent", position=(920, 70))
             self.assertFalse(state.triad_drag_active)
-            self.assertTrue(widget.interactor_style.enabled)
+            self.assertEqual(
+                widget.invoked_events,
+                ["StartInteractionEvent", "EndInteractionEvent"],
+            )
+            widget.trigger("LeaveEvent")
+            self.assertEqual(len(widget.invoked_events), 2)
+            for observer_id in style.observer_ids:
+                widget.remove_observer(observer_id)
 
             binder.bind_widget(
                 _request(
@@ -1619,12 +1680,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             renderer.pick_world_point = (2.0, 0.0, 1.0)
             renderer.display_point = (300.0, 200.0, 0.4)
             widget.device_pixel_ratio = 2.0
-            # Registered last, like the VTK trackball style observing at priority 0.
-            style_presses: list[tuple[int, int]] = []
-            widget.add_observer(
-                "LeftButtonPressEvent",
-                lambda *_args: style_presses.append(widget.event_position),
-            )
+            style = widget.attach_trackball_style()
             marker = object()
             marker_calls: list[tuple[object, ...]] = []
 
@@ -1636,7 +1692,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 widget.trigger("LeftButtonPressEvent", position=(300, 200))
                 self.assertEqual(renderer.depth_queries, [(300, 200)])
                 self.assertEqual(state.orbit_pivot, (2.0, 0.0, 1.0))
-                self.assertEqual(style_presses, [])
+                self.assertEqual(style.presses, [])
                 self.assertEqual(state.selection_press_position, (300, 200))
                 self.assertEqual(widget.invoked_events, ["StartInteractionEvent"])
                 self.assertIs(actor.mapper.dataset, coarse_dataset)
@@ -1669,7 +1725,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
 
                 widget.trigger("LeftButtonPressEvent", position=(300, 200))
                 widget.trigger("LeftButtonReleaseEvent", position=(300, 200))
-                self.assertEqual(style_presses, [])
+                self.assertEqual(style.presses, [])
                 self.assertEqual(
                     [value["entity_id"] for value in state.selected_entities],
                     ["block:0/element:20"],
@@ -1698,22 +1754,18 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             )
             state = binder._widget_state[widget]
             renderer = widget.renderer
-            style_presses: list[tuple[int, int]] = []
-            widget.add_observer(
-                "LeftButtonPressEvent",
-                lambda *_args: style_presses.append(widget.event_position),
-            )
+            style = widget.attach_trackball_style()
 
             widget.trigger("LeftButtonPressEvent", position=(300, 200))
             self.assertIsNone(state.orbit_pivot)
-            self.assertEqual(style_presses, [(300, 200)])
+            self.assertEqual(style.presses, [(300, 200)])
             widget.trigger("LeftButtonReleaseEvent", position=(300, 200))
 
             renderer.visible_bounds = (-2.0, 4.0, -1.0, 1.0, 0.0, 2.0)
             renderer.display_point = (0.0, 0.0, 1.5)
             widget.trigger("LeftButtonPressEvent", position=(310, 210))
             self.assertEqual(state.orbit_pivot, (1.0, 0.0, 1.0))
-            self.assertEqual(style_presses, [(300, 200)])
+            self.assertEqual(style.presses, [(300, 200)])
             self.assertEqual(renderer.projected_world_points, [(1.0, 0.0, 1.0)])
             self.assertEqual(renderer.actors_2d, [])
             widget.trigger("LeaveEvent")
@@ -1721,7 +1773,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             self.assertEqual(widget.invoked_events, ["StartInteractionEvent", "EndInteractionEvent"])
             binder.shutdown()
 
-    def test_modified_and_orientation_aid_presses_keep_vtk_camera_handling(self) -> None:
+    def test_modified_view_cube_and_triad_presses_skip_camera_orbit(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             surface_path = Path(temporary_directory) / "mesh.vtu"
             surface_path.write_text("mesh", encoding="utf-8")
@@ -1736,11 +1788,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             )
             state = binder._widget_state[widget]
             widget.renderer.depth = 0.5
-            style_presses: list[tuple[int, int]] = []
-            widget.add_observer(
-                "LeftButtonPressEvent",
-                lambda *_args: style_presses.append(widget.event_position),
-            )
+            style = widget.attach_trackball_style()
 
             for key_name in ("shift_key", "control_key"):
                 with self.subTest(modifier=key_name):
@@ -1753,14 +1801,18 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             widget.trigger("LeftButtonPressEvent", position=(50, 50))
             self.assertIsNone(state.orbit_pivot)
             widget.trigger("LeftButtonReleaseEvent", position=(50, 50))
+            # Modified and view-cube presses stay with VTK.
+            self.assertEqual(style.presses, [(500, 250), (500, 250), (50, 50)])
+            self.assertEqual(widget.invoked_events, [])
 
             widget.trigger("LeftButtonPressEvent", position=(900, 50))
             self.assertTrue(state.triad_drag_active)
             self.assertIsNone(state.orbit_pivot)
             widget.trigger("LeftButtonReleaseEvent", position=(900, 50))
 
-            self.assertEqual(style_presses, [(500, 250), (500, 250), (50, 50), (900, 50)])
-            self.assertEqual(widget.invoked_events, [])
+            # The triad drag takes its press from VTK.
+            self.assertEqual(style.presses, [(500, 250), (500, 250), (50, 50)])
+            self.assertEqual(widget.invoked_events, ["StartInteractionEvent", "EndInteractionEvent"])
             self.assertEqual(widget.renderer.depth_queries, [])
             binder.shutdown()
 
@@ -1810,12 +1862,19 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             )
             state = binder._widget_state[widget]
             self.assertTrue(binder.set_selection_filter(widget, "cad_face"))
+            # Nothing is under the fake cursor for the orbit, so every press reaches
+            # the style, which grabs focus until the release.
+            style = widget.attach_trackball_style()
 
             widget.trigger("LeftButtonPressEvent", position=(300, 200))
             widget.trigger("LeftButtonReleaseEvent", position=(300, 200))
             self.assertEqual(
                 [value["entity_id"] for value in state.selected_entities],
                 ["part:2/face:5"],
+            )
+            self.assertEqual(
+                state.selection_source_actors["scene_1:cad_face"]["actor"].property.opacity,
+                0.0,
             )
             widget.trigger("LeftButtonPressEvent", position=(300, 200))
             widget.trigger("LeftButtonReleaseEvent", position=(300, 200))
@@ -1838,6 +1897,16 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 {value["entity_id"] for value in state.selected_entities},
                 {"part:2/face:5", "part:2/face:9"},
             )
+            self.assertEqual(len(style.presses), 4)
+            self.assertEqual(len(style.releases), 4)
+
+            binder._set_selected_entities(widget, state, [])
+            threshold = binder._selection_click_threshold(widget)
+            widget.trigger("LeftButtonPressEvent", position=(300, 200))
+            widget.trigger("MouseMoveEvent", position=(300 + threshold + 1, 200))
+            widget.trigger("LeftButtonReleaseEvent", position=(300 + threshold + 1, 200))
+            self.assertEqual(style.moves, [(300 + threshold + 1, 200)])
+            self.assertEqual(state.selected_entities, [])
             binder.shutdown()
 
     def test_reparent_refresh_recreates_aids_and_observers_once(self) -> None:

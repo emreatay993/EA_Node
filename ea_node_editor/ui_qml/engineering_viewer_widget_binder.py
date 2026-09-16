@@ -67,9 +67,10 @@ _SHOW_WORLD_AXES_OPTION = "show_world_axes"
 # Logical-pixel size of the pivot dot shown while orbiting; scaled by DPR.
 _ORBIT_MARKER_RADIUS_PX = 4.0
 _ORBIT_MARKER_OUTLINE_PX = 1.5
-# Orbit presses must run after the binder's selection/triad observers (1.0),
-# which still need to see them, and before VTK widgets (0.5) and the trackball
-# style (0.0), which the orbit keeps from grabbing mouse focus.
+# Orbit presses must run after the triad drag observers (1.0), which abort the
+# presses they take over, and before VTK widgets (0.5) and the trackball style
+# (0.0), which the orbit keeps from grabbing mouse focus. Selection clicks
+# observe passively, so they see every press whichever observer aborts it.
 _ORBIT_OBSERVER_PRIORITY = 0.9
 _MAX_SHARED_MEMORY_ASSET_COUNT = 32
 _MAX_SHARED_MEMORY_SEGMENT_BYTES = 512 * 1024 * 1024
@@ -160,8 +161,6 @@ class _EngineeringWidgetState:
     triad_drag_observers: list[tuple[Any, Any]] = field(default_factory=list)
     triad_drag_active: bool = False
     triad_drag_last_position: tuple[int, int] | None = None
-    triad_drag_style: Any | None = None
-    triad_drag_style_was_enabled: bool = True
     orbit_observers: list[tuple[Any, Any]] = field(default_factory=list)
     orbit_pivot: tuple[float, float, float] | None = None
     orbit_last_position: tuple[int, int] | None = None
@@ -1485,6 +1484,15 @@ class EngineeringViewerWidgetBinder(QObject):
         interactor: QWidget,
         state: _EngineeringWidgetState,
     ) -> None:
+        """Select on stationary left clicks, toggling with Ctrl.
+
+        The observers are VTK passive observers. Modified presses still reach
+        the trackball style, which grabs mouse focus for its spin or pan, and a
+        focus grab hides the move and release events from ordinary observers.
+        Passive observers run ahead of focus holders and aborts, so a Ctrl+click
+        still completes; the move threshold and camera interaction events keep
+        drags from selecting.
+        """
         target = getattr(interactor, "iren", None) or getattr(interactor, "interactor", None)
         if target is None or state.selection_observers:
             return
@@ -1581,6 +1589,7 @@ class EngineeringViewerWidgetBinder(QObject):
                 target,
                 event_name,
                 callback,
+                passive=True,
             )
             if observer_id is not None:
                 state.selection_observers.append((observer_target, observer_id))
@@ -1660,7 +1669,13 @@ class EngineeringViewerWidgetBinder(QObject):
             for source in sources:
                 add_pick(source["actor"])
         pick = getattr(picker, "Pick", None)
-        if not callable(pick) or not pick(position[0], position[1], 0.0, renderer):
+        restore_opacities = self._make_pick_sources_opaque(sources)
+        try:
+            picked = callable(pick) and bool(pick(position[0], position[1], 0.0, renderer))
+        finally:
+            for set_opacity, opacity in restore_opacities:
+                set_opacity(opacity)
+        if not picked:
             if not toggle:
                 self._set_selected_entities(interactor, state, [])
             return
@@ -1689,6 +1704,29 @@ class EngineeringViewerWidgetBinder(QObject):
                 current = self._toggle_entities(current, [entity])
             selected = self._toggle_entities(current, selected)
         self._set_selected_entities(interactor, state, selected)
+
+    @staticmethod
+    def _make_pick_sources_opaque(
+        sources: list[dict[str, Any]],
+    ) -> list[tuple[Callable[[float], Any], float]]:
+        """Raise hidden pick sources to full opacity; return their restore calls.
+
+        Pick sources draw at opacity 0 unless an edge/vertex cue shows them,
+        and VTK pickers skip zero-opacity actors. A geometric Pick does not
+        render, so restoring the opacity afterwards never shows the change.
+        """
+        restores: list[tuple[Callable[[float], Any], float]] = []
+        for source in sources:
+            actor_property = getattr(source.get("actor"), "GetProperty", lambda: None)()
+            get_opacity = getattr(actor_property, "GetOpacity", None)
+            set_opacity = getattr(actor_property, "SetOpacity", None)
+            if not callable(get_opacity) or not callable(set_opacity):
+                continue
+            opacity = float(get_opacity())
+            if opacity <= 0.0:
+                set_opacity(1.0)
+                restores.append((set_opacity, opacity))
+        return restores
 
     @staticmethod
     def _toggle_entities(
@@ -2526,24 +2564,32 @@ class EngineeringViewerWidgetBinder(QObject):
         interactor: QWidget,
         state: _EngineeringWidgetState,
     ) -> None:
+        """Turn left-drags that start on the orientation triad into camera turns.
+
+        Like the camera orbit, the press is aborted rather than the trackball
+        style disabled: the style ignores being disabled, and its focus grab
+        would keep this drag's move and release events from these observers.
+        """
         target = getattr(interactor, "iren", None) or getattr(interactor, "interactor", None)
         if target is None or state.triad_drag_observers:
             return
+        press_observer: list[tuple[Any, Any]] = []
 
         def press(*_args: Any) -> None:
             position = self._triad_event_position(target)
             size = self._triad_render_size(target)
-            if position is None or size is None or not self._position_in_triad(position, size):
+            if (
+                position is None
+                or size is None
+                or not self._position_in_triad(position, size)
+                or not press_observer
+            ):
                 return
             state.triad_drag_active = True
             state.triad_drag_last_position = position
-            style = self._triad_interactor_style(target)
-            state.triad_drag_style = style
-            enabled_getter = getattr(style, "GetEnabled", None)
-            state.triad_drag_style_was_enabled = (
-                bool(enabled_getter()) if callable(enabled_getter) else True
-            )
-            self._set_interactor_style_enabled(style, False)
+            # The style never sees this press, so bracket the drag for interaction LOD.
+            self._invoke_interactor_event(target, "StartInteractionEvent")
+            self._abort_observer_event(*press_observer[0])
 
         def move(*_args: Any) -> None:
             if not state.triad_drag_active or state.triad_drag_last_position is None:
@@ -2575,7 +2621,8 @@ class EngineeringViewerWidgetBinder(QObject):
                 render()
 
         def release(*_args: Any) -> None:
-            self._finish_orientation_triad_drag(state)
+            if self._finish_orientation_triad_drag(state):
+                self._invoke_interactor_event(target, "EndInteractionEvent")
 
         for event_name, callback in (
             ("LeftButtonPressEvent", press),
@@ -2588,32 +2635,52 @@ class EngineeringViewerWidgetBinder(QObject):
                 event_name,
                 callback,
             )
-            if observer_id is not None:
-                state.triad_drag_observers.append((observer_target, observer_id))
+            if observer_id is None:
+                continue
+            state.triad_drag_observers.append((observer_target, observer_id))
+            if callback is press:
+                press_observer.append((observer_target, observer_id))
 
-    @staticmethod
+    @classmethod
     def _add_triad_observer(
+        cls,
         target: Any,
         event_name: str,
         callback,  # noqa: ANN001
         priority: float = 1.0,
+        *,
+        passive: bool = False,
     ) -> tuple[Any, Any]:
         raw_interactor = getattr(target, "interactor", None)
         add_observer = getattr(raw_interactor, "AddObserver", None)
+        observer_target, observer_id = target, None
         if callable(add_observer):
             try:
-                return raw_interactor, add_observer(event_name, callback, priority)
+                observer_target, observer_id = (
+                    raw_interactor,
+                    add_observer(event_name, callback, priority),
+                )
             except (TypeError, RuntimeError):
                 pass
-        add_observer = getattr(target, "add_observer", None)
-        if not callable(add_observer):
-            add_observer = getattr(target, "AddObserver", None)
-        if not callable(add_observer):
-            return target, None
-        try:
-            return target, add_observer(event_name, callback)
-        except (TypeError, RuntimeError):
-            return target, None
+        if observer_id is None:
+            add_observer = getattr(target, "add_observer", None)
+            if not callable(add_observer):
+                add_observer = getattr(target, "AddObserver", None)
+            if not callable(add_observer):
+                return target, None
+            try:
+                observer_id = add_observer(event_name, callback)
+            except (TypeError, RuntimeError):
+                return target, None
+        if passive:
+            set_passive = getattr(
+                cls._observer_command(observer_target, observer_id),
+                "SetPassiveObserver",
+                None,
+            )
+            if callable(set_passive):
+                set_passive(1)
+        return observer_target, observer_id
 
     @staticmethod
     def _triad_event_position(target: Any) -> tuple[int, int] | None:
@@ -2676,26 +2743,12 @@ class EngineeringViewerWidgetBinder(QObject):
         return getattr(raw_interactor, "GetInteractorStyle", lambda: None)()
 
     @staticmethod
-    def _set_interactor_style_enabled(style: Any, enabled: bool) -> None:
-        setter = getattr(style, "SetEnabled", None)
-        if callable(setter):
-            setter(1 if enabled else 0)
-            return
-        method = getattr(style, "EnabledOn" if enabled else "EnabledOff", None)
-        if callable(method):
-            method()
-
-    @classmethod
-    def _finish_orientation_triad_drag(cls, state: _EngineeringWidgetState) -> None:
-        if state.triad_drag_style is not None:
-            cls._set_interactor_style_enabled(
-                state.triad_drag_style,
-                state.triad_drag_style_was_enabled,
-            )
+    def _finish_orientation_triad_drag(state: _EngineeringWidgetState) -> bool:
+        """End any triad drag; return whether one was active."""
+        active = state.triad_drag_active
         state.triad_drag_active = False
         state.triad_drag_last_position = None
-        state.triad_drag_style = None
-        state.triad_drag_style_was_enabled = True
+        return active
 
     @classmethod
     def _detach_orientation_triad_drag(cls, state: _EngineeringWidgetState) -> None:
@@ -2904,11 +2957,14 @@ class EngineeringViewerWidgetBinder(QObject):
         return camera
 
     @staticmethod
-    def _abort_observer_event(observer_target: Any, observer_id: Any) -> None:
-        """Stop lower-priority observers from receiving the event being dispatched."""
+    def _observer_command(observer_target: Any, observer_id: Any) -> Any:
         get_command = getattr(observer_target, "GetCommand", None)
-        command = get_command(observer_id) if callable(get_command) else None
-        set_abort = getattr(command, "SetAbortFlag", None)
+        return get_command(observer_id) if callable(get_command) else None
+
+    @classmethod
+    def _abort_observer_event(cls, observer_target: Any, observer_id: Any) -> None:
+        """Stop lower-priority observers from receiving the event being dispatched."""
+        set_abort = getattr(cls._observer_command(observer_target, observer_id), "SetAbortFlag", None)
         if callable(set_abort):
             set_abort(1)
 
