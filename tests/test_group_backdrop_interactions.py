@@ -762,6 +762,91 @@ class GroupBackdropInteractionTests(unittest.TestCase):
         self.assertEqual(wire_state["moving_edges"][0]["fixed_node_id"], backdrop_id)
         canvas.cancelWireDrag()
 
+    def test_graph_canvas_comment_and_link_cards_resolve_regular_and_group_nodes(self) -> None:
+        backdrop_id = self._add_group_backdrop(-400.0, -200.0, 420.0, 260.0)
+        process_id = self.scene.add_node_from_type(FLOWCHART_PROCESS_TYPE_ID, 150.0, 150.0)
+        link_ids: dict[str, str] = {}
+        for node_id in (backdrop_id, process_id):
+            self.scene.upsert_node_comment(node_id, "", f"Review {node_id}")
+            link_ids[node_id] = self.scene.upsert_node_link(node_id, "", "url", "Docs", "https://example.com/docs")
+        canvas, _window = self._create_canvas()
+
+        _wait_for(
+            lambda: len(_named_child_items(canvas, "graphGroupBackdropInputCard")) == 1,
+            timeout_ms=1500,
+            app=self.app,
+            message="Timed out waiting for the group input host to appear.",
+        )
+        state_bridge = canvas.property("canvasStateBridge")
+        self.assertEqual(
+            {payload["node_id"] for payload in state_bridge.visible_badge_nodes_model.payloads()},
+            {backdrop_id, process_id},
+        )
+
+        def _badge_bottoms(object_name: str) -> set[int]:
+            world_offset = float(canvas.property("worldOffset"))
+            return {
+                round(float(item.property("badgeY")) + float(item.height()) * 0.5 - world_offset)
+                for item in _named_child_items(canvas, object_name)
+                if item.isVisible()
+            }
+
+        process_payload = self._scene_payload(process_id)
+        expected_bottoms = {60, round(float(process_payload["y"]) + float(process_payload["height"]))}
+        _wait_for(
+            lambda: _badge_bottoms("graphNodeCommentBadgeHost") == expected_bottoms,
+            timeout_ms=1500,
+            app=self.app,
+            message="Timed out waiting for comment badges on the Group and the flowchart node.",
+        )
+
+        comment_layer = canvas.findChild(QObject, "graphNodeCommentPopoverLayer")
+        link_layer = canvas.findChild(QObject, "graphNodeLinkHoverLayer")
+        for node_id in (process_id, backdrop_id):
+            with self.subTest(node_id=node_id):
+                self.assertTrue(canvas.openNodeCommentEditor(self._scene_payload(node_id), False))
+                self.app.processEvents()
+                self.assertFalse(self._workspace_node(node_id).comments[0].unread)
+                self.assertEqual(comment_layer.property("activeNodeId"), node_id)
+                self.assertTrue(bool(comment_layer.property("editorOpen")))
+                comment_layer.forceClearCard()
+
+                self.assertTrue(canvas.showNodeLinkHoverCard(node_id, link_ids[node_id], 0.0, 0.0))
+                self.assertEqual(link_layer.property("activeLinkId"), link_ids[node_id])
+                link_layer.forceClearCard()
+
+    def test_graph_canvas_inline_rename_edits_group_input_overlay_host(self) -> None:
+        backdrop_id = self._add_group_backdrop(-400.0, -200.0, 420.0, 260.0)
+        self.scene.select_node(backdrop_id, False)
+        canvas, _window = self._create_canvas()
+
+        _wait_for(
+            lambda: len(_named_child_items(canvas, "graphGroupBackdropInputCard")) == 1,
+            timeout_ms=1500,
+            app=self.app,
+            message="Timed out waiting for the group input host to appear.",
+        )
+        visual_host = _node_host(canvas, backdrop_id)
+        input_host = _node_host(canvas, backdrop_id, object_name="graphGroupBackdropInputCard")
+        self.assertIs(canvas.hostForNodeId(backdrop_id), input_host)
+
+        self.assertTrue(canvas.requestInlineRenameForNode(backdrop_id))
+        self.app.processEvents()
+
+        input_header = input_host.findChild(QObject, "graphNodeHeaderLayer")
+        self.assertTrue(bool(input_header.property("isEditing")))
+        self.assertFalse(bool(visual_host.findChild(QObject, "graphNodeHeaderLayer").property("isEditing")))
+        self.assertTrue(bool(input_host.findChild(QObject, "graphNodeTitleEditor").property("visible")))
+        self.assertFalse(bool(input_host.findChild(QObject, "graphNodeTitle").property("visible")))
+
+        input_header.commitTitleEdit("Renamed Group")
+        _wait_for(
+            lambda: self._scene_payload(backdrop_id).get("title") == "Renamed Group",
+            timeout_ms=1500,
+            app=self.app,
+            message="Timed out waiting for the inline Group rename to commit.",
+        )
+
     def test_graph_canvas_scene_state_redraws_group_backdrop_live_resize_only_for_connected_ports(self) -> None:
         class _EdgeLayerCounter(QObject):
             def __init__(self) -> None:

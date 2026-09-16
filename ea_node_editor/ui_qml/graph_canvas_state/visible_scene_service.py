@@ -337,7 +337,7 @@ class VisibleSceneModelOps:
 
     def _sync_visible_badge_nodes_model(self) -> None:
         self._visible_badge_nodes_model.sync_payloads(
-            _badge_node_payloads(self._visible_nodes_model.payloads())
+            _badge_node_payloads(self._visible_scene_node_payloads())
         )
 
     def _payload_visible_in_current_query(self, payload: dict[str, Any]) -> bool:
@@ -474,10 +474,10 @@ class VisibleSceneModelOps:
             self._visible_nodes_model.sync_payloads(
                 self._viewport_indexed_model("nodes_model", self._visible_node_index, visible_rect=query_rect)
             )
-            self._sync_visible_badge_nodes_model()
             self._visible_backdrop_nodes_model.sync_payloads(
                 self._viewport_indexed_model("backdrop_nodes_model", self._visible_backdrop_index, visible_rect=query_rect)
             )
+            self._sync_visible_badge_nodes_model()
         finally:
             self._record_mutation_timing_phase(
                 "visible_node_model_update_ms",

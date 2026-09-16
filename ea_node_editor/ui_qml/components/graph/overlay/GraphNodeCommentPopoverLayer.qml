@@ -13,7 +13,8 @@ Item {
     property var canvasItem: null
     property var viewBridge: null
     property var sceneStateBridge: null
-    property var sceneModel: []
+    // function(nodeId) -> node payload or null; resolves regular nodes and Groups.
+    property var nodeResolver: null
     property var badgeModel: []
     property var visibleSceneRectPayload: ({})
     property var hostResolver: null
@@ -73,22 +74,10 @@ Item {
 
     function nodeDataForId(nodeId) {
         var normalized = String(nodeId || "").trim();
-        var model = root.sceneModel || [];
-        if (!normalized)
+        if (!normalized || typeof root.nodeResolver !== "function")
             return null;
-        var count = model.length !== undefined
-            ? Number(model.length)
-            : (model.count !== undefined ? Number(model.count) : 0);
-        if (!isFinite(count) || count <= 0)
-            return null;
-        for (var i = 0; i < count; i++) {
-            var item = model[i];
-            if (!item && model.get)
-                item = model.get(i);
-            if (item && String(item.node_id || "") === normalized)
-                return item;
-        }
-        return null;
+        var nodeData = root.nodeResolver(normalized);
+        return nodeData && nodeData.node_id ? nodeData : null;
     }
 
     function commentsForNode(nodeData) {
@@ -350,9 +339,7 @@ Item {
         onTriggered: root.clearCard()
     }
 
-    onSceneModelChanged: {
-        root.syncActiveCard();
-    }
+    onNodeResolverChanged: root.syncActiveCard()
 
     Connections {
         target: root.sceneStateBridge

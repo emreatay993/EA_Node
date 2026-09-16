@@ -92,10 +92,21 @@ def _create_hover_sync_probe(qapp):  # noqa: ANN001
                 id: layer
                 objectName: "layer"
                 canvasItem: fakeCanvas
-                sceneModel: probe.scene
+                nodeResolver: probe.nodeForId
                 badgeModel: probe.scene
                 visibleSceneRectPayload: ({{"x": 0, "y": 0, "width": 1000, "height": 700}})
             }}
+
+            function nodeForId(nodeId) {{
+                for (var i = 0; i < scene.length; ++i) {{
+                    if (scene[i].node_id === nodeId)
+                        return scene[i];
+                }}
+                return null;
+            }}
+
+            // Stands in for the scene bridge's nodes_changed signal.
+            onSceneChanged: layer.syncActiveCard()
 
             onStepChanged: {{
                 if (step === 1) {{
@@ -282,14 +293,12 @@ def test_node_link_and_comment_badges_clear_bottom_neutral_port(qapp) -> None:  
             GraphOverlay.GraphNodeLinkHoverLayer {{
                 id: linkLayer
                 canvasItem: fakeCanvas
-                sceneModel: probe.scene
                 badgeModel: probe.scene
             }}
 
             GraphOverlay.GraphNodeCommentPopoverLayer {{
                 id: commentLayer
                 canvasItem: fakeCanvas
-                sceneModel: probe.scene
                 badgeModel: probe.scene
             }}
 
@@ -387,7 +396,6 @@ def test_node_comment_popover_hides_immediately_on_close(qapp) -> None:  # noqa:
                 id: layer
                 objectName: "layer"
                 canvasItem: fakeCanvas
-                sceneModel: probe.scene
                 badgeModel: probe.scene
                 visibleSceneRectPayload: ({{"x": 0, "y": 0, "width": 1000, "height": 700}})
             }}

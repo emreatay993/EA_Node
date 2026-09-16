@@ -323,16 +323,6 @@ Item {
         return String(host.nodeData.node_id || "").trim();
     }
 
-    function _visibleHostForNodeId(nodeId) {
-        var normalized = String(nodeId || "").trim();
-        if (!normalized)
-            return null;
-        var host = nodeWorldLayer.hostForNodeId(normalized);
-        if (host)
-            return host;
-        return backdropLayer.hostForNodeId(normalized);
-    }
-
     function _visibleHostsForNodeId(nodeId) {
         var normalized = String(nodeId || "").trim();
         if (!normalized)
@@ -688,12 +678,19 @@ Item {
         }
     }
 
+    // Groups render twice; the input overlay above the edges is their interactive
+    // host (ports, visible title, inline editing), so callers get that one.
     function hostForNodeId(nodeId) {
         root._forceExactVisibleSceneModels();
-        var host = nodeWorldLayer.hostForNodeId(nodeId);
-        if (host)
-            return host;
-        return backdropLayer.hostForNodeId(nodeId);
+        return nodeWorldLayer.hostForNodeId(nodeId)
+            || backdropInputLayer.hostForNodeId(nodeId)
+            || backdropLayer.hostForNodeId(nodeId);
+    }
+
+    function nodePayloadForId(nodeId) {
+        return root.canvasItem && root.canvasItem._sceneNodePayload
+            ? root.canvasItem._sceneNodePayload(nodeId)
+            : null;
     }
 
     function showNodeLinkHoverCard(nodeId, linkId, sceneX, sceneY) {
@@ -750,7 +747,7 @@ Item {
         canvasItem: root.canvasItem
         viewBridge: root.viewStateBridge
         sceneStateBridge: root.sceneStateBridge
-        sceneModel: root.visibleNodesModel
+        nodeResolver: root.nodePayloadForId
         badgeModel: root.visibleBadgeNodesModel
         visibleSceneRectPayload: root.canvasItem ? root.canvasItem.visibleSceneRectPayload : ({})
         hostResolver: root.hostForNodeId
@@ -763,7 +760,7 @@ Item {
         canvasItem: root.canvasItem
         viewBridge: root.viewStateBridge
         sceneStateBridge: root.sceneStateBridge
-        sceneModel: root.visibleNodesModel
+        nodeResolver: root.nodePayloadForId
         badgeModel: root.visibleBadgeNodesModel
         visibleSceneRectPayload: root.canvasItem ? root.canvasItem.visibleSceneRectPayload : ({})
         hostResolver: root.hostForNodeId

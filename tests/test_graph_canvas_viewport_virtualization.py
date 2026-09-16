@@ -1035,6 +1035,19 @@ class GraphCanvasViewportVirtualizationTests(unittest.TestCase):
         endpoint = next(payload for payload in bridge.edge_endpoint_nodes_model if payload["node_id"] == "group")
         self.assertEqual((endpoint["width"], endpoint["height"]), (480.0, 260.0))
 
+    def test_visible_badge_model_includes_group_backdrops_with_comments_or_links(self) -> None:
+        node = dict(_node_payload("node", x=10.0, y=10.0), comment_count=1, link_count=0)
+        linked_group = dict(_backdrop_payload("linked-group", x=-40.0, y=-40.0), comment_count=0, link_count=1)
+        quiet_group = _backdrop_payload("quiet-group", x=200.0, y=200.0)
+        scene = _SceneSource(nodes=[node], backdrops=[linked_group, quiet_group])
+        view = _ViewportBridgeStub({"x": -100.0, "y": -100.0, "width": 500.0, "height": 500.0})
+        bridge = GraphCanvasStateBridge(scene_bridge=scene, view_bridge=view)
+
+        self.assertEqual(
+            [payload["node_id"] for payload in bridge.visible_badge_nodes_model.payloads()],
+            ["node", "linked-group"],
+        )
+
     def test_pure_addition_delta_appends_targeted_projections_without_endpoint_rebind(self) -> None:
         existing = _node_payload("existing", x=10.0, y=10.0)
         scene = _SceneSource(nodes=[existing])
