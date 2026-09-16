@@ -181,6 +181,37 @@ class _ParentChangeRecorder(QObject):
         return False
 
 
+class _WarmupBinder:
+    """A binder that can render a proxy frame with no widget bound."""
+
+    def __init__(self, image: QImage | None = None, error: Exception | None = None) -> None:
+        self.image = image if isinstance(image, QImage) else QImage(24, 16, QImage.Format.Format_ARGB32)
+        if not isinstance(image, QImage):
+            self.image.fill(QColor("#5DA9FF"))
+        self.error = error
+        self.render_calls: list[dict[str, Any]] = []
+
+    def bind_widget(self, request) -> QWidget | None:  # noqa: ANN001
+        raise ViewerWidgetNoBind("warm-up binder never binds")
+
+    def release_widget(self, request) -> None:  # noqa: ANN001
+        return None
+
+    def render_preview_image(self, request, size) -> QImage:  # noqa: ANN001
+        self.render_calls.append(
+            {
+                "node_id": request.node_id,
+                "session_id": request.session_id,
+                "container": request.container,
+                "current_widget": request.current_widget,
+                "size": QSize(size),
+            }
+        )
+        if self.error is not None:
+            raise self.error
+        return self.image.copy()
+
+
 class _RecordingBinder:
     def __init__(
         self,
@@ -1622,6 +1653,89 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
 
         self.assertGreater(len(binder.capture_preview_calls), captures_before)
         self.assertNotEqual(self.host_service.cached_preview_source(node_id), before_source)
+
+    def test_a_never_activated_viewer_warms_up_a_first_preview(self) -> None:
+        """A freshly connected Model Viewer should not sit blank."""
+        binder = _WarmupBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=node_id,
+            live_mode="proxy",
+            cache_state="proxy_ready",
+        )
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertEqual(len(binder.render_calls), 1, binder.render_calls)
+        call = binder.render_calls[0]
+        self.assertEqual(call["node_id"], node_id)
+        # The warm-up render must never touch overlay binding.
+        self.assertIsNone(call["container"])
+        self.assertIsNone(call["current_widget"])
+        self.assertEqual(self.host_service.active_overlay_count, 0)
+        self.assertTrue(
+            self.host_service.cached_preview_source(node_id).startswith(
+                "image://viewer-preview-cache/"
+            )
+        )
+
+    def test_a_warmed_up_viewer_is_not_warmed_up_again(self) -> None:
+        binder = _WarmupBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=node_id,
+            live_mode="proxy",
+            cache_state="proxy_ready",
+        )
+        self.app.processEvents()
+        self.app.processEvents()
+        self.assertEqual(len(binder.render_calls), 1)
+
+        for _tick in range(4):
+            self.host_service.sync()
+            self.app.processEvents()
+
+        self.assertEqual(len(binder.render_calls), 1)
+
+    def test_a_warmup_render_failure_leaves_the_node_without_a_frame(self) -> None:
+        binder = _WarmupBinder(error=RuntimeError("scene is not loadable"))
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=node_id,
+            live_mode="proxy",
+            cache_state="proxy_ready",
+        )
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertEqual(len(binder.render_calls), 1)
+        self.assertEqual(self.host_service.cached_preview_source(node_id), "")
+        self.assertEqual(self.host_service.last_error, "scene is not loadable")
+
+    def test_a_binder_without_a_preview_renderer_is_simply_skipped(self) -> None:
+        binder = _RecordingBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=node_id,
+            live_mode="proxy",
+            cache_state="proxy_ready",
+        )
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertEqual(self.host_service.cached_preview_source(node_id), "")
+        self.assertEqual(binder.bind_calls, [])
 
     def test_cached_preview_capture_skips_incompatible_transport_identity(self) -> None:
         preview_image = QImage(20, 12, QImage.Format.Format_ARGB32)

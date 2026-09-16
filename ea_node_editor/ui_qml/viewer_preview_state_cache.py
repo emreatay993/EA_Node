@@ -299,6 +299,17 @@ class ViewerPreviewStateCache:
 
     # -------------------------------------------------------------- internals
 
+    def store_preview(self, key: OverlayKey, image: QImage, signature: tuple[Any, ...]) -> None:
+        """Store a frame produced outside the live-capture path.
+
+        Used by the warm-up render, which has no bound widget to capture
+        from. It is current by definition, so it clears any stale mark.
+        """
+        if image.isNull():
+            return
+        self._set_preview(key, image, signature)
+        self._stale_previews.discard(key)
+
     def _set_preview(self, key: OverlayKey, image: QImage, signature: tuple[Any, ...]) -> None:
         provider = self._provider
         if provider is None:

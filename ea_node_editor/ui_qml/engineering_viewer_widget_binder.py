@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 from weakref import WeakKeyDictionary
 
-from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QWidget
 
@@ -572,6 +572,67 @@ class EngineeringViewerWidgetBinder(QObject):
             render()
         return True
 
+    def render_preview_image(
+        self,
+        request: ViewerWidgetBindRequest,
+        size: QSize,
+    ) -> QImage | None:
+        """Render one frame of the scene without binding a live widget.
+
+        This gives a viewer node a proxy frame before the user has ever
+        activated live mode. The plotter is created, populated, rendered and
+        closed inside this call: it never joins the Qt Quick host, never
+        becomes the bound overlay widget, and never touches ``_widget_state``.
+
+        Orientation aids (triad, view cube) are deliberately left out. They
+        are interactor-bound VTK widgets with nothing to attach to here, and
+        a thumbnail reads better without them.
+        """
+        if self._shutdown:
+            raise ViewerWidgetNoBind("Model viewer binder is shut down.")
+        descriptors = self._layer_descriptors(request)
+        layers = self._load_layer_datasets(descriptors)
+        if not layers:
+            return QImage()
+        plotter = self._create_offscreen_plotter(size)
+        if plotter is None:
+            return QImage()
+        try:
+            enable_lightkit = getattr(plotter, "enable_lightkit", None)
+            if callable(enable_lightkit):
+                enable_lightkit()
+            self._apply_canvas_background(
+                plotter,
+                _string(request.options.get(_VIEWER_BACKGROUND_OPTION)),
+                flat=self._representation(request.options) == "wireframe_visible_edges",
+            )
+            self._apply_projection(plotter, request.options)
+            self._add_scene_actors(plotter, request=request, layers=layers)
+            camera_state = _mapping(request.camera_state)
+            if camera_state:
+                apply_camera_state(plotter, camera_state)
+            else:
+                plotter.reset_camera()
+            return self._qimage_from_screenshot(plotter.screenshot(return_img=True))
+        finally:
+            close = getattr(plotter, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:  # noqa: BLE001
+                    pass
+
+    @staticmethod
+    def _create_offscreen_plotter(size: QSize) -> Any:
+        import pyvista as pv
+
+        width = max(1, int(size.width()))
+        height = max(1, int(size.height()))
+        try:
+            return pv.Plotter(off_screen=True, window_size=[width, height])
+        except Exception:  # noqa: BLE001
+            return None
+
     def capture_preview_image(self, widget: QWidget | None) -> QImage | None:
         if not self._is_reusable_interactor(widget):
             return QImage()
@@ -1098,6 +1159,34 @@ class EngineeringViewerWidgetBinder(QObject):
         self._widget_state[interactor] = _EngineeringWidgetState(backend_id=self.backend_id)
         return interactor
 
+    def _add_scene_actors(
+        self,
+        target: Any,
+        *,
+        request: ViewerWidgetBindRequest,
+        layers: list[dict[str, Any]],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Add every layer to a plotter and return its actors by layer id.
+
+        Shared by the live interactor and the offscreen warm-up render so a
+        preview cannot drift from what live mode would draw.
+        """
+        add_mesh = target.add_mesh
+        actors: dict[str, Any] = {}
+        topology_actors: dict[str, Any] = {}
+        for layer in layers:
+            name = _string(layer.get("id"))
+            actors[name] = add_mesh(layer["dataset"], **self._mesh_kwargs(layer, options=request.options))
+            topology_dataset = layer.get("topological_edges_dataset")
+            if topology_dataset is not None:
+                topology_actors[name] = add_mesh(
+                    topology_dataset,
+                    **self._topological_edge_kwargs(layer, options=request.options),
+                )
+        for actor in (*actors.values(), *topology_actors.values()):
+            self._apply_clipping(actor, request.options)
+        return actors, topology_actors
+
     def _populate_interactor(
         self,
         interactor: QWidget,
@@ -1136,20 +1225,11 @@ class EngineeringViewerWidgetBinder(QObject):
             flat=self._representation(request.options) == "wireframe_visible_edges",
         )
         self._apply_projection(interactor, request.options)
-        actors: dict[str, Any] = {}
-        topology_actors: dict[str, Any] = {}
-        for layer in layers:
-            actor = add_mesh(layer["dataset"], **self._mesh_kwargs(layer, options=request.options))
-            name = _string(layer.get("id"))
-            actors[name] = actor
-            topology_dataset = layer.get("topological_edges_dataset")
-            if topology_dataset is not None:
-                topology_actors[name] = add_mesh(
-                    topology_dataset,
-                    **self._topological_edge_kwargs(layer, options=request.options),
-                )
-        for actor in (*actors.values(), *topology_actors.values()):
-            self._apply_clipping(actor, request.options)
+        actors, topology_actors = self._add_scene_actors(
+            interactor,
+            request=request,
+            layers=layers,
+        )
         if not defer_until_attach:
             if camera_state:
                 apply_camera_state(interactor, camera_state)

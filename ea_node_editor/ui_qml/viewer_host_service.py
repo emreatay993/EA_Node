@@ -33,6 +33,7 @@ from ea_node_editor.ui_qml.viewer_preview_state_cache import (
     ViewerPreviewStateCache,
     _freeze_value,
 )
+from ea_node_editor.ui_qml.viewer_preview_warmup import ViewerPreviewWarmupQueue
 from ea_node_editor.ui_qml.viewer_widget_binder import (
     ViewerWidgetBindRequest,
     ViewerWidgetBinder,
@@ -50,6 +51,9 @@ _PRESENTATION_OVERLAY = "overlay"
 _PRESENTATION_DETACHED = "detached"
 _PRESENTATION_RETAINED_INLINE = "retained_inline"
 _MAX_VIEWER_PREVIEW_EDGE_PX = 1280
+# Warm-up renders have no node rect to aim at, so they render wider than a
+# viewer node's viewport usually is and let the proxy surface crop inwards.
+_WARMUP_PREVIEW_SIZE = QSize(960, 540)
 
 def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
@@ -531,6 +535,10 @@ class ViewerHostService(QObject):
             report_error=lambda message: self._set_last_error(message),
             revision_changed=lambda: self.preview_cache_changed.emit(),
         )
+        self._preview_warmup = ViewerPreviewWarmupQueue(
+            render=self._render_warmup_preview,
+            still_wanted=self._warmup_still_wanted,
+        )
         self._viewer_overlay_revision = 0
         self._owns_content_fullscreen_target = False
         self._presentation_service = _ViewerHostPresentationService(
@@ -594,6 +602,7 @@ class ViewerHostService(QObject):
             self._native_presentation_handoff.cancel(key)
             self._remember_inline_retention_identity(key)
             self._preview_state.mark_live_frame_dirty(key)
+            self._preview_warmup.cancel(key)
             if key not in self._embedded_interaction_active:
                 self._embedded_interaction_active.add(key)
                 changed = True
@@ -1346,6 +1355,7 @@ class ViewerHostService(QObject):
         self._clear_fullscreen_hold()
         self._embedded_interaction_active.clear()
         self._preview_state.clear_all()
+        self._preview_warmup.clear()
         overlay_manager = self._overlay_manager
         if overlay_manager is not None:
             self._set_viewer_content_fullscreen_target(overlay_manager, None)
@@ -1394,6 +1404,7 @@ class ViewerHostService(QObject):
             self._engineering_binder = None
         self._embedded_interaction_active.clear()
         self._preview_state.clear_all()
+        self._preview_warmup.stop()
         overlay_manager = self._overlay_manager
         if overlay_manager is not None:
             self._set_viewer_content_fullscreen_target(overlay_manager, None)
@@ -1620,7 +1631,9 @@ class ViewerHostService(QObject):
             self.state_changed.emit()
             return
 
-        self._preview_state.sync_signatures(self._projected_snapshots())
+        projected_snapshots = self._projected_snapshots()
+        self._preview_state.sync_signatures(projected_snapshots)
+        self._queue_preview_warmups(projected_snapshots)
         self._set_viewer_content_fullscreen_target(overlay_manager, self._content_fullscreen_overlay_spec())
         projected_sessions = bridge.sessions_model
         self._prune_inline_retention_identities()
@@ -2430,6 +2443,61 @@ class ViewerHostService(QObject):
             if snapshot is not None:
                 snapshots.append(snapshot)
         return snapshots
+
+    def _queue_preview_warmups(self, snapshots: list[_ViewerHostSessionSnapshot]) -> None:
+        """Give never-activated viewer nodes a first frame to show."""
+        if self._shutdown:
+            return
+        self._preview_warmup.enqueue(
+            snapshot.overlay_key
+            for snapshot in snapshots
+            if self._warmup_wanted_for_snapshot(snapshot)
+        )
+
+    def _warmup_wanted_for_snapshot(self, snapshot: _ViewerHostSessionSnapshot) -> bool:
+        key = snapshot.overlay_key
+        if snapshot.phase != "open" or key[0] != self._active_workspace_id():
+            return False
+        if not snapshot.transport:
+            return False
+        if self._preview_state.has_preview(key):
+            return False
+        # A live binding is about to produce a real frame of its own.
+        return key not in self._bound_overlays
+
+    def _warmup_still_wanted(self, key: _OverlayKey) -> bool:
+        if self._shutdown:
+            return False
+        snapshot = self._snapshot_for_key(key)
+        return snapshot is not None and self._warmup_wanted_for_snapshot(snapshot)
+
+    def _render_warmup_preview(self, key: _OverlayKey) -> None:
+        snapshot = self._snapshot_for_key(key)
+        if snapshot is None:
+            return
+        try:
+            binder = self._ensure_binders_initialized().resolve(snapshot.backend_id)
+        except LookupError:
+            return
+        render = getattr(binder, "render_preview_image", None)
+        if not callable(render):
+            return
+        request = snapshot.bind_request(container=None, current_widget=None)
+        try:
+            image = render(request, _WARMUP_PREVIEW_SIZE)
+        except ViewerWidgetNoBind:
+            # The transport is not ready yet; a later sync re-queues the key.
+            return
+        except Exception as exc:  # noqa: BLE001
+            self._set_last_error(str(exc))
+            return
+        if not isinstance(image, QImage) or image.isNull():
+            return
+        self._preview_state.store_preview(
+            key,
+            self._normalized_overlay_preview_image(key, image),
+            self._preview_state.preview_signature(snapshot),
+        )
 
     def _snapshot_for_key(self, key: _OverlayKey) -> _ViewerHostSessionSnapshot | None:
         bridge = self._viewer_session_bridge

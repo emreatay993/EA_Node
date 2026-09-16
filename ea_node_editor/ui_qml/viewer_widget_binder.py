@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QWidget
 
@@ -64,6 +65,18 @@ class ViewerWidgetPreviewCapture(Protocol):
         ...
 
 
+class ViewerWidgetPreviewRenderer(Protocol):
+    """Render a proxy frame without binding a live widget.
+
+    Optional. A binder that implements it lets a viewer node show its scene
+    before the user has ever activated live mode; one that does not simply
+    keeps the placeholder until the first live exit captures a frame.
+    """
+
+    def render_preview_image(self, request: ViewerWidgetBindRequest, size: QSize) -> QImage | None:
+        ...
+
+
 class ViewerWidgetBinderRegistry:
     def __init__(self) -> None:
         self._binders: dict[str, ViewerWidgetBinder] = {}
@@ -96,5 +109,6 @@ __all__ = [
     "ViewerWidgetBinderRegistry",
     "ViewerWidgetNoBind",
     "ViewerWidgetPreviewCapture",
+    "ViewerWidgetPreviewRenderer",
     "ViewerWidgetReleaseRequest",
 ]

@@ -14,7 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import PropertyMock, patch
 
-from PyQt6.QtCore import QObject, Qt, pyqtSignal
+from PyQt6.QtCore import QObject, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QWidget
 
@@ -755,6 +755,39 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             binder.shutdown()
             segment.unlink()
             segment.close()
+
+    def test_render_preview_image_draws_the_scene_without_binding_a_widget(self) -> None:
+        """Warm-up render: real offscreen VTK, no interactor, no widget state."""
+        import pyvista
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            primary = Path(temporary_directory) / "warmup.vtp"
+            mesh = pyvista.Cube().triangulate().extract_surface(algorithm="dataset_surface")
+            mesh.point_data["stress"] = list(range(mesh.n_points))
+            mesh.save(primary)
+            request = _request(primary)
+            created_interactors: list[object] = []
+
+            def _factory(parent):  # noqa: ANN001
+                created_interactors.append(parent)
+                return _FakeInteractor(parent)
+
+            binder = EngineeringViewerWidgetBinder(
+                interactor_factory=_factory,
+                background_loading=False,
+            )
+            try:
+                image = binder.render_preview_image(request, QSize(320, 200))
+            finally:
+                binder.shutdown()
+
+            self.assertIsNotNone(image)
+            self.assertFalse(image.isNull())
+            self.assertEqual(image.size(), QSize(320, 200))
+            self.assertEqual(created_interactors, [])
+            # Something other than an empty frame was drawn.
+            colors = {image.pixel(x, y) for x in range(0, 320, 40) for y in range(0, 200, 40)}
+            self.assertGreater(len(colors), 1)
 
     def test_bind_loads_primary_and_overlay_into_one_reusable_interactor(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
