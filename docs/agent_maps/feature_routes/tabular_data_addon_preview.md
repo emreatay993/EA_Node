@@ -36,6 +36,7 @@ Use this for the tabular data add-on, canonical data-view composition, full-outp
 - `ea_node_editor/ui_qml/components/graph/tabular/TabularTableViewport.qml`
 - `ea_node_editor/ui_qml/components/graph/tabular/ComposerButton.qml` and `ea_node_editor/ui_qml/components/graph/tabular/ComposerField.qml` — composer-local shared-dialog styling with inherited theme/contrast tokens
 - `ea_node_editor/ui_qml/components/graph/tabular/ComposerComboBox.qml`, `ea_node_editor/ui_qml/components/graph/tabular/ComposerSpinBox.qml`, `ea_node_editor/ui_qml/components/graph/tabular/ComposerCheckBox.qml`, `ea_node_editor/ui_qml/components/graph/tabular/ComposerTabButton.qml`, `ea_node_editor/ui_qml/components/graph/tabular/ComposerCard.qml` — archive-aware selectors and focused, compact workspace controls
+- `ea_node_editor/ui_qml/components/graph/tabular/TabularComposerMapping.qml` and `ea_node_editor/ui_qml/components/graph/tabular/TabularComposerRules.qml` — fullscreen composer mapping (value blocks, segments, coordinates, explicit axes) and rules (output conditions, stable sorting, ranges, column order) panels
 - `ea_node_editor/ui_qml/content_fullscreen_bridge.py`
 - `ea_node_editor/ui/shell/host_presenter.py`
 - `scripts/verify_tabular_perf.py` — perf harness (budgets + cold/warm cache runs)
