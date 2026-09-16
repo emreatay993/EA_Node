@@ -271,6 +271,7 @@ Rectangle {
         shellLibraryBridgeRef: root.shellLibraryBridgeRef
         themeBridgeRef: root.themeBridgeRef
         graphCanvasStateBridgeRef: root.canvasStateBridgeRef
+        graphCanvasRef: workspaceCenterPane.graphCanvasRef
         uiIconsRef: root.uiIconsRef
     }
 

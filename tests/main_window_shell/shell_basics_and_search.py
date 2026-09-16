@@ -6,12 +6,12 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
-from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import Q_ARG, QEvent, QMetaObject, QObject, Qt
+from PyQt6.QtGui import QColor, QKeyEvent
 from PyQt6.QtQml import QJSValue
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QMenu, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMenu, QMessageBox
 
 from ea_node_editor.nodes.builtins.core import PYTHON_SCRIPT_DEFAULT_SOURCE
 from ea_node_editor.ui.dialogs.input_reference_dialog import (
@@ -2380,6 +2380,91 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertEqual(self.window.graph_search_enabled_scopes, ["title", "type", "content", "port"])
         self.assertEqual(self.window.graph_search_results, [])
         self.assertEqual(self.window.graph_search_highlight_index, -1)
+
+    def _open_graph_search_with_field_focus(self, query: str) -> QObject:
+        search_field = self.window.quick_widget.rootObject().findChild(QObject, "graphSearchField")
+        self.assertIsNotNone(search_field)
+        self.window.action_graph_search.trigger()
+        self.window.set_graph_search_query(query)
+        wait_for_condition_or_raise(
+            lambda: bool(search_field.property("activeFocus")),
+            app=self.app,
+            timeout_message="Graph search field never received keyboard focus.",
+        )
+        return search_field
+
+    def _assert_canvas_owns_single_key_shortcuts(self, label: str, search_field: QObject) -> None:
+        quick_window = self.window.quick_widget.quickWindow()
+        focus_item = quick_window.activeFocusItem()
+        focus_name = "<none>" if focus_item is None else (
+            focus_item.objectName() or focus_item.metaObject().className()
+        )
+        canvas = self.window.quick_widget.rootObject().findChild(QObject, "graphCanvas")
+        self.assertTrue(bool(canvas.property("activeFocus")), f"{label}: keyboard focus stayed on {focus_name}")
+
+        # A focused text input accepts ShortcutOverride for printable keys, which
+        # silently suppresses window QActions such as F (Frame Selection).
+        override = QKeyEvent(QEvent.Type.ShortcutOverride, Qt.Key.Key_F, Qt.KeyboardModifier.NoModifier, "f")
+        override.ignore()
+        QApplication.sendEvent(self.window.quick_widget, override)
+        self.assertFalse(override.isAccepted(), f"{label}: {focus_name} swallowed the F shortcut")
+
+        self.window.view.set_zoom(0.25)
+        zoom_before_frame = self.window.view.zoom
+        QTest.keyClick(self.window.quick_widget, Qt.Key.Key_F)
+        self.app.processEvents()
+        self.assertEqual(search_field.property("text"), "", f"{label}: hidden search field received typing")
+        self.assertNotAlmostEqual(
+            self.window.view.zoom, zoom_before_frame, places=3, msg=f"{label}: F did not frame the selection"
+        )
+
+    def test_graph_search_close_returns_keyboard_focus_to_canvas(self) -> None:
+        source_workspace_id = self.window.workspace_manager.active_workspace_id()
+        other_workspace_id = self.window.workspace_manager.create_workspace("Focus Target Space")
+        self.window.workspace_navigation_controller.refresh_workspace_tabs()
+        self.window.workspace_navigation_controller.switch_workspace(other_workspace_id)
+        other_workspace_node_id = self.window.scene.add_node_from_type("core.logger", x=640.0, y=360.0)
+        self.window.scene.set_node_title(other_workspace_node_id, "Focus Other Workspace Logger")
+        self.window.workspace_navigation_controller.switch_workspace(source_workspace_id)
+
+        shell_id = self.window.scene.add_node_from_type("core.subnode", x=260.0, y=150.0)
+        nested_node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=100.0)
+        workspace = self.window.model.project.workspaces[source_workspace_id]
+        workspace.nodes[nested_node_id].parent_node_id = shell_id
+        self.window.scene.refresh_workspace_from_model(source_workspace_id)
+        self.window.scene.set_node_title(nested_node_id, "Focus Nested Subnode Logger")
+        viewer_id = self.window.scene.add_node_from_type("model.viewer", x=900.0, y=80.0)
+        self.window.scene.set_node_title(viewer_id, "Focus Viewer Node")
+        media_id = self.window.scene.add_node_from_type("media.panel", x=900.0, y=600.0)
+        self.window.scene.set_node_title(media_id, "Focus Media Panel")
+        self.app.processEvents()
+
+        for label, query, node_id in (
+            ("other workspace", "focus other workspace", other_workspace_node_id),
+            ("subnode scope", "focus nested subnode", nested_node_id),
+            ("viewer", "focus viewer node", viewer_id),
+            ("media", "focus media panel", media_id),
+        ):
+            with self.subTest(target=label):
+                search_field = self._open_graph_search_with_field_focus(query)
+                QTest.keyClick(self.window.quick_widget, Qt.Key.Key_Return)
+                self.app.processEvents()
+                self.assertFalse(self.window.graph_search_open)
+                self.assertEqual(self.window.scene.selected_node_id(), node_id)
+                self._assert_canvas_owns_single_key_shortcuts(label, search_field)
+
+        with self.subTest(close="result click"):
+            search_field = self._open_graph_search_with_field_focus("focus media panel")
+            self.assertTrue(self.window.request_graph_search_jump(0))
+            self.app.processEvents()
+            self._assert_canvas_owns_single_key_shortcuts("result click", search_field)
+
+        with self.subTest(close="escape"):
+            search_field = self._open_graph_search_with_field_focus("focus viewer node")
+            QTest.keyClick(self.window.quick_widget, Qt.Key.Key_Escape)
+            self.app.processEvents()
+            self.assertFalse(self.window.graph_search_open)
+            self._assert_canvas_owns_single_key_shortcuts("escape", search_field)
 
     def test_graph_search_filter_ui_resets_on_reopen_and_keeps_one_scope_enabled(self) -> None:
         self.window.action_graph_search.trigger()

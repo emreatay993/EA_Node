@@ -8,6 +8,7 @@ Rectangle {
     property var shellLibraryBridgeRef: typeof shellLibraryBridge !== "undefined" ? shellLibraryBridge : null
     property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
     property var graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
+    property var graphCanvasRef: null
     property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
     readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
     readonly property var graphSearchScopeOptions: [
@@ -64,7 +65,14 @@ Rectangle {
 
     onVisibleChanged: {
         if (!visible) {
+            // Hidden items keep active focus; hand it back so the canvas's
+            // single-key window shortcuts (F, Shift+F, A) are not swallowed.
+            var ownedFocus = root.activeFocus
+                || graphSearchField.activeFocus
+                || graphSearchFilterPopup.activeFocus
             graphSearchFilterPopup.close()
+            if (ownedFocus && root.graphCanvasRef)
+                root.graphCanvasRef.forceActiveFocus()
             return
         }
         Qt.callLater(function() {
