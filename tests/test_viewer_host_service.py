@@ -1528,6 +1528,73 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertEqual(cached_size, binder.capture_preview_sizes[0])
         self.assertEqual(cached.pixelColor(0, 0), QColor("#67D487"))
 
+    def test_every_live_exit_refreshes_the_cached_preview(self) -> None:
+        """A second live session must not leave the first frame on the node.
+
+        The capture used to be latched behind "is there already a preview?",
+        so only the first live exit ever produced a frame.
+        """
+        binder = _RecordingBinder(captured_preview_image=QImage(20, 12, QImage.Format.Format_ARGB32))
+        binder.captured_preview_image.fill(QColor("#67D487"))
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+
+        sources: list[str] = []
+        revisions: list[int] = []
+        for _cycle in range(3):
+            self._activate_inline(node_id)
+            self._deactivate_inline(node_id)
+            sources.append(self.host_service.cached_preview_source(node_id))
+            revisions.append(self.host_service.preview_cache_revision)
+
+        self.assertEqual(len(binder.capture_preview_calls), 3)
+        self.assertEqual(len(set(sources)), 3)
+        self.assertEqual(revisions, sorted(set(revisions)))
+        for source in sources:
+            self.assertTrue(source.startswith("image://viewer-preview-cache/"))
+
+    def test_single_live_exit_captures_the_frame_exactly_once(self) -> None:
+        """Demote and retained-inline parking must not both screenshot."""
+        binder = _RecordingBinder(captured_preview_image=QImage(20, 12, QImage.Format.Format_ARGB32))
+        binder.captured_preview_image.fill(QColor("#67D487"))
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+
+        self._activate_inline(node_id)
+        self._deactivate_inline(node_id)
+        self.assertEqual(len(binder.capture_preview_calls), 1)
+
+        # Idle syncs over a parked binding never re-screenshot.
+        self.host_service.sync()
+        self.app.processEvents()
+        self.host_service.sync()
+        self.app.processEvents()
+        self.assertEqual(len(binder.capture_preview_calls), 1)
+
+    def test_fullscreen_close_refreshes_the_cached_preview(self) -> None:
+        binder = _RecordingBinder(captured_preview_image=QImage(20, 12, QImage.Format.Format_ARGB32))
+        binder.captured_preview_image.fill(QColor("#67D487"))
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_engineering_viewer_node()
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+        self._activate_inline(node_id)
+        self._deactivate_inline(node_id)
+        before_source = self.host_service.cached_preview_source(node_id)
+        captures_before = len(binder.capture_preview_calls)
+        self.assertTrue(before_source)
+
+        self.assertTrue(self.window.content_fullscreen_bridge.request_open_node(node_id))
+        self.app.processEvents()
+        self.app.processEvents()
+        self.window.content_fullscreen_bridge.request_close()
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertGreater(len(binder.capture_preview_calls), captures_before)
+        self.assertNotEqual(self.host_service.cached_preview_source(node_id), before_source)
+
     def test_cached_preview_capture_skips_incompatible_transport_identity(self) -> None:
         preview_image = QImage(20, 12, QImage.Format.Format_ARGB32)
         preview_image.fill(QColor("#67D487"))

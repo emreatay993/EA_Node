@@ -538,6 +538,7 @@ class ViewerHostService(QObject):
         self._pending_detached_sessions: dict[_OverlayKey, str] = {}
         self._fullscreen_hold_key: _OverlayKey | None = None
         self._embedded_interaction_active: set[_OverlayKey] = set()
+        self._live_frame_dirty: set[_OverlayKey] = set()
         self._native_presentation_handoff = NativePresentationHandoff(
             overlay_manager_provider=lambda: self._overlay_manager,
             completion_callback=self._complete_embedded_exit_demotion,
@@ -608,13 +609,13 @@ class ViewerHostService(QObject):
         if bool(active):
             self._native_presentation_handoff.cancel(key)
             self._remember_inline_retention_identity(key)
+            self._mark_live_frame_dirty(key)
             if key not in self._embedded_interaction_active:
                 self._embedded_interaction_active.add(key)
                 changed = True
         elif key in self._embedded_interaction_active:
             if self._content_fullscreen_key() != key:
-                if not self._cached_preview_available(key):
-                    demotion_deferred = self._capture_embedded_exit_state(key)
+                demotion_deferred = self._capture_embedded_exit_state(key)
             self._embedded_interaction_active.remove(key)
             changed = True
         elif self._native_presentation_handoff.contains(key):
@@ -734,6 +735,7 @@ class ViewerHostService(QObject):
             self._release_presentation_hold_if_unused(key)
             return False
         self._pending_detached_sessions.pop(key, None)
+        self._mark_live_frame_dirty(key)
         if self._content_fullscreen_key() == key:
             bridge = self._content_fullscreen_bridge
             close = getattr(bridge, "request_close", None) if bridge is not None else None
@@ -815,6 +817,7 @@ class ViewerHostService(QObject):
             return
         self._fullscreen_hold_key = next_key
         if next_key is not None:
+            self._mark_live_frame_dirty(next_key)
             self._acquire_presentation_hold(next_key)
         if previous_key is not None:
             self._release_presentation_hold_if_unused(previous_key)
@@ -1366,6 +1369,7 @@ class ViewerHostService(QObject):
         self._clear_pending_detached_sessions()
         self._clear_fullscreen_hold()
         self._embedded_interaction_active.clear()
+        self._live_frame_dirty.clear()
         self._clear_all_cached_previews()
         overlay_manager = self._overlay_manager
         if overlay_manager is not None:
@@ -1414,6 +1418,7 @@ class ViewerHostService(QObject):
             self._engineering_binder.shutdown()
             self._engineering_binder = None
         self._embedded_interaction_active.clear()
+        self._live_frame_dirty.clear()
         self._clear_all_cached_previews()
         overlay_manager = self._overlay_manager
         if overlay_manager is not None:
@@ -1680,6 +1685,11 @@ class ViewerHostService(QObject):
                 continue
             desired = desired_overlays.get(key)
             if desired is None:
+                if bound.presentation != _PRESENTATION_RETAINED_INLINE:
+                    # Live presentation is ending (inline exit, fullscreen
+                    # close, detached close). Refresh the proxy frame while
+                    # the widget still shows what the user was looking at.
+                    self._capture_cached_live_state_for_key(key)
                 if self._retain_inline_binding(key):
                     continue
                 self._capture_cached_live_state_for_key(key)
@@ -1928,9 +1938,24 @@ class ViewerHostService(QObject):
             and self._inline_retention_identity_matches(key, current)
         )
 
-    def _cached_preview_available(self, key: _OverlayKey) -> bool:
+    def _mark_live_frame_dirty(self, key: _OverlayKey) -> None:
+        """Record that the live widget may now differ from the cached frame.
+
+        Every live presentation episode and every host-driven render change
+        marks the key, and a successful capture clears it. Direct VTK mouse
+        interaction never reaches this service, so entering live mode alone
+        has to be treated as a change; that keeps the proxy frame honest
+        while still skipping the redundant second screenshot a single exit
+        would otherwise take (once on demote, once when the binding is
+        parked in the retained-inline slot).
+        """
+        self._live_frame_dirty.add(key)
+
+    def _live_frame_capture_required(self, key: _OverlayKey) -> bool:
+        if key in self._live_frame_dirty:
+            return True
         provider = self._preview_cache_provider
-        return bool(provider is not None and provider.preview_source(key[0], key[1]))
+        return not (provider is not None and provider.has_preview(key[0], key[1]))
 
     def _retain_inline_binding(self, key: _OverlayKey) -> bool:
         if not self._binding_can_be_retained(key):
@@ -2482,10 +2507,13 @@ class ViewerHostService(QObject):
         cached_signature = provider.preview_signature(key[0], key[1])
         if cached_signature is not None and cached_signature != signature:
             self._clear_cached_preview(key)
+        if not self._live_frame_capture_required(key):
+            return
         image = self.capture_overlay_preview_image(bound.snapshot.node_id, workspace_id=bound.snapshot.workspace_id)
         if image.isNull():
             return
         self._set_cached_preview(key, image, signature)
+        self._live_frame_dirty.discard(key)
 
     def _capture_cached_view_state_for_binding(
         self,
