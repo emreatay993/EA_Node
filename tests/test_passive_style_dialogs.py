@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import colorsys
 import unittest
 from unittest.mock import patch
 
@@ -10,7 +11,17 @@ from PyQt6.QtWidgets import QApplication, QComboBox, QLineEdit, QMessageBox, QWi
 
 from ea_node_editor.ui.dialogs.passive_style_controls import color_to_hex
 from ea_node_editor.ui.dialogs.flow_edge_style_dialog import FlowEdgeStyleDialog
-from ea_node_editor.ui.dialogs.passive_node_style_dialog import PassiveNodeStyleDialog
+from ea_node_editor.ui.dialogs.passive_node_style_dialog import (
+    PassiveNodeStyleDialog,
+    _cie_lightness,
+    _suggested_gradient_color,
+)
+from ea_node_editor.ui.passive_style_presets import built_in_style_presets
+
+
+def _hex_rgb(value: str) -> tuple[float, float, float]:
+    digits = value.lstrip("#")[-6:]
+    return tuple(int(digits[index : index + 2], 16) / 255.0 for index in (0, 2, 4))
 
 
 class PassiveNodeStyleDialogTests(unittest.TestCase):
@@ -146,6 +157,73 @@ class PassiveNodeStyleDialogTests(unittest.TestCase):
             self.assertEqual(dialog.preset_combo.currentText(), "Project: Project Custom")
         finally:
             dialog.close()
+
+    def test_applying_starter_presets_in_turn_loads_exactly_each_style(self) -> None:
+        dialog = PassiveNodeStyleDialog(initial_style={"fill_color": "#203040", "corner_radius": 30, "font_size": 16})
+        try:
+            built_ins = built_in_style_presets("node")
+            # Walk forward and back so corner radius, border width, and font size never leak between presets.
+            for entry in [*built_ins, *reversed(built_ins)]:
+                with self.subTest(preset=entry["name"]):
+                    dialog.preset_combo.setCurrentIndex(dialog.preset_combo.findData(entry["preset_id"]))
+                    dialog.apply_preset_button.click()
+
+                    self.assertEqual(dialog.node_style(), entry["style"])
+                    self.assertEqual(dialog.preset_combo.currentData(), entry["preset_id"])
+        finally:
+            dialog.close()
+
+    def test_switching_gradient_to_custom_suggests_a_darker_shade_of_the_fill(self) -> None:
+        dialog = PassiveNodeStyleDialog(initial_style={"fill_color": "#EFF5F1"})
+        try:
+            gradient_mode = dialog.findChild(QComboBox, "gradient_mode_value")
+            gradient_color = dialog.findChild(QLineEdit, "gradient_color_value")
+
+            gradient_mode.setCurrentIndex(gradient_mode.findData("custom"))
+
+            self.assertEqual(gradient_color.text(), "#C0D7C7")
+            self.assertEqual(
+                dialog.node_style(),
+                {
+                    "fill_color": "#EFF5F1",
+                    "gradient_enabled": True,
+                    "gradient_color": "#C0D7C7",
+                    "gradient_direction": "south",
+                },
+            )
+
+            gradient_color.setText("#445566")
+            gradient_mode.setCurrentIndex(gradient_mode.findData("off"))
+            gradient_mode.setCurrentIndex(gradient_mode.findData("custom"))
+            self.assertEqual(gradient_color.text(), "#445566")
+
+            gradient_mode.setCurrentIndex(gradient_mode.findData("inherit"))
+            gradient_color.setText("")
+            dialog.findChild(QLineEdit, "fill_color_value").setText("")
+            gradient_mode.setCurrentIndex(gradient_mode.findData("custom"))
+            self.assertEqual(gradient_color.text(), "")
+        finally:
+            dialog.close()
+
+    def test_suggested_gradient_color_keeps_hue_and_alpha(self) -> None:
+        self.assertEqual(_suggested_gradient_color("#FFFFFF"), "#DDDDDD")
+        self.assertEqual(_suggested_gradient_color("#2b3037"), "#15171A")
+        self.assertEqual(_suggested_gradient_color("#80EFF5F1"), "#80C0D7C7")
+        self.assertEqual(_suggested_gradient_color("#000000"), "#000000")
+
+    def test_suggested_gradient_color_is_an_even_perceptual_step_for_every_starter(self) -> None:
+        # Pale tints and dark cards should both get the same visible depth, and keep their hue.
+        for entry in built_in_style_presets("node"):
+            fill = entry["style"]["fill_color"]
+            end = _suggested_gradient_color(fill)
+            with self.subTest(preset=entry["name"], fill=fill, end=end):
+                fill_rgb = _hex_rgb(fill)
+                end_rgb = _hex_rgb(end)
+                self.assertAlmostEqual(_cie_lightness(fill_rgb) - _cie_lightness(end_rgb), 12.0, delta=0.5)
+                fill_hue = colorsys.rgb_to_hls(*fill_rgb)[0]
+                end_hue = colorsys.rgb_to_hls(*end_rgb)[0]
+                if colorsys.rgb_to_hls(*fill_rgb)[2] > 0.05:
+                    self.assertAlmostEqual(fill_hue, end_hue, delta=0.02)
 
     def test_dialog_supports_project_local_node_preset_crud_with_read_only_starters(self) -> None:
         dialog = PassiveNodeStyleDialog(
@@ -325,6 +403,27 @@ class FlowEdgeStyleDialogTests(unittest.TestCase):
             ],
         )
         try:
+            self.assertEqual(dialog.preset_combo.currentText(), "Project: Project Edge")
+        finally:
+            dialog.close()
+
+    def test_applying_edge_preset_without_stroke_width_clears_the_field(self) -> None:
+        dialog = FlowEdgeStyleDialog(
+            initial_style={"stroke_color": "#102030", "stroke_width": 4},
+            user_presets=[
+                {
+                    "preset_id": "edge_preset_deadbeef",
+                    "name": "Project Edge",
+                    "style": {"stroke_color": "#203040"},
+                }
+            ],
+        )
+        try:
+            dialog.preset_combo.setCurrentIndex(dialog.preset_combo.findText("Project: Project Edge"))
+            dialog.apply_preset_button.click()
+
+            self.assertEqual(dialog.findChild(QLineEdit, "stroke_width_value").text(), "")
+            self.assertEqual(dialog.edge_style(), {"stroke_color": "#203040"})
             self.assertEqual(dialog.preset_combo.currentText(), "Project: Project Edge")
         finally:
             dialog.close()

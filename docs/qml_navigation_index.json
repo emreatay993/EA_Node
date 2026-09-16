@@ -10,8 +10,8 @@
     "loader_constructs": 28,
     "signal_handlers": 962,
     "connections": 49,
-    "property_bindings": 7817,
-    "local_component_refs": 309
+    "property_bindings": 7847,
+    "local_component_refs": 314
   },
   "entries": [
     {
@@ -14212,6 +14212,10 @@
           "name": "bodyGradientActive"
         },
         {
+          "kind": "bool",
+          "name": "passiveBodyGradientActive"
+        },
+        {
           "kind": "color",
           "name": "bodyGradientStartColor"
         },
@@ -16872,6 +16876,12 @@
           "anchor": "GraphNodeHostPropertyBodyGradientActive",
           "kind": "property",
           "name": "bodyGradientActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeHostPropertyPassiveBodyGradientActive",
+          "kind": "property",
+          "name": "passiveBodyGradientActive",
           "detail": "bool"
         },
         {
@@ -20387,6 +20397,10 @@
           "name": "bodyGradientActive"
         },
         {
+          "kind": "bool",
+          "name": "passiveBodyGradientActive"
+        },
+        {
           "kind": "color",
           "name": "headerTextColor"
         },
@@ -20889,6 +20903,12 @@
           "anchor": "GraphNodeHostThemePropertyBodyGradientActive",
           "kind": "property",
           "name": "bodyGradientActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeHostThemePropertyPassiveBodyGradientActive",
+          "kind": "property",
+          "name": "passiveBodyGradientActive",
           "detail": "bool"
         },
         {
@@ -41959,6 +41979,9 @@
           "name": "surface"
         },
         {
+          "name": "noteBackground"
+        },
+        {
           "name": "bodyBounds"
         },
         {
@@ -41973,6 +41996,9 @@
           "name": "graphNodeAnnotationSurface"
         },
         {
+          "name": "graphNodeAnnotationGradientFill"
+        },
+        {
           "name": "graphNodeAnnotationRichTextBlock"
         }
       ],
@@ -41984,6 +42010,18 @@
         {
           "kind": "color",
           "name": "noteFillColor"
+        },
+        {
+          "kind": "bool",
+          "name": "noteGradientActive"
+        },
+        {
+          "kind": "bool",
+          "name": "noteFillTranslucent"
+        },
+        {
+          "kind": "color",
+          "name": "noteGradientEndColor"
         },
         {
           "kind": "color",
@@ -42046,6 +42084,9 @@
           "name": "Rectangle"
         },
         {
+          "name": "GraphShared.GraphNodeGradientFill"
+        },
+        {
           "name": "Item"
         },
         {
@@ -42092,6 +42133,7 @@
           "kind": "binding",
           "name": "color",
           "targets": [
+            "surface.noteGradientActive",
             "surface.noteFillColor"
           ]
         },
@@ -42109,6 +42151,51 @@
           "name": "border.color",
           "targets": [
             "surface.noteBorderColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "surface.noteGradientActive"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.margins",
+          "targets": [
+            "noteBackground.border.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "startColor",
+          "targets": [
+            "surface.noteFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "endColor",
+          "targets": [
+            "surface.noteGradientEndColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "direction",
+          "targets": [
+            "host",
+            "host.bodyGradientDirection"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "cornerRadius",
+          "targets": [
+            "Math.max",
+            "noteBackground.radius",
+            "noteBackground.border.width"
           ]
         },
         {
@@ -42458,6 +42545,11 @@
       "local_component_refs": [
         {
           "kind": "localComponent",
+          "name": "GraphShared.GraphNodeGradientFill",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml"
+        },
+        {
+          "kind": "localComponent",
           "name": "GraphRichTextBlock",
           "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphRichTextBlock.qml"
         }
@@ -42473,6 +42565,24 @@
           "anchor": "GraphAnnotationNoteSurfacePropertyNoteFillColor",
           "kind": "property",
           "name": "noteFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphAnnotationNoteSurfacePropertyNoteGradientActive",
+          "kind": "property",
+          "name": "noteGradientActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphAnnotationNoteSurfacePropertyNoteFillTranslucent",
+          "kind": "property",
+          "name": "noteFillTranslucent",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphAnnotationNoteSurfacePropertyNoteGradientEndColor",
+          "kind": "property",
+          "name": "noteGradientEndColor",
           "detail": "color"
         },
         {
@@ -42554,6 +42664,12 @@
           "anchor": "GraphAnnotationNoteSurfaceFunctionDispatchSurfaceAction",
           "kind": "function",
           "name": "dispatchSurfaceAction"
+        },
+        {
+          "anchor": "GraphAnnotationNoteSurfaceLocalComponentGraphSharedGraphNodeGradientFill",
+          "kind": "localComponent",
+          "name": "GraphShared.GraphNodeGradientFill",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml"
         },
         {
           "anchor": "GraphAnnotationNoteSurfaceLocalComponentGraphRichTextBlock",
@@ -45497,11 +45613,17 @@
       "ids": [
         {
           "name": "surface"
+        },
+        {
+          "name": "backdropGlass"
         }
       ],
       "object_names": [
         {
           "name": "graphNodeGroupBackdropSurface"
+        },
+        {
+          "name": "graphNodeGroupBackdropGradientFill"
         }
       ],
       "properties": [
@@ -45514,8 +45636,20 @@
           "name": "backdropVisible"
         },
         {
+          "kind": "real",
+          "name": "backdropFillAlpha"
+        },
+        {
           "kind": "color",
           "name": "backdropFillColor"
+        },
+        {
+          "kind": "bool",
+          "name": "backdropGradientActive"
+        },
+        {
+          "kind": "color",
+          "name": "backdropGradientEndColor"
         },
         {
           "kind": "color",
@@ -45562,6 +45696,9 @@
         },
         {
           "name": "GradientStop"
+        },
+        {
+          "name": "GraphShared.GraphNodeGradientFill"
         }
       ],
       "dynamic_refs": [],
@@ -45617,6 +45754,51 @@
           "name": "border.color",
           "targets": [
             "surface.backdropBorderColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "surface.backdropGradientActive"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.margins",
+          "targets": [
+            "backdropGlass.border.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "startColor",
+          "targets": [
+            "surface.backdropFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "endColor",
+          "targets": [
+            "surface.backdropGradientEndColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "direction",
+          "targets": [
+            "host",
+            "host.bodyGradientDirection"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "cornerRadius",
+          "targets": [
+            "Math.max",
+            "backdropGlass.radius",
+            "backdropGlass.border.width"
           ]
         },
         {
@@ -45682,7 +45864,13 @@
           "name": "opacity"
         }
       ],
-      "local_component_refs": [],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "GraphShared.GraphNodeGradientFill",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml"
+        }
+      ],
       "symbol_anchors": [
         {
           "anchor": "GraphGroupBackdropSurfacePropertyInputOverlayMode",
@@ -45697,9 +45885,27 @@
           "detail": "bool"
         },
         {
+          "anchor": "GraphGroupBackdropSurfacePropertyBackdropFillAlpha",
+          "kind": "property",
+          "name": "backdropFillAlpha",
+          "detail": "real"
+        },
+        {
           "anchor": "GraphGroupBackdropSurfacePropertyBackdropFillColor",
           "kind": "property",
           "name": "backdropFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphGroupBackdropSurfacePropertyBackdropGradientActive",
+          "kind": "property",
+          "name": "backdropGradientActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphGroupBackdropSurfacePropertyBackdropGradientEndColor",
+          "kind": "property",
+          "name": "backdropGradientEndColor",
           "detail": "color"
         },
         {
@@ -45754,6 +45960,12 @@
           "anchor": "GraphGroupBackdropSurfaceFunctionBackdropFillColor",
           "kind": "function",
           "name": "_backdropFillColor"
+        },
+        {
+          "anchor": "GraphGroupBackdropSurfaceLocalComponentGraphSharedGraphNodeGradientFill",
+          "kind": "localComponent",
+          "name": "GraphShared.GraphNodeGradientFill",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml"
         }
       ]
     },
@@ -45794,6 +46006,9 @@
       "object_names": [
         {
           "name": "graphNodeMailSurface"
+        },
+        {
+          "name": "graphNodeMailPanelGradientFill"
         },
         {
           "name": "graphNodeMailViewport"
@@ -45938,6 +46153,10 @@
         {
           "kind": "string",
           "name": "webEngineDiagnostic"
+        },
+        {
+          "kind": "bool",
+          "name": "gradientActive"
         }
       ],
       "signals": [],
@@ -46005,6 +46224,9 @@
           "name": "Rectangle"
         },
         {
+          "name": "GraphShared.GraphNodeGradientFill"
+        },
+        {
           "name": "Item"
         },
         {
@@ -46055,6 +46277,7 @@
           "name": "color",
           "targets": [
             "surfaceShowFrame",
+            "panel.gradientActive",
             "surface.panelFillColor"
           ]
         },
@@ -46077,6 +46300,52 @@
           "name": "radius",
           "targets": [
             "surfaceShowFrame"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "panel.gradientActive"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.margins",
+          "targets": [
+            "panel.border.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "startColor",
+          "targets": [
+            "surface.panelFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "endColor",
+          "targets": [
+            "host",
+            "host.bodyGradientEndColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "direction",
+          "targets": [
+            "host",
+            "host.bodyGradientDirection"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "cornerRadius",
+          "targets": [
+            "Math.max",
+            "panel.radius",
+            "panel.border.width"
           ]
         },
         {
@@ -46243,7 +46512,13 @@
           ]
         }
       ],
-      "local_component_refs": [],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "GraphShared.GraphNodeGradientFill",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml"
+        }
+      ],
       "symbol_anchors": [
         {
           "anchor": "GraphMailPanelSurfacePropertySourcePath",
@@ -46432,6 +46707,12 @@
           "detail": "string"
         },
         {
+          "anchor": "GraphMailPanelSurfacePropertyGradientActive",
+          "kind": "property",
+          "name": "gradientActive",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphMailPanelSurfaceFunctionBeginInlineInteraction",
           "kind": "function",
           "name": "_beginInlineInteraction"
@@ -46550,6 +46831,12 @@
           "anchor": "GraphMailPanelSurfaceHandlerOnReadyPreviewChanged",
           "kind": "handler",
           "name": "onReadyPreviewChanged"
+        },
+        {
+          "anchor": "GraphMailPanelSurfaceLocalComponentGraphSharedGraphNodeGradientFill",
+          "kind": "localComponent",
+          "name": "GraphShared.GraphNodeGradientFill",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml"
         }
       ]
     },
@@ -65509,6 +65796,9 @@
           "name": "surface"
         },
         {
+          "name": "boardBackground"
+        },
+        {
           "name": "previewViewport"
         },
         {
@@ -65518,6 +65808,9 @@
       "object_names": [
         {
           "name": "graphNodeWebBoardSurface"
+        },
+        {
+          "name": "graphNodeWebBoardGradientFill"
         },
         {
           "name": "graphNodeWebBoardFullscreenButton"
@@ -65635,6 +65928,10 @@
         {
           "kind": "var",
           "name": "surfaceActions"
+        },
+        {
+          "kind": "bool",
+          "name": "gradientActive"
         }
       ],
       "signals": [],
@@ -65670,6 +65967,9 @@
       "instantiated_components": [
         {
           "name": "Rectangle"
+        },
+        {
+          "name": "GraphShared.GraphNodeGradientFill"
         },
         {
           "name": "GraphWebBoardPreviewViewport"
@@ -65716,6 +66016,7 @@
           "kind": "binding",
           "name": "color",
           "targets": [
+            "boardBackground.gradientActive",
             "surface.panelFillColor"
           ]
         },
@@ -65733,6 +66034,52 @@
           "name": "border.color",
           "targets": [
             "surface.panelBorderColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "boardBackground.gradientActive"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.margins",
+          "targets": [
+            "boardBackground.border.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "startColor",
+          "targets": [
+            "surface.panelFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "endColor",
+          "targets": [
+            "host",
+            "host.bodyGradientEndColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "direction",
+          "targets": [
+            "host",
+            "host.bodyGradientDirection"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "cornerRadius",
+          "targets": [
+            "Math.max",
+            "boardBackground.radius",
+            "boardBackground.border.width"
           ]
         },
         {
@@ -65920,6 +66267,11 @@
       "local_component_refs": [
         {
           "kind": "localComponent",
+          "name": "GraphShared.GraphNodeGradientFill",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml"
+        },
+        {
+          "kind": "localComponent",
           "name": "GraphWebBoardPreviewViewport",
           "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphWebBoardPreviewViewport.qml"
         },
@@ -66099,6 +66451,12 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphWebBoardSurfacePropertyGradientActive",
+          "kind": "property",
+          "name": "gradientActive",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphWebBoardSurfaceFunctionRawValue",
           "kind": "function",
           "name": "_rawValue"
@@ -66147,6 +66505,12 @@
           "anchor": "GraphWebBoardSurfaceHandlerOnClicked",
           "kind": "handler",
           "name": "onClicked"
+        },
+        {
+          "anchor": "GraphWebBoardSurfaceLocalComponentGraphSharedGraphNodeGradientFill",
+          "kind": "localComponent",
+          "name": "GraphShared.GraphNodeGradientFill",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml"
         },
         {
           "anchor": "GraphWebBoardSurfaceLocalComponentGraphWebBoardPreviewViewport",
@@ -142157,6 +142521,7 @@
       "imports": [
         "QtQuick 2.15",
         "QtQuick.Layouts 1.15",
+        "\"../graph\" as GraphComponents",
         "\"../graph/passive/GraphMediaPanelSourceUtils.js\" as SourceUtils",
         "\"../graph/surface_controls/SurfaceControlGeometry.js\" as SurfaceControlGeometry",
         "\"../graph/surface_controls/SourceStorageModeUtils.js\" as SourceStorageModeUtils"
@@ -142187,6 +142552,9 @@
           "name": "toolbarComponent"
         },
         {
+          "name": "frameBackground"
+        },
+        {
           "name": "toolbarLoader"
         },
         {
@@ -142208,6 +142576,9 @@
       "object_names": [
         {
           "name": "webPageToolbar"
+        },
+        {
+          "name": "webPageHostGradientFill"
         },
         {
           "name": "webPageToolbarLoader"
@@ -142485,6 +142856,10 @@
         {
           "kind": "bool",
           "name": "pageCanGoForward"
+        },
+        {
+          "kind": "bool",
+          "name": "gradientActive"
         }
       ],
       "signals": [
@@ -142847,6 +143222,9 @@
           "name": "Rectangle"
         },
         {
+          "name": "GraphComponents.GraphNodeGradientFill"
+        },
+        {
           "name": "ColumnLayout"
         },
         {
@@ -143120,6 +143498,7 @@
           "kind": "binding",
           "name": "color",
           "targets": [
+            "frameBackground.gradientActive",
             "root.effectiveThemePalette.panel_bg"
           ]
         },
@@ -143132,6 +143511,52 @@
           "name": "border.color",
           "targets": [
             "root.effectiveThemePalette.border"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "frameBackground.gradientActive"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.margins",
+          "targets": [
+            "frameBackground.border.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "startColor",
+          "targets": [
+            "root.effectiveThemePalette.panel_bg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "endColor",
+          "targets": [
+            "root.host",
+            "root.host.bodyGradientEndColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "direction",
+          "targets": [
+            "root.host",
+            "root.host.bodyGradientDirection"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "cornerRadius",
+          "targets": [
+            "Math.max",
+            "frameBackground.radius",
+            "frameBackground.border.width"
           ]
         },
         {
@@ -143349,6 +143774,11 @@
           "kind": "localComponent",
           "name": "WebPageToolbar",
           "detail": "ea_node_editor/ui_qml/components/web/WebPageToolbar.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "GraphComponents.GraphNodeGradientFill",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml"
         },
         {
           "kind": "localComponent",
@@ -143745,6 +144175,12 @@
           "anchor": "WebPageHostPropertyPageCanGoForward",
           "kind": "property",
           "name": "pageCanGoForward",
+          "detail": "bool"
+        },
+        {
+          "anchor": "WebPageHostPropertyGradientActive",
+          "kind": "property",
+          "name": "gradientActive",
           "detail": "bool"
         },
         {
@@ -144497,6 +144933,12 @@
           "kind": "localComponent",
           "name": "WebPageToolbar",
           "detail": "ea_node_editor/ui_qml/components/web/WebPageToolbar.qml"
+        },
+        {
+          "anchor": "WebPageHostLocalComponentGraphComponentsGraphNodeGradientFill",
+          "kind": "localComponent",
+          "name": "GraphComponents.GraphNodeGradientFill",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml"
         },
         {
           "anchor": "WebPageHostLocalComponentWebPageStatusPane",

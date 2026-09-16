@@ -225,8 +225,9 @@ class FlowEdgeStyleDialog(QDialog):
         normalized = normalize_flow_edge_style_payload(initial_style)
         for key, field in self._color_fields.items():
             field.setText(normalized.get(key, ""))
-        if "stroke_width" in normalized:
-            self.stroke_width_field.setText(_format_number(normalized["stroke_width"]))
+        self.stroke_width_field.setText(
+            _format_number(normalized["stroke_width"]) if "stroke_width" in normalized else ""
+        )
         self.stroke_pattern_combo.setCurrentIndex(max(0, self.stroke_pattern_combo.findData(normalized.get("stroke_pattern", ""))))
         self.arrow_head_combo.setCurrentIndex(max(0, self.arrow_head_combo.findData(normalized.get("arrow_head", ""))))
         self.path_mode_combo.setCurrentIndex(max(0, self.path_mode_combo.findData(normalized.get("path_mode", ""))))

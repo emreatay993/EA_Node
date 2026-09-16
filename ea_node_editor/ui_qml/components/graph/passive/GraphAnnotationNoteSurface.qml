@@ -6,6 +6,11 @@ GraphShared.GraphSurfaceBase {
     objectName: "graphNodeAnnotationSurface"
     readonly property string annotationVariant: host ? String(host.surfaceVariant || "") : ""
     readonly property color noteFillColor: _noteFillColor()
+    readonly property bool noteGradientActive: Boolean(host && host.passiveBodyGradientActive)
+    readonly property bool noteFillTranslucent: annotationVariant === "section_header" && !(host && host.hasPassiveFillOverride)
+    readonly property color noteGradientEndColor: surface.noteFillTranslucent
+        ? Qt.alpha(host ? host.bodyGradientEndColor : "#2a2b30", 0.22)
+        : (host ? host.bodyGradientEndColor : "transparent")
     readonly property color noteBorderColor: host && host.isSelected
         ? host.selectedOutlineColor
         : (host && host.hasPassiveBorderOverride
@@ -47,13 +52,25 @@ GraphShared.GraphSurfaceBase {
     }
 
     Rectangle {
+        id: noteBackground
         anchors.fill: parent
         radius: annotationVariant === "section_header"
             ? Math.max(4, host ? Number(host.resolvedCornerRadius || 6) - 2 : 4)
             : (host ? Number(host.resolvedCornerRadius || 6) : 6)
-        color: surface.noteFillColor
+        color: surface.noteGradientActive ? "transparent" : surface.noteFillColor
         border.width: host ? Number(host.resolvedBorderWidth || 1) : 1
         border.color: surface.noteBorderColor
+
+        GraphShared.GraphNodeGradientFill {
+            objectName: "graphNodeAnnotationGradientFill"
+            visible: surface.noteGradientActive
+            anchors.fill: parent
+            anchors.margins: noteBackground.border.width
+            startColor: surface.noteFillColor
+            endColor: surface.noteGradientEndColor
+            direction: host ? host.bodyGradientDirection : "south"
+            cornerRadius: Math.max(0, noteBackground.radius - noteBackground.border.width)
+        }
     }
 
     Rectangle {

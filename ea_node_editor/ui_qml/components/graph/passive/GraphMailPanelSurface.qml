@@ -410,11 +410,23 @@ GraphShared.GraphSurfaceBase {
 
     Rectangle {
         id: panel
+        readonly property bool gradientActive: Boolean(surfaceShowFrame && host && host.passiveBodyGradientActive)
         anchors.fill: parent
-        color: surfaceShowFrame ? surface.panelFillColor : "transparent"
+        color: surfaceShowFrame && !panel.gradientActive ? surface.panelFillColor : "transparent"
         border.width: surfaceShowFrame ? 1 : 0
         border.color: surface.panelBorderColor
         radius: surfaceShowFrame ? 8 : 0
+
+        GraphShared.GraphNodeGradientFill {
+            objectName: "graphNodeMailPanelGradientFill"
+            visible: panel.gradientActive
+            anchors.fill: parent
+            anchors.margins: panel.border.width
+            startColor: surface.panelFillColor
+            endColor: host ? host.bodyGradientEndColor : "transparent"
+            direction: host ? host.bodyGradientDirection : "south"
+            cornerRadius: Math.max(0, panel.radius - panel.border.width)
+        }
 
         Rectangle {
             id: viewport

@@ -150,11 +150,24 @@ GraphShared.GraphSurfaceBase {
     }
 
     Rectangle {
+        id: boardBackground
+        readonly property bool gradientActive: Boolean(host && host.passiveBodyGradientActive)
         anchors.fill: parent
         radius: host ? Number(host.resolvedCornerRadius || 6) : 6
-        color: surface.panelFillColor
+        color: boardBackground.gradientActive ? "transparent" : surface.panelFillColor
         border.width: host ? Number(host.resolvedBorderWidth || 1) : 1
         border.color: surface.panelBorderColor
+
+        GraphShared.GraphNodeGradientFill {
+            objectName: "graphNodeWebBoardGradientFill"
+            visible: boardBackground.gradientActive
+            anchors.fill: parent
+            anchors.margins: boardBackground.border.width
+            startColor: surface.panelFillColor
+            endColor: host ? host.bodyGradientEndColor : "transparent"
+            direction: host ? host.bodyGradientDirection : "south"
+            cornerRadius: Math.max(0, boardBackground.radius - boardBackground.border.width)
+        }
     }
 
     GraphWebBoardPreviewViewport {

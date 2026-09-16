@@ -8,7 +8,12 @@ GraphShared.GraphSurfaceBase {
         ? String(host.surfaceVariant || "") === "group_backdrop_input_overlay"
         : false
     readonly property bool backdropVisible: !surface.inputOverlayMode
+    readonly property real backdropFillAlpha: host && host.hasPassiveFillOverride ? 0.34 : 0.22
     readonly property color backdropFillColor: _backdropFillColor()
+    readonly property bool backdropGradientActive: Boolean(surface.backdropVisible && host && host.passiveBodyGradientActive)
+    readonly property color backdropGradientEndColor: host
+        ? Qt.alpha(host.bodyGradientEndColor, surface.backdropFillAlpha)
+        : "transparent"
     readonly property color backdropGlassTopColor: host
         ? Qt.alpha(Qt.lighter(host.surfaceColor, host.hasPassiveFillOverride ? 1.12 : 1.22), host.hasPassiveFillOverride ? 0.26 : 0.2)
         : Qt.rgba(0.21, 0.24, 0.29, 0.2)
@@ -36,22 +41,35 @@ GraphShared.GraphSurfaceBase {
     function _backdropFillColor() {
         var base = host ? host.surfaceColor : "#1b1d22";
         if (host && host.hasPassiveFillOverride)
-            return Qt.alpha(base, 0.34);
-        return Qt.alpha(Qt.lighter(base, 1.1), 0.22);
+            return Qt.alpha(base, surface.backdropFillAlpha);
+        return Qt.alpha(Qt.lighter(base, 1.1), surface.backdropFillAlpha);
     }
 
     Rectangle {
+        id: backdropGlass
         visible: surface.backdropVisible
         anchors.fill: parent
         radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 10) + 2) : 10
         color: "transparent"
+        // A style body gradient replaces the glass tint; the sheen and inner border below keep the glass look.
         gradient: Gradient {
-            GradientStop { position: 0.0; color: surface.backdropGlassTopColor }
-            GradientStop { position: 0.32; color: surface.backdropFillColor }
-            GradientStop { position: 1.0; color: surface.backdropGlassBottomColor }
+            GradientStop { position: 0.0; color: surface.backdropGradientActive ? "transparent" : surface.backdropGlassTopColor }
+            GradientStop { position: 0.32; color: surface.backdropGradientActive ? "transparent" : surface.backdropFillColor }
+            GradientStop { position: 1.0; color: surface.backdropGradientActive ? "transparent" : surface.backdropGlassBottomColor }
         }
         border.width: host ? Number(host.resolvedBorderWidth || 1) : 1
         border.color: surface.backdropBorderColor
+
+        GraphShared.GraphNodeGradientFill {
+            objectName: "graphNodeGroupBackdropGradientFill"
+            visible: surface.backdropGradientActive
+            anchors.fill: parent
+            anchors.margins: backdropGlass.border.width
+            startColor: surface.backdropFillColor
+            endColor: surface.backdropGradientEndColor
+            direction: host ? host.bodyGradientDirection : "south"
+            cornerRadius: Math.max(0, backdropGlass.radius - backdropGlass.border.width)
+        }
     }
 
     Rectangle {

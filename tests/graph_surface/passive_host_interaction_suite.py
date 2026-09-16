@@ -1982,6 +1982,59 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_self_filling_passive_surfaces_paint_the_style_body_gradient(self) -> None:
+        self._run_qml_probe(
+            "passive-surface-style-body-gradient",
+            """
+            from PyQt6.QtGui import QColor
+
+            fill = "#EEF3F9"
+            end = "#C0D2E9"
+            gradient_style = {
+                "fill_color": fill,
+                "gradient_enabled": True,
+                "gradient_color": end,
+                "gradient_direction": "south",
+            }
+            cases = (
+                ("annotation", "sticky_note", "passive.annotation.sticky_note", "graphNodeAnnotationGradientFill", 1.0),
+                ("group_backdrop", "group_backdrop", "passive.annotation.group_backdrop", "graphNodeGroupBackdropGradientFill", 0.34),
+                ("media", "mail_panel", "passive.media.mail_panel", "graphNodeMailPanelGradientFill", 1.0),
+                ("web", "excalidraw_board", "excalidraw.board", "graphNodeWebBoardGradientFill", 1.0),
+            )
+
+            def surface_host(family, variant, type_id, style):
+                payload = node_payload(family, variant)
+                payload["type_id"] = type_id
+                payload["runtime_behavior"] = "passive"
+                payload["inline_properties"] = []
+                payload["visual_style"] = dict(style)
+                payload["surface_spec"] = surface_spec_payload_for_values(type_id=type_id, family=family, variant=variant)
+                host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+                settle_events(2)
+                return host
+
+            for family, variant, type_id, fill_name, alpha in cases:
+                host = surface_host(family, variant, type_id, gradient_style)
+                gradient_fill = host.findChild(QObject, fill_name)
+                assert gradient_fill is not None, fill_name
+                assert bool(gradient_fill.property("visible")) is True, fill_name
+                start_color = QColor(gradient_fill.property("startColor"))
+                end_color = QColor(gradient_fill.property("endColor"))
+                assert start_color.name() == QColor(fill).name(), (fill_name, start_color.name())
+                assert end_color.name() == QColor(end).name(), (fill_name, end_color.name())
+                assert abs(end_color.alphaF() - alpha) < 0.01, (fill_name, end_color.alphaF())
+                assert str(gradient_fill.property("direction")) == "south", fill_name
+
+                # A flat style, or a style that turns the gradient off, keeps the surface's plain fill.
+                for flat_style in ({"fill_color": fill}, dict(gradient_style, gradient_enabled=False)):
+                    flat_host = surface_host(family, variant, type_id, flat_style)
+                    flat_fill = flat_host.findChild(QObject, fill_name)
+                    assert flat_fill is not None, fill_name
+                    assert bool(flat_fill.property("visible")) is False, (fill_name, flat_style)
+            """,
+        )
+
     def test_standard_host_uses_only_declared_data_ports(self) -> None:
         self._run_qml_probe(
             "declared-data-ports-only-host",

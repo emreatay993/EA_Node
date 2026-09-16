@@ -51,6 +51,105 @@ _RAW_BUILT_IN_NODE_PRESETS = (
             "font_weight": "bold",
         },
     },
+    {
+        "preset_id": "builtin_node_soft_sage",
+        "name": "Soft Sage",
+        "style": {
+            "fill_color": "#EFF5F1",
+            "border_color": "#6B8F78",
+            "text_color": "#1E3528",
+            "border_width": 1.5,
+            "corner_radius": 10.0,
+        },
+    },
+    {
+        "preset_id": "builtin_node_soft_blue",
+        "name": "Soft Blue",
+        "style": {
+            "fill_color": "#EEF3F9",
+            "border_color": "#6A89A8",
+            "text_color": "#1B314A",
+            "border_width": 1.5,
+            "corner_radius": 10.0,
+        },
+    },
+    {
+        "preset_id": "builtin_node_soft_teal",
+        "name": "Soft Teal",
+        "style": {
+            "fill_color": "#ECF5F5",
+            "border_color": "#5C8E8F",
+            "text_color": "#183A3B",
+            "border_width": 1.5,
+            "corner_radius": 10.0,
+        },
+    },
+    {
+        "preset_id": "builtin_node_soft_lavender",
+        "name": "Soft Lavender",
+        "style": {
+            "fill_color": "#F2F0F8",
+            "border_color": "#8479A8",
+            "text_color": "#2C2542",
+            "border_width": 1.5,
+            "corner_radius": 10.0,
+        },
+    },
+    {
+        "preset_id": "builtin_node_soft_sand",
+        "name": "Soft Sand",
+        "style": {
+            "fill_color": "#F6F2EC",
+            "border_color": "#998670",
+            "text_color": "#3A2F24",
+            "border_width": 1.5,
+            "corner_radius": 10.0,
+        },
+    },
+    {
+        "preset_id": "builtin_node_soft_rose",
+        "name": "Soft Rose",
+        "style": {
+            "fill_color": "#F8EFEF",
+            "border_color": "#A87C7C",
+            "text_color": "#432828",
+            "border_width": 1.5,
+            "corner_radius": 10.0,
+        },
+    },
+    {
+        "preset_id": "builtin_node_paper",
+        "name": "Paper",
+        "style": {
+            "fill_color": "#FFFFFF",
+            "border_color": "#8A95A1",
+            "text_color": "#28303A",
+            "border_width": 1.0,
+            "corner_radius": 4.0,
+        },
+    },
+    {
+        "preset_id": "builtin_node_graphite",
+        "name": "Graphite",
+        "style": {
+            "fill_color": "#2B3037",
+            "border_color": "#76818D",
+            "text_color": "#E4E8EC",
+            "border_width": 1.5,
+            "corner_radius": 10.0,
+        },
+    },
+    {
+        "preset_id": "builtin_node_midnight",
+        "name": "Midnight",
+        "style": {
+            "fill_color": "#1F2A3A",
+            "border_color": "#6784A6",
+            "text_color": "#E3EAF3",
+            "border_width": 1.5,
+            "corner_radius": 10.0,
+        },
+    },
 )
 
 _RAW_BUILT_IN_EDGE_PRESETS = (

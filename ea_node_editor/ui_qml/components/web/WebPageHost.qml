@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
+import "../graph" as GraphComponents
 import "../graph/passive/GraphMediaPanelSourceUtils.js" as SourceUtils
 import "../graph/surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 import "../graph/surface_controls/SourceStorageModeUtils.js" as SourceStorageModeUtils
@@ -1602,12 +1603,25 @@ Item {
     }
 
     Rectangle {
+        id: frameBackground
+        readonly property bool gradientActive: Boolean(root.graphSurface && root.host && root.host.passiveBodyGradientActive)
         visible: !root.graphSurface || root.chromeFrameVisible
         anchors.fill: parent
         radius: 6
-        color: root.effectiveThemePalette.panel_bg || "#1f2431"
+        color: frameBackground.gradientActive ? "transparent" : (root.effectiveThemePalette.panel_bg || "#1f2431")
         border.width: 1
         border.color: root.effectiveThemePalette.border || "#3a4355"
+
+        GraphComponents.GraphNodeGradientFill {
+            objectName: "webPageHostGradientFill"
+            visible: frameBackground.gradientActive
+            anchors.fill: parent
+            anchors.margins: frameBackground.border.width
+            startColor: root.effectiveThemePalette.panel_bg || "#1f2431"
+            endColor: root.host ? root.host.bodyGradientEndColor : "transparent"
+            direction: root.host ? root.host.bodyGradientDirection : "south"
+            cornerRadius: Math.max(0, frameBackground.radius - frameBackground.border.width)
+        }
     }
 
     ColumnLayout {

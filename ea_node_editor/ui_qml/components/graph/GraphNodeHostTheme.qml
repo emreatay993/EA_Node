@@ -154,6 +154,12 @@ QtObject {
         ? root._gradientDirection(root.passiveStyle.gradient_direction)
         : (host && host.isPassiveNode ? root.themeBodyGradientDirection : "south")
     readonly property bool bodyGradientActive: root.bodyGradientEnabled && String(root.bodyGradientEndColor).length > 0
+    // True only when the node's own passive style turns the body gradient on. Surfaces that paint their own fill
+    // (notes, backdrops, panels) honor this; graph-theme card gradients stay limited to the host chrome.
+    readonly property bool passiveBodyGradientActive: !!host
+        && host.isPassiveNode
+        && root.hasPassiveBodyGradientEnabledOverride
+        && root.bodyGradientActive
     readonly property color headerTextColor: host && host.isPassiveNode
         ? (root.passiveTextOverride || (host.isFlowchartSurface ? root.flowchartDefaultTextColor : root.themeHeaderTextColor))
         : root.activeContentColors.title

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import colorsys
 from typing import Any
 
 from PyQt6.QtCore import QRegularExpression, Qt
@@ -341,8 +342,21 @@ class PassiveNodeStyleDialog(QDialog):
         self._sync_gradient_row_enabled(mode_key)
 
     def _on_gradient_mode_changed(self, mode_key: str) -> None:
+        self._suggest_gradient_color(mode_key)
         self._sync_gradient_row_enabled(mode_key)
         self._sync_validation_message()
+
+    def _suggest_gradient_color(self, mode_key: str) -> None:
+        # Turning a gradient on with no color picked starts from a darker shade of the fill (never overwrites a color).
+        if self._loading_style:
+            return
+        if str(self._gradient_mode_combos[mode_key].currentData() or "") != "custom":
+            return
+        color_field = self._gradient_color_fields["gradient_color"]
+        fill_field = self._color_fields["fill_color"]
+        if color_field.text().strip() or not fill_field.text().strip() or not fill_field.is_valid():
+            return
+        color_field.setText(_suggested_gradient_color(fill_field.text()))
 
     def _sync_gradient_row_enabled(self, mode_key: str) -> None:
         custom = str(self._gradient_mode_combos[mode_key].currentData() or "") == "custom"
@@ -377,12 +391,9 @@ class PassiveNodeStyleDialog(QDialog):
             color_key="gradient_color",
             direction_key="gradient_direction",
         )
-        if "border_width" in normalized:
-            self._numeric_fields["border_width"].setText(_format_number(normalized["border_width"]))
-        if "corner_radius" in normalized:
-            self._numeric_fields["corner_radius"].setText(_format_number(normalized["corner_radius"]))
-        if "font_size" in normalized:
-            self._numeric_fields["font_size"].setText(str(normalized["font_size"]))
+        for key in ("border_width", "corner_radius"):
+            self._numeric_fields[key].setText(_format_number(normalized[key]) if key in normalized else "")
+        self._numeric_fields["font_size"].setText(str(normalized.get("font_size", "")))
         weight = str(normalized.get("font_weight", "")).strip()
         index = max(0, self.font_weight_combo.findData(weight))
         self.font_weight_combo.setCurrentIndex(index)
@@ -551,6 +562,46 @@ class PassiveNodeStyleDialog(QDialog):
 def _format_number(value: object) -> str:
     numeric = float(value)
     return str(int(numeric)) if numeric.is_integer() else str(numeric)
+
+
+# Perceptual (CIELAB L*) drop from the fill to the suggested gradient end. A fixed perceptual step reads as the same
+# depth on pale and dark fills, where a fixed HLS step is invisible on light tints and crushes dark cards to black.
+_SUGGESTED_GRADIENT_CIE_LIGHTNESS_STEP = 12.0
+_HLS_LIGHTNESS_SEARCH_ITERATIONS = 32
+
+
+def _suggested_gradient_color(fill_color: str) -> str:
+    """Return a darker end color for a body gradient that starts at ``fill_color``.
+
+    Hue and HLS saturation are kept so tinted fills stay tinted; HLS lightness is searched until CIELAB L* is
+    ``_SUGGESTED_GRADIENT_CIE_LIGHTNESS_STEP`` lower. Accepts the dialog's #RRGGBB and Qt-ordered #AARRGGBB forms.
+    """
+    digits = fill_color.strip().lstrip("#")
+    alpha, rgb_digits = (digits[:2].upper(), digits[2:]) if len(digits) == 8 else ("", digits)
+    rgb = tuple(int(rgb_digits[index : index + 2], 16) / 255.0 for index in (0, 2, 4))
+    hue, lightness, saturation = colorsys.rgb_to_hls(*rgb)
+    target = max(0.0, _cie_lightness(rgb) - _SUGGESTED_GRADIENT_CIE_LIGHTNESS_STEP)
+
+    low, high = 0.0, lightness
+    for _ in range(_HLS_LIGHTNESS_SEARCH_ITERATIONS):
+        middle = (low + high) / 2.0
+        if _cie_lightness(colorsys.hls_to_rgb(hue, middle, saturation)) > target:
+            high = middle
+        else:
+            low = middle
+    end_rgb = colorsys.hls_to_rgb(hue, (low + high) / 2.0, saturation)
+    return f"#{alpha}" + "".join(f"{round(channel * 255):02X}" for channel in end_rgb)
+
+
+def _cie_lightness(rgb: tuple[float, float, float]) -> float:
+    linear = [
+        channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+        for channel in rgb
+    ]
+    luminance = 0.2126729 * linear[0] + 0.7151522 * linear[1] + 0.0721750 * linear[2]
+    if luminance > 216.0 / 24389.0:
+        return 116.0 * luminance ** (1.0 / 3.0) - 16.0
+    return luminance * 24389.0 / 27.0
 
 
 def _is_valid_decimal(value: str, *, allow_zero: bool) -> bool:

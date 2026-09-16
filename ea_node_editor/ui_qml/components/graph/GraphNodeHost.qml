@@ -344,6 +344,7 @@ Item {
     readonly property color selectedOutlineColor: themeState.selectedOutlineColor
     readonly property color selectedGlowColor: themeState.selectedGlowColor
     readonly property bool bodyGradientActive: themeState.bodyGradientActive
+    readonly property bool passiveBodyGradientActive: themeState.passiveBodyGradientActive
     readonly property color bodyGradientStartColor: themeState.bodyGradientStartColor
     readonly property color bodyGradientEndColor: themeState.bodyGradientEndColor
     readonly property string bodyGradientDirection: themeState.bodyGradientDirection
