@@ -45,7 +45,7 @@ _OverlayKey = tuple[str, str]
 _PRESENTATION_OVERLAY = "overlay"
 _PRESENTATION_DETACHED = "detached"
 _PRESENTATION_RETAINED_INLINE = "retained_inline"
-_MAX_INLINE_VIEWER_PREVIEW_EDGE_PX = 640
+_MAX_VIEWER_PREVIEW_EDGE_PX = 1280
 
 def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
@@ -1274,40 +1274,43 @@ class ViewerHostService(QObject):
         )
 
     def _normalized_overlay_preview_image(self, key: _OverlayKey, image: QImage) -> QImage:
+        """Bound the captured frame without touching what it shows.
+
+        The frame is stored at its own aspect ratio and only ever scaled
+        down uniformly. VTK holds the vertical extent of a camera fixed and
+        derives the horizontal extent from the window aspect, so the proxy
+        surface can reproduce any display rect narrower than the capture by
+        cropping it centrally -- but only if nothing has already distorted
+        or re-fitted the pixels here.
+        """
         if image.isNull():
             return QImage()
         bound = self._bound_overlays.get(key)
         container = bound.container if bound is not None else None
         if container is None and self._overlay_manager is not None:
             container = self._overlay_manager.overlay_container(key[1], workspace_id=key[0])
-        if not isinstance(container, QWidget) or container.width() <= 0 or container.height() <= 0:
-            return image.copy()
-        try:
-            dpr = float(container.devicePixelRatioF())
-        except Exception:  # noqa: BLE001
-            dpr = 1.0
+        dpr = 0.0
+        if isinstance(container, QWidget):
+            try:
+                dpr = float(container.devicePixelRatioF())
+            except Exception:  # noqa: BLE001
+                dpr = 0.0
         if dpr <= 0.0:
             try:
                 dpr = float(image.devicePixelRatio())
             except Exception:  # noqa: BLE001
                 dpr = 1.0
         dpr = max(1.0, dpr)
-        expected_size = QSize(
-            max(1, round(container.width() * dpr)),
-            max(1, round(container.height() * dpr)),
-        )
-        longest_edge = max(expected_size.width(), expected_size.height())
-        if longest_edge > _MAX_INLINE_VIEWER_PREVIEW_EDGE_PX:
-            scale = _MAX_INLINE_VIEWER_PREVIEW_EDGE_PX / float(longest_edge)
-            expected_size = QSize(
-                max(1, round(expected_size.width() * scale)),
-                max(1, round(expected_size.height() * scale)),
-            )
         normalized = image.copy()
-        if normalized.size() != expected_size:
+        longest_edge = max(normalized.width(), normalized.height())
+        if longest_edge > _MAX_VIEWER_PREVIEW_EDGE_PX:
+            scale = _MAX_VIEWER_PREVIEW_EDGE_PX / float(longest_edge)
             normalized = normalized.scaled(
-                expected_size,
-                Qt.AspectRatioMode.IgnoreAspectRatio,
+                QSize(
+                    max(1, round(normalized.width() * scale)),
+                    max(1, round(normalized.height() * scale)),
+                ),
+                Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
         normalized.setDevicePixelRatio(dpr)

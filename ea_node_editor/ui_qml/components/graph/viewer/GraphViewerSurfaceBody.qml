@@ -1040,22 +1040,38 @@ Item {
                     anchors.fill: viewportFrame
                     radius: viewportFrame.radius
                     color: host ? Qt.alpha(host.surfaceColor, 0.16) : "#22304a"
-                    border.width: 1
-                    border.color: host ? Qt.alpha(host.scopeBadgeBorderColor, 0.7) : "#4c7bc0"
+                    border.width: 0
 
+                    // The cached frame must occupy the very rect the native
+                    // live overlay occupied, so the proxy reads as a frozen
+                    // live view rather than a resized picture of one.
+                    // PreserveAspectCrop is exact rather than approximate
+                    // here: VTK keeps a camera's vertical extent fixed and
+                    // widens only horizontally with the window aspect, so a
+                    // centred crop of a wider capture is pixel-for-pixel what
+                    // a live render into this narrower rect would show.
                     Image {
                         id: cachedPreviewImage
                         objectName: "graphNodeViewerCachedPreviewImage"
                         visible: surface.cachedPreviewVisible
                             && String(source).length > 0
                         anchors.fill: parent
-                        anchors.margins: 1
                         source: surface._cachedPreviewImageSource
-                        fillMode: Image.Stretch
+                        fillMode: Image.PreserveAspectCrop
+                        clip: true
                         asynchronous: false
                         cache: true
                         smooth: true
                         mipmap: true
+                    }
+
+                    Rectangle {
+                        objectName: "graphNodeViewerProxyPaneBorder"
+                        anchors.fill: parent
+                        radius: parent.radius
+                        color: "transparent"
+                        border.width: 1
+                        border.color: host ? Qt.alpha(host.scopeBadgeBorderColor, 0.7) : "#4c7bc0"
                     }
                 }
 

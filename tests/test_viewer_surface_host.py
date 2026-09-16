@@ -1246,6 +1246,73 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_cached_preview_fills_the_live_overlay_rect_without_distortion(self) -> None:
+        """The proxy frame must land in the rect the native overlay used.
+
+        The overlay manager maps graphNodeViewerViewport, so anything that
+        insets or re-fits the cached Image makes the proxy read as a resized
+        picture of the live view instead of a frozen one.
+        """
+        self._run_qml_probe(
+            "viewer-surface-host-preview-geometry",
+            """
+            from PyQt6.QtGui import QImage
+
+            bridge = ViewerSessionBridgeStub()
+            bridge._set_state(
+                cache_state="proxy_ready",
+                options={"live_mode": "proxy"},
+            )
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+
+            wide_frame = QImage(400, 100, QImage.Format.Format_ARGB32)
+            wide_frame.fill(0xFF67D487)
+            preview_provider = ViewerPreviewCacheImageProvider()
+            assert preview_provider.set_preview(
+                "ws_main", "node_viewer_surface_host", wide_frame, signature=("probe",)
+            )
+            engine.addImageProvider(VIEWER_PREVIEW_CACHE_PROVIDER_ID, preview_provider)
+            viewerHostServiceStub._cached_preview_source = preview_provider.preview_source(
+                "ws_main", "node_viewer_surface_host"
+            )
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            viewport = host.findChild(QObject, "graphNodeViewerViewport")
+            cached_image = host.findChild(QObject, "graphNodeViewerCachedPreviewImage")
+            assert surface is not None
+            assert viewport is not None
+            assert cached_image is not None
+
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                settle_events(5)
+                assert bool(cached_image.property("visible"))
+                assert float(viewport.property("width")) > 0.0
+                assert abs(float(cached_image.property("width")) - float(viewport.property("width"))) < 0.01, (
+                    float(cached_image.property("width")),
+                    float(viewport.property("width")),
+                )
+                assert abs(float(cached_image.property("height")) - float(viewport.property("height"))) < 0.01, (
+                    float(cached_image.property("height")),
+                    float(viewport.property("height")),
+                )
+                # A 4:1 frame in a ~2:1 rect: cropping keeps the full height
+                # and overflows horizontally, stretching would match both.
+                painted_width = float(cached_image.property("paintedWidth"))
+                painted_height = float(cached_image.property("paintedHeight"))
+                item_width = float(cached_image.property("width"))
+                item_height = float(cached_image.property("height"))
+                assert abs(painted_height - item_height) < 0.51, (painted_height, item_height)
+                assert painted_width > item_width + 1.0, (painted_width, item_width)
+                assert bool(cached_image.property("clip"))
+            finally:
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
     def test_viewer_surface_confirms_cached_preview_swap_to_host_service(self) -> None:
         self._run_qml_probe(
             "viewer-surface-host-preview-swap-confirmation",

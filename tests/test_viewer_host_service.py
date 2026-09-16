@@ -1456,7 +1456,9 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertFalse(captured.isNull())
         container = self.overlay_manager.overlay_container(node_id, workspace_id=self.workspace_id)
         self.assertIsNotNone(container)
-        self.assertEqual(captured.size(), container.size())
+        # The frame is stored exactly as the binder rendered it: never
+        # upscaled to the container and never re-fitted to its aspect.
+        self.assertEqual(captured.size(), preview_image.size())
         self.assertEqual(len(binder.capture_preview_calls), 1)
         self.assertIs(
             binder.capture_preview_calls[0],
@@ -1474,7 +1476,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         )
         self.assertIsNotNone(container)
         container.resize(1200, 900)
-        source = QImage(2400, 1800, QImage.Format.Format_ARGB32)
+        source = QImage(3000, 1500, QImage.Format.Format_ARGB32)
         source.fill(0xFF5DA9FF)
 
         normalized = self.host_service._normalized_overlay_preview_image(
@@ -1482,8 +1484,31 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             source,
         )
 
-        self.assertEqual(max(normalized.width(), normalized.height()), 640)
-        self.assertAlmostEqual(normalized.width() / normalized.height(), 4.0 / 3.0, places=2)
+        self.assertEqual(max(normalized.width(), normalized.height()), 1280)
+        # Bounded by a uniform downscale, so the capture aspect survives even
+        # when it differs from the container it was captured in.
+        self.assertAlmostEqual(normalized.width() / normalized.height(), 2.0, places=2)
+
+    def test_cached_viewer_preview_keeps_a_capture_smaller_than_the_bound(self) -> None:
+        binder = _RecordingBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+        container = self.overlay_manager.overlay_container(
+            node_id,
+            workspace_id=self.workspace_id,
+        )
+        self.assertIsNotNone(container)
+        container.resize(1200, 900)
+        source = QImage(300, 200, QImage.Format.Format_ARGB32)
+        source.fill(0xFF5DA9FF)
+
+        normalized = self.host_service._normalized_overlay_preview_image(
+            (self.workspace_id, node_id),
+            source,
+        )
+
+        self.assertEqual(normalized.size(), QSize(300, 200))
 
     def test_embedded_live_exit_captures_in_memory_viewer_preview_cache(self) -> None:
         preview_image = QImage(20, 12, QImage.Format.Format_ARGB32)
@@ -1525,7 +1550,8 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertEqual(self.host_service.retained_inline_viewer_node_id, node_id)
         self.assertEqual(binder.release_calls, [])
         cached, cached_size = provider.requestImage(source.split("image://viewer-preview-cache/", 1)[1], QSize())
-        self.assertEqual(cached_size, binder.capture_preview_sizes[0])
+        # Cached verbatim: the proxy surface crops it to the display rect.
+        self.assertEqual(cached_size, preview_image.size())
         self.assertEqual(cached.pixelColor(0, 0), QColor("#67D487"))
 
     def test_every_live_exit_refreshes_the_cached_preview(self) -> None:
