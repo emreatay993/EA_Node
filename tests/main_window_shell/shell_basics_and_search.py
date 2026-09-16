@@ -358,6 +358,10 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             for input_name in ("Space", "Left or Right", "Home", "R"):
                 with self.subTest(context="Viewer fullscreen", input=input_name):
                     self.assertIn(("Viewer fullscreen", input_name), entries)
+            self.assertEqual(
+                entries[("Model Viewer 3D view", "Left-drag")],
+                "Orbit around the model point under the pointer, or the model center over empty space.",
+            )
         finally:
             dialog.close()
 

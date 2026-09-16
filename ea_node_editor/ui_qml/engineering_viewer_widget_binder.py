@@ -1,7 +1,7 @@
 # Purpose: Render neutral engineering scene transports in a reusable PyVista Qt widget.
 # Map: feature_routes/viewer_session_overlay_fullscreen.md
 # Tests: tests/test_engineering_viewer_widget_binder.py
-# Landmarks: EngineeringViewerWidgetBinder, _populate_interactor, _mesh_kwargs, selection isolate, orientation aids
+# Landmarks: EngineeringViewerWidgetBinder, _populate_interactor, _mesh_kwargs, selection isolate, orientation aids, camera orbit
 from __future__ import annotations
 
 import hashlib
@@ -35,6 +35,15 @@ from ea_node_editor.execution.viewer_backend_engineering import (
 )
 from ea_node_editor.execution.viewer_camera_state import apply_camera_state, extract_camera_state
 from ea_node_editor.execution.viewer_pyvista_style import viewer_canvas_style
+from ea_node_editor.ui_qml.engineering_viewer_orbit import (
+    DEFAULT_TRACKBALL_MOTION_FACTOR,
+    create_pivot_marker_actor,
+    depth_pick_world_point,
+    orbit_camera_about_point,
+    trackball_orbit_angles,
+    visible_bounds_center,
+    world_to_display_point,
+)
 from ea_node_editor.ui_qml.viewer_widget_binder import (
     ViewerWidgetBindRequest,
     ViewerWidgetNoBind,
@@ -55,6 +64,13 @@ _VIEW_CUBE_WINDOW_FRACTION = 0.16
 _VIEW_CUBE_MIN_EDGE_PX = 44
 _VIEW_CUBE_MAX_EDGE_PX = 120
 _SHOW_WORLD_AXES_OPTION = "show_world_axes"
+# Logical-pixel size of the pivot dot shown while orbiting; scaled by DPR.
+_ORBIT_MARKER_RADIUS_PX = 4.0
+_ORBIT_MARKER_OUTLINE_PX = 1.5
+# Orbit presses must run after the binder's selection/triad observers (1.0),
+# which still need to see them, and before VTK widgets (0.5) and the trackball
+# style (0.0), which the orbit keeps from grabbing mouse focus.
+_ORBIT_OBSERVER_PRIORITY = 0.9
 _MAX_SHARED_MEMORY_ASSET_COUNT = 32
 _MAX_SHARED_MEMORY_SEGMENT_BYTES = 512 * 1024 * 1024
 _MAX_SHARED_MEMORY_TOTAL_BYTES = 1024 * 1024 * 1024
@@ -146,6 +162,11 @@ class _EngineeringWidgetState:
     triad_drag_last_position: tuple[int, int] | None = None
     triad_drag_style: Any | None = None
     triad_drag_style_was_enabled: bool = True
+    orbit_observers: list[tuple[Any, Any]] = field(default_factory=list)
+    orbit_pivot: tuple[float, float, float] | None = None
+    orbit_last_position: tuple[int, int] | None = None
+    orbit_motion_factor: float = DEFAULT_TRACKBALL_MOTION_FACTOR
+    orbit_marker_actor: Any | None = None
     world_axes_actors: list[Any] = field(default_factory=list)
     hidden_line_enabled: bool = False
     interaction_observers: list[tuple[Any, Any]] = field(default_factory=list)
@@ -253,6 +274,7 @@ class EngineeringViewerWidgetBinder(QObject):
         if state is not None:
             self._detach_interaction_lod(state)
             self._detach_selection_picking(state)
+            self._detach_camera_orbit(widget, state)
             self._remove_selection_highlight(widget, state)
             self._remove_selection_isolate(widget, state)
             self._remove_orientation_aids(widget, state)
@@ -294,6 +316,7 @@ class EngineeringViewerWidgetBinder(QObject):
         if state is None:
             return
         self._detach_selection_picking(state)
+        self._detach_camera_orbit(widget, state)
         self._detach_interaction_lod(state)
         self._remove_view_cube(widget, state)
         self._remove_orientation_triad(widget, state)
@@ -367,6 +390,8 @@ class EngineeringViewerWidgetBinder(QObject):
         self._sync_view_cube_scale(widget, state)
         if not state.selection_observers:
             self._install_selection_picking(widget, state)
+        if not state.orbit_observers:
+            self._install_camera_orbit(widget, state)
         if not state.interaction_observers:
             self._install_interaction_lod(widget, state)
         widget.updateGeometry()
@@ -1219,6 +1244,7 @@ class EngineeringViewerWidgetBinder(QObject):
         if previous_state is not None:
             self._detach_interaction_lod(previous_state)
             self._detach_selection_picking(previous_state)
+            self._detach_camera_orbit(interactor, previous_state)
             self._remove_selection_highlight(interactor, previous_state)
             self._remove_selection_isolate(interactor, previous_state)
             self._remove_orientation_aids(interactor, previous_state)
@@ -1302,6 +1328,7 @@ class EngineeringViewerWidgetBinder(QObject):
         if not defer_until_attach:
             self._sync_orientation_aids(interactor, state, request.options)
             self._install_selection_picking(interactor, state)
+            self._install_camera_orbit(interactor, state)
             self._install_interaction_lod(interactor, state)
             render = getattr(interactor, "render", None)
             if callable(render):
@@ -1529,7 +1556,7 @@ class EngineeringViewerWidgetBinder(QObject):
                 else:
                     state.selection_last_click_position = position
                     state.selection_last_click_time = now
-                toggle = self._control_key_active(target)
+                toggle = self._interactor_key_active(target, "GetControlKey")
                 self._pick_selection(
                     interactor,
                     state,
@@ -1564,22 +1591,26 @@ class EngineeringViewerWidgetBinder(QObject):
         state.selection_dragged = False
         state.selection_camera_interacting = False
 
+    @classmethod
+    def _selection_click_threshold(cls, interactor: QWidget) -> int:
+        base = QApplication.startDragDistance()
+        return max(1, round(float(base) * cls._device_pixel_ratio(interactor)))
+
     @staticmethod
-    def _selection_click_threshold(interactor: QWidget) -> int:
+    def _device_pixel_ratio(interactor: QWidget) -> float:
         ratio_getter = getattr(interactor, "devicePixelRatioF", None)
         try:
             ratio = float(ratio_getter()) if callable(ratio_getter) else 1.0
         except (TypeError, ValueError):
             ratio = 1.0
-        base = QApplication.startDragDistance()
-        return max(1, round(float(base) * max(1.0, ratio)))
+        return max(1.0, ratio)
 
     @staticmethod
-    def _control_key_active(target: Any) -> bool:
+    def _interactor_key_active(target: Any, getter_name: str) -> bool:
         raw = getattr(target, "interactor", target)
-        getter = getattr(raw, "GetControlKey", None)
+        getter = getattr(raw, getter_name, None)
         if not callable(getter):
-            getter = getattr(target, "GetControlKey", None)
+            getter = getattr(target, getter_name, None)
         try:
             return bool(getter()) if callable(getter) else False
         except (TypeError, RuntimeError):
@@ -2526,10 +2557,7 @@ class EngineeringViewerWidgetBinder(QObject):
             state.triad_drag_last_position = position
             if delta_x == 0 and delta_y == 0:
                 return
-            camera = getattr(interactor, "camera", None)
-            if camera is None:
-                renderer = getattr(interactor, "renderer", None)
-                camera = getattr(renderer, "GetActiveCamera", lambda: None)()
+            camera = self._active_camera(interactor)
             azimuth = getattr(camera, "Azimuth", None)
             elevation = getattr(camera, "Elevation", None)
             if not callable(azimuth) or not callable(elevation):
@@ -2564,12 +2592,17 @@ class EngineeringViewerWidgetBinder(QObject):
                 state.triad_drag_observers.append((observer_target, observer_id))
 
     @staticmethod
-    def _add_triad_observer(target: Any, event_name: str, callback) -> tuple[Any, Any]:  # noqa: ANN001
+    def _add_triad_observer(
+        target: Any,
+        event_name: str,
+        callback,  # noqa: ANN001
+        priority: float = 1.0,
+    ) -> tuple[Any, Any]:
         raw_interactor = getattr(target, "interactor", None)
         add_observer = getattr(raw_interactor, "AddObserver", None)
         if callable(add_observer):
             try:
-                return raw_interactor, add_observer(event_name, callback, 1.0)
+                return raw_interactor, add_observer(event_name, callback, priority)
             except (TypeError, RuntimeError):
                 pass
         add_observer = getattr(target, "add_observer", None)
@@ -2677,6 +2710,218 @@ class EngineeringViewerWidgetBinder(QObject):
                 except (TypeError, RuntimeError):
                     pass
         state.triad_drag_observers.clear()
+
+    def _install_camera_orbit(
+        self,
+        interactor: QWidget,
+        state: _EngineeringWidgetState,
+    ) -> None:
+        """Orbit left-drags around the model point under the cursor.
+
+        VTK's trackball style always orbits the camera focal point. This takes
+        over plain left-drags instead: the press resolves a pivot from the
+        depth buffer (or the visible model center over background), and the
+        drag rotates the camera rigidly around it. Shift/Ctrl drags and the
+        orientation aids keep their VTK/triad handling.
+
+        The press is aborted rather than the style disabled: a disabled
+        trackball style still starts rotating, and once it grabs VTK mouse
+        focus no other observer receives the drag's move or release events.
+        """
+        target = getattr(interactor, "iren", None) or getattr(interactor, "interactor", None)
+        if target is None or state.orbit_observers:
+            return
+        press_observer: list[tuple[Any, Any]] = []
+
+        def press(*_args: Any) -> None:
+            position = self._triad_event_position(target)
+            size = self._triad_render_size(target)
+            if (
+                position is None
+                or size is None
+                or state.orbit_pivot is not None
+                or state.triad_drag_active
+                or (
+                    state.orientation_triad_widget is not None
+                    and self._position_in_triad(position, size)
+                )
+                or (
+                    state.view_cube_widget is not None
+                    and self._position_in_view_cube(position, size)
+                )
+                or self._interactor_key_active(target, "GetShiftKey")
+                or self._interactor_key_active(target, "GetControlKey")
+            ):
+                return
+            renderer = getattr(interactor, "renderer", None)
+            pivot = depth_pick_world_point(renderer, *position) or visible_bounds_center(renderer)
+            if pivot is None or not press_observer:
+                return
+            state.orbit_pivot = pivot
+            state.orbit_last_position = position
+            state.orbit_motion_factor = self._style_motion_factor(self._triad_interactor_style(target))
+            self._show_orbit_marker(interactor, state)
+            # The style never sees this press, so it no longer brackets the drag;
+            # keep interaction LOD and click-versus-drag bookkeeping on the same events.
+            self._invoke_interactor_event(target, "StartInteractionEvent")
+            self._abort_observer_event(*press_observer[0])
+
+        def move(*_args: Any) -> None:
+            if state.orbit_pivot is None or state.orbit_last_position is None:
+                return
+            position = self._triad_event_position(target)
+            size = self._triad_render_size(target)
+            if position is None or size is None:
+                return
+            previous_x, previous_y = state.orbit_last_position
+            delta_x = position[0] - previous_x
+            delta_y = position[1] - previous_y
+            state.orbit_last_position = position
+            if delta_x == 0 and delta_y == 0:
+                return
+            azimuth, elevation = trackball_orbit_angles(
+                delta_x,
+                delta_y,
+                size,
+                state.orbit_motion_factor,
+            )
+            if not orbit_camera_about_point(
+                self._active_camera(interactor),
+                state.orbit_pivot,
+                azimuth=azimuth,
+                elevation=elevation,
+            ):
+                return
+            reset_clipping = getattr(interactor, "reset_camera_clipping_range", None)
+            if callable(reset_clipping):
+                reset_clipping()
+            render = getattr(interactor, "render", None)
+            if callable(render):
+                render()
+
+        def release(*_args: Any) -> None:
+            if not self._end_camera_orbit(interactor, state):
+                return
+            self._invoke_interactor_event(target, "EndInteractionEvent")
+            render = getattr(interactor, "render", None)
+            if callable(render):
+                render()
+
+        for event_name, callback in (
+            ("LeftButtonPressEvent", press),
+            ("MouseMoveEvent", move),
+            ("LeftButtonReleaseEvent", release),
+            ("LeaveEvent", release),
+        ):
+            observer_target, observer_id = self._add_triad_observer(
+                target,
+                event_name,
+                callback,
+                priority=_ORBIT_OBSERVER_PRIORITY,
+            )
+            if observer_id is None:
+                continue
+            state.orbit_observers.append((observer_target, observer_id))
+            if callback is press:
+                press_observer.append((observer_target, observer_id))
+
+    @classmethod
+    def _end_camera_orbit(cls, interactor: QWidget, state: _EngineeringWidgetState) -> bool:
+        """Drop the pivot and its marker; return whether an orbit was active."""
+        if state.orbit_pivot is None:
+            return False
+        cls._remove_orbit_marker(interactor, state)
+        state.orbit_pivot = None
+        state.orbit_last_position = None
+        state.orbit_motion_factor = DEFAULT_TRACKBALL_MOTION_FACTOR
+        return True
+
+    @classmethod
+    def _detach_camera_orbit(cls, interactor: QWidget, state: _EngineeringWidgetState) -> None:
+        cls._end_camera_orbit(interactor, state)
+        for target, observer_id in state.orbit_observers:
+            remove_observer = getattr(target, "remove_observer", None)
+            if not callable(remove_observer):
+                remove_observer = getattr(target, "RemoveObserver", None)
+            if callable(remove_observer):
+                try:
+                    remove_observer(observer_id)
+                except (TypeError, RuntimeError):
+                    pass
+        state.orbit_observers.clear()
+
+    def _show_orbit_marker(self, interactor: QWidget, state: _EngineeringWidgetState) -> None:
+        renderer = getattr(interactor, "renderer", None)
+        add_actor = getattr(renderer, "AddActor2D", None)
+        if state.orbit_pivot is None or not callable(add_actor):
+            return
+        display_point = world_to_display_point(renderer, state.orbit_pivot)
+        if display_point is None:
+            return
+        ratio = self._device_pixel_ratio(interactor)
+        try:
+            actor = self._create_orbit_marker(
+                display_point,
+                _ORBIT_MARKER_RADIUS_PX * ratio,
+                _ORBIT_MARKER_OUTLINE_PX * ratio,
+            )
+            add_actor(actor)
+        except (ImportError, RuntimeError, TypeError):
+            return
+        state.orbit_marker_actor = actor
+
+    @staticmethod
+    def _remove_orbit_marker(interactor: QWidget, state: _EngineeringWidgetState) -> None:
+        actor = state.orbit_marker_actor
+        state.orbit_marker_actor = None
+        remove_actor = getattr(getattr(interactor, "renderer", None), "RemoveActor2D", None)
+        if actor is None or not callable(remove_actor):
+            return
+        try:
+            remove_actor(actor)
+        except (TypeError, RuntimeError):
+            pass
+
+    @staticmethod
+    def _create_orbit_marker(display_point: tuple[float, float], radius: float, outline: float) -> Any:
+        return create_pivot_marker_actor(display_point, radius, outline)
+
+    @staticmethod
+    def _style_motion_factor(style: Any) -> float:
+        getter = getattr(style, "GetMotionFactor", None)
+        try:
+            factor = float(getter()) if callable(getter) else DEFAULT_TRACKBALL_MOTION_FACTOR
+        except (TypeError, ValueError, RuntimeError):
+            return DEFAULT_TRACKBALL_MOTION_FACTOR
+        return factor if math.isfinite(factor) and factor > 0.0 else DEFAULT_TRACKBALL_MOTION_FACTOR
+
+    @staticmethod
+    def _active_camera(interactor: QWidget) -> Any:
+        camera = getattr(interactor, "camera", None)
+        if camera is None:
+            renderer = getattr(interactor, "renderer", None)
+            camera = getattr(renderer, "GetActiveCamera", lambda: None)()
+        return camera
+
+    @staticmethod
+    def _abort_observer_event(observer_target: Any, observer_id: Any) -> None:
+        """Stop lower-priority observers from receiving the event being dispatched."""
+        get_command = getattr(observer_target, "GetCommand", None)
+        command = get_command(observer_id) if callable(get_command) else None
+        set_abort = getattr(command, "SetAbortFlag", None)
+        if callable(set_abort):
+            set_abort(1)
+
+    @staticmethod
+    def _invoke_interactor_event(target: Any, event_name: str) -> None:
+        raw_interactor = getattr(target, "interactor", target)
+        invoke = getattr(raw_interactor, "InvokeEvent", None)
+        if not callable(invoke):
+            return
+        try:
+            invoke(event_name)
+        except (TypeError, RuntimeError):
+            pass
 
     @staticmethod
     def _remove_view_cube(interactor: QWidget, state: _EngineeringWidgetState) -> None:

@@ -4198,6 +4198,7 @@
         "tests/test_engineering_viewer_backend.py",
         "tests/test_engineering_viewer_node.py",
         "tests/test_engineering_viewer_widget_binder.py",
+        "tests/test_engineering_viewer_orbit.py",
         "tests/test_viewer_session_bridge.py",
         "tests/test_viewer_control_bridge.py",
         "tests/test_content_fullscreen_bridge.py",
@@ -4242,6 +4243,7 @@
         "backend",
         "widget",
         "binder",
+        "orbit",
         "control",
         "content",
         "fullscreen",
@@ -9305,6 +9307,7 @@
         "ea_node_editor/ui_qml/viewer_preview_state_cache.py",
         "ea_node_editor/ui_qml/viewer_preview_warmup.py",
         "ea_node_editor/ui_qml/engineering_viewer_widget_binder.py",
+        "ea_node_editor/ui_qml/engineering_viewer_orbit.py",
         "ea_node_editor/ui/plot_preview_cache_provider.py",
         "ea_node_editor/ui_qml/embedded_viewer_overlay_manager.py",
         "ea_node_editor/ui_qml/viewer_control_bridge.py",
@@ -9346,7 +9349,8 @@
         "tests/test_execution_viewer_service.py",
         "tests/test_viewer_invalidation_lifecycle.py",
         "tests/test_engineering_viewer_node.py",
-        "tests/test_engineering_viewer_widget_binder.py"
+        "tests/test_engineering_viewer_widget_binder.py",
+        "tests/test_engineering_viewer_orbit.py"
       ],
       "qml_candidates": [
         "ea_node_editor/ui_qml/ContentFullscreenOverlay.qml",
@@ -9385,6 +9389,7 @@
         "warmup",
         "widget",
         "binder",
+        "orbit",
         "plot",
         "provider",
         "embedded",
@@ -9552,6 +9557,9 @@
         "graphnodewebpagehost",
         "webengineview",
         "contentfullscreenborrowedwebpageviewport",
+        "install",
+        "startinteractionevent",
+        "endinteractionevent",
         "powershell",
         "venv",
         "scripts",
@@ -9608,6 +9616,7 @@
         "ea_node_editor/ui_qml/viewer_preview_state_cache.py",
         "ea_node_editor/ui_qml/viewer_preview_warmup.py",
         "ea_node_editor/ui_qml/engineering_viewer_widget_binder.py",
+        "ea_node_editor/ui_qml/engineering_viewer_orbit.py",
         "ea_node_editor/ui/plot_preview_cache_provider.py",
         "ea_node_editor/ui_qml/embedded_viewer_overlay_manager.py",
         "ea_node_editor/ui_qml/viewer_control_bridge.py",
@@ -9646,7 +9655,8 @@
         "tests/test_execution_viewer_service.py",
         "tests/test_viewer_invalidation_lifecycle.py",
         "tests/test_engineering_viewer_node.py",
-        "tests/test_engineering_viewer_widget_binder.py"
+        "tests/test_engineering_viewer_widget_binder.py",
+        "tests/test_engineering_viewer_orbit.py"
       ],
       "do_not_start_here": [
         "ea_node_editor/ui_qml/graph_scene_bridge.py"

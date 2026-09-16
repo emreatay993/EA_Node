@@ -246,6 +246,11 @@ INPUT_REFERENCE_SECTIONS: tuple[InputReferenceSection, ...] = (
                 "Page Up or Page Down",
                 "Restore the previous or next saved view, wrapping at the ends.",
             ),
+            InputReferenceEntry(
+                "Model Viewer 3D view",
+                "Left-drag",
+                "Orbit around the model point under the pointer, or the model center over empty space.",
+            ),
             InputReferenceEntry("Video fullscreen", "Space", "Play or pause the video."),
             InputReferenceEntry("Video fullscreen", "Left or Right", "Seek backward or forward ten seconds."),
             InputReferenceEntry("Video fullscreen", "M", "Mute or unmute the video."),

@@ -14,6 +14,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - `ea_node_editor/ui_qml/viewer_preview_state_cache.py`
 - `ea_node_editor/ui_qml/viewer_preview_warmup.py`
 - `ea_node_editor/ui_qml/engineering_viewer_widget_binder.py`
+- `ea_node_editor/ui_qml/engineering_viewer_orbit.py`
 - `ea_node_editor/ui/plot_preview_cache_provider.py`
 - `ea_node_editor/ui_qml/embedded_viewer_overlay_manager.py`
 - `ea_node_editor/ui_qml/viewer_control_bridge.py`
@@ -53,6 +54,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - `tests/test_viewer_invalidation_lifecycle.py`
 - `tests/test_engineering_viewer_node.py`
 - `tests/test_engineering_viewer_widget_binder.py`
+- `tests/test_engineering_viewer_orbit.py`
 
 ## Do Not Start Here
 - `ea_node_editor/ui_qml/graph_scene_bridge.py` for viewer-session and fullscreen-toolbar ownership.
@@ -164,6 +166,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - Fullscreen PDF display lives in `ContentFullscreenOverlay.qml` as a QML `PdfDocument` plus `PdfMultiPageView` bound to the media payload's `resolved_source_url`. The overlay owns clamping/search/zoom/fit/rotation/navigation and clears the document source on release; graph mutation no longer rewrites the authored page value.
 - Fullscreen animated images use a loader-owned `AnimatedImage` bound to the payload's resolved local-file URL. Fullscreen always animates supported multi-frame media, ignores the saved inline playback mode, and owns playback exclusively until close; static/single-frame/unsupported/corrupt images remain provider-backed.
 - Fullscreen web page display first tries to reuse the already-loaded graph `WebPageHost`. `ContentFullscreenOverlay.qml` looks up the matching `graphNodeWebPageHost` by active node id, attaches its live `WebEngineView` into `contentFullscreenBorrowedWebPageViewport`, and restores it on close. The standalone fullscreen `WebPageHost` is the fallback for cold opens, unavailable inline hosts, and non-borrowable states.
+- Model Viewer camera orbit is binder-owned: `EngineeringViewerWidgetBinder._install_camera_orbit` takes over plain left-drags (not Shift/Ctrl, triad, or view cube), picks the pivot from one depth-buffer pixel under the cursor (visible-prop bounds center over background), and aborts the press at observer priority 0.9 so the VTK trackball style never grabs mouse focus (a disabled style still rotates, and its focus grab starves other observers of move/release events). It re-invokes `StartInteractionEvent`/`EndInteractionEvent` so interaction LOD and click-versus-drag selection bookkeeping keep their VTK-style timing. The rigid pivot rotation, VTK-parity angles, depth pick, and screen-space pivot dot live in `engineering_viewer_orbit.py`; install/detach follows the selection-picking lifecycle (populate, attach refresh, reparent, release).
 
 ## Focused Verification
 ```powershell

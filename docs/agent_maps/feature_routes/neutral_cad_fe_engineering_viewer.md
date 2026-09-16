@@ -45,6 +45,9 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 - Model Viewer starts as a lightweight proxy without native warm-up. Selection,
   hover, and single-click do not activate it; a proxy-viewport double-click is
   the only inline activation gesture, and selection/background loss demotes it.
+- Live Model Viewer left-drag orbits the model point under the cursor, or the
+  visible model center over empty space, with a screen-space pivot dot during
+  the drag; Shift/Ctrl drags, triad drag, and view-cube clicks keep VTK handling.
 - Fullscreen and detached views acquire explicit presentation holds. Only a
   widget previously activated inline may be retained hidden for reactivation.
 - Fullscreen and detached views retarget the same session rather than creating
@@ -68,6 +71,7 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 - `tests/test_engineering_viewer_backend.py`
 - `tests/test_engineering_viewer_node.py`
 - `tests/test_engineering_viewer_widget_binder.py`
+- `tests/test_engineering_viewer_orbit.py`
 - `tests/test_viewer_session_bridge.py`
 - `tests/test_viewer_control_bridge.py`
 - `tests/test_content_fullscreen_bridge.py`

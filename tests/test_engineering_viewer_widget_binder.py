@@ -239,6 +239,46 @@ class _FakeRenderer:
     def __init__(self) -> None:
         self.axes_widget = None
         self.axes_actor = None
+        # Defaults read as "background under the cursor, nothing visible",
+        # so presses leave camera orbiting to the (fake) VTK style.
+        self.depth = 1.0
+        self.pick_world_point = (0.0, 0.0, 0.0)
+        self.visible_bounds = (1.0, -1.0, 1.0, -1.0, 1.0, -1.0)
+        self.display_point = (0.0, 0.0, 0.5)
+        self.depth_queries: list[tuple[int, int]] = []
+        self.projected_world_points: list[tuple[float, float, float]] = []
+        self.actors_2d: list[object] = []
+
+    def GetZ(self, x: int, y: int) -> float:  # noqa: N802
+        self.depth_queries.append((x, y))
+        return self.depth
+
+    def SetDisplayPoint(self, *_values: float) -> None:  # noqa: N802
+        return None
+
+    def DisplayToWorld(self) -> None:  # noqa: N802
+        return None
+
+    def GetWorldPoint(self) -> tuple[float, float, float, float]:  # noqa: N802
+        return (*self.pick_world_point, 1.0)
+
+    def ComputeVisiblePropBounds(self) -> tuple[float, ...]:  # noqa: N802
+        return self.visible_bounds
+
+    def SetWorldPoint(self, x: float, y: float, z: float, _w: float) -> None:  # noqa: N802
+        self.projected_world_points.append((x, y, z))
+
+    def WorldToDisplay(self) -> None:  # noqa: N802
+        return None
+
+    def GetDisplayPoint(self) -> tuple[float, float, float]:  # noqa: N802
+        return self.display_point
+
+    def AddActor2D(self, actor: object) -> None:  # noqa: N802
+        self.actors_2d.append(actor)
+
+    def RemoveActor2D(self, actor: object) -> None:  # noqa: N802
+        self.actors_2d.remove(actor)
 
 
 class _FakePicker:
@@ -305,6 +345,9 @@ class _FakeInteractor(QWidget):
         self.render_size = (1000, 500)
         self.reset_clipping_calls = 0
         self.control_key = False
+        self.shift_key = False
+        self.invoked_events: list[str] = []
+        self.abort_stack: list[bool] = []
         self.device_pixel_ratio = 1.0
         self.native_ready = True
         self.close_calls = 0
@@ -383,6 +426,13 @@ class _FakeInteractor(QWidget):
     def GetControlKey(self) -> int:  # noqa: N802
         return int(self.control_key)
 
+    def GetShiftKey(self) -> int:  # noqa: N802
+        return int(self.shift_key)
+
+    def InvokeEvent(self, event_name: str) -> None:  # noqa: N802
+        self.invoked_events.append(event_name)
+        self.trigger(event_name)
+
     def devicePixelRatioF(self) -> float:  # noqa: N802
         return self.device_pixel_ratio
 
@@ -398,12 +448,32 @@ class _FakeInteractor(QWidget):
     def remove_observer(self, observer_id: int) -> None:
         self._observers.pop(observer_id, None)
 
+    def GetCommand(self, _observer_id: int) -> _FakeObserverCommand:  # noqa: N802
+        return _FakeObserverCommand(self)
+
     def trigger(self, event_name: str, *, position: tuple[int, int] | None = None) -> None:
         if position is not None:
             self.event_position = position
-        for registered_name, callback in list(self._observers.values()):
-            if registered_name == event_name:
-                callback(self, event_name)
+        # Observers run in registration order; an aborted event skips the rest,
+        # like vtkCommand.SetAbortFlag on a real interactor.
+        self.abort_stack.append(False)
+        try:
+            for registered_name, callback in list(self._observers.values()):
+                if registered_name == event_name:
+                    callback(self, event_name)
+                    if self.abort_stack[-1]:
+                        break
+        finally:
+            self.abort_stack.pop()
+
+
+class _FakeObserverCommand:
+    def __init__(self, owner: _FakeInteractor) -> None:
+        self.owner = owner
+
+    def SetAbortFlag(self, value: int) -> None:  # noqa: N802
+        if self.owner.abort_stack:
+            self.owner.abort_stack[-1] = bool(value)
 
 
 def _request(
@@ -1507,6 +1577,193 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             self.assertEqual(state.selected_entities, [])
             binder.shutdown()
 
+    @staticmethod
+    def _pivot_view_coordinates(camera, point: tuple[float, float, float]) -> tuple[float, ...]:  # noqa: ANN001
+        return tuple(camera.GetViewTransformMatrix().MultiplyPoint((*point, 1.0))[:3])
+
+    def test_left_drag_orbits_around_model_point_under_cursor(self) -> None:
+        from vtkmodules.vtkRenderingCore import vtkCamera
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            full_path = root / "full.vtu"
+            interaction_path = root / "coarse.vtu"
+            full_path.write_text("full", encoding="utf-8")
+            interaction_path.write_text("coarse", encoding="utf-8")
+            full_dataset = _FakeDataset("full", [10, 20])
+            coarse_dataset = _FakeDataset("coarse", [10, 20])
+            loaded = {str(full_path): full_dataset, str(interaction_path): coarse_dataset}
+            binder = EngineeringViewerWidgetBinder(
+                interactor_factory=lambda parent: _FakeInteractor(parent),
+                dataset_loader=lambda path: loaded.pop(path),
+                picker_factory=lambda _association: _FakePicker(index=1),
+                background_loading=False,
+            )
+            widget = binder.bind_widget(
+                _request(
+                    full_path,
+                    interaction_path=interaction_path,
+                    options={"show_view_cube": True, "show_orientation_triad": True},
+                )
+            )
+            state = binder._widget_state[widget]
+            actor = state.actors["scene_1"]
+            self.assertEqual(len(state.orbit_observers), 4)
+            camera = vtkCamera()
+            camera.SetPosition(0.0, -10.0, 0.0)
+            camera.SetFocalPoint(0.0, 0.0, 0.0)
+            camera.SetViewUp(0.0, 0.0, 1.0)
+            widget.camera = camera
+            renderer = widget.renderer
+            renderer.depth = 0.4
+            renderer.pick_world_point = (2.0, 0.0, 1.0)
+            renderer.display_point = (300.0, 200.0, 0.4)
+            widget.device_pixel_ratio = 2.0
+            # Registered last, like the VTK trackball style observing at priority 0.
+            style_presses: list[tuple[int, int]] = []
+            widget.add_observer(
+                "LeftButtonPressEvent",
+                lambda *_args: style_presses.append(widget.event_position),
+            )
+            marker = object()
+            marker_calls: list[tuple[object, ...]] = []
+
+            def create_marker(point, radius, outline):  # noqa: ANN001, ANN202
+                marker_calls.append((point, radius, outline))
+                return marker
+
+            with patch.object(EngineeringViewerWidgetBinder, "_create_orbit_marker", side_effect=create_marker):
+                widget.trigger("LeftButtonPressEvent", position=(300, 200))
+                self.assertEqual(renderer.depth_queries, [(300, 200)])
+                self.assertEqual(state.orbit_pivot, (2.0, 0.0, 1.0))
+                self.assertEqual(style_presses, [])
+                self.assertEqual(state.selection_press_position, (300, 200))
+                self.assertEqual(widget.invoked_events, ["StartInteractionEvent"])
+                self.assertIs(actor.mapper.dataset, coarse_dataset)
+                self.assertEqual(marker_calls, [((300.0, 200.0), 8.0, 3.0)])
+                self.assertEqual(renderer.actors_2d, [marker])
+
+                pivot_before = self._pivot_view_coordinates(camera, state.orbit_pivot)
+                focal_before = camera.GetFocalPoint()
+                clipping_calls = widget.reset_clipping_calls
+                render_calls = widget.render_calls
+                widget.trigger("MouseMoveEvent", position=(340, 180))
+                for before, after in zip(
+                    pivot_before,
+                    self._pivot_view_coordinates(camera, (2.0, 0.0, 1.0)),
+                    strict=True,
+                ):
+                    self.assertAlmostEqual(before, after, places=9)
+                self.assertNotEqual(camera.GetFocalPoint(), focal_before)
+                self.assertEqual(widget.reset_clipping_calls, clipping_calls + 1)
+                self.assertGreater(widget.render_calls, render_calls)
+
+                widget.trigger("LeftButtonReleaseEvent", position=(340, 180))
+                self.assertIsNone(state.orbit_pivot)
+                self.assertEqual(renderer.actors_2d, [])
+                self.assertEqual(
+                    widget.invoked_events,
+                    ["StartInteractionEvent", "EndInteractionEvent"],
+                )
+                self.assertEqual(state.selected_entities, [])
+
+                widget.trigger("LeftButtonPressEvent", position=(300, 200))
+                widget.trigger("LeftButtonReleaseEvent", position=(300, 200))
+                self.assertEqual(style_presses, [])
+                self.assertEqual(
+                    [value["entity_id"] for value in state.selected_entities],
+                    ["block:0/element:20"],
+                )
+
+                widget.trigger("LeftButtonPressEvent", position=(300, 200))
+                self.assertEqual(renderer.actors_2d, [marker])
+                binder.prepare_for_reparent(widget)
+                self.assertIsNone(state.orbit_pivot)
+                self.assertEqual(renderer.actors_2d, [])
+                self.assertEqual(state.orbit_observers, [])
+            binder.shutdown()
+
+    def test_background_drag_orbits_visible_model_center(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            surface_path = Path(temporary_directory) / "mesh.vtu"
+            surface_path.write_text("mesh", encoding="utf-8")
+            binder = EngineeringViewerWidgetBinder(
+                interactor_factory=lambda parent: _FakeInteractor(parent),
+                dataset_loader=lambda _path: _FakeDataset("mesh", [10]),
+                picker_factory=lambda _association: _FakePicker(),
+                background_loading=False,
+            )
+            widget = binder.bind_widget(
+                _request(surface_path, options={"show_view_cube": False, "show_orientation_triad": False})
+            )
+            state = binder._widget_state[widget]
+            renderer = widget.renderer
+            style_presses: list[tuple[int, int]] = []
+            widget.add_observer(
+                "LeftButtonPressEvent",
+                lambda *_args: style_presses.append(widget.event_position),
+            )
+
+            widget.trigger("LeftButtonPressEvent", position=(300, 200))
+            self.assertIsNone(state.orbit_pivot)
+            self.assertEqual(style_presses, [(300, 200)])
+            widget.trigger("LeftButtonReleaseEvent", position=(300, 200))
+
+            renderer.visible_bounds = (-2.0, 4.0, -1.0, 1.0, 0.0, 2.0)
+            renderer.display_point = (0.0, 0.0, 1.5)
+            widget.trigger("LeftButtonPressEvent", position=(310, 210))
+            self.assertEqual(state.orbit_pivot, (1.0, 0.0, 1.0))
+            self.assertEqual(style_presses, [(300, 200)])
+            self.assertEqual(renderer.projected_world_points, [(1.0, 0.0, 1.0)])
+            self.assertEqual(renderer.actors_2d, [])
+            widget.trigger("LeaveEvent")
+            self.assertIsNone(state.orbit_pivot)
+            self.assertEqual(widget.invoked_events, ["StartInteractionEvent", "EndInteractionEvent"])
+            binder.shutdown()
+
+    def test_modified_and_orientation_aid_presses_keep_vtk_camera_handling(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            surface_path = Path(temporary_directory) / "mesh.vtu"
+            surface_path.write_text("mesh", encoding="utf-8")
+            binder = EngineeringViewerWidgetBinder(
+                interactor_factory=lambda parent: _FakeInteractor(parent),
+                dataset_loader=lambda _path: _FakeDataset("mesh", [10]),
+                picker_factory=lambda _association: _FakePicker(),
+                background_loading=False,
+            )
+            widget = binder.bind_widget(
+                _request(surface_path, options={"show_view_cube": True, "show_orientation_triad": True})
+            )
+            state = binder._widget_state[widget]
+            widget.renderer.depth = 0.5
+            style_presses: list[tuple[int, int]] = []
+            widget.add_observer(
+                "LeftButtonPressEvent",
+                lambda *_args: style_presses.append(widget.event_position),
+            )
+
+            for key_name in ("shift_key", "control_key"):
+                with self.subTest(modifier=key_name):
+                    setattr(widget, key_name, True)
+                    widget.trigger("LeftButtonPressEvent", position=(500, 250))
+                    self.assertIsNone(state.orbit_pivot)
+                    widget.trigger("LeftButtonReleaseEvent", position=(500, 250))
+                    setattr(widget, key_name, False)
+
+            widget.trigger("LeftButtonPressEvent", position=(50, 50))
+            self.assertIsNone(state.orbit_pivot)
+            widget.trigger("LeftButtonReleaseEvent", position=(50, 50))
+
+            widget.trigger("LeftButtonPressEvent", position=(900, 50))
+            self.assertTrue(state.triad_drag_active)
+            self.assertIsNone(state.orbit_pivot)
+            widget.trigger("LeftButtonReleaseEvent", position=(900, 50))
+
+            self.assertEqual(style_presses, [(500, 250), (500, 250), (50, 50), (900, 50)])
+            self.assertEqual(widget.invoked_events, [])
+            self.assertEqual(widget.renderer.depth_queries, [])
+            binder.shutdown()
+
     def test_double_click_tangent_selection_and_control_toggle(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -1608,6 +1865,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
 
             binder.prepare_for_reparent(widget)
             self.assertEqual(state.selection_observers, [])
+            self.assertEqual(state.orbit_observers, [])
             self.assertEqual(state.interaction_observers, [])
             self.assertEqual(state.triad_drag_observers, [])
             self.assertIsNone(old_cube.GetInteractor())
@@ -1629,10 +1887,11 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             binder.refresh_after_attach(widget)
             counts = (
                 len(state.selection_observers),
+                len(state.orbit_observers),
                 len(state.interaction_observers),
                 len(state.triad_drag_observers),
             )
-            self.assertEqual(counts, (6, 2, 4))
+            self.assertEqual(counts, (6, 4, 2, 4))
             self.assertIsNot(state.view_cube_widget, old_cube)
             self.assertIsNot(state.orientation_triad_widget, old_triad)
 
@@ -1640,6 +1899,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             self.assertEqual(
                 (
                     len(state.selection_observers),
+                    len(state.orbit_observers),
                     len(state.interaction_observers),
                     len(state.triad_drag_observers),
                 ),
