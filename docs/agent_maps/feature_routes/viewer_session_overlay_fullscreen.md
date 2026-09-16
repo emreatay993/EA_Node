@@ -11,6 +11,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 ## Start Here
 - `ea_node_editor/ui_qml/viewer_session_bridge.py`
 - `ea_node_editor/ui_qml/viewer_host_service.py`
+- `ea_node_editor/ui_qml/viewer_preview_state_cache.py`
 - `ea_node_editor/ui_qml/engineering_viewer_widget_binder.py`
 - `ea_node_editor/ui/plot_preview_cache_provider.py`
 - `ea_node_editor/ui_qml/embedded_viewer_overlay_manager.py`
@@ -39,6 +40,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - `tests/test_content_fullscreen_bridge_lifecycle.py`
 - `tests/test_viewer_control_bridge.py`
 - `tests/test_viewer_host_service.py`
+- `tests/test_viewer_preview_state_cache.py`
 - `tests/test_viewer_surface_contract.py`
 - `tests/test_backend_client.py`
 - `tests/test_process_client.py`
@@ -152,6 +154,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
   activation handoff therefore settles one event-loop pass after a
   selection/session flip.
 - Fullscreen viewer shortcuts (Space, Left/Right, Home, R) are handled twice on purpose: a viewer branch in the overlay's `Keys.onPressed` for QML focus, and a `_FullscreenShortcutFilter` installed by `ViewerHostService` on the fullscreen-target native widget because the overlay manager focuses the QtInteractor, which consumes key events before QML. `ViewerSessionBridge` provides `step_back`/`set_step_index`; camera/stat slots (`viewer_render_stats`, `apply_standard_view`, `reset_overlay_camera`, `camera_state_snapshot`, `apply_overlay_camera_state`, `export_viewer_screenshot`) live on `ViewerHostService`. Update `input_reference_dialog.py` when these keys change.
+- `ViewerPreviewStateCache` owns the cached proxy frame and the camera that outlive a live session; `ViewerHostService` delegates to it. Every live-to-proxy transition refreshes the frame - inline exit, fullscreen close and detached close all reach `capture_live_state` before the binding is parked in the retained-inline slot - deduplicated by a live-frame dirty mark taken when a live presentation episode begins. Frames keep their capture aspect and the proxy surface crops them to the mapped `graphNodeViewerViewport` rect, which is exact because VTK fixes a camera's vertical extent and widens only with the window aspect.
 - Project install/open/new flows reset `ViewerHostService` before `ViewerSessionBridge.project_loaded(...)` reseeds project viewer projections, so fixed `(workspace_id, node_id)` viewer keys cannot reuse stale native overlays, preview-cache entries, or cached view state from a previous project instance.
 - `EmbeddedViewerOverlayManager._sync_impl` computes overlay rects from `mapToItem` state, so before computing it forces `ensurePolished()` up the viewport's ancestor chain and geometry-observes every chain link from `graphNodeViewerViewport` up to the node card — not just the two endpoints. Positioners apply repositions in the polish pass (frame boundary), which can land after the queued zero-delay sync, and a reposition of an intermediate container (e.g. the viewer body Column shifting the viewport row when the status strip re-wraps on width change) fires no geometry signal on the card or the viewport itself. Keep both mechanisms when touching overlay sync or viewer body layout; `test_live_overlay_geometry_tracks_rendered_resize_preview_state` is the regression gate.
 - Fullscreen Media Panel uses stable top-level `content_kind="media"` and derives image/PDF/video from `media_payload.media_kind`. The bridge and inline dispatcher share `resolve_media_panel_source`; non-ready source transitions clear URLs and unload the prior renderer while the overlay stays open with an explicit message.
@@ -161,7 +164,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_native_presentation_handoff.py tests/test_viewer_session_bridge.py tests/test_execution_viewer_service.py tests/test_viewer_control_bridge.py tests/test_viewer_host_service.py tests/test_viewer_preview_cache_provider.py tests/test_embedded_viewer_overlay_manager.py tests/test_viewer_surface_contract.py tests/test_viewer_surface_host.py tests/test_execution_viewer_protocol.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_native_presentation_handoff.py tests/test_viewer_session_bridge.py tests/test_execution_viewer_service.py tests/test_viewer_control_bridge.py tests/test_viewer_host_service.py tests/test_viewer_preview_cache_provider.py tests/test_viewer_preview_state_cache.py tests/test_embedded_viewer_overlay_manager.py tests/test_viewer_surface_contract.py tests/test_viewer_surface_host.py tests/test_execution_viewer_protocol.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_content_fullscreen_bridge.py tests/test_content_fullscreen_bridge_lifecycle.py tests/test_media_panel_qml_surface.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_shell_isolation_phase.py -k "main_window__lifecycle__fullscreen_media_handoff" --ignore=venv -q -n 0
 .\venv\Scripts\python.exe -m pytest tests/main_window_shell/shell_runtime_contracts.py -k content_fullscreen --ignore=venv -q
@@ -172,7 +175,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - [Neutral CAD/FE Engineering Viewer](neutral_cad_fe_engineering_viewer.md)
 
 ## Update Triggers
-Update when viewer bridge, worker-side session-handle lease ownership, host service, engineering viewer binder, viewer preview cache provider, overlay manager, fullscreen bridge, Python Script fullscreen guide, fullscreen tabular persistence, viewer protocol, or Help reference fullscreen coverage changes.
+Update when viewer bridge, worker-side session-handle lease ownership, host service, preview/camera state cache, engineering viewer binder, viewer preview cache provider, overlay manager, fullscreen bridge, Python Script fullscreen guide, fullscreen tabular persistence, viewer protocol, or Help reference fullscreen coverage changes.
 
 ## 2026-07-11 Performance Ownership
 

@@ -19,8 +19,10 @@ from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import VIEWER_SESSION
 from ea_node_editor.ui_qml.engineering_viewer_widget_binder import EngineeringViewerWidgetBinder
 from ea_node_editor.ui_qml.viewer_host_service import (
     ViewerHostService,
-    _cache_relevant_options,
     _string,
+)
+from ea_node_editor.ui_qml.viewer_preview_state_cache import (
+    cache_relevant_options as _cache_relevant_options,
 )
 from ea_node_editor.ui_qml.viewer_widget_binder import ViewerWidgetNoBind
 from tests.main_window_shell.base import MainWindowShellTestBase
@@ -1636,7 +1638,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         )
 
         with patch.object(self.host_service, "_snapshot_for_key", return_value=incompatible):
-            self.host_service._capture_cached_live_state_for_key(key)
+            self.host_service._preview_state.capture_live_state(key)
 
         self.assertEqual(binder.capture_preview_calls, [])
         self.assertEqual(self.host_service.cached_preview_source(node_id), "")

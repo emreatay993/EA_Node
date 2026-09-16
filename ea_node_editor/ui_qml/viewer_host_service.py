@@ -1,7 +1,7 @@
-# Purpose: Own native viewer binding, cached previews, and inline/detached/fullscreen presentation.
+# Purpose: Own native viewer binding and inline/detached/fullscreen presentation.
 # Map: subsystems/viewer_surfaces.md
 # Tests: tests/test_viewer_host_service.py
-# Landmarks: _ViewerHostSessionSnapshot; _DetachedViewerWindow; _ViewerHostPresentationService; ViewerHostService; presentation reconciliation
+# Landmarks: _ViewerHostSessionSnapshot; _DetachedViewerWindow; _ViewerHostPresentationService; ViewerHostService; presentation reconciliation; cached frames and camera live in viewer_preview_state_cache.py
 
 from __future__ import annotations
 
@@ -29,6 +29,10 @@ from ea_node_editor.ui_qml.native_overlay_owners import VIEWER_SESSION_OVERLAY_O
 from ea_node_editor.ui_qml.native_presentation_handoff import (
     NativePresentationHandoff,
 )
+from ea_node_editor.ui_qml.viewer_preview_state_cache import (
+    ViewerPreviewStateCache,
+    _freeze_value,
+)
 from ea_node_editor.ui_qml.viewer_widget_binder import (
     ViewerWidgetBindRequest,
     ViewerWidgetBinder,
@@ -53,35 +57,6 @@ def _mapping(value: Any) -> dict[str, Any]:
 
 def _string(value: Any) -> str:
     return "" if value is None else str(value).strip()
-
-
-def _freeze_value(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return tuple(sorted((_string(key), _freeze_value(item)) for key, item in value.items()))
-    if isinstance(value, (list, tuple)):
-        return tuple(_freeze_value(item) for item in value)
-    if isinstance(value, (str, int, float, bool)) or value is None:
-        return value
-    return repr(value)
-
-
-def _cache_relevant_options(options: Mapping[str, Any]) -> dict[str, Any]:
-    ignored_keys = {
-        "export_formats",
-        # The probe changes no committed pixels, so it must not invalidate
-        # cached previews or camera state.
-        "hover_probe",
-        "live_mode",
-        "output_profile",
-        "playback",
-        "playback_state",
-        "step_index",
-    }
-    return {
-        str(key): copy.deepcopy(value)
-        for key, value in options.items()
-        if str(key) not in ignored_keys
-    }
 
 
 def _playback_state_from_projection(
@@ -525,7 +500,6 @@ class ViewerHostService(QObject):
         )
         self._viewer_session_bridge = viewer_session_bridge
         self._overlay_manager = overlay_manager
-        self._preview_cache_provider = preview_cache_provider
         self._content_fullscreen_bridge: QObject | None = content_fullscreen_bridge
         self._binder_registry = ViewerWidgetBinderRegistry()
         self._binders_initialized = False
@@ -538,15 +512,25 @@ class ViewerHostService(QObject):
         self._pending_detached_sessions: dict[_OverlayKey, str] = {}
         self._fullscreen_hold_key: _OverlayKey | None = None
         self._embedded_interaction_active: set[_OverlayKey] = set()
-        self._live_frame_dirty: set[_OverlayKey] = set()
         self._native_presentation_handoff = NativePresentationHandoff(
             overlay_manager_provider=lambda: self._overlay_manager,
             completion_callback=self._complete_embedded_exit_demotion,
             timeout_ms=300,
         )
-        self._viewer_render_signatures: dict[_OverlayKey, tuple[Any, ...]] = {}
-        self._viewer_view_states: dict[_OverlayKey, tuple[tuple[Any, ...], object]] = {}
-        self._preview_cache_revision = 0
+        # Resolved through self on every call so the host stays patchable and
+        # the cache never holds a stale view of binding state.
+        self._preview_state = ViewerPreviewStateCache(
+            provider=preview_cache_provider,
+            snapshot_for_key=lambda key: self._snapshot_for_key(key),
+            bound_for_key=lambda key: self._bound_overlays.get(key),
+            widget_for_bound=lambda key, bound: self._current_widget_for_bound_overlay(key, bound),
+            capture_image=lambda node_id, workspace_id: self.capture_overlay_preview_image(
+                node_id, workspace_id=workspace_id
+            ),
+            binding_signature=lambda snapshot: self._binding_signature(snapshot),
+            report_error=lambda message: self._set_last_error(message),
+            revision_changed=lambda: self.preview_cache_changed.emit(),
+        )
         self._viewer_overlay_revision = 0
         self._owns_content_fullscreen_target = False
         self._presentation_service = _ViewerHostPresentationService(
@@ -595,7 +579,7 @@ class ViewerHostService(QObject):
 
     @pyqtProperty(int, notify=preview_cache_changed)
     def preview_cache_revision(self) -> int:
-        return self._preview_cache_revision
+        return self._preview_state.revision
 
     @pyqtSlot(str, bool)
     def set_embedded_interaction_active(self, node_id: str, active: bool) -> None:
@@ -609,7 +593,7 @@ class ViewerHostService(QObject):
         if bool(active):
             self._native_presentation_handoff.cancel(key)
             self._remember_inline_retention_identity(key)
-            self._mark_live_frame_dirty(key)
+            self._preview_state.mark_live_frame_dirty(key)
             if key not in self._embedded_interaction_active:
                 self._embedded_interaction_active.add(key)
                 changed = True
@@ -651,12 +635,9 @@ class ViewerHostService(QObject):
 
     def _capture_embedded_exit_state(self, key: _OverlayKey) -> bool:
         """Capture the live frame and report whether demotion was deferred."""
-        provider = self._preview_cache_provider
-        source_before = provider.preview_source(key[0], key[1]) if provider is not None else ""
-        self._capture_cached_live_state_for_key(key)
-        if provider is None:
-            return False
-        source_after = provider.preview_source(key[0], key[1])
+        source_before = self._preview_state.preview_source(key)
+        self._preview_state.capture_live_state(key)
+        source_after = self._preview_state.preview_source(key)
         if not source_after or source_after == source_before:
             return False
         if not self._embedded_exit_overlay_visible(key):
@@ -701,13 +682,10 @@ class ViewerHostService(QObject):
 
     @pyqtSlot(str, result=str)
     def cached_preview_source(self, node_id: str) -> str:
-        provider = self._preview_cache_provider
-        if self._shutdown or provider is None:
+        if self._shutdown:
             return ""
         key = self._key_for_node_id(node_id)
-        if key is None:
-            return ""
-        return provider.preview_source(key[0], key[1])
+        return "" if key is None else self._preview_state.preview_source(key)
 
     @pyqtSlot(str, result=bool)
     def open_detached_viewer(self, node_id: str) -> bool:
@@ -735,7 +713,7 @@ class ViewerHostService(QObject):
             self._release_presentation_hold_if_unused(key)
             return False
         self._pending_detached_sessions.pop(key, None)
-        self._mark_live_frame_dirty(key)
+        self._preview_state.mark_live_frame_dirty(key)
         if self._content_fullscreen_key() == key:
             bridge = self._content_fullscreen_bridge
             close = getattr(bridge, "request_close", None) if bridge is not None else None
@@ -817,7 +795,7 @@ class ViewerHostService(QObject):
             return
         self._fullscreen_hold_key = next_key
         if next_key is not None:
-            self._mark_live_frame_dirty(next_key)
+            self._preview_state.mark_live_frame_dirty(next_key)
             self._acquire_presentation_hold(next_key)
         if previous_key is not None:
             self._release_presentation_hold_if_unused(previous_key)
@@ -1162,20 +1140,7 @@ class ViewerHostService(QObject):
         return not application.clipboard().image().isNull()
 
     def _cached_preview_image_for_key(self, key: _OverlayKey) -> QImage:
-        provider = self._preview_cache_provider
-        request_image = getattr(provider, "requestImage", None)
-        if not callable(request_image):
-            return QImage()
-        try:
-            from urllib.parse import quote
-
-            image, _size = request_image(
-                f"preview?workspace={quote(key[0], safe='')}&node={quote(key[1], safe='')}",
-                QSize(),
-            )
-        except Exception:  # noqa: BLE001
-            return QImage()
-        return image if isinstance(image, QImage) else QImage()
+        return self._preview_state.preview_image(key)
 
     def _suggested_screenshot_name(self, key: _OverlayKey) -> str:
         snapshot = self._snapshot_for_key(key)
@@ -1372,8 +1337,7 @@ class ViewerHostService(QObject):
         self._clear_pending_detached_sessions()
         self._clear_fullscreen_hold()
         self._embedded_interaction_active.clear()
-        self._live_frame_dirty.clear()
-        self._clear_all_cached_previews()
+        self._preview_state.clear_all()
         overlay_manager = self._overlay_manager
         if overlay_manager is not None:
             self._set_viewer_content_fullscreen_target(overlay_manager, None)
@@ -1421,8 +1385,7 @@ class ViewerHostService(QObject):
             self._engineering_binder.shutdown()
             self._engineering_binder = None
         self._embedded_interaction_active.clear()
-        self._live_frame_dirty.clear()
-        self._clear_all_cached_previews()
+        self._preview_state.clear_all()
         overlay_manager = self._overlay_manager
         if overlay_manager is not None:
             self._set_viewer_content_fullscreen_target(overlay_manager, None)
@@ -1495,7 +1458,7 @@ class ViewerHostService(QObject):
         window = self._detached_windows.get(key)
         if window is None:
             return True
-        self._capture_cached_live_state_for_key(key)
+        self._preview_state.capture_live_state(key)
         widget = window.widget
         if widget is not None:
             bound = self._bound_overlays.get(key)
@@ -1517,7 +1480,7 @@ class ViewerHostService(QObject):
         window = self._detached_windows.get(key)
         if window is None:
             return True
-        self._capture_cached_live_state_for_key(key)
+        self._preview_state.capture_live_state(key)
         widget = window.widget
         redock_ready = True
         if widget is not None:
@@ -1649,7 +1612,7 @@ class ViewerHostService(QObject):
             self.state_changed.emit()
             return
 
-        self._sync_preview_cache_signatures()
+        self._preview_state.sync_signatures(self._projected_snapshots())
         self._set_viewer_content_fullscreen_target(overlay_manager, self._content_fullscreen_overlay_spec())
         projected_sessions = bridge.sessions_model
         self._prune_inline_retention_identities()
@@ -1692,14 +1655,14 @@ class ViewerHostService(QObject):
                     # Live presentation is ending (inline exit, fullscreen
                     # close, detached close). Refresh the proxy frame while
                     # the widget still shows what the user was looking at.
-                    self._capture_cached_live_state_for_key(key)
+                    self._preview_state.capture_live_state(key)
                 if self._retain_inline_binding(key):
                     continue
-                self._capture_cached_live_state_for_key(key)
+                self._preview_state.capture_live_state(key)
                 self._release_binding(key, reason="inactive")
                 continue
             if desired[0].backend_id != bound.snapshot.backend_id or desired[1] is not bound.binder:
-                self._capture_cached_live_state_for_key(key)
+                self._preview_state.capture_live_state(key)
                 self._release_binding(key, reason="inactive")
 
         errors.extend(self._retarget_overlay_bindings_before_overlay_reconcile(desired_overlays))
@@ -1742,8 +1705,8 @@ class ViewerHostService(QObject):
                 bound is not None
                 and bound.presentation == _PRESENTATION_RETAINED_INLINE
                 and bound.binder is binder
-                and self._preview_cache_signature(bound.snapshot)
-                == self._preview_cache_signature(snapshot)
+                and self._preview_state.preview_signature(bound.snapshot)
+                == self._preview_state.preview_signature(snapshot)
                 and bound.container is container
                 and bound.widget is not None
             ):
@@ -1765,7 +1728,7 @@ class ViewerHostService(QObject):
                 self._show_bound_widget(key, bound)
                 continue
             if bound is not None:
-                self._capture_cached_live_state_for_key(key)
+                self._preview_state.capture_live_state(key)
                 if bound.binder is binder and bound.widget is not None:
                     current_widget = bound.widget
             prepared_for_bind = False
@@ -1854,11 +1817,11 @@ class ViewerHostService(QObject):
             )
             if self._retained_inline_key == key:
                 self._retained_inline_key = None
-            self._restore_cached_view_state_for_binding(
+            self._preview_state.restore_view_state(
                 key,
                 binder,
                 widget,
-                self._camera_relevant_signature(snapshot),
+                self._preview_state.camera_signature(snapshot),
             )
             self._bump_viewer_overlay_revision()
 
@@ -1940,25 +1903,6 @@ class ViewerHostService(QObject):
             and current.transport_revision == bound.snapshot.transport_revision
             and self._inline_retention_identity_matches(key, current)
         )
-
-    def _mark_live_frame_dirty(self, key: _OverlayKey) -> None:
-        """Record that the live widget may now differ from the cached frame.
-
-        Every live presentation episode and every host-driven render change
-        marks the key, and a successful capture clears it. Direct VTK mouse
-        interaction never reaches this service, so entering live mode alone
-        has to be treated as a change; that keeps the proxy frame honest
-        while still skipping the redundant second screenshot a single exit
-        would otherwise take (once on demote, once when the binding is
-        parked in the retained-inline slot).
-        """
-        self._live_frame_dirty.add(key)
-
-    def _live_frame_capture_required(self, key: _OverlayKey) -> bool:
-        if key in self._live_frame_dirty:
-            return True
-        provider = self._preview_cache_provider
-        return not (provider is not None and provider.has_preview(key[0], key[1]))
 
     def _retain_inline_binding(self, key: _OverlayKey) -> bool:
         if not self._binding_can_be_retained(key):
@@ -2468,6 +2412,17 @@ class ViewerHostService(QObject):
             return None
         return workspace_id, normalized_node_id
 
+    def _projected_snapshots(self) -> list[_ViewerHostSessionSnapshot]:
+        bridge = self._viewer_session_bridge
+        if bridge is None:
+            return []
+        snapshots = []
+        for item in bridge.sessions_model:
+            snapshot = self._presentation_service.snapshot_from_projected_state(_mapping(item))
+            if snapshot is not None:
+                snapshots.append(snapshot)
+        return snapshots
+
     def _snapshot_for_key(self, key: _OverlayKey) -> _ViewerHostSessionSnapshot | None:
         bridge = self._viewer_session_bridge
         if bridge is None:
@@ -2480,94 +2435,6 @@ class ViewerHostService(QObject):
                 continue
             return self._presentation_service.snapshot_from_projected_state(projected_state)
         return None
-
-    def _capture_cached_live_state_for_key(self, key: _OverlayKey) -> None:
-        bound = self._bound_overlays.get(key)
-        if bound is None:
-            return
-        current_snapshot = self._snapshot_for_key(key)
-        if current_snapshot is None:
-            self._clear_cached_viewer_state(key)
-            return
-        camera_signature = self._camera_relevant_signature(current_snapshot)
-        binding_signature = self._binding_signature(current_snapshot)
-        signature = self._preview_cache_signature(current_snapshot)
-        if binding_signature != bound.signature:
-            # The camera is independent of visual options: keep it as long as
-            # the session still shows the same transported geometry.
-            if camera_signature == self._camera_relevant_signature(bound.snapshot):
-                self._capture_cached_view_state_for_binding(key, bound, camera_signature)
-            else:
-                self._viewer_view_states.pop(key, None)
-            if signature != self._preview_cache_signature(bound.snapshot):
-                self._clear_cached_preview(key)
-                return
-        else:
-            self._capture_cached_view_state_for_binding(key, bound, camera_signature)
-        provider = self._preview_cache_provider
-        if provider is None:
-            return
-        cached_signature = provider.preview_signature(key[0], key[1])
-        if cached_signature is not None and cached_signature != signature:
-            self._clear_cached_preview(key)
-        if not self._live_frame_capture_required(key):
-            return
-        image = self.capture_overlay_preview_image(bound.snapshot.node_id, workspace_id=bound.snapshot.workspace_id)
-        if image.isNull():
-            return
-        self._set_cached_preview(key, image, signature)
-        self._live_frame_dirty.discard(key)
-
-    def _capture_cached_view_state_for_binding(
-        self,
-        key: _OverlayKey,
-        bound: _BoundOverlay,
-        signature: tuple[Any, ...],
-    ) -> None:
-        capture = getattr(bound.binder, "capture_view_state", None)
-        if not callable(capture):
-            return
-        widget = self._current_widget_for_bound_overlay(key, bound)
-        if widget is None:
-            return
-        try:
-            state = capture(widget)
-        except Exception as exc:  # noqa: BLE001
-            self._set_last_error(str(exc))
-            return
-        if state is None:
-            return
-        try:
-            stored_state = copy.deepcopy(state)
-        except Exception:  # noqa: BLE001
-            stored_state = state
-        self._viewer_view_states[key] = (signature, stored_state)
-
-    def _restore_cached_view_state_for_binding(
-        self,
-        key: _OverlayKey,
-        binder: ViewerWidgetBinder,
-        widget: QWidget,
-        signature: tuple[Any, ...],
-    ) -> None:
-        cached = self._viewer_view_states.get(key)
-        if cached is None:
-            return
-        cached_signature, state = cached
-        if cached_signature != signature:
-            self._clear_cached_viewer_state(key)
-            return
-        restore = getattr(binder, "restore_view_state", None)
-        if not callable(restore):
-            return
-        try:
-            state_to_restore = copy.deepcopy(state)
-        except Exception:  # noqa: BLE001
-            state_to_restore = state
-        try:
-            restore(widget, state_to_restore)
-        except Exception as exc:  # noqa: BLE001
-            self._set_last_error(str(exc))
 
     def _current_widget_for_bound_overlay(
         self,
@@ -2586,105 +2453,8 @@ class ViewerHostService(QObject):
                 return widget
         return bound.widget if isinstance(bound.widget, QWidget) else None
 
-    def _set_cached_preview(
-        self,
-        key: _OverlayKey,
-        image: QImage,
-        signature: tuple[Any, ...],
-    ) -> None:
-        provider = self._preview_cache_provider
-        if provider is None:
-            return
-        if provider.set_preview(key[0], key[1], image, signature=signature):
-            self._bump_preview_cache_revision()
-
-    def _clear_cached_preview(self, key: _OverlayKey) -> None:
-        provider = self._preview_cache_provider
-        if provider is None:
-            return
-        if provider.clear_preview(key[0], key[1]):
-            self._bump_preview_cache_revision()
-
-    def _clear_cached_viewer_state(self, key: _OverlayKey) -> None:
-        self._viewer_view_states.pop(key, None)
-        self._clear_cached_preview(key)
-
-    def _migrate_cached_viewer_state(
-        self,
-        key: _OverlayKey,
-        snapshot: _ViewerHostSessionSnapshot,
-    ) -> None:
-        cached = self._viewer_view_states.get(key)
-        if cached is not None and cached[0] != self._camera_relevant_signature(snapshot):
-            self._viewer_view_states.pop(key, None)
-        self._clear_cached_preview(key)
-
-    def _clear_all_cached_previews(self) -> None:
-        provider = self._preview_cache_provider
-        changed = provider.clear_all() if provider is not None else False
-        self._viewer_render_signatures.clear()
-        self._viewer_view_states.clear()
-        if changed:
-            self._bump_preview_cache_revision()
-
-    def _sync_preview_cache_signatures(self) -> None:
-        bridge = self._viewer_session_bridge
-        if bridge is None:
-            self._clear_all_cached_previews()
-            return
-        current: dict[_OverlayKey, tuple[Any, ...]] = {}
-        for item in bridge.sessions_model:
-            snapshot = self._presentation_service.snapshot_from_projected_state(_mapping(item))
-            if snapshot is None:
-                continue
-            key = snapshot.overlay_key
-            signature = self._preview_cache_signature(snapshot)
-            current[key] = signature
-            previous_signature = self._viewer_render_signatures.get(key)
-            cached_signature = (
-                self._preview_cache_provider.preview_signature(key[0], key[1])
-                if self._preview_cache_provider is not None
-                else None
-            )
-            if (
-                (previous_signature is not None and previous_signature != signature)
-                or (cached_signature is not None and cached_signature != signature)
-            ):
-                self._migrate_cached_viewer_state(key, snapshot)
-        for key in set(self._viewer_render_signatures) - set(current):
-            self._clear_cached_viewer_state(key)
-        self._viewer_render_signatures = current
-
-    def _bump_preview_cache_revision(self) -> None:
-        self._preview_cache_revision += 1
-        self.preview_cache_changed.emit()
-
     def _bump_viewer_overlay_revision(self) -> None:
         self._viewer_overlay_revision += 1
-
-    @staticmethod
-    def _preview_cache_signature(snapshot: _ViewerHostSessionSnapshot) -> tuple[Any, ...]:
-        return (
-            snapshot.session_id,
-            snapshot.backend_id,
-            snapshot.transport_revision,
-            _freeze_value(snapshot.transport),
-            _freeze_value(snapshot.data_refs),
-            _freeze_value(snapshot.playback_state),
-            _freeze_value(_cache_relevant_options(snapshot.options)),
-        )
-
-    @staticmethod
-    def _camera_relevant_signature(snapshot: _ViewerHostSessionSnapshot) -> tuple[Any, ...]:
-        # Camera state survives option and playback changes; it resets only
-        # when the transported geometry itself changes.
-        return (
-            snapshot.session_id,
-            snapshot.backend_id,
-            snapshot.transport_revision,
-            _freeze_value(snapshot.transport),
-            _freeze_value(snapshot.data_refs),
-        )
 
     def _set_last_error(self, value: str) -> None:
         normalized = _string(value)

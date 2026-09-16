@@ -16,6 +16,7 @@ Use this for embedded viewer sessions, native overlay management, fullscreen con
 ## Start Here
 - `ea_node_editor/ui_qml/viewer_session_bridge.py`
 - `ea_node_editor/ui_qml/viewer_host_service.py`
+- `ea_node_editor/ui_qml/viewer_preview_state_cache.py`
 - `ea_node_editor/ui_qml/engineering_viewer_widget_binder.py`
 - `ea_node_editor/ui_qml/plot_host_service.py`
 - `ea_node_editor/ui_qml/embedded_viewer_overlay_manager.py`
@@ -68,14 +69,17 @@ Use this for embedded viewer sessions, native overlay management, fullscreen con
   and fullscreen targets with `fullscreen > detached > inline` priority. A
   detached-window close docks inline, fullscreen temporarily takes ownership,
   and reset/session/workspace/node/backend loss closes transient presentations.
-- `ViewerHostService` keys the cached camera/view state by a camera-relevant signature (session, backend, transport revision, transport, data_refs) on both capture and restore, so the camera survives option-only and playback changes and resets only when the transported geometry changes; preview-signature changes migrate the camera entry instead of clearing it.
+- `ViewerPreviewStateCache` (`viewer_preview_state_cache.py`) owns both things that outlive a live viewer session: the cached proxy raster served through `image://viewer-preview-cache/...` and the VTK camera/view state. `ViewerHostService` injects its own lookups and delegates; do not re-add preview or camera caches to the host.
+- The cache keys camera/view state by a camera-relevant signature (session, backend, transport revision, transport, data_refs) on both capture and restore, so the camera survives option-only and playback changes and resets only when the transported geometry changes; preview-signature changes migrate the camera entry instead of clearing it.
+- Every live-to-proxy transition refreshes the cached frame: inline exit through `set_embedded_interaction_active(..., False)`, fullscreen close and detached close through `sync()` before the binding is parked in the retained-inline slot. Capture is deduplicated by a live-frame dirty mark set when a live presentation episode begins, not by "does a preview already exist" - that latch is what froze nodes on their first captured frame.
+- Captured frames are stored at their own aspect ratio, bounded only by a uniform downscale (`_MAX_VIEWER_PREVIEW_EDGE_PX`), and the proxy surface fills the mapped `graphNodeViewerViewport` rect with `Image.PreserveAspectCrop`. VTK holds a camera's vertical extent fixed and widens only horizontally with the window aspect, so a centred crop of a wider capture is exactly what a live render into the narrower rect would show; never re-fit a capture to a container with `IgnoreAspectRatio`.
 - For cross-process viewer work, update execution viewer protocol tests.
 - `ViewerSessionBridge` advances epochs itself only for true project/reset/global run-required paths; run-driven invalidation has one path, `adopt_committed_invalidation(...)`, which adopts the independently committed high-level projection snapshot without incrementing again. It does not subscribe to `ShellWindow.execution_event`: the sole queued shell intake calls `handle_viewer_execution_event(...)` directly once after run-state routing. That consumer retains the existing node-settled, viewer-event, epoch, session, and request filters. Concrete transport responses reach it only after local client validation and translation to those projection epochs. It retires matching pending queries/presentation holds/inline activation and rejects old-epoch or mismatched-request responses before signals or session mutation. Unaffected viewer projections remain unchanged; the bridge never resets `ViewerHostService` for an ordinary run.
 - Keep native overlay and QML surface tests separate from generic graph node tests.
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_native_presentation_handoff.py tests/test_viewer_session_bridge.py tests/test_viewer_control_bridge.py tests/test_viewer_host_service.py tests/test_viewer_preview_cache_provider.py tests/test_embedded_viewer_overlay_manager.py tests/test_viewer_surface_contract.py tests/test_viewer_surface_host.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_native_presentation_handoff.py tests/test_viewer_session_bridge.py tests/test_viewer_control_bridge.py tests/test_viewer_host_service.py tests/test_viewer_preview_cache_provider.py tests/test_viewer_preview_state_cache.py tests/test_embedded_viewer_overlay_manager.py tests/test_viewer_surface_contract.py tests/test_viewer_surface_host.py --ignore=venv -q
 $env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_plot_preview_cache_provider.py tests/test_plot_host_service.py tests/test_plot_fullscreen_overlay.py --ignore=venv -q; $exitCode = $LASTEXITCODE; Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue; exit $exitCode
 $env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_plot_detached_window.py --ignore=venv -q; $exitCode = $LASTEXITCODE; Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue; exit $exitCode
 ```
