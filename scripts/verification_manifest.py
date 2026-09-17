@@ -736,7 +736,6 @@ VERIFICATION_TEST_PATH_SPECS = (
     VerificationTestPathSpec("tests/test_graph_surface_input_contract.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_graph_surface_input_controls.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_graph_surface_input_inline.py", (GUI_SUITE_KEY,)),
-    VerificationTestPathSpec("tests/test_graph_theme_editor_dialog.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_graph_theme_shell.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_graph_track_b.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_graphics_settings_dialog.py", (GUI_SUITE_KEY,)),

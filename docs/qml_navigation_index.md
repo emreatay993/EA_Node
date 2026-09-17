@@ -22,7 +22,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | Loader constructs | 28 |
 | Signal handlers | 962 |
 | Connections targets | 49 |
-| Property bindings | 7847 |
+| Property bindings | 7846 |
 | Local component refs | 314 |
 
 ## Component Families
@@ -2355,14 +2355,14 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `"../common" as Common`, `"../graph/GraphActionPresentation.js" as GraphActionPresentation`
 - IDs: `root`, `mainPanel`, `mainScroll`, `mainColumn`, `canvasImportSubmenuLoader`, `selectedWireDisplayModeSubmenuLoader`, `canvasSubmenuLoader`, `gridSubmenuLoader`, `elapsedTimeVisibilitySubmenuLoader`, `elapsedTimeUnitSubmenuLoader`, `commentEditorSubmenuLoader`, `shellSubmenuLoader`, `toggleMouseArea`, `submenuMouseArea`, `actionMouseArea`, `submenuRoot`, `submenuPanel`, `submenuScroll`, ... +2 more
 - Object names: `canvasOptionsMainScroll`, `canvasOptionsPasteAndDropRow`, `canvasOptionsOpenGraphicsSettingsRow`, `canvasOptionsPasteAndDropSubmenu`, `canvasOptionsSubmenuScroll`
-- Properties: `canvasItem: Item`, `commandBridge: var`, `themePalette: var`, `anchorX: real`, `anchorY: real`, `shellContextRef: var`, `themeBridgeRef: var`, `panelW: int`, `submenuW: int`, `rowH: int`, `contentPad: int`, `shadowDepth: int`, `menuGap: int`, `viewportPadding: int`, `activeSubmenu: string`, `hasActiveSubmenu: bool`, `submenuOpensLeft: bool`, `resolvedX: real`, ... +51 more
+- Properties: `canvasItem: Item`, `commandBridge: var`, `themePalette: var`, `anchorX: real`, `anchorY: real`, `shellContextRef: var`, `themeBridgeRef: var`, `panelW: int`, `submenuW: int`, `rowH: int`, `contentPad: int`, `shadowDepth: int`, `menuGap: int`, `viewportPadding: int`, `activeSubmenu: string`, `hasActiveSubmenu: bool`, `submenuOpensLeft: bool`, `resolvedX: real`, ... +50 more
 - Signals: `toggled`, `clicked`, `picked`
-- Functions: `_token`, `activeSubmenuHeight`, `_selectedActiveWireEdgeIds`, `_selectedWireDisplayModeValue`, `setSelectedWiresDisplayMode`, `closeMenu`, `setShowGrid`, `setGridStyle`, `setSnapToGrid`, `setCanvasImportMode`, `setNodeShadows`, `setSelectedRunPreviewBeforeRun`, `setNodeElapsedTimeUnit`, `setNodeElapsedTimeVisibility`, `setNodeCommentEditorDefault`, `setShellTheme`, `setGraphsFollowShell`, `setCanvasBackgroundVariant`, ... +1 more
+- Functions: `_token`, `activeSubmenuHeight`, `_selectedActiveWireEdgeIds`, `_selectedWireDisplayModeValue`, `setSelectedWiresDisplayMode`, `closeMenu`, `setShowGrid`, `setGridStyle`, `setSnapToGrid`, `setCanvasImportMode`, `setNodeShadows`, `setSelectedRunPreviewBeforeRun`, `setNodeElapsedTimeUnit`, `setNodeElapsedTimeVisibility`, `setNodeCommentEditorDefault`, `setShellTheme`, `setCanvasBackgroundVariant`, `openGraphicsSettings`
 - Instantiates: `MenuPanel`, `ScrollView`, `Column`, `SectionHeader`, `SubmenuRow`, `Divider`, `ToggleRow`, `ActionRow`, `Loader`, `Rectangle`, `Text`, `MouseArea`, `Common.ManagedToolTip`, `Row`, `Repeater`
 - Dynamic constructs: `Loader`; `sourceComponent` -> `SubmenuPanel`; `Repeater`; `model` -> `submenuRoot.options`; `delegate` -> `Item`
 - Signal handlers: `handler` `onVisibleChanged`; `handler` `onSelectedWireEdgeIdsChanged`; `handler` `onClicked`; `handler` `onToggled`; `handler` `onPicked`
 - Connections: _None_
-- Property bindings: `binding` `width` -> `root.panelW`, `root.hasActiveSubmenu`, `root.menuGap`, `root.submenuW`; `binding` `height` -> `Math.max`, `mainPanel.height`, `activeSubmenuHeight`; `binding` `x` -> `root.mainPanelOffsetX`; `binding` `panelWidth` -> `root.panelW`; `binding` `panelHeight` -> `Math.min`, `mainColumn.implicitHeight`, `root.contentPad`; `binding` `x` -> `root.contentPad`; `binding` `y` -> `root.contentPad`; `binding` `width` -> `mainPanel.panelWidth`, `root.contentPad`; `binding` `height` -> `Math.max`, `mainPanel.panelHeight`, `root.contentPad`; `binding` `contentWidth` -> `availableWidth`; `binding` `contentHeight` -> `mainColumn.implicitHeight`; `binding` `clip`; `binding` `width` -> `parent.width`; `binding` `spacing`; `binding` `label`; `binding` `visible` -> `root.selectedWireEdgeIds.length`; `binding` `height` -> `visible`; `binding` `value` -> `root.selectedWireDisplayModeLabel`; ... +99 more
+- Property bindings: `binding` `width` -> `root.panelW`, `root.hasActiveSubmenu`, `root.menuGap`, `root.submenuW`; `binding` `height` -> `Math.max`, `mainPanel.height`, `activeSubmenuHeight`; `binding` `x` -> `root.mainPanelOffsetX`; `binding` `panelWidth` -> `root.panelW`; `binding` `panelHeight` -> `Math.min`, `mainColumn.implicitHeight`, `root.contentPad`; `binding` `x` -> `root.contentPad`; `binding` `y` -> `root.contentPad`; `binding` `width` -> `mainPanel.panelWidth`, `root.contentPad`; `binding` `height` -> `Math.max`, `mainPanel.panelHeight`, `root.contentPad`; `binding` `contentWidth` -> `availableWidth`; `binding` `contentHeight` -> `mainColumn.implicitHeight`; `binding` `clip`; `binding` `width` -> `parent.width`; `binding` `spacing`; `binding` `label`; `binding` `visible` -> `root.selectedWireEdgeIds.length`; `binding` `height` -> `visible`; `binding` `value` -> `root.selectedWireDisplayModeLabel`; ... +98 more
 - Local component refs: `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`
 
 ### `GraphCanvasPreferenceFacts.qml`
@@ -2373,7 +2373,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQml 2.15`, `"../common/TooltipPolicy.js" as TooltipPolicy`
 - IDs: `facts`
 - Object names: _None_
-- Properties: `stateBridge: var`, `canvasImportMode: string`, `minimapExpanded: bool`, `showGrid: bool`, `canvasBackgroundVariant: string`, `gridStyle: string`, `minimapVisible: bool`, `showCanvasOptionsButton: bool`, `showPortLabels: bool`, `notchedPortsEnabled: bool`, `nodeElapsedTimeVisibility: string`, `nodeCommentEditorDefault: string`, `hideOptionalPorts: bool`, `activeThemeId: string`, `graphsFollowShellTheme: bool`, `selectedGraphThemeId: string`, `tooltipCategoryVisibility: var`, `showTooltips: bool`, ... +10 more
+- Properties: `stateBridge: var`, `canvasImportMode: string`, `minimapExpanded: bool`, `showGrid: bool`, `canvasBackgroundVariant: string`, `gridStyle: string`, `minimapVisible: bool`, `showCanvasOptionsButton: bool`, `showPortLabels: bool`, `notchedPortsEnabled: bool`, `nodeElapsedTimeVisibility: string`, `nodeCommentEditorDefault: string`, `hideOptionalPorts: bool`, `activeThemeId: string`, `tooltipCategoryVisibility: var`, `showTooltips: bool`, `graphLabelPixelSize: int`, `graphNodeIconPixelSizeOverride: var`, ... +8 more
 - Signals: _None_
 - Functions: `tooltipCategoryEnabled`, `_normalizePixelSize`, `_normalizeNullablePixelSize`
 - Instantiates: _None_

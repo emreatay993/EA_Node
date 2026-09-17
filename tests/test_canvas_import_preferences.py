@@ -88,7 +88,6 @@ def test_full_dialog_ok_or_cancel_uses_real_controller(preferences, app, accept)
     parent.apply_graphics_preferences = runtime_host.apply_graphics_preferences
     presenter = SimpleNamespace(
         _host=parent,
-        edit_graph_theme_settings=lambda settings: settings,
         active_renderer_label=lambda: "Software",
     )
     created = []
@@ -148,7 +147,7 @@ def test_import_mode_tooltip_respects_existing_general_tooltip_preference(app):
         dialog.close()
 
 
-@pytest.mark.parametrize("canvas_height,selected_wires", [(1000, False), (565, False), (565, True)])
+@pytest.mark.parametrize("canvas_height,selected_wires", [(1000, False), (530, False), (530, True)])
 def test_real_gear_actions_update_preference_facts_and_dialog(preferences, app, canvas_height, selected_wires):
     controller, host = preferences
     state = GraphCanvasStateBridge(graphics_source=host.shell_workspace_presenter)

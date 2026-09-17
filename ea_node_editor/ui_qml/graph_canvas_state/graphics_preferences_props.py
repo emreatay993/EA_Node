@@ -401,16 +401,6 @@ class GraphicsPreferencesProps:
     def active_theme_id(self) -> str:
         return str(_source_attr(self._graphics_source, "active_theme_id", "stitch_dark"))
 
-    @pyqtProperty(bool, notify=graphics_preferences_changed)
-    def graphics_graph_follow_shell_theme(self) -> bool:
-        default = bool(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["follow_shell_theme"])
-        return bool(_source_attr(self._graphics_source, "graphics_graph_follow_shell_theme", default))
-
-    @pyqtProperty(str, notify=graphics_preferences_changed)
-    def graphics_selected_graph_theme_id(self) -> str:
-        default = str(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"])
-        return str(_source_attr(self._graphics_source, "graphics_selected_graph_theme_id", default))
-
     @pyqtProperty(bool, notify=snap_to_grid_changed)
     def snap_to_grid_enabled(self) -> bool:
         return bool(_source_attr(self._session_state, "snap_to_grid_enabled", False))

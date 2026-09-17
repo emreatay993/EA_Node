@@ -699,7 +699,7 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
             graphics_node_title_icon_pixel_size = 50
 
         class _ThemeBridge:
-            theme = "stitch_dark"
+            theme_id = "graph_stitch_dark"
 
             def __init__(self, parent: object) -> None:
                 self._parent = parent
@@ -737,7 +737,7 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
             graphics_node_title_icon_pixel_size = 50
 
         class _ThemeBridge:
-            theme = "stitch_dark"
+            theme_id = "graph_stitch_dark"
 
             def __init__(self, parent: object) -> None:
                 self._parent = parent
@@ -792,7 +792,7 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
                 )
 
         class _ThemeBridge:
-            theme = "stitch_dark"
+            theme_id = "graph_stitch_dark"
 
             def __init__(self, parent: object) -> None:
                 self._parent = parent
@@ -831,7 +831,7 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
             graphics_node_title_icon_pixel_size = 50
 
         class _ThemeBridge:
-            theme = "stitch_dark"
+            theme_id = "graph_stitch_dark"
 
             def __init__(self, parent: object) -> None:
                 self._parent = parent
@@ -3433,7 +3433,6 @@ class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase
                         property var prefs: ({
                             "showGrid": true,
                             "nodeShadowEnabled": true,
-                            "graphsFollowShellTheme": true,
                             "gridStyle": "lines",
                             "activeThemeId": "stitch_dark",
                             "canvasBackgroundVariant": "theme"

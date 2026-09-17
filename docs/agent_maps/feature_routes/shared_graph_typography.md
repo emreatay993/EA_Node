@@ -10,7 +10,6 @@ Use this for shared typography controls, node header text, flow-edge labels and 
 - `ea_node_editor/ui_qml/components/graph/EdgeFlowLabelLayer.qml`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/`
-- `ea_node_editor/graph_theme_defaults.py`
 - `ea_node_editor/passive_style_normalization.py`
 - `ea_node_editor/text_style.py`
 - `ea_node_editor/app.py`

@@ -37,11 +37,9 @@ class GraphThemeShellTests(SharedMainWindowShellTestBase):
     def _recreate_window(self) -> None:
         self._reopen_shared_window()
 
-    def _set_graphics(self, *, theme_id: str, graph_theme: dict[str, object] | None = None) -> None:
+    def _set_graphics(self, *, theme_id: str) -> None:
         graphics = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
         graphics["theme"]["theme_id"] = theme_id
-        if graph_theme is not None:
-            graphics["graph_theme"] = graph_theme
         self.window.app_preferences_controller.set_graphics_settings(graphics, host=self.window)
         self.app.processEvents()
 
@@ -75,45 +73,25 @@ class GraphThemeShellTests(SharedMainWindowShellTestBase):
         self.assertEqual(self.window.graph_theme_bridge.node_palette["card_bg"], GRAPH_STITCH_LIGHT_NODE_TOKENS_V1.card_bg)
         self.assertEqual(self.app.styleSheet(), build_theme_stylesheet("stitch_light"))
 
-    def test_graph_theme_bridge_allows_explicit_theme_selection(self) -> None:
-        self._set_graphics(
-            theme_id="stitch_dark",
-            graph_theme={
-                "follow_shell_theme": False,
-                "selected_theme_id": "graph_stitch_light",
-                "custom_themes": [],
-            },
-        )
-
-        self.assertEqual(self.window.theme_bridge.theme_id, "stitch_dark")
-        self.assertEqual(self.window.graph_theme_bridge.theme_id, "graph_stitch_light")
-        self.assertEqual(self.window.graph_theme_bridge.node_palette["card_bg"], GRAPH_STITCH_LIGHT_NODE_TOKENS_V1.card_bg)
-        self.assertEqual(self.app.styleSheet(), build_theme_stylesheet("stitch_dark"))
-
-    def test_graph_theme_bridge_resolves_persisted_explicit_theme_on_startup(self) -> None:
+    def test_persisted_legacy_graph_theme_selection_is_ignored_on_startup(self) -> None:
         graphics = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
         graphics["theme"]["theme_id"] = "stitch_light"
         graphics["graph_theme"] = {
             "follow_shell_theme": False,
-            "selected_theme_id": "graph_stitch_dark",
+            "selected_theme_id": "graph_nord_dark",
             "custom_themes": [],
         }
         self._write_preferences(graphics)
         self._recreate_window()
 
         self.assertEqual(self.window.theme_bridge.theme_id, "stitch_light")
-        self.assertEqual(self.window.graph_theme_bridge.theme_id, "graph_stitch_dark")
-        self.assertEqual(self.window.graph_theme_bridge.node_palette["card_bg"], GRAPH_STITCH_DARK_NODE_TOKENS_V1.card_bg)
-        self.assertEqual(self.app.styleSheet(), build_theme_stylesheet("stitch_light"))
+        self.assertEqual(self.window.graph_theme_bridge.theme_id, "graph_stitch_light")
+        self.assertEqual(self.window.graph_theme_bridge.node_palette["card_bg"], GRAPH_STITCH_LIGHT_NODE_TOKENS_V1.card_bg)
+        self.assertNotIn("graph_theme", self.window.app_preferences_controller.graphics_settings())
 
-    def test_graphics_settings_dialog_persists_and_applies_explicit_graph_theme(self) -> None:
+    def test_graphics_settings_dialog_applies_shell_derived_graph_palette(self) -> None:
         updated_graphics = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
-        updated_graphics["theme"]["theme_id"] = "stitch_dark"
-        updated_graphics["graph_theme"] = {
-            "follow_shell_theme": False,
-            "selected_theme_id": "graph_stitch_light",
-            "custom_themes": [],
-        }
+        updated_graphics["theme"]["theme_id"] = "stitch_light"
 
         with patch.object(GraphicsSettingsDialog, "exec", return_value=QDialog.DialogCode.Accepted), patch.object(
             GraphicsSettingsDialog,
@@ -123,13 +101,14 @@ class GraphThemeShellTests(SharedMainWindowShellTestBase):
             self.window.show_graphics_settings_dialog()
         self.app.processEvents()
 
-        self.assertEqual(self.window.theme_bridge.theme_id, "stitch_dark")
+        self.assertEqual(self.window.theme_bridge.theme_id, "stitch_light")
         self.assertEqual(self.window.graph_theme_bridge.theme_id, "graph_stitch_light")
         self.assertEqual(self.window.graph_theme_bridge.node_palette["card_bg"], GRAPH_STITCH_LIGHT_NODE_TOKENS_V1.card_bg)
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["graphics"], updated_graphics)
+        self.assertNotIn("graph_theme", persisted["graphics"])
 
-    def test_graph_scene_payloads_omit_accent_and_follow_runtime_edge_theme_changes(self) -> None:
+    def test_graph_scene_payloads_omit_accent_and_follow_shell_theme_edge_palette_changes(self) -> None:
         standalone_id = self.window.scene.add_node_from_type("core.python_script", 20.0, 20.0)
         constant_id = self.window.scene.add_node_from_type("core.constant", 220.0, 20.0)
         if_id = self.window.scene.add_node_from_type("core.if", 500.0, 20.0)
@@ -156,14 +135,7 @@ class GraphThemeShellTests(SharedMainWindowShellTestBase):
         self.window.scene.edges_changed.connect(
             lambda: rebuilds.__setitem__("edges", rebuilds["edges"] + 1)
         )
-        self._set_graphics(
-            theme_id="stitch_dark",
-            graph_theme={
-                "follow_shell_theme": False,
-                "selected_theme_id": "graph_stitch_light",
-                "custom_themes": [],
-            },
-        )
+        self._set_graphics(theme_id="stitch_light")
 
         self.assertEqual(self.window.graph_theme_bridge.theme_id, "graph_stitch_light")
         self.assertEqual(rebuilds, {"nodes": 1, "edges": 1})

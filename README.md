@@ -7,10 +7,9 @@ tabular, process, and HPC-oriented tasks from a single desktop shell.
 
 Recent UI/UX architecture highlights:
 
-- App-wide Graphics Settings modal for grid, minimap, snap-to-grid default, shell-theme selection, and graph-theme follow-shell or explicit selection
-- Split shell/chrome theming (`ThemeBridge` + `stitch_dark` / `stitch_light`) from node/edge graph theming (`graphThemeBridge` + built-in/custom graph themes)
+- App-wide Graphics Settings modal for grid, minimap, snap-to-grid default, and shell-theme selection
+- Split shell/chrome theming (`ThemeBridge` + `stitch_dark` / `stitch_light`) from the node/edge graph palette (`graphThemeBridge`), which always follows the shell theme
 - Bridge-first shell/canvas QML context using `shellLibraryBridge`, `shellWorkspaceBridge`, `shellInspectorBridge`, `graphCanvasStateBridge`, `graphCanvasCommandBridge`, `graphActionBridge`, and typed viewer/add-on/status bridges instead of raw `mainWindow` / `sceneBridge` / `viewBridge` globals
-- Custom graph-theme library/editor with built-in read-only themes, custom duplication/CRUD, and live apply for the active explicit custom theme
 - Graphics preferences now persist in `app_preferences.json` separately from project `.cxproj` files and `last_session.json`
 - Passive visual node families now ship in the main graph model for flowcharting, annotation, and local image/PDF presentation
 - Dependency-gated `Tabular Data Input` now ships under `Data`, opening table and dense-array sources through lazy refs with bounded inline/fullscreen previews and direct generic plot-node auto-mapping
@@ -116,12 +115,11 @@ ea_node_editor/
     graph_interactions.py
     graph_theme/
       presentation.py
+      preview_widget.py
       registry.py
-      runtime.py
       tokens.py
     dialogs/
       flow_edge_style_dialog.py
-      graph_theme_editor_dialog.py
       graphics_settings_dialog.py
       passive_node_style_dialog.py
       passive_style_controls.py
@@ -333,11 +331,10 @@ COREX does not install dependencies or mutate environments.
 
 ## Graphics Settings
 
-- Open `Settings > Graphics Settings` to configure the grid overlay, minimap visibility/default expansion, snap-to-grid default, shell theme, graph-theme follow-shell behavior, and explicit graph-theme selection.
-- Use `Manage Graph Themes...` to duplicate built-in graph themes into editable custom themes, edit node/edge/category-accent/port-kind tokens, and choose an explicit graph theme.
-- Shell-theme changes apply live to QWidget styling and QML shell/canvas chrome surfaces. Node and edge visuals resolve through the active graph theme.
-- Graph themes affect `NodeCard` and `EdgeLayer` only; background, grid, minimap, marquee, and drop-preview chrome stay on the shell theme path.
-- App-wide graphics preferences, including the inline custom graph-theme library, persist in `%APPDATA%\COREX_Node_Editor\app_preferences.json` and stay separate from project `.cxproj` files and `last_session.json`.
+- Open `Settings > Graphics Settings` to configure the grid overlay, minimap visibility/default expansion, snap-to-grid default, and shell theme.
+- Shell-theme changes apply live to QWidget styling and QML shell/canvas chrome surfaces. Node and edge colors come from the matching built-in graph palette (`graph_stitch_dark` / `graph_stitch_light`); graph palettes are not separately selectable or editable. Per-node passive styling uses the passive style presets instead.
+- The graph palette affects `NodeCard` and `EdgeLayer` only; background, grid, minimap, marquee, and drop-preview chrome stay on the shell theme path.
+- App-wide graphics preferences persist in `%APPDATA%\COREX_Node_Editor\app_preferences.json` and stay separate from project `.cxproj` files and `last_session.json`.
 
 ## Passive Visual Authoring
 
@@ -463,7 +460,6 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 ## Interaction Notes
 
 - Graphics settings are app-wide rather than project-local, so reopening the app restores the last saved grid/minimap/snap/theme choices.
-- Standalone graph-theme editing previews only apply live when the edited theme is already the active explicit custom theme; Graph Themes opened from Graphics Settings do not mutate the running graph until Graphics Settings is accepted.
 - Drag from a port to empty canvas space to open the connection-aware quick insert overlay.
 - Quick insert only shows node types that can auto-connect to the dragged source port using the same compatibility rules as normal graph connections.
 - Some node types expose inline property controls directly in the node card for faster editing, while the inspector remains the full editing surface.

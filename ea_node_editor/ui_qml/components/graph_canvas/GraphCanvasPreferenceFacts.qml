@@ -56,12 +56,6 @@ QtObject {
     readonly property string activeThemeId: facts.stateBridge
         ? String(facts.stateBridge.active_theme_id || "stitch_dark")
         : "stitch_dark"
-    readonly property bool graphsFollowShellTheme: facts.stateBridge
-        ? Boolean(facts.stateBridge.graphics_graph_follow_shell_theme)
-        : true
-    readonly property string selectedGraphThemeId: facts.stateBridge
-        ? String(facts.stateBridge.graphics_selected_graph_theme_id || "graph_stitch_dark")
-        : "graph_stitch_dark"
     readonly property var tooltipCategoryVisibility: TooltipPolicy.categoryVisibility(facts.stateBridge)
     readonly property bool showTooltips: facts.tooltipCategoryEnabled("general")
     readonly property int graphLabelPixelSize: {

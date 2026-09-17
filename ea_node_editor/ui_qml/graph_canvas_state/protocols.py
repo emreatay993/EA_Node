@@ -55,8 +55,6 @@ class _GraphCanvasGraphicsSource(Protocol):
     graphics_selection_toolbar_mode: str
     graphics_selection_toolbar_minimal_menu_trigger: str
     active_theme_id: str
-    graphics_graph_follow_shell_theme: bool
-    graphics_selected_graph_theme_id: str
 
 
 class _GraphCanvasExecutionSource(Protocol):

@@ -410,7 +410,6 @@ class PresenterPackageBoundaryTests(unittest.TestCase):
             "ShellWorkspacePresenter",
             "ShellWorkspaceUiState",
             "build_default_shell_workspace_ui_state",
-            "normalize_graph_theme_settings",
         }
         self.assertTrue(expected_exports.issubset(set(getattr(module, "__all__", ()))))
         for name in expected_exports:

@@ -9,7 +9,6 @@ from typing import Any
 
 from ea_node_editor.common.coercions import normalize_path_text
 from ea_node_editor.common.payload_tools import write_json_atomic
-from ea_node_editor.graph_theme_defaults import DEFAULT_GRAPH_THEME_ID
 from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
     APP_PREFERENCES_VERSION,
@@ -79,11 +78,6 @@ from ea_node_editor.settings import (
     app_preferences_path,
 )
 from ea_node_editor.text_style import normalize_recent_text_colors
-from ea_node_editor.ui.graph_theme.registry import (
-    is_known_graph_theme_id,
-    resolve_graph_theme_id,
-    serialize_custom_graph_themes,
-)
 from ea_node_editor.ui.shell.tooltip_policy import (
     normalize_tooltip_category_preferences,
 )
@@ -201,25 +195,6 @@ def _plot_backend_supports_plot_type(backend_registry: Any | None, backend_id: s
 
 def default_app_preferences_document() -> dict[str, Any]:
     return copy.deepcopy(DEFAULT_APP_PREFERENCES)
-
-
-def normalize_graph_theme_settings(payload: Any) -> dict[str, Any]:
-    defaults = DEFAULT_GRAPHICS_SETTINGS["graph_theme"]
-    if not isinstance(payload, Mapping):
-        return copy.deepcopy(defaults)
-
-    normalized = copy.deepcopy(defaults)
-    normalized["follow_shell_theme"] = _normalize_bool(
-        payload.get("follow_shell_theme"),
-        defaults["follow_shell_theme"],
-    )
-    normalized["custom_themes"] = serialize_custom_graph_themes(payload.get("custom_themes"))
-    normalized["selected_theme_id"] = _normalize_graph_theme_id(
-        payload.get("selected_theme_id"),
-        defaults["selected_theme_id"],
-        custom_themes=normalized["custom_themes"],
-    )
-    return normalized
 
 
 def normalize_expand_collision_avoidance_settings(payload: Any) -> dict[str, Any]:
@@ -417,7 +392,6 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
     plot_payload = payload.get("plot")
     engineering_viewer_payload = payload.get("engineering_viewer")
     folder_explorer_payload = payload.get("folder_explorer")
-    graph_theme_payload = payload.get("graph_theme")
 
     normalized = copy.deepcopy(defaults)
     if isinstance(canvas_payload, Mapping):
@@ -588,7 +562,6 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
         engineering_viewer_payload
     )
     normalized["folder_explorer"] = normalize_folder_explorer_settings(folder_explorer_payload)
-    normalized["graph_theme"] = normalize_graph_theme_settings(graph_theme_payload)
     return normalized
 
 
@@ -850,16 +823,6 @@ def _normalize_theme_id(value: Any, default: str) -> str:
     return DEFAULT_THEME_ID
 
 
-def _normalize_graph_theme_id(value: Any, default: str, *, custom_themes: Any = None) -> str:
-    normalized = str(value).strip()
-    if is_known_graph_theme_id(normalized, custom_themes=custom_themes):
-        return normalized
-    resolved_default = resolve_graph_theme_id(default, custom_themes=custom_themes)
-    if is_known_graph_theme_id(resolved_default, custom_themes=custom_themes):
-        return resolved_default
-    return DEFAULT_GRAPH_THEME_ID
-
-
 def _normalize_tab_strip_density(value: Any, default: str) -> str:
     normalized = str(value).strip().lower()
     if normalized in _TAB_STRIP_DENSITY_VALUES:
@@ -1093,7 +1056,6 @@ __all__ = [
     "normalize_graph_label_pixel_size",
     "effective_graph_node_icon_pixel_size",
     "normalize_graph_node_icon_pixel_size_override",
-    "normalize_graph_theme_settings",
     "normalize_grid_overlay_style",
     "normalize_node_elapsed_time_unit",
     "normalize_node_elapsed_time_visibility",

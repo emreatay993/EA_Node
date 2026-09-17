@@ -27,10 +27,6 @@
     "text": "Sets how far the local search reaches when reach mode stays nearby.",
     "category": "general"
   },
-  "settings.graph_theme.use_selected": {
-    "text": "Set this theme as the active graph theme",
-    "category": "general"
-  },
   "settings.workflow.environment.application_default_python_executable": {
     "text": "Sets the app-wide Python executable used when the current workflow has no override.",
     "category": "tutorial"

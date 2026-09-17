@@ -49,8 +49,8 @@ def test_tooltip_registry_files_use_valid_shape_and_categories() -> None:
 
 
 def test_python_and_qml_tooltip_copy_read_same_entry(qapp) -> None:  # noqa: ANN001
-    assert tooltip_text("settings.graph_theme.use_selected") == "Set this theme as the active graph theme"
-    assert tooltip_category("settings.graph_theme.use_selected") == "general"
+    assert tooltip_text("settings.graphics.expand_collision.enabled") == "Pushes newly expanded items away from nearby content to reduce overlap."
+    assert tooltip_category("settings.graphics.expand_collision.enabled") == "general"
 
     engine = QQmlEngine()
     bridge = TooltipCopyBridge()
@@ -62,8 +62,8 @@ def test_python_and_qml_tooltip_copy_read_same_entry(qapp) -> None:  # noqa: ANN
         import "common/TooltipCopy.js" as TooltipCopy
 
         QtObject {
-            property string registryText: TooltipCopy.text(tooltipCopyBridge, "settings.graph_theme.use_selected")
-            property string registryCategory: TooltipCopy.category(tooltipCopyBridge, "settings.graph_theme.use_selected")
+            property string registryText: TooltipCopy.text(tooltipCopyBridge, "settings.graphics.expand_collision.enabled")
+            property string registryCategory: TooltipCopy.category(tooltipCopyBridge, "settings.graphics.expand_collision.enabled")
             property string fallbackText: TooltipCopy.text(tooltipCopyBridge, "missing.tooltip.key", "fallback")
         }
         ''',
@@ -75,7 +75,7 @@ def test_python_and_qml_tooltip_copy_read_same_entry(qapp) -> None:  # noqa: ANN
     item = component.create()
     try:
         assert item is not None
-        assert item.property("registryText") == "Set this theme as the active graph theme"
+        assert item.property("registryText") == "Pushes newly expanded items away from nearby content to reduce overlap."
         assert item.property("registryCategory") == "general"
         assert item.property("fallbackText") == "fallback"
     finally:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable, Sequence
 from typing import Any
 
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -12,7 +11,6 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
-    QPushButton,
     QRadioButton,
     QSlider,
     QSpinBox,
@@ -46,17 +44,9 @@ from ea_node_editor.settings import (
     TAB_STRIP_DENSITY_CHOICES,
 )
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
-from ea_node_editor.ui.graph_theme import (
-    default_graph_theme_id_for_shell_theme,
-    graph_theme_choices,
-    resolve_graph_theme,
-    resolve_graph_theme_id,
-)
-from ea_node_editor.ui.graph_theme.preview_widget import GraphThemePreviewWidget, ShadowPreviewWidget
-from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
-    normalize_graph_theme_settings,
-    normalize_graphics_settings,
-)
+from ea_node_editor.ui.graph_theme import default_graph_theme_id_for_shell_theme, resolve_graph_theme
+from ea_node_editor.ui.graph_theme.preview_widget import ShadowPreviewWidget
+from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graphics_settings
 from ea_node_editor.ui.shell.tooltip_policy import (
     TOOLTIP_CONFIGURABLE_CATEGORY_NAMES,
     normalize_tooltip_category_preferences,
@@ -158,18 +148,9 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         initial_settings: dict[str, Any] | None = None,
         parent=None,
         *,
-        available_graph_themes: Sequence[tuple[str, str]] | None = None,
-        manage_graph_themes_callback: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None,
         active_renderer_label: str | None = None,
         tooltips_enabled: bool = True,
     ) -> None:
-        graph_themes = available_graph_themes or graph_theme_choices()
-        self._available_graph_themes = tuple((str(theme_id), str(label)) for theme_id, label in graph_themes)
-        if not self._available_graph_themes:
-            self._available_graph_themes = graph_theme_choices()
-        self._custom_graph_themes = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["custom_themes"])
-        self._explicit_graph_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"])
-        self._manage_graph_themes_callback = manage_graph_themes_callback
         self._active_renderer_label = self._normalize_active_renderer_label(active_renderer_label)
         self._tooltips_enabled = bool(tooltips_enabled)
         self._plot_default_backend_per_type = copy.deepcopy(
@@ -420,7 +401,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
 
         defaults = DEFAULT_GRAPHICS_SETTINGS["canvas"]
         initial_theme = resolve_graph_theme(
-            DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"],
+            default_graph_theme_id_for_shell_theme(DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
         )
         self._shadow_preview = ShadowPreviewWidget(
             initial_theme,
@@ -688,40 +669,6 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         shell_lay.addLayout(shell_form)
         outer.addWidget(shell_card)
 
-        # ── Graph Theme section ──
-        outer.addWidget(self._make_section_title("Graph Theme", page))
-        graph_card, graph_lay = self._make_section_card(page)
-        self.follow_shell_theme_check = QCheckBox("Follow shell theme", graph_card)
-        self.follow_shell_theme_check.toggled.connect(self._on_follow_shell_theme_toggled)
-        graph_lay.addWidget(self.follow_shell_theme_check)
-
-        graph_form = QFormLayout()
-        graph_form.setContentsMargins(0, 4, 0, 0)
-        graph_form.setVerticalSpacing(8)
-        self.graph_theme_combo = QComboBox(graph_card)
-        self.graph_theme_combo.currentIndexChanged.connect(self._on_graph_theme_selection_changed)
-        for theme_id, label in self._available_graph_themes:
-            self.graph_theme_combo.addItem(label, theme_id)
-        graph_theme_row = QWidget(graph_card)
-        graph_theme_layout = QHBoxLayout(graph_theme_row)
-        graph_theme_layout.setContentsMargins(0, 0, 0, 0)
-        graph_theme_layout.setSpacing(6)
-        graph_theme_layout.addWidget(self.graph_theme_combo, stretch=1)
-        self.manage_graph_themes_button = QPushButton("Manage Graph Themes...", graph_theme_row)
-        self.manage_graph_themes_button.setEnabled(self._manage_graph_themes_callback is not None)
-        self.manage_graph_themes_button.clicked.connect(self._open_graph_theme_manager)
-        graph_theme_layout.addWidget(self.manage_graph_themes_button, stretch=0)
-        graph_form.addRow("Graph theme", graph_theme_row)
-        graph_lay.addLayout(graph_form)
-
-        initial_theme = resolve_graph_theme(
-            self.graph_theme_combo.currentData() or "",
-            custom_themes=self._custom_graph_themes,
-        )
-        self._graph_theme_preview = GraphThemePreviewWidget(initial_theme, graph_card)
-        graph_lay.addWidget(self._graph_theme_preview)
-        outer.addWidget(graph_card)
-
         # Typography section
         outer.addWidget(self._make_section_title("Typography", page))
         typography_card, typography_lay = self._make_section_card(page)
@@ -772,7 +719,6 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.graph_node_icon_size_override_check.toggled.connect(
             self._sync_graph_node_icon_size_override_enabled
         )
-        self._sync_graph_theme_combo_enabled()
 
         outer.addStretch(1)
         return page
@@ -892,10 +838,6 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
     def _normalize(initial_settings: dict[str, Any]) -> dict[str, Any]:
         normalized = normalize_graphics_settings(initial_settings)
         normalized["theme"]["theme_id"] = resolve_theme_id(normalized["theme"]["theme_id"])
-        normalized["graph_theme"]["selected_theme_id"] = resolve_graph_theme_id(
-            normalized["graph_theme"]["selected_theme_id"],
-            custom_themes=normalized["graph_theme"]["custom_themes"],
-        )
         return normalized
 
     def set_values(self, initial_settings: dict[str, Any]) -> None:
@@ -1064,7 +1006,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
             else graph_label_pixel_size
         )
         self._sync_graph_node_icon_size_override_enabled()
-        self._apply_graph_theme_settings(settings["graph_theme"])
+        self._sync_shadow_preview_theme()
 
     def values(self) -> dict[str, Any]:
         theme_id = self.theme_combo.currentData()
@@ -1202,7 +1144,6 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                     "autoplay_animations": self.media_panel_autoplay_animations_check.isChecked(),
                     "source_input_exposed": self.media_panel_source_input_exposed_check.isChecked(),
                 },
-                "graph_theme": self._current_graph_theme_settings(),
             }
         )
 
@@ -1235,96 +1176,16 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
             style.polish(option)
         option.update()
 
-    def _sync_graph_theme_combo_enabled(self, _checked: bool | None = None) -> None:
-        self.graph_theme_combo.setEnabled(not self.follow_shell_theme_check.isChecked())
-
     def _sync_graph_node_icon_size_override_enabled(self, _checked: bool | None = None) -> None:
         self.graph_node_icon_pixel_size_spin.setEnabled(self.graph_node_icon_size_override_check.isChecked())
 
-    def _update_graph_theme_preview(self) -> None:
-        preview = getattr(self, "_graph_theme_preview", None)
-        if preview is None:
-            return
-        theme_id = self.graph_theme_combo.currentData()
-        if theme_id is None:
-            return
-        theme = resolve_graph_theme(str(theme_id), custom_themes=self._custom_graph_themes)
-        preview.set_theme(theme)
-        shadow_preview = getattr(self, "_shadow_preview", None)
-        if shadow_preview is not None:
-            shadow_preview.set_theme(theme)
-
-    def _on_follow_shell_theme_toggled(self, _checked: bool | None = None) -> None:
-        if self.follow_shell_theme_check.isChecked():
-            self._sync_graph_theme_combo_to_shell_theme()
-        else:
-            self._set_graph_theme_combo_selection(self._explicit_graph_theme_id)
-        self._sync_graph_theme_combo_enabled()
-        self._update_graph_theme_preview()
-
     def _on_shell_theme_changed(self, _index: int) -> None:
-        if self.follow_shell_theme_check.isChecked():
-            self._sync_graph_theme_combo_to_shell_theme()
-        self._update_graph_theme_preview()
+        self._sync_shadow_preview_theme()
 
-    def _on_graph_theme_selection_changed(self, _index: int) -> None:
-        if self.follow_shell_theme_check.isChecked():
+    def _sync_shadow_preview_theme(self) -> None:
+        shadow_preview = getattr(self, "_shadow_preview", None)
+        if shadow_preview is None:
             return
-        graph_theme_id = self.graph_theme_combo.currentData()
-        self._explicit_graph_theme_id = resolve_graph_theme_id(
-            str(graph_theme_id) if graph_theme_id is not None else "",
-            custom_themes=self._custom_graph_themes,
+        shadow_preview.set_theme(
+            resolve_graph_theme(default_graph_theme_id_for_shell_theme(self.theme_combo.currentData()))
         )
-        self._update_graph_theme_preview()
-
-    def _current_graph_theme_settings(self) -> dict[str, Any]:
-        graph_theme_id = self._explicit_graph_theme_id if self.follow_shell_theme_check.isChecked() else self.graph_theme_combo.currentData()
-        return normalize_graph_theme_settings(
-            {
-                "follow_shell_theme": self.follow_shell_theme_check.isChecked(),
-                "selected_theme_id": str(graph_theme_id) if graph_theme_id is not None else "",
-                "custom_themes": copy.deepcopy(self._custom_graph_themes),
-            }
-        )
-
-    def _apply_graph_theme_settings(self, graph_theme_settings: dict[str, Any]) -> None:
-        normalized = normalize_graph_theme_settings(graph_theme_settings)
-        self._custom_graph_themes = copy.deepcopy(normalized["custom_themes"])
-        self._available_graph_themes = graph_theme_choices(self._custom_graph_themes)
-        selected_theme_id = resolve_graph_theme_id(
-            normalized["selected_theme_id"],
-            custom_themes=self._custom_graph_themes,
-        )
-        self._explicit_graph_theme_id = selected_theme_id
-        self.graph_theme_combo.blockSignals(True)
-        self.graph_theme_combo.clear()
-        for theme_id, label in self._available_graph_themes:
-            self.graph_theme_combo.addItem(label, theme_id)
-        self.graph_theme_combo.blockSignals(False)
-        self.follow_shell_theme_check.setChecked(normalized["follow_shell_theme"])
-        if self.follow_shell_theme_check.isChecked():
-            self._sync_graph_theme_combo_to_shell_theme()
-        else:
-            self._set_graph_theme_combo_selection(selected_theme_id)
-            self._sync_graph_theme_combo_enabled()
-        self._update_graph_theme_preview()
-
-    def _open_graph_theme_manager(self) -> None:
-        if self._manage_graph_themes_callback is None:
-            return
-        updated_graph_theme = self._manage_graph_themes_callback(self._current_graph_theme_settings())
-        if updated_graph_theme is None:
-            return
-        self._apply_graph_theme_settings(updated_graph_theme)
-
-    def _sync_graph_theme_combo_to_shell_theme(self) -> None:
-        self._set_graph_theme_combo_selection(
-            default_graph_theme_id_for_shell_theme(self.theme_combo.currentData()),
-        )
-
-    def _set_graph_theme_combo_selection(self, theme_id: object) -> None:
-        resolved_theme_id = resolve_graph_theme_id(theme_id, custom_themes=self._custom_graph_themes)
-        index = self.graph_theme_combo.findData(resolved_theme_id)
-        self.graph_theme_combo.blockSignals(True)
-        self.graph_theme_combo.setCurrentIndex(index if index >= 0 else 0)
-        self.graph_theme_combo.blockSignals(False)

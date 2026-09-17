@@ -50,7 +50,7 @@ Item {
         ? themeBridge.palette.accent
         : "#1D8CE0"
     // Chrome colors track the host's theme / shell palette so the toolbar
-    // follows both graph-theme switches (dark/light) and per-node passive
+    // follows both shell dark/light switches and per-node passive
     // overrides (shell colors) instead of staying hardcoded-dark.
     readonly property color _chromeBaseFill: root.hostValid ? root.host.surfaceColor : "#1b1d22"
     readonly property color _chromeBaseBorder: root.hostValid ? root.host.outlineColor : "#3a3d45"

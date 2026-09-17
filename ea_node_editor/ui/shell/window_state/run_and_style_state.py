@@ -90,9 +90,6 @@ class ShellWindowRunAndStyleStateMixin:
     def _apply_theme(self: "ShellWindow", theme_id: Any) -> str:
         return self.shell_host_presenter.apply_theme(theme_id)
 
-    def preview_graph_theme_settings(self: "ShellWindow", graph_theme_settings: Any) -> str:
-        return self.shell_host_presenter.preview_graph_theme_settings(graph_theme_settings)
-
     def apply_graphics_preferences(self: "ShellWindow", graphics: Any) -> dict[str, Any]:
         return self.shell_host_presenter.apply_graphics_preferences(graphics)
 
@@ -223,22 +220,6 @@ class ShellWindowRunAndStyleStateMixin:
     @pyqtSlot(bool)
     def reload_plugins(self: "ShellWindow", _checked: bool = False) -> None:
         self.plugin_authoring_controller.reload_plugins()
-
-    def edit_graph_theme_settings(
-        self: "ShellWindow",
-        graph_theme_settings: Any,
-        *,
-        enable_live_apply: bool = False,
-    ) -> dict[str, Any] | None:
-        return self.shell_host_presenter.edit_graph_theme_settings(
-            graph_theme_settings,
-            enable_live_apply=enable_live_apply,
-        )
-
-    @pyqtSlot()
-    @pyqtSlot(bool)
-    def show_graph_theme_editor_dialog(self: "ShellWindow", _checked: bool = False) -> None:
-        self.shell_host_presenter.show_graph_theme_editor_dialog(_checked)
 
     @pyqtSlot()
     @pyqtSlot(bool)

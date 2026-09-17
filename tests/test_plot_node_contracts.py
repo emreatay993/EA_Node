@@ -128,7 +128,7 @@ def _execution_context(
 
 
 class _PlotGraphThemeBridge:
-    theme = "graph_stitch_dark"
+    theme_id = "graph_stitch_dark"
 
     def __init__(self, *, lightweight_canvas: bool = False) -> None:
         self._parent = SimpleNamespace(graphics_lightweight_canvas=bool(lightweight_canvas))

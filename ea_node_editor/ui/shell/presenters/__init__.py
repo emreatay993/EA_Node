@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graph_theme_settings
-
 from .addon_manager_presenter import AddOnManagerPresenter
 from .canvas_export_presenter import CanvasExportPresenter
 from .graph_canvas_host_presenter import GraphCanvasHostPresenter
@@ -21,5 +19,4 @@ __all__ = [
     "ShellWorkspacePresenter",
     "ShellWorkspaceUiState",
     "build_default_shell_workspace_ui_state",
-    "normalize_graph_theme_settings",
 ]

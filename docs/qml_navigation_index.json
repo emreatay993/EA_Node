@@ -10,7 +10,7 @@
     "loader_constructs": 28,
     "signal_handlers": 962,
     "connections": 49,
-    "property_bindings": 7847,
+    "property_bindings": 7846,
     "local_component_refs": 314
   },
   "entries": [
@@ -98704,10 +98704,6 @@
           "name": "selectedRunPreviewBeforeRun"
         },
         {
-          "kind": "bool",
-          "name": "graphsFollowShell"
-        },
-        {
           "kind": "string",
           "name": "gridStyleValue"
         },
@@ -98891,9 +98887,6 @@
         },
         {
           "name": "setShellTheme"
-        },
-        {
-          "name": "setGraphsFollowShell"
         },
         {
           "name": "setCanvasBackgroundVariant"
@@ -99227,13 +99220,6 @@
           "name": "value",
           "targets": [
             "root.shellThemeLabel"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "checked",
-          "targets": [
-            "root.graphsFollowShell"
           ]
         },
         {
@@ -100022,12 +100008,6 @@
           "detail": "bool"
         },
         {
-          "anchor": "GraphCanvasOptionsMenuPropertyGraphsFollowShell",
-          "kind": "property",
-          "name": "graphsFollowShell",
-          "detail": "bool"
-        },
-        {
           "anchor": "GraphCanvasOptionsMenuPropertyGridStyleValue",
           "kind": "property",
           "name": "gridStyleValue",
@@ -100309,11 +100289,6 @@
           "name": "setShellTheme"
         },
         {
-          "anchor": "GraphCanvasOptionsMenuFunctionSetGraphsFollowShell",
-          "kind": "function",
-          "name": "setGraphsFollowShell"
-        },
-        {
           "anchor": "GraphCanvasOptionsMenuFunctionSetCanvasBackgroundVariant",
           "kind": "function",
           "name": "setCanvasBackgroundVariant"
@@ -100432,14 +100407,6 @@
         {
           "kind": "string",
           "name": "activeThemeId"
-        },
-        {
-          "kind": "bool",
-          "name": "graphsFollowShellTheme"
-        },
-        {
-          "kind": "string",
-          "name": "selectedGraphThemeId"
         },
         {
           "kind": "var",
@@ -100591,18 +100558,6 @@
           "anchor": "GraphCanvasPreferenceFactsPropertyActiveThemeId",
           "kind": "property",
           "name": "activeThemeId",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphCanvasPreferenceFactsPropertyGraphsFollowShellTheme",
-          "kind": "property",
-          "name": "graphsFollowShellTheme",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphCanvasPreferenceFactsPropertySelectedGraphThemeId",
-          "kind": "property",
-          "name": "selectedGraphThemeId",
           "detail": "string"
         },
         {

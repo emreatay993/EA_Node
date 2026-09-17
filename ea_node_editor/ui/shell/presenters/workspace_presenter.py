@@ -43,7 +43,7 @@ from ea_node_editor.ui.shell.tooltip_policy import (
     normalize_tooltip_category_preferences,
     tooltip_category_effectively_visible,
 )
-from ea_node_editor.ui.graph_theme import resolve_graph_theme_id, serialize_custom_graph_themes
+from ea_node_editor.ui.graph_theme import default_graph_theme_id_for_shell_theme
 
 from .contracts import _ShellWorkspacePresenterHostProtocol, _presenter_parent
 from .state import ShellWorkspaceUiState
@@ -293,16 +293,6 @@ class ShellWorkspacePresenter(QObject):
     def active_theme_id(self) -> str: return str(self._ui_state.active_theme_id)
 
     @property
-    def graphics_graph_follow_shell_theme(self) -> bool:
-        settings = self._host.app_preferences_controller.graph_theme_settings()
-        return bool(settings.get("follow_shell_theme", DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["follow_shell_theme"]))
-
-    @property
-    def graphics_selected_graph_theme_id(self) -> str:
-        settings = self._host.app_preferences_controller.graph_theme_settings()
-        return str(settings.get("selected_theme_id", DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"]))
-
-    @property
     def active_workspace_id(self) -> str:
         try:
             return self._host.workspace_manager.active_workspace_id()
@@ -468,21 +458,6 @@ class ShellWorkspacePresenter(QObject):
     def set_graphics_shell_theme(self, theme_id: str) -> None:
         self._update_graphics_settings({"theme": {"theme_id": str(theme_id)}})
 
-    def set_graphics_graph_follow_shell_theme(self, follow_shell_theme: bool) -> None:
-        self._update_graphics_settings(
-            {"graph_theme": {"follow_shell_theme": bool(follow_shell_theme)}}
-        )
-
-    def set_graphics_graph_theme(self, theme_id: str) -> None:
-        self._update_graphics_settings(
-            {
-                "graph_theme": {
-                    "follow_shell_theme": False,
-                    "selected_theme_id": str(theme_id),
-                }
-            }
-        )
-
     def set_graphics_tooltip_categories(self, categories: Any) -> None:
         self._host.app_preferences_controller.set_graphics_tooltip_categories(
             categories,
@@ -567,7 +542,6 @@ class ShellWorkspacePresenter(QObject):
         typography = graphics.get("typography", {}) if isinstance(graphics, dict) else {}
         media_panel = graphics.get("media_panel") if isinstance(graphics, dict) else None
         folder_explorer = graphics.get("folder_explorer", {}) if isinstance(graphics, dict) else {}
-        graph_theme = graphics.get("graph_theme", {}) if isinstance(graphics, dict) else {}
         plot_settings = (
             normalize_plot_settings(graphics.get("plot"))
             if isinstance(graphics, dict) and "plot" in graphics
@@ -717,22 +691,6 @@ class ShellWorkspacePresenter(QObject):
         active_theme_id = self._host.shell_host_presenter.apply_theme(
             theme.get("theme_id", self._ui_state.active_theme_id)
         )
-        follow_shell_theme = graph_theme.get("follow_shell_theme")
-        if not isinstance(follow_shell_theme, bool):
-            follow_shell_theme = bool(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["follow_shell_theme"])
-        custom_graph_themes = serialize_custom_graph_themes(graph_theme.get("custom_themes"))
-        selected_graph_theme_id = resolve_graph_theme_id(
-            graph_theme.get(
-                "selected_theme_id",
-                DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"],
-            ),
-            custom_themes=custom_graph_themes,
-        )
-        normalized_graph_theme = {
-            "follow_shell_theme": bool(follow_shell_theme),
-            "selected_theme_id": selected_graph_theme_id,
-            "custom_themes": custom_graph_themes,
-        }
         previous_graph_theme_id = self._host.graph_theme_bridge.theme_id
 
         if self._ui_state.canvas_import_mode != canvas_import_mode:
@@ -898,10 +856,7 @@ class ShellWorkspacePresenter(QObject):
         if self._ui_state.active_theme_id != active_theme_id:
             self._ui_state.active_theme_id = active_theme_id
             changed = True
-        self._host.graph_theme_bridge.apply_settings(
-            shell_theme_id=active_theme_id,
-            graph_theme_settings=normalized_graph_theme,
-        )
+        self._host.graph_theme_bridge.apply_theme(default_graph_theme_id_for_shell_theme(active_theme_id))
         if previous_graph_theme_id != self._host.graph_theme_bridge.theme_id:
             changed = True
 
@@ -974,11 +929,6 @@ class ShellWorkspacePresenter(QObject):
             "plot": {
                 "lightweight_canvas": self.graphics_lightweight_canvas,
                 "plot_default_backend_per_type": self.graphics_plot_default_backend_per_type,
-            },
-            "graph_theme": {
-                "follow_shell_theme": bool(follow_shell_theme),
-                "selected_theme_id": selected_graph_theme_id,
-                "custom_themes": custom_graph_themes,
             },
         }
 

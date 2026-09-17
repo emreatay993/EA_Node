@@ -236,9 +236,9 @@ class PortTypePresentationQmlTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
-    def test_family_accent_binding_updates_when_graph_theme_changes(self) -> None:
+    def test_family_accent_binding_uses_graph_theme_port_kind_palette(self) -> None:
         self._run_qml_probe(
-            "port-family-accent-reacts-to-graph-theme",
+            "port-family-accent-uses-graph-theme-palette",
             """
             from PyQt6.QtGui import QColor
             from PyQt6.QtQml import QQmlProperty
@@ -275,13 +275,6 @@ class PortTypePresentationQmlTests(PassiveGraphSurfaceHostTestBase):
                 initial = QColor(input_dot.property("portColor")).name()
                 assert initial == QColor(graph_theme_bridge.port_kind_palette["data"]).name()
                 assert QColor(QQmlProperty.read(input_dot, "border.color")).name() == initial
-
-                graph_theme_bridge.apply_theme("graph_ember_dark")
-                settle_events(5)
-                updated = QColor(graph_theme_bridge.port_kind_palette["data"]).name()
-                assert updated != initial
-                assert QColor(input_dot.property("portColor")).name() == updated
-                assert QColor(QQmlProperty.read(input_dot, "border.color")).name() == updated
             finally:
                 dispose_host_window(host, window)
                 engine.deleteLater()

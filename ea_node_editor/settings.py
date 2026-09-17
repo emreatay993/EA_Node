@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ea_node_editor.graph_theme_defaults import DEFAULT_GRAPH_THEME_ID
 from ea_node_editor.ui.shell.tooltip_policy import default_tooltip_category_preferences
 
 APP_NAME = "COREX Node Editor"
@@ -299,11 +298,6 @@ DEFAULT_GRAPHICS_SETTINGS = {
     "plot": DEFAULT_PLOT_SETTINGS,
     "engineering_viewer": DEFAULT_ENGINEERING_VIEWER_SETTINGS,
     "folder_explorer": DEFAULT_FOLDER_EXPLORER_SETTINGS,
-    "graph_theme": {
-        "follow_shell_theme": True,
-        "selected_theme_id": DEFAULT_GRAPH_THEME_ID,
-        "custom_themes": [],
-    },
 }
 
 DEFAULT_SOURCE_IMPORT_SETTINGS = {

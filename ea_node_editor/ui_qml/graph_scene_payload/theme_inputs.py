@@ -22,5 +22,4 @@ class _GraphSceneThemeResolver:
     def active_graph_theme(graph_theme_bridge: GraphThemeBridge | None) -> GraphThemeDefinition:
         if graph_theme_bridge is None:
             return resolve_graph_theme(DEFAULT_GRAPH_THEME_ID)
-        return resolve_graph_theme(graph_theme_bridge.theme)
-
+        return resolve_graph_theme(graph_theme_bridge.theme_id)

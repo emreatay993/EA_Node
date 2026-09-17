@@ -120,14 +120,6 @@ class GraphicsSettingsOps:
     def set_graphics_shell_theme(self, theme_id: str) -> None:
         _invoke(self._graphics_source, "set_graphics_shell_theme", theme_id)
 
-    @pyqtSlot(bool)
-    def set_graphics_graph_follow_shell_theme(self, follow_shell_theme: bool) -> None:
-        _invoke(self._graphics_source, "set_graphics_graph_follow_shell_theme", bool(follow_shell_theme))
-
-    @pyqtSlot(str)
-    def set_graphics_graph_theme(self, theme_id: str) -> None:
-        _invoke(self._graphics_source, "set_graphics_graph_theme", theme_id)
-
     @pyqtSlot(str)
     def set_graphics_node_elapsed_time_unit(self, unit: str) -> None:
         _invoke(self._graphics_source, "set_graphics_node_elapsed_time_unit", unit)

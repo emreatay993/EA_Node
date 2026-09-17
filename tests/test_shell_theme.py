@@ -199,7 +199,7 @@ class ShellThemeServiceTests(unittest.TestCase):
             bridge.port_kind_palette["data"],
         )
 
-        bridge.apply_theme("graph_ocean_light")
+        bridge.apply_theme("graph_stitch_light")
         self.assertEqual(
             bridge.resolve_data_type_color("data.engineering"),
             bridge.port_kind_palette["data"],

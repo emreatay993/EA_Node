@@ -32,7 +32,6 @@ from ea_node_editor.ui.media_preview_provider import set_media_preview_project_c
 from ea_node_editor.ui.mail_preview_provider import set_mail_preview_project_context_provider
 from ea_node_editor.ui.dialogs.passive_style_controls import color_to_hex, is_valid_hex_color
 from ea_node_editor.ui.pdf_preview_provider import set_pdf_preview_project_context_provider
-from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graph_theme_settings
 from ea_node_editor.ui.shell.tooltip_policy import (
     TOOLTIP_CATEGORY_GENERAL,
     normalize_tooltip_category_preferences,
@@ -587,13 +586,6 @@ class ShellHostPresenter(QObject):
         if callable(refresh):
             refresh()
 
-    def preview_graph_theme_settings(self, graph_theme_settings: Any) -> str:
-        normalized = normalize_graph_theme_settings(graph_theme_settings)
-        return self._host.graph_theme_bridge.apply_settings(
-            shell_theme_id=self._host.active_theme_id,
-            graph_theme_settings=normalized,
-        )
-
     def active_renderer_label(self) -> str:
         api = QSGRendererInterface.GraphicsApi.Unknown
         quick_widget = getattr(self._host, "quick_widget", None)
@@ -613,8 +605,6 @@ class ShellHostPresenter(QObject):
         preferences = self._host.app_preferences_controller
         dialog = GraphicsSettingsDialog(
             initial_settings=preferences.graphics_settings(),
-            available_graph_themes=preferences.graph_theme_choices(),
-            manage_graph_themes_callback=self.edit_graph_theme_settings,
             active_renderer_label=self.active_renderer_label(),
             tooltips_enabled=bool(self._host.graphics_show_tooltips),
             parent=self._host,
@@ -651,34 +641,6 @@ class ShellHostPresenter(QObject):
 
         dialog = ThirdPartyNoticesDialog(parent=self._host)
         dialog.exec()
-
-    def edit_graph_theme_settings(
-        self,
-        graph_theme_settings: Any,
-        *,
-        enable_live_apply: bool = False,
-    ) -> dict[str, Any] | None:
-        from ea_node_editor.ui.dialogs import GraphThemeEditorDialog
-
-        dialog = GraphThemeEditorDialog(
-            initial_settings=graph_theme_settings,
-            parent=self._host,
-            live_apply_callback=self.preview_graph_theme_settings if enable_live_apply else None,
-        )
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return None
-        return dialog.graph_theme_settings()
-
-    def show_graph_theme_editor_dialog(self, _checked: bool = False) -> None:
-        graph_theme_settings = self.edit_graph_theme_settings(
-            self._host.app_preferences_controller.graph_theme_settings(),
-            enable_live_apply=True,
-        )
-        if graph_theme_settings is None:
-            return
-        graphics = self._host.app_preferences_controller.graphics_settings()
-        graphics["graph_theme"] = graph_theme_settings
-        self._host.app_preferences_controller.set_graphics_settings(graphics, host=self._host)
 
     def update_metrics(self) -> None:
         metrics = self._status_service.collect_system_metrics()

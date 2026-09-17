@@ -1,7 +1,7 @@
 # PyQt Dialogs, Theme, And Editor Support
 
 ## Purpose
-Use this for PyQt dialogs, script/editor support, graph theme editors, and non-QML support widgets.
+Use this for PyQt dialogs, script/editor support, settings preview widgets, and non-QML support widgets.
 
 ## Start Here
 - `ea_node_editor/ui/dialogs/graphics_settings_dialog.py`
@@ -23,7 +23,7 @@ Use this for PyQt dialogs, script/editor support, graph theme editors, and non-Q
 - For theme or style changes, update theme assets and focused dialog tests together.
 - Native editor/dialog context menus and menu-bar dropdowns inherit node-menu colors, density, rounded rows, disabled/check states, and separators from the shared `QMenu` rules in `ea_node_editor/ui/theme/styles.py`. `tests/test_shell_theme.py` checks dark/light standard menus without replacing native actions or keyboard handling.
 - App-owned `QDialog`, `QMessageBox`, and `QInputDialog` surfaces inherit their shared adaptive styling from `ea_node_editor/ui/theme/styles.py`. Use `dialogRole` only for semantic muted/error/danger states; keep native `QFileDialog` and `QColorDialog` behavior and native title bars.
-- Graph Theme Manager gradient controls are typed node-token editors, not generic hex rows; update color, boolean, and direction handling together.
+- `ea_node_editor/ui/graph_theme/preview_widget.py` only backs the Graphics Settings shadow preview (`ShadowPreviewWidget`/`NodePreviewWidget`), which follows the dialog's shell-theme selection; there is no graph-theme manager/editor dialog.
 - Passive Node Style gradients use `Inherit / Custom / Off` so blank per-node style still inherits graph theme defaults. Switching to Custom with an empty color suggests an end color from the fill (same hue/saturation, CIELAB L* 12 darker) via `_suggested_gradient_color`; loading a style never triggers the suggestion. Built-in read-only starters live in `ea_node_editor/ui/passive_style_presets.py`; `tests/test_passive_style_presets.py` guards unique styles and text/border contrast.
 - For script/editor behavior, check editor tests before broad shell tests.
 - Workflow Settings is a PyQt dialog with separate Application Default Python Executable and project Workflow Override fields, native executable pickers, `Clear Application Default`, and `Inherit Application Default`. `Create / Repair Managed Runtime` delegates to `ea_node_editor.execution.managed_runtime` and fills only the app field. `values()` remains project-only while `application_default_python_executable()` returns the app value; visible help states whole-workflow, trusted-local, import-preflight, startup-handshake, and next-run behavior.
@@ -33,7 +33,7 @@ Use this for PyQt dialogs, script/editor support, graph theme editors, and non-Q
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_graph_theme_editor_dialog.py tests/test_graphics_settings_dialog.py tests/test_script_editor_dock.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_graphics_settings_dialog.py tests/test_script_editor_dock.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_project_review_deck.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_plugin_authoring_dialog.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_workflow_settings_dialog.py --ignore=venv -q
@@ -44,4 +44,4 @@ Use this for PyQt dialogs, script/editor support, graph theme editors, and non-Q
 - [Surface Input And Inline Controls](../feature_routes/surface_input_and_inline_controls.md)
 
 ## Update Triggers
-Update when dialog ownership or shared Qt dialog styling, canvas export options, project review deck options, Workflow Settings environment fields, theme editor flows, or editor support routes change.
+Update when dialog ownership or shared Qt dialog styling, canvas export options, project review deck options, Workflow Settings environment fields, settings preview widgets, or editor support routes change.

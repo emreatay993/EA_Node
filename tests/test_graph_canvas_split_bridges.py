@@ -151,8 +151,6 @@ class _GraphCanvasShellHostStub(QObject):
         self.graphics_lightweight_canvas = False
         self.graphics_plot_default_backend_per_type: dict[str, str] = {}
         self.active_theme_id = "stitch_dark"
-        self.graphics_graph_follow_shell_theme = False
-        self.graphics_selected_graph_theme_id = "graph_stitch_dark"
         self.snap_to_grid_enabled = True
         self.snap_grid_size = 24.0
         self.run_state = ShellRunState()
@@ -892,8 +890,6 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             (graphics, "set_folder_explorer_column_widths", ({"name": 240},)),
             (graphics, "record_recent_text_color", ("#112233",)),
             (graphics, "set_graphics_shell_theme", ("stitch_light",)),
-            (graphics, "set_graphics_graph_follow_shell_theme", (False,)),
-            (graphics, "set_graphics_graph_theme", ("graph_stitch_light",)),
             (graphics, "request_open_graphics_settings", ()),
         )
 
@@ -1128,8 +1124,6 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
                 DEFAULT_GRAPHICS_SETTINGS["plot"]["plot_default_backend_per_type"]
             ),
             "active_theme_id": "stitch_dark",
-            "graphics_graph_follow_shell_theme": False,
-            "graphics_selected_graph_theme_id": "graph_stitch_dark",
         }
         canvas_expectations = {
             "graphics_minimap_expanded": True,
@@ -1137,7 +1131,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             "snap_to_grid_enabled": True,
             "snap_grid_size": 24.0,
         }
-        self.assertEqual(len(graphics_expectations), 41)
+        self.assertEqual(len(graphics_expectations), 39)
         self.assertEqual(len(canvas_expectations), 4)
         for name, expected in (*graphics_expectations.items(), *canvas_expectations.items()):
             with self.subTest(property_name=name):

@@ -76,6 +76,7 @@
       "bool set_edges_display_mode(QVariantList,QString)",
       "bool set_edges_enabled(QVariantList,bool)",
       "bool set_exposed_port(QString,QString,bool)",
+      "bool set_node_collapsed(QString,bool)",
       "bool set_node_comment_pinned(QString,QString,bool)",
       "bool set_node_comment_resolved(QString,QString,bool)",
       "bool set_node_properties(QString,QVariantMap)",
@@ -104,8 +105,6 @@
       "void set_graphics_canvas_import_mode(QString)",
       "void set_graphics_floating_toolbar_size(QString)",
       "void set_graphics_floating_toolbar_style(QString)",
-      "void set_graphics_graph_follow_shell_theme(bool)",
-      "void set_graphics_graph_theme(QString)",
       "void set_graphics_grid_style(QString)",
       "void set_graphics_minimap_expanded(bool)",
       "void set_graphics_node_comment_editor_default(QString)",
@@ -136,6 +135,7 @@
       "QString active_theme_id NOTIFY graphics_preferences_changed()",
       "QString failed_node_title NOTIFY failure_highlight_changed()",
       "QString graphics_canvas_background_variant NOTIFY graphics_preferences_changed()",
+      "QString graphics_canvas_import_mode NOTIFY graphics_preferences_changed()",
       "QString graphics_edge_crossing_style NOTIFY graphics_preferences_changed()",
       "QString graphics_floating_toolbar_size NOTIFY graphics_preferences_changed()",
       "QString graphics_floating_toolbar_style NOTIFY graphics_preferences_changed()",
@@ -143,7 +143,6 @@
       "QString graphics_node_comment_editor_default NOTIFY graphics_preferences_changed()",
       "QString graphics_node_elapsed_time_unit NOTIFY graphics_preferences_changed()",
       "QString graphics_node_elapsed_time_visibility NOTIFY graphics_preferences_changed()",
-      "QString graphics_selected_graph_theme_id NOTIFY graphics_preferences_changed()",
       "QString graphics_selection_toolbar_minimal_menu_trigger NOTIFY graphics_preferences_changed()",
       "QString graphics_selection_toolbar_mode NOTIFY graphics_preferences_changed()",
       "QString graphics_status_bar_layout NOTIFY graphics_preferences_changed()",
@@ -159,6 +158,7 @@
       "QVariantList stable_edge_endpoint_nodes_model NOTIFY edge_endpoint_nodes_changed()",
       "QVariantList visible_backdrop_nodes_payloads NOTIFY visible_scene_models_changed()",
       "QVariantList visible_nodes_payloads NOTIFY visible_scene_models_changed()",
+      "QVariantList visible_scene_nodes_payloads NOTIFY visible_scene_models_changed()",
       "QVariantMap completed_node_lookup NOTIFY node_execution_state_changed()",
       "QVariantMap edge_delta_payload NOTIFY scene_edges_changed()",
       "QVariantMap failed_node_lookup NOTIFY failure_highlight_changed()",
@@ -189,7 +189,6 @@
       "QVariantMap visible_scene_rect_payload_cached NOTIFY view_state_changed()",
       "QVariantMap warning_node_lookup NOTIFY node_execution_state_changed()",
       "QVariantMap workspace_scene_bounds_payload NOTIFY minimap_scene_model_changed()",
-      "bool graphics_graph_follow_shell_theme NOTIFY graphics_preferences_changed()",
       "bool graphics_lightweight_canvas NOTIFY graphics_preferences_changed()",
       "bool graphics_media_panel_autoplay_animations NOTIFY graphics_preferences_changed()",
       "bool graphics_media_panel_default_show_frame NOTIFY graphics_preferences_changed()",
@@ -329,6 +328,7 @@
       "bool set_edges_enabled(QVariantList,bool)",
       "bool set_hide_optional_ports(bool)",
       "bool set_interact_with_locked_objects(bool)",
+      "bool set_node_collapsed(QString,bool)",
       "bool set_node_comment_pinned(QString,QString,bool)",
       "bool set_node_comment_resolved(QString,QString,bool)",
       "bool set_node_properties(QString,QVariantMap)",
@@ -407,6 +407,7 @@
       "bool set_exposed_port(QString,QString,bool)",
       "bool set_hide_optional_ports(bool)",
       "bool set_interact_with_locked_objects(bool)",
+      "bool set_node_collapsed(QString,bool)",
       "bool set_node_comment_pinned(QString,QString,bool)",
       "bool set_node_comment_resolved(QString,QString,bool)",
       "bool set_node_locked(QString,bool)",
@@ -525,6 +526,8 @@
       "QVariantMap visible_scene_rect_payload_cached NOTIFY view_state_changed()",
       "double center_x NOTIFY view_state_changed()",
       "double center_y NOTIFY view_state_changed()",
+      "double maximum_zoom CONSTANT",
+      "double minimum_zoom CONSTANT",
       "double visible_model_bucket_px CONSTANT",
       "double visible_model_hysteresis_padding_px CONSTANT",
       "double zoom_value NOTIFY view_state_changed()"
@@ -546,7 +549,8 @@
       "void adjust_zoom(double)",
       "void center_on_scene_point(double,double)",
       "void pan_by(double,double)",
-      "void set_viewport_size(double,double)"
+      "void set_viewport_size(double,double)",
+      "void set_zoom(double)"
     ]
   }
 }

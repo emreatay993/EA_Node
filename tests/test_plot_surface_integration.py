@@ -14,7 +14,7 @@ from tests.graph_surface_pointer_regression import (
 
 
 class _PlotGraphThemeBridge:
-    theme = "graph_stitch_dark"
+    theme_id = "graph_stitch_dark"
 
 
 def _plot_scene_payload(

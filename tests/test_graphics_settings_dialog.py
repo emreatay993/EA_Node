@@ -12,7 +12,6 @@ from PyQt6.QtWidgets import QApplication, QLabel, QScrollArea
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
-from ea_node_editor.ui.graph_theme.registry import graph_theme_choices, resolve_graph_theme
 from ea_node_editor.ui.shell.tooltip_policy import default_tooltip_category_preferences
 
 
@@ -71,9 +70,6 @@ class _RecordingGraphicsSettingsController:
 
     def graphics_settings(self) -> dict[str, object]:
         return copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
-
-    def graph_theme_choices(self) -> list[tuple[str, str]]:
-        return list(graph_theme_choices())
 
     def set_graphics_settings(self, graphics: dict[str, object], *, host: object) -> None:
         self.applied_graphics.append((copy.deepcopy(graphics), host))
@@ -238,8 +234,6 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertEqual(dialog.expand_collision_local_radius_preset_combo.currentData(), "medium")
             self.assertEqual(dialog.expand_collision_gap_preset_combo.currentData(), "normal")
             self.assertTrue(dialog.expand_collision_animate_check.isChecked())
-            self.assertTrue(dialog.follow_shell_theme_check.isChecked())
-            self.assertFalse(dialog.graph_theme_combo.isEnabled())
             self.assertEqual(
                 dialog.passive_node_library_display_mode_combo.objectName(),
                 "graphicsSettingsPassiveNodeLibraryDisplayModeCombo",
@@ -288,8 +282,6 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 dialog.property_pane_variant_combo.findData("accordion_cards")
             )
             dialog.theme_combo.setCurrentIndex(dialog.theme_combo.findData("stitch_light"))
-            dialog.follow_shell_theme_check.setChecked(False)
-            dialog.graph_theme_combo.setCurrentIndex(dialog.graph_theme_combo.findData("graph_stitch_light"))
 
             expected = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
             expected["canvas"]["show_grid"] = False
@@ -322,40 +314,10 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             expected["shell"]["passive_node_library_display_mode"] = "icon"
             expected["shell"]["property_pane_variant"] = "accordion_cards"
             expected["theme"]["theme_id"] = "stitch_light"
-            expected["graph_theme"]["follow_shell_theme"] = False
-            expected["graph_theme"]["selected_theme_id"] = "graph_stitch_light"
             self.assertEqual(
                 dialog.values(),
                 expected,
             )
-        finally:
-            dialog.close()
-
-    def test_dialog_roundtrips_custom_graph_theme_library_without_manager_ui(self) -> None:
-        custom_theme = copy.deepcopy(resolve_graph_theme("graph_stitch_light").as_dict())
-        custom_theme["theme_id"] = "custom_graph_theme_deadbeef"
-        custom_theme["label"] = "Ocean Wire"
-        available_graph_themes = graph_theme_choices([custom_theme])
-        initial_settings = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
-        initial_settings["graph_theme"] = {
-            "follow_shell_theme": False,
-            "selected_theme_id": custom_theme["theme_id"],
-            "custom_themes": [custom_theme],
-        }
-
-        dialog = GraphicsSettingsDialog(
-            initial_settings=initial_settings,
-            available_graph_themes=available_graph_themes,
-        )
-        try:
-            self.assertEqual(dialog.graph_theme_combo.count(), len(available_graph_themes))
-            self.assertEqual(dialog.graph_theme_combo.currentData(), custom_theme["theme_id"])
-            self.assertTrue(dialog.graph_theme_combo.isEnabled())
-
-            values = dialog.values()
-            self.assertEqual(values["graph_theme"]["selected_theme_id"], custom_theme["theme_id"])
-            self.assertEqual(values["graph_theme"]["custom_themes"][0]["theme_id"], custom_theme["theme_id"])
-            self.assertEqual(values["graph_theme"]["custom_themes"][0]["label"], "Ocean Wire")
         finally:
             dialog.close()
 
@@ -422,11 +384,9 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         try:
             self.assertEqual(dialog.section_list.count(), 5)
             self.assertEqual(dialog.theme_combo.count(), 2)
-            self.assertEqual(dialog.graph_theme_combo.count(), len(graph_theme_choices()))
             self.assertNotIn("performance", dialog.values())
+            self.assertNotIn("graph_theme", dialog.values())
             self.assertFalse(dialog.values()["canvas"]["keep_expanded_node_width"])
-            self.assertTrue(dialog.follow_shell_theme_check.isChecked())
-            self.assertFalse(dialog.graph_theme_combo.isEnabled())
             self.assertTrue(dialog.expand_collision_enabled_check.isChecked())
             self.assertEqual(dialog.expand_collision_strategy_combo.currentData(), "nearest")
             self.assertEqual(dialog.expand_collision_scope_combo.currentData(), "all_movable")
@@ -458,116 +418,25 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         finally:
             dialog.close()
 
-    def test_follow_shell_toggle_enables_explicit_graph_theme_selection(self) -> None:
-        dialog = GraphicsSettingsDialog()
+    def test_theme_page_has_no_graph_theme_controls_and_shadow_preview_follows_shell_theme(self) -> None:
+        dialog = GraphicsSettingsDialog(initial_settings={"theme": {"theme_id": "stitch_light"}})
         try:
-            self.assertFalse(dialog.graph_theme_combo.isEnabled())
-            self.assertEqual(dialog.graph_theme_combo.currentData(), "graph_stitch_dark")
+            for removed_attr in (
+                "follow_shell_theme_check",
+                "graph_theme_combo",
+                "manage_graph_themes_button",
+                "_graph_theme_preview",
+            ):
+                self.assertFalse(hasattr(dialog, removed_attr), removed_attr)
+            label_texts = {label.text() for label in dialog.findChildren(QLabel)}
+            self.assertNotIn("Graph Theme", label_texts)
+            self.assertNotIn("Passive node defaults", label_texts)
+            self.assertNotIn("graph_theme", dialog.values())
 
-            dialog.follow_shell_theme_check.setChecked(False)
-            self.assertTrue(dialog.graph_theme_combo.isEnabled())
-            dialog.graph_theme_combo.setCurrentIndex(dialog.graph_theme_combo.findData("graph_stitch_light"))
-            self.assertEqual(dialog.graph_theme_combo.currentData(), "graph_stitch_light")
-
-            dialog.follow_shell_theme_check.setChecked(True)
-            self.assertFalse(dialog.graph_theme_combo.isEnabled())
-            self.assertEqual(dialog.graph_theme_combo.currentData(), "graph_stitch_dark")
-
-            dialog.theme_combo.setCurrentIndex(dialog.theme_combo.findData("stitch_light"))
-            self.assertEqual(dialog.graph_theme_combo.currentData(), "graph_stitch_light")
-
-            dialog.follow_shell_theme_check.setChecked(False)
-            self.assertTrue(dialog.graph_theme_combo.isEnabled())
-            self.assertEqual(dialog.graph_theme_combo.currentData(), "graph_stitch_light")
-        finally:
-            dialog.close()
-
-    def test_follow_shell_preserves_previous_explicit_graph_theme_in_values(self) -> None:
-        custom_theme = copy.deepcopy(resolve_graph_theme("graph_stitch_light").as_dict())
-        custom_theme["theme_id"] = "custom_graph_theme_deadbeef"
-        custom_theme["label"] = "Ocean Wire"
-        dialog = GraphicsSettingsDialog(
-            initial_settings={
-                "theme": {"theme_id": "stitch_dark"},
-                "graph_theme": {
-                    "follow_shell_theme": False,
-                    "selected_theme_id": custom_theme["theme_id"],
-                    "custom_themes": [custom_theme],
-                },
-            },
-            available_graph_themes=graph_theme_choices([custom_theme]),
-        )
-        try:
-            self.assertEqual(dialog.graph_theme_combo.currentData(), custom_theme["theme_id"])
-
-            dialog.follow_shell_theme_check.setChecked(True)
-            self.assertEqual(dialog.graph_theme_combo.currentData(), "graph_stitch_dark")
-
-            values = dialog.values()
-            self.assertTrue(values["graph_theme"]["follow_shell_theme"])
-            self.assertEqual(values["graph_theme"]["selected_theme_id"], custom_theme["theme_id"])
-
-            dialog.follow_shell_theme_check.setChecked(False)
-            self.assertEqual(dialog.graph_theme_combo.currentData(), custom_theme["theme_id"])
-        finally:
-            dialog.close()
-
-    def test_graph_theme_preview_identifies_passive_node_defaults(self) -> None:
-        dialog = GraphicsSettingsDialog()
-        try:
-            preview_label = dialog._graph_theme_preview.findChild(
-                QLabel,
-                "graphThemePassiveDefaultsPreviewLabel",
-            )
-            self.assertIsNotNone(preview_label)
-            assert preview_label is not None
-            self.assertEqual(preview_label.text(), "Passive node defaults")
-        finally:
-            dialog.close()
-
-    def test_manage_graph_themes_callback_updates_theme_library_and_selection(self) -> None:
-        custom_theme = copy.deepcopy(resolve_graph_theme("graph_stitch_light").as_dict())
-        custom_theme["theme_id"] = "custom_graph_theme_deadbeef"
-        custom_theme["label"] = "Ocean Wire"
-        received_settings: list[dict[str, object]] = []
-
-        def manage_graph_themes(graph_theme_settings: dict[str, object]) -> dict[str, object]:
-            received_settings.append(copy.deepcopy(graph_theme_settings))
-            return {
-                "follow_shell_theme": False,
-                "selected_theme_id": custom_theme["theme_id"],
-                "custom_themes": [custom_theme],
-            }
-
-        dialog = GraphicsSettingsDialog(manage_graph_themes_callback=manage_graph_themes)
-        try:
-            self.assertTrue(dialog.manage_graph_themes_button.isEnabled())
-
-            dialog.manage_graph_themes_button.click()
-
-            self.assertEqual(len(received_settings), 1)
-            self.assertTrue(received_settings[0]["follow_shell_theme"])
-            self.assertEqual(received_settings[0]["selected_theme_id"], "graph_stitch_dark")
-            self.assertEqual(received_settings[0]["custom_themes"], [])
-            self.assertEqual(dialog.graph_theme_combo.count(), len(graph_theme_choices([custom_theme])))
-            self.assertEqual(dialog.graph_theme_combo.currentData(), custom_theme["theme_id"])
-            self.assertTrue(dialog.graph_theme_combo.isEnabled())
-            self.assertFalse(dialog.follow_shell_theme_check.isChecked())
-
-            values = dialog.values()
-            self.assertFalse(values["graph_theme"]["follow_shell_theme"])
-            self.assertEqual(values["graph_theme"]["selected_theme_id"], custom_theme["theme_id"])
-            self.assertEqual(values["graph_theme"]["custom_themes"][0]["label"], "Ocean Wire")
-        finally:
-            dialog.close()
-
-    def test_manage_graph_themes_button_is_disabled_without_callback(self) -> None:
-        dialog = GraphicsSettingsDialog()
-        try:
-            self.assertFalse(dialog.manage_graph_themes_button.isEnabled())
-            with patch.object(dialog, "_open_graph_theme_manager") as open_manager:
-                dialog.manage_graph_themes_button.click()
-            open_manager.assert_not_called()
+            shadow_node = dialog._shadow_preview._node
+            self.assertEqual(shadow_node._theme.theme_id, "graph_stitch_light")
+            dialog.theme_combo.setCurrentIndex(dialog.theme_combo.findData("stitch_dark"))
+            self.assertEqual(shadow_node._theme.theme_id, "graph_stitch_dark")
         finally:
             dialog.close()
 
@@ -845,7 +714,6 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             values = dialog.values()
             self.assertEqual(values["typography"]["graph_label_pixel_size"], 16)
             self.assertEqual(values["theme"], DEFAULT_GRAPHICS_SETTINGS["theme"])
-            self.assertEqual(values["graph_theme"], DEFAULT_GRAPHICS_SETTINGS["graph_theme"])
         finally:
             dialog.close()
 

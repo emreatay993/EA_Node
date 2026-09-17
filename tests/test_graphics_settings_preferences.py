@@ -118,20 +118,11 @@ class _ShellHostPresenter:
 
 class _GraphThemeBridge:
     def __init__(self) -> None:
-        self.theme_id = str(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"])
-        self.last_settings: dict[str, object] | None = None
+        self.theme_id = "graph_stitch_dark"
 
-    def apply_settings(self, *, shell_theme_id: str, graph_theme_settings: dict[str, object]) -> None:
-        self.last_settings = {
-            "shell_theme_id": str(shell_theme_id),
-            "graph_theme_settings": copy.deepcopy(graph_theme_settings),
-        }
-        self.theme_id = str(
-            graph_theme_settings.get(
-                "selected_theme_id",
-                DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"],
-            )
-        )
+    def apply_theme(self, theme_id: str) -> str:
+        self.theme_id = str(theme_id)
+        return self.theme_id
 
 
 class _RuntimeTooltipHost:
@@ -352,11 +343,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         graphics["typography"]["graph_label_pixel_size"] = 16
         graphics["typography"]["graph_node_icon_pixel_size_override"] = 12
         graphics["plot"]["lightweight_canvas"] = True
-        graphics["graph_theme"] = {
-            "follow_shell_theme": False,
-            "selected_theme_id": "graph_stitch_light",
-            "custom_themes": [],
-        }
+        graphics["theme"]["theme_id"] = "stitch_light"
 
         host.shell_workspace_presenter.apply_graphics_preferences(graphics)
 
@@ -564,7 +551,6 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         shell_presenter = SimpleNamespace(
             _host=harness.host,
             active_renderer_label=lambda: "Unavailable",
-            edit_graph_theme_settings=lambda _settings: None,
         )
         with (
             mock.patch(
@@ -802,12 +788,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(graphics["media_panel"], DEFAULT_GRAPHICS_SETTINGS["media_panel"])
         self.assertEqual(graphics["plot"], DEFAULT_GRAPHICS_SETTINGS["plot"])
         self.assertEqual(graphics["folder_explorer"]["column_widths"], {})
-        self.assertFalse(graphics["graph_theme"]["follow_shell_theme"])
-        self.assertEqual(
-            graphics["graph_theme"]["selected_theme_id"],
-            DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"],
-        )
-        self.assertEqual(graphics["graph_theme"]["custom_themes"], [])
+        self.assertNotIn("graph_theme", graphics)
 
     def test_set_graphics_settings_persists_and_applies_values_to_host(self) -> None:
         host = _RecordingHost()
@@ -872,6 +853,10 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
             },
             host=host,
         )
+
+        self.assertNotIn("graph_theme", graphics)
+        persisted_graphics = json.loads(self._preferences_path.read_text(encoding="utf-8"))["graphics"]
+        self.assertNotIn("graph_theme", persisted_graphics)
 
         self.assertEqual(host.applied_graphics, [graphics])
         self.assertEqual(graphics["canvas"]["background_variant"], "white")

@@ -58,7 +58,6 @@ Item {
     readonly property bool selectedRunPreviewBeforeRun: root.canvasExecutionFacts
         ? Boolean(root.canvasExecutionFacts.selectedRunPreviewBeforeRun)
         : true
-    readonly property bool graphsFollowShell: root.canvasPrefs ? Boolean(root.canvasPrefs.graphsFollowShellTheme) : true
     readonly property string gridStyleValue: root.canvasPrefs ? String(root.canvasPrefs.gridStyle || "lines") : "lines"
     readonly property string activeShellThemeId: root.themeBridgeRef
         ? String(root.themeBridgeRef.theme_id || "stitch_dark")
@@ -240,11 +239,6 @@ Item {
             root.commandBridge.set_graphics_shell_theme(String(value || "stitch_dark"));
     }
 
-    function setGraphsFollowShell(value) {
-        if (root.commandBridge && root.commandBridge.set_graphics_graph_follow_shell_theme)
-            root.commandBridge.set_graphics_graph_follow_shell_theme(Boolean(value));
-    }
-
     function setCanvasBackgroundVariant(value) {
         if (root.commandBridge && root.commandBridge.set_graphics_canvas_background_variant)
             root.commandBridge.set_graphics_canvas_background_variant(String(value || "theme"));
@@ -398,11 +392,6 @@ Item {
                     value: root.shellThemeLabel
                     isOpen: root.activeSubmenu === "shell"
                     onClicked: root.activeSubmenu = root.activeSubmenu === "shell" ? "" : "shell"
-                }
-                ToggleRow {
-                    label: "Graphs follow shell"
-                    checked: root.graphsFollowShell
-                    onToggled: root.setGraphsFollowShell(!root.graphsFollowShell)
                 }
 
                 Divider {}

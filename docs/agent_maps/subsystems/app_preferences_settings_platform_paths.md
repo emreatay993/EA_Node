@@ -8,7 +8,6 @@ Use this for app-wide settings, graphics preferences, solution-mode defaults, se
 - `ea_node_editor/settings.py`
 - `ea_node_editor/platform_paths.py`
 - `ea_node_editor/platform_open.py`
-- `ea_node_editor/graph_theme_defaults.py`
 - `ea_node_editor/ui/shell/controllers/app_preferences_controller.py`
 - `ea_node_editor/ui/dialogs/workflow_settings_dialog.py`
 - `ea_node_editor/ui/dialogs/selected_run_settings_dialog.py`
@@ -41,7 +40,7 @@ Use this for app-wide settings, graphics preferences, solution-mode defaults, se
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_graphics_settings_dialog.py tests/test_graph_theme_editor_dialog.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_graphics_settings_dialog.py tests/test_graph_theme_shell.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py tests/test_graphics_settings_preferences.py tests/test_media_panel_creation_preferences.py tests/test_selected_run_settings_dialog.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_app_preferences_import_defaults.py tests/test_workspace_navigation_controller.py tests/test_workspace_drop_connect_controller.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_app_preferences.py tests/test_app_preferences_import_defaults.py tests/test_workflow_settings_dialog.py tests/test_project_session_controller_unit.py -k "python_runtime or python_executable or workflow_settings" --ignore=venv -q
