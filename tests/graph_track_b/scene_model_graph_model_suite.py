@@ -502,12 +502,14 @@ class GraphModelTrackBTests(unittest.TestCase):
         registry = build_default_registry()
         model = GraphModel()
         workspace = model.active_workspace
-        node = model.add_node(workspace.workspace_id, "core.constant", "Constant", 40.0, 60.0)
+        # Ordinary active cards fit their content and ignore saved dimensions, so use
+        # a passive node with two optional outputs that keeps manual sizing.
+        node = model.add_node(workspace.workspace_id, "io.path_pointer", "Path Pointer", 40.0, 60.0)
         node.custom_height = 260.0
 
-        visible_payload = self._node_payloads_by_title(model, registry)["Constant"]
+        visible_payload = self._node_payloads_by_title(model, registry)["Path Pointer"]
         workspace.views[workspace.active_view_id].hide_optional_ports = True
-        hidden_payload = self._node_payloads_by_title(model, registry)["Constant"]
+        hidden_payload = self._node_payloads_by_title(model, registry)["Path Pointer"]
 
         expected_delta = float(visible_payload["surface_metrics"]["port_height"]) * 2.0
         self.assertAlmostEqual(float(visible_payload["height"]), 260.0)

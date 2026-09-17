@@ -1403,8 +1403,9 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
                 "height": 900.0,
             }
         )
+        expected_header_count = len(registry.get_spec("plot.signal").settings_groups)
         wait_for_condition_or_raise(
-            lambda: len(_named_child_items(self.canvas, "graphNodeSettingsGroupHeader")) == 2,
+            lambda: len(_named_child_items(self.canvas, "graphNodeSettingsGroupHeader")) == expected_header_count,
             timeout_ms=500,
             app=self.app,
             timeout_message="Timed out waiting for production Signal Plot settings headers.",

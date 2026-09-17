@@ -340,11 +340,12 @@ class GraphCanvasQmlPreferenceBindingTests(
 
     def test_notched_ports_fact_defaults_on_and_follows_preference_source(self) -> None:
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        session_bridge = _rendering_suite._GraphCanvasSessionBridge(preference_bridge)
         state_bridge = GraphCanvasStateBridge(
-            session_state=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
-            snap_to_grid_changed_signal=getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_to_grid_changed", None),  # type: ignore[arg-type]
-            snap_grid_size=float(getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_grid_size", 20.0)),  # type: ignore[arg-type]
-            app_preferences_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
+            session_state=session_bridge,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=session_bridge.snap_to_grid_changed,
+            snap_grid_size=float(session_bridge.snap_grid_size),
+            app_preferences_source=session_bridge,  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -370,11 +371,12 @@ class GraphCanvasQmlPreferenceBindingTests(
 
     def test_expand_collision_avoidance_bridge_projection_follows_preference_source(self) -> None:
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        session_bridge = _rendering_suite._GraphCanvasSessionBridge(preference_bridge)
         state_bridge = GraphCanvasStateBridge(
-            session_state=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
-            snap_to_grid_changed_signal=getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_to_grid_changed", None),  # type: ignore[arg-type]
-            snap_grid_size=float(getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_grid_size", 20.0)),  # type: ignore[arg-type]
-            app_preferences_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
+            session_state=session_bridge,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=session_bridge.snap_to_grid_changed,
+            snap_grid_size=float(session_bridge.snap_grid_size),
+            app_preferences_source=session_bridge,  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -408,11 +410,12 @@ class GraphCanvasQmlPreferenceBindingTests(
 
     def test_plot_preference_bridge_projection_follows_preference_source(self) -> None:
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        session_bridge = _rendering_suite._GraphCanvasSessionBridge(preference_bridge)
         state_bridge = GraphCanvasStateBridge(
-            session_state=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
-            snap_to_grid_changed_signal=getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_to_grid_changed", None),  # type: ignore[arg-type]
-            snap_grid_size=float(getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_grid_size", 20.0)),  # type: ignore[arg-type]
-            app_preferences_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
+            session_state=session_bridge,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=session_bridge.snap_to_grid_changed,
+            snap_grid_size=float(session_bridge.snap_grid_size),
+            app_preferences_source=session_bridge,  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -871,11 +874,12 @@ class GraphCanvasQmlPreferenceBindingTests(
         self,
     ) -> None:
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        session_bridge = _rendering_suite._GraphCanvasSessionBridge(preference_bridge)
         state_bridge = GraphCanvasStateBridge(
-            session_state=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
-            snap_to_grid_changed_signal=getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_to_grid_changed", None),  # type: ignore[arg-type]
-            snap_grid_size=float(getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_grid_size", 20.0)),  # type: ignore[arg-type]
-            app_preferences_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
+            session_state=session_bridge,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=session_bridge.snap_to_grid_changed,
+            snap_grid_size=float(session_bridge.snap_grid_size),
+            app_preferences_source=session_bridge,  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -952,11 +956,12 @@ class GraphCanvasQmlPreferenceBindingTests(
 
     def test_graph_typography_dialog_qml_bindings_follow_bridge_projection(self) -> None:
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        session_bridge = _rendering_suite._GraphCanvasSessionBridge(preference_bridge)
         state_bridge = GraphCanvasStateBridge(
-            session_state=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
-            snap_to_grid_changed_signal=getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_to_grid_changed", None),  # type: ignore[arg-type]
-            snap_grid_size=float(getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_grid_size", 20.0)),  # type: ignore[arg-type]
-            app_preferences_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
+            session_state=session_bridge,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=session_bridge.snap_to_grid_changed,
+            snap_grid_size=float(session_bridge.snap_grid_size),
+            app_preferences_source=session_bridge,  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -994,11 +999,12 @@ class GraphCanvasQmlPreferenceBindingTests(
 
     def test_graph_tooltip_qml_bindings_follow_bridge_projection(self) -> None:
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        session_bridge = _rendering_suite._GraphCanvasSessionBridge(preference_bridge)
         state_bridge = GraphCanvasStateBridge(
-            session_state=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
-            snap_to_grid_changed_signal=getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_to_grid_changed", None),  # type: ignore[arg-type]
-            snap_grid_size=float(getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_grid_size", 20.0)),  # type: ignore[arg-type]
-            app_preferences_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
+            session_state=session_bridge,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=session_bridge.snap_to_grid_changed,
+            snap_grid_size=float(session_bridge.snap_grid_size),
+            app_preferences_source=session_bridge,  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
@@ -1080,11 +1086,12 @@ class GraphCanvasQmlPreferenceBindingTests(
 
     def test_graph_node_icon_size_qml_bindings_project_effective_size_without_text_role_drift(self) -> None:
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        session_bridge = _rendering_suite._GraphCanvasSessionBridge(preference_bridge)
         state_bridge = GraphCanvasStateBridge(
-            session_state=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
-            snap_to_grid_changed_signal=getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_to_grid_changed", None),  # type: ignore[arg-type]
-            snap_grid_size=float(getattr(_rendering_suite._GraphCanvasSessionBridge(preference_bridge), "snap_grid_size", 20.0)),  # type: ignore[arg-type]
-            app_preferences_source=_rendering_suite._GraphCanvasSessionBridge(preference_bridge),  # type: ignore[arg-type]
+            session_state=session_bridge,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=session_bridge.snap_to_grid_changed,
+            snap_grid_size=float(session_bridge.snap_grid_size),
+            app_preferences_source=session_bridge,  # type: ignore[arg-type]
             graphics_source=preference_bridge,  # type: ignore[arg-type]
             view_bridge=self.view,
         )
