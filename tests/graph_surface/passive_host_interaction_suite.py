@@ -1431,7 +1431,8 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 for key in ("show_legend", "labels"):
                     port = named_item(card, "graphNodeInputPortDot", key)
                     center = port.mapToItem(card, QPointF(port.width()/2, port.height()/2)).y()
-                    assert center >= captured_centers[key], (
+                    # Mapped centres carry float rounding (~1e-13), so compare with a tolerance.
+                    assert center >= captured_centers[key] - 0.01, (
                         "reversed-expansion-port-center", key, center, captured_centers[key]
                     )
                 assert_live_geometry(check_pixels=False)
