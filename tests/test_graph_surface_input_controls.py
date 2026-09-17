@@ -35,6 +35,8 @@ from ea_node_editor.ui_qml.graph_geometry.surface_contract import (
     STANDARD_BOTTOM_PADDING,
     STANDARD_COLLAPSED_WIDTH,
     STANDARD_DEFAULT_WIDTH,
+    VIEWER_BODY_BOTTOM_PADDING,
+    VIEWER_DEFAULT_BODY_HEIGHT,
     VIEWER_LEGACY_DEFAULT_BODY_HEIGHTS,
 )
 from ea_node_editor.ui_qml.graph_surface_metrics import surface_port_local_point
@@ -769,9 +771,13 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(payload["surface_metrics"]["title_height"], 50.0)
         self.assertEqual(payload["surface_metrics"]["body_top"], 56.0)
         self.assertEqual(payload["viewer_surface"]["live_rect"]["y"], 56.0)
-        self.assertEqual(payload["viewer_surface"]["live_rect"]["height"], 176.0)
+        self.assertEqual(payload["viewer_surface"]["live_rect"]["height"], VIEWER_DEFAULT_BODY_HEIGHT)
         self.assertEqual(payload["surface_metrics"]["port_height"], 24.0)
-        self.assertEqual(payload["height"], 268.0)
+        # Enlarged header body top + default viewer body + one 24px port row + bottom padding.
+        self.assertEqual(
+            payload["height"],
+            56.0 + VIEWER_DEFAULT_BODY_HEIGHT + 24.0 + VIEWER_BODY_BOTTOM_PADDING,
+        )
 
     def test_scene_payload_builder_reads_title_icon_size_from_workspace_presenter(self) -> None:
         class _Host(QObject):
@@ -922,22 +928,28 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         )
 
         current_metrics = node_surface_metrics(node, spec, {node.node_id: node})
-        legacy_body_height = float(VIEWER_LEGACY_DEFAULT_BODY_HEIGHTS[-1])
-        legacy_height = (
-            float(current_metrics.default_height)
-            - (float(current_metrics.body_height) - legacy_body_height)
-            + 0.5
-        )
-        node.custom_height = legacy_height
+        # Every retired default body height heals to the current default, whether
+        # the authored default grew past it or shrank below it.
+        for legacy_body_height in VIEWER_LEGACY_DEFAULT_BODY_HEIGHTS:
+            with self.subTest(legacy_body_height=legacy_body_height):
+                legacy_height = (
+                    float(current_metrics.default_height)
+                    - (float(current_metrics.body_height) - float(legacy_body_height))
+                    + 0.5
+                )
+                node.custom_height = legacy_height
 
-        resolved_size = resolved_node_surface_size(
-            node,
-            spec,
-            {node.node_id: node},
-        )
+                resolved_size = resolved_node_surface_size(
+                    node,
+                    spec,
+                    {node.node_id: node},
+                )
 
-        self.assertGreater(legacy_height, current_metrics.default_height)
-        self.assertEqual(resolved_size[1], current_metrics.default_height)
+                self.assertGreater(
+                    abs(legacy_height - float(current_metrics.default_height)),
+                    1.0,
+                )
+                self.assertEqual(resolved_size[1], current_metrics.default_height)
 
     def test_viewer_surface_metrics_shrink_body_to_fit_custom_height_between_minimum_and_default(self) -> None:
         spec = NodeTypeSpec(
@@ -1096,7 +1108,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                     assert [port["layout_row"] for port in side_ports] == list(range(len(side_ports))), type_id
                     counts.append(len(side_ports))
                     rows = named_child_items(host, "graphNode" + name + "PortRow")
-                    points = sorted(float(variant_value(row.property("portPoint"))["y"]) for row in rows)
+                    points = sorted(float(row.property("portPoint").y()) for row in rows)
                     row_height = payload["surface_metrics"]["port_height"]
                     assert all(abs(b - a - row_height) < 0.1 for a, b in zip(points, points[1:])), (type_id, points)
                     assert all(not row.property("defaultEditorVisible") for row in rows)
@@ -1173,8 +1185,8 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                     for row in named_child_items(current, "graphNode" + direction + "PortRow"):
                         remove = row.property("removeButtonItem")
                         if remove is not None and remove.property("visible"):
-                            point = variant_value(row.property("portPoint"))
-                            assert abs(abs(remove.x() + remove.width() / 2 - point["x"]) - 9) < 0.1
+                            point = row.property("portPoint")
+                            assert abs(abs(remove.x() + remove.width() / 2 - point.x()) - 9) < 0.1
                             label = row.property("labelContainerItem")
                             label_gap = (
                                 label.x() - (remove.x() + remove.width())

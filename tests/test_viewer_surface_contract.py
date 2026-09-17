@@ -849,12 +849,19 @@ class ViewerSurfaceContractTests(unittest.TestCase):
         self._run_qml_probe(
             "viewer-stale-default-height-heal",
             """
+            from ea_node_editor.ui_qml.graph_geometry.surface_contract import (
+                VIEWER_BODY_BOTTOM_PADDING,
+                VIEWER_DEFAULT_BODY_HEIGHT,
+            )
+
             payload = viewer_payload()
             del payload["height"]
             payload["surface_metrics"]["default_height"] = 290.0
             payload["surface_metrics"]["min_height"] = 262.0
             payload["surface_metrics"]["body_height"] = 176.0
             payload["surface_metrics"]["port_top"] = 206.0
+            # Projected port rows are authoritative; Python projects 24px rows at graph label size 16.
+            payload["surface_metrics"]["port_height"] = 24.0
             payload["ports"] = [
                 {"key": "metadata", "label": "metadata", "direction": "in", "kind": "data", "data_type": "dict", "exposed": True},
                 {"key": "preview", "label": "preview", "direction": "out", "kind": "data", "data_type": "viewer_preview", "exposed": True},
@@ -878,8 +885,10 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             mesh_row = named_item(host, "graphNodeInputPortRow", "mesh")
             mesh_row_bottom = float(mesh_row.y()) + float(mesh_row.height())
 
-            assert abs(host_height - 314.0) < 0.1
-            assert abs(float(metrics["default_height"]) - 314.0) < 0.1
+            # Body top + current default body + four 24px input rows + bottom padding.
+            healed_height = 30.0 + VIEWER_DEFAULT_BODY_HEIGHT + 4 * 24.0 + VIEWER_BODY_BOTTOM_PADDING
+            assert abs(host_height - healed_height) < 0.1, (host_height, healed_height)
+            assert abs(float(metrics["default_height"]) - healed_height) < 0.1, metrics["default_height"]
             assert abs(float(metrics["port_height"]) - 24.0) < 0.1
             assert mesh_row_bottom <= host_height - 0.1
             """,
@@ -938,6 +947,8 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             payload["surface_metrics"]["min_height"] = 262.0
             payload["surface_metrics"]["body_height"] = 176.0
             payload["surface_metrics"]["port_top"] = 206.0
+            # Projected port rows are authoritative; Python projects 24px rows at graph label size 16.
+            payload["surface_metrics"]["port_height"] = 24.0
             payload["ports"] = [
                 {"key": "metadata", "label": "metadata", "direction": "in", "kind": "data", "data_type": "dict", "exposed": True},
                 {"key": "preview", "label": "preview", "direction": "out", "kind": "data", "data_type": "viewer_preview", "exposed": True},
@@ -961,8 +972,8 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             mesh_row = named_item(host, "graphNodeInputPortRow", "mesh")
             mesh_row_bottom = float(mesh_row.y()) + float(mesh_row.height())
 
-            assert abs(host_height - 286.0) < 0.1
-            assert abs(float(metrics["min_height"]) - 286.0) < 0.1
+            assert abs(host_height - 286.0) < 0.1, host_height
+            assert abs(float(metrics["min_height"]) - 286.0) < 0.1, metrics["min_height"]
             assert abs(float(metrics["port_height"]) - 24.0) < 0.1
             assert mesh_row_bottom <= host_height - 0.1
             """,
