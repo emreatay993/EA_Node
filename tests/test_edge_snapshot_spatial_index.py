@@ -365,15 +365,18 @@ class EdgeSnapshotSpatialIndexTests(unittest.TestCase):
             draw_snapshots = to_variant(edge_layer.property("_visibleEdgeSnapshots"))
             assert [snapshot["edgeId"] for snapshot in draw_snapshots] == ["stable", "stable_other", "added"], draw_snapshots
             assert to_variant(edge_layer.property("_edgeIds")) == ["stable", "stable_other", "added"], to_variant(edge_layer.property("_edgeIds"))
+            # Retained lookups forget an entry by clearing its value; the key
+            # itself is never deleted and re-added (see _forgetKey in
+            # EdgeSnapshotCache.js).
             edge_by_id = to_variant(edge_layer.property("_edgeById"))
             assert "added" in edge_by_id, edge_by_id
-            assert "removed" not in edge_by_id, edge_by_id
+            assert edge_by_id.get("removed") is None, edge_by_id
             edge_ids_by_node = to_variant(edge_layer.property("_edgeIdsByNodeId"))
             assert "added" in edge_ids_by_node["added_source"], edge_ids_by_node
-            assert "removed" not in edge_ids_by_node.get("removed_source", []), edge_ids_by_node
+            assert not (edge_ids_by_node.get("removed_source") or []), edge_ids_by_node
             dependency_by_id = to_variant(edge_layer.property("_edgeDependencyNodeIdsById"))
             assert dependency_by_id["added"] == ["added_source", "added_target"], dependency_by_id
-            assert "removed" not in dependency_by_id, dependency_by_id
+            assert dependency_by_id.get("removed") is None, dependency_by_id
             assert snapshot(edge_layer, "stable")["revision"] == stable_baseline["revision"], snapshot(edge_layer, "stable")
             assert snapshot(edge_layer, "stable_other")["revision"] == stable_other_baseline["revision"], snapshot(edge_layer, "stable_other")
             assert to_variant(edge_layer._visibleEdgeSnapshot("removed")) is None, to_variant(edge_layer._visibleEdgeSnapshot("removed"))
@@ -396,7 +399,7 @@ class EdgeSnapshotSpatialIndexTests(unittest.TestCase):
             assert int(edge_layer.property("profileSpatialIndexDirtyUpdateCount")) == 1, int(edge_layer.property("profileSpatialIndexDirtyUpdateCount"))
             spatial_index = to_variant(edge_layer.property("_edgeSpatialIndex"))
             assert "added" in spatial_index["entriesById"], spatial_index
-            assert "removed" not in spatial_index["entriesById"], spatial_index
+            assert spatial_index["entriesById"].get("removed") is None, spatial_index
             assert bool(edge_layer.property("_edgeTopologyDirty")) is False, bool(edge_layer.property("_edgeTopologyDirty"))
             assert bool(edge_layer.property("_edgeTopologyDeltaDirty")) is False, bool(edge_layer.property("_edgeTopologyDeltaDirty"))
             assert bool(edge_layer.property("_edgeSpatialIndexDirty")) is False, bool(edge_layer.property("_edgeSpatialIndexDirty"))
@@ -627,6 +630,36 @@ class EdgeSnapshotSpatialIndexTests(unittest.TestCase):
             "edge_renderer_ab",
         ):
             self.assertIn(metric_key, harness_text)
+
+    def test_retained_lookups_clear_entries_instead_of_deleting_keys(self) -> None:
+        """Qt 6.11 corrupts an object whose key is deleted and then added again.
+
+        The re-added member reads back as undefined, later writes to it are
+        dropped, and the insert can write past the member data, which takes the
+        process down with an access violation inside QV4::Object::insertMember.
+        The edge spatial index, geometry and snapshot caches, topology maps, the
+        canvas host map, and the retained web-page store all re-add the same
+        keys, so they must clear entries instead of deleting them.
+        """
+        components = _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components"
+        cache_text = (components / "graph" / "EdgeSnapshotCache.js").read_text(encoding="utf-8")
+        self.assertIn("function _forgetKey(", cache_text)
+        for forbidden in (
+            "delete index.",
+            "delete cells[",
+            "delete edgeLayer.",
+            "delete edgeById[",
+            "delete drawOrderById[",
+            "delete edgeIdsByNodeId[",
+            "delete dependencyNodeIdsById[",
+        ):
+            self.assertNotIn(forbidden, cache_text)
+        for relative_path, forbidden in (
+            (Path("graph_canvas") / "GraphCanvasWorldLayer.qml", "delete root._hostByNodeId["),
+            (Path("web") / "WebPageRetentionStore.qml", "delete root._entries["),
+        ):
+            source = (components / relative_path).read_text(encoding="utf-8")
+            self.assertNotIn(forbidden, source)
 
 
 if __name__ == "__main__":

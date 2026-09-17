@@ -82,7 +82,10 @@ Item {
                 next.push(root._lruKeys[index]);
         }
         root._lruKeys = next;
-        delete root._entries[normalized];
+        // Clear instead of deleting: the same page key is retained again later,
+        // and Qt 6.11 corrupts an object whose key is deleted and added again
+        // (see _forgetKey in graph/EdgeSnapshotCache.js).
+        root._entries[normalized] = undefined;
     }
 
     function _setPagePaused(item, paused) {

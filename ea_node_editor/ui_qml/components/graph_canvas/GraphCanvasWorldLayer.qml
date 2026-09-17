@@ -56,8 +56,12 @@ Item {
         var nodeId = root._nodeIdForHost(item);
         if (!nodeId)
             return;
-        if (root._hostByNodeId[nodeId] === item)
-            delete root._hostByNodeId[nodeId];
+        if (root._hostByNodeId[nodeId] === item) {
+            // Clear instead of deleting: virtualization re-registers the same
+            // node ids, and Qt 6.11 corrupts an object whose key is deleted and
+            // added again (see _forgetKey in graph/EdgeSnapshotCache.js).
+            root._hostByNodeId[nodeId] = undefined;
+        }
     }
 
     function _rebuildHostMap() {

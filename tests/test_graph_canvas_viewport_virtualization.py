@@ -1940,7 +1940,11 @@ class GraphCanvasViewportVirtualizationTests(unittest.TestCase):
             / "GraphCanvasWorldLayer.qml"
         ).read_text(encoding="utf-8")
         self.assertIn("root._hostByNodeId[nodeId] = item", world_layer_source)
-        self.assertIn("delete root._hostByNodeId[nodeId]", world_layer_source)
+        # Unregistering clears the entry; deleting and re-adding the same key
+        # corrupts the object in Qt 6.11 (see _forgetKey in
+        # ea_node_editor/ui_qml/components/graph/EdgeSnapshotCache.js).
+        self.assertIn("root._hostByNodeId[nodeId] = undefined", world_layer_source)
+        self.assertNotIn("delete root._hostByNodeId[nodeId]", world_layer_source)
 
         visible_id = "visible"
         lookahead_id = "lookahead"

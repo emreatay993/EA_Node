@@ -3,6 +3,20 @@
 .import "EdgePaintPolicy.js" as EdgePaintPolicy
 .import "EdgeViewportMath.js" as EdgeViewportMath
 
+// Forget one entry of a retained lookup object without deleting its key.
+//
+// Qt 6.11's QML engine corrupts an object's property storage when a key is
+// deleted and the same key is added again: the re-added member reads back as
+// undefined, later writes to it are dropped, and the insert can write past the
+// member data, which takes the process down with an access violation inside
+// QV4::Object::insertMember. These caches live for the whole edge layer and
+// re-add the same edge, node, and cell keys on every refresh, so entries are
+// cleared instead of deleted. Callers already treat undefined as absent.
+function _forgetKey(dictionary, key) {
+    if (dictionary && Object.prototype.hasOwnProperty.call(dictionary, key))
+        dictionary[key] = undefined;
+}
+
 function invalidateGeometryCache(edgeLayer) {
     edgeLayer._cachedBaseNodeMap = null;
     edgeLayer._cachedNodeMap = null;
@@ -41,8 +55,7 @@ function _removeSpatialIndexEntry(edgeLayer, edgeId, skipGenerationBump) {
     if (!index || !index.valid)
         return;
     var removed = _removeSpatialEntry(index, edgeId);
-    if (index.entriesById)
-        delete index.entriesById[edgeId];
+    _forgetKey(index.entriesById, edgeId);
     if (index.edgeIds)
         _removeValue(index.edgeIds, edgeId);
     if (removed && !skipGenerationBump)
@@ -223,9 +236,9 @@ function _removeEdgeTopologyMembership(edgeIdsByNodeId, dependencyNodeIdsById, e
         var previousNodeId = previousNodeIds[i];
         _removeValue(edgeIdsByNodeId[previousNodeId], edgeId);
         if (edgeIdsByNodeId[previousNodeId] && !edgeIdsByNodeId[previousNodeId].length)
-            delete edgeIdsByNodeId[previousNodeId];
+            _forgetKey(edgeIdsByNodeId, previousNodeId);
     }
-    delete dependencyNodeIdsById[edgeId];
+    _forgetKey(dependencyNodeIdsById, edgeId);
 }
 
 function _addEdgeTopologyMembership(edgeIdsByNodeId, dependencyNodeIdsById, edgeId, edge) {
@@ -310,8 +323,8 @@ function _applyStructuralEdgeTopologyEntries(edgeLayer, deltaPayload, dirtyEdgeI
         if (!_removeExistingValue(nextEdgeIds, removedEdgeId))
             return false;
         _removeEdgeTopologyMembership(edgeIdsByNodeId, dependencyNodeIdsById, removedEdgeId);
-        delete edgeById[removedEdgeId];
-        delete drawOrderById[removedEdgeId];
+        _forgetKey(edgeById, removedEdgeId);
+        _forgetKey(drawOrderById, removedEdgeId);
     }
 
     for (var updateIndex = 0; updateIndex < nonRemovedDirtyEdgeIds.length; updateIndex++) {
@@ -394,8 +407,8 @@ function applyTopologyDeltaCache(edgeLayer, deltaPayload) {
 
     for (var i = 0; i < dirtyEdgeIds.length; i++) {
         var edgeId = dirtyEdgeIds[i];
-        delete edgeLayer._cachedEdgeGeometries[edgeId];
-        delete edgeLayer._visibleEdgeSnapshotById[edgeId];
+        _forgetKey(edgeLayer._cachedEdgeGeometries, edgeId);
+        _forgetKey(edgeLayer._visibleEdgeSnapshotById, edgeId);
         _removeSpatialIndexEntry(edgeLayer, edgeId);
     }
     edgeLayer._visibleEdgeSnapshots = (edgeLayer._visibleEdgeSnapshots || []).filter(function(snapshot) {
@@ -690,15 +703,14 @@ function _removeSpatialEntry(index, edgeId) {
         return false;
     var cells = index.cells || {};
     var cellKeys = existing.cellKeys || [];
+    // Emptied buckets stay in place so the same cell key is never deleted and
+    // added again; queries and inserts already treat an empty bucket as no
+    // edges, and a full index rebuild drops the unused cells.
     for (var i = 0; i < cellKeys.length; i++) {
         var key = cellKeys[i];
-        var bucket = cells[key] || [];
-        _removeValue(bucket, edgeId);
-        if (!bucket.length)
-            delete cells[key];
+        _removeValue(cells[key], edgeId);
     }
-    if (index.unboundedEdgeLookup)
-        delete index.unboundedEdgeLookup[edgeId];
+    _forgetKey(index.unboundedEdgeLookup, edgeId);
     return true;
 }
 
@@ -823,7 +835,8 @@ function _querySpatialIndex(edgeLayer, bounds) {
     }
     var unbounded = index.unboundedEdgeLookup || ({});
     for (var unboundedEdgeId in unbounded) {
-        if (Object.prototype.hasOwnProperty.call(unbounded, unboundedEdgeId))
+        if (Object.prototype.hasOwnProperty.call(unbounded, unboundedEdgeId)
+                && unbounded[unboundedEdgeId])
             candidateLookup[unboundedEdgeId] = true;
     }
 
@@ -884,7 +897,7 @@ function _addLookupValue(lookup, value) {
 
 function _addLookupKeys(target, source) {
     for (var key in source || ({})) {
-        if (Object.prototype.hasOwnProperty.call(source, key))
+        if (Object.prototype.hasOwnProperty.call(source, key) && source[key] !== undefined)
             target[key] = true;
     }
 }
@@ -898,7 +911,7 @@ function _addLookupValues(target, values) {
 function _lookupSize(lookup) {
     var count = 0;
     for (var key in lookup || ({})) {
-        if (Object.prototype.hasOwnProperty.call(lookup, key))
+        if (Object.prototype.hasOwnProperty.call(lookup, key) && lookup[key] !== undefined)
             count += 1;
     }
     return count;
