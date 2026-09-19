@@ -1,0 +1,645 @@
+{
+  "schema_version": 1,
+  "purpose": "Independent held-out qualification cases grounded before model evaluation or tuning.",
+  "counts": {
+    "backend": 6,
+    "ui": 6,
+    "multiple_owners": 4,
+    "exact": 2,
+    "no_match": 2,
+    "total": 20
+  },
+  "cases": [
+    {
+      "id": "Q_B01",
+      "group": "backend",
+      "query": "Running one selected node should schedule its enabled upstream dependencies, excluding unrelated sibling nodes and sources connected only by disabled wires.",
+      "source_groups": [
+        ["ea_node_editor/execution/execution_plan.py"]
+      ],
+      "test_groups": [
+        ["tests/test_execution_plan.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/execution/execution_plan.py",
+          "symbol_or_test": "ExecutionPlan.__init__",
+          "line": 156,
+          "reason": "Only enabled edges populate the incoming and outgoing dependency tables."
+        },
+        {
+          "path": "ea_node_editor/execution/execution_plan.py",
+          "symbol_or_test": "ExecutionPlan.required_node_ids",
+          "line": 291,
+          "reason": "Explicit targets seed dependency traversal instead of scheduling every node."
+        },
+        {
+          "path": "tests/test_execution_plan.py",
+          "symbol_or_test": "test_selected_plan_excludes_sibling_and_disabled_upstream",
+          "line": 93,
+          "reason": "Asserts the enabled producer and sink are scheduled while the disabled producer and sibling are absent."
+        }
+      ]
+    },
+    {
+      "id": "Q_B02",
+      "group": "backend",
+      "query": "Loading old recovery metadata should refuse a document containing unresolved add-ons but quietly discard empty recovery envelopes.",
+      "source_groups": [
+        ["ea_node_editor/persistence/project_codec.py"]
+      ],
+      "test_groups": [
+        ["tests/test_serializer_schema_migration.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/persistence/project_codec.py",
+          "symbol_or_test": "_drop_or_reject_legacy_recovery_metadata",
+          "line": 99,
+          "reason": "Inspects recovery payload content, raises for unresolved content, and removes empty legacy metadata."
+        },
+        {
+          "path": "ea_node_editor/persistence/project_codec.py",
+          "symbol_or_test": "ProjectDocumentCodec.from_document",
+          "line": 713,
+          "reason": "Invokes the recovery-metadata gate during project decoding."
+        },
+        {
+          "path": "tests/test_serializer_schema_migration.py",
+          "symbol_or_test": "test_from_document_rejects_nonempty_legacy_workspace_recovery_metadata",
+          "line": 471,
+          "reason": "A recovery envelope containing a missing plugin node must raise an unresolved-add-ons error."
+        },
+        {
+          "path": "tests/test_serializer_schema_migration.py",
+          "symbol_or_test": "test_from_document_drops_empty_legacy_recovery_metadata",
+          "line": 528,
+          "reason": "Asserts both empty recovery metadata keys disappear from the decoded project."
+        }
+      ]
+    },
+    {
+      "id": "Q_B03",
+      "group": "backend",
+      "query": "Parent assignment must reject self-parenting, a missing parent, and making an ancestor a child of its descendant without changing the existing hierarchy.",
+      "source_groups": [
+        ["ea_node_editor/graph/hierarchy.py"]
+      ],
+      "test_groups": [
+        ["tests/graph_track_b/scene_model_graph_model_suite.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/graph/hierarchy.py",
+          "symbol_or_test": "validate_parent_node_id",
+          "line": 217,
+          "reason": "Rejects unknown nodes, self-parenting, unknown parents, and cyclic parent links."
+        },
+        {
+          "path": "ea_node_editor/graph/hierarchy.py",
+          "symbol_or_test": "parent_link_would_cycle",
+          "line": 192,
+          "reason": "Walks parent ancestry with a visited set to detect cycles."
+        },
+        {
+          "path": "tests/graph_track_b/scene_model_graph_model_suite.py",
+          "symbol_or_test": "test_raw_parent_writer_rejects_self_missing_and_cycle_parent_links",
+          "line": 141,
+          "reason": "Exercises all three rejected assignments and verifies the original root, child, and grandchild relationships remain intact."
+        }
+      ]
+    },
+    {
+      "id": "Q_B04",
+      "group": "backend",
+      "query": "Exporting the same node package with source files listed in different orders must produce identical archive bytes, with sorted members and fixed timestamps.",
+      "source_groups": [
+        ["ea_node_editor/nodes/package_manager.py"]
+      ],
+      "test_groups": [
+        ["tests/test_package_manager.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/nodes/package_manager.py",
+          "symbol_or_test": "_zip_info",
+          "line": 604,
+          "reason": "Creates archive entries with the fixed archive timestamp and stored compression."
+        },
+        {
+          "path": "ea_node_editor/nodes/package_manager.py",
+          "symbol_or_test": "_write_archive",
+          "line": 612,
+          "reason": "Writes canonical manifest bytes and iterates package members in sorted order."
+        },
+        {
+          "path": "tests/test_package_manager.py",
+          "symbol_or_test": "test_export_is_deterministic_exact_and_round_trips_without_execution",
+          "line": 137,
+          "reason": "Reverses input source order, compares the resulting archive bytes, and asserts member order and the fixed 1980 timestamp."
+        }
+      ]
+    },
+    {
+      "id": "Q_B05",
+      "group": "backend",
+      "query": "Nested property defaults must be detached from the caller's mutable data, and each materialized default must receive fresh containers while preserving list and tuple distinctions.",
+      "source_groups": [
+        ["ea_node_editor/nodes/property_defaults.py"]
+      ],
+      "test_groups": [
+        ["tests/test_registry_immutability.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/nodes/property_defaults.py",
+          "symbol_or_test": "_capture",
+          "line": 64,
+          "reason": "Recursively captures supported records and container contents into immutable templates instead of retaining caller aliases."
+        },
+        {
+          "path": "ea_node_editor/nodes/property_defaults.py",
+          "symbol_or_test": "PropertyDefaultTemplate.materialize",
+          "line": 50,
+          "reason": "Reconstructs fresh dictionaries, lists, tuples, sets, and supported records according to the captured kind."
+        },
+        {
+          "path": "tests/test_registry_immutability.py",
+          "symbol_or_test": "test_default_capture_detaches_nested_values_and_preserves_container_kinds",
+          "line": 25,
+          "reason": "Mutates both the original nested default and one materialized value, then asserts later values remain unchanged with their tuple/list structure preserved."
+        }
+      ]
+    },
+    {
+      "id": "Q_B06",
+      "group": "backend",
+      "query": "Releasing a run's handle lease must leave an existing viewer lease usable, and the resource must be disposed only when its final lease is removed.",
+      "source_groups": [
+        ["ea_node_editor/execution/handle_registry.py"]
+      ],
+      "test_groups": [
+        ["tests/test_handle_registry_leases.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/execution/handle_registry.py",
+          "symbol_or_test": "HandleRegistry.release",
+          "line": 302,
+          "reason": "Returns without disposal while leases remain; detaches and disposes the record only after the last lease is removed."
+        },
+        {
+          "path": "ea_node_editor/execution/handle_registry.py",
+          "symbol_or_test": "HandleRegistry.release_owner_scope",
+          "line": 336,
+          "reason": "Removes one owner's leases while retaining records owned by other scopes."
+        },
+        {
+          "path": "tests/test_handle_registry_leases.py",
+          "symbol_or_test": "test_run_and_viewer_leases_share_one_record",
+          "line": 92,
+          "reason": "Releases the run scope, rejects its stale reference, and still resolves the viewer reference to the original object."
+        },
+        {
+          "path": "tests/test_handle_registry_leases.py",
+          "symbol_or_test": "test_concurrent_final_releases_dispose_exactly_once",
+          "line": 281,
+          "reason": "Protects the single-disposal contract when final leases are released concurrently."
+        }
+      ]
+    },
+    {
+      "id": "Q_U01",
+      "group": "ui",
+      "query": "The canvas zoom entry should accept decimal percentages such as 83.5%, clamp out-of-range values, and reject text such as 75junk without changing zoom.",
+      "source_groups": [
+        ["ea_node_editor/ui_qml/components/common/ZoomControl.qml"]
+      ],
+      "test_groups": [
+        ["tests/qml_quick/tst_zoom_control.qml"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/ui_qml/components/common/ZoomControl.qml",
+          "symbol_or_test": "commitEditor",
+          "line": 54,
+          "reason": "Validates the complete entry with an optional percent suffix before emitting a zoom request."
+        },
+        {
+          "path": "ea_node_editor/ui_qml/components/common/ZoomControl.qml",
+          "symbol_or_test": "setZoom",
+          "line": 38,
+          "reason": "Rejects non-finite input and clamps accepted values to the configured zoom range."
+        },
+        {
+          "path": "tests/qml_quick/tst_zoom_control.qml",
+          "symbol_or_test": "test_entry_validation_and_precision",
+          "line": 56,
+          "reason": "Checks clamping, junk rejection, blank input, decimal percentages, and displayed precision."
+        }
+      ]
+    },
+    {
+      "id": "Q_U02",
+      "group": "ui",
+      "query": "Refreshing an inline list must retain controls for existing rows and keep numeric column selectors distinct from identically spelled string selectors.",
+      "source_groups": [
+        ["ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceListEditor.qml"]
+      ],
+      "test_groups": [
+        ["tests/qml_quick/tst_graph_surface_controls.qml"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceListEditor.qml",
+          "symbol_or_test": "syncModel",
+          "line": 23,
+          "reason": "Updates existing model rows in place, appends only new rows, and removes only surplus rows."
+        },
+        {
+          "path": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceListEditor.qml",
+          "symbol_or_test": "snapshot",
+          "line": 46,
+          "reason": "Returns each row's original variant value without converting all selectors to strings."
+        },
+        {
+          "path": "tests/qml_quick/tst_graph_surface_controls.qml",
+          "symbol_or_test": "test_list_value_refresh_retains_existing_controls",
+          "line": 62,
+          "reason": "Compares delegate identity through edits, additions and removals, then distinguishes numeric 1 from string 1."
+        }
+      ]
+    },
+    {
+      "id": "Q_U03",
+      "group": "ui",
+      "query": "Dragging a plot inspection cursor should keep only one query in flight, coalesce rapid movement to the latest position, and never paint an obsolete reply.",
+      "source_groups": [
+        ["ea_node_editor/web_assets/xy_host/probe_scheduler.js"]
+      ],
+      "test_groups": [
+        ["tests/test_xy_probe_scheduler.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/web_assets/xy_host/probe_scheduler.js",
+          "symbol_or_test": "createProbeScheduler",
+          "line": 4,
+          "reason": "Tracks one in-flight revision, retains the latest pending request, and applies a 100 ms movement interval."
+        },
+        {
+          "path": "ea_node_editor/web_assets/xy_host/probe_scheduler.js",
+          "symbol_or_test": "receive",
+          "line": 34,
+          "reason": "Accepts only the current in-flight reply and publishes it only if its revision is still the latest."
+        },
+        {
+          "path": "tests/test_xy_probe_scheduler.py",
+          "symbol_or_test": "test_latest_only_throttle_release_errors_and_disposal",
+          "line": 11,
+          "reason": "Sends 100 rapid positions, asserts only one initial request, rejects the stale result, and sends the latest position after the throttle interval."
+        }
+      ]
+    },
+    {
+      "id": "Q_U04",
+      "group": "ui",
+      "query": "Inline viewer activation changes must defer synchronization with the host when the host immediately emits session changes, avoiding a QML binding loop.",
+      "source_groups": [
+        ["ea_node_editor/ui_qml/components/graph/viewer/GraphViewerSurfaceBody.qml"]
+      ],
+      "test_groups": [
+        ["tests/test_viewer_surface_host.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/ui_qml/components/graph/viewer/GraphViewerSurfaceBody.qml",
+          "symbol_or_test": "_queueEmbeddedInteractionSync",
+          "line": 704,
+          "reason": "Coalesces synchronization with a queued flag and Qt.callLater so it does not re-enter a session-model binding."
+        },
+        {
+          "path": "tests/test_viewer_surface_host.py",
+          "symbol_or_test": "test_session_projection_seed_survives_synchronous_state_flip_without_binding_loop",
+          "line": 1489,
+          "reason": "Mirrors the real synchronous host-to-session signal chain and verifies live activation/deactivation without binding-loop messages."
+        }
+      ]
+    },
+    {
+      "id": "Q_U05",
+      "group": "ui",
+      "query": "Loading graph label font sizes below 8 or above 50 should clamp them, non-integer entries should use the default, and unrelated grid preferences should survive.",
+      "source_groups": [
+        ["ea_node_editor/app_preferences.py"]
+      ],
+      "test_groups": [
+        ["tests/test_graphics_settings_preferences.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/app_preferences.py",
+          "symbol_or_test": "normalize_graph_label_pixel_size",
+          "line": 786,
+          "reason": "Rejects booleans and non-integers to the default and clamps integer values to the supported range."
+        },
+        {
+          "path": "tests/test_graphics_settings_preferences.py",
+          "symbol_or_test": "test_graph_typography_preferences_clamp_invalid_values_without_disturbing_other_graphics",
+          "line": 1524,
+          "reason": "Loads missing, string, too-small and too-large sizes; asserts expected values and preservation of the disabled grid setting."
+        }
+      ]
+    },
+    {
+      "id": "Q_U06",
+      "group": "ui",
+      "query": "A descending interval must stay descending when its slider commits, even though its handles are displayed in ascending left-to-right order.",
+      "source_groups": [
+        ["ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml"]
+      ],
+      "test_groups": [
+        ["tests/qml_quick/tst_graph_surface_controls.qml"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml",
+          "symbol_or_test": "_commitCurrentValues",
+          "line": 106,
+          "reason": "Maps the visually ordered handle values back to semantic start/end according to the declared interval direction."
+        },
+        {
+          "path": "tests/qml_quick/tst_graph_surface_controls.qml",
+          "symbol_or_test": "test_interval_slider_preserves_semantic_direction_and_separates_equal_handles",
+          "line": 997,
+          "reason": "Sets decreasing direction with physical values 3 and 7, commits, and asserts semantic start 7 and end 3."
+        }
+      ]
+    },
+    {
+      "id": "Q_M01",
+      "group": "multiple_owners",
+      "query": "Applying edited Python Script declarations must report syntax locations for bad source and leave the current node unchanged; valid declarations must reconcile properties, ports and connected wires together.",
+      "source_groups": [
+        ["ea_node_editor/nodes/python_script_declaration.py"],
+        ["ea_node_editor/graph/validated_mutation.py"]
+      ],
+      "test_groups": [
+        ["tests/test_python_script_declaration.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/nodes/python_script_declaration.py",
+          "symbol_or_test": "_parse",
+          "line": 67,
+          "reason": "Parses applied source without executing it and converts syntax errors into line-and-column declaration errors."
+        },
+        {
+          "path": "ea_node_editor/graph/validated_mutation.py",
+          "symbol_or_test": "ValidatedGraphMutation.apply_python_script",
+          "line": 637,
+          "reason": "Builds and validates candidate settings and ports before reconciling node state and incident wires."
+        },
+        {
+          "path": "tests/test_python_script_declaration.py",
+          "symbol_or_test": "test_numeric_overflow_is_line_aware_and_apply_is_atomic",
+          "line": 283,
+          "reason": "Covers source-located validation failure without partial Apply mutation."
+        },
+        {
+          "path": "tests/test_python_script_declaration.py",
+          "symbol_or_test": "test_apply_is_atomic_and_reconciles_values_wires_and_structure",
+          "line": 425,
+          "reason": "Checks property reset after narrowing, unchanged node/edges after invalid syntax, and removal of incompatible wire and port state after a structural change."
+        }
+      ]
+    },
+    {
+      "id": "Q_M02",
+      "group": "multiple_owners",
+      "query": "Switching Number Slider settings to integer rounding must disable decimal-place entry and snap the committed minimum, maximum and value to whole numbers.",
+      "source_groups": [
+        ["ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSettingsPopover.qml"],
+        ["ea_node_editor/nodes/builtins/data_control.py"]
+      ],
+      "test_groups": [
+        ["tests/graph_surface/number_slider_suite.py"],
+        ["tests/test_number_slider_node.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/ui_qml/components/graph/passive/GraphNumberSliderSettingsPopover.qml",
+          "symbol_or_test": "decimalsField.enabled",
+          "line": 165,
+          "reason": "Enables decimal-place entry only in decimal rounding mode."
+        },
+        {
+          "path": "ea_node_editor/nodes/builtins/data_control.py",
+          "symbol_or_test": "normalize_number_slider_properties",
+          "line": 233,
+          "reason": "Normalizes rounding and precision, snaps integer-mode bounds, repairs the range if necessary, and normalizes the value."
+        },
+        {
+          "path": "tests/graph_surface/number_slider_suite.py",
+          "symbol_or_test": "test_number_slider_settings_popover_qml_uses_shared_dialog",
+          "line": 85,
+          "reason": "Creates the actual popover, switches to integer mode, and asserts that the decimals field is disabled."
+        },
+        {
+          "path": "tests/test_number_slider_node.py",
+          "symbol_or_test": "TestNumberSliderNormalization.test_integer_mode_snaps_bounds_and_value",
+          "line": 93,
+          "reason": "Asserts fractional bounds and value become the expected integer-valued properties through registry normalization."
+        }
+      ]
+    },
+    {
+      "id": "Q_M03",
+      "group": "multiple_owners",
+      "query": "Trace how an abbreviated millisecond display preference is normalized and how the canvas footer renders the same stored millisecond duration as either seconds or milliseconds.",
+      "source_groups": [
+        ["ea_node_editor/app_preferences.py"],
+        ["ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml"]
+      ],
+      "test_groups": [
+        ["tests/test_graphics_settings_preferences.py"],
+        ["tests/graph_track_b/qml_preference_bindings.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/app_preferences.py",
+          "symbol_or_test": "normalize_node_elapsed_time_unit",
+          "line": 927,
+          "reason": "Normalizes whitespace/case and aliases such as ms to the canonical milliseconds preference."
+        },
+        {
+          "path": "ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml",
+          "symbol_or_test": "formatExecutionElapsed",
+          "line": 1319,
+          "reason": "Formats the same millisecond input with an ms suffix or converts it to seconds and minutes according to the preference."
+        },
+        {
+          "path": "tests/test_graphics_settings_preferences.py",
+          "symbol_or_test": "test_load_normalizes_invalid_graphics_values",
+          "line": 667,
+          "reason": "Loads the spaced uppercase MS alias and asserts the canonical milliseconds result."
+        },
+        {
+          "path": "tests/graph_track_b/qml_preference_bindings.py",
+          "symbol_or_test": "test_persistent_node_elapsed_footer_graph_canvas_host_renders_live_and_cached_timing_states",
+          "line": 1492,
+          "reason": "Invokes the real canvas-host timing scenario that renders 3.5s and then 3487ms after changing the display unit."
+        }
+      ]
+    },
+    {
+      "id": "Q_M04",
+      "group": "multiple_owners",
+      "query": "Trace fullscreen viewer tangent-angle editing from its bounded spin box through the application-wide preference update, including clamping angles above 90 degrees.",
+      "source_groups": [
+        ["ea_node_editor/ui_qml/components/graph/viewer/ViewerSelectionControls.qml"],
+        ["ea_node_editor/ui_qml/viewer_control_bridge.py"],
+        ["ea_node_editor/app_preferences.py"]
+      ],
+      "test_groups": [
+        ["tests/test_viewer_surface_contract.py"],
+        ["tests/test_viewer_control_bridge.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/ui_qml/components/graph/viewer/ViewerSelectionControls.qml",
+          "symbol_or_test": "setTangentAngle",
+          "line": 95,
+          "reason": "Forwards normalized UI values to the tangent-angle bridge setter; the spin box uses limits 0 and 90."
+        },
+        {
+          "path": "ea_node_editor/ui_qml/viewer_control_bridge.py",
+          "symbol_or_test": "ViewerControlBridge.set_viewer_tangent_selection_angle_degrees",
+          "line": 410,
+          "reason": "Normalizes the requested angle, updates engineering-viewer graphics preferences, and emits the normalized value."
+        },
+        {
+          "path": "ea_node_editor/app_preferences.py",
+          "symbol_or_test": "normalize_engineering_viewer_settings",
+          "line": 308,
+          "reason": "Owns finite-value fallback and clamping to the inclusive 0-to-90-degree range."
+        },
+        {
+          "path": "tests/test_viewer_surface_contract.py",
+          "symbol_or_test": "test_shared_viewer_controls_execute_group_overflow_selection_and_fullscreen_shortcuts",
+          "line": 1103,
+          "reason": "Creates the fullscreen controls, asserts tangent spin-box bounds, invokes angle editing, and verifies the bridge callback receives 42 degrees."
+        },
+        {
+          "path": "tests/test_viewer_control_bridge.py",
+          "symbol_or_test": "test_selection_filter_is_runtime_only_and_tangent_angle_is_app_wide",
+          "line": 282,
+          "reason": "Sets 120 degrees and asserts an application preference update and change signal containing 90 degrees."
+        }
+      ]
+    },
+    {
+      "id": "Q_E01",
+      "group": "exact",
+      "query": "decimate_xy",
+      "source_groups": [
+        ["ea_node_editor/execution/plot_series_decimation.py"]
+      ],
+      "test_groups": [
+        ["tests/test_plot_series_decimation.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/execution/plot_series_decimation.py",
+          "symbol_or_test": "decimate_xy",
+          "line": 30,
+          "reason": "The sole Python definition of this symbol in active ea_node_editor and corex source; implements bounded min-max series reduction."
+        },
+        {
+          "path": "tests/test_plot_series_decimation.py",
+          "symbol_or_test": "test_budget_is_respected_and_extremes_preserved",
+          "line": 27,
+          "reason": "Calls the function directly and verifies budget, extrema, row order, and endpoint preservation."
+        }
+      ],
+      "identity_check": {
+        "kind": "python_definition",
+        "roots": ["ea_node_editor", "corex"],
+        "pattern": "^\\s*def decimate_xy\\b",
+        "matching_definitions": 1
+      }
+    },
+    {
+      "id": "Q_E02",
+      "group": "exact",
+      "query": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceColorEditor.qml",
+      "source_groups": [
+        ["ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceColorEditor.qml"]
+      ],
+      "test_groups": [
+        ["tests/test_graph_surface_input_inline.py"]
+      ],
+      "evidence": [
+        {
+          "path": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceColorEditor.qml",
+          "symbol_or_test": "pickColor",
+          "line": 62,
+          "reason": "The exact existing component resolves a chosen color, updates its field, and emits the committed color."
+        },
+        {
+          "path": "tests/test_graph_surface_input_inline.py",
+          "symbol_or_test": "test_inline_color_picker_routes_by_node_id_and_commits_selected_color",
+          "line": 979,
+          "reason": "Clicks the actual inline picker and verifies node identity, property key, current color, selected text, and emitted commit."
+        }
+      ],
+      "identity_check": {
+        "kind": "qml_component_path",
+        "root": "ea_node_editor",
+        "filename": "GraphSurfaceColorEditor.qml",
+        "matching_paths": 1
+      }
+    },
+    {
+      "id": "Q_N01",
+      "group": "no_match",
+      "query": "Find COREX's existing chess move generator that rejects moves leaving the king in check and handles castling.",
+      "source_groups": [],
+      "test_groups": [],
+      "evidence": [],
+      "absence_checks": [
+        {
+          "roots": ["ea_node_editor", "corex", "tests"],
+          "extensions": [".py", ".qml", ".js"],
+          "excluded_generated_or_vendor_paths": ["**/excalidraw_host/**", "**/vendor/**"],
+          "case_insensitive_pattern": "\\b(chess|checkmate|stalemate|castling|en passant)\\b",
+          "matching_files": 0
+        }
+      ]
+    },
+    {
+      "id": "Q_N02",
+      "group": "no_match",
+      "query": "Find COREX's existing MIDI sequencer that schedules Note On and Note Off messages and applies pitch-bend events.",
+      "source_groups": [],
+      "test_groups": [],
+      "evidence": [],
+      "absence_checks": [
+        {
+          "roots": ["ea_node_editor", "corex", "tests"],
+          "extensions": [".py", ".qml", ".js"],
+          "excluded_generated_or_vendor_paths": ["**/excalidraw_host/**", "**/vendor/**"],
+          "case_insensitive_pattern": "\\b(midi|note[_ -]on|note[_ -]off|pitch[_ -]bend)\\b",
+          "matching_files": 0
+        }
+      ]
+    }
+  ],
+  "caveats": [
+    "Read-only grounding only: no files edited, no tests executed, and no model or external API calls made.",
+    "Labels were selected from inspected source and test assertions before seeing pilot output.",
+    "Negative cases have no source-line evidence; their explicit bounded absence checks returned zero matching active source/test files.",
+    "Some test paths contain shared suites or QML tests rather than standalone pytest entry points.",
+    "Expected groups are owner coverage requirements; each inner list currently contains one acceptable exact path."
+  ]
+}

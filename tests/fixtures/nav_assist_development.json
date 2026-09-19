@@ -1,0 +1,249 @@
+{
+  "schema_version": 1,
+  "purpose": "Frozen planning cases for development; never a held-out qualification set.",
+  "source_model": "jev-1.13.0",
+  "cases": [
+    {
+      "id": "S1",
+      "group": "execution",
+      "query": "Stopping a queued run must prevent its later dispatch after background preparation completes.",
+      "source_groups": [
+        [
+          "ea_node_editor/execution/submission_service.py"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_execution_submission.py"
+        ]
+      ]
+    },
+    {
+      "id": "S2",
+      "group": "persistence",
+      "query": "Persist durable result payloads and records as immutable project sidecar files, publishing node manifests in order.",
+      "source_groups": [
+        [
+          "ea_node_editor/persistence/solution_repository.py"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_solution_repository.py"
+        ]
+      ]
+    },
+    {
+      "id": "S3",
+      "group": "graph",
+      "query": "A Panel forwards mixed incoming types; every possible type must be accepted at a proposed downstream input.",
+      "source_groups": [
+        [
+          "ea_node_editor/graph/type_forwarding.py"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_type_forwarding.py"
+        ]
+      ]
+    },
+    {
+      "id": "S4",
+      "group": "plugins",
+      "query": "Reject a plugin that reassigns its decorated function name later in the module, without importing user code.",
+      "source_groups": [
+        [
+          "ea_node_editor/nodes/plugin_declaration.py"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_plugin_declaration.py"
+        ]
+      ]
+    },
+    {
+      "id": "S5",
+      "group": "tabular",
+      "query": "Plain-text delimiter autodetection must inspect no more than the first 4096 characters.",
+      "source_groups": [
+        [
+          "ea_node_editor/addons/tabular_data/source_backends.py"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_tabular_loaders.py"
+        ]
+      ]
+    },
+    {
+      "id": "S6",
+      "group": "clipboard",
+      "query": "A copied browser source URL must remain an alternative when selected HTML text accompanies it.",
+      "source_groups": [
+        [
+          "ea_node_editor/ui/shell/clipboard_paste_nodes.py"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_canvas_import_inputs.py"
+        ]
+      ]
+    },
+    {
+      "id": "U1",
+      "group": "ui",
+      "query": "Clicking the General Options settings-group header should expand that group and consume the click instead of triggering card clicks.",
+      "source_groups": [
+        [
+          "ea_node_editor/ui_qml/components/graph/GraphNodeSettingsGroupsLayer.qml"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/graph_surface/passive_host_interaction_suite.py",
+          "tests/qml_quick/tst_graph_node_host.qml"
+        ]
+      ]
+    },
+    {
+      "id": "U2",
+      "group": "ui",
+      "query": "Tooltip background and text colors must follow the active shell theme, and long help text must wrap within its maximum width.",
+      "source_groups": [
+        [
+          "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_tooltip_copy_registry.py"
+        ]
+      ]
+    },
+    {
+      "id": "U3",
+      "group": "ui",
+      "query": "In the fullscreen XY plot, Fit X must leave Y unchanged and Fit to Limits must restore authored bounds.",
+      "source_groups": [
+        [
+          "ea_node_editor/web_assets/xy_host/host.js"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_xy_plot_qml.py",
+          "tests/test_xy_plot_session.py"
+        ]
+      ]
+    },
+    {
+      "id": "M1",
+      "group": "multiple_owners",
+      "query": "Trace both topology-derived mixed-type compatibility and connection Quick Insert recommendations: every possible forwarded type must be accepted by a suggested input.",
+      "source_groups": [
+        [
+          "ea_node_editor/graph/type_forwarding.py"
+        ],
+        [
+          "ea_node_editor/ui/shell/quick_insert_projection.py"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_type_forwarding.py"
+        ],
+        [
+          "tests/test_type_forwarding_ui.py",
+          "tests/test_quick_insert_projection.py"
+        ]
+      ]
+    },
+    {
+      "id": "M2",
+      "group": "multiple_owners",
+      "query": "Trace both the saved:// and temp:// reference grammar and the resolution of those references to persisted project artifact files. Keep grammar independent of persistence.",
+      "source_groups": [
+        [
+          "ea_node_editor/common/artifact_refs.py"
+        ],
+        [
+          "ea_node_editor/persistence/artifact_resolution.py"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_project_artifact_store.py"
+        ]
+      ]
+    },
+    {
+      "id": "M3",
+      "group": "multiple_owners",
+      "query": "Trace the two owners for interpreting pasted HTML tables and staging their payload into project artifacts before canvas node creation.",
+      "source_groups": [
+        [
+          "ea_node_editor/ui/shell/clipboard_paste_nodes.py"
+        ],
+        [
+          "ea_node_editor/ui/shell/controllers/canvas_import_controller.py"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_canvas_import_inputs.py"
+        ],
+        [
+          "tests/test_canvas_import_controller.py"
+        ]
+      ]
+    },
+    {
+      "id": "E1",
+      "group": "exact",
+      "query": "ea_node_editor/graph/type_forwarding.py",
+      "source_groups": [
+        [
+          "ea_node_editor/graph/type_forwarding.py"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_type_forwarding.py"
+        ]
+      ]
+    },
+    {
+      "id": "E2",
+      "group": "exact",
+      "query": "ea_node_editor/ui/shell/controllers/canvas_import_controller.py",
+      "source_groups": [
+        [
+          "ea_node_editor/ui/shell/controllers/canvas_import_controller.py"
+        ]
+      ],
+      "test_groups": [
+        [
+          "tests/test_canvas_import_controller.py"
+        ]
+      ]
+    },
+    {
+      "id": "N1",
+      "group": "no_match",
+      "query": "Find COREX's existing Stripe payment webhook implementation.",
+      "source_groups": [],
+      "test_groups": []
+    },
+    {
+      "id": "N2",
+      "group": "no_match",
+      "query": "Explain the general mathematical difference between covariance and correlation; do not inspect or change COREX.",
+      "source_groups": [],
+      "test_groups": []
+    }
+  ]
+}

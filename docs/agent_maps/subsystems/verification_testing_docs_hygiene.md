@@ -19,6 +19,15 @@ Use this for verification mode selection, pytest defaults, shell isolation, docs
 - `tests/fixtures/node_catalog/current_repo_owned_catalog.json`
 - `scripts/nav.py`
 - `tests/test_nav_cli.py`
+- `scripts/nav_assist.py`
+- `scripts/nav_assist_client.py`
+- `scripts/nav_assist_selection.py`
+- `scripts/nav_assist_inventory.py`
+- `scripts/evaluate_nav_assist.py`
+- `tests/test_nav_assist.py`
+- `tests/test_nav_assist_inventory.py`
+- `tests/test_nav_assist_evaluation.py`
+- `docs/COREX_TYPESAFE_NAVIGATION.md`
 - `scripts/check_traceability.py`
 - `scripts/check_markdown_links.py`
 - `scripts/generate_agent_route_index.py`
@@ -48,6 +57,8 @@ Use this for verification mode selection, pytest defaults, shell isolation, docs
   and project entry point must stay absent. `test_architecture_boundaries.py`
   separately pins the exact dependency-free 17-name `corex` export surface.
 - Keep `scripts/nav.py find` joined to generated QML component metadata so UI terms and QML symbols resolve to the map-owned source path, focused test, and verification command.
+- The development-only TypeSafe pilot keeps deterministic exact lookups, Git-visible candidate inventory, direct versus shared-route test associations, and content-bound evidence in separate script owners. Its pinned HTTPS transport never imports application source or executes suggested tests. Semantic suggestions are advisory; routine invocation remains gated on the recorded source/test and uncached-latency qualification results in the pilot guide.
+- `scripts/evaluate_nav_assist.py` runs each baseline and pilot case in a fresh process, grades the rendered evidence pack against parent-only frozen labels, and retains failures in the qualification denominators. Corpus and report strings are screened before execution/publication; evaluation never modifies source or the frozen fixtures.
 - Keep task-language aliases neutral and exact. Put each alias on the narrowest owning map, cite the exact live file that should open first, and place its smallest route-owned proving test in `Start Here` and `Focused Verification`.
 - When a QML component has a feature owner, cite its exact repository path on that feature map so the explicit owner beats the inferred subsystem. Omit a focused test when no route-owned test is defensible instead of borrowing an unrelated test from another surface.
 - Public executable plugin examples live under `docs/examples/` and are parsed,
@@ -68,6 +79,8 @@ Use this for verification mode selection, pytest defaults, shell isolation, docs
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_run_verification.py tests/test_traceability_checker.py tests/test_markdown_hygiene.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_agent_route_index.py --ignore=venv -q
+.\venv\Scripts\python.exe -m unittest tests.test_nav_assist tests.test_nav_assist_inventory -v
+.\venv\Scripts\python.exe -m pytest tests/test_nav_assist_evaluation.py -q -n 0
 .\venv\Scripts\python.exe -m pytest tests/test_dead_code_hygiene.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_novice_plugin_sdk_docs.py tests/test_repo_owned_node_documentation.py --ignore=venv -q
 .\venv\Scripts\python.exe .\scripts\generate_agent_route_index.py --check

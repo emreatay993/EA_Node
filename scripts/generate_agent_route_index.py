@@ -25,6 +25,7 @@ TABLE_PATH_RE = re.compile(r"^\|\s*`(?P<path>[^`]+)`\s*\|")
 WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9_./\\:-]*")
 
 SOURCE_PREFIXES = (
+    "corex/",
     "ea_node_editor/",
     "examples/",
     "scripts/",
@@ -80,7 +81,7 @@ def _dedupe(values: Iterable[str]) -> tuple[str, ...]:
     return tuple(result)
 
 
-def _limit(values: Iterable[str], limit: int = MAX_CANDIDATES_PER_ENTRY) -> tuple[str, ...]:
+def _limit(values: Iterable[str], limit: int | None = MAX_CANDIDATES_PER_ENTRY) -> tuple[str, ...]:
     return tuple(sorted(_dedupe(values), key=str.lower)[:limit])
 
 
@@ -120,16 +121,36 @@ def _route_kind(relative_map_path: str) -> str:
     return "map"
 
 
-def _extract_backticks(text: str) -> tuple[str, ...]:
+def _extract_backticks(text: str, repo_root: Path | None = None) -> tuple[str, ...]:
     # Backtick spans may wrap several paths across newlines (e.g. a list inside
     # one span, or a fenced block). Split each captured span into per-line tokens
     # so multi-path spans become individual candidates instead of one glued blob.
     tokens: list[str] = []
+    # Fence delimiters must not consume the next inline-code opening backtick.
+    # Keep fenced command contents: explicit paths there are useful evidence too.
+    fenced_lines: list[str] = []
+    in_fence = False
+    inline_lines: list[str] = []
+    for line in text.splitlines():
+        if re.match(r"^\s*(?:`{3,}|~{3,})", line):
+            in_fence = not in_fence
+            inline_lines.append("")
+        elif in_fence:
+            fenced_lines.append(line)
+        else:
+            inline_lines.append(line)
+    text = "\n".join(inline_lines)
     for match in BACKTICK_RE.finditer(text):
         for piece in match.group(1).splitlines():
             piece = piece.strip()
             if piece:
                 tokens.append(piece)
+    # Commands inside fences usually contain plain paths rather than inline code.
+    for value in re.findall(r"(?<![\w/])(?:corex|ea_node_editor|tests|scripts|examples|web)/[\w./-]+", "\n".join(fenced_lines).replace("\\", "/")):
+        # Historical verification commands may name removed files. They remain
+        # commands, but must not become supposedly live file candidates.
+        if repo_root is None or (repo_root / value).is_file():
+            tokens.append(value)
     return _dedupe(tokens)
 
 
@@ -299,16 +320,22 @@ def _parse_table_row(line: str) -> tuple[str, ...]:
     return cells
 
 
-def _map_entries(repo_root: Path, maps_root: Path) -> dict[str, dict[str, object]]:
+def _map_entries(
+    repo_root: Path, maps_root: Path, allowed_input_paths: frozenset[Path] | None = None,
+) -> dict[str, dict[str, object]]:
     entries: dict[str, dict[str, object]] = {}
-    for path in sorted(maps_root.rglob("*.md"), key=lambda item: item.as_posix().lower()):
+    map_paths = maps_root.rglob("*.md") if allowed_input_paths is None else (
+        path for path in allowed_input_paths
+        if path.suffix == ".md" and path.is_relative_to(maps_root)
+    )
+    for path in sorted(map_paths, key=lambda item: item.as_posix().lower()):
         if path.name.lower() in IGNORED_MAP_NAMES:
             continue
         text = path.read_text(encoding="utf-8")
         relative = display_path(path, repo_root)
         title = _title_from_markdown(text, path.stem.replace("_", " ").title())
         kind = _route_kind(relative)
-        backticks = _extract_backticks(text)
+        backticks = _extract_backticks(text, repo_root)
         do_not_start_here = _extract_section_backticks(text, "Do Not Start Here")
         positive_backticks = tuple(
             token for token in backticks if token not in do_not_start_here
@@ -351,8 +378,12 @@ def _apply_coverage(
     source_paths: Sequence[str],
     test_paths: Sequence[str],
     qml_paths: Sequence[str],
+    candidate_limit: int | None = MAX_CANDIDATES_PER_ENTRY,
+    allowed_input_paths: frozenset[Path] | None = None,
 ) -> None:
     coverage_path = maps_root / "COVERAGE.md"
+    if allowed_input_paths is not None and coverage_path not in allowed_input_paths:
+        return
     if not coverage_path.is_file():
         return
     for line in coverage_path.read_text(encoding="utf-8").splitlines():
@@ -387,10 +418,10 @@ def _apply_coverage(
                 continue
             entry["keywords"] = list(_dedupe([*entry["keywords"], *area_keywords]))
             entry["source_candidates"] = list(
-                _limit([*entry["source_candidates"], *source_matches])
+                _limit([*entry["source_candidates"], *source_matches], candidate_limit)
             )
-            entry["test_candidates"] = list(_limit([*entry["test_candidates"], *test_matches]))
-            entry["qml_candidates"] = list(_limit([*entry["qml_candidates"], *qml_matches]))
+            entry["test_candidates"] = list(_limit([*entry["test_candidates"], *test_matches], candidate_limit))
+            entry["qml_candidates"] = list(_limit([*entry["qml_candidates"], *qml_matches], candidate_limit))
 
 
 def _infer_qml_map_path(path: str) -> str:
@@ -452,16 +483,35 @@ def build_index_data(
     maps_root: Path | None = None,
     qml_index_path: Path | None = None,
     source_test_index_path: Path | None = None,
+    *,
+    source_paths: Sequence[str] | None = None,
+    test_paths: Sequence[str] | None = None,
+    candidate_limit: int | None = MAX_CANDIDATES_PER_ENTRY,
+    allowed_input_paths: frozenset[Path] | None = None,
 ) -> RouteIndex:
+    """Build routes; callers transmitting evidence can pre-authorize every input.
+
+    ``allowed_input_paths`` contains absolute eligible paths and is checked before
+    reading map, coverage, source/test or QML association contents. ``None`` keeps
+    the incumbent local generator's input policy.
+    """
     maps_root = maps_root or repo_root / "docs" / "agent_maps"
     qml_index_path = qml_index_path or repo_root / "docs" / "qml_navigation_index.json"
     source_test_index_path = source_test_index_path or repo_root / "docs" / "source_test_file_index.md"
 
-    source_paths, test_paths = _parse_source_test_index(source_test_index_path)
-    qml_entries = _load_qml_entries(qml_index_path)
+    indexed_sources, indexed_tests = (), ()
+    if (source_paths is None or test_paths is None) and (
+        allowed_input_paths is None or source_test_index_path in allowed_input_paths
+    ):
+        indexed_sources, indexed_tests = _parse_source_test_index(source_test_index_path)
+    source_paths = indexed_sources if source_paths is None else source_paths
+    test_paths = indexed_tests if test_paths is None else test_paths
+    qml_entries = _load_qml_entries(qml_index_path) if (
+        allowed_input_paths is None or qml_index_path in allowed_input_paths
+    ) else ()
     qml_paths = tuple(str(entry.get("path")) for entry in qml_entries if entry.get("path"))
-    mutable_entries = _map_entries(repo_root, maps_root)
-    _apply_coverage(repo_root, maps_root, mutable_entries, source_paths, test_paths, qml_paths)
+    mutable_entries = _map_entries(repo_root, maps_root, allowed_input_paths)
+    _apply_coverage(repo_root, maps_root, mutable_entries, source_paths, test_paths, qml_paths, candidate_limit, allowed_input_paths)
 
     map_route_entries = tuple(
         RouteEntry(
