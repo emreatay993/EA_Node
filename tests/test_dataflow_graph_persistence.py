@@ -1,3 +1,6 @@
+# Purpose: Verify durable graph formats, dynamic-port persistence, and fragment round trips.
+# Map: subsystems/persistence.md
+# Tests: this file
 from __future__ import annotations
 
 import json
@@ -8,184 +11,37 @@ from unittest.mock import patch
 import pytest
 
 from ea_node_editor.app_preferences import normalize_app_preferences_document
-from ea_node_editor.custom_workflows.global_store import (
-    load_global_custom_workflow_definitions,
-    save_global_custom_workflow_definitions,
-)
 from ea_node_editor.custom_workflows.file_codec import (
     CUSTOM_WORKFLOW_FILE_VERSION,
     from_custom_workflow_file_document,
     to_custom_workflow_file_document,
 )
+from ea_node_editor.custom_workflows.global_store import (
+    load_global_custom_workflow_definitions,
+    save_global_custom_workflow_definitions,
+)
+from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.graph.fragment_payloads import (
     GRAPH_FRAGMENT_VERSION,
     build_graph_fragment_payload,
     normalize_graph_fragment_payload,
 )
 from ea_node_editor.graph.model import GraphModel
-from ea_node_editor.graph.effective_ports import effective_ports
-from ea_node_editor.graph.registry_normalization import normalize_project_for_registry
 from ea_node_editor.graph.subnode_contract import resolve_subnode_pin_definition
 from ea_node_editor.graph.transform_fragment_ops import (
     build_subtree_fragment_payload_data,
     insert_graph_fragment,
 )
-from ea_node_editor.nodes.builtins.core import StreamGateNodePlugin
-from ea_node_editor.nodes.execution_context import NodeResult
-from ea_node_editor.nodes.node_specs import (
-    DynamicPortGroupSpec,
-    DynamicPortRenameMode,
-    NodeTypeSpec,
-    PortSpec,
-    PropertySpec,
-)
-from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.runtime_contracts import (
     DOUBLE_DATA_TYPE_ID,
-    INTEGER_DATA_TYPE_ID,
 )
 from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
     APP_PREFERENCES_VERSION,
     SCHEMA_VERSION,
 )
-
-
-class _Plugin:
-    def __init__(self, spec: NodeTypeSpec) -> None:
-        self._spec = spec
-
-    def spec(self) -> NodeTypeSpec:
-        return self._spec
-
-    def execute(self, _ctx) -> NodeResult:  # noqa: ANN001
-        return NodeResult()
-
-
-def _dynamic_input_ports(properties) -> tuple[PortSpec, ...]:  # noqa: ANN001
-    return tuple(
-        PortSpec(
-            str(key),
-            "in",
-            "data",
-            INTEGER_DATA_TYPE_ID,
-            label=f"Variable {key}",
-            required=False,
-        )
-        for key in properties["input_names"]
-    )
-
-
-def _dynamic_input_key_factory(properties) -> str:  # noqa: ANN001
-    used = set(properties["input_names"])
-    suffix = 1
-    while f"input{suffix}" in used:
-        suffix += 1
-    return f"input{suffix}"
-
-
-def _colliding_dynamic_input_key_factory(_properties) -> str:  # noqa: ANN001
-    return "alpha"
-
-
-def _dynamic_input_key_renamer(
-    _properties,
-    _old_key: str,
-    value: str,
-) -> str:  # noqa: ANN001
-    return value.strip()
-
-
-def _dynamic_input_spec(
-    *,
-    type_id: str = "tests.dynamic_inputs",
-    key_factory=_dynamic_input_key_factory,  # noqa: ANN001
-    rename_mode: DynamicPortRenameMode = "key",
-) -> NodeTypeSpec:
-    return NodeTypeSpec(
-        type_id=type_id,
-        display_name="Dynamic Inputs",
-        category_path=("Tests",),
-        icon="",
-        ports=(),
-        properties=(
-            PropertySpec(
-                "input_names",
-                "json",
-                ["alpha", "beta"],
-                "Inputs",
-                inspector_visible=False,
-            ),
-            PropertySpec("mode", "str", "unchanged", "Mode"),
-        ),
-        dynamic_port_groups=(
-            DynamicPortGroupSpec(
-                "inputs",
-                "input_names",
-                "in",
-                _dynamic_input_ports,
-                key_factory,
-                rename_mode=rename_mode,
-                key_renamer=(
-                    _dynamic_input_key_renamer
-                    if rename_mode == "key"
-                    else None
-                ),
-            ),
-        ),
-    )
-
-
-def _registry() -> NodeRegistry:
-    registry = NodeRegistry()
-    specs = (
-        NodeTypeSpec(
-            type_id="tests.source",
-            display_name="Source",
-            category_path=("Tests",),
-            icon="",
-            ports=(PortSpec("value", "out", "data", INTEGER_DATA_TYPE_ID),),
-            properties=(),
-        ),
-        NodeTypeSpec(
-            type_id="tests.sink",
-            display_name="Sink",
-            category_path=("Tests",),
-            icon="",
-            ports=(
-                PortSpec(
-                    "value",
-                    "in",
-                    "data",
-                    INTEGER_DATA_TYPE_ID,
-                    required=True,
-                ),
-            ),
-            properties=(),
-        ),
-        NodeTypeSpec(
-            type_id="core.subnode",
-            display_name="Subnode",
-            category_path=("Core",),
-            icon="",
-            ports=(),
-            properties=(),
-        ),
-        StreamGateNodePlugin().spec(),
-        _dynamic_input_spec(),
-        _dynamic_input_spec(
-            type_id="tests.dynamic_collision",
-            key_factory=_colliding_dynamic_input_key_factory,
-        ),
-        _dynamic_input_spec(
-            type_id="tests.dynamic_no_rename",
-            rename_mode="none",
-        ),
-    )
-    for spec in specs:
-        registry.register(lambda spec=spec: _Plugin(spec))
-    return registry
+from tests.graph_mutation_fixtures import dynamic_registry as _registry
 
 
 def _fragment_node(ref_id: str, type_id: str) -> dict[str, object]:
@@ -311,94 +167,6 @@ def test_edge_display_mode_visual_style_round_trips() -> None:
     assert loaded_edges[second.edge_id].visual_style == workspace.edges[second.edge_id].visual_style
 
 
-def test_dynamic_port_insert_remove_is_ordered_and_cleans_all_incident_state() -> None:
-    registry = _registry()
-    model = GraphModel()
-    workspace = model.active_workspace
-    mutations = model.validated_mutations(workspace.workspace_id, registry)
-    gate = mutations.add_node(type_id="core.stream_gate", title="Gate", x=0, y=0)
-    sink_a = mutations.add_node(type_id="tests.sink", title="Sink A", x=200, y=0)
-    sink_b = mutations.add_node(type_id="tests.sink", title="Sink B", x=200, y=100)
-
-    inserted = mutations.insert_dynamic_port(gate.node_id, "outputs", 1)
-    assert inserted == "output_2"
-    assert gate.properties["output_port_ids"] == ["output_0", inserted, "output_1"]
-    enabled_edge = mutations.add_edge(
-        source_node_id=gate.node_id,
-        source_port_key=inserted,
-        target_node_id=sink_a.node_id,
-        target_port_key="value",
-    )
-    disabled_edge = mutations.add_edge(
-        source_node_id=gate.node_id,
-        source_port_key=inserted,
-        target_node_id=sink_b.node_id,
-        target_port_key="value",
-    )
-    assert mutations.set_edge_enabled(disabled_edge.edge_id, False)
-    gate.exposed_ports[inserted] = False
-    gate.port_labels[inserted] = "Temporary"
-    gate.port_modifiers[inserted] = ("graft",)
-
-    removed, removed_edges = mutations.remove_dynamic_port(
-        gate.node_id,
-        "outputs",
-        inserted,
-    )
-
-    assert removed == inserted
-    assert removed_edges == (enabled_edge.edge_id, disabled_edge.edge_id)
-    assert not set(removed_edges).intersection(workspace.edges)
-    assert gate.properties["output_port_ids"] == ["output_0", "output_1"]
-    assert inserted not in gate.exposed_ports
-    assert inserted not in gate.port_labels
-    assert inserted not in gate.port_modifiers
-
-
-def test_dynamic_port_label_rename_preserves_identity_wires_and_can_clear() -> None:
-    registry = _registry()
-    model = GraphModel()
-    workspace = model.active_workspace
-    mutations = model.validated_mutations(workspace.workspace_id, registry)
-    gate = mutations.add_node(type_id="core.stream_gate", title="Gate", x=0, y=0)
-    sink = mutations.add_node(type_id="tests.sink", title="Sink", x=200, y=0)
-    edge = mutations.add_edge(
-        source_node_id=gate.node_id,
-        source_port_key="output_0",
-        target_node_id=sink.node_id,
-        target_port_key="value",
-    )
-
-    assert mutations.set_port_label(
-        gate.node_id,
-        "output_0",
-        "Direct",
-    )
-    assert gate.port_labels["output_0"] == "Direct"
-    assert mutations.rename_dynamic_port(
-        gate.node_id,
-        "outputs",
-        "output_0",
-        "Accepted",
-    ) == ("output_0", ())
-    assert gate.properties["output_port_ids"] == ["output_0", "output_1"]
-    assert gate.port_labels["output_0"] == "Accepted"
-    assert edge.edge_id in workspace.edges
-    assert mutations.rename_dynamic_port(
-        gate.node_id,
-        "outputs",
-        "output_0",
-        "Accepted",
-    ) is None
-    assert mutations.rename_dynamic_port(
-        gate.node_id,
-        "outputs",
-        "output_0",
-        "",
-    ) == ("output_0", ())
-    assert "output_0" not in gate.port_labels
-
-
 def test_model_viewer_dynamic_scenes_preserve_identity_styles_and_serialization() -> None:
     from ea_node_editor.nodes.bootstrap import build_builtin_registry
 
@@ -433,153 +201,6 @@ def test_model_viewer_dynamic_scenes_preserve_identity_styles_and_serialization(
     mutations.remove_dynamic_port(viewer.node_id, "scenes", new_port)
     with pytest.raises(ValueError):
         mutations.remove_dynamic_port(viewer.node_id, "scenes", "scene_1")
-
-
-def test_key_rename_prunes_wires_and_old_sparse_state_without_transfer() -> None:
-    registry = _registry()
-    model = GraphModel()
-    workspace = model.active_workspace
-    mutations = model.validated_mutations(workspace.workspace_id, registry)
-    source = mutations.add_node(type_id="tests.source", title="Source", x=0, y=0)
-    dynamic = mutations.add_node(
-        type_id="tests.dynamic_inputs",
-        title="Dynamic",
-        x=200,
-        y=0,
-    )
-    edge = mutations.add_edge(
-        source_node_id=source.node_id,
-        source_port_key="value",
-        target_node_id=dynamic.node_id,
-        target_port_key="alpha",
-    )
-    dynamic.exposed_ports["alpha"] = False
-    dynamic.port_labels["alpha"] = "Ignored"
-    dynamic.port_modifiers["alpha"] = ("graft",)
-    dynamic.principal_input_port_id = "alpha"
-
-    renamed, removed_edges = mutations.rename_dynamic_port(
-        dynamic.node_id,
-        "inputs",
-        "alpha",
-        "gamma",
-    )
-
-    assert renamed == "gamma"
-    assert removed_edges == (edge.edge_id,)
-    assert dynamic.properties["input_names"] == ["gamma", "beta"]
-    assert edge.edge_id not in workspace.edges
-    assert "alpha" not in dynamic.exposed_ports
-    assert "alpha" not in dynamic.port_labels
-    assert "alpha" not in dynamic.port_modifiers
-    assert dynamic.principal_input_port_id is None
-    assert "gamma" not in dynamic.exposed_ports
-    assert "gamma" not in dynamic.port_labels
-    assert "gamma" not in dynamic.port_modifiers
-    spec = registry.get_spec(dynamic.type_id)
-    gamma = next(
-        port
-        for port in effective_ports(
-            node=dynamic,
-            spec=spec,
-            workspace_nodes=workspace.nodes,
-        )
-        if port.key == "gamma"
-    )
-    assert gamma.label == "Variable gamma"
-
-
-def test_registry_normalization_keeps_only_permitted_dynamic_port_labels() -> None:
-    registry = _registry()
-    model = GraphModel()
-    workspace = model.active_workspace
-    mutations = model.validated_mutations(workspace.workspace_id, registry)
-    dynamic = mutations.add_node(
-        type_id="tests.dynamic_inputs",
-        title="Dynamic",
-        x=0,
-        y=0,
-    )
-    gate = mutations.add_node(
-        type_id="core.stream_gate",
-        title="Gate",
-        x=0,
-        y=100,
-    )
-    no_rename = mutations.add_node(
-        type_id="tests.dynamic_no_rename",
-        title="No Rename",
-        x=0,
-        y=200,
-    )
-    with pytest.raises(ValueError, match="does not allow label rename"):
-        mutations.set_port_label(dynamic.node_id, "alpha", "Rejected")
-    with pytest.raises(ValueError, match="does not allow label rename"):
-        mutations.set_port_label(no_rename.node_id, "alpha", "Rejected")
-    assert dynamic.port_labels == {}
-    assert no_rename.port_labels == {}
-    dynamic.port_labels["alpha"] = "Not permitted"
-    no_rename.port_labels["alpha"] = "Also not permitted"
-    gate.port_labels["output_0"] = "Permitted"
-
-    normalize_project_for_registry(model.project, registry)
-
-    assert dynamic.port_labels == {}
-    assert no_rename.port_labels == {}
-    assert gate.port_labels == {"output_0": "Permitted"}
-
-
-def test_dynamic_port_preflight_rejects_collisions_limits_and_backing_writes_atomically() -> None:
-    registry = _registry()
-    model = GraphModel()
-    workspace = model.active_workspace
-    mutations = model.validated_mutations(workspace.workspace_id, registry)
-    dynamic = mutations.add_node(
-        type_id="tests.dynamic_inputs",
-        title="Dynamic",
-        x=0,
-        y=0,
-    )
-    inserted = mutations.insert_dynamic_port(dynamic.node_id, "inputs", 1)
-    assert inserted == "input1"
-    assert dynamic.properties["input_names"] == ["alpha", "input1", "beta"]
-    before = dict(dynamic.properties)
-    with pytest.raises(ValueError, match="already exists"):
-        mutations.rename_dynamic_port(dynamic.node_id, "inputs", "alpha", "beta")
-    assert dynamic.properties == before
-    with pytest.raises(IndexError):
-        mutations.insert_dynamic_port(dynamic.node_id, "inputs", 99)
-    assert dynamic.properties == before
-    with pytest.raises(ValueError, match="backing properties"):
-        mutations.set_node_property(dynamic.node_id, "input_names", ["changed"])
-    with pytest.raises(ValueError, match="backing properties"):
-        mutations.set_node_properties(
-            dynamic.node_id,
-            {"mode": "changed", "input_names": ["changed"]},
-        )
-    assert dynamic.properties == before
-
-    colliding = mutations.add_node(
-        type_id="tests.dynamic_collision",
-        title="Collision",
-        x=0,
-        y=100,
-    )
-    collision_before = dict(colliding.properties)
-    with pytest.raises(ValueError, match="already exists"):
-        mutations.insert_dynamic_port(colliding.node_id, "inputs", 1)
-    assert colliding.properties == collision_before
-
-    one_output = mutations.add_node(
-        type_id="core.stream_gate",
-        title="One",
-        x=0,
-        y=200,
-        properties={"output_port_ids": ["only"]},
-    )
-    with pytest.raises(ValueError, match="retain at least 1"):
-        mutations.remove_dynamic_port(one_output.node_id, "outputs", "only")
-    assert one_output.properties["output_port_ids"] == ["only"]
 
 
 def test_dynamic_port_stream_gate_adapters_and_persistence_preserve_stable_ids() -> None:
@@ -661,40 +282,6 @@ def test_dynamic_port_properties_and_sparse_state_round_trip_in_schema_five() ->
     assert loaded_dynamic.port_modifiers == {"alpha": ("graft",)}
     assert loaded_dynamic.principal_input_port_id == "alpha"
     assert loaded_workspace.edges[edge.edge_id].target_port_key == "alpha"
-
-
-def test_dynamic_port_registry_normalization_resolves_defaults_before_edges() -> None:
-    registry = _registry()
-    model = GraphModel()
-    workspace = model.active_workspace
-    mutations = model.validated_mutations(workspace.workspace_id, registry)
-    gate = mutations.add_node(type_id="core.stream_gate", title="Gate", x=0, y=0)
-    sink = mutations.add_node(type_id="tests.sink", title="Sink", x=200, y=0)
-    edge = mutations.add_edge(
-        source_node_id=gate.node_id,
-        source_port_key="output_0",
-        target_node_id=sink.node_id,
-        target_port_key="value",
-    )
-
-    gate.properties["output_port_ids"] = {"wrong": "shape"}
-    normalize_project_for_registry(model.project, registry)
-    assert gate.properties["output_port_ids"] == ["output_0", "output_1"]
-    assert edge.edge_id in workspace.edges
-
-    gate.properties.pop("output_port_ids")
-    normalize_project_for_registry(model.project, registry)
-    assert "output_port_ids" not in gate.properties
-    assert edge.edge_id in workspace.edges
-    assert [
-        port.key
-        for port in effective_ports(
-            node=gate,
-            spec=registry.get_spec(gate.type_id),
-            workspace_nodes=workspace.nodes,
-        )
-        if port.direction == "out"
-    ] == ["output_0", "output_1"]
 
 
 def test_current_fragment_preserves_ordered_dynamic_keys_and_endpoints() -> None:
@@ -789,51 +376,6 @@ def test_dynamic_port_fragment_copy_paste_preserves_keys_edges_and_sparse_state(
     assert pasted_dynamic.principal_input_port_id == "alpha"
     assert len(pasted_edges) == 1
     assert pasted_edges[0].target_port_key == "alpha"
-
-
-def test_dynamic_port_key_rename_snapshot_restore_restores_exact_state() -> None:
-    registry = _registry()
-    model = GraphModel()
-    workspace = model.active_workspace
-    mutations = model.validated_mutations(workspace.workspace_id, registry)
-    source = mutations.add_node(type_id="tests.source", title="Source", x=0, y=0)
-    dynamic = mutations.add_node(
-        type_id="tests.dynamic_inputs",
-        title="Dynamic",
-        x=200,
-        y=0,
-    )
-    edge = mutations.add_edge(
-        source_node_id=source.node_id,
-        source_port_key="value",
-        target_node_id=dynamic.node_id,
-        target_port_key="alpha",
-    )
-    dynamic.exposed_ports["alpha"] = True
-    mutations.set_port_modifiers(dynamic.node_id, "alpha", ["graft"])
-    mutations.set_principal_input_port(dynamic.node_id, "alpha")
-    before = workspace.capture_snapshot()
-
-    assert mutations.rename_dynamic_port(
-        dynamic.node_id,
-        "inputs",
-        "alpha",
-        "gamma",
-    ) == ("gamma", (edge.edge_id,))
-    assert dynamic.properties["input_names"] == ["gamma", "beta"]
-    assert edge.edge_id not in workspace.edges
-    assert "alpha" not in dynamic.exposed_ports
-    assert "alpha" not in dynamic.port_modifiers
-    assert dynamic.principal_input_port_id is None
-
-    workspace.restore_snapshot(before)
-    restored = workspace.nodes[dynamic.node_id]
-    assert workspace.capture_snapshot() == before
-    assert restored.properties["input_names"] == ["alpha", "beta"]
-    assert restored.exposed_ports["alpha"] is True
-    assert restored.port_modifiers == {"alpha": ("graft",)}
-    assert restored.principal_input_port_id == "alpha"
-    assert workspace.edges[edge.edge_id].target_port_key == "alpha"
 
 
 def test_v4_project_and_v1_fragments_cut_over_without_overwriting_source_state() -> (

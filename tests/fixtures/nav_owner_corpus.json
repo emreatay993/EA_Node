@@ -139,7 +139,7 @@
       "primary_owner": "docs/agent_maps/feature_routes/plotter_nodes.md",
       "primary_path": "ea_node_editor/nodes/builtin_functions/plot_signal.py",
       "secondary_owners": [],
-      "focused_test": "tests/test_plot_node_contracts.py",
+      "focused_test": "tests/test_generic_plot_preparation.py",
       "not_first_paths": []
     },
     {

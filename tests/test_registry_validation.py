@@ -43,7 +43,6 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.workspace_state import WorkspaceData, WorkspaceSnapshot
 from ea_node_editor.graph.records import EdgeInstance, NodeInstance
 from ea_node_editor.graph.fragment_payloads import build_graph_fragment_payload
-from ea_node_editor.graph.registry_normalization import normalize_project_for_registry
 from ea_node_editor.graph.transform_fragment_ops import (
     build_subtree_fragment_payload_data,
     encode_fragment_external_parent_id,
@@ -63,7 +62,8 @@ from ea_node_editor.nodes.builtins.integrations_ssh_sftp import (
     SSH_SFTP_HOST_DATA_TYPE_ID,
     SSH_SFTP_SECRET_DATA_TYPE_ID,
 )
-from ea_node_editor.nodes.builtins.plot import PLOT_NODE_DESCRIPTORS, PLOT_NODE_TYPE_IDS
+from ea_node_editor.nodes.builtins.plot.generic import PLOT_NODE_DESCRIPTORS
+from ea_node_editor.nodes.builtins.plot.specs import PLOT_NODE_TYPE_IDS
 from ea_node_editor.nodes.builtins.fem_contracts import LOAD_STEP_DATA_TYPE_ID
 from ea_node_editor.nodes.builtins.web_viewer import WEB_PAGE_VIEWER_TYPE_ID
 import ea_node_editor.nodes.node_specs as node_specs
@@ -1555,7 +1555,7 @@ class RegistryValidationTests(unittest.TestCase):
     def test_plot_builtin_descriptors_declare_variadic_series_and_standard_properties(
         self,
     ) -> None:
-        self.assertEqual(len(PLOT_NODE_DESCRIPTORS), 8)
+        self.assertEqual(len(PLOT_NODE_DESCRIPTORS), 7)
         for descriptor in PLOT_NODE_DESCRIPTORS:
             spec = descriptor.spec
             self.assertEqual(spec.category_path, ("Plot",))
@@ -2421,152 +2421,6 @@ class RegistryValidationTests(unittest.TestCase):
                 render_quality={"supported_quality_tiers": ("full", "ultra")},  # type: ignore[arg-type]
             )
 
-    def test_normalize_project_for_registry_marks_same_count_workspace_changes(
-        self,
-    ) -> None:
-        registry = NodeRegistry()
-        spec = NodeTypeSpec(
-            type_id="tests.normalize_epoch",
-            display_name="Normalize Epoch",
-            category_path=("Tests",),
-            icon="",
-            ports=(
-                PortSpec(
-                    "value", "out", "data", "COREX.DataTypes.Any"
-                ),
-            ),
-            properties=(PropertySpec("count", "int", 7, "Count"),),
-        )
-        registry.register(_factory(spec))
-        model = GraphModel()
-        workspace = model.active_workspace
-        node = NodeInstance(
-            node_id="node_normalize_epoch",
-            type_id="tests.normalize_epoch",
-            title="Normalize Epoch",
-            x=0.0,
-            y=0.0,
-            properties={"count": "15", "stale": "drop"},
-            exposed_ports={"stale_port": True},
-        )
-        workspace.nodes[node.node_id] = node
-        revision_before = workspace.mutation_revision
-        epoch_before = model.project.document_epoch()
-
-        normalize_project_for_registry(model.project, registry)
-
-        self.assertEqual(node.properties, {"count": 15})
-        self.assertEqual(node.exposed_ports, {"value": True})
-        self.assertTrue(workspace.dirty)
-        self.assertGreater(workspace.mutation_revision, revision_before)
-        self.assertNotEqual(model.project.document_epoch(), epoch_before)
-
-        revision_after = workspace.mutation_revision
-        epoch_after = model.project.document_epoch()
-        normalize_project_for_registry(model.project, registry)
-
-        self.assertEqual(workspace.mutation_revision, revision_after)
-        self.assertEqual(model.project.document_epoch(), epoch_after)
-
-    def test_normalize_project_for_registry_prunes_unknown_nodes_without_sidecars(
-        self,
-    ) -> None:
-        registry = build_default_registry()
-        model = GraphModel()
-        workspace = model.active_workspace
-
-        known_source = model.add_node(
-            workspace.workspace_id, "core.constant", "Source", 0.0, 0.0
-        )
-        known_target = model.add_node(
-            workspace.workspace_id, "core.logger", "Target", 320.0, 0.0
-        )
-        unknown_node = NodeInstance(
-            node_id="node_unknown",
-            type_id="plugin.missing_step",
-            title="Missing Step",
-            x=160.0,
-            y=0.0,
-            collapsed=True,
-            properties={"threshold": 0.5},
-            exposed_ports={"plugin_in": True},
-            visual_style={"fill": "#556677"},
-        )
-        workspace.nodes[unknown_node.node_id] = unknown_node
-        child_node = model.add_node(
-            workspace.workspace_id, "core.logger", "Child", 200.0, 80.0
-        )
-        child_node.parent_node_id = unknown_node.node_id
-
-        valid_edge = model.add_edge(
-            workspace.workspace_id,
-            known_source.node_id,
-            "as_text",
-            known_target.node_id,
-            "message",
-        )
-        mixed_edge = model.add_edge(
-            workspace.workspace_id,
-            unknown_node.node_id,
-            "plugin_out",
-            known_target.node_id,
-            "message",
-        )
-
-        normalize_project_for_registry(model.project, registry)
-
-        self.assertNotIn(unknown_node.node_id, workspace.nodes)
-        self.assertIsNone(workspace.nodes[child_node.node_id].parent_node_id)
-        self.assertEqual(set(workspace.edges), {valid_edge.edge_id})
-        self.assertNotIn(mixed_edge.edge_id, workspace.edges)
-
-    def test_normalize_project_for_registry_prunes_missing_addon(self) -> None:
-        registry = build_default_registry()
-        model = GraphModel()
-        workspace = model.active_workspace
-        addon_node = NodeInstance(
-            node_id="node_signal_transform",
-            type_id="addons.signal.transform",
-            title="Signal Transform",
-            x=120.0,
-            y=40.0,
-            collapsed=True,
-            properties={"gain": 2.0},
-            exposed_ports={"signal_in": True, "signal_out": True},
-            visual_style={"fill": "#225588"},
-        )
-        workspace.nodes[addon_node.node_id] = addon_node
-
-        normalize_project_for_registry(model.project, registry)
-
-        self.assertNotIn(addon_node.node_id, workspace.nodes)
-
-    def test_normalize_project_for_registry_keeps_directed_neutral_flowchart_edges(
-        self,
-    ) -> None:
-        registry = build_default_registry()
-        model = GraphModel()
-        workspace = model.active_workspace
-        source = model.add_node(
-            workspace.workspace_id, "passive.flowchart.process", "Process", 20.0, 30.0
-        )
-        target = model.add_node(
-            workspace.workspace_id, "passive.flowchart.process", "Process", 320.0, 30.0
-        )
-        edge = model.add_edge(
-            workspace.workspace_id,
-            source.node_id,
-            "right",
-            target.node_id,
-            "left",
-        )
-
-        normalize_project_for_registry(model.project, registry)
-
-        self.assertIn(edge.edge_id, workspace.edges)
-        kept_edge = workspace.edges[edge.edge_id]
-        self.assertEqual(kept_edge.source_port_key, "right")
-        self.assertEqual(kept_edge.target_port_key, "left")
 
     def test_default_registry_preserves_promoted_subnode_contract(self) -> None:
         registry = build_default_registry()
@@ -3001,12 +2855,6 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertTrue(composed.data_types.is_frozen)
 
 
-
-
-
-
-
-
     def test_descriptor_and_plugin_bundle_registration_are_atomic(self) -> None:
         registry = NodeRegistry()
         valid = NodeTypeSpec(
@@ -3337,9 +3185,9 @@ class RegistryValidationTests(unittest.TestCase):
             for accepted_type in port.accepted_data_types
         }
 
-        self.assertEqual(len(registry.all_specs()), 140)
-        self.assertEqual(len(data_ports), 440)
-        self.assertEqual(len(resolved_data_ports), 445)
+        self.assertEqual(len(registry.all_specs()), 139)
+        self.assertEqual(len(data_ports), 436)
+        self.assertEqual(len(resolved_data_ports), 441)
         self.assertEqual(len(primary_type_ids), 58)
         self.assertEqual(len(accepted_type_ids), 15)
         self.assertEqual(len({accepted for _, port in resolved_data_ports for accepted in port.accepted_data_types}), 17)

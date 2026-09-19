@@ -43,6 +43,7 @@ These rows summarize whole-capability status. `PARTIAL` means accepted backend a
 
 ### Implemented Features With Remaining Acceptance Checks
 
+- [COREX Plot and Graph Ownership Refactor](../PLAN_COREX_PLOT_GRAPH_OWNERSHIP_REFACTOR.md) — `IMPLEMENTED AND FUNCTIONALLY REVIEWED`; focused verification accepted; broader performance qualification stopped by user with timing uncertainty retained in the [task ledger](../PLANS/COREX_PLOT_GRAPH_OWNERSHIP_TASK_LEDGER.md).
 - [COREX TypeSafe Navigation Pilot](../PLAN_COREX_TypeSafe_Navigation_Pilot.md) — `IMPLEMENTED — MANUAL PILOT`; [qualification evidence](../COREX_TYPESAFE_NAVIGATION.md#qualification) records failed source/test coverage and latency gates. Routine agent invocation remains disabled.
 - [Tabular Data Composer and UI Redesign](../PLAN_Tabular_Data_Composer.md) — `IMPLEMENTATION COMPLETE; BROAD GATES NOT GREEN`; canonical data views, styled fullscreen workspace, saved output rules, and focused acceptance evidence with unrelated broad-suite limitations.
 - [Execution Responsiveness and Startup](../PLAN_COREX_EXECUTION_RESPONSIVENESS.md) — `IN PROGRESS — PERFORMANCE ACCEPTANCE NOT MET`; [implementation and verification evidence](perf/COREX_EXECUTION_RESPONSIVENESS_QA.md).

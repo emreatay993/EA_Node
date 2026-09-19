@@ -179,7 +179,7 @@ def test_generic_plot_node_archives_headless_line_export_without_qapplication(tm
         )
         resolver = ProjectArtifactResolver(project_path=project_path, artifact_store=artifact_store)
         registry = build_default_registry()
-        plugin = registry.create("plot.scatter")
+        plugin = registry.create("plot.bar")
         source = project_path.with_suffix(".csv")
         source.write_text("time,value\\n0,1.0\\n1,2.5\\n2,4.0\\n", encoding="utf-8")
         table_ref = execute_tabular_input(
@@ -196,7 +196,7 @@ def test_generic_plot_node_archives_headless_line_export_without_qapplication(tm
             )
         ).outputs[TABULAR_DATA_TABLE_OUTPUT_KEY]
         properties = registry.normalize_properties(
-            "plot.scatter",
+            "plot.bar",
             {
                 "title": "Headless Generic Scatter",
                 "x_label": "time",
@@ -208,7 +208,7 @@ def test_generic_plot_node_archives_headless_line_export_without_qapplication(tm
             ExecutionContext(
                 run_id="run_plot_headless",
                 node_id="node_plot_line",
-                node_type_id="plot.scatter",
+                node_type_id="plot.bar",
                 workspace_id="ws_plot_headless",
                 inputs={"series": table_ref},
                 properties=properties,

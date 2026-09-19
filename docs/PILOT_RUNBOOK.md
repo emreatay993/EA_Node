@@ -81,12 +81,14 @@ If the pilot scope includes Tabular Data, build from a venv with `.[tabular]`,
      and non-fatal load warnings do not turn the node into a failed execution
      state.
 8. Direct tabular plotting, when the tabular and plot stacks are included
-   - In the tabular preview, click two numeric column headers to select them.
-   - Connect the tabular output directly to a generic `Plot > Line Plot` or
-     `Plot > Scatter Plot` node without inserting an adapter node.
-   - Pass criteria: the plot renders from the selected columns, saved/reopened
-     projects keep the selected-column hints, and export uses the existing plot
-     backend data shapes.
+   - Connect `Tabular Data Input > Table` to `Signal Plot > Values` and choose
+     the X and Y columns in Signal Plot's Data controls.
+   - Connect `Signal Plot > Plot` to `Media Panel > Source`. Use Line styles
+     None and a nonzero Marker shape for scatter; retain a line style for lines.
+   - Pass criteria: the PNG preview renders, Media Panel fullscreen inspects the
+     complete normalized samples, and saved/reopened projects retain the mapping
+     and style controls. Connect Plot to Image Export to save the PNG preview.
+     Use explicit table windows or array slices when source bounds are needed.
 
 ## Failure Reporting Template
 

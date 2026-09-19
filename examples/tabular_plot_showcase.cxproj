@@ -61,7 +61,7 @@
       },
       "general": {
         "author": "",
-        "description": "Loads CSV, TSV, XLSX, TXT, NPY, NPZ, Parquet, CSV point cloud, and HDF5 streamline sources into the generic plot node family.",
+        "description": "Loads CSV, TSV, XLSX, TXT, NPY, NPZ, Parquet, CSV point cloud, and HDF5 streamline sources into Signal Plot and specialized generic plots.",
         "project_name": "Tabular Plot Showcase"
       },
       "logging": {
@@ -181,25 +181,25 @@
           "visual_style": {}
         },
         {
+          "edge_id": "edge_line_media",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_line_plot",
+          "source_port_key": "image",
+          "target_node_id": "node_line_media",
+          "target_port_key": "source",
+          "visual_style": {}
+        },
+        {
           "edge_id": "edge_data_line_ref",
           "enabled": true,
           "input_order": 0,
           "label": "",
           "source_node_id": "node_line_input",
           "source_port_key": "table_data",
-          "target_node_id": "node_line_adapter",
-          "target_port_key": "payload",
-          "visual_style": {}
-        },
-        {
-          "edge_id": "edge_data_line_series",
-          "enabled": true,
-          "input_order": 0,
-          "label": "",
-          "source_node_id": "node_line_adapter",
-          "source_port_key": "result",
           "target_node_id": "node_line_plot",
-          "target_port_key": "series",
+          "target_port_key": "values",
           "visual_style": {}
         },
         {
@@ -225,25 +225,25 @@
           "visual_style": {}
         },
         {
+          "edge_id": "edge_scatter_media",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_scatter_plot",
+          "source_port_key": "image",
+          "target_node_id": "node_scatter_media",
+          "target_port_key": "source",
+          "visual_style": {}
+        },
+        {
           "edge_id": "edge_data_scatter_ref",
           "enabled": true,
           "input_order": 0,
           "label": "",
           "source_node_id": "node_scatter_input",
           "source_port_key": "table_data",
-          "target_node_id": "node_scatter_adapter",
-          "target_port_key": "payload",
-          "visual_style": {}
-        },
-        {
-          "edge_id": "edge_data_scatter_series",
-          "enabled": true,
-          "input_order": 0,
-          "label": "",
-          "source_node_id": "node_scatter_adapter",
-          "source_port_key": "result",
           "target_node_id": "node_scatter_plot",
-          "target_port_key": "series",
+          "target_port_key": "values",
           "visual_style": {}
         },
         {
@@ -796,31 +796,6 @@
         {
           "collapsed": false,
           "comments": [],
-          "custom_height": null,
-          "custom_width": 310.0,
-          "expanded_settings_group_ids": [],
-          "exposed_ports": {
-            "payload": true,
-            "result": true
-          },
-          "links": [],
-          "locked": false,
-          "node_id": "node_line_adapter",
-          "parent_node_id": null,
-          "port_labels": {},
-          "port_modifiers": {},
-          "principal_input_port_id": null,
-          "properties": {
-            "script": "import corex\n\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any)\n@corex.output(\"result\", value_type=corex.Any)\ndef run(ctx, payload):\n    from pathlib import Path\n    from urllib.parse import unquote, urlparse\n\n\n    def _field(value, key, default=\"\"):\n        if isinstance(value, dict):\n            return value.get(key, default)\n        return getattr(value, key, default)\n\n\n    def _source_path(ref):\n        uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n        if not uri:\n            raise ValueError(\"Tabular ref did not include a source_uri.\")\n        parsed = urlparse(uri)\n        if parsed.scheme == \"file\":\n            raw_path = unquote(parsed.path or parsed.netloc)\n            if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n                raw_path = raw_path[1:]\n            return Path(raw_path)\n        return Path(uri)\n\n\n    _source_path.__globals__.update(\n        {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n    )\n    path = _source_path(payload)\n    object_id = str(_field(payload, \"object_id\", \"\") or \"\")\n\n    import csv\n\n    with path.open(\"r\", encoding=\"utf-8\", newline=\"\") as handle:\n        rows = list(csv.DictReader(handle))\n\n    months = []\n    north = []\n    south = []\n    for row in rows:\n        months.append(float(row[\"month\"]))\n        north.append(float(row[\"north\"]))\n        south.append(float(row[\"south\"]))\n\n    output_data = [\n        {\"label\": \"North\", \"x\": months, \"y\": north},\n        {\"label\": \"South\", \"x\": months, \"y\": south},\n    ]\n    return {\"result\": output_data}\n"
-          },
-          "title": "CSV To Line Series",
-          "type_id": "core.python_script",
-          "x": -390.0,
-          "y": 16.0
-        },
-        {
-          "collapsed": false,
-          "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
           "expanded_settings_group_ids": [],
@@ -844,7 +819,7 @@
               "mode": "source",
               "version": 1
             },
-            "data_view_name": "Line Plot data",
+            "data_view_name": "Signal Plot - lines data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -867,10 +842,56 @@
           "custom_width": 380.0,
           "expanded_settings_group_ids": [],
           "exposed_ports": {
-            "data_export": true,
-            "exports": true,
-            "series": true,
-            "static_export": true
+            "_surface_source": false,
+            "source": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_line_media",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {},
+          "title": "Signal Plot - lines",
+          "type_id": "media.panel",
+          "x": 490.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 210.0,
+          "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
+          "exposed_ports": {
+            "colors": true,
+            "data_background_color": true,
+            "font_size": true,
+            "height": true,
+            "image": true,
+            "image_background_color": true,
+            "labels": true,
+            "legend_alignment": true,
+            "line_styles": true,
+            "line_widths": true,
+            "logarithmic_y_axis": true,
+            "marker_shapes": true,
+            "marker_sizes": true,
+            "max_points": true,
+            "show_legend": true,
+            "title": true,
+            "values": true,
+            "width": true,
+            "x_axis_interval": true,
+            "x_axis_label": true,
+            "x_column": true,
+            "x_datetime_end": true,
+            "x_datetime_start": true,
+            "x_mode": true,
+            "y_axis_interval": true,
+            "y_axis_label": true,
+            "y_columns": true
           },
           "links": [],
           "locked": false,
@@ -880,40 +901,25 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "archive_export_on_run": false,
-            "axis_limits": {
-              "x": [
-                null,
-                null
-              ],
-              "y": [
-                null,
-                null
-              ],
-              "z": [
-                null,
-                null
-              ]
-            },
-            "backend": "auto",
-            "data_export_format": "csv",
-            "grid": true,
-            "legend": true,
-            "log_scales": {
-              "x": false,
-              "y": false,
-              "z": false
-            },
-            "plot_options": {},
-            "render_in_canvas": true,
-            "static_export_format": "png",
-            "title": "Line Plot",
-            "x_label": "Month",
-            "y_label": "Revenue",
-            "z_label": ""
+            "line_styles": [
+              1
+            ],
+            "marker_shapes": [
+              0
+            ],
+            "show_legend": true,
+            "title": "Signal Plot - lines",
+            "x_axis_label": "Month",
+            "x_column": "month",
+            "x_mode": "column",
+            "y_axis_label": "Revenue",
+            "y_columns": [
+              "north",
+              "south"
+            ]
           },
-          "title": "Line Plot",
-          "type_id": "plot.scatter",
+          "title": "Signal Plot - lines",
+          "type_id": "plot.signal",
           "x": 60.0,
           "y": 0.0
         },
@@ -1047,31 +1053,6 @@
         {
           "collapsed": false,
           "comments": [],
-          "custom_height": null,
-          "custom_width": 310.0,
-          "expanded_settings_group_ids": [],
-          "exposed_ports": {
-            "payload": true,
-            "result": true
-          },
-          "links": [],
-          "locked": false,
-          "node_id": "node_scatter_adapter",
-          "parent_node_id": null,
-          "port_labels": {},
-          "port_modifiers": {},
-          "principal_input_port_id": null,
-          "properties": {
-            "script": "import corex\n\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any)\n@corex.output(\"result\", value_type=corex.Any)\ndef run(ctx, payload):\n    from pathlib import Path\n    from urllib.parse import unquote, urlparse\n\n\n    def _field(value, key, default=\"\"):\n        if isinstance(value, dict):\n            return value.get(key, default)\n        return getattr(value, key, default)\n\n\n    def _source_path(ref):\n        uri = str(_field(ref, \"source_uri\", \"\") or \"\").strip()\n        if not uri:\n            raise ValueError(\"Tabular ref did not include a source_uri.\")\n        parsed = urlparse(uri)\n        if parsed.scheme == \"file\":\n            raw_path = unquote(parsed.path or parsed.netloc)\n            if raw_path.startswith(\"/\") and len(raw_path) >= 3 and raw_path[2] == \":\":\n                raw_path = raw_path[1:]\n            return Path(raw_path)\n        return Path(uri)\n\n\n    _source_path.__globals__.update(\n        {\"_field\": _field, \"Path\": Path, \"unquote\": unquote, \"urlparse\": urlparse}\n    )\n    path = _source_path(payload)\n    object_id = str(_field(payload, \"object_id\", \"\") or \"\")\n\n    import csv\n\n    with path.open(\"r\", encoding=\"utf-8\", newline=\"\") as handle:\n        rows = list(csv.DictReader(handle, delimiter=\"\\t\"))\n\n    x_values = []\n    y_values = []\n    for row in rows:\n        x_values.append(float(row[\"load\"]))\n        y_values.append(float(row[\"efficiency\"]))\n\n    output_data = {\n        \"label\": \"Sensor lots\",\n        \"x\": x_values,\n        \"y\": y_values,\n    }\n    return {\"result\": output_data}\n"
-          },
-          "title": "TSV To Scatter Series",
-          "type_id": "core.python_script",
-          "x": -390.0,
-          "y": 236.0
-        },
-        {
-          "collapsed": false,
-          "comments": [],
           "custom_height": 220.0,
           "custom_width": 360.0,
           "expanded_settings_group_ids": [],
@@ -1095,7 +1076,7 @@
               "mode": "source",
               "version": 1
             },
-            "data_view_name": "Scatter Plot data",
+            "data_view_name": "Signal Plot - scatter data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -1118,10 +1099,56 @@
           "custom_width": 380.0,
           "expanded_settings_group_ids": [],
           "exposed_ports": {
-            "data_export": true,
-            "exports": true,
-            "series": true,
-            "static_export": true
+            "_surface_source": false,
+            "source": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_scatter_media",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {},
+          "title": "Signal Plot - scatter",
+          "type_id": "media.panel",
+          "x": 490.0,
+          "y": 220.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 210.0,
+          "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
+          "exposed_ports": {
+            "colors": true,
+            "data_background_color": true,
+            "font_size": true,
+            "height": true,
+            "image": true,
+            "image_background_color": true,
+            "labels": true,
+            "legend_alignment": true,
+            "line_styles": true,
+            "line_widths": true,
+            "logarithmic_y_axis": true,
+            "marker_shapes": true,
+            "marker_sizes": true,
+            "max_points": true,
+            "show_legend": true,
+            "title": true,
+            "values": true,
+            "width": true,
+            "x_axis_interval": true,
+            "x_axis_label": true,
+            "x_column": true,
+            "x_datetime_end": true,
+            "x_datetime_start": true,
+            "x_mode": true,
+            "y_axis_interval": true,
+            "y_axis_label": true,
+            "y_columns": true
           },
           "links": [],
           "locked": false,
@@ -1131,40 +1158,24 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "archive_export_on_run": false,
-            "axis_limits": {
-              "x": [
-                null,
-                null
-              ],
-              "y": [
-                null,
-                null
-              ],
-              "z": [
-                null,
-                null
-              ]
-            },
-            "backend": "auto",
-            "data_export_format": "csv",
-            "grid": true,
-            "legend": true,
-            "log_scales": {
-              "x": false,
-              "y": false,
-              "z": false
-            },
-            "plot_options": {},
-            "render_in_canvas": true,
-            "static_export_format": "png",
-            "title": "Scatter Plot",
-            "x_label": "Load",
-            "y_label": "Efficiency",
-            "z_label": ""
+            "line_styles": [
+              0
+            ],
+            "marker_shapes": [
+              1
+            ],
+            "show_legend": true,
+            "title": "Signal Plot - scatter",
+            "x_axis_label": "Load",
+            "x_column": "load",
+            "x_mode": "column",
+            "y_axis_label": "Efficiency",
+            "y_columns": [
+              "efficiency"
+            ]
           },
-          "title": "Scatter Plot",
-          "type_id": "plot.scatter",
+          "title": "Signal Plot - scatter",
+          "type_id": "plot.signal",
           "x": 60.0,
           "y": 220.0
         },

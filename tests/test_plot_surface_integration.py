@@ -1,7 +1,18 @@
+# Purpose: Prove Plot scene projection, preview invalidation and real QML surface interactions.
+# Map: feature_routes/plotter_nodes.md
+# Tests: tests/test_plot_surface_integration.py
+# Landmarks: scene payload helpers and assertions; PlotSurfaceInteractionQmlTests
 from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from ea_node_editor.execution.plot_backend_matplotlib import MATPLOTLIB_PLOT_BACKEND_ID
+from ea_node_editor.execution.plot_backend_pyqtgraph import PYQTGRAPH_PLOT_BACKEND_ID
+from ea_node_editor.execution.plot_backend_pyvista import PYVISTA_PLOT_BACKEND_ID
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -16,9 +27,16 @@ from tests.graph_surface_pointer_regression import (
 class _PlotGraphThemeBridge:
     theme_id = "graph_stitch_dark"
 
+    def __init__(self, *, lightweight_canvas: bool = False) -> None:
+        self._parent = SimpleNamespace(graphics_lightweight_canvas=bool(lightweight_canvas))
+
+    def parent(self) -> object:
+        return self._parent
+
 
 def _plot_scene_payload(
     *,
+    type_id: str = "plot.bar",
     properties: dict[str, object] | None = None,
     lightweight_canvas: bool = False,
 ) -> dict[str, object]:
@@ -27,8 +45,8 @@ def _plot_scene_payload(
     workspace_id = model.active_workspace.workspace_id
     node = model.add_node(
         workspace_id,
-        "plot.scatter",
-        "Scatter Plot",
+        type_id,
+        registry.get_spec(type_id).display_name,
         64.0,
         96.0,
         properties=properties,
@@ -38,7 +56,7 @@ def _plot_scene_payload(
         registry=registry,
         workspace_id=workspace_id,
         scope_path=(),
-        graph_theme_bridge=_PlotGraphThemeBridge(),
+        graph_theme_bridge=_PlotGraphThemeBridge(lightweight_canvas=lightweight_canvas),
         lightweight_canvas=lightweight_canvas,
     )
     return next(item for item in nodes_payload if item["node_id"] == node.node_id)
@@ -48,9 +66,9 @@ def test_plot_nodes_publish_plot_surface_spec_for_live_2d_canvas() -> None:
     payload = _plot_scene_payload(properties={"render_in_canvas": True})
 
     assert payload["surface_family"] == "plot"
-    assert payload["surface_variant"] == "scatter"
+    assert payload["surface_variant"] == "bar"
     assert payload["surface_spec"] == surface_spec_payload_for_values(
-        type_id="plot.scatter",
+        type_id="plot.bar",
         family="plot",
         variant="scatter",
     )
@@ -68,9 +86,13 @@ def test_plot_surface_payload_preserves_p03_sink_mode_contract() -> None:
     default_payload = _plot_scene_payload()
     disabled_payload = _plot_scene_payload(properties={"render_in_canvas": False})
     enabled_payload = _plot_scene_payload(properties={"render_in_canvas": True})
+    lightweight_payload = _plot_scene_payload(
+        properties={"render_in_canvas": True},
+        lightweight_canvas=True,
+    )
 
     assert default_payload["plot_surface"] == {
-        "plot_type": "scatter",
+        "plot_type": "bar",
         "live_backend_id": "pyqtgraph",
         "render_in_canvas": True,
         "lightweight_canvas": False,
@@ -83,6 +105,12 @@ def test_plot_surface_payload_preserves_p03_sink_mode_contract() -> None:
     assert disabled_payload["embedded_rendering_suppressed_by"] == ["render_in_canvas"]
     assert enabled_payload["plot_surface"]["embedded_rendering_suppressed"] is False
     assert enabled_payload["embedded_rendering_suppressed_by"] == []
+
+    assert disabled_payload["plot_surface"]["embedded_rendering_suppressed_by"] == ["render_in_canvas"]
+    assert lightweight_payload["plot_surface"]["embedded_rendering_suppressed"] is True
+    assert lightweight_payload["plot_surface"]["embedded_rendering_suppressed_by"] == [
+        "lightweight_canvas"
+    ]
 
 
 def test_plot_surface_exposes_detached_window_action_contract_without_session_action() -> None:
@@ -153,6 +181,408 @@ def test_plot_surface_prefers_cached_real_preview_over_spline_placeholder() -> N
     assert "_clearCachedPreviewImage" in surface_source
     assert "cache: false" in surface_source
     assert "visible: surface.placeholderPreviewVisible" in surface_source
+
+
+def _connected_tabular_plot_model(tmp_path: Path, *, filename: str = "weather.csv"):
+    source = tmp_path / filename
+    source.write_text("time,temp\n0,21.5\n1,22.0\n", encoding="utf-8")
+    model = GraphModel()
+    registry = build_default_registry()
+    workspace_id = model.active_workspace.workspace_id
+    tabular = model.add_node(
+        workspace_id,
+        "tabular.input",
+        "Tabular",
+        32.0,
+        64.0,
+        properties={"path": str(source)},
+    )
+    plot = model.add_node(
+        workspace_id,
+        "plot.bar",
+        "Bar Plot",
+        360.0,
+        64.0,
+        properties={"tabular_mapping": {"x": "time", "y": ["temp"]}},
+    )
+    edge = model.add_edge(workspace_id, tabular.node_id, "table_data", plot.node_id, "series")
+    return source, model, registry, workspace_id, tabular, plot, edge
+
+
+def _full_plot_payload(
+    model: GraphModel,
+    registry,
+    workspace_id: str,
+    plot_node_id: str,
+) -> dict[str, object]:
+    nodes_payload, _minimap_payload, _edges_payload = GraphScenePayloadBuilder().rebuild_models(
+        model=model,
+        registry=registry,
+        workspace_id=workspace_id,
+        scope_path=(),
+        graph_theme_bridge=_PlotGraphThemeBridge(),
+    )
+    return next(item for item in nodes_payload if item["node_id"] == plot_node_id)
+
+
+def _targeted_plot_payload(
+    model: GraphModel,
+    registry,
+    workspace_id: str,
+    plot_node_id: str,
+    *,
+    previous_payload: dict[str, object],
+    changed_fields: set[str] | None,
+) -> dict[str, object]:
+    nodes_payload, _backdrop_nodes_payload, _minimap_payload = (
+        GraphScenePayloadBuilder().build_node_payloads_for_ids(
+            model=model,
+            registry=registry,
+            workspace_id=workspace_id,
+            scope_path=(),
+            node_ids={plot_node_id},
+            graph_theme_bridge=_PlotGraphThemeBridge(),
+            previous_payloads_by_id={plot_node_id: previous_payload},
+            changed_fields_by_node_id=(
+                {plot_node_id: changed_fields} if changed_fields is not None else None
+            ),
+        )
+    )
+    return next(item for item in nodes_payload if item["node_id"] == plot_node_id)
+
+
+def test_generic_plot_scene_payload_reports_resolved_live_backend_id() -> None:
+    line_payload = _plot_scene_payload(type_id="plot.bar")
+    surface_payload = _plot_scene_payload(type_id="plot.surface")
+    matplotlib_payload = _plot_scene_payload(
+        type_id="plot.bar",
+        properties={"backend": MATPLOTLIB_PLOT_BACKEND_ID},
+    )
+
+    assert line_payload["plot_surface"]["live_backend_id"] == PYQTGRAPH_PLOT_BACKEND_ID
+    assert surface_payload["plot_surface"]["plot_type"] == "surface"
+    assert surface_payload["plot_surface"]["live_backend_id"] == PYVISTA_PLOT_BACKEND_ID
+    assert matplotlib_payload["plot_surface"]["live_backend_id"] == MATPLOTLIB_PLOT_BACKEND_ID
+
+
+def test_generic_plot_scene_payload_projects_connected_tabular_auto_preview(tmp_path: Path) -> None:
+    source = tmp_path / "weather.csv"
+    source.write_text("time,temp\n0,21.5\n1,22.0\n", encoding="utf-8")
+    model = GraphModel()
+    registry = build_default_registry()
+    workspace_id = model.active_workspace.workspace_id
+    tabular = model.add_node(
+        workspace_id,
+        "tabular.input",
+        "Tabular",
+        32.0,
+        64.0,
+        properties={"path": str(source)},
+    )
+    plot = model.add_node(
+        workspace_id,
+        "plot.bar",
+        "Bar Plot",
+        360.0,
+        64.0,
+        properties={"tabular_mapping": {"x": "time", "y": ["temp"]}},
+    )
+    model.add_edge(workspace_id, tabular.node_id, "table_data", plot.node_id, "series")
+
+    nodes_payload, _minimap_payload, _edges_payload = GraphScenePayloadBuilder().rebuild_models(
+        model=model,
+        registry=registry,
+        workspace_id=workspace_id,
+        scope_path=(),
+        graph_theme_bridge=_PlotGraphThemeBridge(),
+    )
+
+    payload = next(item for item in nodes_payload if item["node_id"] == plot.node_id)
+    plot_surface = payload["plot_surface"]
+    assert plot_surface["auto_preview"] is True
+    assert plot_surface["auto_preview_source_node_id"] == tabular.node_id
+    # Scene payloads carry only the staleness signature; the render request is
+    # built asynchronously and cached outside the payload.
+    assert plot_surface["series_signature"]
+    assert "render_request" not in plot_surface
+    assert plot_surface["auto_preview_pending"] is True
+    assert plot_surface["render_revision"] == 0
+
+    from ea_node_editor.ui_qml.graph_scene_payload.kinds.plot import (
+        _plot_series_source_descriptor,
+    )
+    from ea_node_editor.ui_qml.plot_auto_preview_service import (
+        build_plot_render_request_payload,
+        shared_plot_render_request_cache,
+    )
+
+    workspace = model.project.workspaces[workspace_id]
+    descriptor = _plot_series_source_descriptor(
+        node=workspace.nodes[plot.node_id],
+        workspace=workspace,
+        graph_theme_bridge=None,
+    )
+    request_payload, warnings = build_plot_render_request_payload(
+        node_type_id="plot.bar",
+        properties={**workspace.nodes[plot.node_id].properties},
+        source_descriptor=descriptor,
+    )
+    assert warnings == ()
+    assert request_payload["plot_type"] == "bar"
+    series_payload = [
+        {key: value for key, value in item.items() if key not in {"decimation", "source_ref"}}
+        for item in request_payload["series"]
+    ]
+    assert series_payload == [
+        {
+            "label": "temp",
+            "x": [0, 1],
+            "y": [21.5, 22],
+            "x_column": "time",
+            "y_column": "temp",
+        }
+    ]
+
+    shared_plot_render_request_cache().store(
+        workspace_id,
+        plot.node_id,
+        signature=plot_surface["series_signature"],
+        request_payload=request_payload,
+    )
+    nodes_payload, _minimap_payload, _edges_payload = GraphScenePayloadBuilder().rebuild_models(
+        model=model,
+        registry=registry,
+        workspace_id=workspace_id,
+        scope_path=(),
+        graph_theme_bridge=_PlotGraphThemeBridge(),
+    )
+    refreshed = next(item for item in nodes_payload if item["node_id"] == plot.node_id)
+    assert refreshed["plot_surface"]["auto_preview_active"] is True
+    assert refreshed["plot_surface"]["render_revision"] > 0
+
+
+def test_generic_plot_auto_preview_reuses_surface_for_node_title_rename(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ea_node_editor.ui_qml.graph_scene_payload.kinds import plot as plot_payload_kind
+    from ea_node_editor.ui_qml.plot_auto_preview_service import (
+        reset_shared_plot_render_request_cache,
+        shared_plot_render_request_cache,
+    )
+
+    reset_shared_plot_render_request_cache()
+    _source, model, registry, workspace_id, _tabular, plot, _edge = _connected_tabular_plot_model(
+        tmp_path
+    )
+    initial_payload = _full_plot_payload(model, registry, workspace_id, plot.node_id)
+    initial_surface = initial_payload["plot_surface"]
+    cache_entry = shared_plot_render_request_cache().store(
+        workspace_id,
+        plot.node_id,
+        signature=initial_surface["series_signature"],
+        request_payload={"plot_type": "line", "series": []},
+    )
+    active_payload = _full_plot_payload(model, registry, workspace_id, plot.node_id)
+    active_surface = active_payload["plot_surface"]
+    assert active_surface["render_revision"] == cache_entry.revision
+
+    descriptor_calls = 0
+    original_descriptor = plot_payload_kind._plot_series_source_descriptor
+
+    def counting_descriptor(**kwargs):
+        nonlocal descriptor_calls
+        descriptor_calls += 1
+        return original_descriptor(**kwargs)
+
+    monkeypatch.setattr(plot_payload_kind, "_plot_series_source_descriptor", counting_descriptor)
+    stable_payload = _targeted_plot_payload(
+        model,
+        registry,
+        workspace_id,
+        plot.node_id,
+        previous_payload=active_payload,
+        changed_fields=set(),
+    )
+    assert descriptor_calls == 1
+    assert stable_payload["plot_surface"] == active_surface
+
+    descriptor_calls = 0
+    model.set_node_title(workspace_id, plot.node_id, "Renamed Plot Node")
+    renamed_payload = _targeted_plot_payload(
+        model,
+        registry,
+        workspace_id,
+        plot.node_id,
+        previous_payload=active_payload,
+        changed_fields={"node.title"},
+    )
+
+    assert descriptor_calls == 0
+    assert renamed_payload["title"] == "Renamed Plot Node"
+    assert renamed_payload["plot_surface"] == active_surface
+    assert renamed_payload["plot_surface"] is not active_surface
+
+
+def test_generic_plot_auto_preview_recomputes_for_render_title_source_edge_and_file_stat(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ea_node_editor.ui_qml.graph_scene_payload.kinds import plot as plot_payload_kind
+    from ea_node_editor.ui_qml.plot_auto_preview_service import reset_shared_plot_render_request_cache
+
+    reset_shared_plot_render_request_cache()
+    _source, model, registry, workspace_id, _tabular, plot, edge = _connected_tabular_plot_model(
+        tmp_path
+    )
+    initial_payload = _full_plot_payload(model, registry, workspace_id, plot.node_id)
+    initial_signature = initial_payload["plot_surface"]["series_signature"]
+
+    descriptor_calls = 0
+    original_descriptor = plot_payload_kind._plot_series_source_descriptor
+
+    def counting_descriptor(**kwargs):
+        nonlocal descriptor_calls
+        descriptor_calls += 1
+        return original_descriptor(**kwargs)
+
+    monkeypatch.setattr(plot_payload_kind, "_plot_series_source_descriptor", counting_descriptor)
+    model.set_node_property(workspace_id, plot.node_id, "title", "Render Title")
+    title_payload = _targeted_plot_payload(
+        model,
+        registry,
+        workspace_id,
+        plot.node_id,
+        previous_payload=initial_payload,
+        changed_fields={"properties.title"},
+    )
+    title_signature = title_payload["plot_surface"]["series_signature"]
+    assert descriptor_calls == 1
+    assert title_signature != initial_signature
+
+    second_source = tmp_path / "weather_2.csv"
+    second_source.write_text("time,temp\n0,18.0\n1,19.0\n", encoding="utf-8")
+    second_tabular = model.add_node(
+        workspace_id,
+        "tabular.input",
+        "Tabular 2",
+        32.0,
+        220.0,
+        properties={"path": str(second_source)},
+    )
+    model.remove_edge(workspace_id, edge.edge_id)
+    model.add_edge(workspace_id, second_tabular.node_id, "table_data", plot.node_id, "series")
+    descriptor_calls = 0
+    retargeted_payload = _targeted_plot_payload(
+        model,
+        registry,
+        workspace_id,
+        plot.node_id,
+        previous_payload=title_payload,
+        changed_fields=None,
+    )
+    retargeted_surface = retargeted_payload["plot_surface"]
+    assert descriptor_calls == 1
+    assert retargeted_surface["series_signature"] != title_signature
+    assert retargeted_surface["auto_preview_source_node_id"] == second_tabular.node_id
+
+    second_source.write_text("time,temp\n0,18.0\n1,19.0\n2,20.0\n", encoding="utf-8")
+    descriptor_calls = 0
+    file_changed_payload = _targeted_plot_payload(
+        model,
+        registry,
+        workspace_id,
+        plot.node_id,
+        previous_payload=retargeted_payload,
+        changed_fields=None,
+    )
+    assert descriptor_calls == 1
+    assert file_changed_payload["plot_surface"]["series_signature"] != retargeted_surface["series_signature"]
+
+
+def test_generic_plot_scene_payload_projects_connected_table_window_auto_preview(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "weather.csv"
+    source.write_text("time,temp,pressure\n0,21.5,100.0\n1,22.0,101.5\n", encoding="utf-8")
+    model = GraphModel()
+    registry = build_default_registry()
+    workspace_id = model.active_workspace.workspace_id
+    tabular = model.add_node(
+        workspace_id,
+        "tabular.input",
+        "Tabular",
+        32.0,
+        64.0,
+        properties={"path": str(source)},
+    )
+    table_window = model.add_node(
+        workspace_id,
+        "tabular.table_filter",
+        "Table Filter",
+        220.0,
+        64.0,
+        properties={"columns": "time,temp", "row_limit": 0},
+    )
+    plot = model.add_node(
+        workspace_id,
+        "plot.bar",
+        "Bar Plot",
+        420.0,
+        64.0,
+        properties={"tabular_mapping": {"x": "time", "y": ["temp"]}},
+    )
+    model.add_edge(workspace_id, tabular.node_id, "table_data", table_window.node_id, "table_data")
+    model.add_edge(workspace_id, table_window.node_id, "window", plot.node_id, "series")
+
+    nodes_payload, _minimap_payload, _edges_payload = GraphScenePayloadBuilder().rebuild_models(
+        model=model,
+        registry=registry,
+        workspace_id=workspace_id,
+        scope_path=(),
+        graph_theme_bridge=_PlotGraphThemeBridge(),
+    )
+
+    payload = next(item for item in nodes_payload if item["node_id"] == plot.node_id)
+    plot_surface = payload["plot_surface"]
+    assert plot_surface["auto_preview"] is True
+    assert plot_surface["auto_preview_pending"] is True
+    assert plot_surface["auto_preview_source_node_id"] == table_window.node_id
+    assert plot_surface["series_signature"]
+    assert "render_request" not in plot_surface
+
+    from ea_node_editor.ui_qml.graph_scene_payload.kinds.plot import (
+        _plot_series_source_descriptor,
+    )
+    from ea_node_editor.ui_qml.plot_auto_preview_service import (
+        build_plot_render_request_payload,
+    )
+
+    workspace = model.project.workspaces[workspace_id]
+    descriptor = _plot_series_source_descriptor(
+        node=workspace.nodes[plot.node_id],
+        workspace=workspace,
+        graph_theme_bridge=None,
+    )
+    assert descriptor["kind"] == "table_filter"
+    request_payload, _warnings = build_plot_render_request_payload(
+        node_type_id="plot.bar",
+        properties={**workspace.nodes[plot.node_id].properties},
+        source_descriptor=descriptor,
+    )
+    series_payload = [
+        {key: value for key, value in item.items() if key not in {"decimation", "source_ref"}}
+        for item in request_payload["series"]
+    ]
+    assert series_payload == [
+        {
+            "label": "temp",
+            "x": [0, 1],
+            "y": [21.5, 22],
+            "x_column": "time",
+            "y_column": "temp",
+        }
+    ]
 
 
 class PlotSurfaceInteractionQmlTests(unittest.TestCase):

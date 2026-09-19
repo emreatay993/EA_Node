@@ -18,9 +18,9 @@ downgrades the decision to recomputation.
 | Base HEAD | `86a5f562e7c5c9d7d52dad97f842a89631508a26` |
 | Plan SHA-256 | `4FFFCFC5B23BA1A2E755CE8222F9EE221B3AA108EAC9F63779310EEBF370A47F` |
 | Ledger SHA-256 at drafting start | `200388ABF798E86431103DEBD0E94ECF0C584617FC2D15E6499B6A03FA01A21E` |
-| Current repo-owned catalog SHA-256 | `EF9E87E978BEF4EC2DF275FDA53634678DB4FAD56011D82A826B299ED24B78EF` |
-| Migration inventory SHA-256 | `F7699513D380B589CB1DDDA4FDE542DA92155A06C047C8F51205B04E08A50359` |
-| Repo-owned type-ID list SHA-256 | `DF2D6AA4042671D987C58C6F6D8AE84E178B1B3BCB81E5E9F3F2CDF4497B1827` |
+| Current repo-owned catalog SHA-256 | `514A8EB1B6436E9C99F9D2557E946B4AF09418483E43C43AD17839A0875EF35F` |
+| Migration inventory SHA-256 | `C9EE1A02311038524DBF249E687B76A3D1E770864C4ED929C1E6B337FA1C4077` |
+| Repo-owned type-ID list SHA-256 | `A4C4AA1797C8C413CDB2C90012DBF99BC381AFF96B1AF8A0533CF98295843ADF` |
 
 The catalog hash is the committed JSON file hash. The type-ID hash is over sorted
 IDs joined by LF with a final LF.
@@ -31,12 +31,12 @@ IDs joined by LF with a final LF.
 | --- | ---: |
 | `durable` | 28 |
 | `session` | 28 |
-| `never` | 53 |
-| Executable subtotal | 109 |
+| `never` | 52 |
+| Executable subtotal | 108 |
 | Excluded passive | 31 |
 | Excluded compile-only | 3 |
 | Excluded subtotal | 34 |
-| Repo-owned total | 143 |
+| Repo-owned total | 142 |
 
 ## Scope Meanings
 
@@ -185,7 +185,6 @@ locations, and package paths are deliberately absent from this tracked artifact.
 | `plot.heatmap` | Heatmap Plot | `active` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/plot/generic.py` | Plot | `never` | `export_or_view_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_plot_node_contracts.py` |
 | `plot.histogram` | Histogram Plot | `active` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/plot/generic.py` | Plot | `never` | `export_or_view_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_plot_node_contracts.py` |
 | `plot.point_cloud` | Point Cloud Plot | `active` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/plot/generic.py` | Plot | `never` | `export_or_view_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_plot_node_contracts.py` |
-| `plot.scatter` | Scatter Plot | `active` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/plot/generic.py` | Plot | `never` | `export_or_view_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_plot_node_contracts.py` |
 | `plot.signal` | Signal Plot | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/plot_signal.py` | Plot | `session` | `pure` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys` | `session_plot_codec` | `plot_data_settings_provenance` | `interactive_data_not_durable` | `tests/test_signal_plot_renderer.py` |
 | `plot.streamlines` | Streamlines Plot | `active` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/plot/generic.py` | Plot | `never` | `export_or_view_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_plot_node_contracts.py` |
 | `plot.surface` | Surface Plot | `active` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/plot/generic.py` | Plot | `never` | `export_or_view_effect` | `not_required_never` | `not_used_never` | `not_reusable` | `managed_artifact_effect` | `external_side_effect` | `tests/test_plot_node_contracts.py` |

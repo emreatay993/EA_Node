@@ -104,7 +104,7 @@ def _current_repo_owned_catalog() -> list[dict[str, object]]:
 def test_builtin_registry_contains_retained_corex_contract_families() -> None:
     registry = build_builtin_registry()
 
-    assert len(registry.all_specs()) == 125
+    assert len(registry.all_specs()) == 124
     for type_id in (
         "plot.signal",
         "geometry.cylinder",
@@ -126,7 +126,7 @@ def test_builtin_registry_contains_retained_corex_contract_families() -> None:
 
 def test_current_repo_owned_catalog_matches_current() -> None:
     expected = load_current_repo_owned_catalog()
-    assert len(expected) == 143
+    assert len(expected) == 142
     assert _current_repo_owned_catalog() == expected
 
 
@@ -209,12 +209,12 @@ def test_solution_reuse_classification_matches_all_shipped_rows() -> None:
     executable = tuple(spec for spec in specs if spec.runtime_behavior == "active")
     excluded = tuple(spec for spec in specs if spec.runtime_behavior != "active")
 
-    assert len(specs) == 143
-    assert len(executable) == 109
+    assert len(specs) == 142
+    assert len(executable) == 108
     assert Counter(spec.solution_reuse_scope for spec in executable) == {
         "durable": 28,
         "session": 28,
-        "never": 53,
+        "never": 52,
     }
     assert Counter(spec.runtime_behavior for spec in excluded) == {
         "passive": 31,
@@ -260,15 +260,15 @@ def test_novice_plugin_sdk_migration_inventory_is_exhaustive() -> None:
         *mars_specs,
     )
 
-    assert len(rows) == 135
-    assert len(specs) == 135
+    assert len(rows) == 134
+    assert len(specs) == 134
     current_type_ids = {spec.type_id for spec in specs}
     assert current_type_ids == set(rows)
     assert [row["disposition"] for row in rows.values()].count("convert") == 78
     assert [row["disposition"] for row in rows.values()].count("native function") == 8
     assert [row["disposition"] for row in rows.values()].count(
         "internal exception"
-    ) == 49
+    ) == 48
 
     for spec in specs:
         row = rows[spec.type_id]

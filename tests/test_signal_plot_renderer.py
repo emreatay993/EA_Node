@@ -37,6 +37,45 @@ from tests.repo_owned_catalog_fixture import load_current_repo_owned_catalog
 SIGNAL_PLOT_TYPE_ID = "plot.signal"
 
 
+def test_signal_marker_only_scatter_keeps_full_xy_samples_without_line_marks() -> None:
+    import numpy as np
+    from ea_node_editor.execution.signal_plot_renderer import build_xy_figure, create_signal_plot, xy_mark_signal_ids
+    from ea_node_editor.runtime_contracts import PlotProvenance
+
+    values = np.column_stack((np.arange(4500), np.arange(4500) * 2.0))
+    plot, warnings = create_signal_plot(
+        {"values": values, "line_styles": [0], "marker_shapes": [1], "max_points": 100},
+        provenance=PlotProvenance("scatter_workspace", "scatter_node", "scatter_run"),
+    )
+    assert plot.preview.encoded_bytes.startswith(b"\x89PNG")
+    assert len(plot.signals) == 1
+    np.testing.assert_array_equal(plot.signals[0].x.to_numpy(), values[:, 0])
+    np.testing.assert_array_equal(plot.signals[0].y.to_numpy(), values[:, 1])
+    figure = build_xy_figure(plot)
+    assert [trace.kind for trace in figure.traces] == ["scatter"]
+    assert xy_mark_signal_ids(plot) == (plot.signals[0].signal_id,)
+    assert warnings  # PNG reduction does not reduce the retained/fullscreen values.
+
+
+def test_retired_scatter_saved_project_is_rejected_without_modifying_source(tmp_path: Path) -> None:
+    import json
+    from ea_node_editor.graph.model import GraphModel
+    from ea_node_editor.persistence.serializer import JsonProjectSerializer
+
+    registry = build_default_registry(generation_root=tmp_path / "generations")
+    model = GraphModel()
+    node = model.add_node(model.active_workspace.workspace_id, "plot.scatter", "Retired Scatter", 0, 0)
+    node.properties["tabular_mapping"] = {"x": "time", "y": ["value"]}
+    serializer = JsonProjectSerializer(registry)
+    document = serializer.to_document(model.project)
+    source = tmp_path / "retired_scatter.cxproj"
+    original = json.dumps(document, indent=2).encode()
+    source.write_bytes(original)
+    with pytest.raises(ValueError, match="unresolved node type: plot.scatter"):
+        serializer.load(str(source))
+    assert source.read_bytes() == original
+
+
 def test_signal_plot_authored_numeric_ranges_save_load_and_compile(tmp_path: Path) -> None:
     from ea_node_editor.execution.compiler import compile_runtime_snapshot
     from ea_node_editor.execution.execution_plan import ExecutionPlan
@@ -221,8 +260,9 @@ def test_signal_plot_contract_is_exact_and_generic_siblings_remain(
         "x_datetime_start": "", "x_datetime_end": "",
     }
     assert registry.spec_or_none("plot.line") is None
+    assert registry.spec_or_none("plot.scatter") is None
+    assert {"scatter", "xy", "points", "correlation"}.issubset(spec.keywords)
     assert all(registry.spec_or_none(type_id) is not None for type_id in (
-        "plot.scatter",
         "plot.bar",
         "plot.histogram",
         "plot.heatmap",

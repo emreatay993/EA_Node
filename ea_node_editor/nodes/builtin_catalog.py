@@ -64,7 +64,7 @@ from ea_node_editor.nodes.builtins.passive_flowchart import (
     PASSIVE_FLOWCHART_NODE_DESCRIPTORS,
 )
 from ea_node_editor.nodes.builtins.passive_mail import PASSIVE_MAIL_NODE_DESCRIPTORS
-from ea_node_editor.nodes.builtins.plot import PLOT_NODE_DESCRIPTORS
+from ea_node_editor.nodes.builtins.plot.generic import PLOT_NODE_DESCRIPTORS
 from ea_node_editor.nodes.builtins.reporting import (
     COREX_REPORTING_CONTRACT_MANIFEST,
     COREX_REPORTING_OWNER_ID,
@@ -193,7 +193,6 @@ _TRUSTED_BUILTIN_TYPE_IDS = frozenset(
         "plot.heatmap",
         "plot.histogram",
         "plot.point_cloud",
-        "plot.scatter",
         "plot.streamlines",
         "plot.surface",
         "web.page_viewer",

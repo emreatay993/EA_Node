@@ -188,7 +188,7 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         width: float = 360.0,
         height: float = 280.0,
     ) -> str:
-        node_id = self.window.scene.add_node_from_type("plot.scatter", x=x, y=y)
+        node_id = self.window.scene.add_node_from_type("plot.bar", x=x, y=y)
         self.window.scene.resize_node(node_id, width, height)
         self.window.view.set_view_state(1.0, x + (width * 0.5), y + (height * 0.5))
         self.app.processEvents()

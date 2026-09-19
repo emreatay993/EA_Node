@@ -46,16 +46,16 @@ def _bridge_with_plot_node(
     workspace_id = model.active_workspace.workspace_id
     node = model.add_node(
         workspace_id,
-        "plot.scatter",
-        "Scatter Plot",
+        "plot.bar",
+        "Bar Plot",
         0.0,
         0.0,
         properties={"render_in_canvas": render_in_canvas},
     )
     other = model.add_node(
         workspace_id,
-        "plot.scatter",
-        "Other Scatter Plot",
+        "plot.bar",
+        "Other Bar Plot",
         40.0,
         40.0,
         properties={"plot_options": {"plot_theme": "light"}},
@@ -97,11 +97,11 @@ def test_plot_fullscreen_bridge_opens_plot_payload_even_when_embedded_is_suppres
     plot_payload = bridge.plot_payload
     assert plot_payload["content_kind"] == "plot"
     assert plot_payload["surface_family"] == "plot"
-    assert plot_payload["surface_variant"] == "scatter"
+    assert plot_payload["surface_variant"] == "bar"
     assert plot_payload["surface_spec"]["fullscreen"]["content_kind"] == "plot"
     assert plot_payload["surface_spec"]["native_overlay"]["required"] is True
     assert plot_payload["plot_surface"] == {
-        "plot_type": "scatter",
+        "plot_type": "bar",
         "live_backend_id": "pyqtgraph",
         "render_in_canvas": False,
         "lightweight_canvas": False,

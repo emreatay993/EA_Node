@@ -1,11 +1,13 @@
+# Purpose: Normalize loaded graph state against the current registry without persistence IO.
+# Map: subsystems/graph_domain.md
+# Tests: tests/test_graph_registry_normalization.py
 from __future__ import annotations
 
 from ea_node_editor.graph.hierarchy import sanitize_workspace_parent_links
-from ea_node_editor.graph.effective_ports import effective_ports
+from ea_node_editor.graph.node_port_state import normalize_node_port_state
 from ea_node_editor.graph.invariant_kernel import GraphInvariantKernel, RegistryValidationPassMemo
 from ea_node_editor.graph.project_state import ProjectData
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.runtime_contracts import DATA_TREE_MODIFIER_ORDER
 
 
 def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry) -> None:
@@ -64,67 +66,23 @@ def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry)
                 break
 
         for resolution in resolved_nodes.values():
-            normalized_exposed_ports = kernel.normalized_exposed_ports(resolution, memo=memo)
-            if resolution.node.exposed_ports != normalized_exposed_ports:
-                resolution.node.exposed_ports = normalized_exposed_ports
-                workspace_changed = True
-            effective = effective_ports(
-                node=resolution.node,
-                spec=resolution.spec,
-                workspace_nodes=workspace.nodes,
+            node = resolution.node
+            ports = kernel.effective_ports_for(
+                resolution, workspace_nodes=workspace.nodes, memo=memo,
             )
-            ports_by_key = {port.key: port for port in effective}
-            valid_port_keys = set(ports_by_key)
-            non_label_rename_directions = {
-                group.direction
-                for group in resolution.spec.dynamic_port_groups
-                if group.rename_mode != "label"
-            }
-            non_label_dynamic_port_keys = {
-                port.key
-                for port in effective[len(resolution.spec.ports) :]
-                if port.direction in non_label_rename_directions
-            }
-            normalized_port_labels = {
-                key: str(value)
-                for key, value in resolution.node.port_labels.items()
-                if (
-                    key in valid_port_keys
-                    and key not in non_label_dynamic_port_keys
-                    and str(value).strip()
-                )
-            }
-            if resolution.node.port_labels != normalized_port_labels:
-                resolution.node.port_labels = normalized_port_labels
+            state = normalize_node_port_state(node, resolution.spec, ports)
+            if node.exposed_ports != state.exposed_ports:
+                node.exposed_ports = state.exposed_ports
                 workspace_changed = True
-            normalized_modifiers = {
-                key: tuple(
-                    modifier
-                    for modifier in DATA_TREE_MODIFIER_ORDER
-                    if modifier in (
-                        {str(item).strip().lower() for item in value}
-                        if isinstance(value, (list, tuple, set, frozenset))
-                        else set()
-                    )
-                )
-                for key, value in resolution.node.port_modifiers.items()
-                if key in ports_by_key and str(ports_by_key[key].kind) == "data"
-            }
-            normalized_modifiers = {
-                key: value for key, value in normalized_modifiers.items() if value
-            }
-            if resolution.node.port_modifiers != normalized_modifiers:
-                resolution.node.port_modifiers = normalized_modifiers
+            if node.port_labels != state.port_labels:
+                node.port_labels = state.port_labels
                 workspace_changed = True
-            principal_port = ports_by_key.get(str(resolution.node.principal_input_port_id or ""))
-            if principal_port is None or (
-                str(principal_port.kind) != "data"
-                or str(principal_port.direction) != "in"
-                or str(principal_port.data_access) == "tree"
-            ):
-                if resolution.node.principal_input_port_id is not None:
-                    resolution.node.principal_input_port_id = None
-                    workspace_changed = True
+            if node.port_modifiers != state.port_modifiers:
+                node.port_modifiers = state.port_modifiers
+                workspace_changed = True
+            if node.principal_input_port_id != state.principal_input_port_id:
+                node.principal_input_port_id = state.principal_input_port_id
+                workspace_changed = True
 
         for edge_id in kernel.prunable_edge_ids(memo=memo):
             workspace.edges.pop(edge_id, None)

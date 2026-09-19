@@ -793,7 +793,7 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
             },
             {
                 "node_id": "plot",
-                "type_id": "plot.scatter",
+                "type_id": "plot.bar",
                 "properties": {"preview_series": [1, 2, 3], "title": "Series"},
                 "member_node_ids": ["runtime-member"],
             },

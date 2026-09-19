@@ -830,9 +830,9 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             def settings_payload(expanded, surface_family="standard"):
                 payload = node_payload(surface_family=surface_family)
                 if surface_family == "plot":
-                    payload["type_id"] = "plot.scatter"
+                    payload["type_id"] = "plot.bar"
                     payload["surface_spec"] = surface_spec_payload_for_values(
-                        type_id="plot.scatter",
+                        type_id="plot.bar",
                         family="plot",
                         variant="line",
                     )

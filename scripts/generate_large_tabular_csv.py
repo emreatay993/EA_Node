@@ -11,8 +11,8 @@ Usage
 
 Outputs land in ``artifacts/perf/`` by default:
     <label>.csv                      the data file
-    <label>.cxproj                   tabular.input -> plot.scatter          (--emit-project)
-    <label>_filtered.cxproj          tabular.input -> table_filter -> plot.scatter (--emit-project)
+    <label>.cxproj                   tabular.input -> plot.bar          (--emit-project)
+    <label>_filtered.cxproj          tabular.input -> table_filter -> plot.bar (--emit-project)
 """
 from __future__ import annotations
 
@@ -88,7 +88,7 @@ def _node_id() -> str:
     return f"node_{uuid.uuid4().hex[:10]}"
 
 
-def _plot_line_node(node_id: str, *, x: float, y: float) -> dict[str, object]:
+def _plot_bar_node(node_id: str, *, x: float, y: float) -> dict[str, object]:
     return {
         "collapsed": False,
         "custom_height": None,
@@ -120,8 +120,8 @@ def _plot_line_node(node_id: str, *, x: float, y: float) -> dict[str, object]:
             "y_label": "",
             "z_label": "",
         },
-        "title": "Line Plot",
-        "type_id": "plot.scatter",
+        "title": "Bar Plot",
+        "type_id": "plot.bar",
         "visual_style": {},
         "x": x,
         "y": y,
@@ -211,7 +211,7 @@ def emit_project(output_path: Path, csv_path: Path, *, with_filter: bool) -> Non
     tabular_id = _node_id()
     plot_id = _node_id()
     nodes = [
-        _plot_line_node(plot_id, x=140.0, y=-195.0),
+        _plot_bar_node(plot_id, x=140.0, y=-195.0),
         _tabular_input_node(tabular_id, path=csv_path, x=-537.0, y=-225.0),
     ]
     if with_filter:

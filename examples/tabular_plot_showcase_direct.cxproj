@@ -61,7 +61,7 @@
       },
       "general": {
         "author": "",
-        "description": "Loads CSV, TSV, XLSX, TXT, NPY, NPZ, Parquet, CSV point cloud, and HDF5 streamline sources directly into the generic plot node family without adapter nodes.",
+        "description": "Loads CSV, TSV, XLSX, TXT, NPY, NPZ, Parquet, CSV point cloud, and HDF5 streamline sources directly into Signal Plot and specialized generic plots without adapter nodes.",
         "project_name": "Tabular Plot Showcase Direct"
       },
       "logging": {
@@ -137,6 +137,17 @@
           "visual_style": {}
         },
         {
+          "edge_id": "edge_line_media",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_line_plot",
+          "source_port_key": "image",
+          "target_node_id": "node_line_media",
+          "target_port_key": "source",
+          "visual_style": {}
+        },
+        {
           "edge_id": "edge_data_line_ref",
           "enabled": true,
           "input_order": 0,
@@ -144,7 +155,7 @@
           "source_node_id": "node_line_input",
           "source_port_key": "table_data",
           "target_node_id": "node_line_plot",
-          "target_port_key": "series",
+          "target_port_key": "values",
           "visual_style": {}
         },
         {
@@ -159,6 +170,17 @@
           "visual_style": {}
         },
         {
+          "edge_id": "edge_scatter_media",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_scatter_plot",
+          "source_port_key": "image",
+          "target_node_id": "node_scatter_media",
+          "target_port_key": "source",
+          "visual_style": {}
+        },
+        {
           "edge_id": "edge_data_scatter_ref",
           "enabled": true,
           "input_order": 0,
@@ -166,7 +188,7 @@
           "source_node_id": "node_scatter_input",
           "source_port_key": "table_data",
           "target_node_id": "node_scatter_plot",
-          "target_port_key": "series",
+          "target_port_key": "values",
           "visual_style": {}
         },
         {
@@ -647,7 +669,7 @@
               },
               "version": 1
             },
-            "data_view_name": "Line Plot data",
+            "data_view_name": "Signal Plot - lines data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -670,10 +692,56 @@
           "custom_width": 380.0,
           "expanded_settings_group_ids": [],
           "exposed_ports": {
-            "data_export": true,
-            "exports": true,
-            "series": true,
-            "static_export": true
+            "_surface_source": false,
+            "source": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_line_media",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {},
+          "title": "Signal Plot - lines",
+          "type_id": "media.panel",
+          "x": 130.0,
+          "y": 0.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 210.0,
+          "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
+          "exposed_ports": {
+            "colors": true,
+            "data_background_color": true,
+            "font_size": true,
+            "height": true,
+            "image": true,
+            "image_background_color": true,
+            "labels": true,
+            "legend_alignment": true,
+            "line_styles": true,
+            "line_widths": true,
+            "logarithmic_y_axis": true,
+            "marker_shapes": true,
+            "marker_sizes": true,
+            "max_points": true,
+            "show_legend": true,
+            "title": true,
+            "values": true,
+            "width": true,
+            "x_axis_interval": true,
+            "x_axis_label": true,
+            "x_column": true,
+            "x_datetime_end": true,
+            "x_datetime_start": true,
+            "x_mode": true,
+            "y_axis_interval": true,
+            "y_axis_label": true,
+            "y_columns": true
           },
           "links": [],
           "locked": false,
@@ -683,47 +751,25 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "archive_export_on_run": false,
-            "axis_limits": {
-              "x": [
-                null,
-                null
-              ],
-              "y": [
-                null,
-                null
-              ],
-              "z": [
-                null,
-                null
-              ]
-            },
-            "backend": "auto",
-            "data_export_format": "csv",
-            "grid": true,
-            "legend": true,
-            "log_scales": {
-              "x": false,
-              "y": false,
-              "z": false
-            },
-            "plot_options": {},
-            "render_in_canvas": true,
-            "static_export_format": "png",
-            "tabular_mapping": {
-              "x": "month",
-              "y": [
-                "north",
-                "south"
-              ]
-            },
-            "title": "Line Plot",
-            "x_label": "Month",
-            "y_label": "Revenue",
-            "z_label": ""
+            "line_styles": [
+              1
+            ],
+            "marker_shapes": [
+              0
+            ],
+            "show_legend": true,
+            "title": "Signal Plot - lines",
+            "x_axis_label": "Month",
+            "x_column": "month",
+            "x_mode": "column",
+            "y_axis_label": "Revenue",
+            "y_columns": [
+              "north",
+              "south"
+            ]
           },
-          "title": "Line Plot",
-          "type_id": "plot.scatter",
+          "title": "Signal Plot - lines",
+          "type_id": "plot.signal",
           "x": -300.0,
           "y": 0.0
         },
@@ -874,7 +920,7 @@
               },
               "version": 1
             },
-            "data_view_name": "Scatter Plot data",
+            "data_view_name": "Signal Plot - scatter data",
             "delimiter": "",
             "encoding": "utf-8",
             "header_row": 0,
@@ -897,10 +943,56 @@
           "custom_width": 380.0,
           "expanded_settings_group_ids": [],
           "exposed_ports": {
-            "data_export": true,
-            "exports": true,
-            "series": true,
-            "static_export": true
+            "_surface_source": false,
+            "source": true
+          },
+          "links": [],
+          "locked": false,
+          "node_id": "node_scatter_media",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {},
+          "title": "Signal Plot - scatter",
+          "type_id": "media.panel",
+          "x": 130.0,
+          "y": 220.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 210.0,
+          "custom_width": 380.0,
+          "expanded_settings_group_ids": [],
+          "exposed_ports": {
+            "colors": true,
+            "data_background_color": true,
+            "font_size": true,
+            "height": true,
+            "image": true,
+            "image_background_color": true,
+            "labels": true,
+            "legend_alignment": true,
+            "line_styles": true,
+            "line_widths": true,
+            "logarithmic_y_axis": true,
+            "marker_shapes": true,
+            "marker_sizes": true,
+            "max_points": true,
+            "show_legend": true,
+            "title": true,
+            "values": true,
+            "width": true,
+            "x_axis_interval": true,
+            "x_axis_label": true,
+            "x_column": true,
+            "x_datetime_end": true,
+            "x_datetime_start": true,
+            "x_mode": true,
+            "y_axis_interval": true,
+            "y_axis_label": true,
+            "y_columns": true
           },
           "links": [],
           "locked": false,
@@ -910,44 +1002,24 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "archive_export_on_run": false,
-            "axis_limits": {
-              "x": [
-                null,
-                null
-              ],
-              "y": [
-                null,
-                null
-              ],
-              "z": [
-                null,
-                null
-              ]
-            },
-            "backend": "auto",
-            "data_export_format": "csv",
-            "grid": true,
-            "legend": true,
-            "log_scales": {
-              "x": false,
-              "y": false,
-              "z": false
-            },
-            "plot_options": {},
-            "render_in_canvas": true,
-            "static_export_format": "png",
-            "tabular_mapping": {
-              "x": "load",
-              "y": "efficiency"
-            },
-            "title": "Scatter Plot",
-            "x_label": "Load",
-            "y_label": "Efficiency",
-            "z_label": ""
+            "line_styles": [
+              0
+            ],
+            "marker_shapes": [
+              1
+            ],
+            "show_legend": true,
+            "title": "Signal Plot - scatter",
+            "x_axis_label": "Load",
+            "x_column": "load",
+            "x_mode": "column",
+            "y_axis_label": "Efficiency",
+            "y_columns": [
+              "efficiency"
+            ]
           },
-          "title": "Scatter Plot",
-          "type_id": "plot.scatter",
+          "title": "Signal Plot - scatter",
+          "type_id": "plot.signal",
           "x": -300.0,
           "y": 220.0
         },

@@ -31,8 +31,8 @@ DIRECT_DATA_ROOT = DIRECT_PROJECT_PATH.with_name("tabular_plot_showcase_direct.d
 PLOT_DEFINITIONS = (
     {
         "key": "line",
-        "title": "Line Plot",
-        "plot_type_id": "plot.scatter",
+        "title": "Signal Plot - lines",
+        "plot_type_id": "plot.signal",
         "source_name": "line_series.csv",
         "artifact_id": "tabular_source.line_csv",
         "source_output": "table_data",
@@ -45,8 +45,8 @@ PLOT_DEFINITIONS = (
     },
     {
         "key": "scatter",
-        "title": "Scatter Plot",
-        "plot_type_id": "plot.scatter",
+        "title": "Signal Plot - scatter",
+        "plot_type_id": "plot.signal",
         "source_name": "scatter_points.tsv",
         "artifact_id": "tabular_source.scatter_tsv",
         "source_output": "table_data",
@@ -216,43 +216,6 @@ object_id = str(_field(payload, "object_id", "") or "")
 
 
 SCRIPT_BODIES = {
-    "line": r'''
-import csv
-
-with path.open("r", encoding="utf-8", newline="") as handle:
-    rows = list(csv.DictReader(handle))
-
-months = []
-north = []
-south = []
-for row in rows:
-    months.append(float(row["month"]))
-    north.append(float(row["north"]))
-    south.append(float(row["south"]))
-
-output_data = [
-    {"label": "North", "x": months, "y": north},
-    {"label": "South", "x": months, "y": south},
-]
-''',
-    "scatter": r'''
-import csv
-
-with path.open("r", encoding="utf-8", newline="") as handle:
-    rows = list(csv.DictReader(handle, delimiter="\t"))
-
-x_values = []
-y_values = []
-for row in rows:
-    x_values.append(float(row["load"]))
-    y_values.append(float(row["efficiency"]))
-
-output_data = {
-    "label": "Sensor lots",
-    "x": x_values,
-    "y": y_values,
-}
-''',
     "bar": r'''
 import openpyxl
 
@@ -541,6 +504,19 @@ def _tabular_properties(definition: dict[str, object], *, direct: bool = False) 
 
 
 def _plot_properties(definition: dict[str, object], *, direct: bool = False) -> dict[str, object]:
+    if definition["plot_type_id"] == "plot.signal":
+        mapping = definition["tabular_mapping"]
+        y_columns = mapping["y"]
+        return {
+            "title": str(definition["title"]),
+            "x_axis_label": str(definition.get("x_label", "")),
+            "y_axis_label": str(definition.get("y_label", "")),
+            "x_mode": "column", "x_column": mapping["x"],
+            "y_columns": [y_columns] if isinstance(y_columns, str) else list(y_columns),
+            "line_styles": [0 if definition["key"] == "scatter" else 1],
+            "marker_shapes": [1 if definition["key"] == "scatter" else 0],
+            "show_legend": True,
+        }
     properties = {
         "backend": "auto",
         "title": str(definition["title"]),
@@ -622,12 +598,12 @@ def build_document(*, direct: bool = False) -> dict[str, object]:
     project_name = "Tabular Plot Showcase Direct" if direct else "Tabular Plot Showcase"
     description = (
         "Loads CSV, TSV, XLSX, TXT, NPY, NPZ, Parquet, CSV point cloud, "
-        "and HDF5 streamline sources directly into the generic plot node family "
+        "and HDF5 streamline sources directly into Signal Plot and specialized generic plots "
         "without adapter nodes."
         if direct
         else (
             "Loads CSV, TSV, XLSX, TXT, NPY, NPZ, Parquet, CSV point cloud, "
-            "and HDF5 streamline sources into the generic plot node family."
+            "and HDF5 streamline sources into Signal Plot and specialized generic plots."
         )
     )
     source_x = -820.0 if direct else -860.0
@@ -656,7 +632,8 @@ def build_document(*, direct: bool = False) -> dict[str, object]:
                 custom_height=220.0,
             )
         )
-        if not direct:
+        signal = definition["plot_type_id"] == "plot.signal"
+        if not direct and not signal:
             nodes.append(
                 _node(
                     node_id=adapter_id,
@@ -677,24 +654,26 @@ def build_document(*, direct: bool = False) -> dict[str, object]:
                 x=plot_x,
                 y=y,
                 properties=_plot_properties(definition, direct=direct),
-                exposed_ports={
-                    "series": True,
-                    "static_export": True,
-                    "data_export": True,
-                    "exports": True,
+                exposed_ports={"values": True, "image": True} if signal else {
+                    "series": True, "static_export": True, "data_export": True, "exports": True,
                 },
                 custom_width=380.0,
                 custom_height=210.0,
             )
         )
-        if direct:
+        if signal:
+            media_id = f"node_{key}_media"
+            nodes.append(_node(node_id=media_id, type_id="media.panel", title=str(definition["title"]),
+                               x=plot_x + 430, y=y, custom_width=380, custom_height=210))
+            edges.append(_edge(f"edge_{key}_media", plot_id, "image", media_id, "source"))
+        if direct or signal:
             edges.append(
                 _edge(
                     f"edge_data_{key}_ref",
                     source_id,
                     str(definition["source_output"]),
                     plot_id,
-                    "series",
+                    "values" if signal else "series",
                 )
             )
         else:
@@ -800,7 +779,7 @@ def main() -> None:
     registry = build_default_registry()
     missing = [
         type_id
-        for type_id in {"tabular.input", "core.python_script", *(item["plot_type_id"] for item in PLOT_DEFINITIONS)}
+        for type_id in {"tabular.input", "core.python_script", "media.panel", *(item["plot_type_id"] for item in PLOT_DEFINITIONS)}
         if registry.spec_or_none(str(type_id)) is None
     ]
     if missing:

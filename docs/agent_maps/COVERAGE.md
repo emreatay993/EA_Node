@@ -7,7 +7,7 @@ implementation studies are intentionally excluded.
 
 | Source area | Primary map | Main responsibility |
 | --- | --- | --- |
-| `ea_node_editor/graph` | [Graph Domain](subsystems/graph_domain.md) | Graph records, invariants, forwarding inference, batched rewire validation, mutation, transforms, and workspace state |
+| `ea_node_editor/graph` | [Graph Domain](subsystems/graph_domain.md) | Graph records, invariants, pure caller-specific port-state projection, shared validated mutation mechanics, forwarding, rewire validation, transforms, and workspace state |
 | `ea_node_editor/execution` | [Execution](subsystems/execution.md) | Runtime snapshots, protocol, workers, node-scoped result identity, inferred-source identities, actual-carrier validation, current data-port consumption, invalidation, and workspace retirement |
 | `ea_node_editor/persistence` | [Persistence](subsystems/persistence.md) | Project codecs, migrations, artifacts, and sessions |
 | `ea_node_editor/nodes` | [Nodes And Built-ins](subsystems/nodes_registry_builtins.md) | Registry, explicit forwarding declarations, contracts, built-ins, packages, and plugins |
@@ -211,3 +211,6 @@ Settings-section size transitions use shared 180 ms width/height animations with
 - Regenerate `docs/agent_route_index.*` and
   `docs/source_test_file_index.md` after path changes.
 - Run `scripts/check_agent_maps.py` after every map edit.
+
+- Generic Plot definitions, fresh defaults and immutable mapping-role metadata belong to `nodes/builtins/plot/specs.py`; plugin descriptors and runtime orchestration remain in `generic.py`. The Plotter route covers direct imports, metadata-only initialization, seven retained generic families, Signal Plot line/scatter authoring, and explicit unresolved-node rejection. The parity tool uses production Signal/XY and separately reports PNG evidence versus fullscreen interaction coverage.
+- Generic Plot values, shared table/window preparation and source provenance belong to `nodes/builtins/plot/data_series.py`; full-array sampling and explicit-slice reads remain separate. Execution and previews share `generic.py` request composition. `exports.py` owns full-fidelity data export and paired artifact publication/cleanup. Catalogue, preparation, codec and export tests have direct owners and QML-free fixtures; scene/invalidation tests live in the existing surface integration owner, and cache identity lives in the preview service owner.

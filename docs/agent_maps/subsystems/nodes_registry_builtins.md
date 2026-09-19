@@ -51,16 +51,17 @@ Use this for node definitions, registry validation, built-in node families, data
 - `docs/specs/perf/COREX_SOLUTION_REUSE_CLASSIFICATION.md`
 
 ## Built-in Contract Families
+- `ea_node_editor/nodes/builtins/plot/specs.py` owns inert specialized Plot declarations and fresh defaults; `generic.py` directly owns descriptors and request/execution orchestration, `data_series.py` owns preparation, and `exports.py` owns full-source data export and paired artifact publication. Metadata callers do not import execution. Signal Plot handles line/scatter authoring; retired generic line/scatter IDs have no alias or migration.
 - Core values and media contracts: `core_values.py` and `core_media.py`; ordinary converted execution source lives as inert strings under `builtin_functions/`.
 - Geometry and spatial contracts/helpers: `geometry_contracts.py`, `geometry_primitives.py`, and `spatial_values.py`; ordinary execution declarations live in `builtin_functions/{spatial.py,engineering_geometry.py}`.
 - Engineering contracts/helpers: `mesh_contracts.py`, `fem_contracts.py`, `engineering_imports.py`, `engineering_viewer.py`, and `voxel_contracts.py`; ordinary declarations live in `builtin_functions/{engineering_fem.py,engineering_imports.py,engineering_viewer.py}`.
 - Support contracts/helpers: `tree_path.py`, `units.py`, `viewer_viewport.py`, `security_contracts.py`, `reporting.py`, `rich_value_nodes.py`, and `ai_ml_contracts.py`; their converted declarations live in the matching `builtin_functions/` modules.
-- Signal Plot declaration/execution is owned by inert `builtin_functions/plot_signal.py`; rendering remains in `execution/signal_plot_renderer.py` and emits `COREX.DataTypes.Image`.
+- Signal Plot declaration/execution is owned by inert `builtin_functions/plot_signal.py`; rendering remains in `execution/signal_plot_renderer.py` and emits full `COREX.DataTypes.Plot` with shared PNG conversion to Image inputs.
 - `core_data_types.py` registers concrete scientific ArrayValue/TableValue/SeriesValue IDs. `builtins/core.py` and `function_plugin.py` adapt immutable runtime values to isolated native NumPy/pandas inputs and snapshot native outputs. These are item values, independent of outer Item/List/Tree access.
 - `ea_node_editor/nodes/builtins/plot/signal_schema.py` owns metadata-only scientific column suggestions; its shared property adapter preserves exact string/int selectors and uses the ordinary enum/list QML controls.
 - Public function plugins use the dependency-free top-level `corex` decorators and static `plugin_declaration.py` discovery. Both public plugins and Python Script require explicit `value_type=` on every input/output decorator; missing types fail at their source location, and deliberate broad ports use `corex.Any`. Python Script keeps its one-`run` signature while sharing only the bounded literal/control engine.
 - `PortSpec.type_from_input` and public/Python Script `@corex.output(..., type_from_input="input")` declare an Any data output following an Any input with the same access structure. `instance_resolution.py` validates static and resolved relationships; parsers retain source-located errors, and registry fingerprints include the declaration. Panel, Trigger, and all Stream Gate outputs opt in; Stream Gate follows Stream, never its Gate selector. Graph inference belongs to `graph/type_forwarding.py`, separate from declared input/runtime contracts.
-- Core metadata narrows Constant/File Write data to JsonValue, Force output to Force, and eight generic plot exports to Plot Export Bundle. `tests/test_corex_contract_catalog.py` pins exactly 20 intentional repo-owned Any endpoints across primary and accepted declarations, including three MARS artifact maps, and rejects primary-type repetition in accepted alternatives. `tests/repo_owned_catalog_fixture.py` loads the exact current catalog.
+- Core metadata narrows Constant/File Write data to JsonValue, Force output to Force, and seven generic plot exports to Plot Export Bundle. `tests/test_corex_contract_catalog.py` pins exactly 20 intentional repo-owned Any endpoints across primary and accepted declarations, including three MARS artifact maps, and rejects primary-type repetition in accepted alternatives. `tests/repo_owned_catalog_fixture.py` loads the exact current catalog.
 - `corex.__all__` is the exact 17-name public SDK. `ea_node_editor.nodes` exports
   no authoring helpers, `nodes/types.py` is deleted, and `nodes/decorators.py`,
   `NodePlugin`, `PluginDescriptor`, `node_type`, and `PLUGIN_BACKENDS` remain
@@ -138,7 +139,8 @@ Use this for node definitions, registry validation, built-in node families, data
 - `tests/test_mesh_contracts.py`
 - `tests/test_fem_contracts.py`
 - `tests/test_signal_plot_renderer.py`
-- `tests/test_python_script_declaration.py`
+- `tests/test_python_script_declaration.py` for parser/declaration/diagnostics only; direct graph mutation is in `tests/test_graph_node_reconciliation.py`, scene/history/payload integration in `tests/test_python_script_scene_integration.py`, and persistence in `tests/test_python_script_persistence.py`.
+- `tests/test_graph_registry_normalization.py` for loaded graph normalization; registry validation and read-only replacement compatibility retain their existing owners.
 - `tests/test_dead_code_hygiene.py`
 - `tests/test_architecture_boundaries.py`
 - `tests/test_packaging_configuration.py`

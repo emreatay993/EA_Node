@@ -1,3 +1,6 @@
+# Purpose: Project Plot property editors and preserve their authored coercion rules.
+# Map: feature_routes/plotter_nodes.md
+# Tests: tests/test_plot_property_edit_adapter.py, tests/test_plot_specs.py
 from __future__ import annotations
 
 import copy
@@ -8,19 +11,19 @@ from ea_node_editor.addons.property_edit_adapters import (
     PropertyEditAdapterContext,
     PropertyEditRewrite,
 )
-from ea_node_editor.nodes.builtins.plot.generic import (
+from ea_node_editor.nodes.builtins.plot.specs import (
     PLOT_AXIS_LIMITS_DEFAULT,
     PLOT_COLORMAP_VALUES,
     PLOT_LOG_SCALES_DEFAULT,
     PLOT_NODE_DEFINITIONS,
     PLOT_TABULAR_MAPPING_PROPERTY,
+    PLOT_TABULAR_EDITOR_ROLES,
+    PLOT_TABULAR_DEFAULT_EDITOR_ROLES,
     PLOT_TYPE_BAR,
     PLOT_TYPE_CONTOUR,
     PLOT_TYPE_HEATMAP,
     PLOT_TYPE_HISTOGRAM,
-    PLOT_TYPE_LINE,
     PLOT_TYPE_POINT_CLOUD,
-    PLOT_TYPE_SCATTER,
     PLOT_TYPE_STREAMLINES,
     PLOT_TYPE_SURFACE,
 )
@@ -50,8 +53,6 @@ _THREE_DIMENSIONAL_PLOT_TYPES = frozenset(
 )
 _TWO_DIMENSIONAL_LIVE_PLOT_TYPES = frozenset(
     {
-        PLOT_TYPE_LINE,
-        PLOT_TYPE_SCATTER,
         PLOT_TYPE_BAR,
         PLOT_TYPE_HISTOGRAM,
         PLOT_TYPE_HEATMAP,
@@ -384,31 +385,14 @@ def _axis_control_items(context: PropertyEditAdapterContext) -> list[dict[str, A
     return items
 
 
-def _tabular_mapping_roles(plot_type: str) -> tuple[tuple[str, str, str], ...]:
-    if plot_type in {PLOT_TYPE_LINE, PLOT_TYPE_SCATTER}:
-        return (("x", "X Column", "single"), ("y", "Y Columns", "multi"), ("columns", "Available Columns", "multi"))
-    if plot_type == PLOT_TYPE_BAR:
-        return (
-            ("x", "X Column", "single"),
-            ("category", "Category Column", "single"),
-            ("y", "Y Columns", "multi"),
-            ("columns", "Available Columns", "multi"),
-        )
-    if plot_type == PLOT_TYPE_HISTOGRAM:
-        return (("values", "Value Columns", "multi"), ("columns", "Available Columns", "multi"))
-    if plot_type in {PLOT_TYPE_HEATMAP, PLOT_TYPE_CONTOUR, PLOT_TYPE_SURFACE}:
-        return (("z", "Z Column", "single"), ("values", "Value Columns", "multi"), ("columns", "Available Columns", "multi"))
-    if plot_type in {PLOT_TYPE_POINT_CLOUD, PLOT_TYPE_STREAMLINES}:
-        return (("x", "X Column", "single"), ("y", "Y Column", "single"), ("z", "Z Column", "single"), ("columns", "Available Columns", "multi"))
-    return (("columns", "Available Columns", "multi"),)
-
-
 def _tabular_mapping_items(context: PropertyEditAdapterContext) -> list[dict[str, Any]]:
     properties = _node_properties(context.node)
     mapping = _mapping(properties.get(PLOT_TABULAR_MAPPING_PROPERTY))
     column_options = _tabular_column_options(context)
     items: list[dict[str, Any]] = []
-    for role, label, cardinality in _tabular_mapping_roles(_plot_type_from_context(context)):
+    for role, label, cardinality in PLOT_TABULAR_EDITOR_ROLES.get(
+        _plot_type_from_context(context), PLOT_TABULAR_DEFAULT_EDITOR_ROLES
+    ):
         value = _string_list(mapping.get(role)) if cardinality == "multi" else _text(mapping.get(role)).strip()
         items.append(
             _base_item(

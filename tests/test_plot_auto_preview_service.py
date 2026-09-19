@@ -1,3 +1,6 @@
+# Purpose: Prove asynchronous Plot request preparation and shared cache lifecycle.
+# Map: feature_routes/plotter_nodes.md
+# Tests: tests/test_plot_auto_preview_service.py
 from __future__ import annotations
 
 import time
@@ -9,7 +12,7 @@ from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.builtins.plot.generic import TABULAR_PLOT_MAX_POINTS_PER_SERIES
+from ea_node_editor.nodes.builtins.plot.specs import TABULAR_PLOT_MAX_POINTS_PER_SERIES
 from ea_node_editor.ui_qml.graph_scene_payload.builder import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml import plot_auto_preview_service as preview_module
 from ea_node_editor.ui_qml.plot_auto_preview_service import (
@@ -71,7 +74,7 @@ def _workflow(tmp_path: Path, *, rows: int = 9000, source_port: str = "table_dat
     )
     plot = model.add_node(
         workspace_id,
-        "plot.scatter",
+        "plot.bar",
         "Line Plot",
         300.0,
         0.0,
@@ -100,7 +103,7 @@ def test_worker_pool_is_lazy_reused_and_preserves_max_threads() -> None:
         assert service.schedule_build("ws", "missing", "sig-0") is False
         pool_factory.assert_not_called()
 
-        snapshot = ("plot.scatter", {}, {"source_node_id": "source"}, "source")
+        snapshot = ("plot.bar", {}, {"source_node_id": "source"}, "source")
         with patch.object(service, "_build_snapshot", return_value=snapshot):
             assert service.schedule_build("ws", "plot-1", "sig-1") is True
             assert service.schedule_build("ws", "plot-1", "sig-1") is False
@@ -238,3 +241,29 @@ def test_cache_is_lru_bounded() -> None:
     assert cache.get("ws", "a") is None
     assert cache.get("ws", "b") is not None
     assert cache.get("ws", "c") is not None
+
+
+def test_shared_plot_render_cache_clear_preserves_service_identity() -> None:
+    from ea_node_editor.ui_qml.plot_auto_preview_service import (
+        PlotAutoPreviewService,
+        shared_plot_render_request_cache,
+    )
+
+    cache = shared_plot_render_request_cache()
+    service = PlotAutoPreviewService(scene_bridge=None)
+    try:
+        assert service.cache is cache
+        cache.store(
+            "workspace-1",
+            "plot-1",
+            signature="signature-1",
+            request_payload={"plot_type": "line", "series": []},
+        )
+
+        cache.clear()
+
+        assert shared_plot_render_request_cache() is cache
+        assert service.cache is cache
+        assert cache.get("workspace-1", "plot-1") is None
+    finally:
+        service.shutdown()

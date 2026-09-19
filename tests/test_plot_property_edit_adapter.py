@@ -83,7 +83,7 @@ def _fields_by_role(item: dict[str, object]) -> dict[str, dict[str, object]]:
 
 def test_generic_plot_json_properties_project_to_structured_inspector_rows() -> None:
     items = _items_by_key(
-        "plot.scatter",
+        "plot.bar",
         {
             "axis_limits": {"x": [0, 10]},
             "log_scales": {"y": True},
@@ -134,7 +134,7 @@ def test_generic_plot_json_properties_project_to_structured_inspector_rows() -> 
 
 
 def test_plot_axis_controls_show_z_only_for_3d_plot_types() -> None:
-    line_items = _items_by_key("plot.scatter")
+    line_items = _items_by_key("plot.bar")
     surface_items = _items_by_key("plot.surface")
 
     assert {"plot_axis_x", "plot_axis_y"}.issubset(line_items)
@@ -154,7 +154,7 @@ def test_histogram_plot_options_project_to_typed_controls() -> None:
 
 def test_plot_adapter_rewrites_structured_axis_log_mapping_and_options() -> None:
     node = SimpleNamespace(
-        type_id="plot.scatter",
+        type_id="plot.bar",
         properties={
             "axis_limits": {"x": [None, None], "y": [None, None], "z": [None, None]},
             "log_scales": {"x": False, "y": False, "z": False},

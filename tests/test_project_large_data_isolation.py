@@ -26,7 +26,7 @@ def _project_with_plot_workflow(tmp_path: Path, *, rows: int = 10_000) -> tuple[
     )
     plot = model.add_node(
         workspace_id,
-        "plot.scatter",
+        "plot.bar",
         "Line Plot",
         300.0,
         0.0,

@@ -69,7 +69,6 @@ BUILTIN_NODE_ICONS: Mapping[str, str] = {
     "ssh_sftp.upload": "ssh_sftp/cloud_upload.svg",
     "ssh_sftp.download": "ssh_sftp/cloud_download.svg",
     "plot.signal": "show_chart",
-    "plot.scatter": "scatter_plot",
     "plot.bar": "bar_chart",
     "plot.histogram": "align_vertical_bottom",
     "plot.heatmap": "grid_view",

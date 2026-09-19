@@ -51,8 +51,8 @@ MARKER_CODES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
     name="Signal Plot",
     category=("Plot",),
     icon="show_chart",
-    description="Plot numeric signals, arrays and table columns against sample index or explicit numeric/datetime X values.",
-    keywords=("signal", "line plot", "chart"),
+    description="Plot numeric signals, arrays and table columns as lines or scatter points against sample index or explicit numeric/datetime X values.",
+    keywords=("signal", "line plot", "scatter", "xy", "points", "correlation", "chart"),
 )
 @corex.slider(
     "width",

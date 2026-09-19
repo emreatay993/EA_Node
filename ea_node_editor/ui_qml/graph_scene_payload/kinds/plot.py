@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.execution.plot_backend import AUTO_PLOT_BACKEND_ID
 from ea_node_editor.graph.workspace_state import WorkspaceData
-from ea_node_editor.nodes.builtins.plot.generic import PLOT_NODE_DEFINITION_BY_TYPE_ID
+from ea_node_editor.nodes.builtins.plot.specs import PLOT_NODE_DEFINITION_BY_TYPE_ID
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.ui_qml.graph_scene_payload.normalize import _bool_property
 from ea_node_editor.ui_qml.plot_live_backend_resolution import builtin_plot_live_backend_id

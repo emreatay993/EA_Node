@@ -18,7 +18,7 @@ import pytest
 import ea_node_editor.addons.tabular_data.loader_cache_service as loader_module
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.builtins.plot.generic import TABULAR_PLOT_MAX_POINTS_PER_SERIES
+from ea_node_editor.nodes.builtins.plot.specs import TABULAR_PLOT_MAX_POINTS_PER_SERIES
 from ea_node_editor.ui_qml.graph_scene_payload.builder import GraphScenePayloadBuilder
 from scripts.verify_tabular_perf import _benchmark_node_ids
 
@@ -29,7 +29,7 @@ def test_perf_harness_selects_only_registered_generic_plot_nodes() -> None:
     nodes = {
         "tabular": SimpleNamespace(type_id="tabular.input"),
         "signal": SimpleNamespace(type_id="plot.signal"),
-        "scatter": SimpleNamespace(type_id="plot.scatter"),
+        "scatter": SimpleNamespace(type_id="plot.bar"),
     }
     assert _benchmark_node_ids(nodes) == ("tabular", "scatter")
 
@@ -49,8 +49,8 @@ def plot_workflow(tmp_path: Path):
     )
     plot = model.add_node(
         workspace_id,
-        "plot.scatter",
-        "Scatter Plot",
+        "plot.bar",
+        "Bar Plot",
         300.0,
         0.0,
         properties={"tabular_mapping": {"x": "time", "y": ["value"]}},
@@ -152,7 +152,7 @@ def test_async_auto_preview_build_converts_once_and_respects_budget(
         graph_theme_bridge=None,
     )
     request_payload, _warnings = build_plot_render_request_payload(
-        node_type_id="plot.scatter",
+        node_type_id="plot.bar",
         properties=dict(workspace.nodes[plot_node_id].properties),
         source_descriptor=descriptor,
     )

@@ -1,3 +1,6 @@
+# Purpose: Validate graph edges and share invocation-scoped registry resolution.
+# Map: subsystems/graph_domain.md
+# Tests: tests/test_registry_validation.py, tests/test_graph_registry_normalization.py, tests/test_rewire_validation.py
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -48,7 +51,7 @@ class GraphInvariantKernel:
             resolved = self.resolve_registry_nodes(memo=memo)
             nodes = self._workspace_node_view(resolved, memo=memo)
             ports = {
-                node_id: self._effective_ports_for(resolution, workspace_nodes=nodes, memo=memo)
+                node_id: self.effective_ports_for(resolution, workspace_nodes=nodes, memo=memo)
                 for node_id, resolution in resolved.items()
             }
             memo.type_resolver = GraphTypeResolver(
@@ -85,7 +88,7 @@ class GraphInvariantKernel:
             }
         return memo.workspace_node_view
 
-    def _effective_ports_for(
+    def effective_ports_for(
         self,
         resolution: RegistryNodeResolution,
         *,
@@ -117,7 +120,7 @@ class GraphInvariantKernel:
         cache_key = (node_id, normalized_port_key)
         if memo is not None and cache_key in memo.port_by_node_and_key:
             return memo.port_by_node_and_key[cache_key]
-        for port in self._effective_ports_for(resolution, workspace_nodes=workspace_nodes, memo=memo):
+        for port in self.effective_ports_for(resolution, workspace_nodes=workspace_nodes, memo=memo):
             if port.key == normalized_port_key:
                 if memo is not None:
                     memo.port_by_node_and_key[cache_key] = port
@@ -151,7 +154,7 @@ class GraphInvariantKernel:
     ) -> dict[str, bool]:
         return {
             port.key: bool(port.required or resolution.node.exposed_ports.get(port.key, port.exposed))
-            for port in self._effective_ports_for(
+            for port in self.effective_ports_for(
                 resolution,
                 workspace_nodes=self.workspace_nodes,
                 memo=memo,

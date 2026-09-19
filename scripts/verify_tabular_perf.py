@@ -51,7 +51,7 @@ if str(REPO_ROOT) not in sys.path:
 PERF_DIR = REPO_ROOT / "artifacts" / "perf"
 CHILD_TIMEOUT_S = 5400
 
-from ea_node_editor.nodes.builtins.plot.generic import PLOT_NODE_DEFINITION_BY_TYPE_ID
+from ea_node_editor.nodes.builtins.plot.specs import PLOT_NODE_DEFINITION_BY_TYPE_ID
 
 
 def _benchmark_node_ids(nodes: dict[str, Any]) -> tuple[str, str]:

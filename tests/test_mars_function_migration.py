@@ -131,7 +131,7 @@ def test_exact_t14_entries_match_golden_and_remove_legacy_exports(
         if row["spec"]["type_id"] in _CONVERTED_TYPE_IDS
     }
 
-    assert len(golden_rows) == 143
+    assert len(golden_rows) == 142
     assert _CONVERTED_TYPE_IDS == (
         "mars.batch_solve",
         "mars.time_history",

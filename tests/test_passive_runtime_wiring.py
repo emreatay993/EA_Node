@@ -258,7 +258,7 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
             140.0,
             properties={"value": {"label": "B", "values": [2, 3, 5]}},
         )
-        plot = model.add_node(workspace.workspace_id, "plot.scatter", "Scatter Plot", 340.0, 80.0)
+        plot = model.add_node(workspace.workspace_id, "plot.bar", "Bar Plot", 340.0, 80.0)
 
         model.add_edge(workspace.workspace_id, series_a.node_id, "value", plot.node_id, "series")
         model.add_edge(workspace.workspace_id, series_b.node_id, "value", plot.node_id, "series")
@@ -277,7 +277,7 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
             if edge.target_node_id == plot.node_id and edge.target_port_key == "series"
         ]
         self.assertEqual(len(series_edges), 2)
-        self.assertEqual(registry.get_spec("plot.scatter").runtime_behavior, "active")
+        self.assertEqual(registry.get_spec("plot.bar").runtime_behavior, "active")
 
     def test_excalidraw_board_is_excluded_from_runtime_dataflow(self) -> None:
         registry = build_default_registry()

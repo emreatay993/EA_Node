@@ -12,6 +12,7 @@ Use this for graph data structures, invariants, mutation services, transforms, h
 - `ea_node_editor/graph/fragment_payloads.py` for clipboard/fragment payload normalization and validation.
 - `ea_node_editor/graph/invariant_kernel.py` for graph-local edge compatibility, exposed-port, capacity, and registry edge checks.
 - `ea_node_editor/graph/registry_normalization.py` for project/workspace normalization against the active node registry.
+- `ea_node_editor/graph/node_port_state.py` for pure Script Apply and registry-load port-state projections; caller-specific settings-group and wire policies stay outside this owner.
 - `ea_node_editor/graph/registry_compatibility.py` for read-only open-session registry replacement checks.
 - `ea_node_editor/graph/property_validation.py` for saved/default property validation shared by reload safety and Python Script Apply.
 - `ea_node_editor/graph/validated_mutation.py` for registry-backed node, edge, endpoint reassignment, Python Script Apply, dynamic-port insert/remove/rename, property, parent, exposed-port, and view-filter mutations.
@@ -28,6 +29,12 @@ Use this for graph data structures, invariants, mutation services, transforms, h
 - `ea_node_editor/graph/transform_fragment_ops.py`
 - `ea_node_editor/graph/transform_grouping_ops.py`
 - `ea_node_editor/graph/group_backdrop_geometry.py`
+- `scripts/benchmark_graph_node_reconciliation.py` for source-selected 100/1,200-node mutation baselines with reset outside timing and separate copy/resolution/pruning counters.
+- `tests/test_plot_graph_ownership_benchmarks.py` for measurement source isolation and counter integrity.
+- `tests/graph_mutation_fixtures.py` for shared dynamic-port registry construction without assertions.
+- `tests/test_graph_node_reconciliation.py` for direct Script Apply/dynamic/property mutation, sparse state, and Script/load policy differences.
+- `tests/test_graph_registry_normalization.py` for load normalization, idempotency, dynamic labels, and effective-port memo reuse.
+- `tests/test_python_script_scene_integration.py` for real scene actions, history, and settings payloads; parser-only checks remain in `tests/test_python_script_declaration.py`.
 
 ## Do Not Start Here
 - UI bridge code when the invariant belongs in graph.
@@ -51,6 +58,8 @@ Use this for graph data structures, invariants, mutation services, transforms, h
 - Registry-backed add, endpoint rewire, edge re-enable, dynamic-output edits, semantic property changes, and fragment insertion preflight resolved catalog IDs before writing. `GraphInteractions.rewire_edges(...)` also runs port-availability preflight for every proposed new connection before it reaches graph mutation. Fragment preflight covers every resolved data port, including edge-free dynamic ports; flow ports are not catalog-validated as data. Bulk edge-enable preflights the whole requested batch against a temporary edge view before changing records or history. Failed mutations leave graph state, fan-in order, revision, and history unchanged. Semantic port changes prune newly invalid incident and downstream forwarding edges; registry normalization and registry-backed compilation prune incompatible or unresolved edges.
 - `NodeInstance.port_modifiers` stores sparse per-port Graft/Flatten/Simplify/Reverse/Clean state and `principal_input_port_id` stores one mutually exclusive eligible input. Route these, edge Enable, and generic dynamic-port insert/remove/rename through validated record mutation/history. Dynamic mutations alone write ordered backing properties: they preflight node-owned resolvers and key callbacks, preserve unchanged stable keys and state, and prune removed, structurally renamed, or incompatible keys with incident wires and sparse per-port state. Direct backing-property writes are rejected; label rename preserves the stable key and wires.
 - `ValidatedGraphMutation.apply_python_script(...)` owns one candidate-first Apply action for `core.python_script`. Resolve the source before writing, then reconcile ordinary settings, resolved ports, per-port state, wires, and `expanded_settings_group_ids` together. A failed parse or validation leaves the existing applied node untouched; one successful Apply is one undo/redo entry.
+- `node_port_state.py` returns detached port-state dictionaries without registry resolution, graph copies, edge traversal, or writes. Apply preserves authored modifier order and resets semantic changes; load normalization canonicalizes modifiers and dynamic label permissions. Only data-access changes force compatible wires to be removed; other semantic changes use kernel compatibility.
+- Property entry points retain singular/bulk normalization and return contracts, then share `_commit_normalized_property_updates`. Dynamic entry points validate before `_commit_dynamic_port_keys`, preserving incident-edge removal, backing-property write, removed-key cleanup, and downstream pruning order. Source-backed Script edits route through one atomic Apply.
 - Source-backed dynamic groups preflight their property editor against the candidate resolved spec. Python Script handle edits commit through the same atomic Apply action; generic backing-property writes remain restricted to validated dynamic mutations.
 - `NodeInstance.expanded_settings_group_ids` stores ordered per-node expansion state for spec-declared named settings groups. Registry normalization removes unknown IDs and restores declaration order; node mappings and graph fragments preserve the tuple. Presentation moves grouped input anchors without changing their real port identities or edges.
 - `NodeInstance.locked` is graph-owned authored state for `passive.*` canvas objects. Record mutation/history owns changes; node mappings and graph fragments preserve it. It is separate from the removed active-port lock state and the missing-add-on `locked_state` payload.
@@ -69,7 +78,7 @@ Use this for graph data structures, invariants, mutation services, transforms, h
 .\venv\Scripts\python.exe -m unittest tests.graph_track_b.scene_model_graph_model_suite -q
 .\venv\Scripts\python.exe -m pytest tests/test_dataflow_graph_persistence.py tests/test_data_tree_ui.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_type_enforcement.py tests/test_data_type_catalog.py tests/test_registry_validation.py --ignore=venv -q
-.\venv\Scripts\python.exe -m pytest tests/test_registry_compatibility.py tests/test_python_script_declaration.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_graph_node_reconciliation.py tests/test_graph_registry_normalization.py tests/test_python_script_scene_integration.py tests/test_registry_compatibility.py --ignore=venv -q
 ```
 
 ## Breadcrumbs
@@ -84,4 +93,4 @@ Update when forwarding inference, batched rewire validation, domain invariants, 
 
 ## 2026-07-11 Performance Ownership
 
-- Registry normalization owns one invocation-scoped `GraphInvariantKernel` and `RegistryValidationPassMemo`; prune-time edge removal invalidates the memo immediately. `tests/test_registry_validation.py` owns reuse and invalidation parity.
+- Registry normalization owns one invocation-scoped `GraphInvariantKernel` and `RegistryValidationPassMemo`; `effective_ports_for(...)` shares materialized ports between state projection and pruning. Prune-time edge removal invalidates the memo immediately. `tests/test_registry_validation.py` and `tests/test_graph_registry_normalization.py` own reuse and invalidation parity.

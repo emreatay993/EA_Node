@@ -61,9 +61,20 @@
           "input_order": 0,
           "label": "",
           "source_node_id": "node_series",
-          "source_port_key": "value",
+          "source_port_key": "result",
           "target_node_id": "node_line_plot",
-          "target_port_key": "series",
+          "target_port_key": "values",
+          "visual_style": {}
+        },
+        {
+          "edge_id": "edge_plot_media",
+          "enabled": true,
+          "input_order": 0,
+          "label": "",
+          "source_node_id": "node_line_plot",
+          "source_port_key": "image",
+          "target_node_id": "node_plot_media",
+          "target_port_key": "source",
           "visual_style": {}
         }
       ],
@@ -75,10 +86,8 @@
           "custom_height": 260.0,
           "custom_width": 420.0,
           "exposed_ports": {
-            "data_export": true,
-            "exports": true,
-            "series": true,
-            "static_export": true
+            "values": true,
+            "image": true
           },
           "links": [],
           "locked": false,
@@ -88,16 +97,20 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "archive_export_on_run": false,
-            "data_export_format": "csv",
-            "render_in_canvas": true,
-            "static_export_format": "png",
             "title": "Monthly revenue",
-            "x_label": "Month",
-            "y_label": "Revenue"
+            "labels": [
+              "North",
+              "South"
+            ],
+            "marker_shapes": [
+              0
+            ],
+            "show_legend": true,
+            "x_axis_label": "Month",
+            "y_axis_label": "Revenue"
           },
-          "title": "Line Plot - live canvas",
-          "type_id": "plot.line",
+          "title": "Signal Plot - live lines",
+          "type_id": "plot.signal",
           "visual_style": {},
           "x": 480.0,
           "y": 80.0
@@ -108,8 +121,7 @@
           "custom_height": null,
           "custom_width": 300.0,
           "exposed_ports": {
-            "as_text": true,
-            "value": true
+            "result": true
           },
           "links": [],
           "locked": false,
@@ -119,52 +131,33 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "value": [
-              {
-                "label": "North",
-                "x": [
-                  1,
-                  2,
-                  3,
-                  4,
-                  5,
-                  6
-                ],
-                "y": [
-                  8.0,
-                  12.0,
-                  15.0,
-                  18.0,
-                  23.0,
-                  31.0
-                ]
-              },
-              {
-                "label": "South",
-                "x": [
-                  1,
-                  2,
-                  3,
-                  4,
-                  5,
-                  6
-                ],
-                "y": [
-                  5.0,
-                  7.0,
-                  11.0,
-                  13.0,
-                  17.0,
-                  20.0
-                ]
-              }
-            ]
+            "script": "@corex.node\n@corex.output(\"result\", value_type=\"COREX.DataTypes.GraphArray\")\ndef run(ctx):\n    return {\"result\": [[1, 8.0, 5.0], [2, 12.0, 7.0], [3, 15.0, 11.0], [4, 18.0, 13.0], [5, 23.0, 17.0], [6, 31.0, 20.0]]}\n"
           },
-          "title": "Line series data",
-          "type_id": "core.constant",
+          "title": "Monthly revenue series",
+          "type_id": "core.python_script",
           "visual_style": {},
           "x": 120.0,
           "y": 130.0
+        },
+        {
+          "collapsed": false,
+          "comments": [],
+          "custom_height": 260.0,
+          "custom_width": 420.0,
+          "exposed_ports": {},
+          "links": [],
+          "locked": false,
+          "node_id": "node_plot_media",
+          "parent_node_id": null,
+          "port_labels": {},
+          "port_modifiers": {},
+          "principal_input_port_id": null,
+          "properties": {},
+          "title": "Monthly revenue - fullscreen",
+          "type_id": "media.panel",
+          "visual_style": {},
+          "x": 960.0,
+          "y": 80.0
         }
       ],
       "views": [

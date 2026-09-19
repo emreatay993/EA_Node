@@ -34,6 +34,8 @@ Use this for `.cxproj` documents, serializers, migrations, workspace-scoped proj
 ## Focused Tests
 - `tests/test_serializer.py`
 - `tests/test_serializer_schema_migration.py`
+- `tests/test_python_script_persistence.py` for decorator settings and section expansion in saved documents and copied fragments.
+- `tests/test_dataflow_graph_persistence.py` for ordered/enabled wires, dynamic keys, sparse state, and format cutovers; direct graph edits live in `tests/test_graph_node_reconciliation.py`.
 - `tests/test_project_save_as_flow.py`
 - `tests/test_project_artifact_store.py`
 - `tests/test_project_session_controller_unit.py`

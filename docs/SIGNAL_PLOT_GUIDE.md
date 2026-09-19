@@ -6,6 +6,23 @@ PNG preview and the complete normalized signals. Connect it to Media Panel for a
 static canvas preview and interactive fullscreen inspection. Image Export and
 other Image inputs receive its PNG preview through the shared Plot-to-Image conversion.
 
+## Line and scatter plots
+
+Use Signal Plot for both line and scatter charts. For marker-only scatter, set
+**Line styles** to **None** (`line_styles=[0]`) and choose a nonzero **Marker shapes**
+value, such as **Filled circle** (`marker_shapes=[1]`). Choose X and Y columns under
+**Data** for XY or correlation plots. Keep a line style enabled to draw connected
+signals; marker and line styles are independent.
+
+Connect **Signal Plot > Plot** to **Media Panel** for canvas preview and interactive
+fullscreen, or to **Image Export > Image** to write the PNG preview. The complete
+normalized samples remain in PlotValue for inspection. Generic Scatter Plot
+(`plot.scatter`) and Line Plot (`plot.line`) are retired. Saved projects containing
+those unresolved types are rejected without changing the file; rebuild those
+nodes with the Signal Plot pipeline. Signal Plot does not provide the retired
+Scatter node's paired image/CSV archive ports. Specialized generic plots retain
+their own export controls.
+
 ## Interactive fullscreen
 
 Expand a connected Media Panel to inspect the plot. Use the wheel to zoom, or
@@ -155,14 +172,13 @@ after zooming to individual points, and line-only views retain navigation and
 hover without adding artificial markers. Oversized plot values fail against the
 existing scientific transport budgets instead of silently truncating samples.
 
-Source selection is separate from rendering reduction. Tabular selected columns,
-table windows and array slices are honored before mapping. Direct ArrayDataRef
-inputs honor Tabular Data Input's authored array slice, whose default is the
-50-row/50-column preview selection. Increase that selection for more data, or use
-Array Slice 2D: its explicit bounds override the base hints and `row_limit=0`
-means all remaining rows. Table windows have the same zero-full row-limit rule.
-Signal Plot adds no independent source preview cap; existing materialization and
-memory limits still apply.
+Source selection is separate from rendering reduction. Direct table and
+array reference inputs use their complete source domains; table preview selections
+and array preview bounds do not restrict them. Use an explicit Table Window or
+Array Slice 2D to select columns, rows, or axes before plotting. Their explicit
+bounds are honored, and `row_limit=0` means all remaining rows. Signal Plot adds
+no independent source preview cap; existing materialization and memory limits
+still apply.
 
 ## Native NumPy and pandas in scripts
 

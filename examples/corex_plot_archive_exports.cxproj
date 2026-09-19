@@ -61,7 +61,7 @@
           "input_order": 0,
           "label": "",
           "source_node_id": "node_series",
-          "source_port_key": "value",
+          "source_port_key": "result",
           "target_node_id": "node_line_plot",
           "target_port_key": "series",
           "visual_style": {}
@@ -119,8 +119,8 @@
             "x_label": "Month",
             "y_label": "Revenue"
           },
-          "title": "Line Plot - archive exports",
-          "type_id": "plot.line",
+          "title": "Bar Plot - archive exports",
+          "type_id": "plot.bar",
           "visual_style": {},
           "x": 450.0,
           "y": 80.0
@@ -156,8 +156,7 @@
           "custom_height": null,
           "custom_width": 300.0,
           "exposed_ports": {
-            "as_text": true,
-            "value": true
+            "result": true
           },
           "links": [],
           "locked": false,
@@ -167,49 +166,10 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "value": [
-              {
-                "label": "North",
-                "x": [
-                  1,
-                  2,
-                  3,
-                  4,
-                  5,
-                  6
-                ],
-                "y": [
-                  8.0,
-                  12.0,
-                  15.0,
-                  18.0,
-                  23.0,
-                  31.0
-                ]
-              },
-              {
-                "label": "South",
-                "x": [
-                  1,
-                  2,
-                  3,
-                  4,
-                  5,
-                  6
-                ],
-                "y": [
-                  5.0,
-                  7.0,
-                  11.0,
-                  13.0,
-                  17.0,
-                  20.0
-                ]
-              }
-            ]
+            "script": "@corex.node\n@corex.output(\"result\", value_type=\"COREX.DataTypes.GraphDictionary\", structure=\"list\")\ndef run(ctx):\n    return {\"result\": [{'label': 'North', 'x': [1, 2, 3, 4, 5, 6], 'y': [8.0, 12.0, 15.0, 18.0, 23.0, 31.0]}, {'label': 'South', 'x': [1, 2, 3, 4, 5, 6], 'y': [5.0, 7.0, 11.0, 13.0, 17.0, 20.0]}]}\n"
           },
-          "title": "Line series data",
-          "type_id": "core.constant",
+          "title": "Monthly revenue series",
+          "type_id": "core.python_script",
           "visual_style": {},
           "x": 120.0,
           "y": 130.0
@@ -231,7 +191,7 @@
           "port_modifiers": {},
           "principal_input_port_id": null,
           "properties": {
-            "script": "exports = input_data or {}\n\ndef ref_text(value):\n    if value is None:\n        return '<missing>'\n    return getattr(value, 'ref', str(value))\n\nstatic_ref = exports.get('static_export') if isinstance(exports, dict) else None\ndata_ref = exports.get('data_export') if isinstance(exports, dict) else None\nstatic_meta = exports.get('static_metadata', {}) if isinstance(exports, dict) else {}\ndata_meta = exports.get('data_metadata', {}) if isinstance(exports, dict) else {}\noutput_data = (\n    'Static export: ' + ref_text(static_ref)\n    + ' | Data export: ' + ref_text(data_ref)\n    + ' | static backend: ' + str(static_meta.get('backend_id', '<unknown>'))\n    + ' | rows: ' + str(((data_meta.get('metadata') or {}).get('row_count', '<unknown>')))\n)\n"
+            "script": "@corex.node\n@corex.input(\"payload\", value_type=\"COREX.Plot.ExportBundle\")\n@corex.output(\"result\", value_type=\"COREX.DataTypes.String\")\ndef run(ctx, payload):\n    return {\"result\": str(payload)}\n"
           },
           "title": "Summarize Exports",
           "type_id": "core.python_script",

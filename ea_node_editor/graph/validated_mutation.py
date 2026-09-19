@@ -1,6 +1,6 @@
 # Purpose: Apply invariant-checked graph mutations through graph-owned record writers.
 # Map: subsystems/graph_domain.md
-# Tests: tests/test_registry_validation.py, tests/test_dataflow_graph_persistence.py, tests/mechanical_catalogue/test_controls.py
+# Tests: tests/test_graph_node_reconciliation.py, tests/test_python_script_scene_integration.py, tests/mechanical_catalogue/test_controls.py
 # Landmarks: ValidatedGraphMutation; add_node; rewire_edges; set_node_properties; dynamic-port mutation; edge pruning
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from ea_node_editor.graph.invariant_kernel import (
     RegistryValidationPassMemo,
 )
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.graph.node_port_state import reconcile_script_port_state
 from ea_node_editor.graph.property_validation import is_saved_property_value_valid
 from ea_node_editor.graph.records import EdgeInstance, NodeInstance
 from ea_node_editor.graph.subnode_contract import (
@@ -469,16 +470,7 @@ class ValidatedGraphMutation:
             raise ValueError(
                 f"Dynamic port group {group.group_id} did not preserve inserted key {port_key}."
             )
-        if group.property_editor is not None and node.type_id == "core.python_script":
-            self.set_node_property(node_id, group.property_key, property_value)
-            return port_key
-        self.model._set_node_property_record(
-            self.workspace_id,
-            node_id,
-            group.property_key,
-            property_value,
-        )
-        self._prune_edges_for_nodes({node_id})
+        self._commit_dynamic_port_keys(node, group, property_value, removed_port_key=None)
         return port_key
 
     def remove_dynamic_port(
@@ -506,20 +498,9 @@ class ValidatedGraphMutation:
             properties=properties,
             candidate_keys=candidate_keys,
         )
-        removed_edge_ids = self._incident_edge_ids(node_id, normalized_key)
-        if group.property_editor is not None and node.type_id == "core.python_script":
-            self.set_node_property(node_id, group.property_key, property_value)
-            return normalized_key, removed_edge_ids
-        for edge_id in removed_edge_ids:
-            self.model._remove_edge_record(self.workspace_id, edge_id)
-        self.model._set_node_property_record(
-            self.workspace_id,
-            node_id,
-            group.property_key,
-            property_value,
+        removed_edge_ids = self._commit_dynamic_port_keys(
+            node, group, property_value, removed_port_key=normalized_key,
         )
-        self._clear_dynamic_port_state(node, normalized_key)
-        removed_edge_ids += tuple(self._prune_edges_for_nodes({node_id}))
         return normalized_key, removed_edge_ids
 
     def rename_dynamic_port(
@@ -589,21 +570,35 @@ class ValidatedGraphMutation:
             raise ValueError(
                 f"Dynamic port group {group.group_id} did not preserve renamed key {renamed_key}."
             )
-        removed_edge_ids = self._incident_edge_ids(node_id, normalized_key)
+        removed_edge_ids = self._commit_dynamic_port_keys(
+            node, group, property_value, removed_port_key=normalized_key,
+        )
+        return renamed_key, removed_edge_ids
+
+    def _commit_dynamic_port_keys(
+        self,
+        node: NodeInstance,
+        group: DynamicPortGroupSpec,
+        property_value: object,
+        *,
+        removed_port_key: str | None,
+    ) -> tuple[str, ...]:
+        """Apply preflighted keys, preserving incident-before-downstream removal."""
+        removed_edge_ids = (
+            self._incident_edge_ids(node.node_id, removed_port_key)
+            if removed_port_key is not None else ()
+        )
         if group.property_editor is not None and node.type_id == "core.python_script":
-            self.set_node_property(node_id, group.property_key, property_value)
-            return renamed_key, removed_edge_ids
+            self.set_node_property(node.node_id, group.property_key, property_value)
+            return removed_edge_ids
         for edge_id in removed_edge_ids:
             self.model._remove_edge_record(self.workspace_id, edge_id)
         self.model._set_node_property_record(
-            self.workspace_id,
-            node_id,
-            group.property_key,
-            property_value,
+            self.workspace_id, node.node_id, group.property_key, property_value,
         )
-        self._clear_dynamic_port_state(node, normalized_key)
-        removed_edge_ids += tuple(self._prune_edges_for_nodes({node_id}))
-        return renamed_key, removed_edge_ids
+        if removed_port_key is not None:
+            self._clear_dynamic_port_state(node, removed_port_key)
+        return removed_edge_ids + tuple(self._prune_edges_for_nodes({node.node_id}))
 
     def set_node_property(self, node_id: str, key: str, value: object) -> object:
         node = self.workspace.nodes[node_id]
@@ -617,21 +612,7 @@ class ValidatedGraphMutation:
             value,
             properties=node.properties,
         )
-        normalized_updates = self._contextual_property_updates(node, {key: normalized})
-        normalized_updates = self._guard_exposed_media_source_updates(
-            node,
-            normalized_updates,
-        )
-        if not normalized_updates:
-            return normalized
-        affected_node_ids = self._preflight_port_semantic_updates(
-            node,
-            normalized_updates,
-        )
-        for update_key, update_value in normalized_updates.items():
-            self.model._set_node_property_record(self.workspace_id, node_id, update_key, update_value)
-        if affected_node_ids:
-            self._prune_edges_for_nodes(affected_node_ids)
+        self._commit_normalized_property_updates(node, {key: normalized})
         return normalized
 
     def apply_python_script(
@@ -710,7 +691,7 @@ class ValidatedGraphMutation:
                 candidate_ports_by_key[key].type_from_input,
             )
         }
-        structure_changed_keys = {
+        forced_prune_keys = {
             key
             for key in semantic_changed_keys
             if old_ports_by_key[key].data_access
@@ -719,43 +700,13 @@ class ValidatedGraphMutation:
 
         candidate_node = node.clone()
         candidate_node.properties = copy.deepcopy(candidate_properties)
-        valid_port_keys = set(candidate_ports_by_key)
-        candidate_node.exposed_ports = {
-            key: bool(
-                port.required
-                or (
-                    port.exposed
-                    if key in semantic_changed_keys
-                    else node.exposed_ports.get(key, port.exposed)
-                )
-            )
-            for key, port in candidate_ports_by_key.items()
-        }
-        candidate_node.port_labels = {
-            key: str(value)
-            for key, value in node.port_labels.items()
-            if key in valid_port_keys
-            and key not in semantic_changed_keys
-            and str(value).strip()
-        }
-        candidate_node.port_modifiers = {
-            key: tuple(value)
-            for key, value in node.port_modifiers.items()
-            if key in valid_port_keys
-            and key not in semantic_changed_keys
-            and candidate_ports_by_key[key].kind == "data"
-        }
-        principal_key = str(node.principal_input_port_id or "")
-        principal = candidate_ports_by_key.get(principal_key)
-        candidate_node.principal_input_port_id = (
-            principal_key
-            if principal is not None
-            and principal_key not in semantic_changed_keys
-            and principal.direction == "in"
-            and principal.kind == "data"
-            and principal.data_access != "tree"
-            else None
+        port_state = reconcile_script_port_state(
+            node, candidate_ports_by_key, semantic_changed_keys=semantic_changed_keys,
         )
+        candidate_node.exposed_ports = port_state.exposed_ports
+        candidate_node.port_labels = port_state.port_labels
+        candidate_node.port_modifiers = port_state.port_modifiers
+        candidate_node.principal_input_port_id = port_state.principal_input_port_id
         valid_group_ids = {group.group_id for group in candidate_spec.settings_groups}
         candidate_node.expanded_settings_group_ids = tuple(
             group_id
@@ -773,7 +724,7 @@ class ValidatedGraphMutation:
         removed_edge_ids = self._edge_ids_to_prune(
             {node_id},
             kernel=candidate_kernel,
-            forced_port_keys={node_id: structure_changed_keys},
+            forced_port_keys={node_id: forced_prune_keys},
         )
 
         node.properties = candidate_node.properties
@@ -820,7 +771,14 @@ class ValidatedGraphMutation:
             except KeyError:
                 continue
             normalized_updates[key] = normalized
-        normalized_updates = self._contextual_property_updates(node, normalized_updates)
+        return self._commit_normalized_property_updates(node, normalized_updates)
+
+    def _commit_normalized_property_updates(
+        self,
+        node: NodeInstance,
+        updates: dict[str, object],
+    ) -> dict[str, object]:
+        normalized_updates = self._contextual_property_updates(node, updates)
         normalized_updates = self._guard_exposed_media_source_updates(
             node,
             normalized_updates,
@@ -832,7 +790,7 @@ class ValidatedGraphMutation:
             normalized_updates,
         )
         for key, normalized in normalized_updates.items():
-            self.model._set_node_property_record(self.workspace_id, node_id, key, normalized)
+            self.model._set_node_property_record(self.workspace_id, node.node_id, key, normalized)
         if affected_node_ids:
             self._prune_edges_for_nodes(affected_node_ids)
         return normalized_updates

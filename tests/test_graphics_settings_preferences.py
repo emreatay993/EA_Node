@@ -317,7 +317,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         scene.set_workspace(model, registry, workspace_id)
         scene.bind_graphics_preferences_source(host.shell_workspace_presenter)
         scene.bind_graph_theme_bridge(host.graph_theme_bridge)
-        plot_node_id = scene.add_node_from_type("plot.scatter", 40.0, 60.0)
+        plot_node_id = scene.add_node_from_type("plot.bar", 40.0, 60.0)
         state_bridge = GraphCanvasStateBridge(
             graphics_source=host.shell_workspace_presenter,
             scene_bridge=scene,

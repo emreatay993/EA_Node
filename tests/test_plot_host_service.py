@@ -163,11 +163,11 @@ def _plot_payload(
     return {
         "workspace_id": "ws-plot",
         "node_id": node_id,
-        "type_id": "plot.scatter",
+        "type_id": "plot.bar",
         "title": "Line Plot",
         "surface_family": "plot",
         "surface_variant": "line",
-        "surface_spec": surface_spec_payload_for_values(type_id="plot.scatter", family="plot", variant="scatter"),
+        "surface_spec": surface_spec_payload_for_values(type_id="plot.bar", family="plot", variant="scatter"),
         "properties": {
             "backend": backend,
             "title": "Line Plot",

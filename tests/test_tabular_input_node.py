@@ -511,6 +511,7 @@ def test_large_tabular_generator_emits_current_dataflow_projects(
     with_filter: bool,
 ) -> None:
     from scripts.generate_large_tabular_csv import emit_project
+    from scripts.verify_tabular_perf import _benchmark_node_ids
 
     project_path = tmp_path / ("filtered.cxproj" if with_filter else "direct.cxproj")
     emit_project(project_path, tmp_path / "fixture.csv", with_filter=with_filter)
@@ -520,3 +521,6 @@ def test_large_tabular_generator_emits_current_dataflow_projects(
     project = JsonProjectSerializer(build_default_registry()).load(str(project_path))
     workspace = project.workspaces[project.active_workspace_id]
     assert len(workspace.edges) == (2 if with_filter else 1)
+    tabular_id, plot_id = _benchmark_node_ids(workspace.nodes)
+    assert workspace.nodes[tabular_id].type_id == "tabular.input"
+    assert workspace.nodes[plot_id].type_id == "plot.bar"
