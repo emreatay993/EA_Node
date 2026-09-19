@@ -1865,7 +1865,7 @@
         {
           "key": "script",
           "type": "str",
-          "default": "# Decorator templates: uncomment a line, then add its name to run(ctx, ...).\n# @corex.input(\"values\", value_type=float, structure=\"tree\", required=True, section=\"Data\")\n# @corex.output(\"image\", value_type=corex.Image)\n# @corex.text(\"title\", default=\"Plot\", section=\"Display\", port=True)\n# @corex.number(\"count\", default=10, minimum=1, maximum=100, section=\"Settings\")\n# @corex.switch(\"show_legend\", default=True, section=\"Display\", port=True)\n# @corex.dropdown(\"mode\", default=\"Mean\", options=(\"Mean\", \"Maximum\"), section=\"Settings\")\n# @corex.slider(\"line_width\", default=2.0, minimum=0.5, maximum=8.0, step=0.5, section=\"Display\", port=True)\n# @corex.color(\"accent\", default=\"#336699\", section=\"Display\")\n# @corex.path(\"source_file\", default=\"\", file_filter=\"All files (*)\", section=\"Files\")\n# @corex.text_area(\"notes\", default=\"\", section=\"Notes\")\n# @corex.interval(\"bounds\", default=(0.0, 1.0), section=\"Ranges\", port=True)\n# @corex.list(\"labels\", default=[\"A\"], item_type=str, section=\"Data\", port=True)\n\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any, description=\"Value supplied to the script.\")\n@corex.output(\"result\", value_type=corex.Any, description=\"Value returned by the script.\")\ndef run(ctx, payload):\n    return {\"result\": payload}\n",
+          "default": "# Use Add to create ports, controls, and sections.\n@corex.node\n@corex.input(\"payload\", value_type=corex.Any, description=\"Value supplied to the script.\")\n@corex.output(\"result\", value_type=corex.Any, description=\"Value returned by the script.\")\ndef run(ctx, payload):\n    return {\"result\": payload}\n",
           "label": "Script",
           "expose_port_toggle": false,
           "enum_values": [],
@@ -16012,7 +16012,8 @@
               "port_key": "commands",
               "property_key": "commands"
             }
-          ]
+          ],
+          "show_header": true
         },
         {
           "group_id": "solver_placement",
@@ -16030,7 +16031,8 @@
               "port_key": "issue_solve_command",
               "property_key": "issue_solve_command"
             }
-          ]
+          ],
+          "show_header": true
         }
       ],
       "default_expanded_settings_group_ids": [
@@ -16395,7 +16397,8 @@
               "port_key": "include",
               "property_key": "include"
             }
-          ]
+          ],
+          "show_header": true
         }
       ],
       "default_expanded_settings_group_ids": [
@@ -17078,7 +17081,8 @@
               "port_key": "views",
               "property_key": "views"
             }
-          ]
+          ],
+          "show_header": true
         },
         {
           "group_id": "image_options",
@@ -17100,7 +17104,8 @@
               "port_key": "fit_view",
               "property_key": "fit_view"
             }
-          ]
+          ],
+          "show_header": true
         },
         {
           "group_id": "save_to_disk",
@@ -17118,7 +17123,8 @@
               "port_key": "overwrite",
               "property_key": "overwrite"
             }
-          ]
+          ],
+          "show_header": true
         }
       ],
       "default_expanded_settings_group_ids": [
@@ -17762,7 +17768,8 @@
               "port_key": "component",
               "property_key": "component"
             }
-          ]
+          ],
+          "show_header": true
         },
         {
           "group_id": "values_and_units",
@@ -17776,7 +17783,8 @@
               "port_key": "sets",
               "property_key": "sets"
             }
-          ]
+          ],
+          "show_header": true
         }
       ],
       "default_expanded_settings_group_ids": [
@@ -18357,7 +18365,8 @@
               "port_key": "version",
               "property_key": "version"
             }
-          ]
+          ],
+          "show_header": true
         },
         {
           "group_id": "session_options",
@@ -18371,7 +18380,8 @@
               "port_key": "timeout_s",
               "property_key": "timeout_s"
             }
-          ]
+          ],
+          "show_header": true
         }
       ],
       "default_expanded_settings_group_ids": [
@@ -18893,7 +18903,8 @@
               "port_key": "code",
               "property_key": "code"
             }
-          ]
+          ],
+          "show_header": true
         },
         {
           "group_id": "execution_options",
@@ -18907,7 +18918,8 @@
               "port_key": "stop_on_error",
               "property_key": "stop_on_error"
             }
-          ]
+          ],
+          "show_header": true
         }
       ],
       "default_expanded_settings_group_ids": [
@@ -19656,7 +19668,8 @@
               "port_key": "format",
               "property_key": "format"
             }
-          ]
+          ],
+          "show_header": true
         },
         {
           "group_id": "cdb_options",
@@ -19674,7 +19687,8 @@
               "port_key": "cdb_load_step",
               "property_key": "cdb_load_step"
             }
-          ]
+          ],
+          "show_header": true
         },
         {
           "group_id": "save_options",
@@ -19696,7 +19710,8 @@
               "port_key": "overwrite",
               "property_key": "overwrite"
             }
-          ]
+          ],
+          "show_header": true
         }
       ],
       "default_expanded_settings_group_ids": [
@@ -20400,7 +20415,8 @@
               "port_key": "query",
               "property_key": "query"
             }
-          ]
+          ],
+          "show_header": true
         },
         {
           "group_id": "match_options",
@@ -20422,7 +20438,8 @@
               "port_key": "invert",
               "property_key": "invert"
             }
-          ]
+          ],
+          "show_header": true
         }
       ],
       "default_expanded_settings_group_ids": [
@@ -47975,7 +47992,8 @@
               "port_key": "data_background_color",
               "property_key": "data_background_color"
             }
-          ]
+          ],
+          "show_header": true
         },
         {
           "group_id": "signal_plot_options",
@@ -48025,7 +48043,8 @@
               "port_key": "y_axis_label",
               "property_key": "y_axis_label"
             }
-          ]
+          ],
+          "show_header": true
         },
         {
           "group_id": "data",
@@ -48055,7 +48074,8 @@
               "port_key": "x_datetime_end",
               "property_key": "x_datetime_end"
             }
-          ]
+          ],
+          "show_header": true
         }
       ],
       "default_expanded_settings_group_ids": [],

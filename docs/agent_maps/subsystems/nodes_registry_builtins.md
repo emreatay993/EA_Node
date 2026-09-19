@@ -1,6 +1,13 @@
 # Nodes, Registry, Built-ins, And Plugin Loading
 
 ## Purpose
+
+The [Python Script authoring route](../feature_routes/python_script_authoring.md)
+maps bounded decorator analysis, source-preserving edits and scope-aware rename.
+`SettingsGroupSpec.show_header` defaults true; script-only resolved metadata uses
+an always-expanded headerless group for unsectioned controls, without a new
+public decorator or project representation.
+
 `PropertySpec.affects_execution` is the shared authored-property impact contract.
 Public controls, shipped add-ons and Python Script use the same declaration
 engine; `NodeRegistry.execution_properties` normalizes then removes only explicit

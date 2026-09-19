@@ -60,10 +60,15 @@ Rectangle {
 
             "<div class='hero'>",
             "<h1>Python Script customization</h1>",
-            "<p>Decorators above <code>run</code> define this node's ports, inline controls, and collapsible sections.</p>",
-            "<p><span class='badge'>Apply-safe</span><span class='badge'>Typed ports</span><span class='badge'>Shared controls</span></p>",
-            "<p class='muted'>Edit the source, then click <b>Apply</b>. Invalid drafts stay in the editor and do not change the graph.</p>",
+            "<p>Use <b>Add</b> to create ports, controls, and collapsible sections. The builder updates the decorators above <code>run</code> and keeps its parameters in sync.</p>",
+            "<p class='muted'>Edit the interface or Python, then click <b>Apply</b>. Invalid drafts and unfinished fields do not change the graph.</p>",
             "</div>",
+
+            "<h2>Builder, code, and preview</h2>",
+            "<p>The Interface outline selects a declaration and its property grid. Valid field edits update the draft; <b>Whole</b> and <b>Decimal</b> preserve numeric intent. The rename action reviews changes to Python variables and keeps valid saved values and connections.</p>",
+            "<p>The type picker searches the active catalog, including installed add-ons. It shows the exact Python expression and an example. Press <b>Ctrl+Space</b> in code for contextual suggestions. A whole DataFrame or NumPy array normally uses <b>Single value</b>, independently of its data type.</p>",
+            "<p>Choose <b>Add &gt; Section</b>, enter a name, and select inputs or controls. Use the Section field to rename or change membership. Outputs stay outside sections. Unsectioned controls remain below the main ports whether their optional input socket is on or off.</p>",
+            "<p>Preview controls use temporary values and never execute Python. <b>Use as default</b> writes a value into the draft. Existing valid saved values are retained on Apply; review any reset or connection-removal impact. Drafts and unfinished fields follow you between nodes and the docked/fullscreen editor during this session.</p>",
 
             "<h2>1. Smallest working script</h2>",
             "<pre>@corex.node\n@corex.input(&quot;payload&quot;, value_type=corex.Any)\n@corex.output(&quot;result&quot;, value_type=corex.Any)\ndef run(ctx, payload):\n    return {&quot;result&quot;: payload}</pre>",

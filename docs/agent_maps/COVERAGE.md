@@ -22,6 +22,12 @@ implementation studies are intentionally excluded.
 
 ## Cross-layer feature routes
 
+The [Python Script authoring route](feature_routes/python_script_authoring.md)
+owns the desktop builder/editor, type guidance, scoped source edits, sections,
+native-field drafts and isolated preview. Graph-owned preparation/Apply retains
+rename identities and history; shared headerless settings rows keep script
+controls below main ports with compact geometry independent of socket exposure.
+
 The viewer-session route owns the engineering interactor's native surface boundary, established before host attachment so OpenGL viewers can coexist with the Qt Quick graphics backend.
 
 The top-right toolbar uses reusable `ZoomControl.qml` for continuous slider and numeric zoom requests; `ViewportBridge` owns zoom state and the 10-500% clamp, including restored view/scope cameras. The QML shell map records component and real-shell proving tests.
@@ -140,8 +146,9 @@ Settings-section size transitions use shared 180 ms width/height animations with
 - Exact feature-map citations own QML components when present; the broader QML
   or graph-canvas subsystem remains the fallback only when no feature map cites
   that exact component path.
-- Decorator-driven Python Script declarations are owned jointly by the node
-  registry/parser, graph-owned atomic Apply, worker revalidation, and generic persistence.
+- Decorator-driven Python Script declarations and authoring are mapped by the
+  Python Script route, with node registry/parser, graph-owned atomic Apply,
+  worker revalidation, and generic persistence as their separate owners.
   Shared canvas handles edit that source through dynamic-port mutations; canvas
   commands and workspace editing own dirty-draft protection and clean-editor refresh.
 - Deterministic `.cxpkg` schema-2 archive IO, static package validation, and

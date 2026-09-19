@@ -331,6 +331,8 @@ class SettingsGroupSpec:
     group_id: str
     label: str
     items: tuple[SettingsGroupItemSpec, ...]
+    # Headerless groups are always expanded; no instance expansion state is needed.
+    show_header: bool = True
 
 
 @dataclass(slots=True, frozen=True)

@@ -727,7 +727,7 @@ def _standard_inline_min_width(
     expanded_keys = {
         item.property_key or (item.port_key if item.port_key in default_property_keys else "")
         for group in spec.settings_groups
-        if keep_expanded_node_width or group.group_id in node.expanded_settings_group_ids
+        if not group.show_header or keep_expanded_node_width or group.group_id in node.expanded_settings_group_ids
         for item in group.items
     }
     # Group headers span the card, independently of the two port-label columns.
@@ -735,11 +735,12 @@ def _standard_inline_min_width(
         _estimate_standard_text_width(group.label, pixel_size=inline_pixel_size)
         + 52.0  # 12px side insets, 12px chevron, and two 8px gaps.
         for group in spec.settings_groups
+        if group.show_header
     ]
     grouped_port_keys = {
         item.port_key
         for group in spec.settings_groups
-        if keep_expanded_node_width or group.group_id in node.expanded_settings_group_ids
+        if not group.show_header or keep_expanded_node_width or group.group_id in node.expanded_settings_group_ids
         for item in group.items
         if not item.property_key and item.port_key not in default_property_keys
     }

@@ -5,8 +5,6 @@
 from __future__ import annotations
 
 import ast
-import io
-import tokenize
 from collections import OrderedDict
 from dataclasses import dataclass, replace
 from functools import lru_cache, partial
@@ -15,6 +13,7 @@ from typing import Any, Mapping
 
 from ea_node_editor.nodes import declaration_engine as _declaration_engine
 from ea_node_editor.nodes.instance_resolution import validate_type_forwarding
+from ea_node_editor.nodes.python_script_authoring_source import SourceDocument, apply_edits
 from ea_node_editor.nodes.builtins.core_values import (
     COLOR_DATA_TYPE_ID,
     IMAGE_DATA_TYPE_ID,
@@ -33,13 +32,22 @@ from ea_node_editor.runtime_contracts import (
 )
 
 _BASE_PROPERTY_KEYS = frozenset({"script", "timeout_sec"})
+PYTHON_SCRIPT_DECORATOR_FIELDS = {
+    "node": frozenset(),
+    "input": frozenset({"value_type", "structure", "required", "label", "description", "section"}),
+    "output": frozenset({"value_type", "structure", "label", "description", "type_from_input"}),
+    **_declaration_engine.CONTROL_ALLOWED_FIELDS,
+}
 
 
 class PythonScriptDeclarationError(ValueError):
     """Actionable, source-located Python Script declaration error."""
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str, *, line: int = 1, column: int = 1, column_is_utf8: bool = False) -> None:
         super().__init__(message)
+        self.line = line
+        self.column = column
+        self.column_is_utf8 = column_is_utf8
         self.user_traceback = (
             'Traceback (most recent call last):\n  File "<script>"\n'
             f"PythonScriptDeclarationError: {message}"
@@ -60,18 +68,21 @@ def _fail(node: ast.AST | None, message: str) -> PythonScriptDeclarationError:
         return PythonScriptDeclarationError(message)
     return PythonScriptDeclarationError(
         f"{message} (line {getattr(node, 'lineno', 1)}, "
-        f"column {getattr(node, 'col_offset', 0) + 1})"
+        f"column {getattr(node, 'col_offset', 0) + 1})",
+        line=getattr(node, "lineno", 1), column=getattr(node, "col_offset", 0) + 1,
+        column_is_utf8=True,
     )
 
 @lru_cache(maxsize=128)
-def _parse(source: str) -> _Declaration:
+def _parse(source: str, *, validate_signature: bool = True) -> _Declaration:
     if len(source.encode("utf-8")) > _declaration_engine.MAX_SOURCE_BYTES:
         raise PythonScriptDeclarationError("Python Script source is too large")
     try:
         module = ast.parse(source, filename="<script>", mode="exec")
     except SyntaxError as exc:
         raise PythonScriptDeclarationError(
-            f"{exc.msg} (line {exc.lineno or 1}, column {exc.offset or 1})"
+            f"{exc.msg} (line {exc.lineno or 1}, column {exc.offset or 1})",
+            line=exc.lineno or 1, column=exc.offset or 1,
         ) from exc
     if sum(1 for _ in ast.walk(module)) > _declaration_engine.MAX_AST_NODES:
         raise PythonScriptDeclarationError("Python Script syntax tree is too large")
@@ -121,6 +132,7 @@ def _parse(source: str) -> _Declaration:
     output_keys: list[str] = []
     used_keys: set[str] = set()
     section_items: "OrderedDict[str, list[SettingsGroupItemSpec]]" = OrderedDict()
+    unsectioned_controls: list[SettingsGroupItemSpec] = []
 
     for decorator in function.decorator_list:
         name = _declaration_engine.corex_decorator_name(decorator)
@@ -136,14 +148,7 @@ def _parse(source: str) -> _Declaration:
             key, values, _nodes = _declaration_engine.call_values(
                 decorator,
                 name,
-                allowed={
-                    "value_type",
-                    "structure",
-                    "required",
-                    "label",
-                    "description",
-                    "section",
-                },
+                allowed=PYTHON_SCRIPT_DECORATOR_FIELDS[name],
                 fail=_fail,
             )
             if "value_type" not in values:
@@ -172,7 +177,7 @@ def _parse(source: str) -> _Declaration:
             key, values, _nodes = _declaration_engine.call_values(
                 decorator,
                 name,
-                allowed={"value_type", "structure", "label", "description", "section", "type_from_input"},
+                allowed=PYTHON_SCRIPT_DECORATOR_FIELDS[name] | {"section"},
                 fail=_fail,
             )
             if "section" in values:
@@ -255,6 +260,13 @@ def _parse(source: str) -> _Declaration:
                     property_key=key if prop is not None else "",
                 )
             )
+        elif prop is not None:
+            unsectioned_controls.append(
+                SettingsGroupItemSpec(
+                    port_key=key if port is not None else "",
+                    property_key=key,
+                )
+            )
 
     args = function.args
     if (
@@ -274,16 +286,24 @@ def _parse(source: str) -> _Declaration:
         raise _fail(function, "run's first parameter must be ctx")
     if len(signature_keys) != len(set(signature_keys)):
         raise _fail(function, "run parameters must be unique")
-    if set(signature_keys[1:]) != set(parameter_keys) or len(signature_keys[1:]) != len(
-        parameter_keys
+    if validate_signature and (
+        set(signature_keys[1:]) != set(parameter_keys)
+        or len(signature_keys[1:]) != len(parameter_keys)
     ):
         raise _fail(
             function,
             "run parameters after ctx must exactly match declared inputs and controls",
         )
 
-    used_group_ids: set[str] = set()
-    settings_groups = tuple(
+    # Authored section IDs contain underscores, never dots. This internal ID
+    # cannot collide with one or change its persisted expansion identity.
+    used_group_ids: set[str] = {"script.controls"}
+    settings_groups = (
+        (SettingsGroupSpec(
+            "script.controls", "Controls", tuple(unsectioned_controls), show_header=False,
+        ),)
+        if unsectioned_controls else ()
+    ) + tuple(
         SettingsGroupSpec(
             _declaration_engine.group_id(label, used_group_ids),
             label,
@@ -377,74 +397,29 @@ def _edit_port_keys(
         node for node in function.decorator_list
         if _declaration_engine.corex_decorator_name(node) == name
     ]
-    # AST columns are UTF-8 byte offsets, including non-ASCII labels/annotations.
-    raw = source.encode("utf-8")
-    lines = raw.splitlines(keepends=True)
-    offsets = [0]
-    for line in lines:
-        offsets.append(offsets[-1] + len(line))
-
-    def start(node: ast.AST) -> int:
-        return offsets[node.lineno - 1] + node.col_offset
-
-    def end(node: ast.AST) -> int:
-        return offsets[node.end_lineno - 1] + node.end_col_offset
-
-    def token_offset(position: tuple[int, int]) -> int:
-        row, column = position
-        return offsets[row - 1] + len(lines[row - 1].decode("utf-8")[:column].encode("utf-8"))
-
-    tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
-
-    def decorator_span(decorator: ast.AST) -> tuple[int, int]:
-        at = max(
-            index for index, token in enumerate(tokens)
-            if token.string == "@" and token_offset(token.start) <= start(decorator)
-        )
-        first = token_offset(tokens[at].start)
-        last = first
-        for token in tokens[at:]:
-            if token.type == tokenize.NEWLINE:
-                break
-            if token.type not in {tokenize.COMMENT, tokenize.NL}:
-                last = token_offset(token.end)
-        return first, last
-
-    edits: list[tuple[int, int, bytes]] = []
+    document = SourceDocument(source)
+    edits: list[tuple[int, int, str]] = []
     if added:
         key = next(iter(added))
         ordinal = keys.index(key)
         position = (
-            decorator_span(decorators[ordinal])[0]
-            if ordinal < len(decorators) else offsets[function.lineno - 1]
+            document.decorator_span(decorators[ordinal])[0]
+            if ordinal < len(decorators) else document.offsets[function.lineno - 1]
         )
-        newline = b"\r\n" if b"\r\n" in raw else b"\n"
-        edits.append((position, position, f'@corex.{name}("{key}", value_type=corex.Any)'.encode() + newline))
+        edits.append((position, position, f'@corex.{name}("{key}", value_type=corex.Any)' + document.newline))
         if direction == "in":
-            position = end(function.args.args[-1])
-            edits.append((position, position, f", {key}".encode()))
+            position = document.end(function.args.args[-1])
+            edits.append((position, position, f", {key}"))
     else:
         key = next(iter(removed))
         decorator = decorators[current.index(key)]
-        first, last = decorator_span(decorator)
-        edits.append((first, last, b""))
+        first, last = document.decorator_span(decorator)
+        edits.append((first, last, ""))
         if direction == "in":
-            arguments = function.args.args
-            index = next(i for i, arg in enumerate(arguments) if arg.arg == key)
-            argument = arguments[index]
-            previous_end = end(arguments[index - 1])
-            # Tokenization skips commas inside comments and type annotations.
-            for token in tokens:
-                if token.string != ",":
-                    continue
-                position = token_offset(token.start)
-                if previous_end <= position < start(argument):
-                    edits.append((position, position + 1, b""))
-                    break
-            edits.append((start(argument), end(argument), b""))
-    for first, last, value in sorted(edits, reverse=True):
-        raw = raw[:first] + value + raw[last:]
-    result = raw.decode("utf-8")
+            edits.extend(document.argument_edits(
+                function, tuple(arg.arg for arg in function.args.args if arg.arg != key),
+            ))
+    result = apply_edits(source, edits)
     _parse(result)
     return result
 

@@ -23,6 +23,14 @@
 - `REQ-UI-012`: `ShellWindow` shall expose `show_workflow_settings_dialog()` and persist workflow settings metadata from a modal UI.
 - `REQ-UI-013`: `ShellWindow` shall expose `set_script_editor_panel_visible()` and provide one shared Python script editor surface bound to the selected `core.python_script` node. The editor shall keep a dirty draft until Apply; Apply shall validate and commit the decorator-defined script plus its resolved ports and properties. Explicit Run or Run Selected shall first consume a valid pending Apply for that selected script and shall block dispatch without partial model mutation when validation fails. Node creation shall not open an editor wizard.
 
+  The shared authoring workspace shall provide a desktop-style interface builder,
+  Python editor and non-executing node preview, with catalog-backed type guidance,
+  source-preserving edits, guided rename and collapsible section authoring. Native
+  pending fields and source drafts shall survive pane/node changes during the
+  session and participate in explicit-run guards. Unsectioned controls shall use
+  compact shared rows below main ports, with stable geometry when sockets are
+  toggled. See the [Python Script guide](../../PYTHON_SCRIPT_GUIDE.md).
+
 ## Subnode UX Surfaces
 - `REQ-UI-014`: Shell and canvas UX shall support subnode scope navigation (breadcrumbs + keyboard navigation), group/ungroup transforms, and subnode pin editing directly from the inspector/library workflows. Unified workflow-interface authoring is a separate planned scope under `REQ-NODE-036` and `REQ-UI-053`; it does not widen this requirement or its existing proof.
 - `REQ-UI-015`: File menu UX shall provide project-local custom workflow interchange through versioned `.cxwf` import/export actions that remain separate from `.cxpkg` node package actions.

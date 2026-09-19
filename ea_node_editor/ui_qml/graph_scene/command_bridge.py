@@ -275,6 +275,14 @@ class GraphSceneCommandBridge(QObject):
             self._authoring_boundary.set_node_property, node_id, key, value
         )
 
+    def prepare_python_script(self, node_id: str, source: str, **options):
+        return self._authoring_boundary.prepare_python_script(node_id, source, **options)
+
+    def apply_python_script(self, node_id: str, source: str, **options):
+        return self._timed_authoring_call(
+            self._authoring_boundary.apply_python_script, node_id, source, **options,
+        )
+
     @pyqtSlot(str, str, str, result=bool)
     def set_node_secret(self, node_id: str, key: str, plaintext: str) -> bool:
         return bool(

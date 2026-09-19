@@ -16,6 +16,7 @@ FocusScope {
     property var bridgeRef: null
     property var scriptEditorBridgeRef: null
     property var scriptHighlighterBridgeRef: null
+    property var graphThemeBridgeRef: null
     readonly property var themePalette: themeBridge.palette
     readonly property bool bridgeOpen: !!root.bridgeRef && Boolean(root.bridgeRef.open)
     readonly property string activeNodeId: root.bridgeRef ? String(root.bridgeRef.node_id || "") : ""
@@ -2096,6 +2097,7 @@ FocusScope {
                         Layout.fillHeight: true
                         scriptEditorBridgeRef: root.scriptEditorBridgeRef
                         scriptHighlighterBridgeRef: root.scriptHighlighterBridgeRef
+                        graphThemeBridgeRef: root.graphThemeBridgeRef
                         themeBridgeRef: themeBridge
                         graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
                         uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null

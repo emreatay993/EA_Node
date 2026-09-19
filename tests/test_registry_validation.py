@@ -556,6 +556,12 @@ class RegistryValidationTests(unittest.TestCase):
             registry.get_spec(valid_spec.type_id).default_expanded_settings_group_ids,
             ("general",),
         )
+        headerless_spec = replace(
+            valid_spec,
+            settings_groups=(replace(general_group, show_header=False), plot_group),
+            default_expanded_settings_group_ids=(),
+        )
+        NodeRegistry().register_descriptor(headerless_spec, _factory(headerless_spec))
 
         invalid_specs = {
             "active nodes only": replace(valid_spec, runtime_behavior="passive"),
@@ -569,6 +575,10 @@ class RegistryValidationTests(unittest.TestCase):
             "nonempty label": replace(
                 valid_spec,
                 settings_groups=(replace(general_group, label=""),),
+            ),
+            "header visibility is boolean": replace(
+                valid_spec,
+                settings_groups=(replace(general_group, show_header="false"),),
             ),
             "nonempty items": replace(
                 valid_spec,

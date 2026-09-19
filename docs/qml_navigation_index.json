@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 190,
-    "repeater_constructs": 93,
-    "loader_constructs": 28,
-    "signal_handlers": 962,
-    "connections": 49,
-    "property_bindings": 7846,
-    "local_component_refs": 314
+    "qml_files": 200,
+    "repeater_constructs": 98,
+    "loader_constructs": 29,
+    "signal_handlers": 1016,
+    "connections": 52,
+    "property_bindings": 8066,
+    "local_component_refs": 338
   },
   "entries": [
     {
@@ -9433,9 +9433,7 @@
           "kind": "binding",
           "name": "text",
           "targets": [
-            "String",
-            "inlineRow.propertyData.label",
-            "inlineRow.propertyData.key"
+            "inlineRow.propertyData.label"
           ]
         },
         {
@@ -26277,6 +26275,13 @@
         },
         {
           "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "groupItem.groupData.show_header"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "Accessible.name",
           "targets": [
             "String",
@@ -26475,6 +26480,7 @@
           "kind": "binding",
           "name": "enabled",
           "targets": [
+            "headerRow.visible",
             "root.interactionLocked"
           ]
         },
@@ -131150,6 +131156,10 @@
         {
           "kind": "string",
           "name": "guideHtml"
+        },
+        {
+          "kind": "grid.",
+          "name": "Valid"
         }
       ],
       "signals": [
@@ -131419,6 +131429,12 @@
           "detail": "string"
         },
         {
+          "anchor": "PythonScriptGuidePanePropertyValid",
+          "kind": "property",
+          "name": "Valid",
+          "detail": "grid."
+        },
+        {
           "anchor": "PythonScriptGuidePaneSignalCloseRequested",
           "kind": "signal",
           "name": "closeRequested"
@@ -131447,140 +131463,1063 @@
       ]
     },
     {
-      "path": "ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml",
-      "component_name": "ScriptCodeEditorPane",
+      "path": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringAddPopup.qml",
+      "component_name": "ScriptAuthoringAddPopup",
       "aliases": [
-        "ScriptCodeEditorPane",
-        "ScriptCodeEditorPane.qml",
-        "ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml",
-        "ea_node_editor\\ui_qml\\components\\shell\\ScriptCodeEditorPane.qml"
+        "ScriptAuthoringAddPopup",
+        "ScriptAuthoringAddPopup.qml",
+        "ea_node_editor/ui_qml/components/shell/ScriptAuthoringAddPopup.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\ScriptAuthoringAddPopup.qml"
       ],
-      "root_component": "ColumnLayout",
+      "root_component": "Popup",
       "imports": [
         "QtQuick 2.15",
         "QtQuick.Controls 2.15",
-        "QtQuick.Layouts 1.15",
-        "\"MainShellUtils.js\" as MainShellUtils"
+        "QtQuick.Layouts 1.15"
       ],
       "ids": [
         {
           "name": "root"
         },
         {
-          "name": "scriptLineGutter"
+          "name": "search"
         },
         {
-          "name": "scriptLineNumberText"
+          "name": "palette"
         },
         {
-          "name": "scriptEditorScroll"
+          "name": "nameField"
         },
         {
-          "name": "scriptEditorArea"
+          "name": "form"
         }
       ],
       "object_names": [
         {
-          "name": "scriptCodeEditorPane"
+          "name": "scriptAuthoringAddPopup"
         },
         {
-          "name": "scriptEditorArea"
+          "name": "scriptAddSearch"
         },
         {
-          "name": "pythonScriptGuideButton"
+          "name": "scriptAddChoice_"
+        },
+        {
+          "name": "scriptAddName"
+        },
+        {
+          "name": "scriptAddForm"
+        },
+        {
+          "name": "scriptAddConfirm"
         }
       ],
       "properties": [
         {
           "kind": "var",
-          "name": "scriptEditorBridgeRef"
+          "name": "pane"
         },
         {
           "kind": "var",
-          "name": "scriptHighlighterBridgeRef"
+          "name": "editor"
         },
         {
           "kind": "var",
-          "name": "themeBridgeRef"
+          "name": "choice"
         },
         {
           "kind": "var",
-          "name": "graphCanvasStateBridgeRef"
+          "name": "sectionKeys"
         },
         {
-          "kind": "var",
-          "name": "uiIconsRef"
-        },
-        {
-          "kind": "bool",
-          "name": "guideButtonVisible"
-        },
-        {
-          "kind": "bool",
-          "name": "guideButtonSelected"
-        },
-        {
-          "kind": "bool",
-          "name": "applyFailed"
-        },
-        {
-          "kind": "var",
-          "name": "themePalette"
-        },
-        {
-          "kind": "bool",
-          "name": "editorAvailable"
+          "kind": "string",
+          "name": "oldSection"
         }
       ],
-      "signals": [
-        {
-          "name": "guideRequested"
-        }
-      ],
+      "signals": [],
       "functions": [
         {
-          "name": "updateCursorMetrics"
+          "name": "choose"
         },
         {
-          "name": "attachSyntaxHighlighter"
+          "name": "openSection"
         }
       ],
       "instantiated_components": [
         {
-          "name": "RowLayout"
+          "name": "ColumnLayout"
         },
         {
-          "name": "Rectangle"
+          "name": "RowLayout"
         },
         {
           "name": "Text"
         },
         {
+          "name": "ScriptAuthoringButton"
+        },
+        {
+          "name": "ScriptAuthoringTextField"
+        },
+        {
+          "name": "ListView"
+        },
+        {
+          "name": "Image"
+        },
+        {
           "name": "ScrollView"
+        },
+        {
+          "name": "ScriptAuthoringForm"
+        },
+        {
+          "name": "Repeater"
+        },
+        {
+          "name": "InspectorCheckBox"
+        },
+        {
+          "name": "Item"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "ListView"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.editor",
+            "root.editor.query_decorators",
+            "search.text"
+          ]
+        },
+        {
+          "kind": "delegate",
+          "targets": [
+            "ItemDelegate"
+          ]
+        },
+        {
+          "kind": "source",
+          "targets": [
+            "root.pane.uiIconsRef",
+            "root.pane.uiIconsRef.sourceSized",
+            "root.pane.controlIcon",
+            "modelData.kind",
+            "String",
+            "root.pane.themePalette.input_fg"
+          ]
+        },
+        {
+          "kind": "Repeater"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.editor",
+            "root.editor.interface_items.filter",
+            "item"
+          ]
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onOpened"
+        },
+        {
+          "kind": "handler",
+          "name": "onClosed"
+        },
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onReturnPressed"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "parent",
+          "targets": [
+            "Overlay.overlay"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "Math.max",
+            "parent.width",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "Math.max",
+            "parent.height",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.min",
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "Math.min",
+            "choice.kind",
+            "editor",
+            "editor.interface_items.length",
+            "parent.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "modal"
+        },
+        {
+          "kind": "binding",
+          "name": "padding"
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "pane",
+          "targets": [
+            "root.pane"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.choice.kind"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderText"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "clip"
+        },
+        {
+          "kind": "binding",
+          "name": "ScrollBar.vertical",
+          "targets": [
+            "ScrollBar"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "palette.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height"
+        },
+        {
+          "kind": "binding",
+          "name": "highlighted",
+          "targets": [
+            "ListView.isCurrentItem"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentItem",
+          "targets": [
+            "RowLayout"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentWidth",
+          "targets": [
+            "availableWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "modelData.label",
+            "modelData.key"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "checked",
+          "targets": [
+            "root.sectionKeys.indexOf",
+            "modelData.key"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "themeBridgeRef",
+          "targets": [
+            "root.pane.themeBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "graphCanvasStateBridgeRef",
+          "targets": [
+            "root.pane.graphCanvasStateBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "uiIconsRef",
+          "targets": [
+            "root.pane.uiIconsRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "nameField.text.length",
+            "root.choice.kind",
+            "root.sectionKeys.length",
+            "form.hasExplicitType",
+            "form.error"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectedStyle"
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "root.oldSection"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringForm",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringForm.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorCheckBox",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorCheckBox.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "ScriptAuthoringAddPopupPropertyPane",
+          "kind": "property",
+          "name": "pane",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupPropertyEditor",
+          "kind": "property",
+          "name": "editor",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupPropertyChoice",
+          "kind": "property",
+          "name": "choice",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupPropertySectionKeys",
+          "kind": "property",
+          "name": "sectionKeys",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupPropertyOldSection",
+          "kind": "property",
+          "name": "oldSection",
+          "detail": "string"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupFunctionChoose",
+          "kind": "function",
+          "name": "choose"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupFunctionOpenSection",
+          "kind": "function",
+          "name": "openSection"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupHandlerOnOpened",
+          "kind": "handler",
+          "name": "onOpened"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupHandlerOnClosed",
+          "kind": "handler",
+          "name": "onClosed"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupHandlerKeysOnReturnPressed",
+          "kind": "handler",
+          "name": "Keys.onReturnPressed"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupLocalComponentScriptAuthoringButton",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupLocalComponentScriptAuthoringTextField",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupLocalComponentScriptAuthoringForm",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringForm",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringForm.qml"
+        },
+        {
+          "anchor": "ScriptAuthoringAddPopupLocalComponentInspectorCheckBox",
+          "kind": "localComponent",
+          "name": "InspectorCheckBox",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorCheckBox.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml",
+      "component_name": "ScriptAuthoringButton",
+      "aliases": [
+        "ScriptAuthoringButton",
+        "ScriptAuthoringButton.qml",
+        "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\ScriptAuthoringButton.qml"
+      ],
+      "root_component": "ShellButton",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15"
+      ],
+      "ids": [
+        {
+          "name": "control"
+        },
+        {
+          "name": "contents"
+        }
+      ],
+      "object_names": [],
+      "properties": [],
+      "signals": [],
+      "functions": [],
+      "instantiated_components": [
+        {
+          "name": "Row"
+        },
+        {
+          "name": "Image"
+        },
+        {
+          "name": "Text"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "source",
+          "targets": [
+            "control.resolvedIconSource",
+            "width",
+            "height",
+            "anchors.verticalCenter",
+            "parent.verticalCenter",
+            "opacity",
+            "control.enabled"
+          ]
+        }
+      ],
+      "signal_handlers": [],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "tooltipCategory"
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth",
+          "targets": [
+            "Math.max",
+            "control.iconName",
+            "control.text",
+            "contents.implicitWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentItem",
+          "targets": [
+            "Item"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth",
+          "targets": [
+            "contents.implicitWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.centerIn",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "control.text",
+            "control.iconName",
+            "control.resolvedIconSource",
+            "control.tooltipText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "text.length"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "control.foregroundColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.family",
+          "targets": [
+            "font.pixelSize"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.weight",
+          "targets": [
+            "control.selectedStyle",
+            "Font.DemiBold",
+            "Font.Normal"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "opacity",
+          "targets": [
+            "control.enabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius"
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "control.selectedStyle",
+            "control.enabled",
+            "control.themePalette.accent_strong"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "control.selectedStyle",
+            "control.enabled",
+            "control.themePalette.accent",
+            "control.hovered",
+            "control.themePalette.input_border"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width"
+        }
+      ],
+      "local_component_refs": [],
+      "symbol_anchors": []
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringComboBox.qml",
+      "component_name": "ScriptAuthoringComboBox",
+      "aliases": [
+        "ScriptAuthoringComboBox",
+        "ScriptAuthoringComboBox.qml",
+        "ea_node_editor/ui_qml/components/shell/ScriptAuthoringComboBox.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\ScriptAuthoringComboBox.qml"
+      ],
+      "root_component": "InspectorComboBox",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15"
+      ],
+      "ids": [
+        {
+          "name": "control"
+        }
+      ],
+      "object_names": [],
+      "properties": [],
+      "signals": [],
+      "functions": [],
+      "instantiated_components": [],
+      "dynamic_refs": [],
+      "signal_handlers": [],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "implicitHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "popup.background",
+          "targets": [
+            "Rectangle"
+          ]
+        }
+      ],
+      "local_component_refs": [],
+      "symbol_anchors": []
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringForm.qml",
+      "component_name": "ScriptAuthoringForm",
+      "aliases": [
+        "ScriptAuthoringForm",
+        "ScriptAuthoringForm.qml",
+        "ea_node_editor/ui_qml/components/shell/ScriptAuthoringForm.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\ScriptAuthoringForm.qml"
+      ],
+      "root_component": "ColumnLayout",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Layouts 1.15",
+        "\"../common\" as Common"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        },
+        {
+          "name": "commitTimer"
+        },
+        {
+          "name": "field"
+        },
+        {
+          "name": "fieldHelpHover"
+        },
+        {
+          "name": "sectionField"
+        },
+        {
+          "name": "rangeField"
+        },
+        {
+          "name": "pickerField"
+        },
+        {
+          "name": "pickerText"
+        },
+        {
+          "name": "textField"
+        },
+        {
+          "name": "multilineField"
+        },
+        {
+          "name": "booleanField"
+        },
+        {
+          "name": "typeField"
+        },
+        {
+          "name": "choiceField"
+        },
+        {
+          "name": "intervalField"
+        },
+        {
+          "name": "rowsField"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "scriptNumericMode"
+        },
+        {
+          "name": "scriptField_minimum"
+        },
+        {
+          "name": "scriptField_maximum"
+        },
+        {
+          "name": "scriptField_"
+        },
+        {
+          "name": "scriptIntervalLower"
+        },
+        {
+          "name": "scriptIntervalUpper"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "pane"
+        },
+        {
+          "kind": "var",
+          "name": "editor"
+        },
+        {
+          "kind": "string",
+          "name": "kind"
+        },
+        {
+          "kind": "var",
+          "name": "values"
+        },
+        {
+          "kind": "var",
+          "name": "definitions"
+        },
+        {
+          "kind": "var",
+          "name": "changes"
+        },
+        {
+          "kind": "var",
+          "name": "omitted"
+        },
+        {
+          "kind": "var",
+          "name": "pendingInputs"
+        },
+        {
+          "kind": "var",
+          "name": "rawInputs"
+        },
+        {
+          "kind": "bool",
+          "name": "hasPendingInput"
+        },
+        {
+          "kind": "string",
+          "name": "numericMode"
+        },
+        {
+          "kind": "bool",
+          "name": "advanced"
+        },
+        {
+          "kind": "bool",
+          "name": "autoCommit"
+        },
+        {
+          "kind": "var",
+          "name": "errors"
+        },
+        {
+          "kind": "string",
+          "name": "error"
+        },
+        {
+          "kind": "bool",
+          "name": "hasExplicitType"
+        },
+        {
+          "kind": "var",
+          "name": "modelData"
+        },
+        {
+          "kind": "var",
+          "name": "definition"
+        },
+        {
+          "kind": "string",
+          "name": "name"
+        },
+        {
+          "kind": "var",
+          "name": "value"
+        },
+        {
+          "kind": "string",
+          "name": "editorKind"
+        },
+        {
+          "kind": "var",
+          "name": "choiceValues"
+        },
+        {
+          "kind": "var",
+          "name": "sectionNames"
+        }
+      ],
+      "signals": [
+        {
+          "name": "commitRequested"
+        }
+      ],
+      "functions": [
+        {
+          "name": "load"
+        },
+        {
+          "name": "setField"
+        },
+        {
+          "name": "omit"
+        },
+        {
+          "name": "setError"
+        },
+        {
+          "name": "markInput"
+        },
+        {
+          "name": "finishInput"
+        },
+        {
+          "name": "flushPending"
+        },
+        {
+          "name": "request"
+        },
+        {
+          "name": "setNumericMode"
+        },
+        {
+          "name": "numberValue"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "Timer"
+        },
+        {
+          "name": "RowLayout"
+        },
+        {
+          "name": "Text"
+        },
+        {
+          "name": "ScriptAuthoringComboBox"
+        },
+        {
+          "name": "Repeater"
+        },
+        {
+          "name": "GridLayout"
+        },
+        {
+          "name": "Rectangle"
+        },
+        {
+          "name": "MouseArea"
+        },
+        {
+          "name": "Common.ManagedToolTip"
+        },
+        {
+          "name": "Loader"
+        },
+        {
+          "name": "ScriptAuthoringButton"
+        },
+        {
+          "name": "Component"
+        },
+        {
+          "name": "ScriptAuthoringTextField"
         },
         {
           "name": "TextArea"
         },
         {
-          "name": "Item"
+          "name": "InspectorCheckBox"
         },
         {
-          "name": "ShellButton"
+          "name": "ScriptAuthoringTypePicker"
+        },
+        {
+          "name": "ScriptAuthoringRows"
         }
       ],
-      "dynamic_refs": [],
+      "dynamic_refs": [
+        {
+          "kind": "model"
+        },
+        {
+          "kind": "Repeater"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.definitions"
+          ]
+        },
+        {
+          "kind": "Loader"
+        },
+        {
+          "kind": "sourceComponent",
+          "targets": [
+            "field.name",
+            "rangeField"
+          ]
+        },
+        {
+          "kind": "Component"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "concat",
+            "sectionNames"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "field.choiceValues.map",
+            "item"
+          ]
+        }
+      ],
       "signal_handlers": [
         {
           "kind": "handler",
-          "name": "onScriptHighlighterBridgeRefChanged"
+          "name": "onTriggered"
         },
         {
           "kind": "handler",
-          "name": "Component.onCompleted"
+          "name": "onActivated"
         },
         {
           "kind": "handler",
-          "name": "Keys.onTabPressed"
+          "name": "onClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "onTextEdited"
+        },
+        {
+          "kind": "handler",
+          "name": "onEditingFinished"
         },
         {
           "kind": "handler",
@@ -131588,7 +132527,850 @@
         },
         {
           "kind": "handler",
-          "name": "onCursorPositionChanged"
+          "name": "onActiveFocusChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onChosen"
+        },
+        {
+          "kind": "handler",
+          "name": "onEdited"
+        },
+        {
+          "kind": "handler",
+          "name": "onDraftChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onErrorChanged"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.kind"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "pane",
+          "targets": [
+            "root.pane"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "currentIndex",
+          "targets": [
+            "root.numericMode"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "columns"
+        },
+        {
+          "kind": "binding",
+          "name": "columnSpacing"
+        },
+        {
+          "kind": "binding",
+          "name": "rowSpacing"
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "name",
+            "definition.advanced",
+            "root.advanced"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.columnSpan"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.topMargin"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.bottomMargin"
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "field.name"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "field.name"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.pane.themePalette.panel_title_fg",
+            "font.pixelSize",
+            "font.weight",
+            "Font.DemiBold"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.preferredWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.alignment",
+          "targets": [
+            "Qt.AlignTop"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "field.name",
+            "field.definition.label"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.pane.themePalette.input_fg",
+            "font.pixelSize",
+            "wrapMode",
+            "Text.Wrap"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "field.definition.required",
+            "field.value"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "themeBridgeRef",
+          "targets": [
+            "root.pane.themeBridgeRef",
+            "graphCanvasStateBridgeRef",
+            "root.pane.graphCanvasStateBridgeRef",
+            "uiIconsRef",
+            "root.pane.uiIconsRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth",
+          "targets": [
+            "implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "iconName",
+          "targets": [
+            "text"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText"
+        },
+        {
+          "kind": "binding",
+          "name": "currentIndex",
+          "targets": [
+            "Math.max",
+            "sectionNames.indexOf",
+            "String",
+            "field.value"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth",
+          "targets": [
+            "spacing"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "field.value",
+            "String"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "themeBridgeRef",
+          "targets": [
+            "root.pane.themeBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "graphCanvasStateBridgeRef",
+          "targets": [
+            "root.pane.graphCanvasStateBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "uiIconsRef",
+          "targets": [
+            "root.pane.uiIconsRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "field.editorKind"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "root.rawInputs",
+            "field.name",
+            "String",
+            "field.value"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderText",
+          "targets": [
+            "field.editorKind",
+            "field.name",
+            "field.value"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderTextColor",
+          "targets": [
+            "root.pane.themePalette.muted_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize"
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.pane.themePalette.input_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectByMouse",
+          "targets": [
+            "wrapMode",
+            "TextArea.Wrap",
+            "implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderText"
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "field.value"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "values",
+          "targets": [
+            "root.rawInputs",
+            "field.name",
+            "length",
+            "field.value",
+            "field.value.length"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "numeric",
+          "targets": [
+            "field.editorKind",
+            "Int",
+            "Double",
+            "float",
+            "int",
+            "test",
+            "String",
+            "root.values.item_type"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "whole",
+          "targets": [
+            "field.editorKind",
+            "Int",
+            "int",
+            "test",
+            "String",
+            "root.values.item_type"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "root.advanced"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringComboBox",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringComboBox.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "Common.ManagedToolTip",
+          "detail": "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorCheckBox",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorCheckBox.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTypePicker",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTypePicker.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringRows",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringRows.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "ScriptAuthoringFormPropertyPane",
+          "kind": "property",
+          "name": "pane",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyEditor",
+          "kind": "property",
+          "name": "editor",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyKind",
+          "kind": "property",
+          "name": "kind",
+          "detail": "string"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyValues",
+          "kind": "property",
+          "name": "values",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyDefinitions",
+          "kind": "property",
+          "name": "definitions",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyChanges",
+          "kind": "property",
+          "name": "changes",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyOmitted",
+          "kind": "property",
+          "name": "omitted",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyPendingInputs",
+          "kind": "property",
+          "name": "pendingInputs",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyRawInputs",
+          "kind": "property",
+          "name": "rawInputs",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyHasPendingInput",
+          "kind": "property",
+          "name": "hasPendingInput",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyNumericMode",
+          "kind": "property",
+          "name": "numericMode",
+          "detail": "string"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyAdvanced",
+          "kind": "property",
+          "name": "advanced",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyAutoCommit",
+          "kind": "property",
+          "name": "autoCommit",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyErrors",
+          "kind": "property",
+          "name": "errors",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyError",
+          "kind": "property",
+          "name": "error",
+          "detail": "string"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyHasExplicitType",
+          "kind": "property",
+          "name": "hasExplicitType",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyModelData",
+          "kind": "property",
+          "name": "modelData",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyDefinition",
+          "kind": "property",
+          "name": "definition",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyName",
+          "kind": "property",
+          "name": "name",
+          "detail": "string"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyValue",
+          "kind": "property",
+          "name": "value",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyEditorKind",
+          "kind": "property",
+          "name": "editorKind",
+          "detail": "string"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertyChoiceValues",
+          "kind": "property",
+          "name": "choiceValues",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormPropertySectionNames",
+          "kind": "property",
+          "name": "sectionNames",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringFormSignalCommitRequested",
+          "kind": "signal",
+          "name": "commitRequested"
+        },
+        {
+          "anchor": "ScriptAuthoringFormFunctionLoad",
+          "kind": "function",
+          "name": "load"
+        },
+        {
+          "anchor": "ScriptAuthoringFormFunctionSetField",
+          "kind": "function",
+          "name": "setField"
+        },
+        {
+          "anchor": "ScriptAuthoringFormFunctionOmit",
+          "kind": "function",
+          "name": "omit"
+        },
+        {
+          "anchor": "ScriptAuthoringFormFunctionSetError",
+          "kind": "function",
+          "name": "setError"
+        },
+        {
+          "anchor": "ScriptAuthoringFormFunctionMarkInput",
+          "kind": "function",
+          "name": "markInput"
+        },
+        {
+          "anchor": "ScriptAuthoringFormFunctionFinishInput",
+          "kind": "function",
+          "name": "finishInput"
+        },
+        {
+          "anchor": "ScriptAuthoringFormFunctionFlushPending",
+          "kind": "function",
+          "name": "flushPending"
+        },
+        {
+          "anchor": "ScriptAuthoringFormFunctionRequest",
+          "kind": "function",
+          "name": "request"
+        },
+        {
+          "anchor": "ScriptAuthoringFormFunctionSetNumericMode",
+          "kind": "function",
+          "name": "setNumericMode"
+        },
+        {
+          "anchor": "ScriptAuthoringFormFunctionNumberValue",
+          "kind": "function",
+          "name": "numberValue"
+        },
+        {
+          "anchor": "ScriptAuthoringFormHandlerOnTriggered",
+          "kind": "handler",
+          "name": "onTriggered"
+        },
+        {
+          "anchor": "ScriptAuthoringFormHandlerOnActivated",
+          "kind": "handler",
+          "name": "onActivated"
+        },
+        {
+          "anchor": "ScriptAuthoringFormHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "ScriptAuthoringFormHandlerOnTextEdited",
+          "kind": "handler",
+          "name": "onTextEdited"
+        },
+        {
+          "anchor": "ScriptAuthoringFormHandlerOnEditingFinished",
+          "kind": "handler",
+          "name": "onEditingFinished"
+        },
+        {
+          "anchor": "ScriptAuthoringFormHandlerOnTextChanged",
+          "kind": "handler",
+          "name": "onTextChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringFormHandlerOnActiveFocusChanged",
+          "kind": "handler",
+          "name": "onActiveFocusChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringFormHandlerOnChosen",
+          "kind": "handler",
+          "name": "onChosen"
+        },
+        {
+          "anchor": "ScriptAuthoringFormHandlerOnEdited",
+          "kind": "handler",
+          "name": "onEdited"
+        },
+        {
+          "anchor": "ScriptAuthoringFormHandlerOnDraftChanged",
+          "kind": "handler",
+          "name": "onDraftChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringFormHandlerOnErrorChanged",
+          "kind": "handler",
+          "name": "onErrorChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringFormLocalComponentScriptAuthoringComboBox",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringComboBox",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringComboBox.qml"
+        },
+        {
+          "anchor": "ScriptAuthoringFormLocalComponentCommonManagedToolTip",
+          "kind": "localComponent",
+          "name": "Common.ManagedToolTip",
+          "detail": "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml"
+        },
+        {
+          "anchor": "ScriptAuthoringFormLocalComponentScriptAuthoringButton",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        },
+        {
+          "anchor": "ScriptAuthoringFormLocalComponentScriptAuthoringTextField",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml"
+        },
+        {
+          "anchor": "ScriptAuthoringFormLocalComponentInspectorCheckBox",
+          "kind": "localComponent",
+          "name": "InspectorCheckBox",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorCheckBox.qml"
+        },
+        {
+          "anchor": "ScriptAuthoringFormLocalComponentScriptAuthoringTypePicker",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTypePicker",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTypePicker.qml"
+        },
+        {
+          "anchor": "ScriptAuthoringFormLocalComponentScriptAuthoringRows",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringRows",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringRows.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringPreview.qml",
+      "component_name": "ScriptAuthoringPreview",
+      "aliases": [
+        "ScriptAuthoringPreview",
+        "ScriptAuthoringPreview.qml",
+        "ea_node_editor/ui_qml/components/shell/ScriptAuthoringPreview.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\ScriptAuthoringPreview.qml"
+      ],
+      "root_component": "ColumnLayout",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Layouts 1.15",
+        "\"../graph\" as Graph"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        },
+        {
+          "name": "previewScroll"
+        },
+        {
+          "name": "previewCanvas"
+        },
+        {
+          "name": "nodeHost"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "scriptAuthoringPreview"
+        },
+        {
+          "name": "scriptPreviewCanvas"
+        },
+        {
+          "name": "scriptPreviewNode"
+        },
+        {
+          "name": "scriptUsePreviewDefault"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "pane"
+        },
+        {
+          "kind": "var",
+          "name": "editor"
+        },
+        {
+          "kind": "var",
+          "name": "preview"
+        },
+        {
+          "kind": "bool",
+          "name": "ready"
+        },
+        {
+          "kind": "var",
+          "name": "selected"
+        },
+        {
+          "kind": "var",
+          "name": "graphThemeBridgeRef"
+        },
+        {
+          "kind": "string",
+          "name": "revealedKey"
+        },
+        {
+          "kind": "var",
+          "name": "sceneCommandBridge"
+        },
+        {
+          "kind": "var",
+          "name": "sceneBridge"
+        },
+        {
+          "kind": "var",
+          "name": "viewBridge"
+        },
+        {
+          "kind": "var",
+          "name": "executionFacts"
+        },
+        {
+          "kind": "var",
+          "name": "prefs"
+        },
+        {
+          "kind": "bool",
+          "name": "interactWithLockedObjects"
+        },
+        {
+          "kind": "var",
+          "name": "activeToolbarHost"
+        },
+        {
+          "kind": "var",
+          "name": "wireDragState"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "bindTheme"
+        },
+        {
+          "name": "controlItem"
+        },
+        {
+          "name": "revealSelection"
+        },
+        {
+          "name": "pickNodePropertyColor"
+        },
+        {
+          "name": "browseNodePropertyPath"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "Text"
+        },
+        {
+          "name": "Rectangle"
+        },
+        {
+          "name": "ScrollView"
+        },
+        {
+          "name": "Item"
+        },
+        {
+          "name": "Graph.GraphNodeHost"
+        },
+        {
+          "name": "PointHandler"
+        },
+        {
+          "name": "RowLayout"
+        },
+        {
+          "name": "ScriptAuthoringButton"
+        }
+      ],
+      "dynamic_refs": [],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onPreviewChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onGraphThemeBridgeRefChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "kind": "handler",
+          "name": "onInlinePropertyCommitted"
+        },
+        {
+          "kind": "handler",
+          "name": "onSettingsGroupExpansionRequested"
+        },
+        {
+          "kind": "handler",
+          "name": "onPortClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "onActiveChanged"
         },
         {
           "kind": "handler",
@@ -131611,21 +133393,21 @@
         },
         {
           "kind": "binding",
-          "name": "Layout.preferredWidth"
-        },
-        {
-          "kind": "binding",
           "name": "color",
           "targets": [
-            "root.themePalette.console_bg"
+            "root.pane.themePalette.console_bg"
           ]
         },
         {
           "kind": "binding",
           "name": "border.color",
           "targets": [
-            "root.themePalette.border"
+            "root.pane.themePalette.border"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius"
         },
         {
           "kind": "binding",
@@ -131633,41 +133415,825 @@
         },
         {
           "kind": "binding",
-          "name": "anchors.right",
+          "name": "anchors.centerIn",
           "targets": [
-            "parent.right"
+            "parent"
           ]
         },
         {
           "kind": "binding",
-          "name": "anchors.rightMargin"
+          "name": "width",
+          "targets": [
+            "parent.width"
+          ]
         },
         {
           "kind": "binding",
-          "name": "y",
+          "name": "visible",
           "targets": [
-            "scriptEditorScroll.contentItem",
-            "scriptEditorScroll.contentItem.contentY"
+            "root.ready"
           ]
         },
         {
           "kind": "binding",
           "name": "text",
           "targets": [
-            "MainShellUtils.lineNumbersText",
-            "scriptEditorArea.lineCount"
+            "root.editor",
+            "root.editor.analysis_status"
           ]
         },
         {
           "kind": "binding",
           "name": "color",
           "targets": [
-            "root.themePalette.muted_fg"
+            "root.pane.themePalette.muted_fg"
           ]
         },
         {
           "kind": "binding",
-          "name": "font.family"
+          "name": "horizontalAlignment",
+          "targets": [
+            "Text.AlignHCenter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "wrapMode",
+          "targets": [
+            "Text.Wrap"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentWidth",
+          "targets": [
+            "Math.max",
+            "availableWidth",
+            "nodeHost.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentHeight",
+          "targets": [
+            "nodeHost.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.max",
+            "parent.width",
+            "nodeHost.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "nodeHost.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "Math.max",
+            "previewCanvas.width",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y"
+        },
+        {
+          "kind": "binding",
+          "name": "nodeData",
+          "targets": [
+            "root.ready",
+            "root.preview.payload"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "graphThemeBridgeRef",
+          "targets": [
+            "root.graphThemeBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "canvasItem",
+          "targets": [
+            "previewCanvas"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "settingsGroupAnimationsEnabled"
+        },
+        {
+          "kind": "binding",
+          "name": "graphLabelPixelSize"
+        },
+        {
+          "kind": "binding",
+          "name": "acceptedButtons",
+          "targets": [
+            "Qt.LeftButton"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "themeBridgeRef",
+          "targets": [
+            "root.pane.themeBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "graphCanvasStateBridgeRef",
+          "targets": [
+            "root.pane.graphCanvasStateBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "uiIconsRef",
+          "targets": [
+            "root.pane.uiIconsRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "root.ready",
+            "root.selected.key",
+            "root.selected.kind"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "Graph.GraphNodeHost",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "ScriptAuthoringPreviewPropertyPane",
+          "kind": "property",
+          "name": "pane",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertyEditor",
+          "kind": "property",
+          "name": "editor",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertyPreview",
+          "kind": "property",
+          "name": "preview",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertyReady",
+          "kind": "property",
+          "name": "ready",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertySelected",
+          "kind": "property",
+          "name": "selected",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertyGraphThemeBridgeRef",
+          "kind": "property",
+          "name": "graphThemeBridgeRef",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertyRevealedKey",
+          "kind": "property",
+          "name": "revealedKey",
+          "detail": "string"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertySceneCommandBridge",
+          "kind": "property",
+          "name": "sceneCommandBridge",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertySceneBridge",
+          "kind": "property",
+          "name": "sceneBridge",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertyViewBridge",
+          "kind": "property",
+          "name": "viewBridge",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertyExecutionFacts",
+          "kind": "property",
+          "name": "executionFacts",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertyPrefs",
+          "kind": "property",
+          "name": "prefs",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertyInteractWithLockedObjects",
+          "kind": "property",
+          "name": "interactWithLockedObjects",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertyActiveToolbarHost",
+          "kind": "property",
+          "name": "activeToolbarHost",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewPropertyWireDragState",
+          "kind": "property",
+          "name": "wireDragState",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewFunctionBindTheme",
+          "kind": "function",
+          "name": "bindTheme"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewFunctionControlItem",
+          "kind": "function",
+          "name": "controlItem"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewFunctionRevealSelection",
+          "kind": "function",
+          "name": "revealSelection"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewFunctionPickNodePropertyColor",
+          "kind": "function",
+          "name": "pickNodePropertyColor"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewFunctionBrowseNodePropertyPath",
+          "kind": "function",
+          "name": "browseNodePropertyPath"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewHandlerOnPreviewChanged",
+          "kind": "handler",
+          "name": "onPreviewChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewHandlerOnGraphThemeBridgeRefChanged",
+          "kind": "handler",
+          "name": "onGraphThemeBridgeRefChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewHandlerComponentOnCompleted",
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewHandlerOnInlinePropertyCommitted",
+          "kind": "handler",
+          "name": "onInlinePropertyCommitted"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewHandlerOnSettingsGroupExpansionRequested",
+          "kind": "handler",
+          "name": "onSettingsGroupExpansionRequested"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewHandlerOnPortClicked",
+          "kind": "handler",
+          "name": "onPortClicked"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewHandlerOnActiveChanged",
+          "kind": "handler",
+          "name": "onActiveChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewLocalComponentGraphGraphNodeHost",
+          "kind": "localComponent",
+          "name": "Graph.GraphNodeHost",
+          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml"
+        },
+        {
+          "anchor": "ScriptAuthoringPreviewLocalComponentScriptAuthoringButton",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringRows.qml",
+      "component_name": "ScriptAuthoringRows",
+      "aliases": [
+        "ScriptAuthoringRows",
+        "ScriptAuthoringRows.qml",
+        "ea_node_editor/ui_qml/components/shell/ScriptAuthoringRows.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\ScriptAuthoringRows.qml"
+      ],
+      "root_component": "ColumnLayout",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Layouts 1.15"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        },
+        {
+          "name": "rows"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "scriptListRow_"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "pane"
+        },
+        {
+          "kind": "var",
+          "name": "values"
+        },
+        {
+          "kind": "bool",
+          "name": "numeric"
+        },
+        {
+          "kind": "bool",
+          "name": "whole"
+        },
+        {
+          "kind": "bool",
+          "name": "syncing"
+        },
+        {
+          "kind": "string",
+          "name": "error"
+        }
+      ],
+      "signals": [
+        {
+          "name": "edited"
+        },
+        {
+          "name": "draftChanged"
+        }
+      ],
+      "functions": [
+        {
+          "name": "sync"
+        },
+        {
+          "name": "publish"
+        },
+        {
+          "name": "rawValues"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "ListModel"
+        },
+        {
+          "name": "Repeater"
+        },
+        {
+          "name": "RowLayout"
+        },
+        {
+          "name": "ScriptAuthoringTextField"
+        },
+        {
+          "name": "ScriptAuthoringButton"
+        },
+        {
+          "name": "Text"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "Repeater"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "rows"
+          ]
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onValuesChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "kind": "handler",
+          "name": "onTextEdited"
+        },
+        {
+          "kind": "handler",
+          "name": "onEditingFinished"
+        },
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "pane",
+          "targets": [
+            "root.pane"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "textValue"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderText",
+          "targets": [
+            "index"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "themeBridgeRef",
+          "targets": [
+            "root.pane.themeBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "graphCanvasStateBridgeRef",
+          "targets": [
+            "root.pane.graphCanvasStateBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "uiIconsRef",
+          "targets": [
+            "root.pane.uiIconsRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText"
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "ScriptAuthoringRowsPropertyPane",
+          "kind": "property",
+          "name": "pane",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsPropertyValues",
+          "kind": "property",
+          "name": "values",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsPropertyNumeric",
+          "kind": "property",
+          "name": "numeric",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsPropertyWhole",
+          "kind": "property",
+          "name": "whole",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsPropertySyncing",
+          "kind": "property",
+          "name": "syncing",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsPropertyError",
+          "kind": "property",
+          "name": "error",
+          "detail": "string"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsSignalEdited",
+          "kind": "signal",
+          "name": "edited"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsSignalDraftChanged",
+          "kind": "signal",
+          "name": "draftChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsFunctionSync",
+          "kind": "function",
+          "name": "sync"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsFunctionPublish",
+          "kind": "function",
+          "name": "publish"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsFunctionRawValues",
+          "kind": "function",
+          "name": "rawValues"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsHandlerOnValuesChanged",
+          "kind": "handler",
+          "name": "onValuesChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsHandlerComponentOnCompleted",
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsHandlerOnTextEdited",
+          "kind": "handler",
+          "name": "onTextEdited"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsHandlerOnEditingFinished",
+          "kind": "handler",
+          "name": "onEditingFinished"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsLocalComponentScriptAuthoringTextField",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml"
+        },
+        {
+          "anchor": "ScriptAuthoringRowsLocalComponentScriptAuthoringButton",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTab.qml",
+      "component_name": "ScriptAuthoringTab",
+      "aliases": [
+        "ScriptAuthoringTab",
+        "ScriptAuthoringTab.qml",
+        "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTab.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\ScriptAuthoringTab.qml"
+      ],
+      "root_component": "TabButton",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15"
+      ],
+      "ids": [
+        {
+          "name": "control"
+        }
+      ],
+      "object_names": [],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "pane"
+        }
+      ],
+      "signals": [],
+      "functions": [],
+      "instantiated_components": [
+        {
+          "name": "Rectangle"
+        }
+      ],
+      "dynamic_refs": [],
+      "signal_handlers": [],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "implicitHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "contentItem",
+          "targets": [
+            "Text"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "control.text"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize",
+          "targets": [
+            "font.weight",
+            "control.checked",
+            "Font.DemiBold",
+            "Font.Normal"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "control.checked",
+            "control.pane.themePalette.input_fg",
+            "control.pane.themePalette.muted_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "horizontalAlignment",
+          "targets": [
+            "Text.AlignHCenter",
+            "verticalAlignment",
+            "Text.AlignVCenter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "control.checked",
+            "control.pane.themePalette.panel_bg",
+            "control.pane.themePalette.toolbar_bg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "control.pane.themePalette.border"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius"
+        }
+      ],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "ScriptAuthoringTabPropertyPane",
+          "kind": "property",
+          "name": "pane",
+          "detail": "var"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml",
+      "component_name": "ScriptAuthoringTextField",
+      "aliases": [
+        "ScriptAuthoringTextField",
+        "ScriptAuthoringTextField.qml",
+        "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\ScriptAuthoringTextField.qml"
+      ],
+      "root_component": "TextField",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15"
+      ],
+      "ids": [
+        {
+          "name": "control"
+        }
+      ],
+      "object_names": [],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "pane"
+        }
+      ],
+      "signals": [],
+      "functions": [],
+      "instantiated_components": [],
+      "dynamic_refs": [],
+      "signal_handlers": [],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "implicitHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "padding"
         },
         {
           "kind": "binding",
@@ -131675,23 +134241,994 @@
         },
         {
           "kind": "binding",
-          "name": "horizontalAlignment",
+          "name": "selectByMouse"
+        },
+        {
+          "kind": "binding",
+          "name": "color",
           "targets": [
-            "Text.AlignRight"
+            "pane.themePalette.input_fg"
           ]
         },
         {
           "kind": "binding",
-          "name": "verticalAlignment",
+          "name": "placeholderTextColor",
           "targets": [
-            "Text.AlignTop"
+            "pane.themePalette.muted_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectionColor",
+          "targets": [
+            "pane.selectedSurfaceColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectedTextColor",
+          "targets": [
+            "pane.themePalette.input_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "control.enabled",
+            "control.pane.themePalette.input_bg",
+            "control.pane.themePalette.panel_bg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "control.activeFocus",
+            "control.pane.themePalette.accent",
+            "control.pane.themePalette.input_border"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius"
+        }
+      ],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "ScriptAuthoringTextFieldPropertyPane",
+          "kind": "property",
+          "name": "pane",
+          "detail": "var"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTypePicker.qml",
+      "component_name": "ScriptAuthoringTypePicker",
+      "aliases": [
+        "ScriptAuthoringTypePicker",
+        "ScriptAuthoringTypePicker.qml",
+        "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTypePicker.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\ScriptAuthoringTypePicker.qml"
+      ],
+      "root_component": "ColumnLayout",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Layouts 1.15"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        },
+        {
+          "name": "popup"
+        },
+        {
+          "name": "search"
+        },
+        {
+          "name": "typeList"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "scriptTypePickerButton"
+        },
+        {
+          "name": "scriptTypePickerPopup"
+        },
+        {
+          "name": "scriptTypeSearch"
+        },
+        {
+          "name": "scriptTypeResults"
+        },
+        {
+          "name": "scriptTypeChoice_"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "pane"
+        },
+        {
+          "kind": "var",
+          "name": "editor"
+        },
+        {
+          "kind": "string",
+          "name": "value"
+        },
+        {
+          "kind": "bool",
+          "name": "listItems"
+        },
+        {
+          "kind": "var",
+          "name": "choices"
+        },
+        {
+          "kind": "var",
+          "name": "selected"
+        },
+        {
+          "kind": "var",
+          "name": "detail"
+        }
+      ],
+      "signals": [
+        {
+          "name": "chosen"
+        }
+      ],
+      "functions": [
+        {
+          "name": "refresh"
+        },
+        {
+          "name": "choose"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "ScriptAuthoringButton"
+        },
+        {
+          "name": "Text"
+        },
+        {
+          "name": "Popup"
+        },
+        {
+          "name": "ScriptAuthoringTextField"
+        },
+        {
+          "name": "ListView"
+        },
+        {
+          "name": "Image"
+        },
+        {
+          "name": "Rectangle"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "ListView"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.choices"
+          ]
+        },
+        {
+          "kind": "delegate",
+          "targets": [
+            "ItemDelegate"
+          ]
+        },
+        {
+          "kind": "source",
+          "targets": [
+            "root.pane.uiIconsRef"
+          ]
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onValueChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "onTextChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onDownPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "onCurrentIndexChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onReturnPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "onHoveredChanged"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "themeBridgeRef",
+          "targets": [
+            "root.pane.themeBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "graphCanvasStateBridgeRef",
+          "targets": [
+            "root.pane.graphCanvasStateBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "uiIconsRef",
+          "targets": [
+            "root.pane.uiIconsRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "root.selected.label"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "root.selected.expression"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.pane.themePalette.muted_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize"
+        },
+        {
+          "kind": "binding",
+          "name": "wrapMode",
+          "targets": [
+            "Text.Wrap"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "parent",
+          "targets": [
+            "Overlay.overlay"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "Math.max",
+            "parent.width",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "Math.max",
+            "parent.height",
+            "height"
           ]
         },
         {
           "kind": "binding",
           "name": "width",
           "targets": [
-            "scriptEditorScroll.availableWidth"
+            "Math.min",
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "Math.min",
+            "parent.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "modal"
+        },
+        {
+          "kind": "binding",
+          "name": "padding"
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "pane",
+          "targets": [
+            "root.pane"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "placeholderText"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "clip"
+        },
+        {
+          "kind": "binding",
+          "name": "keyNavigationEnabled"
+        },
+        {
+          "kind": "binding",
+          "name": "ScrollBar.vertical",
+          "targets": [
+            "ScrollBar"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "typeList.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height"
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "modelData.missing"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "highlighted",
+          "targets": [
+            "ListView.isCurrentItem"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentItem",
+          "targets": [
+            "RowLayout"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.preferredWidth",
+          "targets": [
+            "Layout.preferredHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.preferredHeight"
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "ScriptAuthoringTypePickerPropertyPane",
+          "kind": "property",
+          "name": "pane",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerPropertyEditor",
+          "kind": "property",
+          "name": "editor",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerPropertyValue",
+          "kind": "property",
+          "name": "value",
+          "detail": "string"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerPropertyListItems",
+          "kind": "property",
+          "name": "listItems",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerPropertyChoices",
+          "kind": "property",
+          "name": "choices",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerPropertySelected",
+          "kind": "property",
+          "name": "selected",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerPropertyDetail",
+          "kind": "property",
+          "name": "detail",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerSignalChosen",
+          "kind": "signal",
+          "name": "chosen"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerFunctionRefresh",
+          "kind": "function",
+          "name": "refresh"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerFunctionChoose",
+          "kind": "function",
+          "name": "choose"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerHandlerOnValueChanged",
+          "kind": "handler",
+          "name": "onValueChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerHandlerComponentOnCompleted",
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerHandlerOnTextChanged",
+          "kind": "handler",
+          "name": "onTextChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerHandlerKeysOnDownPressed",
+          "kind": "handler",
+          "name": "Keys.onDownPressed"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerHandlerOnCurrentIndexChanged",
+          "kind": "handler",
+          "name": "onCurrentIndexChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerHandlerKeysOnReturnPressed",
+          "kind": "handler",
+          "name": "Keys.onReturnPressed"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerHandlerOnHoveredChanged",
+          "kind": "handler",
+          "name": "onHoveredChanged"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerLocalComponentScriptAuthoringButton",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        },
+        {
+          "anchor": "ScriptAuthoringTypePickerLocalComponentScriptAuthoringTextField",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml",
+      "component_name": "ScriptCodeEditorPane",
+      "aliases": [
+        "ScriptCodeEditorPane",
+        "ScriptCodeEditorPane.qml",
+        "ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\ScriptCodeEditorPane.qml"
+      ],
+      "root_component": "ColumnLayout",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Layouts 1.15",
+        "\"MainShellUtils.js\" as MainShellUtils"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        },
+        {
+          "name": "completionTimer"
+        },
+        {
+          "name": "narrowTabs"
+        },
+        {
+          "name": "leftHost"
+        },
+        {
+          "name": "codeHost"
+        },
+        {
+          "name": "codeScroll"
+        },
+        {
+          "name": "code"
+        },
+        {
+          "name": "sideTabs"
+        },
+        {
+          "name": "sideBody"
+        },
+        {
+          "name": "interfacePane"
+        },
+        {
+          "name": "addPopup"
+        },
+        {
+          "name": "completionPopup"
+        },
+        {
+          "name": "completionList"
+        },
+        {
+          "name": "helpPopup"
+        },
+        {
+          "name": "impactPopup"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "scriptCodeEditorPane"
+        },
+        {
+          "name": "scriptAddButton"
+        },
+        {
+          "name": "pythonScriptGuideButton"
+        },
+        {
+          "name": "scriptApplyButton"
+        },
+        {
+          "name": "scriptWorkspaceTabs"
+        },
+        {
+          "name": "scriptAuthoringSplitView"
+        },
+        {
+          "name": "scriptCodeHost"
+        },
+        {
+          "name": "scriptEditorArea"
+        },
+        {
+          "name": "scriptSideTabs"
+        },
+        {
+          "name": "scriptCompletionPopup"
+        },
+        {
+          "name": "scriptHelpPopup"
+        },
+        {
+          "name": "scriptApplyImpactPopup"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "scriptEditorBridgeRef"
+        },
+        {
+          "kind": "var",
+          "name": "scriptHighlighterBridgeRef"
+        },
+        {
+          "kind": "var",
+          "name": "themeBridgeRef"
+        },
+        {
+          "kind": "var",
+          "name": "graphThemeBridgeRef"
+        },
+        {
+          "kind": "var",
+          "name": "graphCanvasStateBridgeRef"
+        },
+        {
+          "kind": "var",
+          "name": "uiIconsRef"
+        },
+        {
+          "kind": "bool",
+          "name": "guideButtonVisible"
+        },
+        {
+          "kind": "bool",
+          "name": "guideButtonSelected"
+        },
+        {
+          "kind": "bool",
+          "name": "applyFailed"
+        },
+        {
+          "kind": "bool",
+          "name": "syncingSource"
+        },
+        {
+          "kind": "bool",
+          "name": "selectingSource"
+        },
+        {
+          "kind": "var",
+          "name": "completion"
+        },
+        {
+          "kind": "var",
+          "name": "themePalette"
+        },
+        {
+          "kind": "color",
+          "name": "selectedSurfaceColor"
+        },
+        {
+          "kind": "color",
+          "name": "cardBackgroundColor"
+        },
+        {
+          "kind": "bool",
+          "name": "editorAvailable"
+        },
+        {
+          "kind": "bool",
+          "name": "wide"
+        },
+        {
+          "kind": "bool",
+          "name": "narrow"
+        },
+        {
+          "kind": "rect",
+          "name": "positionRect"
+        }
+      ],
+      "signals": [
+        {
+          "name": "guideRequested"
+        }
+      ],
+      "functions": [
+        {
+          "name": "updateCursorMetrics"
+        },
+        {
+          "name": "attachSyntaxHighlighter"
+        },
+        {
+          "name": "showCompletions"
+        },
+        {
+          "name": "acceptCompletion"
+        },
+        {
+          "name": "diagnosticOffset"
+        },
+        {
+          "name": "requestApply"
+        },
+        {
+          "name": "prepareForm"
+        },
+        {
+          "name": "openSectionEditor"
+        },
+        {
+          "name": "controlIcon"
+        },
+        {
+          "name": "onContent_changed"
+        },
+        {
+          "name": "onSelection_range_requested"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "Connections"
+        },
+        {
+          "name": "Timer"
+        },
+        {
+          "name": "Rectangle"
+        },
+        {
+          "name": "RowLayout"
+        },
+        {
+          "name": "Text"
+        },
+        {
+          "name": "ScriptAuthoringButton"
+        },
+        {
+          "name": "Item"
+        },
+        {
+          "name": "TabBar"
+        },
+        {
+          "name": "ScriptAuthoringTab"
+        },
+        {
+          "name": "SplitView"
+        },
+        {
+          "name": "ScrollView"
+        },
+        {
+          "name": "TextArea"
+        },
+        {
+          "name": "Repeater"
+        },
+        {
+          "name": "ScriptInterfacePane"
+        },
+        {
+          "name": "ScriptAuthoringPreview"
+        },
+        {
+          "name": "ListView"
+        },
+        {
+          "name": "ScriptAuthoringAddPopup"
+        },
+        {
+          "name": "Popup"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "Repeater"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.editorAvailable",
+            "root.scriptEditorBridgeRef.diagnostics"
+          ]
+        },
+        {
+          "kind": "ListView"
+        },
+        {
+          "kind": "delegate",
+          "targets": [
+            "ItemDelegate"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.completion.items",
+            "ScrollBar.vertical",
+            "ScrollBar"
+          ]
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onScriptHighlighterBridgeRefChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "kind": "handler",
+          "name": "onTriggered"
+        },
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onTabPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "onTextChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onCursorPositionChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onSelectionStartChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onSelectionEndChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onActiveFocusChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onCloseRequested"
+        }
+      ],
+      "connections": [
+        {
+          "kind": "target",
+          "name": "root.scriptEditorBridgeRef"
+        }
+      ],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth",
+          "targets": [
+            "Layout.preferredHeight",
+            "color",
+            "root.themePalette.toolbar_bg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent",
+            "anchors.margins",
+            "spacing"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "handle",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "SplitView.fillWidth",
+          "targets": [
+            "SplitView.minimumWidth",
+            "root.narrow",
+            "spacing"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth",
+          "targets": [
+            "Layout.fillHeight",
+            "spacing"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.preferredWidth",
+          "targets": [
+            "Layout.fillHeight",
+            "color",
+            "root.themePalette.console_bg",
+            "border.color",
+            "root.themePalette.border",
+            "clip"
           ]
         },
         {
@@ -131707,21 +135244,116 @@
           "name": "readOnly",
           "targets": [
             "root.editorAvailable",
-            "root.scriptEditorBridgeRef.current_node_id"
+            "root.scriptEditorBridgeRef.current_node_id",
+            "interfacePane.invalidInput"
           ]
         },
         {
           "kind": "binding",
           "name": "color",
           "targets": [
-            "root.themePalette.input_fg"
+            "root.themePalette.input_fg",
+            "font.family",
+            "font.pixelSize"
           ]
         },
         {
           "kind": "binding",
           "name": "wrapMode",
           "targets": [
-            "TextArea.NoWrap"
+            "TextArea.NoWrap",
+            "background",
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectByMouse",
+          "targets": [
+            "persistentSelection",
+            "padding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectionColor",
+          "targets": [
+            "root.selectedSurfaceColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectedTextColor",
+          "targets": [
+            "root.themePalette.input_fg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Keys.priority",
+          "targets": [
+            "Keys.BeforeItem"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.narrow",
+            "narrowTabs.currentIndex"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "SplitView.preferredWidth",
+          "targets": [
+            "root.wide",
+            "SplitView.minimumWidth",
+            "root.narrow",
+            "SplitView.fillWidth",
+            "spacing"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth",
+          "targets": [
+            "Layout.preferredHeight",
+            "root.editorAvailable",
+            "root.scriptEditorBridgeRef.diagnostics.length",
+            "Math.min"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.themePalette.toolbar_bg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth",
+          "targets": [
+            "Layout.fillHeight",
+            "clip",
+            "visible",
+            "root.editorAvailable",
+            "root.scriptEditorBridgeRef.diagnostics.length",
+            "model",
+            "root.scriptEditorBridgeRef.diagnostics"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.min",
+            "parent.width",
+            "height",
+            "completionList.contentHeight",
+            "focus",
+            "padding"
           ]
         },
         {
@@ -131733,131 +135365,88 @@
         },
         {
           "kind": "binding",
-          "name": "selectByMouse"
-        },
-        {
-          "kind": "binding",
-          "name": "persistentSelection"
-        },
-        {
-          "kind": "binding",
-          "name": "leftPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "rightPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "topPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "bottomPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "Layout.preferredHeight"
-        },
-        {
-          "kind": "binding",
-          "name": "color",
+          "name": "contentItem",
           "targets": [
-            "root.themePalette.toolbar_bg"
+            "ListView"
           ]
         },
         {
           "kind": "binding",
-          "name": "anchors.fill",
+          "name": "focusPolicy",
           "targets": [
-            "parent"
+            "Qt.NoFocus"
           ]
         },
         {
           "kind": "binding",
-          "name": "anchors.leftMargin"
-        },
-        {
-          "kind": "binding",
-          "name": "text",
+          "name": "width",
           "targets": [
-            "root.applyFailed"
+            "completionList.width",
+            "height",
+            "highlighted",
+            "ListView.isCurrentItem"
           ]
         },
         {
           "kind": "binding",
-          "name": "color",
+          "name": "contentItem",
           "targets": [
-            "root.applyFailed"
+            "ColumnLayout"
           ]
         },
         {
           "kind": "binding",
-          "name": "visible",
+          "name": "x",
           "targets": [
-            "root.guideButtonVisible"
+            "parent.width",
+            "width",
+            "y",
+            "parent.height",
+            "height",
+            "modal"
           ]
         },
         {
           "kind": "binding",
-          "name": "themeBridgeRef",
+          "name": "width",
           "targets": [
-            "root.themeBridgeRef"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "graphCanvasStateBridgeRef",
-          "targets": [
-            "root.graphCanvasStateBridgeRef"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "uiIconsRef",
-          "targets": [
-            "root.uiIconsRef"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text"
-        },
-        {
-          "kind": "binding",
-          "name": "selectedStyle",
-          "targets": [
-            "root.guideButtonSelected"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "tooltipText",
-          "targets": [
-            "root.guideButtonSelected"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "Accessible.name",
-          "targets": [
-            "root.guideButtonSelected"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "root.editorAvailable",
-            "root.scriptEditorBridgeRef.dirty"
+            "Math.min",
+            "parent.width",
+            "x",
+            "width",
+            "y",
+            "parent.height",
+            "height",
+            "modal",
+            "padding"
           ]
         }
       ],
       "local_component_refs": [
         {
           "kind": "localComponent",
-          "name": "ShellButton",
-          "detail": "ea_node_editor/ui_qml/components/shell/ShellButton.qml"
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTab",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTab.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptInterfacePane",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptInterfacePane.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringPreview",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringPreview.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringAddPopup",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringAddPopup.qml"
         }
       ],
       "symbol_anchors": [
@@ -131877,6 +135466,12 @@
           "anchor": "ScriptCodeEditorPanePropertyThemeBridgeRef",
           "kind": "property",
           "name": "themeBridgeRef",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptCodeEditorPanePropertyGraphThemeBridgeRef",
+          "kind": "property",
+          "name": "graphThemeBridgeRef",
           "detail": "var"
         },
         {
@@ -131910,16 +135505,64 @@
           "detail": "bool"
         },
         {
+          "anchor": "ScriptCodeEditorPanePropertySyncingSource",
+          "kind": "property",
+          "name": "syncingSource",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptCodeEditorPanePropertySelectingSource",
+          "kind": "property",
+          "name": "selectingSource",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptCodeEditorPanePropertyCompletion",
+          "kind": "property",
+          "name": "completion",
+          "detail": "var"
+        },
+        {
           "anchor": "ScriptCodeEditorPanePropertyThemePalette",
           "kind": "property",
           "name": "themePalette",
           "detail": "var"
         },
         {
+          "anchor": "ScriptCodeEditorPanePropertySelectedSurfaceColor",
+          "kind": "property",
+          "name": "selectedSurfaceColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "ScriptCodeEditorPanePropertyCardBackgroundColor",
+          "kind": "property",
+          "name": "cardBackgroundColor",
+          "detail": "color"
+        },
+        {
           "anchor": "ScriptCodeEditorPanePropertyEditorAvailable",
           "kind": "property",
           "name": "editorAvailable",
           "detail": "bool"
+        },
+        {
+          "anchor": "ScriptCodeEditorPanePropertyWide",
+          "kind": "property",
+          "name": "wide",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptCodeEditorPanePropertyNarrow",
+          "kind": "property",
+          "name": "narrow",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptCodeEditorPanePropertyPositionRect",
+          "kind": "property",
+          "name": "positionRect",
+          "detail": "rect"
         },
         {
           "anchor": "ScriptCodeEditorPaneSignalGuideRequested",
@@ -131937,6 +135580,51 @@
           "name": "attachSyntaxHighlighter"
         },
         {
+          "anchor": "ScriptCodeEditorPaneFunctionShowCompletions",
+          "kind": "function",
+          "name": "showCompletions"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneFunctionAcceptCompletion",
+          "kind": "function",
+          "name": "acceptCompletion"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneFunctionDiagnosticOffset",
+          "kind": "function",
+          "name": "diagnosticOffset"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneFunctionRequestApply",
+          "kind": "function",
+          "name": "requestApply"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneFunctionPrepareForm",
+          "kind": "function",
+          "name": "prepareForm"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneFunctionOpenSectionEditor",
+          "kind": "function",
+          "name": "openSectionEditor"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneFunctionControlIcon",
+          "kind": "function",
+          "name": "controlIcon"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneFunctionOnContentChanged",
+          "kind": "function",
+          "name": "onContent_changed"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneFunctionOnSelectionRangeRequested",
+          "kind": "function",
+          "name": "onSelection_range_requested"
+        },
+        {
           "anchor": "ScriptCodeEditorPaneHandlerOnScriptHighlighterBridgeRefChanged",
           "kind": "handler",
           "name": "onScriptHighlighterBridgeRefChanged"
@@ -131945,6 +135633,21 @@
           "anchor": "ScriptCodeEditorPaneHandlerComponentOnCompleted",
           "kind": "handler",
           "name": "Component.onCompleted"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneHandlerOnTriggered",
+          "kind": "handler",
+          "name": "onTriggered"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneHandlerKeysOnPressed",
+          "kind": "handler",
+          "name": "Keys.onPressed"
         },
         {
           "anchor": "ScriptCodeEditorPaneHandlerKeysOnTabPressed",
@@ -131962,15 +135665,59 @@
           "name": "onCursorPositionChanged"
         },
         {
-          "anchor": "ScriptCodeEditorPaneHandlerOnClicked",
+          "anchor": "ScriptCodeEditorPaneHandlerOnSelectionStartChanged",
           "kind": "handler",
-          "name": "onClicked"
+          "name": "onSelectionStartChanged"
         },
         {
-          "anchor": "ScriptCodeEditorPaneLocalComponentShellButton",
+          "anchor": "ScriptCodeEditorPaneHandlerOnSelectionEndChanged",
+          "kind": "handler",
+          "name": "onSelectionEndChanged"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneHandlerOnActiveFocusChanged",
+          "kind": "handler",
+          "name": "onActiveFocusChanged"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneHandlerOnCloseRequested",
+          "kind": "handler",
+          "name": "onCloseRequested"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneTargetRootScriptEditorBridgeRef",
+          "kind": "target",
+          "name": "root.scriptEditorBridgeRef"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneLocalComponentScriptAuthoringButton",
           "kind": "localComponent",
-          "name": "ShellButton",
-          "detail": "ea_node_editor/ui_qml/components/shell/ShellButton.qml"
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneLocalComponentScriptAuthoringTab",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTab",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTab.qml"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneLocalComponentScriptInterfacePane",
+          "kind": "localComponent",
+          "name": "ScriptInterfacePane",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptInterfacePane.qml"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneLocalComponentScriptAuthoringPreview",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringPreview",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringPreview.qml"
+        },
+        {
+          "anchor": "ScriptCodeEditorPaneLocalComponentScriptAuthoringAddPopup",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringAddPopup",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringAddPopup.qml"
         }
       ]
     },
@@ -132021,6 +135768,10 @@
         {
           "kind": "var",
           "name": "themeBridgeRef"
+        },
+        {
+          "kind": "var",
+          "name": "graphThemeBridgeRef"
         },
         {
           "kind": "var",
@@ -132321,6 +136072,13 @@
         },
         {
           "kind": "binding",
+          "name": "graphThemeBridgeRef",
+          "targets": [
+            "root.graphThemeBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "anchors.left",
           "targets": [
             "parent.left"
@@ -132389,6 +136147,12 @@
           "anchor": "ScriptEditorOverlayPropertyThemeBridgeRef",
           "kind": "property",
           "name": "themeBridgeRef",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptEditorOverlayPropertyGraphThemeBridgeRef",
+          "kind": "property",
+          "name": "graphThemeBridgeRef",
           "detail": "var"
         },
         {
@@ -132523,6 +136287,821 @@
           "kind": "localComponent",
           "name": "ScriptCodeEditorPane",
           "detail": "ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/ScriptInterfacePane.qml",
+      "component_name": "ScriptInterfacePane",
+      "aliases": [
+        "ScriptInterfacePane",
+        "ScriptInterfacePane.qml",
+        "ea_node_editor/ui_qml/components/shell/ScriptInterfacePane.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\ScriptInterfacePane.qml"
+      ],
+      "root_component": "ColumnLayout",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Layouts 1.15"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        },
+        {
+          "name": "inventory"
+        },
+        {
+          "name": "savedLabel"
+        },
+        {
+          "name": "form"
+        },
+        {
+          "name": "duplicatePopup"
+        },
+        {
+          "name": "duplicateName"
+        },
+        {
+          "name": "renamePopup"
+        },
+        {
+          "name": "renameName"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "scriptInterfacePane"
+        },
+        {
+          "name": "scriptInterfaceList"
+        },
+        {
+          "name": "scriptRenameButton"
+        },
+        {
+          "name": "scriptSelectedForm"
+        },
+        {
+          "name": "scriptUpdateDeclaration"
+        },
+        {
+          "name": "scriptRenamePopup"
+        },
+        {
+          "name": "scriptRenameName"
+        },
+        {
+          "name": "scriptRenameReviewButton"
+        },
+        {
+          "name": "scriptRenameConfirm"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "pane"
+        },
+        {
+          "kind": "var",
+          "name": "editor"
+        },
+        {
+          "kind": "string",
+          "name": "loadedKey"
+        },
+        {
+          "kind": "int",
+          "name": "loadedRevision"
+        },
+        {
+          "kind": "bool",
+          "name": "committing"
+        },
+        {
+          "kind": "var",
+          "name": "collapsedSections"
+        },
+        {
+          "kind": "bool",
+          "name": "pendingEdits"
+        },
+        {
+          "kind": "bool",
+          "name": "invalidInput"
+        },
+        {
+          "kind": "bool",
+          "name": "ownsForm"
+        },
+        {
+          "kind": "var",
+          "name": "selected"
+        },
+        {
+          "kind": "var",
+          "name": "kindNames"
+        },
+        {
+          "kind": "string",
+          "name": "itemKey"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "publishFormState"
+        },
+        {
+          "name": "activate"
+        },
+        {
+          "name": "outlineItems"
+        },
+        {
+          "name": "typeLabel"
+        },
+        {
+          "name": "reload"
+        },
+        {
+          "name": "commitForm"
+        },
+        {
+          "name": "discardPending"
+        },
+        {
+          "name": "onAuthoring_changed"
+        },
+        {
+          "name": "onNode_changed"
+        },
+        {
+          "name": "onForm_flush_requested"
+        },
+        {
+          "name": "onForm_discard_requested"
+        },
+        {
+          "name": "onVisibleChanged"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "Connections"
+        },
+        {
+          "name": "RowLayout"
+        },
+        {
+          "name": "Text"
+        },
+        {
+          "name": "Item"
+        },
+        {
+          "name": "ListView"
+        },
+        {
+          "name": "Image"
+        },
+        {
+          "name": "Flow"
+        },
+        {
+          "name": "Repeater"
+        },
+        {
+          "name": "ScriptAuthoringButton"
+        },
+        {
+          "name": "ScrollView"
+        },
+        {
+          "name": "Rectangle"
+        },
+        {
+          "name": "ScriptAuthoringForm"
+        },
+        {
+          "name": "Popup"
+        },
+        {
+          "name": "ScriptAuthoringTextField"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "ListView"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.outlineItems"
+          ]
+        },
+        {
+          "kind": "delegate",
+          "targets": [
+            "ItemDelegate"
+          ]
+        },
+        {
+          "kind": "source",
+          "targets": [
+            "root.pane.uiIconsRef",
+            "root.pane.uiIconsRef.sourceSized",
+            "modelData.is_section",
+            "root.collapsedSections",
+            "modelData.section",
+            "root.pane.controlIcon",
+            "modelData.kind",
+            "String",
+            "root.pane.themePalette.input_fg"
+          ]
+        },
+        {
+          "kind": "Repeater"
+        },
+        {
+          "kind": "model"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.editor",
+            "root.editor.rename_review.changes"
+          ]
+        },
+        {
+          "kind": "delegate",
+          "targets": [
+            "Text"
+          ]
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onPendingEditsChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onInvalidInputChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onDestruction"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "kind": "handler",
+          "name": "Keys.onReturnPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "onCommitRequested"
+        },
+        {
+          "kind": "handler",
+          "name": "onValuesChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onChangesChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onErrorsChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onRawInputsChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onPendingInputsChanged"
+        }
+      ],
+      "connections": [
+        {
+          "kind": "target",
+          "name": "root.editor"
+        },
+        {
+          "kind": "target",
+          "name": "root.pane; function onVisibleChanged()"
+        }
+      ],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.preferredHeight",
+          "targets": [
+            "Math.min",
+            "Math.max",
+            "contentHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "clip"
+        },
+        {
+          "kind": "binding",
+          "name": "ScrollBar.vertical",
+          "targets": [
+            "ScrollBar"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "inventory.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height"
+        },
+        {
+          "kind": "binding",
+          "name": "highlighted",
+          "targets": [
+            "itemKey",
+            "root.editor.selected_key"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentItem",
+          "targets": [
+            "RowLayout"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.selected.key"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "themeBridgeRef",
+          "targets": [
+            "root.pane.themeBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "graphCanvasStateBridgeRef",
+          "targets": [
+            "root.pane.graphCanvasStateBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "uiIconsRef",
+          "targets": [
+            "root.pane.uiIconsRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "iconName",
+          "targets": [
+            "index"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "index",
+            "modelData"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "contentWidth",
+          "targets": [
+            "availableWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.selected.has_saved_value",
+            "JSON.stringify",
+            "root.selected.saved_value",
+            "root.selected.fields"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth",
+          "targets": [
+            "implicitHeight",
+            "savedLabel.implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color"
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.selected.key",
+            "Object.keys",
+            "form.changes",
+            "length",
+            "form.omitted.length"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "Object.keys",
+            "form.changes",
+            "length",
+            "form.omitted.length"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selectedStyle"
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "form.error",
+            "root.editor",
+            "root.editor.analysis_status",
+            "Object.keys",
+            "form.changes",
+            "length",
+            "form.omitted.length"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "parent",
+          "targets": [
+            "Overlay.overlay"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.min",
+            "parent.width",
+            "x",
+            "width",
+            "y",
+            "parent.height",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "modal",
+          "targets": [
+            "padding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "contentItem",
+          "targets": [
+            "ColumnLayout"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.min",
+            "parent.width",
+            "height",
+            "parent.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "parent.width",
+            "width",
+            "y",
+            "parent.height",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth",
+          "targets": [
+            "Layout.fillHeight",
+            "clip"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringForm",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringForm.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "ScriptInterfacePanePropertyPane",
+          "kind": "property",
+          "name": "pane",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptInterfacePanePropertyEditor",
+          "kind": "property",
+          "name": "editor",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptInterfacePanePropertyLoadedKey",
+          "kind": "property",
+          "name": "loadedKey",
+          "detail": "string"
+        },
+        {
+          "anchor": "ScriptInterfacePanePropertyLoadedRevision",
+          "kind": "property",
+          "name": "loadedRevision",
+          "detail": "int"
+        },
+        {
+          "anchor": "ScriptInterfacePanePropertyCommitting",
+          "kind": "property",
+          "name": "committing",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptInterfacePanePropertyCollapsedSections",
+          "kind": "property",
+          "name": "collapsedSections",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptInterfacePanePropertyPendingEdits",
+          "kind": "property",
+          "name": "pendingEdits",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptInterfacePanePropertyInvalidInput",
+          "kind": "property",
+          "name": "invalidInput",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptInterfacePanePropertyOwnsForm",
+          "kind": "property",
+          "name": "ownsForm",
+          "detail": "bool"
+        },
+        {
+          "anchor": "ScriptInterfacePanePropertySelected",
+          "kind": "property",
+          "name": "selected",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptInterfacePanePropertyKindNames",
+          "kind": "property",
+          "name": "kindNames",
+          "detail": "var"
+        },
+        {
+          "anchor": "ScriptInterfacePanePropertyItemKey",
+          "kind": "property",
+          "name": "itemKey",
+          "detail": "string"
+        },
+        {
+          "anchor": "ScriptInterfacePaneFunctionPublishFormState",
+          "kind": "function",
+          "name": "publishFormState"
+        },
+        {
+          "anchor": "ScriptInterfacePaneFunctionActivate",
+          "kind": "function",
+          "name": "activate"
+        },
+        {
+          "anchor": "ScriptInterfacePaneFunctionOutlineItems",
+          "kind": "function",
+          "name": "outlineItems"
+        },
+        {
+          "anchor": "ScriptInterfacePaneFunctionTypeLabel",
+          "kind": "function",
+          "name": "typeLabel"
+        },
+        {
+          "anchor": "ScriptInterfacePaneFunctionReload",
+          "kind": "function",
+          "name": "reload"
+        },
+        {
+          "anchor": "ScriptInterfacePaneFunctionCommitForm",
+          "kind": "function",
+          "name": "commitForm"
+        },
+        {
+          "anchor": "ScriptInterfacePaneFunctionDiscardPending",
+          "kind": "function",
+          "name": "discardPending"
+        },
+        {
+          "anchor": "ScriptInterfacePaneFunctionOnAuthoringChanged",
+          "kind": "function",
+          "name": "onAuthoring_changed"
+        },
+        {
+          "anchor": "ScriptInterfacePaneFunctionOnNodeChanged",
+          "kind": "function",
+          "name": "onNode_changed"
+        },
+        {
+          "anchor": "ScriptInterfacePaneFunctionOnFormFlushRequested",
+          "kind": "function",
+          "name": "onForm_flush_requested"
+        },
+        {
+          "anchor": "ScriptInterfacePaneFunctionOnFormDiscardRequested",
+          "kind": "function",
+          "name": "onForm_discard_requested"
+        },
+        {
+          "anchor": "ScriptInterfacePaneFunctionOnVisibleChanged",
+          "kind": "function",
+          "name": "onVisibleChanged"
+        },
+        {
+          "anchor": "ScriptInterfacePaneHandlerOnPendingEditsChanged",
+          "kind": "handler",
+          "name": "onPendingEditsChanged"
+        },
+        {
+          "anchor": "ScriptInterfacePaneHandlerOnInvalidInputChanged",
+          "kind": "handler",
+          "name": "onInvalidInputChanged"
+        },
+        {
+          "anchor": "ScriptInterfacePaneHandlerComponentOnDestruction",
+          "kind": "handler",
+          "name": "Component.onDestruction"
+        },
+        {
+          "anchor": "ScriptInterfacePaneHandlerComponentOnCompleted",
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "anchor": "ScriptInterfacePaneHandlerKeysOnReturnPressed",
+          "kind": "handler",
+          "name": "Keys.onReturnPressed"
+        },
+        {
+          "anchor": "ScriptInterfacePaneHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "ScriptInterfacePaneHandlerOnCommitRequested",
+          "kind": "handler",
+          "name": "onCommitRequested"
+        },
+        {
+          "anchor": "ScriptInterfacePaneHandlerOnValuesChanged",
+          "kind": "handler",
+          "name": "onValuesChanged"
+        },
+        {
+          "anchor": "ScriptInterfacePaneHandlerOnChangesChanged",
+          "kind": "handler",
+          "name": "onChangesChanged"
+        },
+        {
+          "anchor": "ScriptInterfacePaneHandlerOnErrorsChanged",
+          "kind": "handler",
+          "name": "onErrorsChanged"
+        },
+        {
+          "anchor": "ScriptInterfacePaneHandlerOnRawInputsChanged",
+          "kind": "handler",
+          "name": "onRawInputsChanged"
+        },
+        {
+          "anchor": "ScriptInterfacePaneHandlerOnPendingInputsChanged",
+          "kind": "handler",
+          "name": "onPendingInputsChanged"
+        },
+        {
+          "anchor": "ScriptInterfacePaneTargetRootEditor",
+          "kind": "target",
+          "name": "root.editor"
+        },
+        {
+          "anchor": "ScriptInterfacePaneTargetRootPaneFunctionOnVisibleChanged",
+          "kind": "target",
+          "name": "root.pane; function onVisibleChanged()"
+        },
+        {
+          "anchor": "ScriptInterfacePaneLocalComponentScriptAuthoringButton",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml"
+        },
+        {
+          "anchor": "ScriptInterfacePaneLocalComponentScriptAuthoringForm",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringForm",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringForm.qml"
+        },
+        {
+          "anchor": "ScriptInterfacePaneLocalComponentScriptAuthoringTextField",
+          "kind": "localComponent",
+          "name": "ScriptAuthoringTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml"
         }
       ]
     },
@@ -147065,6 +151644,10 @@
         },
         {
           "kind": "var",
+          "name": "graphThemeBridgeRef"
+        },
+        {
+          "kind": "var",
           "name": "themePalette"
         },
         {
@@ -149014,6 +153597,13 @@
         },
         {
           "kind": "binding",
+          "name": "graphThemeBridgeRef",
+          "targets": [
+            "root.graphThemeBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "themeBridgeRef",
           "targets": [
             "themeBridge"
@@ -149168,6 +153758,12 @@
           "anchor": "ContentFullscreenOverlayPropertyScriptHighlighterBridgeRef",
           "kind": "property",
           "name": "scriptHighlighterBridgeRef",
+          "detail": "var"
+        },
+        {
+          "anchor": "ContentFullscreenOverlayPropertyGraphThemeBridgeRef",
+          "kind": "property",
+          "name": "graphThemeBridgeRef",
           "detail": "var"
         },
         {
@@ -150979,6 +155575,13 @@
           "name": "scriptHighlighterBridgeRef",
           "targets": [
             "root.scriptHighlighterBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "graphThemeBridgeRef",
+          "targets": [
+            "root.graphThemeBridgeRef"
           ]
         },
         {

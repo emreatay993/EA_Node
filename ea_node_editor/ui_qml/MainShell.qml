@@ -351,6 +351,7 @@ Rectangle {
         scriptEditorBridgeRef: root.scriptEditorBridgeRef
         scriptHighlighterBridgeRef: root.scriptHighlighterBridgeRef
         themeBridgeRef: root.themeBridgeRef
+        graphThemeBridgeRef: root.graphThemeBridgeRef
         graphCanvasStateBridgeRef: root.canvasStateBridgeRef
         uiIconsRef: root.uiIconsRef
     }
@@ -374,6 +375,7 @@ Rectangle {
             item.bridgeRef = root.contentFullscreenBridgeRef;
             item.scriptEditorBridgeRef = root.scriptEditorBridgeRef;
             item.scriptHighlighterBridgeRef = root.scriptHighlighterBridgeRef;
+            item.graphThemeBridgeRef = root.graphThemeBridgeRef;
             Qt.callLater(function() {
                 if (root.contentFullscreenBridgeRef.open && contentFullscreenOverlayLoader.item)
                     contentFullscreenOverlayLoader.item.forceActiveFocus();

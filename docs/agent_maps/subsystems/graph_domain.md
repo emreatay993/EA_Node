@@ -1,6 +1,13 @@
 # Graph Domain, Mutation, Transforms, And Hierarchy
 
 ## Purpose
+
+The [Python Script authoring route](../feature_routes/python_script_authoring.md)
+uses `prepare_python_script` for detached impact and `apply_python_script` for
+freshly validated commits. Explicit key transfers preserve compatible edges and
+saved state, including compound name reuse; generic dynamic-key rename keeps
+its pruning behavior. Port-state projection remains pure.
+
 Use this for graph data structures, invariants, mutation services, transforms, hierarchy, ports, and comment geometry.
 
 ## Start Here

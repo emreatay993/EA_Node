@@ -1374,6 +1374,12 @@ class GraphSceneBridgeBase(QObject):
     def set_node_property(self, node_id: str, key: str, value: Any) -> None:
         self._command_bridge.set_node_property(node_id, key, value)
 
+    def prepare_python_script(self, node_id: str, source: str, **options):
+        return self._command_bridge.prepare_python_script(node_id, source, **options)
+
+    def apply_python_script(self, node_id: str, source: str, **options):
+        return self._command_bridge.apply_python_script(node_id, source, **options)
+
     @pyqtSlot(str, str, str, result=bool)
     def set_node_secret(self, node_id: str, key: str, plaintext: str) -> bool:
         return self._command_bridge.set_node_secret(node_id, key, plaintext)

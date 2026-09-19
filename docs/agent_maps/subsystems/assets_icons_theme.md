@@ -21,6 +21,9 @@ Use this for app assets, app icons, shell/ui icon registry assets, node title ic
 - QML header rendering before checking icon source projection.
 
 ## Common Changes
+- Python Script authoring reuses the existing icon provider and adds eight
+  `script-*` toolbar/control SVGs. `tests/test_icon_registry.py` validates the
+  registry; `tests/test_python_script_authoring_ui.py` checks rendered icons.
 - Keep icon catalog, asset files, QML source projection, and tests aligned.
 - SSH/SFTP built-ins own six title icons under `assets/node_title_icons/ssh_sftp/`. The retired HPC icon directory is absent; COREX's `HPC` connector keywords do not restore an HPC asset family.
 - The trusted Mechanical add-on owns eight central theme-aware SVG masks under `assets/node_title_icons/mechanical/`. Central fallback requires registry provenance rooted inside COREX's own add-on package tree plus the matching central catalog entry; external packages remain confined to their verified asset/generation root even when they spoof a reserved type ID.

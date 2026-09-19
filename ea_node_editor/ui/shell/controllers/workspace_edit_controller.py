@@ -89,8 +89,7 @@ class WorkspaceEditController:
     def on_scene_node_selected(self, node_id: str) -> None:
         workspace = self._selection_context.active_workspace()
         node = workspace.nodes.get(node_id) if workspace is not None else None
-        if self._host.script_editor.current_node_id != str(node_id or "").strip():
-            self._host.script_editor.set_node(node)
+        self._host.script_editor.refresh_node(node)
         if self._host.script_editor.visible:
             self._host.script_editor.focus_editor()
         self._effects.notify_selected_node_changed()
@@ -333,14 +332,45 @@ class WorkspaceEditController:
 
     def dynamic_port_edit_error(self, node_id: str) -> str:
         editor = self._host.script_editor
-        if editor.current_node_id == str(node_id) and editor.dirty:
+        if editor.current_node_id == str(node_id) and editor.has_unapplied_edits:
             return "Apply or Revert your Python Script draft before editing its ports."
         return ""
 
     def on_dynamic_ports_changed(self, node_id: str) -> None:
         editor = self._host.script_editor
-        if not editor.dirty:
+        if not editor.has_unapplied_edits:
             self._effects.sync_script_editor_node(str(node_id))
+
+    def configure_script_authoring(self) -> None:
+        self._host.script_editor.configure_authoring(
+            context_provider=lambda: (
+                self._host.model.project, self._selection_context.active_workspace(), self._host.registry,
+            ),
+            prepare=self.prepare_python_script,
+            apply=self.apply_python_script,
+            report_error=lambda message: self._host.console_panel.append_log(
+                "error", f"Python Script authoring: {message}",
+            ),
+        )
+
+    def prepare_python_script(self, node_id: str, source: str, renamed_keys, source_revision: int):
+        return self._host.scene.prepare_python_script(
+            node_id, source, renamed_keys=renamed_keys, source_revision=source_revision,
+        )
+
+    def apply_python_script(self, node_id: str, source: str, renamed_keys, source_revision: int, prepared):
+        workspace = self._selection_context.active_workspace()
+        result = self._host.scene.apply_python_script(
+            node_id, source, renamed_keys=renamed_keys, source_revision=source_revision, prepared=prepared,
+        )
+        self._effects.after_selected_node_property_changed(
+            node_id, "script", source, workspace=workspace, refresh_scene_payload=False,
+        )
+        if result[0]:
+            self._host.console_panel.append_log(
+                "warning", "Python Script Apply reset invalid settings: " + ", ".join(result[0]),
+            )
+        return result
 
     def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
         workspace = self._selection_context.active_workspace()

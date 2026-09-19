@@ -126,6 +126,7 @@ Item {
                     return isFinite(numeric) && numeric > 0 ? numeric : groupItem.width;
                 }
                 height: Math.max(0, Number(groupItem.headerData.height || 0))
+                visible: groupItem.groupData.show_header !== false
                 Accessible.name: String(groupItem.groupData.label || groupItem.groupData.group_id || "Settings")
                 Accessible.description: groupItem.expanded
                     ? "Expanded settings group."
@@ -226,7 +227,7 @@ Item {
                     id: headerMouse
                     objectName: "graphNodeSettingsGroupToggleArea"
                     anchors.fill: parent
-                    enabled: !root.interactionLocked
+                    enabled: headerRow.visible && !root.interactionLocked
                     acceptedButtons: Qt.LeftButton
                     hoverEnabled: enabled
                     activeFocusOnTab: enabled

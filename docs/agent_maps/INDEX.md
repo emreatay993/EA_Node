@@ -51,6 +51,7 @@ Before broad exploration, open the coverage matrix and the most relevant subsyst
 
 ## Feature Routes
 
+- [Python Script Authoring](feature_routes/python_script_authoring.md)
 - [Graph Canvas Feature Recipes](feature_routes/graph_canvas_feature_recipes.md)
 - [Graph Actions And Context Menus](feature_routes/graph_actions_and_context_menus.md)
 - [QML Bridge Wiring](feature_routes/qml_bridge_wiring.md)

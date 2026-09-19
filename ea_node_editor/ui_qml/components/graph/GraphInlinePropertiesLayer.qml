@@ -373,7 +373,8 @@ Item {
                             Math.max(root._inlineLabelMinWidth, implicitWidth + 4)
                         )
                     height: inlineRow.stackedEditor ? inlineRow.baseRowHeight : inlineRow.height
-                    text: String(inlineRow.propertyData.label || inlineRow.propertyData.key || "")
+                    text: inlineRow.propertyData.label !== undefined && inlineRow.propertyData.label !== null
+                        ? String(inlineRow.propertyData.label) : String(inlineRow.propertyData.key || "")
                     color: inlineRow.editorEnabled
                         ? (host ? host.inlineLabelColor : "#d0d5de")
                         : (host ? host.inlineDrivenTextColor : "#95a0b8")

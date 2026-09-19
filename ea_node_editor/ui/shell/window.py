@@ -594,6 +594,7 @@ class ShellWindow(
             self._ensure_embedded_viewer_overlay_manager()
 
     def _wire_signals(self) -> None:
+        self.workspace_edit_controller.configure_script_authoring()
         self.scene.node_selected.connect(
             self.workspace_edit_controller.on_scene_node_selected
         )

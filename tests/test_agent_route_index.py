@@ -62,10 +62,10 @@ class AgentRouteIndexTests(unittest.TestCase):
         entries = [indexer.route_entry_to_dict(entry) for entry in index_data.entries]
         map_entries = [entry for entry in entries if entry["kind"] != "qml_component"]
 
-        self.assertEqual(len(map_entries), 67)
-        self.assertEqual(len({entry["route_key"] for entry in map_entries}), 67)
-        self.assertEqual(len({entry["map_path"] for entry in map_entries}), 67)
-        self.assertEqual(len({entry["title"] for entry in map_entries}), 67)
+        self.assertEqual(len(map_entries), 68)
+        self.assertEqual(len({entry["route_key"] for entry in map_entries}), 68)
+        self.assertEqual(len({entry["map_path"] for entry in map_entries}), 68)
+        self.assertEqual(len({entry["title"] for entry in map_entries}), 68)
 
         for entry in map_entries:
             with self.subTest(route=entry["route_key"]):

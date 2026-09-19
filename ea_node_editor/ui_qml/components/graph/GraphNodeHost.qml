@@ -152,7 +152,7 @@ Item {
     }
 
     readonly property var shellContextRef: typeof shellContext !== "undefined" ? shellContext : null
-    readonly property var graphThemeBridgeRef: shellContextRef ? shellContextRef.graphThemeBridge : null
+    property var graphThemeBridgeRef: shellContextRef ? shellContextRef.graphThemeBridge : null
     readonly property var addonManagerBridgeRef: shellContextRef && shellContextRef.addonManagerBridge
         ? shellContextRef.addonManagerBridge
         : null

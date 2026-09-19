@@ -8,6 +8,7 @@ Rectangle {
     property var scriptEditorBridgeRef
     property var scriptHighlighterBridgeRef
     property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
+    property var graphThemeBridgeRef: null
     property var graphCanvasStateBridgeRef: typeof graphCanvasStateBridge !== "undefined" ? graphCanvasStateBridge : null
     property var uiIconsRef: typeof uiIcons !== "undefined" ? uiIcons : null
     readonly property var themePalette: root.themeBridgeRef ? root.themeBridgeRef.palette : ({})
@@ -96,6 +97,7 @@ Rectangle {
             scriptEditorBridgeRef: root.scriptEditorBridgeRef
             scriptHighlighterBridgeRef: root.scriptHighlighterBridgeRef
             themeBridgeRef: root.themeBridgeRef
+            graphThemeBridgeRef: root.graphThemeBridgeRef
             graphCanvasStateBridgeRef: root.graphCanvasStateBridgeRef
             uiIconsRef: root.uiIconsRef
         }

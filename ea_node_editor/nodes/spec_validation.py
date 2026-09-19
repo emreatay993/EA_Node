@@ -722,6 +722,10 @@ class _SpecValidator:
                     f"Node {spec.type_id} has duplicate settings group id: {group.group_id}"
                 )
             group_ids.add(group.group_id)
+            if type(group.show_header) is not bool:
+                raise TypeError(
+                    f"Node {spec.type_id} settings group {group.group_id} show_header must be a bool"
+                )
             if (
                 not isinstance(group.label, str)
                 or not group.label

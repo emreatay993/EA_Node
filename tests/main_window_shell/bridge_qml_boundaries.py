@@ -24,7 +24,7 @@ _TOOLTIP_QML_SCOPE_DIRS = (
 )
 _TOOLTIP_HELPER_BLOCK_RE = re.compile(
     r"^\s*("
-    r"ShellButton|ShellControls\.ShellButton|ShellCreateButton|InspectorButton|"
+    r"ShellButton|ShellControls\.ShellButton|ScriptAuthoringButton|ShellCreateButton|InspectorButton|"
     r"InspectorColorField|ShellCollapsibleSidePane|GraphSurfaceButton|"
     r"GraphSurfaceControls\.GraphSurfaceButton|GraphCanvasMinimapOverlay"
     r")\s*\{"
@@ -77,7 +77,7 @@ def _helper_block_exposes_tooltip(helper_type: str, block: str) -> bool:
         "GraphCanvasMinimapOverlay",
     }:
         return True
-    if helper_type in {"ShellButton", "ShellControls.ShellButton"}:
+    if helper_type in {"ShellButton", "ShellControls.ShellButton", "ScriptAuthoringButton"}:
         return "tooltipText:" in block or "iconName:" in block
     if helper_type == "InspectorButton":
         return "tooltipText:" in block
@@ -183,7 +183,6 @@ class TooltipManagerTierCatalogQmlBoundaryTests(unittest.TestCase):
                 "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceListEditor.qml: GraphSurfaceButton",
                 "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceListEditor.qml: GraphSurfaceButton",
                 "ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml: ShellButton",
-                "ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml: ShellButton",
             ],
         )
 

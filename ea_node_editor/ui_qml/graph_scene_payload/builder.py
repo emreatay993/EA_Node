@@ -268,6 +268,37 @@ class GraphScenePayloadBuilder:
             data_type_projection=data_type_projection,
         )
 
+    def build_script_preview_node_payload(
+        self, *, registry: NodeRegistry, node: NodeInstance,
+        graph_theme_bridge: GraphThemeBridge | None = None,
+    ) -> dict[str, Any]:
+        """Project a detached authoring node through the production node factory.
+
+        This entry has no live model, input provider, load normalization or edges.
+        Callers own temporary property values and never insert the node in a graph.
+        """
+        if node.type_id != "core.python_script":
+            raise ValueError("The authoring preview only supports Python Script")
+        preview_node = copy.deepcopy(node)
+        spec, provenance = self._spec_and_provenance(registry, node.type_id, node.properties)
+        workspace = WorkspaceData(workspace_id="__script_preview__", name="Script Preview")
+        workspace.ensure_default_view()
+        workspace.nodes[preview_node.node_id] = preview_node
+        self._node_payload_factory._workspace_edges = {}
+        facts = self._node_payload_factory.build_presentation_facts(
+            node=preview_node, spec=spec, provenance=provenance, workspace_nodes=workspace.nodes,
+            enabled_input_port_keys=frozenset(), port_connection_counts={}, hide_optional_ports=False,
+            show_port_labels=True, graph_label_pixel_size=12, graph_node_icon_pixel_size=12,
+        )
+        return self._node_payload_factory.build_node_payload(
+            node=preview_node, spec=spec, provenance=provenance, workspace=workspace,
+            workspace_nodes=workspace.nodes, port_connection_counts={},
+            graph_theme=self.active_graph_theme(graph_theme_bridge), graph_theme_bridge=graph_theme_bridge,
+            hide_optional_ports=False, show_port_labels=True, graph_label_pixel_size=12,
+            graph_node_icon_pixel_size=12, lightweight_canvas=False, presentation_facts=facts,
+            data_type_projection=build_data_type_ui_projection(registry.data_types),
+        )
+
     def build_added_node_payloads_for_ids(
         self,
         *,

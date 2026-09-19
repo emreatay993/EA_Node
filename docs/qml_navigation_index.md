@@ -17,13 +17,13 @@ This compact index gives agents deterministic aliases for QML components, symbol
 
 | Metric | Count |
 | --- | ---: |
-| QML files | 190 |
-| Repeater constructs | 93 |
-| Loader constructs | 28 |
-| Signal handlers | 962 |
-| Connections targets | 49 |
-| Property bindings | 7846 |
-| Local component refs | 314 |
+| QML files | 200 |
+| Repeater constructs | 98 |
+| Loader constructs | 29 |
+| Signal handlers | 1016 |
+| Connections targets | 52 |
+| Property bindings | 8066 |
+| Local component refs | 338 |
 
 ## Component Families
 
@@ -40,7 +40,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `components/graph/tabular` | 12 |
 | `components/graph/viewer` | 6 |
 | `components/graph_canvas` | 21 |
-| `components/shell` | 53 |
+| `components/shell` | 63 |
 | `components/web` | 8 |
 | `ea_node_editor/ui_qml` | 2 |
 
@@ -217,8 +217,18 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `NodeBrowserOverlay.qml` | `ea_node_editor/ui_qml/components/shell/NodeBrowserOverlay.qml` | `Item` | `Rectangle`, `MouseArea`, `Common.DialogSurface`, `RowLayout`, `ColumnLayout`, `Text`, `ListView`, `Repeater`, ... +7 more | `ListView`, `model`, `delegate`, `Repeater` |
 | `NodeLibraryPane.qml` | `ea_node_editor/ui_qml/components/shell/NodeLibraryPane.qml` | `ShellCollapsibleSidePane` | `TextField`, `ListView`, `Common.ManagedToolTip`, `Item`, `Row`, `Rectangle`, `LibraryNodeVisual`, `Text`, ... +4 more | `ListView`, `model`, `delegate`, `source`, `Repeater` |
 | `PythonScriptGuidePane.qml` | `ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml` | `Rectangle` | `ColumnLayout`, `RowLayout`, `Text`, `ShellButton`, `ScrollView`, `TextArea` | _None_ |
-| `ScriptCodeEditorPane.qml` | `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml` | `ColumnLayout` | `RowLayout`, `Rectangle`, `Text`, `ScrollView`, `TextArea`, `Item`, `ShellButton` | _None_ |
+| `ScriptAuthoringAddPopup.qml` | `ea_node_editor/ui_qml/components/shell/ScriptAuthoringAddPopup.qml` | `Popup` | `ColumnLayout`, `RowLayout`, `Text`, `ScriptAuthoringButton`, `ScriptAuthoringTextField`, `ListView`, `Image`, `ScrollView`, ... +4 more | `ListView`, `model`, `delegate`, `source`, `Repeater` |
+| `ScriptAuthoringButton.qml` | `ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml` | `ShellButton` | `Row`, `Image`, `Text` | `source` |
+| `ScriptAuthoringComboBox.qml` | `ea_node_editor/ui_qml/components/shell/ScriptAuthoringComboBox.qml` | `InspectorComboBox` | _None_ | _None_ |
+| `ScriptAuthoringForm.qml` | `ea_node_editor/ui_qml/components/shell/ScriptAuthoringForm.qml` | `ColumnLayout` | `Timer`, `RowLayout`, `Text`, `ScriptAuthoringComboBox`, `Repeater`, `GridLayout`, `Rectangle`, `MouseArea`, ... +9 more | `model`, `Repeater`, `Loader`, `sourceComponent`, `Component` |
+| `ScriptAuthoringPreview.qml` | `ea_node_editor/ui_qml/components/shell/ScriptAuthoringPreview.qml` | `ColumnLayout` | `Text`, `Rectangle`, `ScrollView`, `Item`, `Graph.GraphNodeHost`, `PointHandler`, `RowLayout`, `ScriptAuthoringButton` | _None_ |
+| `ScriptAuthoringRows.qml` | `ea_node_editor/ui_qml/components/shell/ScriptAuthoringRows.qml` | `ColumnLayout` | `ListModel`, `Repeater`, `RowLayout`, `ScriptAuthoringTextField`, `ScriptAuthoringButton`, `Text` | `Repeater`, `model` |
+| `ScriptAuthoringTab.qml` | `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTab.qml` | `TabButton` | `Rectangle` | _None_ |
+| `ScriptAuthoringTextField.qml` | `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml` | `TextField` | _None_ | _None_ |
+| `ScriptAuthoringTypePicker.qml` | `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTypePicker.qml` | `ColumnLayout` | `ScriptAuthoringButton`, `Text`, `Popup`, `ScriptAuthoringTextField`, `ListView`, `Image`, `Rectangle` | `ListView`, `model`, `delegate`, `source` |
+| `ScriptCodeEditorPane.qml` | `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml` | `ColumnLayout` | `Connections`, `Timer`, `Rectangle`, `RowLayout`, `Text`, `ScriptAuthoringButton`, `Item`, `TabBar`, ... +10 more | `Repeater`, `model`, `ListView`, `delegate` |
 | `ScriptEditorOverlay.qml` | `ea_node_editor/ui_qml/components/shell/ScriptEditorOverlay.qml` | `Rectangle` | `Connections`, `ColumnLayout`, `RowLayout`, `Text`, `Item`, `ShellButton`, `ScriptCodeEditorPane`, `MouseArea` | _None_ |
+| `ScriptInterfacePane.qml` | `ea_node_editor/ui_qml/components/shell/ScriptInterfacePane.qml` | `ColumnLayout` | `Connections`, `RowLayout`, `Text`, `Item`, `ListView`, `Image`, `Flow`, `Repeater`, ... +6 more | `ListView`, `model`, `delegate`, `source`, `Repeater` |
 | `ShellButton.qml` | `ea_node_editor/ui_qml/components/shell/ShellButton.qml` | `ToolButton` | `Common.ManagedToolTip`, `Row`, `Image`, `Text` | `source` |
 | `ShellCollapsibleSidePane.qml` | `ea_node_editor/ui_qml/components/shell/ShellCollapsibleSidePane.qml` | `Rectangle` | `Connections`, `NumberAnimation`, `Item`, `HoverHandler`, `Column`, `Text`, `Common.ManagedToolTip`, `TapHandler`, ... +5 more | _None_ |
 | `ShellContextMenu.qml` | `ea_node_editor/ui_qml/components/shell/ShellContextMenu.qml` | `FocusScope` | `FontMetrics`, `Rectangle`, `Column`, `Repeater`, `Text`, `MouseArea`, `Common.ManagedToolTip` | `Repeater`, `model`, `delegate` |
@@ -760,7 +770,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Dynamic constructs: `Repeater`; `model` -> `root._groupModelKeys`; `delegate` -> `Item`; `model` -> `groupItem.itemModelKeys`
 - Signal handlers: `handler` `onSettingsGroupsChanged`; `handler` `Component.onCompleted`; `handler` `onGroupDataChanged`; `handler` `onPaint`; `handler` `onExpandedStateChanged`; `handler` `onStrokeColorChanged`; `handler` `onPressed`; `handler` `onClicked`; `handler` `Keys.onPressed`
 - Connections: _None_
-- Property bindings: `binding` `visible` -> `settingsGroups.length`; `binding` `z`; `binding` `clip` -> `Boolean`, `host`, `host.settingsGroupAnimationRunning`; `binding` `width` -> `root.width`; `binding` `height` -> `root.host`, `root.host.settingsGroupAnimationRunning`; `binding` `clip` -> `Boolean`, `root.host`, `root.host.settingsGroupAnimationRunning`; `binding` `x` -> `Number`, `groupItem.headerData.x`; `binding` `y` -> `Number`, `groupItem.headerData.y`, `root.bandYOffset`, `groupItem.animationYOffset`; `binding` `height` -> `Math.max`, `Number`, `groupItem.headerData.height`; `binding` `Accessible.name` -> `String`, `groupItem.groupData.label`, `groupItem.groupData.group_id`; `binding` `Accessible.description` -> `groupItem.expanded`; `binding` `anchors.fill` -> `parent`; `binding` `color`; `binding` `border.width` -> `headerMouse.activeFocus`; `binding` `border.color` -> `root.host`, `root.host.selectedOutlineColor`; `binding` `radius`; `binding` `anchors.left` -> `parent.left`; `binding` `anchors.leftMargin`; ... +40 more
+- Property bindings: `binding` `visible` -> `settingsGroups.length`; `binding` `z`; `binding` `clip` -> `Boolean`, `host`, `host.settingsGroupAnimationRunning`; `binding` `width` -> `root.width`; `binding` `height` -> `root.host`, `root.host.settingsGroupAnimationRunning`; `binding` `clip` -> `Boolean`, `root.host`, `root.host.settingsGroupAnimationRunning`; `binding` `x` -> `Number`, `groupItem.headerData.x`; `binding` `y` -> `Number`, `groupItem.headerData.y`, `root.bandYOffset`, `groupItem.animationYOffset`; `binding` `height` -> `Math.max`, `Number`, `groupItem.headerData.height`; `binding` `visible` -> `groupItem.groupData.show_header`; `binding` `Accessible.name` -> `String`, `groupItem.groupData.label`, `groupItem.groupData.group_id`; `binding` `Accessible.description` -> `groupItem.expanded`; `binding` `anchors.fill` -> `parent`; `binding` `color`; `binding` `border.width` -> `headerMouse.activeFocus`; `binding` `border.color` -> `root.host`, `root.host.selectedOutlineColor`; `binding` `radius`; `binding` `anchors.left` -> `parent.left`; ... +41 more
 - Local component refs: `localComponent` `GraphInlinePropertiesLayer`: `ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml`
 
 ### `GraphNodeSurfaceLoader.qml`
@@ -3273,7 +3283,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`
 - IDs: `root`, `guideScroll`, `guideText`
 - Object names: `pythonScriptDecoratorGuidePane`, `pythonScriptDecoratorGuideCloseButton`, `pythonScriptDecoratorGuideScrollView`, `pythonScriptDecoratorGuideText`
-- Properties: `themeBridgeRef: var`, `graphCanvasStateBridgeRef: var`, `uiIconsRef: var`, `themePalette: var`, `guideHtml: string`
+- Properties: `themeBridgeRef: var`, `graphCanvasStateBridgeRef: var`, `uiIconsRef: var`, `themePalette: var`, `guideHtml: string`, `Valid: grid.`
 - Signals: `closeRequested`
 - Functions: `_color`, `_buildGuideHtml`
 - Instantiates: `ColumnLayout`, `RowLayout`, `Text`, `ShellButton`, `ScrollView`, `TextArea`
@@ -3283,23 +3293,185 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Property bindings: `binding` `radius`; `binding` `color` -> `root.themePalette.panel_bg`; `binding` `border.width`; `binding` `border.color` -> `root.themePalette.border`; `binding` `anchors.fill` -> `parent`; `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.preferredHeight`; `binding` `color` -> `root.themePalette.inspector_section_header_bg`; `binding` `anchors.leftMargin`; `binding` `anchors.rightMargin`; `binding` `text`; `binding` `color` -> `root.themePalette.panel_title_fg`; `binding` `font.pixelSize`; `binding` `font.bold`; `binding` `elide` -> `Text.ElideRight`; `binding` `themeBridgeRef` -> `root.themeBridgeRef`; `binding` `graphCanvasStateBridgeRef` -> `root.graphCanvasStateBridgeRef`; ... +17 more
 - Local component refs: `localComponent` `ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`
 
+### `ScriptAuthoringAddPopup.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringAddPopup.qml`
+- Root component: `Popup`
+- Agent route aliases: `ScriptAuthoringAddPopup`, `ScriptAuthoringAddPopup.qml`, `ea_node_editor/ui_qml/components/shell/ScriptAuthoringAddPopup.qml`, `ea_node_editor\ui_qml\components\shell\ScriptAuthoringAddPopup.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`
+- IDs: `root`, `search`, `palette`, `nameField`, `form`
+- Object names: `scriptAuthoringAddPopup`, `scriptAddSearch`, `scriptAddChoice_`, `scriptAddName`, `scriptAddForm`, `scriptAddConfirm`
+- Properties: `pane: var`, `editor: var`, `choice: var`, `sectionKeys: var`, `oldSection: string`
+- Signals: _None_
+- Functions: `choose`, `openSection`
+- Instantiates: `ColumnLayout`, `RowLayout`, `Text`, `ScriptAuthoringButton`, `ScriptAuthoringTextField`, `ListView`, `Image`, `ScrollView`, `ScriptAuthoringForm`, `Repeater`, `InspectorCheckBox`, `Item`
+- Dynamic constructs: `ListView`; `model` -> `root.editor`, `root.editor.query_decorators`, `search.text`; `delegate` -> `ItemDelegate`; `source` -> `root.pane.uiIconsRef`, `root.pane.uiIconsRef.sourceSized`, `root.pane.controlIcon`, `modelData.kind`, `String`, `root.pane.themePalette.input_fg`; `Repeater`; `model` -> `root.editor`, `root.editor.interface_items.filter`, `item`
+- Signal handlers: `handler` `onOpened`; `handler` `onClosed`; `handler` `onClicked`; `handler` `Keys.onReturnPressed`
+- Connections: _None_
+- Property bindings: `binding` `parent` -> `Overlay.overlay`; `binding` `x` -> `Math.max`, `parent.width`, `width`; `binding` `y` -> `Math.max`, `parent.height`, `height`; `binding` `width` -> `Math.min`, `parent.width`; `binding` `height` -> `Math.min`, `choice.kind`, `editor`, `editor.interface_items.length`, `parent.height`; `binding` `modal`; `binding` `padding`; `binding` `background` -> `Rectangle`; `binding` `anchors.fill` -> `parent`; `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `pane` -> `root.pane`; `binding` `visible` -> `root.choice.kind`; `binding` `placeholderText`; `binding` `Layout.fillHeight`; `binding` `clip`; `binding` `ScrollBar.vertical` -> `ScrollBar`; `binding` `width` -> `palette.width`; ... +13 more
+- Local component refs: `localComponent` `ScriptAuthoringButton`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml`; `localComponent` `ScriptAuthoringTextField`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml`; `localComponent` `ScriptAuthoringForm`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringForm.qml`; `localComponent` `InspectorCheckBox`: `ea_node_editor/ui_qml/components/shell/InspectorCheckBox.qml`
+
+### `ScriptAuthoringButton.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml`
+- Root component: `ShellButton`
+- Agent route aliases: `ScriptAuthoringButton`, `ScriptAuthoringButton.qml`, `ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml`, `ea_node_editor\ui_qml\components\shell\ScriptAuthoringButton.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`
+- IDs: `control`, `contents`
+- Object names: _None_
+- Properties: _None_
+- Signals: _None_
+- Functions: _None_
+- Instantiates: `Row`, `Image`, `Text`
+- Dynamic constructs: `source` -> `control.resolvedIconSource`, `width`, `height`, `anchors.verticalCenter`, `parent.verticalCenter`, `opacity`, `control.enabled`
+- Signal handlers: _None_
+- Connections: _None_
+- Property bindings: `binding` `tooltipCategory`; `binding` `implicitHeight`; `binding` `implicitWidth` -> `Math.max`, `control.iconName`, `control.text`, `contents.implicitWidth`; `binding` `contentItem` -> `Item`; `binding` `implicitWidth` -> `contents.implicitWidth`; `binding` `anchors.centerIn` -> `parent`; `binding` `spacing`; `binding` `text` -> `control.text`, `control.iconName`, `control.resolvedIconSource`, `control.tooltipText`; `binding` `visible` -> `text.length`; `binding` `color` -> `control.foregroundColor`; `binding` `font.family` -> `font.pixelSize`; `binding` `font.weight` -> `control.selectedStyle`, `Font.DemiBold`, `Font.Normal`; `binding` `opacity` -> `control.enabled`; `binding` `background` -> `Rectangle`; `binding` `radius`; `binding` `color` -> `control.selectedStyle`, `control.enabled`, `control.themePalette.accent_strong`; `binding` `border.color` -> `control.selectedStyle`, `control.enabled`, `control.themePalette.accent`, `control.hovered`, `control.themePalette.input_border`; `binding` `border.width`
+- Local component refs: _None_
+
+### `ScriptAuthoringComboBox.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringComboBox.qml`
+- Root component: `InspectorComboBox`
+- Agent route aliases: `ScriptAuthoringComboBox`, `ScriptAuthoringComboBox.qml`, `ea_node_editor/ui_qml/components/shell/ScriptAuthoringComboBox.qml`, `ea_node_editor\ui_qml\components\shell\ScriptAuthoringComboBox.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`
+- IDs: `control`
+- Object names: _None_
+- Properties: _None_
+- Signals: _None_
+- Functions: _None_
+- Instantiates: _None_
+- Dynamic constructs: _None_
+- Signal handlers: _None_
+- Connections: _None_
+- Property bindings: `binding` `implicitHeight`; `binding` `background` -> `Rectangle`; `binding` `popup.background` -> `Rectangle`
+- Local component refs: _None_
+
+### `ScriptAuthoringForm.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringForm.qml`
+- Root component: `ColumnLayout`
+- Agent route aliases: `ScriptAuthoringForm`, `ScriptAuthoringForm.qml`, `ea_node_editor/ui_qml/components/shell/ScriptAuthoringForm.qml`, `ea_node_editor\ui_qml\components\shell\ScriptAuthoringForm.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"../common" as Common`
+- IDs: `root`, `commitTimer`, `field`, `fieldHelpHover`, `sectionField`, `rangeField`, `pickerField`, `pickerText`, `textField`, `multilineField`, `booleanField`, `typeField`, `choiceField`, `intervalField`, `rowsField`
+- Object names: `scriptNumericMode`, `scriptField_minimum`, `scriptField_maximum`, `scriptField_`, `scriptIntervalLower`, `scriptIntervalUpper`
+- Properties: `pane: var`, `editor: var`, `kind: string`, `values: var`, `definitions: var`, `changes: var`, `omitted: var`, `pendingInputs: var`, `rawInputs: var`, `hasPendingInput: bool`, `numericMode: string`, `advanced: bool`, `autoCommit: bool`, `errors: var`, `error: string`, `hasExplicitType: bool`, `modelData: var`, `definition: var`, ... +5 more
+- Signals: `commitRequested`
+- Functions: `load`, `setField`, `omit`, `setError`, `markInput`, `finishInput`, `flushPending`, `request`, `setNumericMode`, `numberValue`
+- Instantiates: `Timer`, `RowLayout`, `Text`, `ScriptAuthoringComboBox`, `Repeater`, `GridLayout`, `Rectangle`, `MouseArea`, `Common.ManagedToolTip`, `Loader`, `ScriptAuthoringButton`, `Component`, `ScriptAuthoringTextField`, `TextArea`, `InspectorCheckBox`, `ScriptAuthoringTypePicker`, `ScriptAuthoringRows`
+- Dynamic constructs: `model`; `Repeater`; `model` -> `root.definitions`; `Loader`; `sourceComponent` -> `field.name`, `rangeField`; `Component`; `model` -> `concat`, `sectionNames`; `model` -> `field.choiceValues.map`, `item`
+- Signal handlers: `handler` `onTriggered`; `handler` `onActivated`; `handler` `onClicked`; `handler` `onTextEdited`; `handler` `onEditingFinished`; `handler` `onTextChanged`; `handler` `onActiveFocusChanged`; `handler` `onChosen`; `handler` `onEdited`; `handler` `onDraftChanged`; `handler` `onErrorChanged`
+- Connections: _None_
+- Property bindings: `binding` `spacing`; `binding` `visible` -> `root.kind`; `binding` `Layout.fillWidth`; `binding` `pane` -> `root.pane`; `binding` `currentIndex` -> `root.numericMode`; `binding` `columns`; `binding` `columnSpacing`; `binding` `rowSpacing`; `binding` `visible` -> `name`, `definition.advanced`, `root.advanced`; `binding` `Layout.columnSpan`; `binding` `Layout.topMargin`; `binding` `Layout.bottomMargin`; `binding` `visible` -> `field.name`; `binding` `text` -> `field.name`; `binding` `color` -> `root.pane.themePalette.panel_title_fg`, `font.pixelSize`, `font.weight`, `Font.DemiBold`; `binding` `Layout.preferredWidth`; `binding` `Layout.alignment` -> `Qt.AlignTop`; `binding` `text` -> `field.name`, `field.definition.label`; ... +26 more
+- Local component refs: `localComponent` `ScriptAuthoringComboBox`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringComboBox.qml`; `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`; `localComponent` `ScriptAuthoringButton`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml`; `localComponent` `ScriptAuthoringTextField`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml`; `localComponent` `InspectorCheckBox`: `ea_node_editor/ui_qml/components/shell/InspectorCheckBox.qml`; `localComponent` `ScriptAuthoringTypePicker`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTypePicker.qml`; `localComponent` `ScriptAuthoringRows`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringRows.qml`
+
+### `ScriptAuthoringPreview.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringPreview.qml`
+- Root component: `ColumnLayout`
+- Agent route aliases: `ScriptAuthoringPreview`, `ScriptAuthoringPreview.qml`, `ea_node_editor/ui_qml/components/shell/ScriptAuthoringPreview.qml`, `ea_node_editor\ui_qml\components\shell\ScriptAuthoringPreview.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"../graph" as Graph`
+- IDs: `root`, `previewScroll`, `previewCanvas`, `nodeHost`
+- Object names: `scriptAuthoringPreview`, `scriptPreviewCanvas`, `scriptPreviewNode`, `scriptUsePreviewDefault`
+- Properties: `pane: var`, `editor: var`, `preview: var`, `ready: bool`, `selected: var`, `graphThemeBridgeRef: var`, `revealedKey: string`, `sceneCommandBridge: var`, `sceneBridge: var`, `viewBridge: var`, `executionFacts: var`, `prefs: var`, `interactWithLockedObjects: bool`, `activeToolbarHost: var`, `wireDragState: var`
+- Signals: _None_
+- Functions: `bindTheme`, `controlItem`, `revealSelection`, `pickNodePropertyColor`, `browseNodePropertyPath`
+- Instantiates: `Text`, `Rectangle`, `ScrollView`, `Item`, `Graph.GraphNodeHost`, `PointHandler`, `RowLayout`, `ScriptAuthoringButton`
+- Dynamic constructs: _None_
+- Signal handlers: `handler` `onPreviewChanged`; `handler` `onGraphThemeBridgeRefChanged`; `handler` `Component.onCompleted`; `handler` `onInlinePropertyCommitted`; `handler` `onSettingsGroupExpansionRequested`; `handler` `onPortClicked`; `handler` `onActiveChanged`; `handler` `onClicked`
+- Connections: _None_
+- Property bindings: `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.fillHeight`; `binding` `color` -> `root.pane.themePalette.console_bg`; `binding` `border.color` -> `root.pane.themePalette.border`; `binding` `radius`; `binding` `clip`; `binding` `anchors.centerIn` -> `parent`; `binding` `width` -> `parent.width`; `binding` `visible` -> `root.ready`; `binding` `text` -> `root.editor`, `root.editor.analysis_status`; `binding` `color` -> `root.pane.themePalette.muted_fg`; `binding` `horizontalAlignment` -> `Text.AlignHCenter`; `binding` `wrapMode` -> `Text.Wrap`; `binding` `anchors.fill` -> `parent`; `binding` `contentWidth` -> `Math.max`, `availableWidth`, `nodeHost.width`; `binding` `contentHeight` -> `nodeHost.height`; `binding` `width` -> `Math.max`, `parent.width`, `nodeHost.width`; ... +14 more
+- Local component refs: `localComponent` `Graph.GraphNodeHost`: `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`; `localComponent` `ScriptAuthoringButton`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml`
+
+### `ScriptAuthoringRows.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringRows.qml`
+- Root component: `ColumnLayout`
+- Agent route aliases: `ScriptAuthoringRows`, `ScriptAuthoringRows.qml`, `ea_node_editor/ui_qml/components/shell/ScriptAuthoringRows.qml`, `ea_node_editor\ui_qml\components\shell\ScriptAuthoringRows.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`
+- IDs: `root`, `rows`
+- Object names: `scriptListRow_`
+- Properties: `pane: var`, `values: var`, `numeric: bool`, `whole: bool`, `syncing: bool`, `error: string`
+- Signals: `edited`, `draftChanged`
+- Functions: `sync`, `publish`, `rawValues`
+- Instantiates: `ListModel`, `Repeater`, `RowLayout`, `ScriptAuthoringTextField`, `ScriptAuthoringButton`, `Text`
+- Dynamic constructs: `Repeater`; `model` -> `rows`
+- Signal handlers: `handler` `onValuesChanged`; `handler` `Component.onCompleted`; `handler` `onTextEdited`; `handler` `onEditingFinished`; `handler` `onClicked`
+- Connections: _None_
+- Property bindings: `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `pane` -> `root.pane`; `binding` `text` -> `textValue`; `binding` `placeholderText` -> `index`; `binding` `themeBridgeRef` -> `root.pane.themeBridgeRef`; `binding` `graphCanvasStateBridgeRef` -> `root.pane.graphCanvasStateBridgeRef`; `binding` `uiIconsRef` -> `root.pane.uiIconsRef`; `binding` `text`; `binding` `implicitWidth`; `binding` `tooltipText`
+- Local component refs: `localComponent` `ScriptAuthoringTextField`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml`; `localComponent` `ScriptAuthoringButton`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml`
+
+### `ScriptAuthoringTab.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTab.qml`
+- Root component: `TabButton`
+- Agent route aliases: `ScriptAuthoringTab`, `ScriptAuthoringTab.qml`, `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTab.qml`, `ea_node_editor\ui_qml\components\shell\ScriptAuthoringTab.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`
+- IDs: `control`
+- Object names: _None_
+- Properties: `pane: var`
+- Signals: _None_
+- Functions: _None_
+- Instantiates: `Rectangle`
+- Dynamic constructs: _None_
+- Signal handlers: _None_
+- Connections: _None_
+- Property bindings: `binding` `implicitHeight`; `binding` `contentItem` -> `Text`; `binding` `text` -> `control.text`; `binding` `font.pixelSize` -> `font.weight`, `control.checked`, `Font.DemiBold`, `Font.Normal`; `binding` `color` -> `control.checked`, `control.pane.themePalette.input_fg`, `control.pane.themePalette.muted_fg`; `binding` `horizontalAlignment` -> `Text.AlignHCenter`, `verticalAlignment`, `Text.AlignVCenter`; `binding` `background` -> `Rectangle`; `binding` `color` -> `control.checked`, `control.pane.themePalette.panel_bg`, `control.pane.themePalette.toolbar_bg`; `binding` `border.color` -> `control.pane.themePalette.border`; `binding` `radius`
+- Local component refs: _None_
+
+### `ScriptAuthoringTextField.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml`
+- Root component: `TextField`
+- Agent route aliases: `ScriptAuthoringTextField`, `ScriptAuthoringTextField.qml`, `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml`, `ea_node_editor\ui_qml\components\shell\ScriptAuthoringTextField.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`
+- IDs: `control`
+- Object names: _None_
+- Properties: `pane: var`
+- Signals: _None_
+- Functions: _None_
+- Instantiates: _None_
+- Dynamic constructs: _None_
+- Signal handlers: _None_
+- Connections: _None_
+- Property bindings: `binding` `implicitHeight`; `binding` `padding`; `binding` `font.pixelSize`; `binding` `selectByMouse`; `binding` `color` -> `pane.themePalette.input_fg`; `binding` `placeholderTextColor` -> `pane.themePalette.muted_fg`; `binding` `selectionColor` -> `pane.selectedSurfaceColor`; `binding` `selectedTextColor` -> `pane.themePalette.input_fg`; `binding` `background` -> `Rectangle`; `binding` `color` -> `control.enabled`, `control.pane.themePalette.input_bg`, `control.pane.themePalette.panel_bg`; `binding` `border.color` -> `control.activeFocus`, `control.pane.themePalette.accent`, `control.pane.themePalette.input_border`; `binding` `radius`
+- Local component refs: _None_
+
+### `ScriptAuthoringTypePicker.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTypePicker.qml`
+- Root component: `ColumnLayout`
+- Agent route aliases: `ScriptAuthoringTypePicker`, `ScriptAuthoringTypePicker.qml`, `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTypePicker.qml`, `ea_node_editor\ui_qml\components\shell\ScriptAuthoringTypePicker.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`
+- IDs: `root`, `popup`, `search`, `typeList`
+- Object names: `scriptTypePickerButton`, `scriptTypePickerPopup`, `scriptTypeSearch`, `scriptTypeResults`, `scriptTypeChoice_`
+- Properties: `pane: var`, `editor: var`, `value: string`, `listItems: bool`, `choices: var`, `selected: var`, `detail: var`
+- Signals: `chosen`
+- Functions: `refresh`, `choose`
+- Instantiates: `ScriptAuthoringButton`, `Text`, `Popup`, `ScriptAuthoringTextField`, `ListView`, `Image`, `Rectangle`
+- Dynamic constructs: `ListView`; `model` -> `root.choices`; `delegate` -> `ItemDelegate`; `source` -> `root.pane.uiIconsRef`
+- Signal handlers: `handler` `onValueChanged`; `handler` `Component.onCompleted`; `handler` `onClicked`; `handler` `onTextChanged`; `handler` `Keys.onDownPressed`; `handler` `onCurrentIndexChanged`; `handler` `Keys.onReturnPressed`; `handler` `onHoveredChanged`
+- Connections: _None_
+- Property bindings: `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `implicitHeight`; `binding` `themeBridgeRef` -> `root.pane.themeBridgeRef`; `binding` `graphCanvasStateBridgeRef` -> `root.pane.graphCanvasStateBridgeRef`; `binding` `uiIconsRef` -> `root.pane.uiIconsRef`; `binding` `text` -> `root.selected.label`; `binding` `text` -> `root.selected.expression`; `binding` `color` -> `root.pane.themePalette.muted_fg`; `binding` `font.pixelSize`; `binding` `wrapMode` -> `Text.Wrap`; `binding` `parent` -> `Overlay.overlay`; `binding` `x` -> `Math.max`, `parent.width`, `width`; `binding` `y` -> `Math.max`, `parent.height`, `height`; `binding` `width` -> `Math.min`, `parent.width`; `binding` `height` -> `Math.min`, `parent.height`; `binding` `modal`; `binding` `padding`; ... +15 more
+- Local component refs: `localComponent` `ScriptAuthoringButton`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml`; `localComponent` `ScriptAuthoringTextField`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml`
+
 ### `ScriptCodeEditorPane.qml`
 
 - Path: `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml`
 - Root component: `ColumnLayout`
 - Agent route aliases: `ScriptCodeEditorPane`, `ScriptCodeEditorPane.qml`, `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml`, `ea_node_editor\ui_qml\components\shell\ScriptCodeEditorPane.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"MainShellUtils.js" as MainShellUtils`
-- IDs: `root`, `scriptLineGutter`, `scriptLineNumberText`, `scriptEditorScroll`, `scriptEditorArea`
-- Object names: `scriptCodeEditorPane`, `scriptEditorArea`, `pythonScriptGuideButton`
-- Properties: `scriptEditorBridgeRef: var`, `scriptHighlighterBridgeRef: var`, `themeBridgeRef: var`, `graphCanvasStateBridgeRef: var`, `uiIconsRef: var`, `guideButtonVisible: bool`, `guideButtonSelected: bool`, `applyFailed: bool`, `themePalette: var`, `editorAvailable: bool`
+- IDs: `root`, `completionTimer`, `narrowTabs`, `leftHost`, `codeHost`, `codeScroll`, `code`, `sideTabs`, `sideBody`, `interfacePane`, `addPopup`, `completionPopup`, `completionList`, `helpPopup`, `impactPopup`
+- Object names: `scriptCodeEditorPane`, `scriptAddButton`, `pythonScriptGuideButton`, `scriptApplyButton`, `scriptWorkspaceTabs`, `scriptAuthoringSplitView`, `scriptCodeHost`, `scriptEditorArea`, `scriptSideTabs`, `scriptCompletionPopup`, `scriptHelpPopup`, `scriptApplyImpactPopup`
+- Properties: `scriptEditorBridgeRef: var`, `scriptHighlighterBridgeRef: var`, `themeBridgeRef: var`, `graphThemeBridgeRef: var`, `graphCanvasStateBridgeRef: var`, `uiIconsRef: var`, `guideButtonVisible: bool`, `guideButtonSelected: bool`, `applyFailed: bool`, `syncingSource: bool`, `selectingSource: bool`, `completion: var`, `themePalette: var`, `selectedSurfaceColor: color`, `cardBackgroundColor: color`, `editorAvailable: bool`, `wide: bool`, `narrow: bool`, ... +1 more
 - Signals: `guideRequested`
-- Functions: `updateCursorMetrics`, `attachSyntaxHighlighter`
-- Instantiates: `RowLayout`, `Rectangle`, `Text`, `ScrollView`, `TextArea`, `Item`, `ShellButton`
-- Dynamic constructs: _None_
-- Signal handlers: `handler` `onScriptHighlighterBridgeRefChanged`; `handler` `Component.onCompleted`; `handler` `Keys.onTabPressed`; `handler` `onTextChanged`; `handler` `onCursorPositionChanged`; `handler` `onClicked`
-- Connections: _None_
-- Property bindings: `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.fillHeight`; `binding` `Layout.preferredWidth`; `binding` `color` -> `root.themePalette.console_bg`; `binding` `border.color` -> `root.themePalette.border`; `binding` `clip`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.rightMargin`; `binding` `y` -> `scriptEditorScroll.contentItem`, `scriptEditorScroll.contentItem.contentY`; `binding` `text` -> `MainShellUtils.lineNumbersText`, `scriptEditorArea.lineCount`; `binding` `color` -> `root.themePalette.muted_fg`; `binding` `font.family`; `binding` `font.pixelSize`; `binding` `horizontalAlignment` -> `Text.AlignRight`; `binding` `verticalAlignment` -> `Text.AlignTop`; `binding` `width` -> `scriptEditorScroll.availableWidth`; `binding` `text` -> `root.editorAvailable`, `root.scriptEditorBridgeRef.script_text`; ... +25 more
-- Local component refs: `localComponent` `ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`
+- Functions: `updateCursorMetrics`, `attachSyntaxHighlighter`, `showCompletions`, `acceptCompletion`, `diagnosticOffset`, `requestApply`, `prepareForm`, `openSectionEditor`, `controlIcon`, `onContent_changed`, `onSelection_range_requested`
+- Instantiates: `Connections`, `Timer`, `Rectangle`, `RowLayout`, `Text`, `ScriptAuthoringButton`, `Item`, `TabBar`, `ScriptAuthoringTab`, `SplitView`, `ScrollView`, `TextArea`, `Repeater`, `ScriptInterfacePane`, `ScriptAuthoringPreview`, `ListView`, `ScriptAuthoringAddPopup`, `Popup`
+- Dynamic constructs: `Repeater`; `model` -> `root.editorAvailable`, `root.scriptEditorBridgeRef.diagnostics`; `ListView`; `delegate` -> `ItemDelegate`; `model` -> `root.completion.items`, `ScrollBar.vertical`, `ScrollBar`
+- Signal handlers: `handler` `onScriptHighlighterBridgeRefChanged`; `handler` `Component.onCompleted`; `handler` `onTriggered`; `handler` `onClicked`; `handler` `Keys.onPressed`; `handler` `Keys.onTabPressed`; `handler` `onTextChanged`; `handler` `onCursorPositionChanged`; `handler` `onSelectionStartChanged`; `handler` `onSelectionEndChanged`; `handler` `onActiveFocusChanged`; `handler` `onCloseRequested`
+- Connections: `target` `root.scriptEditorBridgeRef`
+- Property bindings: `binding` `spacing`; `binding` `Layout.fillWidth` -> `Layout.preferredHeight`, `color`, `root.themePalette.toolbar_bg`; `binding` `anchors.fill` -> `parent`, `anchors.margins`, `spacing`; `binding` `handle` -> `Rectangle`; `binding` `SplitView.fillWidth` -> `SplitView.minimumWidth`, `root.narrow`, `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.fillWidth` -> `Layout.fillHeight`, `spacing`; `binding` `Layout.preferredWidth` -> `Layout.fillHeight`, `color`, `root.themePalette.console_bg`, `border.color`, `root.themePalette.border`, `clip`; `binding` `text` -> `root.editorAvailable`, `root.scriptEditorBridgeRef.script_text`; `binding` `readOnly` -> `root.editorAvailable`, `root.scriptEditorBridgeRef.current_node_id`, `interfacePane.invalidInput`; `binding` `color` -> `root.themePalette.input_fg`, `font.family`, `font.pixelSize`; `binding` `wrapMode` -> `TextArea.NoWrap`, `background`, `Rectangle`; `binding` `selectByMouse` -> `persistentSelection`, `padding`; `binding` `selectionColor` -> `root.selectedSurfaceColor`; `binding` `selectedTextColor` -> `root.themePalette.input_fg`; `binding` `Keys.priority` -> `Keys.BeforeItem`; `binding` `visible` -> `root.narrow`, `narrowTabs.currentIndex`; `binding` `SplitView.preferredWidth` -> `root.wide`, `SplitView.minimumWidth`, `root.narrow`, `SplitView.fillWidth`, `spacing`; ... +11 more
+- Local component refs: `localComponent` `ScriptAuthoringButton`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml`; `localComponent` `ScriptAuthoringTab`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTab.qml`; `localComponent` `ScriptInterfacePane`: `ea_node_editor/ui_qml/components/shell/ScriptInterfacePane.qml`; `localComponent` `ScriptAuthoringPreview`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringPreview.qml`; `localComponent` `ScriptAuthoringAddPopup`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringAddPopup.qml`
 
 ### `ScriptEditorOverlay.qml`
 
@@ -3309,15 +3481,33 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`
 - IDs: `root`, `scriptEditorResizeHandle`, `scriptEditorResizeMouseArea`
 - Object names: `scriptEditorResizeHandle`
-- Properties: `workspaceBridgeRef: var`, `scriptEditorBridgeRef: var`, `scriptHighlighterBridgeRef: var`, `themeBridgeRef: var`, `graphCanvasStateBridgeRef: var`, `uiIconsRef: var`, `themePalette: var`, `panelWidth: real`, `resizeDragActive: bool`, `minPanelWidth: real`, `defaultPanelWidth: real`, `maxPanelWidth: real`, `pressSceneX: real`, `pressWidth: real`, `dragMoved: bool`
+- Properties: `workspaceBridgeRef: var`, `scriptEditorBridgeRef: var`, `scriptHighlighterBridgeRef: var`, `themeBridgeRef: var`, `graphThemeBridgeRef: var`, `graphCanvasStateBridgeRef: var`, `uiIconsRef: var`, `themePalette: var`, `panelWidth: real`, `resizeDragActive: bool`, `minPanelWidth: real`, `defaultPanelWidth: real`, `maxPanelWidth: real`, `pressSceneX: real`, `pressWidth: real`, `dragMoved: bool`
 - Signals: _None_
 - Functions: `clampPanelWidth`, `effectivePanelWidth`, `syncWidthFromModel`, `onWidth_changed`
 - Instantiates: `Connections`, `ColumnLayout`, `RowLayout`, `Text`, `Item`, `ShellButton`, `ScriptCodeEditorPane`, `MouseArea`
 - Dynamic constructs: _None_
 - Signal handlers: `handler` `Component.onCompleted`; `handler` `onClicked`; `handler` `onPressed`; `handler` `onPositionChanged`; `handler` `onReleased`; `handler` `onCanceled`
 - Connections: `target` `root.scriptEditorBridgeRef`
-- Property bindings: `binding` `visible` -> `root.scriptEditorBridgeRef.visible`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.top` -> `parent.top`; `binding` `anchors.bottom` -> `parent.bottom`; `binding` `width` -> `root.effectivePanelWidth`; `binding` `color` -> `themePalette.panel_bg`; `binding` `border.color` -> `themePalette.accent`; `binding` `border.width`; `binding` `z`; `binding` `anchors.fill` -> `parent`; `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.preferredHeight`; `binding` `color` -> `root.themePalette.toolbar_bg`; `binding` `border.color` -> `root.themePalette.border`; `binding` `anchors.leftMargin`; `binding` `anchors.rightMargin`; `binding` `text` -> `root.scriptEditorBridgeRef.current_node_label`; ... +18 more
+- Property bindings: `binding` `visible` -> `root.scriptEditorBridgeRef.visible`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.top` -> `parent.top`; `binding` `anchors.bottom` -> `parent.bottom`; `binding` `width` -> `root.effectivePanelWidth`; `binding` `color` -> `themePalette.panel_bg`; `binding` `border.color` -> `themePalette.accent`; `binding` `border.width`; `binding` `z`; `binding` `anchors.fill` -> `parent`; `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.preferredHeight`; `binding` `color` -> `root.themePalette.toolbar_bg`; `binding` `border.color` -> `root.themePalette.border`; `binding` `anchors.leftMargin`; `binding` `anchors.rightMargin`; `binding` `text` -> `root.scriptEditorBridgeRef.current_node_label`; ... +19 more
 - Local component refs: `localComponent` `ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`; `localComponent` `ScriptCodeEditorPane`: `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml`
+
+### `ScriptInterfacePane.qml`
+
+- Path: `ea_node_editor/ui_qml/components/shell/ScriptInterfacePane.qml`
+- Root component: `ColumnLayout`
+- Agent route aliases: `ScriptInterfacePane`, `ScriptInterfacePane.qml`, `ea_node_editor/ui_qml/components/shell/ScriptInterfacePane.qml`, `ea_node_editor\ui_qml\components\shell\ScriptInterfacePane.qml`
+- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`
+- IDs: `root`, `inventory`, `savedLabel`, `form`, `duplicatePopup`, `duplicateName`, `renamePopup`, `renameName`
+- Object names: `scriptInterfacePane`, `scriptInterfaceList`, `scriptRenameButton`, `scriptSelectedForm`, `scriptUpdateDeclaration`, `scriptRenamePopup`, `scriptRenameName`, `scriptRenameReviewButton`, `scriptRenameConfirm`
+- Properties: `pane: var`, `editor: var`, `loadedKey: string`, `loadedRevision: int`, `committing: bool`, `collapsedSections: var`, `pendingEdits: bool`, `invalidInput: bool`, `ownsForm: bool`, `selected: var`, `kindNames: var`, `itemKey: string`
+- Signals: _None_
+- Functions: `publishFormState`, `activate`, `outlineItems`, `typeLabel`, `reload`, `commitForm`, `discardPending`, `onAuthoring_changed`, `onNode_changed`, `onForm_flush_requested`, `onForm_discard_requested`, `onVisibleChanged`
+- Instantiates: `Connections`, `RowLayout`, `Text`, `Item`, `ListView`, `Image`, `Flow`, `Repeater`, `ScriptAuthoringButton`, `ScrollView`, `Rectangle`, `ScriptAuthoringForm`, `Popup`, `ScriptAuthoringTextField`
+- Dynamic constructs: `ListView`; `model` -> `root.outlineItems`; `delegate` -> `ItemDelegate`; `source` -> `root.pane.uiIconsRef`, `root.pane.uiIconsRef.sourceSized`, `modelData.is_section`, `root.collapsedSections`, `modelData.section`, `root.pane.controlIcon`, `modelData.kind`, `String`, `root.pane.themePalette.input_fg`; `Repeater`; `model`; `model` -> `root.editor`, `root.editor.rename_review.changes`; `delegate` -> `Text`
+- Signal handlers: `handler` `onPendingEditsChanged`; `handler` `onInvalidInputChanged`; `handler` `Component.onDestruction`; `handler` `Component.onCompleted`; `handler` `Keys.onReturnPressed`; `handler` `onClicked`; `handler` `onCommitRequested`; `handler` `onValuesChanged`; `handler` `onChangesChanged`; `handler` `onErrorsChanged`; `handler` `onRawInputsChanged`; `handler` `onPendingInputsChanged`
+- Connections: `target` `root.editor`; `target` `root.pane; function onVisibleChanged()`
+- Property bindings: `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.preferredHeight` -> `Math.min`, `Math.max`, `contentHeight`; `binding` `clip`; `binding` `ScrollBar.vertical` -> `ScrollBar`; `binding` `width` -> `inventory.width`; `binding` `height`; `binding` `highlighted` -> `itemKey`, `root.editor.selected_key`; `binding` `background` -> `Rectangle`; `binding` `contentItem` -> `RowLayout`; `binding` `visible` -> `root.selected.key`; `binding` `themeBridgeRef` -> `root.pane.themeBridgeRef`; `binding` `graphCanvasStateBridgeRef` -> `root.pane.graphCanvasStateBridgeRef`; `binding` `uiIconsRef` -> `root.pane.uiIconsRef`; `binding` `text`; `binding` `iconName` -> `index`; `binding` `implicitWidth`; `binding` `tooltipText` -> `index`, `modelData`; ... +18 more
+- Local component refs: `localComponent` `ScriptAuthoringButton`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringButton.qml`; `localComponent` `ScriptAuthoringForm`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringForm.qml`; `localComponent` `ScriptAuthoringTextField`: `ea_node_editor/ui_qml/components/shell/ScriptAuthoringTextField.qml`
 
 ### `ShellButton.qml`
 
@@ -3633,14 +3823,14 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `QtQuick.Pdf 6.0`, `"components/shell"`, `"components/web" as WebComponents`, `"components/graph/tabular" as TabularComponents`, `"components/graph/viewer" as ViewerComponents`, `"components/graph/passive" as PassiveComponents`, `"components/graph/passive/GraphMediaPanelGeometry.js" as GraphMediaPanelGeometry`, `"components/common/TooltipCopy.js" as TooltipCopy`
 - IDs: `root`, `interactionBlocker`, `layout`, `topBar`, `titleLabel`, `shortcutHint`, `closeButton`, `contentFrame`, `mediaLayout`, `mediaToolbar`, `pdfNavigationControls`, `pdfPageField`, `pdfReaderControls`, `pdfSearchControls`, `pdfSearchField`, `mediaViewport`, `pdfViewerLoader`, `pdfDocument`, ... +26 more
 - Object names: `contentFullscreenOverlay`, `contentFullscreenInteractionBlocker`, `contentFullscreenTopBar`, `contentFullscreenTitleText`, `contentFullscreenShortcutHint`, `contentFullscreenCloseButton`, `contentFullscreenContentFrame`, `contentFullscreenMediaToolbar`, `contentFullscreenMediaSummary`, `contentFullscreenPdfNavigationControls`, `contentFullscreenPdfPreviousButton`, `contentFullscreenPdfPageField`, `contentFullscreenPdfPageTotalLabel`, `contentFullscreenPdfNextButton`, `contentFullscreenPdfReaderControls`, `contentFullscreenPdfSearchButton`, `contentFullscreenPdfZoomOutButton`, `contentFullscreenPdfZoomLabel`, ... +55 more
-- Properties: `bridgeRef: var`, `scriptEditorBridgeRef: var`, `scriptHighlighterBridgeRef: var`, `themePalette: var`, `bridgeOpen: bool`, `activeNodeId: string`, `contentKind: string`, `scriptGuideVisible: bool`, `titleText: string`, `mediaPayload: var`, `viewerPayload: var`, `webEditorPayload: var`, `webPagePayload: var`, `plotPayload: var`, `plotOptions: var`, `plotHoverReadout: bool`, `plotVerticalGuide: bool`, `plotCrosshair: bool`, ... +78 more
+- Properties: `bridgeRef: var`, `scriptEditorBridgeRef: var`, `scriptHighlighterBridgeRef: var`, `graphThemeBridgeRef: var`, `themePalette: var`, `bridgeOpen: bool`, `activeNodeId: string`, `contentKind: string`, `scriptGuideVisible: bool`, `titleText: string`, `mediaPayload: var`, `viewerPayload: var`, `webEditorPayload: var`, `webPagePayload: var`, `plotPayload: var`, `plotOptions: var`, `plotHoverReadout: bool`, `plotVerticalGuide: bool`, ... +79 more
 - Signals: `contentMetricsReady`
 - Functions: `requestClose`, `_activeWebPageHost`, `_liveWebPageHost`, `_topLevelItem`, `_findLiveWebPageHost`, `_usesBorrowedWebEngine`, `_scheduleBorrowedWebPageHostSync`, `_syncBorrowedWebPageHost`, `_releaseBorrowedWebPageHost`, `_normalizedPayloadFitMode`, `_intValue`, `_boolValue`, `_plotOptions`, `_plotOptionBool`, `_plotThemeOption`, `_setPlotOption`, `_normalizedImageRotationDegrees`, `_mediaImageDisplayRect`, ... +56 more
 - Instantiates: `Connections`, `Rectangle`, `MouseArea`, `ColumnLayout`, `RowLayout`, `Text`, `ShellButton`, `TextField`, `Loader`, `Item`, `PdfDocument`, `PdfMultiPageView`, `Image`, `ComboBox`, `ViewerComponents.ViewerSelectionControls`, `Column`, `ViewerComponents.ViewerSidePanel`, `ViewerComponents.ViewerQuickControls`, ... +6 more
 - Dynamic constructs: `Loader`; `sourceComponent` -> `Component`; `source` -> `root.pdfSourceUrl`; `source` -> `root.mediaImageActive`, `root.mediaImageAnimationSupported`; `sourceComponent` -> `AnimatedImage`; `source` -> `root.imageResolvedSourceUrl`; `sourceComponent` -> `PassiveComponents.GraphMediaVideoFullscreenRenderer`; `model`
 - Signal handlers: `handler` `onVisibleChanged`; `handler` `onActiveNodeIdChanged`; `handler` `onContentKindChanged`; `handler` `onBridgeOpenChanged`; `handler` `onPreviewSourceUrlChanged`; `handler` `onMailZoomFactorChanged`; `handler` `Component.onCompleted`; `handler` `Keys.onPressed`; `handler` `onMediaKindChanged`; `handler` `onMediaStateChanged`; `handler` `onPdfSourceUrlChanged`; `handler` `onPdfResolvedPageNumberChanged`; `handler` `onPdfPageCountChanged`; `handler` `onPdfCurrentPageNumberChanged`; `handler` `onPageZoomChanged`; `handler` `onLoadingChanged`; `handler` `onPressed`; `handler` `onReleased`; ... +16 more
 - Connections: `target` `root.graphCanvasCommandBridgeRef`
-- Property bindings: `binding` `visible` -> `root.bridgeOpen`; `binding` `enabled` -> `visible`; `binding` `focus` -> `visible`; `binding` `activeFocusOnTab` -> `visible`; `binding` `z`; `binding` `Keys.priority` -> `Keys.BeforeItem`; `binding` `anchors.fill` -> `parent`; `binding` `color` -> `root.themePalette.app_bg`; `binding` `acceptedButtons` -> `Qt.AllButtons`; `binding` `hoverEnabled`; `binding` `preventStealing`; `binding` `anchors.margins`; `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.preferredHeight`; `binding` `radius`; `binding` `color` -> `root.themePalette.toolbar_bg`; `binding` `border.width`; ... +155 more
+- Property bindings: `binding` `visible` -> `root.bridgeOpen`; `binding` `enabled` -> `visible`; `binding` `focus` -> `visible`; `binding` `activeFocusOnTab` -> `visible`; `binding` `z`; `binding` `Keys.priority` -> `Keys.BeforeItem`; `binding` `anchors.fill` -> `parent`; `binding` `color` -> `root.themePalette.app_bg`; `binding` `acceptedButtons` -> `Qt.AllButtons`; `binding` `hoverEnabled`; `binding` `preventStealing`; `binding` `anchors.margins`; `binding` `spacing`; `binding` `Layout.fillWidth`; `binding` `Layout.preferredHeight`; `binding` `radius`; `binding` `color` -> `root.themePalette.toolbar_bg`; `binding` `border.width`; ... +156 more
 - Local component refs: `localComponent` `ShellButton`: `ea_node_editor/ui_qml/components/shell/ShellButton.qml`; `localComponent` `ViewerComponents.ViewerSelectionControls`: `ea_node_editor/ui_qml/components/graph/viewer/ViewerSelectionControls.qml`; `localComponent` `ViewerComponents.ViewerSidePanel`: `ea_node_editor/ui_qml/components/graph/viewer/ViewerSidePanel.qml`; `localComponent` `ViewerComponents.ViewerQuickControls`: `ea_node_editor/ui_qml/components/graph/viewer/ViewerQuickControls.qml`; `localComponent` `WebComponents.XYPlotHost`: `ea_node_editor/ui_qml/components/web/XYPlotHost.qml`; `localComponent` `WebComponents.WebEditorHost`: `ea_node_editor/ui_qml/components/web/WebEditorHost.qml`; `localComponent` `ScriptCodeEditorPane`: `ea_node_editor/ui_qml/components/shell/ScriptCodeEditorPane.qml`; `localComponent` `PythonScriptGuidePane`: `ea_node_editor/ui_qml/components/shell/PythonScriptGuidePane.qml`; `localComponent` `WebComponents.WebPageHost`: `ea_node_editor/ui_qml/components/web/WebPageHost.qml`; `localComponent` `TabularComponents.TabularFullscreenSurface`: `ea_node_editor/ui_qml/components/graph/tabular/TabularFullscreenSurface.qml`; `localComponent` `PassiveComponents.GraphMediaVideoFullscreenRenderer`: `ea_node_editor/ui_qml/components/graph/passive/GraphMediaVideoFullscreenRenderer.qml`
 
 ### `MainShell.qml`
@@ -3658,5 +3848,5 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Dynamic constructs: `Loader`; `source` -> `components/shell/AddOnManagerPane.qml`, `Qt.resolvedUrl`; `source` -> `ContentFullscreenOverlay.qml`, `Qt.resolvedUrl`
 - Signal handlers: `handler` `onWorkflowContextRequested`; `handler` `onNodeCommentEditorRequested`; `handler` `onLinkTargetPicked`; `handler` `onLinkTargetPickRequested`; `handler` `onLinkTargetPickCancelled`; `handler` `onSelectedNodeIdChanged`; `handler` `onClicked`; `handler` `onLoaded`
 - Connections: `target` `root.addonManagerBridgeRef`; `target` `root.contentFullscreenBridgeRef`; `target` `root.shellLibraryBridgeRef`
-- Property bindings: `binding` `color` -> `themePalette.app_bg`; `binding` `anchors.fill` -> `parent`; `binding` `shellLibraryBridgeRef` -> `root.shellLibraryBridgeRef`; `binding` `themeBridgeRef` -> `root.themeBridgeRef`; `binding` `spacing`; `binding` `workspaceBridgeRef` -> `root.shellWorkspaceBridgeRef`; `binding` `viewBridgeRef` -> `root.canvasViewBridgeRef`; `binding` `scriptEditorBridgeRef` -> `root.scriptEditorBridgeRef`; `binding` `graphCanvasStateBridgeRef` -> `root.canvasStateBridgeRef`; `binding` `uiIconsRef` -> `root.uiIconsRef`; `binding` `Layout.fillWidth`; `binding` `Layout.fillHeight`; `binding` `shellWorkspaceBridgeRef` -> `root.shellWorkspaceBridgeRef`; `binding` `graphCanvasRef` -> `workspaceCenterPane.graphCanvasRef`; `binding` `popupHostItem` -> `root`; `binding` `graphActionBridgeRef` -> `root.graphActionBridgeRef`; `binding` `graphCanvasCommandBridgeRef` -> `root.canvasCommandBridgeRef`; `binding` `overlayHostItem` -> `root`; ... +27 more
+- Property bindings: `binding` `color` -> `themePalette.app_bg`; `binding` `anchors.fill` -> `parent`; `binding` `shellLibraryBridgeRef` -> `root.shellLibraryBridgeRef`; `binding` `themeBridgeRef` -> `root.themeBridgeRef`; `binding` `spacing`; `binding` `workspaceBridgeRef` -> `root.shellWorkspaceBridgeRef`; `binding` `viewBridgeRef` -> `root.canvasViewBridgeRef`; `binding` `scriptEditorBridgeRef` -> `root.scriptEditorBridgeRef`; `binding` `graphCanvasStateBridgeRef` -> `root.canvasStateBridgeRef`; `binding` `uiIconsRef` -> `root.uiIconsRef`; `binding` `Layout.fillWidth`; `binding` `Layout.fillHeight`; `binding` `shellWorkspaceBridgeRef` -> `root.shellWorkspaceBridgeRef`; `binding` `graphCanvasRef` -> `workspaceCenterPane.graphCanvasRef`; `binding` `popupHostItem` -> `root`; `binding` `graphActionBridgeRef` -> `root.graphActionBridgeRef`; `binding` `graphCanvasCommandBridgeRef` -> `root.canvasCommandBridgeRef`; `binding` `overlayHostItem` -> `root`; ... +28 more
 - Local component refs: `localComponent` `LibraryWorkflowContextPopup`: `ea_node_editor/ui_qml/components/shell/LibraryWorkflowContextPopup.qml`; `localComponent` `ShellRunToolbar`: `ea_node_editor/ui_qml/components/shell/ShellRunToolbar.qml`; `localComponent` `NodeLibraryPane`: `ea_node_editor/ui_qml/components/shell/NodeLibraryPane.qml`; `localComponent` `WorkspaceCenterPane`: `ea_node_editor/ui_qml/components/shell/WorkspaceCenterPane.qml`; `localComponent` `InspectorPane`: `ea_node_editor/ui_qml/components/shell/InspectorPane.qml`; `localComponent` `ShellStatusStrip`: `ea_node_editor/ui_qml/components/shell/ShellStatusStrip.qml`; `localComponent` `GraphSearchOverlay`: `ea_node_editor/ui_qml/components/shell/GraphSearchOverlay.qml`; `localComponent` `NodeBrowserOverlay`: `ea_node_editor/ui_qml/components/shell/NodeBrowserOverlay.qml`; `localComponent` `ConnectionQuickInsertOverlay`: `ea_node_editor/ui_qml/components/shell/ConnectionQuickInsertOverlay.qml`; `localComponent` `ScriptEditorOverlay`: `ea_node_editor/ui_qml/components/shell/ScriptEditorOverlay.qml`; `localComponent` `GraphHintOverlay`: `ea_node_editor/ui_qml/components/shell/GraphHintOverlay.qml`; `localComponent` `components/shell/AddOnManagerPane.qml`: `ea_node_editor/ui_qml/components/shell/AddOnManagerPane.qml`; `localComponent` `ContentFullscreenOverlay.qml`: `ea_node_editor/ui_qml/ContentFullscreenOverlay.qml`

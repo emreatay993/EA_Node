@@ -6,7 +6,8 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
 
 from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters, fallback_graph_boundary_adapters
 from ea_node_editor.graph.edge_rewire import PreparedEdgeRewire
@@ -37,6 +38,31 @@ from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.node_specs import DynamicPortGroupSpec, NodeTypeSpec, PortSpec
 
 _MISSING = object()
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedPythonScriptApply:
+    """Detached Apply preview and the revisions at which it was prepared.
+
+    Candidate records are presentation data, not commit authority. Apply checks
+    this token and prepares anew before writing, so edits to nested preview data
+    cannot bypass graph validation.
+    """
+
+    node_id: str
+    source: str
+    source_revision: int
+    workspace_revision: int
+    registry_fingerprint: str
+    renamed_keys: tuple[tuple[str, str], ...]
+    reset_keys: tuple[str, ...]
+    removed_edge_ids: tuple[str, ...]
+    candidate_node: NodeInstance
+    _original_source: str = field(repr=False)
+    _workspace_identity: int = field(repr=False, compare=False)
+    _registry_identity: int = field(repr=False, compare=False)
+    _node_identity: int = field(repr=False, compare=False)
+    _renamed_edges: tuple[EdgeInstance, ...] = field(repr=False, compare=False)
 
 
 @dataclass(slots=True)
@@ -615,28 +641,84 @@ class ValidatedGraphMutation:
         self._commit_normalized_property_updates(node, {key: normalized})
         return normalized
 
-    def apply_python_script(
+    @staticmethod
+    def _script_rename_pairs(renamed_keys: Mapping[str, str] | None) -> tuple[tuple[str, str], ...]:
+        pairs = tuple(dict(renamed_keys or {}).items())
+        if any(not isinstance(old, str) or not isinstance(new, str) for old, new in pairs):
+            raise ValueError("Python Script renames require string keys.")
+        if any(not old or not new or old == new for old, new in pairs):
+            raise ValueError("Python Script renames require distinct non-empty keys.")
+        if len({new for _old, new in pairs}) != len(pairs):
+            raise ValueError("Python Script rename destinations must be unique.")
+        return tuple(sorted(pairs))
+
+    @staticmethod
+    def _script_declaration_kinds(spec: NodeTypeSpec) -> dict[str, str]:
+        kinds = {port.key: port.direction for port in spec.ports}
+        kinds.update({prop.key: "control" for prop in spec.properties
+                      if prop.key not in {"script", "timeout_sec"}})
+        return kinds
+
+    @staticmethod
+    def _remapped_script_node(
+        node: NodeInstance, renamed_keys: dict[str, str], displaced_keys: set[str],
+    ) -> NodeInstance:
+        previous = node.clone()
+        for attribute in ("properties", "exposed_ports", "port_labels", "port_modifiers"):
+            setattr(previous, attribute, {
+                renamed_keys.get(key, key): value
+                for key, value in getattr(previous, attribute).items()
+                if key not in displaced_keys
+            })
+        previous.principal_input_port_id = (
+            None if previous.principal_input_port_id in displaced_keys else renamed_keys.get(
+                previous.principal_input_port_id, previous.principal_input_port_id,
+            )
+        )
+        return previous
+
+    def prepare_python_script(
         self,
         node_id: str,
         source: str,
-    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        *,
+        renamed_keys: Mapping[str, str] | None = None,
+        source_revision: int = 0,
+    ) -> PreparedPythonScriptApply:
+        """Validate an isolated candidate and describe its impact without writes."""
         node = self.workspace.nodes[node_id]
         if node.type_id != "core.python_script":
             raise ValueError("Python Script Apply requires a core.python_script node.")
 
+        rename_pairs = self._script_rename_pairs(renamed_keys)
+        renames = dict(rename_pairs)
         old_spec = self.registry.resolve_spec(node.type_id, node.properties)
         candidate_seed = {
             "script": str(source),
             "timeout_sec": node.properties.get("timeout_sec", 0.0),
         }
         candidate_spec = self.registry.resolve_spec(node.type_id, candidate_seed)
+        old_kinds = self._script_declaration_kinds(old_spec)
+        candidate_kinds = self._script_declaration_kinds(candidate_spec)
+        for old, new in rename_pairs:
+            if old not in old_kinds or new not in candidate_kinds:
+                raise ValueError("Python Script rename must reference existing old and new declarations.")
+            if old_kinds[old] != candidate_kinds[new]:
+                raise ValueError("Python Script rename cannot change an input, output, or control's role.")
+        # Explicit rename intent identifies the surviving declaration. A target
+        # name may have belonged to a declaration removed earlier in the draft;
+        # discard that old identity before transferring source-key state.
+        displaced_keys = (set(renames.values()) & old_kinds.keys()) - renames.keys()
+        previous_node = (
+            self._remapped_script_node(node, renames, displaced_keys) if renames else node
+        )
         candidate_values: dict[str, object] = {}
         reset_keys: list[str] = []
         for prop in candidate_spec.properties:
             if prop.key == "script":
                 candidate_values[prop.key] = str(source)
                 continue
-            previous = node.properties.get(prop.key, _MISSING)
+            previous = previous_node.properties.get(prop.key, _MISSING)
             if previous is not _MISSING and is_saved_property_value_valid(
                 prop,
                 previous,
@@ -664,12 +746,16 @@ class ValidatedGraphMutation:
         self._validate_resolved_port_data_types(candidate_ports)
         candidate_ports_by_key = {port.key: port for port in candidate_ports}
         old_ports_by_key = {
-            port.key: port
+            renames.get(port.key, port.key): replace(
+                port, key=renames.get(port.key, port.key),
+                type_from_input=renames.get(port.type_from_input, port.type_from_input),
+            )
             for port in resolve_instance_ports(
                 old_spec,
                 node.properties,
                 data_types=self.registry.data_types,
             )
+            if port.key not in displaced_keys
         }
         semantic_changed_keys = {
             key
@@ -701,7 +787,7 @@ class ValidatedGraphMutation:
         candidate_node = node.clone()
         candidate_node.properties = copy.deepcopy(candidate_properties)
         port_state = reconcile_script_port_state(
-            node, candidate_ports_by_key, semantic_changed_keys=semantic_changed_keys,
+            previous_node, candidate_ports_by_key, semantic_changed_keys=semantic_changed_keys,
         )
         candidate_node.exposed_ports = port_state.exposed_ports
         candidate_node.port_labels = port_state.port_labels
@@ -716,16 +802,77 @@ class ValidatedGraphMutation:
 
         candidate_nodes = dict(self.workspace.nodes)
         candidate_nodes[node_id] = candidate_node
+        candidate_edges = []
+        renamed_edges = []
+        displaced_edge_ids = []
+        for edge in self.workspace.edges.values():
+            if (
+                edge.source_node_id == node_id and edge.source_port_key in displaced_keys
+                or edge.target_node_id == node_id and edge.target_port_key in displaced_keys
+            ):
+                displaced_edge_ids.append(edge.edge_id)
+                continue
+            candidate_edge = edge.clone()
+            if edge.source_node_id == node_id:
+                candidate_edge.source_port_key = renames.get(edge.source_port_key, edge.source_port_key)
+            if edge.target_node_id == node_id:
+                candidate_edge.target_port_key = renames.get(edge.target_port_key, edge.target_port_key)
+            candidate_edges.append(candidate_edge)
+            if candidate_edge != edge:
+                renamed_edges.append(candidate_edge)
         candidate_kernel = GraphInvariantKernel(
             registry=self.registry,
             workspace_nodes=candidate_nodes,
-            workspace_edges=self.workspace.edges.values(),
+            workspace_edges=candidate_edges,
         )
-        removed_edge_ids = self._edge_ids_to_prune(
+        removed_edge_ids = displaced_edge_ids + self._edge_ids_to_prune(
             {node_id},
             kernel=candidate_kernel,
             forced_port_keys={node_id: forced_prune_keys},
         )
+
+        return PreparedPythonScriptApply(
+            node_id=node_id, source=str(source), source_revision=int(source_revision),
+            workspace_revision=self.workspace.mutation_revision,
+            registry_fingerprint=self.registry.contract_fingerprint(),
+            renamed_keys=rename_pairs, reset_keys=tuple(reset_keys),
+            removed_edge_ids=tuple(removed_edge_ids), candidate_node=candidate_node,
+            _original_source=str(node.properties.get("script", "")),
+            _workspace_identity=id(self.workspace), _registry_identity=id(self.registry),
+            _node_identity=id(node),
+            _renamed_edges=tuple(renamed_edges),
+        )
+
+    def apply_python_script(
+        self,
+        node_id: str,
+        source: str,
+        *,
+        renamed_keys: Mapping[str, str] | None = None,
+        source_revision: int = 0,
+        prepared: PreparedPythonScriptApply | None = None,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Commit a freshly validated candidate, rejecting stale impact previews."""
+        node = self.workspace.nodes[node_id]
+        if prepared is not None and (
+            prepared.node_id != node_id
+            or prepared.source != str(source)
+            or prepared.source_revision != int(source_revision)
+            or prepared.renamed_keys != self._script_rename_pairs(renamed_keys)
+            or prepared._workspace_identity != id(self.workspace)
+            or prepared.workspace_revision != self.workspace.mutation_revision
+            or prepared._registry_identity != id(self.registry)
+            or prepared.registry_fingerprint != self.registry.contract_fingerprint()
+            or prepared._node_identity != id(node)
+            or prepared._original_source != str(node.properties.get("script", ""))
+        ):
+            raise ValueError("Python Script Apply preview is stale; prepare the current draft again.")
+        # Reprepare even when a token was supplied: its nested presentation data
+        # may have been changed by a consumer after it was returned.
+        candidate = self.prepare_python_script(
+            node_id, source, renamed_keys=renamed_keys, source_revision=source_revision,
+        )
+        candidate_node = candidate.candidate_node
 
         node.properties = candidate_node.properties
         node.exposed_ports = candidate_node.exposed_ports
@@ -734,9 +881,18 @@ class ValidatedGraphMutation:
         node.principal_input_port_id = candidate_node.principal_input_port_id
         node.expanded_settings_group_ids = candidate_node.expanded_settings_group_ids
         self.workspace.mark_dirty()
-        for edge_id in removed_edge_ids:
+        removed_edge_ids = set(candidate.removed_edge_ids)
+        for edge in candidate._renamed_edges:
+            if edge.edge_id not in removed_edge_ids:
+                self.model._move_edge_endpoint_record(
+                    self.workspace_id, edge.edge_id,
+                    source_node_id=edge.source_node_id, source_port_key=edge.source_port_key,
+                    target_node_id=edge.target_node_id, target_port_key=edge.target_port_key,
+                    input_order=edge.input_order,
+                )
+        for edge_id in candidate.removed_edge_ids:
             self.model._remove_edge_record(self.workspace_id, edge_id)
-        return tuple(reset_keys), tuple(removed_edge_ids)
+        return candidate.reset_keys, candidate.removed_edge_ids
 
     def set_node_properties(self, node_id: str, values: dict[str, object]) -> dict[str, object]:
         node = self.workspace.nodes[node_id]
@@ -1069,4 +1225,4 @@ class ValidatedGraphMutation:
         )
 
 
-__all__ = ["ValidatedGraphMutation"]
+__all__ = ["PreparedPythonScriptApply", "ValidatedGraphMutation"]

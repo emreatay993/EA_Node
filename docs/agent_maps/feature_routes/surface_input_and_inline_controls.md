@@ -1,6 +1,16 @@
 # Surface Input And Inline Controls
 
 ## Purpose
+
+Python Script unsectioned controls use the shared compact settings rows through
+`SettingsGroupSpec.show_header=False`; their controls stay below plain ports
+with the same row geometry whether a socket exists or not. Headerless groups
+are always expanded without a header, aggregate socket or expansion-state
+record. Explicit empty property labels remain empty. See the
+[authoring route](python_script_authoring.md) and
+`tests/test_python_script_scene_integration.py` for projection parity;
+`tests/qml_quick/tst_graph_node_host.qml` proves actual shared rendering.
+
 Use this for inline editors, surface controls, editable passive surfaces, text/path/color controls, and surface interactive regions.
 
 `GraphSurfaceListEditor.qml` updates existing variant-valued model rows in place,

@@ -177,6 +177,12 @@ class GraphSceneMutationHistory:
     def set_node_property(self, node_id: str, key: str, value: Any) -> None:
         return _selection_ops.set_node_property(self, node_id, key, value)
 
+    def prepare_python_script(self, node_id: str, source: str, **options):
+        return _selection_ops.prepare_python_script(self, node_id, source, **options)
+
+    def apply_python_script(self, node_id: str, source: str, **options):
+        return _selection_ops.apply_python_script(self, node_id, source, **options)
+
     def set_node_secret(self, node_id: str, key: str, plaintext: str) -> bool:
         return _selection_ops.set_node_secret(self, node_id, key, plaintext)
 

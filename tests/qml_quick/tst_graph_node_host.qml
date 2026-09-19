@@ -38,6 +38,11 @@ TestCase {
     }
 
     Component {
+        id: propertyCommitSpyComponent
+        SignalSpy { signalName: "inlinePropertyCommitted" }
+    }
+
+    Component {
         id: groupCanvasProxyComponent
 
         Item {
@@ -621,6 +626,71 @@ TestCase {
         verify(overriddenRow.defaultEditorVisible)
         verify(overriddenLayer.visible)
         compare(overriddenRow.currentEmbeddedInteractiveRects().length, 0)
+    }
+
+    function test_headerless_settings_preserve_blank_labels_and_control_interaction_data() {
+        return [{"tag": "without socket", "socket": false}, {"tag": "with socket", "socket": true}]
+    }
+
+    function test_headerless_settings_preserve_blank_labels_and_control_interaction(data) {
+        var payload = nodePayload()
+        payload.height = 100
+        payload.inline_properties = []
+        payload.surface_metrics.body_height = 0
+        payload.surface_metrics.port_top = 30
+        payload.surface_metrics.port_center_offset = 9
+        payload.surface_metrics.default_height = 100
+        payload.surface_metrics.min_height = 100
+        payload.settings_band = {"top": 56, "height": 44}
+        var control = {
+            "key": "enabled", "label": "", "inline_editor": "toggle", "value": false,
+            "display_value": false, "display_value_available": true, "editor_enabled": true,
+            "overridden_by_input": false
+        }
+        var member = {
+            "kind": data.socket ? "port" : "property",
+            "port_key": data.socket ? "enabled" : "",
+            "property_key": data.socket ? "" : "enabled",
+            "y": 56, "height": 26, "visible": true
+        }
+        if (data.socket) {
+            payload.ports.push({
+                "key": "enabled", "label": "enabled", "direction": "in", "kind": "data",
+                "data_type": "bool", "connected": false, "uses_property_default": true,
+                "settings_group_id": "controls", "settings_member_index": 0,
+                "handle_visible": true, "layout_row": -1,
+                "presentation_anchor": {"side": "left", "x": 0, "y": 69, "aggregate": false},
+                "default_property": control
+            })
+        } else {
+            member.property = control
+        }
+        payload.settings_groups = [{
+            "group_id": "controls", "label": "Controls", "show_header": false,
+            "expanded": true, "header": {"x": 0, "y": 56, "width": 210, "height": 0},
+            "aggregate_anchor": null, "items": [member]
+        }]
+        var host = createHost(payload)
+        verify(host !== null)
+        tryVerify(function() {
+            return findNamedItems(host, "graphNodeInlineToggleEditor").length === 1
+        })
+        var header = findNamedItems(host, "graphNodeSettingsGroupHeader")[0]
+        verify(!header.visible)
+        verify(!findNamedItems(header, "graphNodeSettingsGroupToggleArea")[0].enabled)
+        var label = findNamedItems(host, "graphNodeInlinePropertyLabel")[0]
+        compare(label.text, "", "An explicitly blank control label must stay blank")
+        var toggle = findNamedItems(host, "graphNodeInlineToggleEditor")[0]
+        verify(toggle.visible && toggle.enabled)
+        var center = toggle.mapToItem(host, toggle.width / 2, toggle.height / 2)
+        tryVerify(function() { return host._surfaceClaimsBodyInteractionAt(center.x, center.y) },
+            1000, "Headerless controls must still claim their input rectangle")
+        verify(center.y > host.localPortPoint("in", 0).y)
+        var spy = createTemporaryObject(propertyCommitSpyComponent, stage, {"target": host})
+        mouseClick(toggle, toggle.width / 2, toggle.height / 2)
+        compare(spy.count, 1)
+        compare(spy.signalArguments[0][1], "enabled")
+        compare(spy.signalArguments[0][2], true)
     }
 
     function groupedPortPayload(expanded, value, overridden) {

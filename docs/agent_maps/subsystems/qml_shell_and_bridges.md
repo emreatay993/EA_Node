@@ -1,6 +1,12 @@
 # QML Shell And Bridge Layer
 
 ## Purpose
+
+The [Python Script authoring route](../feature_routes/python_script_authoring.md)
+owns the shared responsive editor, native field buffers, type picker, sections,
+source navigation and detached production-node preview. Its focused UI/model
+tests keep property edits, Apply, explicit Run and pane transfers consistent.
+
 Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge models, and QML host setup.
 
 ## Lookup Aliases

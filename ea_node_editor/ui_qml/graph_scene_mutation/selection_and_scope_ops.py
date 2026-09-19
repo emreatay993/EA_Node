@@ -995,6 +995,24 @@ def set_node_locked(self, node_id: str, locked: bool) -> bool:
     return True
 
 
+def prepare_python_script(self, node_id: str, source: str, *, renamed_keys=None, source_revision=0):
+    return self._validated_mutations().prepare_python_script(
+        node_id, source, renamed_keys=renamed_keys, source_revision=source_revision,
+    )
+
+
+def apply_python_script(self, node_id: str, source: str, *, renamed_keys=None,
+                        source_revision=0, prepared=None):
+    history_before = self._capture_history_snapshot()
+    result = self._validated_mutations().apply_python_script(
+        node_id, source, renamed_keys=renamed_keys, source_revision=source_revision, prepared=prepared,
+    )
+    self._scene_context.rebuild_models()
+    self.notify_selected_node_context_updated(node_id)
+    self._record_history(ACTION_EDIT_NODE_PROPERTY, history_before)
+    return result
+
+
 def set_node_property(self, node_id: str, key: str, value: Any) -> None:
     model = self._scene_context.model
     registry = self._scene_context.registry
@@ -1032,11 +1050,7 @@ def set_node_property(self, node_id: str, key: str, value: Any) -> None:
     if property_spec is None or bool(getattr(property_spec, "sensitive", False)):
         return
     if node.type_id == "core.python_script" and key == "script":
-        history_before = self._capture_history_snapshot()
-        self._validated_mutations().apply_python_script(node_id, str(value))
-        self._scene_context.rebuild_models()
-        self.notify_selected_node_context_updated(node_id)
-        self._record_history(ACTION_EDIT_NODE_PROPERTY, history_before)
+        apply_python_script(self, node_id, str(value))
         return
     normalized = registry.normalize_property_value(
         node.type_id,
@@ -1095,11 +1109,7 @@ def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
         source = str(requested_values.get("script", ""))
         if source == str(node.properties.get("script", "")):
             return False
-        history_before = self._capture_history_snapshot()
-        self._validated_mutations().apply_python_script(node_id, source)
-        self._scene_context.rebuild_models()
-        self.notify_selected_node_context_updated(node_id)
-        self._record_history(ACTION_EDIT_NODE_PROPERTY, history_before)
+        apply_python_script(self, node_id, source)
         return True
     spec = registry.resolve_spec(node.type_id, node.properties)
     normalized_updates: dict[str, Any] = {}

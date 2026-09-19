@@ -393,10 +393,10 @@ class _GraphSceneNodePayloadFactory:
 
         for group in settings_groups:
             group_id = str(group.group_id)
-            expanded = group_id in expanded_group_ids
+            expanded = not group.show_header or group_id in expanded_group_ids
             effective_expanded = expanded and band_visible
             header_y = cursor_y
-            if band_visible:
+            if band_visible and group.show_header:
                 cursor_y += header_height
             group_port_keys = tuple(
                 str(item.port_key)
@@ -418,7 +418,7 @@ class _GraphSceneNodePayloadFactory:
                         for port_key in group_port_keys
                     ),
                 }
-                if group_port_keys
+                if group_port_keys and group.show_header
                 else None
             )
             items_payload: list[dict[str, Any]] = []
@@ -505,12 +505,13 @@ class _GraphSceneNodePayloadFactory:
                     {
                         "group_id": group_id,
                         "label": str(group.label),
+                        "show_header": group.show_header,
                         "expanded": expanded,
                         "header": {
                             "x": 0.0,
                             "y": float(header_y),
                             "width": max(0.0, float(node_width)),
-                            "height": float(header_height),
+                            "height": float(header_height) if group.show_header else 0.0,
                         },
                         "aggregate_anchor": aggregate_anchor,
                         "items": items_payload,

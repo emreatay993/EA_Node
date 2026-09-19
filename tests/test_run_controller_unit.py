@@ -339,9 +339,14 @@ class _AppPreferencesControllerStub:
 class _ScriptEditorStub:
     def __init__(self) -> None:
         self.dirty = False
+        self.pending_form_edits = False
         self.apply_calls = 0
         self.apply_result = True
         self.apply_callback = None
+
+    @property
+    def has_unapplied_edits(self) -> bool:
+        return self.dirty or self.pending_form_edits
 
     def apply(self) -> bool:
         self.apply_calls += 1
@@ -349,6 +354,7 @@ class _ScriptEditorStub:
             self.apply_callback()
         if self.apply_result:
             self.dirty = False
+            self.pending_form_edits = False
         return self.apply_result
 
 
@@ -849,6 +855,44 @@ class RunControllerUnitTests(unittest.TestCase):
 
         self.assertEqual(host.selected_run_settings_dialog_open_count, 1)
         self.assertEqual(host.console_panel.logs, [])
+
+    def test_explicit_run_applies_pending_form_even_when_source_is_clean(self) -> None:
+        for apply_result in (True, False):
+            with self.subTest(apply_result=apply_result):
+                host = _RunHostStub()
+                host.script_editor.pending_form_edits = True
+                host.script_editor.apply_result = apply_result
+                controller = _run_controller(host)  # type: ignore[arg-type]
+
+                controller.run_workflow()
+                host.flush_turns()
+
+                self.assertFalse(host.script_editor.dirty)
+                self.assertEqual(host.script_editor.apply_calls, 1)
+                self.assertEqual(len(host.execution_client.start_calls), int(apply_result))
+                self.assertEqual(host.script_editor.has_unapplied_edits, not apply_result)
+
+    def test_auto_run_keeps_pending_form_and_uses_applied_source(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        script = host.model.add_node(
+            workspace_id, "core.python_script", "Script", 0, 0,
+            properties={"script": _script_result("'applied'")},
+        )
+        host.script_editor.pending_form_edits = True
+        controller = _run_controller(host)  # type: ignore[arg-type]
+
+        controller.run_selected_nodes([script.node_id], trigger_kind="auto")
+        host.flush_turns()
+
+        self.assertEqual(host.script_editor.apply_calls, 0)
+        self.assertTrue(host.script_editor.has_unapplied_edits)
+        self.assertEqual(len(host.execution_client.start_calls), 1)
+        runtime_workspace = host.execution_client.start_calls[0]["trigger"][
+            "runtime_snapshot"
+        ].workspace(workspace_id)
+        runtime_script = next(node for node in runtime_workspace.nodes if node.node_id == script.node_id)
+        self.assertEqual(runtime_script.properties["script"], _script_result("'applied'"))
 
     def test_run_selected_nodes_passes_only_explicit_targets_and_runtime_pulls_upstream(
         self,

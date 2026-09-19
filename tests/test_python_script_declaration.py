@@ -74,6 +74,37 @@ def run(ctx, values, image, title, count, enabled, mode, width, accent, folder, 
     ]
 
 
+def test_unsectioned_controls_share_a_headerless_group_without_stealing_section_ids() -> None:
+    source = '''@corex.node
+@corex.input("payload", value_type=corex.Any)
+@corex.switch("enabled", port=True)
+@corex.text("title", section="Script controls")
+@corex.dropdown("mode", options=("First", "Second"), default="First")
+@corex.output("result", value_type=corex.Any)
+def run(ctx, payload, enabled, title, mode):
+    return {"result": payload}
+'''
+    _registry, _properties, spec = _resolve(source)
+    loose, named = spec.settings_groups
+    assert loose.group_id == "script.controls"
+    assert loose.show_header is False
+    assert [(item.port_key, item.property_key) for item in loose.items] == [
+        ("enabled", "enabled"), ("", "mode"),
+    ]
+    assert (named.group_id, named.label, named.show_header) == (
+        "script_controls", "Script controls", True,
+    )
+    assert spec.default_expanded_settings_group_ids == ()
+    _, _, without_loose = _resolve(source.replace(
+        '@corex.switch("enabled", port=True)',
+        '@corex.switch("enabled", port=True, section="Script controls")',
+    ).replace(
+        '@corex.dropdown("mode", options=("First", "Second"), default="First")',
+        '@corex.dropdown("mode", options=("First", "Second"), default="First", section="Script controls")',
+    ))
+    assert [group.group_id for group in without_loose.settings_groups] == ["script_controls"]
+
+
 def test_python_script_labels_preserve_explicit_blank_and_derive_omitted() -> None:
     source = '''@corex.node
 @corex.input("omitted_input", value_type=corex.Any)

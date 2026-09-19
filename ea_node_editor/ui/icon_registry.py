@@ -26,6 +26,14 @@ class IconSpec:
 
 _ICON_ROOT = Path(__file__).resolve().parents[1] / "ui_qml" / "components" / "shell" / "icons"
 _ICON_SPECS: dict[str, IconSpec] = {
+    "script-input": IconSpec(name="script-input", label="Input", relative_path="script-input.svg"),
+    "script-output": IconSpec(name="script-output", label="Output", relative_path="script-output.svg"),
+    "script-slider": IconSpec(name="script-slider", label="Slider", relative_path="script-slider.svg"),
+    "script-switch": IconSpec(name="script-switch", label="Switch", relative_path="script-switch.svg"),
+    "script-number": IconSpec(name="script-number", label="Number", relative_path="script-number.svg"),
+    "script-undo": IconSpec(name="script-undo", label="Undo", relative_path="script-undo.svg"),
+    "script-redo": IconSpec(name="script-redo", label="Redo", relative_path="script-redo.svg"),
+    "script-help": IconSpec(name="script-help", label="Help", relative_path="script-help.svg"),
     "comment": IconSpec(name="comment", label="Comment", relative_path="comment.svg"),
     "code": IconSpec(name="code", label="Code", relative_path="code.svg"),
     "crop": IconSpec(name="crop", label="Crop", relative_path="crop.svg"),

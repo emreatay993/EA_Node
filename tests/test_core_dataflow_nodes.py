@@ -102,23 +102,10 @@ def test_python_script_default_source_declares_instance_ports() -> None:
     assert spec.ports == ()
     assert set(properties) == {"script", "timeout_sec"}
     assert "@corex.node" in PYTHON_SCRIPT_DEFAULT_SOURCE
-    for decorator in (
-        "input",
-        "output",
-        "text",
-        "number",
-        "switch",
-        "dropdown",
-        "slider",
-        "color",
-        "path",
-        "text_area",
-        "interval",
-        "list",
-    ):
-        assert f"# @corex.{decorator}" in PYTHON_SCRIPT_DEFAULT_SOURCE
-    assert "uncomment a line" in PYTHON_SCRIPT_DEFAULT_SOURCE
-    assert "add its name to run(ctx, ...)" in PYTHON_SCRIPT_DEFAULT_SOURCE
+    assert "# Use Add to create ports, controls, and sections." in PYTHON_SCRIPT_DEFAULT_SOURCE
+    assert "# @corex." not in PYTHON_SCRIPT_DEFAULT_SOURCE
+    assert "def run(ctx, payload):" in PYTHON_SCRIPT_DEFAULT_SOURCE
+    assert 'return {"result": payload}' in PYTHON_SCRIPT_DEFAULT_SOURCE
     assert spec.dynamic_port_groups == ()
     assert spec.instance_spec_resolver is not None
 
@@ -130,6 +117,10 @@ def test_python_script_default_source_declares_instance_ports() -> None:
     resolved = registry.resolve_spec("core.python_script", defaults)
     assert resolved.instance_spec_resolver is None
     assert [port.direction for port in resolved.ports] == ["in", "out"]
+    payload = {"samples": [1.0, 2.0]}
+    assert PythonScriptNodePlugin().execute(
+        _context(inputs={"payload": payload}, properties=defaults)
+    ).outputs == {"result": payload}
 
 
 def test_python_script_apply_reconciles_decorated_settings_and_ports() -> None:

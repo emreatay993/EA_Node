@@ -612,7 +612,7 @@ class RunController:
 
     def _apply_dirty_script_draft(self) -> bool:
         editor = self._host.script_editor
-        if not bool(editor.dirty):
+        if not bool(editor.has_unapplied_edits):
             return True
         self._suppress_auto_run_for_script_apply = True
         try:

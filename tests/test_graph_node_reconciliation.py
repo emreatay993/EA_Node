@@ -15,8 +15,293 @@ from ea_node_editor.graph.validated_mutation import ValidatedGraphMutation
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.node_specs import PortSpec
 from ea_node_editor.nodes.python_script_declaration import PythonScriptDeclarationError
+from ea_node_editor.runtime_contracts import DOUBLE_DATA_TYPE_ID
 from ea_node_editor.nodes.spec_validation import validate_node_spec
 from tests.graph_mutation_fixtures import dynamic_registry as _registry
+
+
+@pytest.fixture
+def script_apply_graph():
+    registry = build_builtin_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    mutation = model.validated_mutations(workspace.workspace_id, registry)
+    source = '''@corex.node
+@corex.input("payload", value_type=corex.Any, section="Data")
+@corex.output("result", value_type=corex.Any, type_from_input="payload")
+@corex.slider("scale", default=2.0, minimum=0.0, maximum=8.0, port=True, section="Style")
+@corex.text("caption", default="Example", section="Style")
+def run(ctx, payload, scale, caption):
+    return {"result": payload * scale}
+'''
+    node = mutation.add_node(type_id="core.python_script", title="Script", x=0, y=0,
+                             properties={"script": source})
+    return registry, workspace, mutation, node, source
+
+
+def test_guided_script_rename_preparation_and_commit_preserve_authored_state(script_apply_graph):
+    registry, workspace, mutation, node, source = script_apply_graph
+    source_text = '@corex.node\n@corex.output("value", value_type=float)\ndef run(ctx): return {"value": 1.0}\n'
+    sink_text = '@corex.node\n@corex.input("value", value_type=float)\ndef run(ctx, value): return {}\n'
+    upstream = mutation.add_node(type_id="core.python_script", title="Source", x=-200, y=0,
+                                properties={"script": source_text})
+    downstream = mutation.add_node(type_id="core.python_script", title="Sink", x=200, y=0,
+                                  properties={"script": sink_text})
+    incoming = mutation.add_edge(source_node_id=upstream.node_id, source_port_key="value",
+                                 target_node_id=node.node_id, target_port_key="payload",
+                                 label="Measured", visual_style={"color": "#336699"})
+    outgoing = mutation.add_edge(source_node_id=node.node_id, source_port_key="result",
+                                 target_node_id=downstream.node_id, target_port_key="value")
+    incoming.input_order = 7
+    mutation.set_node_property(node.node_id, "scale", 6.0)
+    mutation.set_node_property(node.node_id, "caption", "Saved caption")
+    node.exposed_ports["scale"] = False
+    node.port_labels = {"payload": "Measurement", "result": "Answer", "scale": "Gain"}
+    node.port_modifiers = {"payload": ("clean", "graft", "clean"), "result": ()}
+    node.principal_input_port_id = "payload"
+    groups = tuple(group.group_id for group in registry.resolve_spec(node.type_id, node.properties).settings_groups)
+    node.expanded_settings_group_ids = tuple(reversed(groups))
+    renames = {"payload": "values", "result": "answer", "scale": "gain", "caption": "heading"}
+    edited = source
+    for old, new in renames.items():
+        edited = edited.replace(old, new)
+    before = workspace.capture_snapshot()
+    revision = workspace.mutation_revision
+    edge_order = tuple(workspace.edges)
+
+    prepared = mutation.prepare_python_script(node.node_id, edited, renamed_keys=renames, source_revision=3)
+    assert workspace.capture_snapshot() == before
+    assert workspace.mutation_revision == revision
+    assert prepared.reset_keys == prepared.removed_edge_ids == ()
+    assert prepared.candidate_node.properties["gain"] == 6.0
+    assert prepared.candidate_node.properties["heading"] == "Saved caption"
+    assert prepared.candidate_node.principal_input_port_id == "values"
+    assert mutation.apply_python_script(node.node_id, edited, renamed_keys=renames,
+                                       source_revision=3, prepared=prepared) == ((), ())
+    assert node.properties["gain"] == 6.0
+    assert node.properties["heading"] == "Saved caption"
+    assert not ({"scale", "caption"} & node.properties.keys())
+    assert node.port_labels == {"values": "Measurement", "answer": "Answer", "gain": "Gain"}
+    assert node.port_modifiers == {"values": ("clean", "graft", "clean"), "answer": ()}
+    assert node.exposed_ports == {"values": True, "answer": True, "gain": False}
+    assert node.principal_input_port_id == "values"
+    assert node.expanded_settings_group_ids == tuple(reversed(groups))
+    assert tuple(workspace.edges) == edge_order
+    assert workspace.edges[incoming.edge_id] is incoming
+    assert incoming == replace(before.edges[incoming.edge_id], target_port_key="values")
+    assert workspace.edges[outgoing.edge_id] is outgoing
+    assert outgoing == replace(before.edges[outgoing.edge_id], source_port_key="answer")
+    assert mutation.kernel.type_resolver().source_contract(node.node_id, "answer").type_ids == (DOUBLE_DATA_TYPE_ID,)
+
+
+def test_guided_script_rename_remaps_both_self_loop_endpoints(script_apply_graph):
+    _registry, workspace, mutation, node, source = script_apply_graph
+    # An explicitly typed output avoids making the self loop a forwarding cycle.
+    source = source.replace(', type_from_input="payload"', '').replace('"result", value_type=corex.Any', '"result", value_type=float')
+    mutation.apply_python_script(node.node_id, source)
+    edge = mutation.add_edge(source_node_id=node.node_id, source_port_key="result",
+                             target_node_id=node.node_id, target_port_key="payload")
+    before = edge.clone()
+    edited = source.replace("payload", "values").replace("result", "answer")
+    assert mutation.apply_python_script(node.node_id, edited,
+                                       renamed_keys={"payload": "values", "result": "answer"}) == ((), ())
+    assert workspace.edges[edge.edge_id] is edge
+    assert edge == replace(before, source_port_key="answer", target_port_key="values")
+
+
+def test_guided_script_rename_can_reuse_removed_declaration_without_stealing_its_state(script_apply_graph):
+    from ea_node_editor.nodes.python_script_authoring import edit_source
+
+    _registry, workspace, mutation, node, source = script_apply_graph
+    source = source.replace('@corex.text("caption", default="Example", section="Style")',
+                            '@corex.slider("caption", default=1.0, minimum=0.0, maximum=8.0, port=True, section="Style")')
+    mutation.apply_python_script(node.node_id, source)
+    source_text = '@corex.node\n@corex.output("value", value_type=float)\ndef run(ctx): return {"value": 1.0}\n'
+    upstream = mutation.add_node(type_id="core.python_script", title="Source", x=-200, y=0,
+                                properties={"script": source_text})
+    source_edge = mutation.add_edge(source_node_id=upstream.node_id, source_port_key="value",
+                                    target_node_id=node.node_id, target_port_key="scale", label="Keep")
+    displaced_edge = mutation.add_edge(source_node_id=upstream.node_id, source_port_key="value",
+                                       target_node_id=node.node_id, target_port_key="caption", label="Remove")
+    mutation.set_node_property(node.node_id, "scale", 6.0)
+    mutation.set_node_property(node.node_id, "caption", 3.0)
+    node.port_labels = {"scale": "Gain", "caption": "Old caption"}
+    node.port_modifiers = {"scale": ("graft",), "caption": ("flatten",)}
+    node.principal_input_port_id = "scale"
+    removed = edit_source(source, "remove", key="caption")
+    renamed = edit_source(removed.source, "rename", key="scale", new_key="caption")
+    renames = {item.old_key: item.new_key for item in renamed.renames}
+    before = workspace.capture_snapshot()
+    revision = workspace.mutation_revision
+
+    prepared = mutation.prepare_python_script(node.node_id, renamed.source, renamed_keys=renames)
+    assert workspace.capture_snapshot() == before
+    assert workspace.mutation_revision == revision
+    assert prepared.candidate_node.properties["caption"] == 6.0
+    assert prepared.removed_edge_ids == (displaced_edge.edge_id,)
+    assert mutation.apply_python_script(node.node_id, renamed.source, renamed_keys=renames,
+                                       prepared=prepared) == ((), (displaced_edge.edge_id,))
+    assert "scale" not in node.properties
+    assert node.properties["caption"] == 6.0
+    assert node.port_labels == {"caption": "Gain"}
+    assert node.port_modifiers == {"caption": ("graft",)}
+    assert node.principal_input_port_id == "caption"
+    assert source_edge == replace(before.edges[source_edge.edge_id], target_port_key="caption")
+    assert workspace.edges[source_edge.edge_id] is source_edge
+    assert displaced_edge.edge_id not in workspace.edges
+
+
+def test_guided_script_rename_can_add_new_declaration_using_old_name(script_apply_graph):
+    from ea_node_editor.nodes.python_script_authoring import edit_source
+
+    _registry, workspace, mutation, node, source = script_apply_graph
+    source_text = '@corex.node\n@corex.output("value", value_type=float)\ndef run(ctx): return {"value": 1.0}\n'
+    upstream = mutation.add_node(type_id="core.python_script", title="Source", x=-200, y=0,
+                                properties={"script": source_text})
+    edge = mutation.add_edge(source_node_id=upstream.node_id, source_port_key="value",
+                             target_node_id=node.node_id, target_port_key="scale")
+    mutation.set_node_property(node.node_id, "scale", 6.0)
+    node.port_labels = {"scale": "Saved gain"}
+    node.port_modifiers = {"scale": ("graft",)}
+    node.principal_input_port_id = "scale"
+    renamed = edit_source(source, "rename", key="scale", new_key="gain")
+    added = edit_source(renamed.source, "add", kind="slider", key="scale",
+                        fields={"default": 1.0, "minimum": 0.0, "maximum": 8.0, "port": True})
+    renames = {item.old_key: item.new_key for item in renamed.renames}
+    before = workspace.capture_snapshot()
+    revision = workspace.mutation_revision
+    prepared = mutation.prepare_python_script(node.node_id, added.source, renamed_keys=renames)
+    assert workspace.capture_snapshot() == before
+    assert workspace.mutation_revision == revision
+    assert prepared.candidate_node.properties["gain"] == 6.0
+    assert prepared.candidate_node.properties["scale"] == 1.0
+    assert mutation.apply_python_script(node.node_id, added.source, renamed_keys=renames,
+                                       prepared=prepared) == ((), ())
+    assert node.properties["gain"] == 6.0
+    assert node.properties["scale"] == 1.0
+    assert node.port_labels == {"gain": "Saved gain"}
+    assert node.port_modifiers == {"gain": ("graft",)}
+    assert node.principal_input_port_id == "gain"
+    assert edge == replace(before.edges[edge.edge_id], target_port_key="gain")
+    assert workspace.edges[edge.edge_id] is edge
+
+
+def test_guided_script_rename_still_resets_invalid_values_and_prunes_structure_change(script_apply_graph):
+    _registry, workspace, mutation, node, source = script_apply_graph
+    upstream = mutation.add_node(type_id="core.python_script", title="Source", x=-200, y=0)
+    incoming = mutation.add_edge(source_node_id=upstream.node_id, source_port_key="result",
+                                 target_node_id=node.node_id, target_port_key="payload")
+    mutation.set_node_property(node.node_id, "scale", 7.0)
+    node.port_labels = {"payload": "Old label"}
+    node.port_modifiers = {"payload": ("graft",)}
+    node.principal_input_port_id = "payload"
+    edited = source.replace("payload", "values").replace("scale", "gain")
+    edited = edited.replace('value_type=corex.Any, section="Data"', 'value_type=corex.Any, structure="tree", section="Data"')
+    edited = edited.replace('type_from_input="values"', 'type_from_input="values", structure="tree"')
+    edited = edited.replace("maximum=8.0", "maximum=5.0")
+    prepared = mutation.prepare_python_script(node.node_id, edited, renamed_keys={"payload": "values", "scale": "gain"})
+    assert prepared.reset_keys == ("gain",)
+    assert prepared.removed_edge_ids == (incoming.edge_id,)
+    assert mutation.apply_python_script(node.node_id, edited, renamed_keys={"payload": "values", "scale": "gain"},
+                                       prepared=prepared) == (("gain",), (incoming.edge_id,))
+    assert node.properties["gain"] == 2.0
+    assert node.port_labels == node.port_modifiers == {}
+    assert node.principal_input_port_id is None
+    assert incoming.edge_id not in workspace.edges
+
+
+def test_guided_script_rename_semantic_change_prunes_downstream_forwarding(script_apply_graph):
+    _registry, workspace, mutation, node, source = script_apply_graph
+    source = source.replace('value_type=corex.Any, type_from_input="payload"', 'value_type=float')
+    mutation.apply_python_script(node.node_id, source)
+    middle = mutation.add_node(type_id="data.panel", title="Middle", x=200, y=0)
+    sink_source = '@corex.node\n@corex.input("value", value_type=float)\ndef run(ctx, value): return {}\n'
+    sink = mutation.add_node(type_id="core.python_script", title="Sink", x=400, y=0,
+                             properties={"script": sink_source})
+    first = mutation.add_edge(source_node_id=node.node_id, source_port_key="result",
+                              target_node_id=middle.node_id, target_port_key="input")
+    downstream = mutation.add_edge(source_node_id=middle.node_id, source_port_key="output",
+                                   target_node_id=sink.node_id, target_port_key="value")
+    edited = source.replace("result", "answer").replace('"answer", value_type=float', '"answer", value_type=str')
+    prepared = mutation.prepare_python_script(node.node_id, edited, renamed_keys={"result": "answer"})
+    assert prepared.removed_edge_ids == (downstream.edge_id,)
+    assert mutation.apply_python_script(node.node_id, edited, renamed_keys={"result": "answer"}, prepared=prepared) == ((), (downstream.edge_id,))
+    assert first.edge_id in workspace.edges
+    assert downstream.edge_id not in workspace.edges
+
+
+@pytest.mark.parametrize("change", ["source", "source_revision", "renames", "workspace", "registry", "registry_contract", "original_source", "node_identity"])
+def test_script_apply_rejects_stale_preparation_without_any_graph_write(script_apply_graph, change):
+    registry, workspace, mutation, node, source = script_apply_graph
+    # Use a mutable catalog only to prove the fingerprint guard independently of generation identity.
+    if change == "registry_contract":
+        mutation.registry = registry.fork()
+    edited = source.replace("scale", "gain")
+    renames = {"scale": "gain"}
+    prepared = mutation.prepare_python_script(node.node_id, edited, renamed_keys=renames, source_revision=2)
+    revision = 2
+    if change == "source":
+        edited += "# newer draft\n"
+    elif change == "source_revision":
+        revision = 3
+    elif change == "renames":
+        renames = {}
+    elif change == "workspace":
+        mutation.set_node_property(node.node_id, "scale", 4.0)
+    elif change == "registry":
+        mutation.registry = registry.fork()
+    elif change == "registry_contract":
+        mutation.registry.register_descriptor(
+            replace(registry.get_spec("core.python_script"), type_id="tests.another_script"), lambda: None,
+        )
+    elif change == "original_source":
+        node.properties["script"] += "# external source change\n"
+    elif change == "node_identity":
+        workspace.nodes[node.node_id] = node.clone()
+    before = workspace.capture_snapshot()
+    graph_revision = workspace.mutation_revision
+    with pytest.raises(ValueError, match="preview is stale"):
+        mutation.apply_python_script(node.node_id, edited, renamed_keys=renames,
+                                     prepared=prepared, source_revision=revision)
+    assert workspace.capture_snapshot() == before
+    assert workspace.mutation_revision == graph_revision
+
+
+def test_script_apply_reprepares_and_does_not_trust_mutated_preview_data(script_apply_graph):
+    _registry, workspace, mutation, node, source = script_apply_graph
+    upstream = mutation.add_node(type_id="core.python_script", title="Source", x=-200, y=0)
+    edge = mutation.add_edge(source_node_id=upstream.node_id, source_port_key="result",
+                             target_node_id=node.node_id, target_port_key="payload")
+    edited = source.replace("payload", "values").replace("scale", "gain")
+    renames = {"payload": "values", "scale": "gain"}
+    prepared = mutation.prepare_python_script(node.node_id, edited, renamed_keys=renames)
+    before = workspace.capture_snapshot()
+    prepared.candidate_node.properties["script"] = "invalid injected source"
+    prepared.candidate_node.properties["gain"] = 1000.0
+    prepared.candidate_node.exposed_ports.clear()
+    prepared.candidate_node.port_modifiers["values"] = ("bad modifier",)
+    prepared._renamed_edges[0].target_port_key = "missing"
+    assert workspace.capture_snapshot() == before
+    assert mutation.apply_python_script(node.node_id, edited, renamed_keys=renames, prepared=prepared) == ((), ())
+    assert node.properties["script"] == edited
+    assert node.properties["gain"] == 2.0
+    assert node.exposed_ports["values"]
+    assert node.port_modifiers == {}
+    assert edge.target_port_key == "values"
+
+
+@pytest.mark.parametrize("renames", [
+    {"missing": "gain"}, {"scale": "missing"}, {"script": "gain"},
+    {"scale": "gain", "caption": "gain"}, {"payload": "gain"}, {"scale": "scale"},
+])
+def test_script_rename_invalid_intent_is_atomic(script_apply_graph, renames):
+    _registry, workspace, mutation, node, source = script_apply_graph
+    before = workspace.capture_snapshot()
+    revision = workspace.mutation_revision
+    with pytest.raises(ValueError):
+        mutation.apply_python_script(node.node_id, source.replace("scale", "gain"), renamed_keys=renames)
+    assert workspace.capture_snapshot() == before
+    assert workspace.mutation_revision == revision
 
 
 def test_canvas_port_handles_edit_declarations_and_signature_without_rewriting_body() -> None:

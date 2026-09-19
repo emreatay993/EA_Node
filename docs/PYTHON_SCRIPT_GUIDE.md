@@ -1,19 +1,100 @@
 # Python Script Nodes
 
-`Core > Python Script` lets you add a small, local Python transform to a
-workflow. Put the declarations and `run` function in the script editor, then
-click **Apply**. COREX reads the declarations to create the node ports and
-controls; it does not run your script while it is applying the draft.
+`Core > Python Script` lets you add a local Python transform to a workflow.
+Open the node's code toolbar action to use the shared **Interface**, **Python**,
+and **Node preview** workspace. Create ports and controls with **Add**, or edit
+their decorators directly in Python. Click **Apply** to update the node.
+Editing and previewing do not execute your script; declaration validation is
+also non-executing. Workflow execution keeps its existing Run/Auto behavior.
 
-Open the editor fullscreen from the Python Script node's code toolbar button,
-then click **Guide** beside Apply/Revert for the theme-aware HTML reference. It
-uses styled code cards, callouts, and tables and can be closed without changing
-the current draft.
+The compact toolbar provides Add, Undo, Redo, Help, Revert, and Apply; hover an
+icon for its action and shortcut. The same editor works docked and fullscreen.
+Wide windows show three resizable panes, medium windows put Interface/Preview
+in side tabs, and narrow windows use three tabs. The Help icon opens the
+theme-aware reference without changing the draft.
 
 This guide is only for the built-in Python Script node. Its source is stored in
 the project and its function is synchronous. Editor changes take effect on
 **Apply**; canvas port handles update the same source immediately. Use the [Plugin Authoring Guide](PLUGIN_AUTHORING_GUIDE.md) when a
 node should be reusable across projects.
+
+## Build the interface
+
+1. Click **Add** and choose Input, Output, or one of the ten controls.
+2. Choose a Python name. For a port, explicitly select its data type and
+   Single value, List, or Tree structure. For a control, configure its label,
+   default, and any bounds or choices. Number and Slider offer **Whole** and
+   **Decimal** modes so a value such as `1.0` stays a decimal declaration.
+3. Valid property edits update the draft and preview when you finish the field.
+   COREX also updates the matching `run` parameters. Outputs show the key your
+   function must return; write the calculation yourself.
+4. Try the preview controls. These values are temporary. **Use as default**
+   copies a preview value into the decorator as an undoable draft edit.
+5. Click **Apply**. If settings must reset or connections must be removed,
+   inspect the impact before committing.
+
+The display label is separate from the Python name. An omitted label is
+derived from the name; an explicitly empty label hides the control label.
+Use the reset action to restore the automatic label. The Rename action
+previews changes to a Python name and its references. Guided renames preserve
+valid saved values and compatible connections. Dynamic name lookups and
+outputs assembled dynamically require manual code changes.
+
+Unsectioned controls use the same compact rows as named sections, below the
+main ports. **Input port** adds or removes the optional socket without moving
+the control to another part of the node. A wire overrides the saved value
+while connected. The decorator default, saved node value, and temporary
+preview value are separate; changing a default retains an existing valid
+saved value.
+
+### Choose a data type
+
+The picker searches the active type catalog by name, Python spelling, family,
+ID, and common terms such as “decimal”, “NumPy”, and “DataFrame”. It shows the
+exact expression and a usage example. Number inserts `float`, Integer `int`,
+Text `str`, and Boolean `bool`; supported aliases use expressions such as
+`corex.Image`, and other registered types use their quoted canonical IDs.
+Installed add-on types appear in the same catalog. Choose Any deliberately
+when a broad port is appropriate.
+
+Keep type and structure separate: an entire pandas DataFrame or NumPy array
+usually uses **Single value**. List and Tree describe the graph's outer data
+structure. Control types are derived from their configuration; a List
+control's item-type picker contains only supported element types.
+
+In code, type `@corex.` or press **Ctrl+Space** for contextual suggestions.
+Type choices also appear at `value_type=`. Problems are shown in the editor;
+click one to navigate to its source. A parameter mismatch offers
+**Synchronize parameters**. Completion immediately after an inline comment
+inside a multiline decorator is limited; move to the next argument to request
+suggestions.
+
+### Add collapsible sections
+
+Choose **Add > Section**, enter a name, and select at least one input or
+control. Outputs stay outside sections. Use the Section field to move an item
+into an existing section, create or rename a section, or choose **No section**
+to move it out. Renaming a section updates all its members as one draft edit.
+
+Sections are represented by `section="Parameters"` on their member decorators.
+There is no extra section declaration or saved UI manifest. Empty sections
+are not created. The Interface outline and node preview expose collapse
+controls; preview expansion is temporary, and the applied node retains its
+ordinary canvas expansion behavior.
+
+### Drafts, errors, and undo
+
+Code and builder edits share local Undo/Redo. Drafts and pending native fields
+are retained during the current session when switching nodes or between the
+docked and fullscreen editor. **Revert** returns to the latest applied source.
+Apply a draft before saving the project to include it in the saved node.
+
+Invalid drafts or fields leave the applied graph unchanged. Apply and explicit
+Run first validate pending fields; automatic runs continue using applied code.
+If the graph or registry changes after an impact preview, COREX refreshes the
+impact and requires another Apply. Canvas port handles remain blocked while
+the editor has unapplied changes. A successful Apply is one graph undo step,
+including source, saved settings, ports, and affected connections.
 
 ## Choose the workflow Python runtime
 
