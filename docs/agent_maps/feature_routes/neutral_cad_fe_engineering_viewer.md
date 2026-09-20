@@ -27,6 +27,10 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
   Each socket accepts Scene, OCP Body, or Geometry Group. `scene_styles` persists
   per-ID opacity/color; the sidebar selects a scene and Auto restores its colors.
   Ports, actors, selections, queries, and export use stable scene IDs, not names.
+- Empty scene-slot add/remove and history edits do not invalidate results or
+  dispatch Auto work. Connected slots remain computational; populated changes
+  update the viewer/downstream route while unchanged CAD data is read from its
+  authenticated CURRENT result in the default process runtime.
 - The exact trusted function registration adds its dynamic group in both GUI
   and worker registries. Model Viewer remains session-reusable; public callbacks
   are not admitted into function fingerprints. ExecutionContext carries copied
@@ -39,7 +43,7 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 - CAD/FE Import, Model Viewer, Cylinder, Construct Geometry Group, and Deconstruct Mesh
   Face are inert reserved-bundle declarations; the existing trusted helpers
   retain file validation, prepared-scene work, native geometry, and session ownership.
-- CAD Import and FE Import receive trusted registry-owned file provenance for their `path` input. Content hashing is bounded and link/reparse-safe; connected path inputs bind through upstream solution keys instead. This metadata remains private to the shipped registry.
+- CAD Import and FE Import receive trusted registry-owned file provenance for their `path` input. Content hashing is bounded and link/reparse-safe; connected paths bind through upstream keys plus captured file-content provenance. CURRENT reads revalidate ordinary files and admitted project-managed artifacts; tampered managed bytes retain descriptor-integrity rejection. Native outputs remain session-only/current-only, without general historical-key reuse or durable persistence.
 - Viewer sessions own camera, selection, clipping, display options, and export
   state through validated handles.
 - Model Viewer starts as a lightweight proxy without native warm-up. Selection,
@@ -68,6 +72,8 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 - Keep identifiers, comments, tests, maps, and verification records functional.
 
 ## Focused Tests
+- `tests/test_process_solution_resources.py`
+- `tests/test_shell_run_controller.py` — `test_unused_viewer_inputs_preserve_real_cad_workflow` proves empty/history and populated connect/remove with actual default-process CAD, exact run counts and preserved camera/results
 - `tests/test_engineering_viewer_backend.py`
 - `tests/test_engineering_viewer_node.py`
 - `tests/test_engineering_viewer_widget_binder.py`

@@ -2142,7 +2142,8 @@
           "maximum": null,
           "rename_mode": "label",
           "key_renamer": null,
-          "property_editor": null
+          "property_editor": null,
+          "execution_policy": "all_ports"
         }
       ],
       "instance_spec_resolver": null
@@ -22355,7 +22356,8 @@
           "maximum": null,
           "rename_mode": "label",
           "key_renamer": null,
-          "property_editor": null
+          "property_editor": null,
+          "execution_policy": "connected_inputs"
         }
       ],
       "instance_spec_resolver": null

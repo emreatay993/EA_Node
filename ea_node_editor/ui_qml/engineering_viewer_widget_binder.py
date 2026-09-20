@@ -250,6 +250,9 @@ class EngineeringViewerWidgetBinder(QObject):
                 raise _EngineeringViewerLoadPending("Model viewer scene is loading.")
         else:
             layers = self._load_layer_datasets(descriptors)
+        labels = {str(layer["id"]): str(layer.get("name", "")) for layer in descriptors}
+        for layer in layers:
+            layer["name"] = labels[str(layer["id"])]
         reusable_current = self._is_reusable_interactor(request.current_widget)
         interactor = self._resolve_interactor(
             container=request.container,
@@ -1340,6 +1343,16 @@ class EngineeringViewerWidgetBinder(QObject):
         state: _EngineeringWidgetState,
         request: ViewerWidgetBindRequest,
     ) -> None:
+        for layer in request.transport.get("layers", ()):
+            layer_id = _string(layer.get("id"))
+            if layer_id in state.layers:
+                state.layers[layer_id]["name"] = _string(layer.get("name"))
+        if (
+            {key: value for key, value in state.current_options.items() if key != "scene_labels"}
+            == {key: value for key, value in request.options.items() if key != "scene_labels"}
+        ):
+            state.current_options = dict(request.options)
+            return
         self._apply_canvas_background(
             interactor,
             _string(request.options.get(_VIEWER_BACKGROUND_OPTION)),

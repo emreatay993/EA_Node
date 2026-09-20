@@ -29,7 +29,7 @@ from ea_node_editor.runtime_contracts import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec
     from ea_node_editor.nodes.registry import NodeRegistry
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 _SHA256_CHARS = frozenset("0123456789abcdef")
 _CANONICAL_SCHEMA_VERSION = 1
-_SOLUTION_KEY_SCHEMA_VERSION = 4
+_SOLUTION_KEY_SCHEMA_VERSION = 5
 _BUILD_DIGEST_SCHEMA_VERSION = 1
 _HASH_CHUNK_SIZE = 1024 * 1024
 MAX_CANONICAL_DEPTH = 32
@@ -1020,6 +1020,10 @@ def node_contract_digest(
             "runtime_behavior": spec.runtime_behavior,
             "is_async": spec.is_async,
             "solution_reuse_scope": spec.solution_reuse_scope,
+            "dynamic_port_execution": [
+                (group.group_id, group.property_key, group.direction, group.execution_policy)
+                for group in spec.dynamic_port_groups
+            ],
             "ports": [
                 {
                     "key": port.key,
@@ -1210,11 +1214,12 @@ def has_connected_source_provenance(plan: Any, node_id: str) -> bool:
     )
 
 
-def _node_input_provenance_digest(
+def node_input_provenance_digest(
     *,
     plan: Any,
     node_id: str,
     normalized_properties: Mapping[str, Any],
+    provenance_path_resolver: Callable[[Any], Path | None] | None = None,
 ) -> str:
     facts: list[dict[str, Any]] = []
     for provenance_input in plan.node_specs[node_id].solution_provenance_inputs:
@@ -1229,16 +1234,20 @@ def _node_input_provenance_digest(
             )
             continue
         raw_path = normalized_properties.get(provenance_input.property_key, "")
-        if not isinstance(raw_path, str) or not raw_path.strip():
+        if (not isinstance(raw_path, (str, RuntimeArtifactRef))
+                or isinstance(raw_path, str) and not raw_path.strip()):
             raise SolutionIdentityError(
                 "provenance_input_missing",
                 "This node needs a file or folder path before it can run — "
                 "set the path property or connect an input source",
             )
+        source_path = provenance_path_resolver(raw_path) if provenance_path_resolver is not None else raw_path
+        if source_path is None:
+            raise SolutionIdentityError("provenance_input_missing", "The declared source path is unavailable")
         provenance = (
-            hash_file_provenance(raw_path)
+            hash_file_provenance(source_path)
             if provenance_input.kind == "file"
-            else hash_directory_provenance(raw_path)
+            else hash_directory_provenance(source_path)
         )
         facts.append(
             {
@@ -1265,6 +1274,7 @@ def assemble_node_solution(
     keys_by_node: Mapping[str, str],
     execution_environment_digest: str,
     trigger_publication_generations: Mapping[str, int],
+    provenance_path_resolver: Callable[[Any], Path | None] | None = None,
 ) -> AssembledNodeSolution:
     """Assemble the exact per-node identity used on both sides of dispatch."""
 
@@ -1279,12 +1289,13 @@ def assemble_node_solution(
     implementation_hash = fallback_digest
     dependency_keys: tuple[str, ...] = ()
     interface_revision = plan.workflow_interface_revision
-    interface_digest = plan.node_solution_interface_digest(node_id)
+    interface_digest = fallback_digest
     try:
-        normalized_properties = registry.execution_properties(
-            node.type_id,
-            node.properties,
-        )
+        if node_id in plan.node_preflight_errors:
+            raise plan.node_preflight_errors[node_id]
+        interface_digest = plan.node_solution_interface_digest(node_id)
+        computation = plan.node_computation(node_id)
+        normalized_properties = computation.properties
         incoming_identities: list[IncomingEdgeIdentity] = []
         conversion_pairs: set[tuple[str, str]] = set()
         dependency_key_list: list[str] = []
@@ -1341,7 +1352,7 @@ def assemble_node_solution(
         dependency_keys = tuple(dict.fromkeys(dependency_key_list))
         contract_hash = node_contract_digest(
             spec,
-            plan.node_ports[node_id],
+            computation.ports,
             port_modifiers=node.port_modifiers,
             principal_input_port_id=node.principal_input_port_id,
             source_contracts={
@@ -1350,15 +1361,16 @@ def assemble_node_solution(
                 if port.kind == "data"
             },
         )
-        provenance_hash = _node_input_provenance_digest(
+        provenance_hash = node_input_provenance_digest(
             plan=plan,
             node_id=node_id,
             normalized_properties=normalized_properties,
+            provenance_path_resolver=provenance_path_resolver,
         )
         implementation_hash = implementation_digest(registry, node.type_id)
         used_type_ids = {
             type_id
-            for port in plan.node_ports[node_id]
+            for port in computation.ports
             for type_id in (port.data_type, *port.accepted_data_types)
         }
         used_type_ids.update(incoming_type_ids)

@@ -63,6 +63,7 @@ SurfaceFamily = Literal[
 ]
 RenderQualityTier = Literal["full", "reduced", "proxy"]
 DynamicPortRenameMode = Literal["none", "label", "key"]
+DynamicPortExecutionPolicy = Literal["all_ports", "connected_inputs"]
 
 _SUPPORTED_RENDER_QUALITY_TIERS = {"full", "reduced", "proxy"}
 def _normalize_render_quality_token(
@@ -230,6 +231,8 @@ class DynamicPortGroupSpec:
     key_renamer: Callable[[Mapping[str, object], str, str], str] | None = None
     # Source-backed groups edit one property and reference already resolved ports.
     property_editor: Callable[[Mapping[str, object], tuple[str, ...]], object] | None = None
+    # Opt-in groups ignore empty optional inputs only in computational identity.
+    execution_policy: DynamicPortExecutionPolicy = "all_ports"
 
 
 @dataclass(slots=True, frozen=True)
@@ -481,6 +484,7 @@ def property_visible_in_inspector(property_spec: PropertySpec) -> bool:
 __all__ = [
     "CategoryPath",
     "DataAccess",
+    "DynamicPortExecutionPolicy",
     "DynamicPortGroupSpec",
     "DynamicPortRenameMode",
     "InlineEditorType",

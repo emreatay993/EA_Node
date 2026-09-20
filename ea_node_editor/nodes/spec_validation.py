@@ -333,6 +333,14 @@ class _SpecValidator:
             property_keys[group.property_key] = source_backed
             backing_property = properties_by_key.get(group.property_key)
             if (
+                not isinstance(group.execution_policy, str)
+                or group.execution_policy not in {"all_ports", "connected_inputs"}
+            ):
+                raise ValueError(
+                    f"Node {spec.type_id} dynamic port group {group.group_id} "
+                    f"has invalid execution_policy: {group.execution_policy!r}"
+                )
+            if (
                 backing_property is None
                 or backing_property.type != ("str" if source_backed else "json")
                 or (not source_backed and backing_property.inspector_visible)
@@ -342,6 +350,30 @@ class _SpecValidator:
                     f"{'string' if source_backed else 'hidden JSON'} property "
                     f"{group.property_key}"
                 )
+            if group.execution_policy == "connected_inputs":
+                dependencies = {port.key for port in spec.ports}
+                dependencies.update(item.property_key for item in spec.solution_provenance_inputs)
+                dependencies.update(
+                    prop.sensitive_scope_key for prop in spec.properties if prop.sensitive
+                )
+                for requirement in spec.readiness_requirements:
+                    dependencies.update(requirement.any_of_properties)
+                    dependencies.update(condition.property_key for condition in requirement.when_properties)
+                if (
+                    source_backed
+                    or group.direction != "in"
+                    or spec.runtime_behavior != "active"
+                    or not isinstance(backing_property.make_default(), list)
+                    or not backing_property.affects_execution
+                    or backing_property.expose_port_toggle
+                    or backing_property.sensitive
+                    or group.property_key in dependencies
+                ):
+                    raise ValueError(
+                        f"Node {spec.type_id} dynamic port group {group.group_id} "
+                        "connected_inputs requires a computational list-backed input "
+                        "without source, default, readiness, provenance, or sensitive dependencies"
+                    )
             if group.direction not in {"in", "out"}:
                 raise ValueError(
                     f"Node {spec.type_id} dynamic port group {group.group_id} has invalid direction: "

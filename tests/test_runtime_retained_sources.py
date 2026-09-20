@@ -232,7 +232,7 @@ def test_real_process_detached_current_result_keeps_source_provenance(tmp_path):
             if item.node_id == scene.materialized.node_id
         )
         assert not boundary.retained_source_bindings
-        assert len(boundary.source_provenance_bindings) == 1
+        assert {binding.ref_kind for binding in boundary.source_provenance_bindings} == {"file", "table"}
         assert boundary.source_provenance_complete
         _assert_executed(
             scene.runtime.run(scene.request(scene.consumer.node_id), timeout=40),
@@ -731,7 +731,7 @@ def test_real_process_path_ports_receive_unquoted_windows_copy_as_path_text(tmp_
         }
         assert result.status == "completed", result.events
         assert settled[cad.node_id]["status"] == "completed", settled[cad.node_id]
-        assert settled[cad.node_id]["outputs"]["scene"]["status"] == "value"
+        assert settled[cad.node_id]["outputs"]["scene"].status == "value"
         parts = settled[deconstruct.node_id]["outputs"]
         assert [
             [item for _path, items in parts[key].value.branches for item in items]

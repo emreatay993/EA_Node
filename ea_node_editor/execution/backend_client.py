@@ -60,6 +60,7 @@ from ea_node_editor.execution.solution_identity import (
     corex_build_digest,
 )
 from ea_node_editor.execution.trusted_client import TrustedInProcessExecutionClient
+from ea_node_editor.execution.solution_resources import ProcessSolutionLease
 from ea_node_editor.execution.viewer_messages import (
     VIEWER_RESPONSE_EVENT_TYPES,
     normalize_viewer_invalidation_node_ids,
@@ -2008,13 +2009,18 @@ class ExecutionBackendClient:
         value: Any,
         *,
         owner_scope: str,
-    ) -> tuple[Any, ExecutionResourceLease] | None:
+    ) -> tuple[Any, ExecutionResourceLease | ProcessSolutionLease] | None:
         if not isinstance(value, RuntimeHandleRef):
             return None
         with self._active_lock:
             self._ensure_route_generation_maps_locked()
             client = self._run_clients.get(str(run_id).strip())
             snapshot = self._run_generation_snapshots.get(str(run_id).strip())
+        if client is self._process_client and snapshot is not None:
+            current = self._generation_snapshot_for_client(client, snapshot.selection)
+            if not current.available or not snapshot.compatible_with(current):
+                return None
+            return client.solution_resources.claim(str(run_id).strip(), value, current.runtime_generation)
         if (
             client is not self._trusted_client
             or snapshot is None
@@ -2032,6 +2038,9 @@ class ExecutionBackendClient:
 
     @staticmethod
     def release_solution_resource(lease: Any) -> None:
+        if isinstance(lease, ProcessSolutionLease):
+            lease.owner.release(lease)
+            return
         if not isinstance(lease, ExecutionResourceLease):
             return
         try:

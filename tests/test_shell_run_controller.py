@@ -953,6 +953,174 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         QTest.qWait(100)
         self.assertTrue(window.quick_widget.grabFramebuffer().save(str(proof_dir / "acceptance.png")))
 
+    def test_unused_viewer_inputs_preserve_real_cad_workflow(self):
+        import pyvista
+
+        window = self.window
+        window.run_controller.set_auto_run_enabled(False)
+        runtime = _CountingRuntime(registry=window.registry)
+        self.addCleanup(runtime.shutdown)
+        events = []
+        runtime.subscribe(events.append)
+        runtime.subscribe(window.execution_event.emit)
+        window.execution_client = runtime
+        workspace_id, workspace = self._active_workspace()
+        project_id = window.model.project.project_id
+        source = Path(self._temp_dir.name) / "part.stl"
+        pyvista.Cube().triangulate().save(source)
+        path = window.scene.add_node_from_type("data.panel", x=20, y=20)
+        cad = window.scene.add_node_from_type("engineering.cad_import", x=300, y=20)
+        viewer = window.scene.add_node_from_type("model.viewer", x=600, y=20)
+        sink = window.scene.add_node_from_type("data.panel", x=1100, y=20)
+        window.scene.set_node_properties(path, {"value": str(source), "interpretation": "text"})
+        window.scene.set_node_property(cad, "length_unit", "mm")
+        window.scene.add_edge(path, "output", cad, "path")
+        window.scene.add_edge(cad, "scene", viewer, "scene_1")
+        window.scene.add_edge(viewer, "selections", sink, "input")
+        window.scene.select_node(viewer, False)
+        bridge = window.viewer_session_bridge
+
+        def facts():
+            return {fact.node_id: fact for fact in runtime.solution_facts(project_id, workspace_id)}
+
+        def counts():
+            return (runtime.dispatch_count, runtime.invalidation_count,
+                    Counter((event["type"], event["node_id"]) for event in events
+                            if event.get("type") in {"node_started", "node_settled"}),
+                    sum(event.get("type") == "viewer_invalidation_committed" for event in events))
+
+        def wait_run(event_index, expected_nodes):
+            self._wait_until(lambda: any(event.get("type") in {
+                                            "run_completed", "run_failed", "run_stopped",
+                                            "submission_failed", "submission_cancelled",
+                                        }
+                                        for event in events[event_index:])
+                             and not window.run_state.active_run_id
+                             and not window.run_state.active_submission_id, timeout=120)
+            completed = events[event_index:]
+            self.assertFalse([event for event in completed if event.get("type") in {
+                "run_failed", "node_failed", "solution_nondeterminism", "viewer_session_failed",
+                "submission_failed", "submission_cancelled",
+            }])
+            self.assertEqual(sum(event.get("type") == "run_completed" for event in completed), 1)
+            for event_type in ("node_started", "node_settled"):
+                self.assertEqual(Counter(event["node_id"] for event in completed
+                                         if event.get("type") == event_type), Counter(expected_nodes),
+                                 repr([(event.get("type"), workspace.nodes[event["node_id"]].type_id,
+                                        event.get("disposition"), event.get("reason_code"))
+                                       for event in completed if event.get("type") in {
+                                           "node_started", "node_settled",}]))
+            self.assertTrue(all(event.get("accepted_solution_record") for event in completed
+                                if event.get("type") == "node_settled"))
+            try:
+                self._wait_until(lambda: bridge.session_state(viewer).get("phase") == "open"
+                                 and bridge.session_state(viewer).get("live_open_status") == "ready",
+                                 timeout=10)
+            except AssertionError:
+                state = bridge.session_state(viewer)
+                self.fail(repr({"viewer_state": {key: state.get(key) for key in (
+                    "phase", "live_open_status", "last_error", "invalidated_reason", "options")},
+                    "session_output_types": [type(event["outputs"]["session"]).__name__
+                        for event in completed if event.get("type") == "node_settled"
+                        and event.get("node_id") == viewer],
+                    "viewer_events": [event for event in completed
+                                      if str(event.get("type", "")).startswith("viewer_")]}))
+            self.assertFalse(window.run_state.pending_auto_run_target_node_ids)
+
+        def labels_are_current():
+            state = bridge.session_state(viewer)
+            layers = state.get("transport", {}).get("layers", ())
+            expected = {layer["id"]: f"Scene {workspace.nodes[viewer].properties['scene_input_ids'].index(layer['id']) + 1}"
+                        for layer in layers}
+            return bool(expected) and {layer["id"]: layer["name"] for layer in layers} == expected
+
+        def stable_view_state():
+            state = bridge.session_state(viewer)
+            # These are precisely the display-name fields expected to change.
+            state["data_refs"].pop("scene_labels", None)
+            for field, label_key in (("transport", "name"), ("summary", "name")):
+                for layer in state[field].get("layers" if field == "transport" else "scene_layers", ()):
+                    layer.pop(label_key, None)
+            for entry in state["summary"].get("model_tree", ()):
+                entry.pop("layer_name", None)
+            state["options"].pop("scene_labels", None)
+            return {key: state[key] for key in (
+                "session_id", "phase", "backend_id", "transport_revision", "live_open_status",
+                "live_open_blocker", "data_refs", "transport", "camera_state", "playback",
+                "summary", "options", "cache_state", "invalidated_reason",
+            )}
+
+        window.run_controller.run_workflow()
+        wait_run(0, (path, cad, viewer, sink))
+        self._wait_until(labels_are_current)
+        camera = {"position": [3.0, 4.0, 5.0], "focal_point": [0.0, 0.0, 0.0],
+                  "view_up": [0.0, 0.0, 1.0], "parallel_projection": True,
+                  "parallel_scale": 2.0}
+        self.assertTrue(bridge.open(viewer, {"camera_state": camera}))
+        self._wait_until(lambda: bridge.session_state(viewer)["phase"] == "open")
+        self.assertEqual(bridge.session_state(viewer)["camera_state"], camera)
+        window.run_controller.set_auto_run_enabled(True)
+        QTest.qWait(100)
+        initial_facts = facts()
+        self.assertEqual(set(initial_facts), {path, cad, viewer, sink})
+        self.assertTrue(all(fact.freshness is SolutionFreshness.CURRENT for fact in initial_facts.values()))
+        source_result = (initial_facts[cad], copy.deepcopy(
+            window.run_state.cached_node_output_records_by_workspace_id[workspace_id][cad]),
+            window.run_state.cached_node_elapsed_ms_by_workspace_id[workspace_id][cad])
+
+        def cosmetic(action):
+            baseline = counts()
+            current_facts = facts()
+            outputs = copy.deepcopy(window.run_state.cached_node_output_records_by_workspace_id)
+            timings = copy.deepcopy(window.run_state.cached_node_elapsed_ms_by_workspace_id)
+            view = stable_view_state()
+            result = action()
+            self._wait_until(labels_are_current)
+            QTest.qWait(100)
+            self.assertEqual(counts(), baseline)
+            self.assertEqual(facts(), current_facts)
+            self.assertEqual(window.run_state.cached_node_output_records_by_workspace_id, outputs)
+            self.assertEqual(window.run_state.cached_node_elapsed_ms_by_workspace_id, timings)
+            self.assertEqual(stable_view_state(), view)
+            self.assertFalse(window.run_state.pending_auto_run_target_node_ids)
+            return result
+
+        before = cosmetic(lambda: window.scene.insert_dynamic_port(viewer, "scenes", 0))
+        middle = cosmetic(lambda: window.scene.insert_dynamic_port(viewer, "scenes", 1))
+        after = cosmetic(lambda: window.scene.insert_dynamic_port(viewer, "scenes", 3))
+        self.assertEqual(workspace.nodes[viewer].properties["scene_input_ids"],
+                         [before, middle, "scene_1", after])
+        for key in (middle, before, after):
+            cosmetic(lambda key=key: window.scene.remove_dynamic_port(viewer, "scenes", key))
+            cosmetic(lambda: self.assertTrue(window.workspace_edit_controller.undo()))
+            cosmetic(lambda: self.assertTrue(window.workspace_edit_controller.redo()))
+        self.assertEqual(workspace.nodes[viewer].properties["scene_input_ids"], ["scene_1"])
+        cosmetic(lambda: self.assertTrue(window.workspace_edit_controller.undo()))
+        cosmetic(lambda: self.assertTrue(window.workspace_edit_controller.redo()))
+
+        populated = cosmetic(lambda: window.scene.insert_dynamic_port(viewer, "scenes", 1))
+
+        def computational(action):
+            event_index = len(events)
+            baseline = counts()
+            action()
+            wait_run(event_index, (viewer, sink))
+            self._wait_until(labels_are_current)
+            self.assertEqual(runtime.dispatch_count, baseline[0] + 1)
+            self.assertEqual(runtime.invalidation_count, baseline[1] + 1)
+            self.assertEqual((facts()[cad],
+                window.run_state.cached_node_output_records_by_workspace_id[workspace_id][cad],
+                window.run_state.cached_node_elapsed_ms_by_workspace_id[workspace_id][cad]), source_result)
+            self.assertEqual(facts()[path], initial_facts[path])
+            self.assertTrue(all(fact.freshness is SolutionFreshness.CURRENT for fact in facts().values()))
+
+        computational(lambda: window.scene.add_edge(cad, "scene", viewer, populated))
+        self.assertEqual([layer["id"] for layer in bridge.session_state(viewer)["transport"]["layers"]],
+                         ["scene_1", populated])
+        computational(lambda: window.scene.remove_dynamic_port(viewer, "scenes", populated))
+        self.assertEqual([layer["id"] for layer in bridge.session_state(viewer)["transport"]["layers"]],
+                         ["scene_1"])
+
     def test_disconnected_toggle_auto_run_preserves_current_viewer_until_separate_same_node_invalidation(
         self,
     ) -> None:

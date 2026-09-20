@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from PyQt6.QtGui import QColor, QImage
 
+from ea_node_editor.common.scene_protocol import ENGINEERING_VIEWER_BACKEND_ID
 from ea_node_editor.ui.plot_preview_cache_provider import ViewerPreviewCacheImageProvider
 from ea_node_editor.ui_qml.viewer_preview_state_cache import (
     ViewerPreviewStateCache,
@@ -196,6 +197,63 @@ def test_a_cleared_frame_is_never_reported_as_stale(qapp) -> None:  # noqa: ANN0
     cache.clear_preview(KEY)
 
     assert not cache.preview_stale(KEY)
+
+
+def test_engineering_scene_label_changes_preserve_camera_and_fresh_preview(qapp) -> None:  # noqa: ANN001
+    del qapp
+    snapshot = _Snapshot(
+        backend_id=ENGINEERING_VIEWER_BACKEND_ID,
+        transport={"layers": [{"id": "scene_1", "name": "Scene 1", "display_asset": {"name": "memory_a"}}]},
+        data_refs={"scene_order": ["scene_1"], "scene_labels": {"scene_1": "Scene 1"}, "scene:scene_1": "handle_a"},
+        options={"scene_labels": {"scene_1": "Scene 1"}},
+    )
+    cache, host, _ = _cache(snapshot)
+    cache.capture_live_state(KEY)
+    cache.sync_signatures([snapshot])
+    source, camera, revisions = cache.preview_source(KEY), cache.cached_view_state(KEY), host.revisions
+    renamed = replace(
+        snapshot,
+        transport={"layers": [{**snapshot.transport["layers"][0], "name": "Renamed"}]},
+        data_refs={**snapshot.data_refs, "scene_labels": {"scene_1": "Renamed"}},
+        options={"scene_labels": {"scene_1": "Renamed"}},
+    )
+    cache.sync_signatures([renamed])
+    assert cache.preview_source(KEY) == source
+    assert cache.cached_view_state(KEY) == camera
+    assert not cache.preview_stale(KEY)
+    assert host.revisions == revisions
+    assert host.captures == 1
+
+
+@pytest.mark.parametrize("changed", ["handle", "scene_order", "asset_name", "layer_id"])
+def test_engineering_scene_geometry_fields_still_invalidate(qapp, changed) -> None:  # noqa: ANN001
+    del qapp
+    snapshot = _Snapshot(
+        backend_id=ENGINEERING_VIEWER_BACKEND_ID,
+        transport={"layers": [{"id": "scene_1", "name": "Scene 1", "display_asset": {"name": "memory_a"}}]},
+        data_refs={"scene_order": ["scene_1"], "scene:scene_1": "handle_a"},
+    )
+    cache, _, _ = _cache(snapshot)
+    cache.capture_live_state(KEY)
+    layer = dict(snapshot.transport["layers"][0])
+    refs = dict(snapshot.data_refs)
+    if changed == "handle":
+        refs["scene:scene_1"] = "handle_b"
+    elif changed == "scene_order":
+        refs["scene_order"] = ["scene_1", "scene_2"]
+    elif changed == "asset_name":
+        layer["display_asset"] = {"name": "memory_b"}
+    else:
+        layer["id"] = "scene_2"
+    cache.sync_signatures([replace(snapshot, transport={"layers": [layer]}, data_refs=refs)])
+    assert cache.cached_view_state(KEY) is None
+    assert not cache.has_preview(KEY)
+
+
+def test_other_backends_keep_scene_label_options_in_preview_identity() -> None:
+    before = _Snapshot(options={"scene_labels": {"scene_1": "First"}})
+    after = replace(before, options={"scene_labels": {"scene_1": "Second"}})
+    assert ViewerPreviewStateCache.preview_signature(before) != ViewerPreviewStateCache.preview_signature(after)
 
 
 def test_new_geometry_drops_the_camera_as_well(qapp) -> None:  # noqa: ANN001

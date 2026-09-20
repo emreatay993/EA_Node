@@ -1008,6 +1008,7 @@ SHELL_ISOLATION_OWNERSHIP_SPECS = (
         owner_name="ShellRunControllerTests",
         covered_names=(
             "test_media_toolbar_history_and_bulk_edits_preserve_real_workflow",
+            "test_unused_viewer_inputs_preserve_real_cad_workflow",
             "test_gui_remains_responsive_and_stop_cancels_blocked_preparation",
             "test_plot_property_updates_retain_inline_rows_across_settings_and_ports",
         ),

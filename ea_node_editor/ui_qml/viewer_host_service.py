@@ -1733,6 +1733,9 @@ class ViewerHostService(QObject):
                 and bound.binder is binder
                 and self._preview_state.preview_signature(bound.snapshot)
                 == self._preview_state.preview_signature(snapshot)
+                # Label-only transport edits keep cached pixels, but the binder
+                # must still apply their current presentation metadata.
+                and bound.snapshot.transport == snapshot.transport
                 and bound.container is container
                 and bound.widget is not None
             ):
@@ -1937,9 +1940,8 @@ class ViewerHostService(QObject):
         if bound is None:
             return False
         if bound.presentation == _PRESENTATION_RETAINED_INLINE:
-            current = self._snapshot_for_key(key)
-            if current is not None:
-                bound.snapshot = current
+            # Keep the snapshot that the binder actually applied, so refocus
+            # can reconcile metadata changed while the widget was parked.
             self._retained_inline_key = key
             return True
 
@@ -1949,9 +1951,6 @@ class ViewerHostService(QObject):
         widget = self._current_widget_for_bound_overlay(key, bound)
         if not isinstance(widget, QWidget):
             return False
-        current = self._snapshot_for_key(key)
-        if current is not None:
-            bound.snapshot = current
         widget.hide()
         if bound.container is not None:
             bound.container.hide()

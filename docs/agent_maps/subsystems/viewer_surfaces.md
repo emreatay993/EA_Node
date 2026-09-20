@@ -5,11 +5,20 @@ Committed appearance edits and directional undo/redo use
 `MutationUiEffects.after_graph_change` and
 `ViewerSessionBridge.sync_node_presentation`. Appearance is reconciled in one
 session update; unavailable/opening sessions do not start a workflow. Runtime
-session opens and materialization reapply current authored presentation so late
-execution snapshots cannot overwrite newer edits. Full initial runtime properties
-remain available; saved selections and scene inputs still affect computation.
+session opens, updates and materialization reapply current authored presentation
+so late execution snapshots cannot overwrite newer edits. Full initial runtime
+properties remain available; saved selections and connected scenes affect
+computation, while unused Model Viewer slots preserve current results.
 Registry replacement adopts or rolls back the viewer's registry and value catalog
 together through `replace_registry`, keeping presentation declarations current.
+Runtime composition installs that registry for fresh unsaved projects too.
+
+Scene names follow stable IDs through session options, source metadata, summary,
+transport, export and retained-widget refocus. Label-only updates retain native
+actors, isolated selections, camera, leases and transport revision. Preview/cache
+identity excludes only engineering label metadata. The bridge consumes both
+typed and serialized settled results through the catalog-aware shared normalizer,
+then enforces singleton viewer-handle and workspace/node identity checks.
 
 Use this for embedded viewer sessions, native overlay management, fullscreen content, viewer host services, and engineering viewer surfaces.
 

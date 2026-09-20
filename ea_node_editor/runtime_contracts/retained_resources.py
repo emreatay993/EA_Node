@@ -42,8 +42,8 @@ class RetainedSourceBinding:
             value = getattr(self, name)
             if type(value) is not str or not value or value != value.strip():
                 raise ValueError(f"Retained source {name} must be a non-empty trimmed string")
-        if self.ref_kind not in {"table", "array"}:
-            raise ValueError("Retained source ref_kind must be table or array")
+        if self.ref_kind not in {"table", "array", "file"}:
+            raise ValueError("Retained source ref_kind must be table, array or file")
         if type(self.size_bytes) is not int or self.size_bytes < 0:
             raise ValueError("Retained source size_bytes must be non-negative")
         for name in ("sha256", "hash_policy_digest"):
@@ -58,6 +58,13 @@ class RetainedSourceBinding:
         )
         if canonical_options_json(options) != self.options_json:
             raise ValueError("Retained source options_json must be canonical")
+        if self.ref_kind == "file" and (
+            self.resolver_id != "corex.file_provenance" or self.backend_id != "file"
+            or self.object_id != "file" or self.options_json != "{}"
+            or self.backend_policy_revision != "content_only_no_links_v1"
+            or self.ref_id != hashlib.sha256(self.source_uri.encode("utf-8")).hexdigest()
+        ):
+            raise ValueError("File provenance binding has a noncanonical descriptor")
 
     @property
     def key(self) -> tuple[str, str, str]:

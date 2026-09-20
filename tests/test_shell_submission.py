@@ -155,3 +155,81 @@ def test_late_submission_delivery_after_session_change_cannot_start(action):
         controller.evaluate_workspace_on_open("other")
     host.flush_turns()
     assert not host.execution_client.start_calls
+
+
+@pytest.mark.parametrize("phase", ["queued", "preparing", "active"])
+def test_empty_viewer_slots_preserve_pending_and_active_computation(phase):
+    host = _RunHostStub()
+    workspace = host.model.active_workspace
+    wid = workspace.workspace_id
+    cad = host.model.add_node(wid, "engineering.cad_import", "CAD", 0, 0)
+    viewer = host.model.add_node(wid, "model.viewer", "Viewer", 200, 0)
+    host.model.add_edge(wid, cad.node_id, "scene", viewer.node_id, "scene_1")
+    controller = _run_controller(host)
+    controller.set_auto_run_enabled(True)
+    before = workspace.capture_snapshot()
+    host.model.set_node_property(wid, cad.node_id, "length_unit", "m")
+    assert controller.invalidate_solution_for_graph_change(
+        wid, before_snapshot=before, after_snapshot=workspace.capture_snapshot()
+    )
+    if phase == "preparing":
+        _turn(host)
+    elif phase == "active":
+        host.flush_turns()
+        host.run_event_controller.handle_execution_event(
+            {"type": "run_started", "run_id": host.run_state.active_run_id,
+             "workspace_id": wid}
+        )
+    handle = (controller._active_submission.handle
+              if controller._active_submission is not None else None)
+    baseline = (
+        len(host.execution_client.invalidate_calls),
+        len(host.execution_client.submission_calls),
+        len(host.execution_client.start_calls),
+        tuple(host.next_turn_callbacks),
+        tuple(host.run_state.pending_auto_run_target_node_ids),
+        host.run_state.active_submission_id,
+        host.run_state.active_run_id,
+    )
+    # Each transition adds or removes an empty slot before, between or after
+    # authored ports while the same enabled scene_1 edge remains connected.
+    for port_ids in (
+        ["scene_before", "scene_1"],
+        ["scene_before", "scene_middle", "scene_1"],
+        ["scene_before", "scene_middle", "scene_1", "scene_after"],
+        ["scene_middle", "scene_1", "scene_after"],
+        ["scene_1", "scene_after"],
+        ["scene_1"],
+        ["scene_final", "scene_1"],
+    ):
+        before = workspace.capture_snapshot()
+        host.model.set_node_property(wid, viewer.node_id, "scene_input_ids", port_ids)
+        assert not controller.invalidate_solution_for_graph_change(
+            wid, before_snapshot=before, after_snapshot=workspace.capture_snapshot()
+        )
+        assert baseline == (
+            len(host.execution_client.invalidate_calls),
+            len(host.execution_client.submission_calls),
+            len(host.execution_client.start_calls),
+            tuple(host.next_turn_callbacks),
+            tuple(host.run_state.pending_auto_run_target_node_ids),
+            host.run_state.active_submission_id,
+            host.run_state.active_run_id,
+        )
+        if handle is not None:
+            assert not handle.cancellation.is_set()
+        assert not controller.node_invalidated_during_active_run(wid, viewer.node_id)
+    host.flush_turns()
+    assert len(host.execution_client.submission_calls) == 1
+    assert len(host.execution_client.start_calls) == 1
+    assert set(host.execution_client.start_calls[0]["target_node_ids"]) == {
+        cad.node_id, viewer.node_id,
+    }
+    host.run_event_controller.handle_execution_event(
+        {"type": "run_completed", "run_id": host.run_state.active_run_id,
+         "workspace_id": wid}
+    )
+    host.flush_turns()
+    assert len(host.execution_client.submission_calls) == 1
+    assert len(host.execution_client.start_calls) == 1
+    assert not host.run_state.pending_auto_run_target_node_ids

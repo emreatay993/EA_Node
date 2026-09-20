@@ -71,7 +71,7 @@ def next_scene_input_id(_properties: Mapping[str, object]) -> str:
 SCENE_INPUT_GROUP = DynamicPortGroupSpec(
     group_id="scenes", property_key="scene_input_ids", direction="in",
     ports_resolver=resolve_scene_input_ports, key_factory=next_scene_input_id,
-    minimum=1, rename_mode="label",
+    minimum=1, rename_mode="label", execution_policy="connected_inputs",
 )
 
 

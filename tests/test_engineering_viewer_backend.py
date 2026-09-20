@@ -18,6 +18,8 @@ from ea_node_editor.execution.prepared_scene_runtime import (
 from ea_node_editor.execution.viewer_messages import (
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
+    QueryViewerSessionCommand,
+    UpdateViewerSessionCommand,
     ViewerDataMaterializedEvent,
 )
 from ea_node_editor.execution.viewer_backend import (
@@ -354,6 +356,49 @@ class EngineeringViewerBackendTests(unittest.TestCase):
         self.services = core_worker_services()
         self.backend = EngineeringViewerBackend(self.services)
         self.addCleanup(self.backend.reset)
+
+    def test_scene_labels_survive_cached_materialization_reopen_and_export(self) -> None:
+        service = self.services.viewer_session_service
+        self.services.viewer_backend_registry.register(self.backend)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scene = self._prepared_scene_ref(root, name="body", dataset=pyvista.Cube())
+            identity = dict(workspace_id="workspace-engineering", node_id="node-engineering",
+                            session_id="labels", backend_id=ENGINEERING_VIEWER_BACKEND_ID)
+            service.open_session(OpenViewerSessionCommand(
+                **identity, data_refs={"scene_order": ["a", "b"], "scene:a": scene, "scene:b": scene},
+            ))
+            first = service.materialize_data(MaterializeViewerDataCommand(**identity))
+            self.assertEqual(first.live_open_status, "ready")
+            with mock.patch.object(self.backend, "materialize", side_effect=AssertionError("label update materialized")):
+                updated = service.update_session(UpdateViewerSessionCommand(
+                    **identity, options={"scene_labels": {"a": "Renamed", "unknown": "Ignored"}},
+                ))
+                reopened = service.open_session(OpenViewerSessionCommand(**identity))
+            with mock.patch.object(self.backend, "_allocate_shared_memory", side_effect=AssertionError("label change allocated geometry")):
+                cached = service.materialize_data(MaterializeViewerDataCommand(**identity))
+            for event in (updated, reopened, cached):
+                self.assertEqual(event.transport_revision, first.transport_revision)
+                self.assertEqual([layer["name"] for layer in event.transport["layers"]], ["Renamed", "Scene 2"])
+                self.assertEqual([layer["name"] for layer in event.summary["scene_layers"]], ["Renamed", "Scene 2"])
+            exported = service.query_session_command(QueryViewerSessionCommand(
+                **identity, query_type="export", payload={"path": str(root / "renamed.vtm"), "format": "vtm"},
+            ))
+            self.assertTrue(exported.supported, exported.explanation)
+            self.assertEqual(exported.value["visible_layers"], ["Renamed", "Scene 2"])
+            self.assertEqual(pyvista.read(root / "renamed.vtm").keys(), ["Renamed", "Scene 2"])
+            record = service._sessions[(identity["workspace_id"], identity["session_id"])]
+            self.assertEqual(record.source_refs["scene_labels"], {"a": "Renamed", "b": "Scene 2"})
+            # A backend re-materialization sees the same geometry and only new names.
+            with mock.patch.object(self.backend, "_allocate_shared_memory", side_effect=AssertionError("label change allocated geometry")):
+                reused = self.backend.materialize(_request(dict(record.source_refs), session_id="labels"))
+            self.assertEqual(reused.transport_revision, first.transport_revision)
+            self.assertEqual(reused.transport["layers"][0]["display_asset"], first.transport["layers"][0]["display_asset"])
+            self.assertEqual([layer["name"] for layer in reused.transport["layers"]], ["Renamed", "Scene 2"])
+            self.assertEqual([item["layer_name"] for item in reused.summary["model_tree"]], ["Renamed", "Scene 2"])
+            forced = service.materialize_data(MaterializeViewerDataCommand(**identity, options={"force_recompute": True}))
+            self.assertEqual([layer["name"] for layer in forced.transport["layers"]], ["Renamed", "Scene 2"])
+            self.assertEqual(forced.transport_revision, first.transport_revision + 1)
 
     def test_scene_queries_and_export_use_stable_ids_with_duplicate_sources(
         self,

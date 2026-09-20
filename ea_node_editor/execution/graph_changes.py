@@ -95,6 +95,12 @@ def _authored_property_change(
                 new_properties
             )
             declared = registry.get_spec(old.type_id)
+            if properties_changed and any(
+                group.execution_policy == "connected_inputs"
+                for group in declared.dynamic_port_groups
+            ):
+                # Only the compiled topology can identify participating inputs.
+                return None
             if (
                 declared.runtime_behavior == "active"
                 and declared.instance_spec_resolver is None
@@ -143,16 +149,17 @@ def _project_computation(
     result = {}
     for node_id in plan.execution_order:
         node = plan.nodes[node_id]
-        properties = (
-            node.properties
-            if node_id in plan.node_preflight_errors
-            else registry.execution_properties(node.type_id, node.properties)
-        )
+        computation = plan.node_computation(node_id)
         result[node_id] = canonical_digest(
             {
                 "type_id": node.type_id,
-                "properties": properties,
+                "properties": computation.properties,
                 "interface": plan.node_solution_interface_digest(node_id),
+                "contract": node_contract_digest(
+                    plan.node_specs[node_id], computation.ports,
+                    port_modifiers=node.port_modifiers,
+                    principal_input_port_id=node.principal_input_port_id,
+                ),
                 "incoming": tuple(
                     (
                         edge.source_node_id,

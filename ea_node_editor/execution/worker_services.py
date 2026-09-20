@@ -7,6 +7,7 @@ from typing import Any
 from typing import TYPE_CHECKING
 
 from ea_node_editor.execution.handle_registry import HandleRegistry
+from ea_node_editor.execution.solution_resources import WorkerSolutionResources
 from ea_node_editor.execution.viewer_backend import ViewerBackendRegistry
 from ea_node_editor.runtime_contracts.value_refs import (
     RuntimeHandleRef,
@@ -23,12 +24,15 @@ if TYPE_CHECKING:
 @dataclass(slots=True)
 class WorkerServices:
     handle_registry: HandleRegistry = field(default_factory=HandleRegistry)
+    solution_resource_offers_enabled: bool = False
+    solution_resources: WorkerSolutionResources = field(init=False, repr=False)
     _prepared_scene_runtime: PreparedSceneRuntime | None = field(default=None, init=False, repr=False)
     _viewer_backend_registry: ViewerBackendRegistry | None = field(default=None, init=False, repr=False)
     _viewer_session_service: ViewerSessionService | None = field(default=None, init=False, repr=False)
     _mechanical_session_service: MechanicalSessionService | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self.solution_resources = WorkerSolutionResources(self.handle_registry)
         object.__setattr__(self, "_prepared_scene_runtime", None)
         object.__setattr__(self, "_viewer_backend_registry", None)
         object.__setattr__(self, "_viewer_session_service", None)
@@ -133,6 +137,12 @@ class WorkerServices:
     def release_handle(self, value: Any) -> bool:
         return self.handle_registry.release(value)
 
+    def retire_workspace(self, workspace_id: str) -> int:
+        # Used before every dispatch as well as workspace close. Accepted
+        # solution leases survive here until their SolutionStore owner releases.
+        self.solution_resources.retire_unclaimed(workspace_id)
+        return self.mechanical_session_service.retire_workspace(workspace_id)
+
     def cleanup_run(
         self,
         run_id: str,
@@ -164,6 +174,7 @@ class WorkerServices:
             else nullcontext()
         )
         with prepared_scene_guard:
+            self.solution_resources.reset()
             released_count = self.handle_registry.active_handle_count
             if self._viewer_session_service is not None:
                 self._viewer_session_service.reset(warn=warn)

@@ -989,7 +989,7 @@ class ViewerSessionService:
             transport_revision=command.transport_revision,
             live_open_status=command.live_open_status,
             live_open_blocker=command.live_open_blocker,
-            camera_state=command.camera_state,
+            camera_state=command.camera_state or record.camera_state,
             playback_state=command.playback_state,
             summary=command.summary,
             options=command.options,
@@ -1105,6 +1105,7 @@ class ViewerSessionService:
         }
         if persistent_options:
             record.options.update(persistent_options)
+        self._sync_scene_labels(record)
 
         output_profile = self._resolve_output_profile(record, request_options)
         export_formats = self._normalize_export_formats(request_options.get("export_formats", record.options.get("export_formats")))
@@ -1570,6 +1571,7 @@ class ViewerSessionService:
         live_open_status: str = "",
         live_open_blocker: Mapping[str, Any] | None = None,
     ) -> None:
+        self._sync_scene_labels(record)
         default_status, default_blocker = self._default_live_open_state(record)
         normalized_status = str(live_open_status).strip() or default_status
         normalized_blocker = _copy_mapping(live_open_blocker if live_open_blocker is not None else default_blocker)
@@ -1582,6 +1584,34 @@ class ViewerSessionService:
             normalized_blocker = copy.deepcopy(default_blocker)
         record.live_open_status = normalized_status
         record.live_open_blocker = normalized_blocker
+
+    @staticmethod
+    def _sync_scene_labels(record: _ViewerSessionRecord) -> None:
+        """Apply display names without replacing scene handles or live transport."""
+        authored = record.options.get("scene_labels")
+        if record.backend_id != ENGINEERING_VIEWER_BACKEND_ID or not isinstance(authored, Mapping):
+            return
+        scene_ids = set(record.source_refs.get("scene_order", ()))
+        scene_ids.update(
+            str(layer.get("id", ""))
+            for layer in record.transport.get("layers", ())
+            if isinstance(layer, Mapping)
+        )
+        labels = {str(key): str(value) for key, value in authored.items() if key in scene_ids}
+        record.options["scene_labels"] = labels
+        if "scene_order" in record.source_refs:
+            record.source_refs["scene_labels"] = {
+                key: labels.get(key, str(record.source_refs.get("scene_labels", {}).get(key, f"Scene {index}")))
+                for index, key in enumerate(record.source_refs["scene_order"], start=1)
+            }
+        for entries, identity_key, label_key in (
+            (record.transport.get("layers", ()), "id", "name"),
+            (record.summary.get("scene_layers", ()), "id", "name"),
+            (record.summary.get("model_tree", ()), "layer_id", "layer_name"),
+        ):
+            for entry in entries:
+                if isinstance(entry, dict) and entry.get(identity_key) in labels:
+                    entry[label_key] = labels[entry[identity_key]]
 
     def _refresh_transport_refs(self, record: _ViewerSessionRecord) -> None:
         return

@@ -136,6 +136,11 @@ class RuntimeArtifactService:
             _authored_staged_refs=True,
         )
 
+    def resolve_authored_path(self, value: Any) -> Path | None:
+        """Resolve provenance only after the ordinary authored-property admission."""
+        admitted = self.materialize_authored_properties({"path": value})["path"]
+        return self.resolve_path(admitted)
+
     def _materialize_persisted_value(
         self,
         value: Any,

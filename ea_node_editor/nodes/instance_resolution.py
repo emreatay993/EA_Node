@@ -166,6 +166,16 @@ def resolve_dynamic_port_groups(
     seen_keys = set(static_ports)
     resolved_groups: list[tuple[PortSpec, ...]] = []
     for group in spec.dynamic_port_groups:
+        if group.execution_policy == "connected_inputs" and (
+            group.direction != "in"
+            or group.property_editor is not None
+            or spec.runtime_behavior != "active"
+            or not isinstance(resolved_properties.get(group.property_key), list)
+        ):
+            raise ValueError(
+                f"Node {spec.type_id} dynamic port group {group.group_id} "
+                "connected_inputs requires a list-backed active input group"
+            )
         try:
             ports = group.ports_resolver(dict(resolved_properties))
         except Exception as exc:  # noqa: BLE001
@@ -202,6 +212,19 @@ def resolve_dynamic_port_groups(
             if port.uses_property_default:
                 raise ValueError(
                     f"Node {spec.type_id} dynamic port group {group.group_id} port {port.key} cannot use a property default"
+                )
+            if group.execution_policy == "connected_inputs" and (
+                port.required is not False
+                or any(prop.key == port.key for prop in spec.properties)
+                or any(
+                    port.key in (*item.any_of_ports, *item.when_ports_present)
+                    for item in spec.readiness_requirements
+                )
+            ):
+                raise ValueError(
+                    f"Node {spec.type_id} dynamic port group {group.group_id} "
+                    f"connected_inputs port {port.key} must be optional without "
+                    "property or readiness dependencies"
                 )
             if not port.key or port.key.strip() != port.key:
                 raise ValueError(

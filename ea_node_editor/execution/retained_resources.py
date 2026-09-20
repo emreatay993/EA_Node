@@ -8,6 +8,10 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 import threading
 import json
+import hashlib
+from pathlib import Path
+from urllib.parse import urlsplit
+from urllib.request import url2pathname
 from typing import Any
 
 from ea_node_editor.execution.solution_identity import (
@@ -71,6 +75,9 @@ class RetainedSourceValidation:
         from ea_node_editor.addons.tabular_data.retained_sources import source_path_from_ref
 
         path = source_path_from_ref(ref)
+        return self.file_fingerprint(path)
+
+    def file_fingerprint(self, path: Path) -> FileProvenance:
         uri = path.as_uri()
         if uri not in self._provenance:
             try:
@@ -153,15 +160,37 @@ def validate_retained_source_bindings(
         raise RetainedResourceError("retained_source_unused", "A retained source binding has no matching value")
 
 
+def file_source_provenance_binding(path: Path, fingerprint: FileProvenance) -> RetainedSourceBinding:
+    """Describe declared file dependence without claiming ownership of the file."""
+    uri = path.absolute().as_uri()
+    return RetainedSourceBinding(
+        ref_kind="file", ref_id=hashlib.sha256(uri.encode("utf-8")).hexdigest(),
+        resolver_id="corex.file_provenance", backend_id="file", source_uri=uri,
+        object_id="file", options_json="{}", backend_policy_revision="content_only_no_links_v1",
+        size_bytes=fingerprint.size_bytes, sha256=fingerprint.sha256,
+        hash_policy_digest=fingerprint.policy_digest,
+    )
+
+
 def validate_source_provenance_bindings(
     bindings: Sequence[RetainedSourceBinding], *, validation: RetainedSourceValidation | None = None,
 ) -> None:
     """Validate source versions inherited by detached results without materializing data."""
-    from ea_node_editor.addons.tabular_data.retained_sources import source_path_from_ref
-    from ea_node_editor.addons.tabular_data.source_backends import detect_format_id
-
     validation = validation or RetainedSourceValidation()
     for binding in _binding_index(bindings).values():
+        if binding.ref_kind == "file":
+            parsed = urlsplit(binding.source_uri)
+            if parsed.scheme != "file" or parsed.query or parsed.fragment:
+                raise RetainedResourceError("retained_source_descriptor", "File provenance requires a canonical file URI")
+            path = Path(url2pathname(("//" + parsed.netloc if parsed.netloc else "") + parsed.path))
+            if not path.is_absolute() or path.as_uri() != binding.source_uri:
+                raise RetainedResourceError("retained_source_descriptor", "File provenance requires an absolute canonical path")
+            if file_source_provenance_binding(path, validation.file_fingerprint(path)) != binding:
+                raise RetainedResourceError("retained_source_changed", "The declared source file changed")
+            continue
+        from ea_node_editor.addons.tabular_data.retained_sources import source_path_from_ref
+        from ea_node_editor.addons.tabular_data.source_backends import detect_format_id
+
         ref_type = TabularDataRef if binding.ref_kind == "table" else ArrayDataRef
         ref = ref_type(
             ref_id=binding.ref_id, resolver_id=binding.resolver_id,

@@ -26,13 +26,14 @@ from ea_node_editor.execution.runtime_dto import (
     materialize_runtime_node,
 )
 from ea_node_editor.execution.solution_identity import canonical_digest
+from ea_node_editor.execution.node_computation import NodeComputation, project_node_computation
 
 if TYPE_CHECKING:
     from ea_node_editor.runtime_contracts import DataTypeCatalog
 
 _TRIGGER_TYPE_ID = "core.trigger"
 _FINGERPRINT_SCHEMA_VERSION = 1
-WORKFLOW_INTERFACE_REVISION = 4
+WORKFLOW_INTERFACE_REVISION = 5
 
 
 class _ExecutionCycleError(ValueError):
@@ -84,6 +85,8 @@ class ExecutionPlan:
         trigger_capture_node_ids: tuple[str, ...] = (),
     ) -> None:
         self.workspace = workspace
+        self._registry = registry
+        self._node_computations: dict[str, NodeComputation] = {}
         self.nodes = workspace.nodes_by_id
         self.clicked_trigger_node_id = str(clicked_trigger_node_id or "").strip()
         self.trigger_capture_node_ids = frozenset(
@@ -538,9 +541,33 @@ class ExecutionPlan:
         return canonical_digest(
             {
                 "revision": WORKFLOW_INTERFACE_REVISION,
-                "node": self._workflow_node_interface(node_id),
+                "node": self._workflow_node_interface(
+                    node_id, ports=self.node_computation(node_id).ports
+                ),
             }
         )
+
+    def node_computation(self, node_id: str) -> NodeComputation:
+        """Share computational projection across comparison and solution identity."""
+        if node_id in self._node_computations:
+            return self._node_computations[node_id]
+        node = self.nodes[node_id]
+        if node_id in self.node_preflight_errors:
+            # Invalidation stays conservative; identity assembly rejects preflight
+            # failures and execution keeps the full declaration for diagnostics.
+            return NodeComputation(node.properties, self.node_ports[node_id])
+        computation = project_node_computation(
+            spec=self.node_specs[node_id],
+            authored_properties=node.properties,
+            execution_properties=self._registry.execution_properties(node.type_id, node.properties),
+            ports=self.node_ports[node_id],
+            connected_input_keys=frozenset(
+                edge.target_port_key for edge in self.incoming_edges_for(node_id)
+            ),
+            data_types=self._registry.data_types,
+        )
+        self._node_computations[node_id] = computation
+        return computation
 
     def _workflow_interface_digest(self) -> str:
         return canonical_digest(
@@ -553,7 +580,9 @@ class ExecutionPlan:
             }
         )
 
-    def _workflow_node_interface(self, node_id: str) -> dict[str, object]:
+    def _workflow_node_interface(
+        self, node_id: str, *, ports: Sequence[Any] | None = None
+    ) -> dict[str, object]:
         spec = self.node_specs[node_id]
         node = self.nodes[node_id]
         property_defaults = {
@@ -589,7 +618,7 @@ class ExecutionPlan:
                     "allow_multiple_connections": port.allow_multiple_connections,
                     "modifiers": tuple(node.port_modifiers.get(port.key, ())),
                 }
-                for port in self.node_ports.get(node_id, ())
+                for port in (self.node_ports.get(node_id, ()) if ports is None else ports)
             ],
             "principal_input_port_id": node.principal_input_port_id,
             "readiness_requirements": [

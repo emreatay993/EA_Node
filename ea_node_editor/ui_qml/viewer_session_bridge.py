@@ -34,14 +34,15 @@ from ea_node_editor.execution.viewer_session_service import (
     coerce_viewer_session_model,
     projection_safe_viewer_transport,
 )
+from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
 from ea_node_editor.runtime_contracts import (
     COREX_VIEWER_SESSION_HANDLE_KIND,
     VIEWER_SESSION_DATA_TYPE_ID,
     DataTree,
     DataTypeCatalog,
     RuntimeHandleRef,
-    deserialize_runtime_value,
 )
+from ea_node_editor.runtime_contracts.settled_results import normalize_settled_port_result
 
 if TYPE_CHECKING:
     from ea_node_editor.graph.project_state import ProjectData
@@ -492,6 +493,21 @@ class ViewerSessionBridge(QObject):
         for prop in spec.properties:
             if not prop.affects_execution:
                 updates.update(_session_option_updates_for_node_property(prop.key, properties[prop.key]))
+        state = self._sessions.get((workspace_id, node_id))
+        if spec.type_id == "model.viewer" and state is not None:
+            scene_ids = set(state.data_refs.get("scene_order", ()))
+            scene_ids.update(
+                _string(layer.get("id"))
+                for layer in state.transport.get("layers", ())
+                if isinstance(layer, Mapping)
+            )
+            if scene_ids:
+                port_labels = getattr(node, "port_labels", {})
+                updates["scene_labels"] = {
+                    port.key: port_labels.get(port.key) or port.label or port.key
+                    for port in resolve_instance_ports(spec, properties)
+                    if port.direction == "in" and port.key in scene_ids
+                }
         return updates
 
     def sync_node_presentation(self, node_id: str, payload: Any = None) -> bool:
@@ -1543,7 +1559,9 @@ class ViewerSessionBridge(QObject):
         if event_type == "viewer_session_closed":
             state.camera_state_locally_captured = False
             self._clear_explicit_inline_if_matches(workspace_id, node_id)
-        if event_type in {"viewer_session_opened", "viewer_data_materialized"}:
+        if event_type in {
+            "viewer_session_opened", "viewer_session_updated", "viewer_data_materialized",
+        }:
             self.sync_node_presentation(node_id, {"workspace_id": workspace_id})
         self.sessions_changed.emit()
         self._sync_live_modes(workspace_id)
@@ -1555,16 +1573,16 @@ class ViewerSessionBridge(QObject):
         if _string(event.get("status")) != "completed":
             return False
         outputs = _copy_mapping(event.get("outputs"))
-        settled_output = _copy_mapping(outputs.get(_RUNTIME_VIEWER_OUTPUT_KEY))
-        if _string(settled_output.get("status")) != "value":
-            return False
         try:
-            output_tree = deserialize_runtime_value(
-                settled_output.get("value"),
+            settled_output = normalize_settled_port_result(
+                outputs.get(_RUNTIME_VIEWER_OUTPUT_KEY),
                 catalog=self._data_types,
             )
         except (TypeError, ValueError):
             return False
+        if settled_output.status != "value":
+            return False
+        output_tree = settled_output.value
         if not isinstance(output_tree, DataTree) or output_tree.item_count != 1:
             return False
         runtime_ref = next(

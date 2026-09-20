@@ -62,6 +62,11 @@ from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
 
 class ProcessExecutionClient(_ExecutionClientCommon):
     def __init__(self) -> None:
+        from ea_node_editor.execution.solution_resources import ClientSolutionResources
+
+        self.solution_resources = ClientSolutionResources(
+            self._send_solution_resources, self._abort_solution_resource_transport,
+        )
         self._generation_readiness = GenerationReadiness()
         self._data_types: DataTypeCatalog | None = None
         self._catalog_generation_fingerprint = ""
@@ -251,6 +256,74 @@ class ProcessExecutionClient(_ExecutionClientCommon):
         if command_queue is None:
             raise RuntimeError("Execution worker is not running.")
         command_queue.put(payload)
+
+    def _send_solution_resources(self, command: Any, generation: int) -> None:
+        """Pin the live queue; never wait for this listener to read a response."""
+        payload = self._encode_command(command)
+        with self._state_lock:
+            if (self._physical_generation_token != generation
+                    or self._accepted_physical_generation_token != generation):
+                return  # The old process owns no usable host resources.
+            self._command_queue.put(payload)
+
+    def _abort_solution_resource_transport(
+        self, generation: int, *, reason: str = "solution_resource_transport_failed",
+        failure_event: dict[str, Any] | None = None,
+    ) -> None:
+        # A failed transfer cannot leave live, untracked native resources behind.
+        with self._state_lock:
+            if (self._physical_generation_token != generation
+                    or self._accepted_physical_generation_token != generation):
+                return
+            process = self._process
+            run_id = self._active_run_id
+            workspace_id = self._active_workspace_id
+            node_id = self._active_node_id
+            self._accepted_physical_generation_token = -1
+            self._execution_environment_digest = ""
+            self._execution_environment_registry_fingerprint = ""
+            self._execution_environment_selection_digest = ""
+            self._clear_active_run_state_locked()
+            retirements = tuple(getattr(self, "_workspace_retirement_waiters", {}).values())
+            with self._viewer_request_lock:
+                invalidations = tuple(delivery for delivery in getattr(
+                    self, "_viewer_invalidation_deliveries", {}
+                ).values() if delivery.generation == generation)
+        if process is not None and process.is_alive():
+            process.terminate()
+        self._generation_readiness.retire("solution resource transport failed", generation=generation)
+        for delivery in invalidations:
+            delivery.error = "Solution resource transport failed"
+            delivery.acknowledged.set()
+        for ready, result in retirements:
+            result["error"] = "Solution resource transport failed"
+            ready.set()
+        self.solution_resources.retire_generation(generation)
+        self._notify_generation_change(reason=reason, generation_token=generation)
+        if run_id:
+            if failure_event is not None:
+                self._dispatch_event_payload(failure_event, generation_token=generation)
+            else:
+                self._dispatch_event(RunFailedEvent(run_id=run_id, workspace_id=workspace_id, node_id=node_id,
+                                                   error=reason.replace("_", " "), fatal=True),
+                                     generation_token=generation)
+            self._dispatch_event(RunStateEvent(run_id=run_id, workspace_id=workspace_id, state="error",
+                                              transition="fail", reason=reason),
+                                 generation_token=generation)
+
+    def _dispatch_solution_event(self, payload: dict[str, Any], generation: int) -> None:
+        from ea_node_editor.execution.solution_resources import SolutionResourceOffer
+
+        try:
+            raw = payload.get("resource_offer")
+            offer = SolutionResourceOffer.from_payload(raw, self._data_types) if raw is not None else None
+            with self.solution_resources.dispatch(
+                offer, generation=generation, run_id=payload.get("run_id", ""),
+                workspace_id=payload.get("workspace_id", ""), node_id=payload.get("node_id", ""),
+            ):
+                self._dispatch_event_payload(payload, generation_token=generation)
+        except (TypeError, ValueError, RuntimeError):
+            self._abort_solution_resource_transport(generation)
 
     def _try_post_command(self, command: WorkerCommand) -> tuple[bool, str]:
         try:
@@ -696,6 +769,8 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                 )
                 if self._source_generation_is_current(generation_token):
                     self._emit_protocol_error(f"Received invalid worker event: {exc}")
+                    if event.get("resource_offer") is not None:
+                        self._abort_solution_resource_transport(generation_token)
                 continue
 
             if not self._source_generation_is_current(generation_token):
@@ -703,6 +778,9 @@ class ProcessExecutionClient(_ExecutionClientCommon):
             payload = event_to_dict(typed_event, catalog=self._data_types)
             event_type = payload.get("type", "")
             event_run_id = payload.get("run_id", "")
+            if event_type == "run_failed" and payload.get("fatal") is True:
+                self._abort_solution_resource_transport(generation_token, reason="worker_service_reset", failure_event=payload)
+                continue
             viewer_failure_event = None
             if event_type == "protocol_error":
                 viewer_failure_event = self._viewer_protocol_error_failure(
@@ -723,10 +801,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
             )
             if not self._source_generation_is_current(generation_token):
                 continue
-            self._dispatch_event_payload(
-                payload,
-                generation_token=generation_token,
-            )
+            self._dispatch_solution_event(payload, generation_token)
             if viewer_failure_event is not None:
                 self._dispatch_event(
                     viewer_failure_event,
@@ -745,6 +820,7 @@ class ProcessExecutionClient(_ExecutionClientCommon):
                         self._clear_active_run_state_locked()
 
     def _retire_process_resources(self, process: mp.Process | None) -> None:
+        self.solution_resources.reset()
         with self._state_lock:
             command_queue = self._command_queue
             event_queue = self._event_queue

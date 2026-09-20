@@ -414,6 +414,7 @@ class ExecutionPreparationService:
                 generation_snapshot=generation_snapshot,
                 solution_revision=solution_revision,
                 trigger_publication_generations=trigger_publication_generations,
+                artifact_service=artifact_service,
             )
             # Volatile lineage cannot promise repeatable computations. Its detached
             # completed values remain available as CURRENT observations.
@@ -714,6 +715,7 @@ class ExecutionPreparationService:
         generation_snapshot: Any,
         solution_revision: int,
         trigger_publication_generations: Mapping[str, int],
+        artifact_service: RuntimeArtifactService,
     ) -> tuple[CapturedNodeSolution, str]:
         spec = plan.node_specs[node_id]
         assembled = assemble_node_solution(
@@ -726,6 +728,7 @@ class ExecutionPreparationService:
             keys_by_node=keys_by_node,
             execution_environment_digest=generation_snapshot.environment_digest,
             trigger_publication_generations=trigger_publication_generations,
+            provenance_path_resolver=artifact_service.resolve_authored_path,
         )
         return (
             CapturedNodeSolution(

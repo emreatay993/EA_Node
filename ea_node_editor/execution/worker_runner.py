@@ -58,6 +58,7 @@ from ea_node_editor.execution.solution_identity import (
     FileProvenance,
     has_connected_source_provenance,
     hash_file_provenance,
+    node_input_provenance_digest,
     assemble_node_solution,
     canonical_digest,
     provenance_digest,
@@ -65,6 +66,7 @@ from ea_node_editor.execution.solution_identity import (
 from ea_node_editor.execution.retained_resources import (
     RetainedSourceValidation,
     collect_retained_source_bindings,
+    file_source_provenance_binding,
     bindings_for_value,
     iter_retained_source_refs,
     retained_source_binding_scope,
@@ -94,6 +96,7 @@ from ea_node_editor.execution.worker_runtime import (
     prepare_runtime,
 )
 from ea_node_editor.execution.worker_services import WorkerServices
+from ea_node_editor.execution.solution_resources import SolutionResourceCommand, iter_solution_handles
 from ea_node_editor.execution.viewer_messages import InvalidateViewerSessionsCommand
 from ea_node_editor.execution.worker_protocol import dispatch_viewer_invalidation
 from ea_node_editor.nodes.execution_context import (
@@ -167,6 +170,7 @@ class RunControl:
         viewer_command_handler: Callable[[WorkerCommand], None] | None = None,
         workspace_retirement_handler: Callable[[str], int] | None = None,
         viewer_invalidation_handler: Callable[[InvalidateViewerSessionsCommand], None] | None = None,
+        solution_resource_handler: Callable[[SolutionResourceCommand], None] | None = None,
     ) -> None:
         self._command_queue = command_queue
         self._event_queue = event_queue
@@ -176,6 +180,7 @@ class RunControl:
         self._viewer_command_handler = viewer_command_handler
         self._workspace_retirement_handler = workspace_retirement_handler
         self._viewer_invalidation_handler = viewer_invalidation_handler
+        self._solution_resource_handler = solution_resource_handler
         self.paused = False
         self.stop_requested = False
         self.shutdown_requested = False
@@ -204,6 +209,14 @@ class RunControl:
         command_run_id = getattr(command, "run_id", "")
         command_workspace_id = getattr(command, "workspace_id", "")
         command_request_id = getattr(command, "request_id", "")
+
+        if isinstance(command, SolutionResourceCommand):
+            if self._solution_resource_handler is not None:
+                try:
+                    self._solution_resource_handler(command)
+                except (LookupError, RuntimeError, TypeError, ValueError) as exc:
+                    emit_protocol_error(self._event_queue, str(exc), command=command.type, catalog=self._data_types)
+            return
 
         if isinstance(command, InvalidateViewerSessionsCommand):
             if self._viewer_invalidation_handler is None:
@@ -367,14 +380,26 @@ class RunEventPublisher:
         run_id: str,
         workspace_id: str,
         data_types: DataTypeCatalog | None = None,
+        worker_services: WorkerServices | None = None,
+        dispatch_generation: int = 0,
     ) -> None:
         self._event_queue = event_queue
         self.run_id = run_id
         self.workspace_id = workspace_id
         self._data_types = data_types
+        self._worker_services = worker_services
+        self._dispatch_generation = dispatch_generation
 
     def emit(self, event: WorkerEvent) -> None:
-        emit(self._event_queue, event, catalog=self._data_types)
+        try:
+            emit(self._event_queue, event, catalog=self._data_types)
+        except BaseException:
+            offer = getattr(event, "resource_offer", None)
+            if offer is not None and self._worker_services is not None:
+                self._worker_services.solution_resources.apply(
+                    SolutionResourceCommand.for_offer(offer, "settle", ())
+                )
+            raise
 
     def emit_run_started(self) -> None:
         self.emit(RunStartedEvent(run_id=self.run_id, workspace_id=self.workspace_id))
@@ -482,6 +507,14 @@ class RunEventPublisher:
         )
 
         normalized_warnings = _normalize_warning_messages(warnings)
+        offer = None
+        if (self._worker_services is not None
+                and self._worker_services.solution_resource_offers_enabled
+                and self._dispatch_generation > 0 and status in {"completed", "empty"}):
+            offer = self._worker_services.solution_resources.stage(
+                outputs, run_id=self.run_id, workspace_id=self.workspace_id,
+                node_id=node_id, generation=self._dispatch_generation,
+            )
         self.emit(
             NodeSettledEvent(
                 run_id=self.run_id,
@@ -500,6 +533,7 @@ class RunEventPublisher:
                 retained_source_bindings=retained_source_bindings,
                 source_provenance_bindings=source_provenance_bindings,
                 source_provenance_complete=source_provenance_complete,
+                resource_offer=offer,
             )
         )
 
@@ -709,10 +743,12 @@ class NodeExecutor:
                             "reused output item does not match the active catalog"
                         )
 
-        def validate_resource(value: Any, *, port_key: str) -> None:
+        acquired: list[RuntimeHandleRef] = []
+
+        def retain_resource(value: Any, *, port_key: str) -> Any:
             if isinstance(value, RuntimeArtifactRef):
                 self._artifact_service.resolve_path(value)
-                return
+                return value
             if isinstance(value, RuntimeHandleRef):
                 port = expected_ports[port_key]
                 self._worker_services.resolve_handle(
@@ -720,15 +756,29 @@ class NodeExecutor:
                     expected_data_type=port.data_type,
                     expected_kind=value.kind,
                 )
-                return
+                leased = self._worker_services.lease_handle(
+                    value, owner_scope=self._worker_services.run_owner_scope(self._control.run_id),
+                )
+                acquired.append(leased)
+                return leased
             if isinstance(value, DataTree):
-                for _path, items in value.branches:
-                    for item in items:
-                        validate_resource(item, port_key=port_key)
+                return DataTree((path, tuple(retain_resource(item, port_key=port_key) for item in items))
+                                for path, items in value.branches)
+            elif isinstance(value, Mapping):
+                return {key: retain_resource(item, port_key=port_key) for key, item in value.items()}
+            elif isinstance(value, (tuple, list)):
+                return type(value)(retain_resource(item, port_key=port_key) for item in value)
+            return value
 
-        for port_key, result in event_outputs.items():
-            if result.status == "value":
-                validate_resource(result.value, port_key=port_key)
+        try:
+            retained_outputs = {
+                port_key: replace(result, value=retain_resource(result.value, port_key=port_key))
+                if result.status == "value" else result for port_key, result in event_outputs.items()
+            }
+        except BaseException:
+            for value in acquired:
+                self._worker_services.release_handle(value)
+            raise
         installed_outputs = (
             {
                 port_key: event_outputs.get(
@@ -738,7 +788,7 @@ class NodeExecutor:
                 for port_key in expected_ports
             }
             if payload.settlement_status == "empty"
-            else dict(event_outputs)
+            else retained_outputs
         )
         return installed_outputs, event_outputs
 
@@ -904,7 +954,7 @@ class NodeExecutor:
                     target_iteration=iteration,
                     iteration_count=len(iterations),
                 )
-                self._capture_connected_source_provenance(node_id, ctx)
+                self._capture_declared_source_provenance(node_id, ctx)
                 try:
                     if spec.is_async and callable(
                         getattr(plugin, "async_execute", None)
@@ -1760,18 +1810,33 @@ class NodeExecutor:
         validate_source_provenance_bindings(bindings)
         self._source_dependencies[node_id] = bindings, complete
 
-    def _capture_connected_source_provenance(
+    def _capture_declared_source_provenance(
         self, node_id: str, ctx: ExecutionContext
     ) -> None:
-        for declaration in self._plan.node_specs[node_id].solution_provenance_inputs:
-            if declaration.kind != "file" or not self._plan.incoming_edges_for(
-                node_id, declaration.property_key
-            ):
+        inherited, complete = self._source_dependencies.get(node_id, ((), True))
+        bindings = {binding.key: binding for binding in inherited}
+        declarations = self._plan.node_specs[node_id].solution_provenance_inputs
+        if not declarations:
+            return
+        properties = self._registry.normalize_properties(
+            self._plan.nodes[node_id].type_id, dict(self._plan.nodes[node_id].properties),
+        )
+        captured = self.source_provenance_by_node.get(node_id)
+        if captured is not None and node_input_provenance_digest(
+            plan=self._plan, node_id=node_id, normalized_properties=properties,
+            provenance_path_resolver=self._artifact_service.resolve_authored_path,
+        ) != captured:
+            raise RetainedResourceError("retained_source_changed", "The source changed after execution preparation")
+        for declaration in declarations:
+            if declaration.kind != "file":
+                complete = False
                 continue
-            value = ctx.inputs.get(declaration.property_key)
-            path = ctx.resolve_path_value(value)
-            if path is None and isinstance(value, str) and value.strip():
-                path = Path(value).expanduser().resolve()
+            # Context inputs/properties already passed authored artifact
+            # admission. Resolving raw saved:// properties here would bypass
+            # that boundary and reject otherwise valid managed inputs.
+            path = ctx.resolve_input_path(
+                declaration.property_key, property_key=declaration.property_key,
+            )
             if path is not None:
                 fingerprint = hash_file_provenance(path)
                 previous = self._executing_source_provenance.setdefault(
@@ -1782,6 +1847,12 @@ class NodeExecutor:
                         "retained_source_changed",
                         "The connected source changed during execution",
                     )
+                binding = file_source_provenance_binding(path, fingerprint)
+                if bindings.setdefault(binding.key, binding) != binding:
+                    raise RetainedResourceError("retained_source_changed", "The connected source changed during execution")
+            else:
+                complete = False
+        self._source_dependencies[node_id] = tuple(bindings[key] for key in sorted(bindings)), complete
 
     def _output_source_bindings(
         self, node_id: str, outputs: Mapping[str, SettledPortResult]
@@ -2067,17 +2138,20 @@ class WorkflowRunner:
                 worker_services=self._worker_services,
             ),
             workspace_retirement_handler=(
-                self._worker_services.mechanical_session_service.retire_workspace
+                self._worker_services.retire_workspace
             ),
             viewer_invalidation_handler=lambda invalidation: dispatch_viewer_invalidation(
                 invalidation, event_queue=event_queue, worker_services=self._worker_services,
             ),
+            solution_resource_handler=self._worker_services.solution_resources.apply,
         )
         self._publisher = RunEventPublisher(
             event_queue,
             run_id=command.run_id,
             workspace_id=command.workspace_id,
             data_types=data_types,
+            worker_services=self._worker_services,
+            dispatch_generation=command.dispatch_runtime_generation if command.preparation_id else 0,
         )
         if prepared is None:
             return
@@ -2265,6 +2339,7 @@ class WorkflowRunner:
                 keys_by_node=keys_by_node,
                 execution_environment_digest=(command.execution_environment_digest),
                 trigger_publication_generations=trigger_generations,
+                provenance_path_resolver=self._executor._artifact_service.resolve_authored_path,
             )
             if not assembled.reason_code:
                 self._executor.source_provenance_by_node[decision.node_id] = assembled.input_provenance_digest
@@ -2369,15 +2444,27 @@ class WorkflowRunner:
                     "accepted output does not match its decision commitments"
                 )
             if decision.action is PreparedAction.READ_CURRENT:
+                def validate_current_handle(value: RuntimeHandleRef) -> None:
+                    if self._plan.node_specs[decision.node_id].solution_reuse_scope == "never":
+                        raise ValueError("current native handles require a reusable node lifetime")
+                    if self._worker_services.solution_resource_offers_enabled:
+                        self._worker_services.solution_resources.validate_retained(value)
+                    else:
+                        self._worker_services.resolve_handle(value)
+
                 validate_current_output_payload(
                     payload,
                     catalog=registry.data_types,
                     port_keys=current_ports[decision.node_id],
                     source_validation=source_validation,
+                    handle_validator=validate_current_handle,
                 )
             elif payload.output_digest != payload.result_digest:
                 raise ValueError("computation reuse requires complete recorded outputs")
             else:
+                if any(True for result in payload.decode_outputs(catalog=registry.data_types).values()
+                       if result.status == "value" for _ in iter_solution_handles(result.value)):
+                    raise ValueError("opaque native outputs require CURRENT consumption")
                 validate_retained_source_bindings(
                     payload.to_payload()["outputs"], payload.retained_source_bindings,
                     validation=source_validation,

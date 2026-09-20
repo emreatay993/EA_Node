@@ -13,6 +13,7 @@ from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QWidget
 
+from ea_node_editor.common.scene_protocol import ENGINEERING_VIEWER_BACKEND_ID
 from ea_node_editor.ui.plot_preview_cache_provider import ViewerPreviewCacheImageProvider
 
 OverlayKey = tuple[str, str]
@@ -338,26 +339,36 @@ class ViewerPreviewStateCache:
 
     @staticmethod
     def preview_signature(snapshot: Any) -> tuple[Any, ...]:
+        options = cache_relevant_options(snapshot.options)
+        if snapshot.backend_id == ENGINEERING_VIEWER_BACKEND_ID:
+            options.pop("scene_labels", None)
         return (
-            snapshot.session_id,
-            snapshot.backend_id,
-            snapshot.transport_revision,
-            _freeze_value(snapshot.transport),
-            _freeze_value(snapshot.data_refs),
+            *ViewerPreviewStateCache.camera_signature(snapshot),
             _freeze_value(snapshot.playback_state),
-            _freeze_value(cache_relevant_options(snapshot.options)),
+            _freeze_value(options),
         )
 
     @staticmethod
     def camera_signature(snapshot: Any) -> tuple[Any, ...]:
         # Camera state survives option and playback changes; it resets only
         # when the transported geometry itself changes.
+        transport = snapshot.transport
+        data_refs = snapshot.data_refs
+        if snapshot.backend_id == ENGINEERING_VIEWER_BACKEND_ID:
+            transport = {
+                **transport,
+                "layers": [
+                    {key: value for key, value in layer.items() if key != "name"}
+                    for layer in transport.get("layers", ())
+                ],
+            }
+            data_refs = {key: value for key, value in data_refs.items() if key != "scene_labels"}
         return (
             snapshot.session_id,
             snapshot.backend_id,
             snapshot.transport_revision,
-            _freeze_value(snapshot.transport),
-            _freeze_value(snapshot.data_refs),
+            _freeze_value(transport),
+            _freeze_value(data_refs),
         )
 
 

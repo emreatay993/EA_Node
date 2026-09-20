@@ -1064,7 +1064,7 @@ def test_nonexistent_supplied_path_remains_a_real_failure(tmp_path: Path) -> Non
 
     settled = _settled(events, node.node_id)
     assert settled["status"] == "failed"
-    assert "does not exist" in settled["errors"][0]["error"]
+    assert str(tmp_path / "missing.txt") in settled["errors"][0]["error"]
     assert _output_result(settled, "text")["status"] == "failed"
 
 

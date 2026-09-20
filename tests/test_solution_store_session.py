@@ -1969,27 +1969,11 @@ def test_live_resource_lease_is_released_on_project_reset(
         model.project.project_id, workspace.workspace_id
     )[0]
     record = runtime.solution_record(fact.retained_record_id or "")
-    assert record is not None and record.reuse_eligible
+    assert record is not None and not record.reuse_eligible
     reusable = runtime.prepare_execution(
         ExecutionRequest(runtime_snapshot=snapshot, workspace_id=workspace.workspace_id)
     )
-    assert reusable.node_decisions[0].action is PreparedAction.REUSE
-    reused_run = runtime.dispatch_prepared(reusable)
-    command = client.runs[reused_run][1]
-    worker_events: queue.Queue = queue.Queue()
-    runner = WorkflowRunner(
-        command,
-        worker_events,
-        command_queue=_preflight_commit_queue(command),
-    )
-    runner.run()
-    emitted = []
-    while not worker_events.empty():
-        emitted.append(worker_events.get())
-    assert any(event.get("type") == "run_failed" for event in emitted)
-    assert not any(event.get("type") == "node_settled" for event in emitted)
-    failure = next(event for event in emitted if event.get("type") == "run_failed")
-    assert "Runtime handle ref is stale or unknown: 'handle_live'" in failure["error"]
+    assert reusable.node_decisions[0].action is PreparedAction.EXECUTE
     runtime.reset_project_session("replacement", "")
     assert len(client.released_resources) == 1
 

@@ -4,7 +4,7 @@ import ast
 import copy
 import json
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -22,7 +22,7 @@ from ea_node_editor.execution.viewer_messages import (
     viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.execution.prepared_execution import InvalidationResult
-from ea_node_editor.runtime_contracts.settled_results import SettledPortResult
+from ea_node_editor.runtime_contracts.settled_results import RootExecutionError, SettledPortResult
 from ea_node_editor.common.scene_protocol import (
     ENGINEERING_VIEWER_BACKEND_ID,
     VIEWER_VIEW_OPTION_KEYS,
@@ -958,6 +958,60 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(results[0][0], "node_viewer")
         self.assertTrue(results[0][1]["supported"])
         self.assertEqual(results[0][1]["value"]["bounds"], [0, 1, 0, 1, 0, 1])
+
+    def test_scene_labels_follow_current_authored_ports_across_late_responses(self):
+        from ea_node_editor.nodes.bootstrap import build_builtin_registry
+
+        registry = build_builtin_registry()
+        node = SimpleNamespace(
+            type_id="model.viewer", properties=registry.default_properties("model.viewer"),
+            port_labels={},
+        )
+        self.host.model.project.workspaces["ws_main"].nodes["node_viewer"] = node
+        self.bridge.project_loaded(self.host.model.project, registry)
+        refs = {"scene_order": ["scene_1"], "scene_labels": {"scene_1": "Scene 1"}}
+        session_id = self.bridge.open("node_viewer", {"data_refs": refs})
+        opened = self.host.execution_client.open_calls[-1]
+        # An unconnected slot inserted before the connected port changes only its label.
+        node.properties["scene_input_ids"] = ["scene_empty", "scene_1"]
+        self.assertFalse(self.bridge.sync_node_presentation("node_viewer"))
+        self.bridge.handle_viewer_execution_event(_viewer_opened_event(
+            request_id=opened["request_id"], workspace_id="ws_main", node_id="node_viewer",
+            session_id=session_id, data_refs=refs, backend_id=ENGINEERING_VIEWER_BACKEND_ID,
+            options={"scene_labels": {"scene_1": "Scene 1"}},
+            workspace_invalidation_epoch=self.bridge._viewer_epochs("ws_main", "node_viewer")[0],
+            node_invalidation_epoch=self.bridge._viewer_epochs("ws_main", "node_viewer")[1],
+        ))
+        self.assertEqual(
+            self.host.execution_client.update_calls[-1]["options"]["scene_labels"],
+            {"scene_1": "Scene 2"},
+        )
+        self.assertFalse(self.bridge.sync_node_presentation("node_viewer"))
+        old_update = self.host.execution_client.update_calls[-1]
+        # The accepted response must reconcile edits that happened while it was in flight.
+        node.port_labels = {"scene_1": "Renamed", "scene_empty": "Unused", "unknown": "Ignore"}
+        event = _viewer_opened_event(
+            request_id=old_update["request_id"], workspace_id="ws_main", node_id="node_viewer",
+            session_id=session_id, type="viewer_session_updated", data_refs=refs,
+            options=old_update["options"],
+            workspace_invalidation_epoch=self.bridge._viewer_epochs("ws_main", "node_viewer")[0],
+            node_invalidation_epoch=self.bridge._viewer_epochs("ws_main", "node_viewer")[1],
+        )
+        self.bridge.handle_viewer_execution_event(event)
+        newest = self.host.execution_client.update_calls[-1]
+        self.assertEqual(newest["options"]["scene_labels"], {"scene_1": "Renamed"})
+        self.assertNotEqual(newest["request_id"], old_update["request_id"])
+        count = len(self.host.execution_client.update_calls)
+        self.bridge.handle_viewer_execution_event(event)  # Superseded request is rejected.
+        self.bridge.handle_viewer_execution_event({
+            **event, "request_id": newest["request_id"], "options": newest["options"],
+        })
+        node.properties["scene_input_ids"].append("scene_more_empty")
+        self.assertFalse(self.bridge.sync_node_presentation("node_viewer"))
+        self.assertEqual(len(self.host.execution_client.update_calls), count)
+        self.assertEqual(self.host.execution_client.start_calls, [])
+        self.assertEqual(self.host.execution_client.materialize_calls, [])
+        self.assertEqual(self.bridge.session_state("node_viewer")["session_id"], session_id)
 
     def test_authored_appearance_reconciles_bulk_changes_and_property_removal(self):
         from ea_node_editor.nodes.bootstrap import build_builtin_registry
@@ -2279,6 +2333,54 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "viewer_session_runtime_seeded",
         )
 
+    def test_normalized_node_settled_session_handle_requests_authoritative_projection(self) -> None:
+        result = SettledPortResult(status="value", value=DataTree.from_item(_viewer_session_handle()))
+        self.bridge.handle_viewer_execution_event({
+            "type": "node_settled", "workspace_id": "ws_main", "node_id": "node_viewer",
+            "status": "completed", "outputs": {"session": result},
+        })
+        self.assertEqual(len(self.host.execution_client.open_calls), 1)
+        call = self.host.execution_client.open_calls[0]
+        self.assertEqual(call["session_id"], "viewer_session_runtime_seeded")
+        self.assertEqual(call["workspace_id"], "ws_main")
+        self.assertEqual(call["node_id"], "node_viewer")
+        self.assertEqual(call["backend_id"], ENGINEERING_VIEWER_BACKEND_ID)
+        self.assertEqual(call["data_refs"], {})
+        self.assertEqual(call["transport"], {})
+        self.assertEqual(self.bridge.session_state("node_viewer")["phase"], "opening")
+        self.assertEqual(self.host.execution_client.materialize_calls, [])
+
+    def test_normalized_session_settlement_keeps_handle_and_cardinality_guards(self) -> None:
+        handle = _viewer_session_handle()
+        invalid_results = {
+            "empty_status": SettledPortResult(status="empty"),
+            "failed_status": SettledPortResult(status="failed", errors=(RootExecutionError(error="failed"),)),
+            "invalid_status": {"status": "invalid", "value": DataTree.from_item(handle)},
+            "not_a_tree": {"status": "value", "value": "not a tree"},
+            "empty_tree": SettledPortResult(status="value", value=DataTree.from_list([])),
+            "multiple_handles": SettledPortResult(status="value", value=DataTree.from_list([handle, handle])),
+            "not_a_handle": SettledPortResult(status="value", value=DataTree.from_item({"session_id": "raw"})),
+            "wrong_type": SettledPortResult(status="value", value=DataTree.from_item(replace(handle, data_type_id="tests.other"))),
+            "wrong_kind": SettledPortResult(status="value", value=DataTree.from_item(replace(handle, kind="tests.other"))),
+            "wrong_workspace": SettledPortResult(status="value", value=DataTree.from_item(_viewer_session_handle(workspace_id="other"))),
+            "wrong_node": SettledPortResult(status="value", value=DataTree.from_item(_viewer_session_handle(node_id="other"))),
+            "missing_session": SettledPortResult(status="value", value=DataTree.from_item(_viewer_session_handle(session_id=""))),
+            "missing_backend": SettledPortResult(status="value", value=DataTree.from_item(_viewer_session_handle(backend_id=""))),
+        }
+        for name, result in invalid_results.items():
+            with self.subTest(name=name):
+                self.bridge.handle_viewer_execution_event({
+                    "type": "node_settled", "workspace_id": "ws_main", "node_id": "node_viewer",
+                    "status": "completed", "outputs": {"session": result},
+                })
+                self.assertEqual(self.host.execution_client.open_calls, [])
+                self.assertEqual(self.bridge.session_state("node_viewer"), {})
+        self.bridge.handle_viewer_execution_event({
+            "type": "node_settled", "workspace_id": "ws_main", "node_id": "node_viewer",
+            "status": "failed", "outputs": {"session": SettledPortResult(status="value", value=DataTree.from_item(handle))},
+        })
+        self.assertEqual(self.host.execution_client.open_calls, [])
+
     def test_node_settled_runtime_session_handle_requests_authoritative_projection(
         self,
     ) -> None:
@@ -2393,6 +2495,19 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
 
 
 class ViewerSessionBridgeShellIntegrationTests(MainWindowShellTestBase):
+    def test_fresh_unsaved_shell_installs_viewer_registry_for_authored_presentation(self) -> None:
+        self.assertEqual(self.window.project_path, "")
+        bridge = self.window.viewer_session_bridge
+        self.assertIs(bridge._registry, self.window.registry)
+        self.assertIs(bridge._data_types, self.window.registry.data_types)
+        node_id = self.window.scene.add_node_from_type("model.viewer", x=80.0, y=40.0)
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        state = bridge._ensure_session_state(workspace_id, node_id)
+        state.transport = {"layers": [{"id": "scene_1", "name": "Scene 1"}]}
+        options = bridge._authored_presentation_options(workspace_id, node_id)
+        self.assertEqual(options["scene_labels"], {"scene_1": "Scene 1"})
+        self.assertIn("show_mesh_edges", options)
+
     def _dispose_secondary_window(self, window) -> None:  # noqa: ANN001
         for timer_name in ("metrics_timer", "graph_hint_timer", "autosave_timer"):
             timer = getattr(window, timer_name, None)

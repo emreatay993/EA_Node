@@ -17,6 +17,7 @@ from ea_node_editor.execution.registry_agreement import (
     EMPTY_REGISTRY_CONTRACT_FINGERPRINT,
 )
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
+from ea_node_editor.execution.solution_resources import SolutionResourceOffer
 from ea_node_editor.nodes.function_plugin import PluginBundleRef
 from ea_node_editor.runtime_contracts import settled_results as _settled
 from ea_node_editor.runtime_contracts.retained_resources import RetainedSourceBinding
@@ -212,6 +213,7 @@ class NodeSettledEvent:
     solution_key: str = ""
     record_id: str = ""
     residency: str = ""
+    resource_offer: SolutionResourceOffer | None = None
 
 
 @dataclass(frozen=True)

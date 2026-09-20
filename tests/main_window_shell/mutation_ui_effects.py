@@ -116,6 +116,19 @@ class MutationUiEffectsTests(unittest.TestCase):
             ],
         )
 
+    def test_port_label_edit_and_history_each_offer_viewer_presentation_sync(self) -> None:
+        host = _MutationEffectsHostProbe()
+        host.viewer_session_bridge = _ViewerSessionBridgeProbe()
+        effects, _ = self._effects(host)
+        before = SimpleNamespace(nodes={"viewer": SimpleNamespace(properties={}, port_labels={})})
+        after = SimpleNamespace(nodes={"viewer": SimpleNamespace(properties={}, port_labels={"scene_1": "Part"})})
+        effects.after_graph_change("ws", before_snapshot=before, after_snapshot=after)
+        effects.after_history_replayed("ws", SimpleNamespace(before=after, after=before))
+        effects.after_graph_change("ws", before_snapshot=before, after_snapshot=before)
+        self.assertEqual(host.viewer_session_bridge.property_option_syncs, [
+            ("viewer", {"workspace_id": "ws"}), ("viewer", {"workspace_id": "ws"}),
+        ])
+
     def test_history_replay_refreshes_scene_invalidates_runtime_history_and_tabs_only(self) -> None:
         host = _MutationEffectsHostProbe()
         effects, refreshed_tabs = self._effects(host)

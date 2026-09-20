@@ -732,8 +732,15 @@ class SolutionStore:
             port_keys=port_keys,
             source_validation=source_validation,
         )
+        def validate_handle(value: RuntimeHandleRef) -> None:
+            with self._lock:
+                live = self._records.get(record.record_id)
+                if live is None or not any(getattr(lease, "value", None) == value for lease in live.resource_leases):
+                    raise ValueError("current output handle has no retained resource lease")
+
         validate_current_output_payload(
-            payload, catalog=catalog, port_keys=port_keys, source_validation=source_validation
+            payload, catalog=catalog, port_keys=port_keys, source_validation=source_validation,
+            handle_validator=validate_handle,
         )
         with self._lock:
             if (
@@ -1571,7 +1578,6 @@ class SolutionStore:
                 capture,
                 outputs,
                 catalog=catalog,
-                runtime_generation=run.generation_snapshot.runtime_generation,
                 resources_reusable=resources_reusable,
             )
         except (TypeError, ValueError):
@@ -1652,6 +1658,11 @@ class SolutionStore:
             and carriers_reusable
             and resources_reusable
             and source_complete
+            # Opaque native identities establish ownership, not deterministic
+            # value equality across executions. Keep the complete output digest
+            # and restrict the whole record to exact CURRENT consumption.
+            and not resource_leases
+            and not any("handle_ref" in descriptor.payload_kinds for descriptor in descriptors)
         )
         record = SolutionRecord(
             record_id=f"record_{uuid.uuid4().hex}",
@@ -1768,8 +1779,19 @@ class SolutionStore:
                 self._last_durable_reason_code = validation.reason_code
             elif backend is None:
                 self._last_durable_reason_code = "durable_not_bound"
-        retained_resource_leases = resource_leases if record.reuse_eligible else ()
-        released_leases = list(() if record.reuse_eligible else resource_leases)
+        # Exact CURRENT reads revalidate the captured key/provenance and native
+        # lease. Connected files remain outside the general solution-key index.
+        retain_current_resources = (
+            capture.solution_reuse_scope != "never" and carriers_reusable
+            and resources_reusable and source_complete
+            and (capture.identity_reuse_eligible or (
+                has_connected_source_provenance(run.preparation.plan, node_id)
+                and any(binding.ref_kind == "file" for binding in source_provenance)
+            ))
+        )
+        retain_resources = record.reuse_eligible or retain_current_resources
+        retained_resource_leases = resource_leases if retain_resources else ()
+        released_leases = list(() if retain_resources else resource_leases)
         entry = _RecordEntry(
             record=record,
             payload=stored_payload,
@@ -1927,7 +1949,6 @@ class SolutionStore:
         outputs: Mapping[str, SettledPortResult],
         *,
         catalog: DataTypeCatalog,
-        runtime_generation: int,
         resources_reusable: bool,
     ) -> tuple[tuple[SolutionOutputDescriptor, ...], bool]:
         specs = {
@@ -1966,10 +1987,10 @@ class SolutionStore:
                     )
                     if isinstance(item, RuntimeHandleRef):
                         payload_kinds.add("handle_ref")
-                        if (
-                            item.worker_generation != runtime_generation
-                            or not resources_reusable
-                        ):
+                        # The resource owner authenticates worker-local handle
+                        # generation; records bind the independent physical route
+                        # generation. A respawned registry starts at local 1.
+                        if not resources_reusable:
                             reusable = False
                     elif isinstance(item, RuntimeArtifactRef):
                         payload_kinds.add("artifact_ref")

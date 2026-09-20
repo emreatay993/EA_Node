@@ -10,6 +10,7 @@ from PyQt6.QtGui import QColor, QImage, QKeyEvent
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QApplication, QWidget
 
+from ea_node_editor.common.scene_protocol import ENGINEERING_VIEWER_BACKEND_ID
 from ea_node_editor.execution.prepared_execution import InvalidationResult
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.engineering_viewer import ENGINEERING_VIEWER_NODE_TYPE_ID
@@ -751,6 +752,37 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertIsNone(self.overlay_manager.overlay_container(node_id, workspace_id=self.workspace_id))
         self.assertEqual(self.host_service.active_overlay_count, 0)
         self.assertEqual(binder.widgets[0].close_calls, 1)
+
+    def test_label_change_while_retained_refreshes_same_widget_on_refocus(self) -> None:
+        image = QImage(24, 16, QImage.Format.Format_RGB32)
+        image.fill(QColor("red"))
+        binder = _RecordingBinder(captured_preview_image=image)
+        self.host_service.register_binder(ENGINEERING_VIEWER_BACKEND_ID, binder)
+        node_id = self._add_viewer_node()
+        original_transport = {"layers": [{"id": "scene_1", "name": "Scene 1"}]}
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized", node_id=node_id,
+            backend_id=ENGINEERING_VIEWER_BACKEND_ID, transport=original_transport,
+        )
+        self._activate_inline(node_id)
+        widget = self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
+        self._deactivate_inline(node_id)
+        self.assertEqual(self.host_service.retained_inline_viewer_node_id, node_id)
+        count = len(binder.bind_calls)
+        preview = self.host_service._preview_state.preview_source((self.workspace_id, node_id))
+        renamed_transport = {"layers": [{"id": "scene_1", "name": "Renamed"}]}
+        self._emit_viewer_event(
+            event_type="viewer_session_updated", node_id=node_id, live_mode="proxy",
+            backend_id=ENGINEERING_VIEWER_BACKEND_ID, transport=renamed_transport,
+            explicit_inline=False,
+        )
+        self.assertEqual(len(binder.bind_calls), count)
+        self.assertEqual(self.host_service._preview_state.preview_source((self.workspace_id, node_id)), preview)
+        self._activate_inline(node_id)
+        self.assertEqual(len(binder.bind_calls), count + 1)
+        self.assertEqual(binder.bind_calls[-1]["transport"]["layers"][0]["name"], "Renamed")
+        self.assertIs(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id), widget)
+        self.assertEqual(binder.release_calls, [])
 
     def test_one_retained_inline_viewer_is_replaced_only_when_next_viewer_is_ready(self) -> None:
         binder = _RecordingBinder()

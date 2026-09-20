@@ -22,6 +22,7 @@ _EXPECTED_T25_TARGET_IDS = {
     "run_controller__test_gui_remains_responsive_and_stop_cancels_blocked_preparation",
     "run_controller__test_plot_property_updates_retain_inline_rows_across_settings_and_ports",
     "run_controller__test_media_toolbar_history_and_bulk_edits_preserve_real_workflow",
+    "run_controller__test_unused_viewer_inputs_preserve_real_cad_workflow",
     "main_window__drop_connect_and_workflow_io__connection_constraints_and_library_drop",
     "main_window__drop_connect_and_workflow_io__connection_drag_and_cycle",
     "main_window__drop_connect_and_workflow_io__nested_category_startup",

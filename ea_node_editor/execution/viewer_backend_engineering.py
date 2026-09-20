@@ -264,12 +264,17 @@ class EngineeringViewerBackend:
         )
         revision = previous_revision if reuse_revision else previous_revision + 1
         if reuse_revision:
+            labels = {str(layer["id"]): str(layer.get("name", "")) for layer in layers}
             transport = copy.deepcopy(self._session_transports[session_key])
             layers = [
                 _mapping(value)
                 for value in transport.get("layers", ())
                 if isinstance(value, Mapping)
             ]
+            for layer in layers:
+                layer["name"] = labels[str(layer["id"])]
+            transport["layers"] = layers
+            self._session_transports[session_key] = copy.deepcopy(transport)
         else:
             try:
                 segments = self._allocate_shared_memory(
@@ -2296,7 +2301,16 @@ class EngineeringViewerBackend:
                 stat = path.stat()
                 file_facts.append((str(path), int(stat.st_mtime_ns), int(stat.st_size)))
         return json.dumps(
-            {"transport": transport, "file_facts": file_facts},
+            {
+                "transport": {
+                    **transport,
+                    "layers": [
+                        {key: value for key, value in layer.items() if key != "name"}
+                        for layer in transport.get("layers", ())
+                    ],
+                },
+                "file_facts": file_facts,
+            },
             ensure_ascii=True,
             sort_keys=True,
             default=str,

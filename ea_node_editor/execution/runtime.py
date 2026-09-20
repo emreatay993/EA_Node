@@ -1508,8 +1508,8 @@ class CorexRuntime:
                 acceptance = None
                 released_leases = resource_leases
             else:
-                diagnostics, released_leases, acceptance = (
-                    self._solution_store.handle_event(
+                try:
+                    diagnostics, released_leases, acceptance = self._solution_store.handle_event(
                         validated_event,
                         generation_snapshot,
                         catalog=registry.data_types,
@@ -1521,7 +1521,11 @@ class CorexRuntime:
                             else None
                         ),
                     )
-                )
+                except BaseException:
+                    # Transport callbacks may swallow subscriber exceptions;
+                    # unaccepted claims must still be returned to their owner.
+                    self._release_resource_leases(resource_leases)
+                    raise
             enriched_event = dict(validated_event)
             if str(enriched_event.get("type", "")) == "node_settled":
                 enriched_event["accepted_solution_record"] = acceptance is not None

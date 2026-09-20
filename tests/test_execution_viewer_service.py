@@ -833,6 +833,55 @@ class ViewerSessionServiceTests(unittest.TestCase):
         self.assertEqual(reopened.options["live_mode"], "proxy")
         self.assertIn("dataset", reopened.summary["stale_ref_keys"])
 
+    def test_scene_label_update_preserves_sources_camera_transport_and_session_state(self) -> None:
+        scene = self.services.register_handle(
+            {"scene": "geometry"}, data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
+            kind=COREX_SCENE_HANDLE_KIND, run_id="labels",
+        )
+        identity = dict(workspace_id="ws_main", node_id="viewer", session_id="labels",
+                        backend_id=ENGINEERING_VIEWER_BACKEND_ID)
+        camera = {"position": [1, 2, 3]}
+        opened = self.service.open_session(OpenViewerSessionCommand(
+            **identity,
+            data_refs={"scene_order": ["scene_1"], "scene_labels": {"scene_1": "Scene 1"},
+                       "scene:scene_1": scene, "native_source:scene_1": scene},
+            transport={"kind": "engineering_scene_bundle", "layers": [
+                {"id": "scene_1", "name": "Scene 1", "display_asset": {"name": "geometry"}},
+            ]},
+            transport_revision=7, camera_state=camera,
+            summary={"scene_layers": [{"id": "scene_1", "name": "Scene 1"}],
+                     "model_tree": [{"id": "scene_1:root", "layer_id": "scene_1", "layer_name": "Scene 1"}],
+                     "elapsed_ms": 32},
+            options={"active_scene_id": "scene_1", "saved_selections": [{"entity_id": "body:1"}]},
+        ))
+        record = self.service._sessions[("ws_main", "labels")]
+        refs = dict(record.source_refs)
+        leases = self.services.handle_registry.lease_count(scene, owner_scope=record.owner_scope)
+        with mock.patch.object(type(self.services), "lease_handle", side_effect=AssertionError("label edit leased geometry")), \
+             mock.patch.object(self.service, "_release_live_transport", side_effect=AssertionError("label edit released transport")), \
+             mock.patch.object(self.service, "_materialize_backend_result", side_effect=AssertionError("label edit materialized geometry")):
+            updated = self.service.update_session(UpdateViewerSessionCommand(
+                **identity, options={"scene_labels": {"scene_1": "Scene 2", "unused": "Ignored"}},
+            ))
+        self.assertIsInstance(updated, ViewerSessionUpdatedEvent)
+        self.assertEqual(updated.session_id, opened.session_id)
+        self.assertEqual(updated.transport_revision, 7)
+        self.assertEqual(updated.camera_state, camera)
+        self.assertEqual(updated.summary["elapsed_ms"], 32)
+        self.assertEqual(updated.options["saved_selections"], opened.options["saved_selections"])
+        self.assertEqual(updated.options["active_scene_id"], "scene_1")
+        self.assertEqual(updated.options["scene_labels"], {"scene_1": "Scene 2"})
+        self.assertEqual(record.source_refs, {**refs, "scene_labels": {"scene_1": "Scene 2"}})
+        self.assertEqual(self.services.handle_registry.lease_count(scene, owner_scope=record.owner_scope), leases)
+        self.assertEqual(updated.transport["layers"][0]["name"], "Scene 2")
+        self.assertEqual(updated.transport["layers"][0]["display_asset"], {"name": "geometry"})
+        self.assertEqual(updated.summary["scene_layers"][0]["name"], "Scene 2")
+        self.assertEqual(updated.summary["model_tree"][0]["layer_name"], "Scene 2")
+        reopened = self.service.open_session(OpenViewerSessionCommand(
+            **identity, summary={"camera_state": {"position": [4, 5, 6]}},
+        ))
+        self.assertEqual(reopened.camera_state, {"position": [4, 5, 6]})
+
     def test_options_update_preserves_engineering_live_transport_without_materialized_refs(
         self,
     ) -> None:

@@ -120,10 +120,13 @@ def test_authored_property_admission_preserves_runtime_ref_security(import_host)
         with pytest.raises(ValueError, match="malformed"):
             service.materialize_authored_properties({"source": malformed})
     path = store.resolve_staged_path(raw_ref)
+    assert service.resolve_authored_path(raw_ref) == path
     original = path.read_bytes()
     path.write_bytes(b"tampered payload")
     with pytest.raises(ValueError, match="does not match"):
         service.materialize_authored_properties({"source": raw_ref})
+    with pytest.raises(ValueError, match="does not match"):
+        service.resolve_authored_path(raw_ref)
     path.write_bytes(original)
     entry = store.staged_entry(raw_ref)
     store.register_staged_entry(admitted.artifact_id, relative_path=entry.relative_path, extra={})

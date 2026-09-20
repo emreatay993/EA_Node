@@ -93,6 +93,7 @@ from ea_node_editor.execution.viewer_messages import (
     viewer_epoch_snapshot_digest,
 )
 from ea_node_editor.execution.runtime_snapshot import coerce_runtime_snapshot
+from ea_node_editor.execution.solution_resources import SolutionResourceCommand, SolutionResourceOffer
 from ea_node_editor.runtime_contracts import (
     DataTypeCatalog,
     deserialize_runtime_value,
@@ -122,6 +123,7 @@ WorkerCommand: TypeAlias = (
     | CommitRunPreflightCommand
     | CancelRunPreflightCommand
     | RetireWorkspaceCommand
+    | SolutionResourceCommand
     | InvalidateViewerSessionsCommand
     | OpenViewerSessionCommand
     | UpdateViewerSessionCommand
@@ -662,6 +664,8 @@ def command_to_dict(
     *,
     catalog: DataTypeCatalog | None = None,
 ) -> dict[str, Any]:
+    if type(command) is SolutionResourceCommand:
+        return command.to_payload()
     if type(command) is PrepareGenerationCommand:
         return {
             "type": command.type,
@@ -987,6 +991,7 @@ def event_to_dict(
                 field_name="elapsed_ms",
             ),
             "outputs": _settled_outputs_to_dict(event.outputs, catalog=catalog),
+            "resource_offer": event.resource_offer.to_payload(catalog) if event.resource_offer is not None else None,
             "retained_source_bindings": [
                 item.to_payload() for item in normalize_retained_source_bindings(event.retained_source_bindings)
             ],
@@ -1571,6 +1576,8 @@ def dict_to_command(
 ) -> WorkerCommand:
     payload = dict(copy_json_safe(payload, field_name="worker command"))
     command_type = _string_field(payload, "type")
+    if command_type == "solution_resources":
+        return SolutionResourceCommand.from_payload(payload)
     if command_type == "prepare_generation":
         if set(payload) != {"type", "request_id", "agreement"}:
             raise ValueError("generation preparation fields are invalid")
@@ -1888,6 +1895,8 @@ def dict_to_event(
             workspace_id=_string_field(payload, "workspace_id"),
             node_id=_string_field(payload, "node_id"),
             status=status,
+            resource_offer=(SolutionResourceOffer.from_payload(payload["resource_offer"], catalog)
+                            if payload.get("resource_offer") is not None else None),
             elapsed_ms=_float_field(payload, "elapsed_ms"),
             outputs=_settled.settled_output_mapping_from_payload(
                 payload.get("outputs", {}),

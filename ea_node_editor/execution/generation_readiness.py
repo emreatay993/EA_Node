@@ -104,8 +104,12 @@ class GenerationReadiness:
             current._completion.set_result(event)
         return True
 
-    def retire(self, reason: str) -> None:
+    def retire(self, reason: str, *, generation: int | None = None) -> None:
         with self._lock:
+            if generation is not None and (
+                self._current is None or self._current.physical_generation != generation
+            ):
+                return
             pending = self._current if self._phase == "pending" else None
             self._current, self._phase = None, "empty"
         if pending is not None:

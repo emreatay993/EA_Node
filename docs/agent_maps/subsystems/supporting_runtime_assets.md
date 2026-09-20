@@ -21,6 +21,7 @@ Use this for support layers that are not owned by graph, persistence, or UI: tel
 - `scripts/`
 
 ## Runtime Contracts
+- `runtime_contracts/retained_resources.py` defines strict table, array and declared-file provenance bindings. File bindings describe dependencies, not ownership of files. Execution validates them with the existing bounded, link-safe hashing policy; `tests/test_process_solution_resources.py` covers native CURRENT source changes and lifecycle admission.
 
 - `runtime_contracts/retained_resources.py` owns immutable RetainedSourceBinding metadata and strict canonical serialization. Resolver/source/object/options/content/hash-policy identity is separate from authored refs. Execution owns collection, source validation and accepted-output commitments; the tabular loader owns actual-read enforcement. No general resolver registry or additional durable carrier permission is introduced.
 

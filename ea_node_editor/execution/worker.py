@@ -27,6 +27,7 @@ from ea_node_editor.execution.worker_runner import WorkflowRunner
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.execution.viewer_messages import InvalidateViewerSessionsCommand
 from ea_node_editor.execution.generation_messages import PrepareGenerationCommand
+from ea_node_editor.execution.solution_resources import SolutionResourceCommand
 
 
 def run_workflow(
@@ -49,6 +50,7 @@ def worker_main(
     worker_services: WorkerServices | None = None,
 ) -> None:
     services = worker_services or WorkerServices()
+    services.solution_resource_offers_enabled = True
     needs_final_reset = True
     try:
         while True:
@@ -63,6 +65,12 @@ def worker_main(
 
             if isinstance(command, ShutdownCommand):
                 break
+            if isinstance(command, SolutionResourceCommand):
+                try:
+                    services.solution_resources.apply(command)
+                except (TypeError, ValueError, LookupError, RuntimeError) as exc:
+                    emit_protocol_error(event_queue, str(exc), command=command.type)
+                continue
             if isinstance(command, PrepareGenerationCommand):
                 dispatch_generation_preparation(
                     command, event_queue=event_queue, worker_services=services
@@ -74,9 +82,7 @@ def worker_main(
                 )
                 continue
             if isinstance(command, RetireWorkspaceCommand):
-                retired = services.mechanical_session_service.retire_workspace(
-                    command.workspace_id
-                )
+                retired = services.retire_workspace(command.workspace_id)
                 emit(
                     event_queue,
                     WorkspaceRetiredEvent(
@@ -110,6 +116,7 @@ def worker_main(
                             workspace_id=command.workspace_id,
                             error=str(exc),
                             traceback=traceback.format_exc(),
+                            fatal=True,
                         ),
                         catalog=services.data_types,
                     )
@@ -122,6 +129,9 @@ def worker_main(
                         reason="worker_exception",
                         catalog=services.data_types,
                     )
+                    # A reset invalidated every native handle. Retire this
+                    # physical generation instead of accepting stale leases.
+                    break
             elif isinstance(command, StopRunCommand):
                 emit_protocol_error(
                     event_queue,

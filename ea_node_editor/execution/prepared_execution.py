@@ -228,6 +228,7 @@ def _reject_durable_session_carriers(
     *,
     catalog: DataTypeCatalog | None,
     allow_bound_sources: bool = False,
+    handle_validator: Any = None,
 ) -> None:
     if isinstance(value, Mapping):
         marker = value.get(_RUNTIME_VALUE_MARKER_KEY)
@@ -237,6 +238,12 @@ def _reject_durable_session_carriers(
         if marker in _SESSION_ONLY_RUNTIME_MARKERS and not (
             allow_bound_sources and source_marker
         ):
+            if marker == "handle_ref" and handle_validator is not None:
+                ref = deserialize_runtime_value(value, catalog=catalog)
+                if catalog.require(ref.data_type_id).sensitivity != "normal":
+                    raise ValueError("current outputs cannot retain sensitive handles")
+                handle_validator(ref)
+                return
             raise ValueError(
                 "durable accepted outputs cannot contain session-only carriers"
             )
@@ -259,13 +266,13 @@ def _reject_durable_session_carriers(
                 )
         for item in value.values():
             _reject_durable_session_carriers(
-                item, catalog=catalog, allow_bound_sources=allow_bound_sources
+                item, catalog=catalog, allow_bound_sources=allow_bound_sources, handle_validator=handle_validator
             )
         return
     if isinstance(value, (list, tuple)):
         for item in value:
             _reject_durable_session_carriers(
-                item, catalog=catalog, allow_bound_sources=allow_bound_sources
+                item, catalog=catalog, allow_bound_sources=allow_bound_sources, handle_validator=handle_validator
             )
 
 
@@ -1001,10 +1008,11 @@ def validate_current_output_payload(
     catalog: DataTypeCatalog,
     port_keys: tuple[str, ...],
     source_validation: RetainedSourceValidation | None = None,
+    handle_validator: Any = None,
 ) -> None:
     """Require detached data or bound sources; SolutionStore owns currentness.
 
-    Reading a retained result must not revive handles, private working files,
+    Reading a retained result must not revive unleased handles, private working files,
     secrets, or session-bound typed snapshots after their producing run ends.
     Supported lazy sources keep their original content binding and generation.
     This is a consumption check, not permission to persist the result.
@@ -1024,7 +1032,8 @@ def validate_current_output_payload(
     if not payload.source_provenance_complete:
         raise ValueError("current output has incomplete source provenance")
     validate_source_provenance_bindings(payload.source_provenance_bindings, validation=source_validation)
-    _reject_durable_session_carriers(outputs, catalog=catalog, allow_bound_sources=True)
+    _reject_durable_session_carriers(outputs, catalog=catalog, allow_bound_sources=True,
+                                    handle_validator=handle_validator)
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)

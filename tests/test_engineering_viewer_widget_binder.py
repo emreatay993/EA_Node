@@ -12,6 +12,7 @@ from dataclasses import replace
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 from unittest.mock import PropertyMock, patch
 
 from PyQt6.QtCore import QObject, QSize, Qt, pyqtSignal
@@ -644,6 +645,74 @@ def _request(
 
 
 class EngineeringViewerWidgetBinderTests(unittest.TestCase):
+    def test_scene_label_update_only_refreshes_metadata_and_preserves_live_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "scene.vtu"
+            path.touch()
+            loader = mock.Mock(side_effect=lambda path: _FakeDataset(path, [1, 2]))
+            binder = EngineeringViewerWidgetBinder(
+                interactor_factory=lambda parent: _FakeInteractor(parent),
+                dataset_loader=loader, background_loading=False,
+            )
+            self.addCleanup(binder.shutdown)
+            request = _request(path)
+            widget = binder.bind_widget(request)
+            state = binder._widget_state[widget]
+            actors = dict(state.actors)
+            state.selected_entities = [{"layer_id": "scene_1", "entity_kind": "fe_node", "entity_id": "1"}]
+            state.selection_isolated = True
+            selected = copy.deepcopy(state.selected_entities)
+            widget.camera_position = ((7, 6, 5), (0, 0, 0), (0, 1, 0))
+            counts = (loader.call_count, widget.clear_calls, widget.reset_camera_calls, widget.render_calls)
+            renamed = replace(request, current_widget=widget,
+                              transport={**request.transport, "layers": [{**request.transport["layers"][0], "name": "Renamed"}]},
+                              options={**request.options, "scene_labels": {"scene_1": "Renamed"}})
+            with mock.patch.object(binder, "_rebuild_selection_isolate", side_effect=AssertionError("rebuilt isolate")):
+                self.assertIs(binder.bind_widget(renamed), widget)
+            self.assertEqual(binder.render_stats(widget)["layers"][0]["name"], "Renamed")
+            self.assertEqual(state.actors, actors)
+            self.assertEqual(state.selected_entities, selected)
+            self.assertTrue(state.selection_isolated)
+            self.assertEqual(tuple(widget.camera_position[0]), (7, 6, 5))
+            self.assertEqual((loader.call_count, widget.clear_calls, widget.reset_camera_calls, widget.render_calls), counts)
+
+    def test_completed_background_load_uses_latest_label_at_same_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "scene.vtu"
+            path.touch()
+            loaded = threading.Event()
+            proceed = threading.Event()
+
+            def load(path):
+                loaded.set()
+                proceed.wait(2)
+                return _FakeDataset(path, [1, 2])
+
+            binder = EngineeringViewerWidgetBinder(
+                interactor_factory=lambda parent: _FakeInteractor(parent), dataset_loader=load,
+            )
+            ready = []
+            binder.load_ready.connect(lambda *args: ready.append(args))
+            try:
+                request = _request(path)
+                with self.assertRaises(ViewerWidgetNoBind):
+                    binder.bind_widget(request)
+                self.assertTrue(loaded.wait(1))
+                renamed = replace(request, transport={**request.transport, "layers": [
+                    {**request.transport["layers"][0], "name": "Latest"},
+                ]})
+                proceed.set()
+                deadline = time.monotonic() + 2
+                while not ready and time.monotonic() < deadline:
+                    self.app.processEvents()
+                    time.sleep(0.01)
+                self.assertTrue(ready)
+                widget = binder.bind_widget(renamed)
+                self.assertEqual(binder.render_stats(widget)["layers"][0]["name"], "Latest")
+            finally:
+                proceed.set()
+                binder.shutdown()
+
     def test_three_same_source_scenes_keep_independent_identity_and_appearance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             surface = Path(directory) / "surface.vtp"

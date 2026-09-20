@@ -118,6 +118,7 @@ def create_viewer_service_dependencies(
         data_types=primitives.registry.data_types,
         capture_overlay_camera_state=capture_overlay_camera_state,
     )
+    viewer_session_bridge.replace_registry(primitives.registry)
 
     def project_provider():  # noqa: ANN202
         return model_provider().project

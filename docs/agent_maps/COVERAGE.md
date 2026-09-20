@@ -8,19 +8,25 @@ implementation studies are intentionally excluded.
 | Source area | Primary map | Main responsibility |
 | --- | --- | --- |
 | `ea_node_editor/graph` | [Graph Domain](subsystems/graph_domain.md) | Graph records, invariants, pure caller-specific port-state projection, shared validated mutation mechanics, forwarding, rewire validation, transforms, and workspace state |
-| `ea_node_editor/execution` | [Execution](subsystems/execution.md) | Runtime snapshots, protocol, workers, node-scoped result identity, inferred-source identities, actual-carrier validation, current data-port consumption, invalidation, and workspace retirement |
+| `ea_node_editor/execution` | [Execution](subsystems/execution.md) | Runtime snapshots, protocol, workers, participating-input identities, native CURRENT ownership and source validation, invalidation, and workspace retirement |
 | `ea_node_editor/persistence` | [Persistence](subsystems/persistence.md) | Project codecs, migrations, artifacts, and sessions |
-| `ea_node_editor/nodes` | [Nodes And Built-ins](subsystems/nodes_registry_builtins.md) | Registry, explicit forwarding declarations, contracts, built-ins, packages, and plugins |
+| `ea_node_editor/nodes` | [Nodes And Built-ins](subsystems/nodes_registry_builtins.md) | Registry, forwarding and dynamic-input execution declarations, contracts, built-ins, packages, and plugins |
 | `ea_node_editor/addons` | [Add-ons](subsystems/addons.md) | Add-on records, dependency-gated catalogs, runtime helpers, backend contributions, and Mechanical runtime/CDB export/examples/help with nullable catalogue projection |
 | `ea_node_editor/common` | [Supporting Runtime Assets](subsystems/supporting_runtime_assets.md) | Dependency-light helpers shared across subsystem boundaries |
 | `ea_node_editor/ui` | [UI Shell](subsystems/ui_shell.md) | Shell composition, controllers, presenters, and native hosts |
 | `ea_node_editor/ui_qml` | [QML Shell And Bridges](subsystems/qml_shell_and_bridges.md) | QML components, bridges, payloads, and graph surfaces |
-| `ea_node_editor/runtime_contracts` | [Supporting Runtime Assets](subsystems/supporting_runtime_assets.md) | Data types, carriers, trees, intervals, runtime references, and bounded settled-result projection |
+| `ea_node_editor/runtime_contracts` | [Supporting Runtime Assets](subsystems/supporting_runtime_assets.md) | Data types, carriers, trees, intervals, runtime references, file/table/array provenance and bounded settled-result projection |
 | `ea_node_editor/workspace` | [Workspace And Projects](subsystems/workspace_projects_session_library.md) | Workspace navigation, project sessions, and library state |
 | `ea_node_editor/custom_workflows` | [Supporting Runtime Assets](subsystems/supporting_runtime_assets.md) | Reusable workflow storage and runtime support |
 | `ea_node_editor/telemetry` | [Supporting Runtime Assets](subsystems/supporting_runtime_assets.md) | Telemetry and diagnostics |
 
 ## Cross-layer feature routes
+
+Unused Model Viewer inputs share the execution-owned computational projection.
+Native CAD CURRENT reads retain process resources with validated provenance;
+viewer label changes preserve actors, camera and previews through history and
+refocus. Execution, nodes, viewer surfaces, engineering-viewer and run-controller
+maps own the contract and its real default-worker proof.
 
 The [Python Script authoring route](feature_routes/python_script_authoring.md)
 owns the desktop builder/editor, type guidance, scoped source edits, sections,

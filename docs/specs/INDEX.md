@@ -56,6 +56,8 @@ T01–T17 are complete, and the locked 176-type snapshot is fully classified.
 
 ### Completed Implementation Plans
 
+- [Unused Dynamic Inputs and CAD Result Reuse](../PLANS/DYNAMIC_INPUT_EXECUTION.md) — `IMPLEMENTED AND INDEPENDENTLY REVIEWED`; shared execution semantics, process-owned native CURRENT results, preserved viewer presentation and real default-worker proof. Final integration results are recorded in the plan.
+
 - [Current Results and Preview Stability](../PLANS/CURRENT_RESULTS_AND_PREVIEW_STABILITY.md) — `IMPLEMENTED AND REVIEWED`; source-bound current results, inherited provenance, stable immutable previews and real editor/drag/wire proof; all identified integration failures resolved with focused rechecks and the serial phase passing.
 - [Canvas Execution Impact](../PLANS/CANVAS_EXECUTION_IMPACT.md) — `IMPLEMENTED AND REVIEWED`; shared property impact, execution comparison and real-worker/QML proof; identified baseline checks corrected and passing.
 

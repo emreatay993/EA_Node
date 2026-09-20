@@ -88,7 +88,11 @@ class MutationUiEffects:
         if viewer is not None:
             for node_id, node in after_snapshot.nodes.items():
                 previous = before_snapshot.nodes.get(node_id)
-                if previous is None or previous.properties != node.properties:
+                if (
+                    previous is None
+                    or previous.properties != node.properties
+                    or getattr(previous, "port_labels", {}) != getattr(node, "port_labels", {})
+                ):
                     viewer.sync_node_presentation(node_id, {"workspace_id": workspace_id})
         return self._host.run_controller.invalidate_solution_for_graph_change(
             workspace_id, before_snapshot=before_snapshot, after_snapshot=after_snapshot,

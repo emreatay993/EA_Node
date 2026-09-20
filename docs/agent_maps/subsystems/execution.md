@@ -4,6 +4,8 @@
 Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency scheduling, client/worker protocol, DataTree matching, execution artifacts, handles, and viewer execution services.
 
 ## Lookup Aliases
+- `unused dynamic inputs`
+- `native CURRENT resource retention`
 - `runtime snapshot`
 - `runtime handle lease`
 - `owner-scope cleanup`
@@ -13,7 +15,15 @@ Use this for runtime snapshot assembly, ordered data-edge DTOs, dependency sched
 - `optimization semantic link ordering`
 - `optimization design handle`
 
+## Dynamic Inputs and Native Resources
+- `ExecutionPlan.node_computation` shares the connected-input projection across `graph_changes.py`, per-node interfaces, contracts and solution keys. Complete authored ports/properties remain in runtime snapshots and workflow attestation. Schema/interface revision 5 preserves Python Script and Stream Gate computational edits.
+- Process workers lease native outputs before publishing settlements. Bounded offers are claimed locally in host callbacks and settled/released asynchronously; physical worker generation and monotonic offer sequence prevent stale/replayed ownership. Failed callbacks/delivery, eviction and reset release ownership; installed CURRENT values acquire their own run leases with rollback on partial failure.
+- Native-containing records support exact authenticated CURRENT reads, not general key REUSE or durable storage. Declared `never` lifetimes remain excluded. File provenance validates both connected and property paths, including changes between preparation and execution. `RuntimeArtifactService.resolve_authored_path` uses existing descriptor admission before host/worker identity hashing, so managed project files share CURRENT behavior without treating raw artifact URIs as paths. Detached-only reuse and nondeterminism behavior remain unchanged. External stdio offers are not enabled.
+
 ## Start Here
+- `ea_node_editor/execution/node_computation.py` — shared participating-port/property projection for invalidation and solution identity
+- `ea_node_editor/execution/solution_resources.py` — bounded process-worker resource offers, host claims and asynchronous ownership cleanup
+- `tests/test_dynamic_input_execution.py` and `tests/test_process_solution_resources.py` — dynamic-input identities and real process CAD resource/provenance lifecycle
 - `ea_node_editor/execution/retained_resources.py` — shared source bindings, provenance validation and strict read scopes
 - `ea_node_editor/execution/settled_output_identity.py` — computational output comparison independent of Plot run occurrence
 - `tests/test_runtime_retained_sources.py` — real-process partial execution, provenance, lifecycle and durable-boundary regressions

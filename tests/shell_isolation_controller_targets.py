@@ -25,6 +25,10 @@ def _build_targets():
             target_id="run_controller__test_media_toolbar_history_and_bulk_edits_preserve_real_workflow",
         ),
         ShellIsolationTarget.unittest_target(
+            "tests.test_shell_run_controller.ShellRunControllerTests.test_unused_viewer_inputs_preserve_real_cad_workflow",
+            target_id="run_controller__test_unused_viewer_inputs_preserve_real_cad_workflow",
+        ),
+        ShellIsolationTarget.unittest_target(
             f"{_SCRIPT_EDITOR_TEST_CLASS}.test_canvas_port_edits_preserve_dirty_drafts_and_refresh_clean_editor",
             target_id="script_editor__test_canvas_port_edits_preserve_dirty_drafts_and_refresh_clean_editor",
         ),

@@ -162,6 +162,14 @@ sensitive dependencies. Display names do not imply this classification: a plot
 title or exported-image camera changes generated output and must keep the
 default. When a property's effect is uncertain, keep `affects_execution=True`.
 
+An optional input is not automatically presentation-only. Adding an input to a
+Python Script changes its source and call signature, so it remains computational.
+Trusted registry declarations can opt a `DynamicPortGroupSpec` into
+`execution_policy="connected_inputs"` when its executor ignores unconnected
+optional inputs; the default is `"all_ports"`. Model Viewer uses this contract
+for empty scene slots. It is not a public `corex` decorator or metadata export.
+See the [dynamic-input contract and verification](PLANS/DYNAMIC_INPUT_EXECUTION.md).
+
 | Decorator | Additional fields |
 | --- | --- |
 | `corex.text`, `corex.text_area` | Text defaults |
