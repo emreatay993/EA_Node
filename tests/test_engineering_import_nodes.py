@@ -3,9 +3,12 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import multiprocessing
+import os
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -31,10 +34,17 @@ from ea_node_editor.execution.prepared_scene_runtime import (
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.execution.worker_services import WorkerServices
-from tests.typed_handle_support import core_worker_services
 from ea_node_editor.graph.effective_ports import ports_compatible
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtins.engineering_imports import execute_engineering_import
+from ea_node_editor.nodes.builtins.imported_models import (
+    CAD_MODEL_DATA_TYPE_ID,
+    CAD_MODEL_HANDLE_KIND,
+    SURFACE_MODEL_DATA_TYPE_ID,
+    SURFACE_MODEL_HANDLE_KIND,
+    resolve_cad_model,
+    resolve_surface_model,
+)
 from ea_node_editor.nodes.execution_context import ExecutionContext
 
 
@@ -45,12 +55,54 @@ def _write_vtu(path: Path) -> None:
 
 
 def _services(cache_root: Path) -> WorkerServices:
-    services = core_worker_services()
+    services = WorkerServices()
+    services.bind_data_types(build_builtin_registry().data_types)
     services._prepared_scene_runtime = PreparedSceneRuntime(  # noqa: SLF001
         services,
         cache_root=cache_root,
     )
     return services
+
+
+def _prepare_shared_cad_cache_worker(
+    source_path: str,
+    cache_root: str,
+    ready: object,
+    start: object,
+    results: object,
+) -> None:
+    try:
+        services = _services(Path(cache_root))
+        runtime = services.prepared_scene_runtime
+        model_ref = runtime.import_cad_model(
+            Path(source_path), owner_scope="run:parallel_cad_cache",
+        )
+        model = resolve_cad_model(services, model_ref)
+        writes = [0]
+        original_write = runtime._write_cad_lods  # noqa: SLF001
+
+        def counted_write(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+            writes[0] += 1
+            time.sleep(0.4)
+            return original_write(*args, **kwargs)
+
+        runtime._write_cad_lods = counted_write  # noqa: SLF001
+        ready.put(os.getpid())  # type: ignore[attr-defined]
+        if not start.wait(60):  # type: ignore[attr-defined]
+            raise TimeoutError("Concurrent CAD cache test did not start")
+        scene_ref = runtime.prepare_cad_model(
+            model,
+            source_identity="same-imported-model-representation",
+            owner_scope="run:parallel_cad_cache",
+        )
+        prepared = services.resolve_handle(scene_ref, expected_kind=COREX_SCENE_HANDLE_KIND)
+        results.put({  # type: ignore[attr-defined]
+            "writes": writes[0],
+            "source_sha256": prepared.descriptor.source.sha256,
+            "manifest": prepared.descriptor.cache_manifest_path,
+        })
+    except Exception as exc:  # noqa: BLE001
+        results.put({"error": repr(exc)})  # type: ignore[attr-defined]
 
 
 def _write_xcaf_step(path: Path) -> None:
@@ -116,6 +168,47 @@ def _write_xcaf_step(path: Path) -> None:
         or writer.Write(str(path)).name != "IFSelect_RetDone"
     ):
         raise RuntimeError("Could not create STEP/XCAF test input.")
+
+
+def _write_named_colored_iges(path: Path) -> None:
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+    from OCP.IGESCAFControl import IGESCAFControl_Writer
+    from OCP.Quantity import Quantity_Color, Quantity_TOC_RGB
+    from OCP.TCollection import TCollection_ExtendedString
+    from OCP.TDataStd import TDataStd_Name
+    from OCP.TDocStd import TDocStd_Document
+    from OCP.TopAbs import TopAbs_FACE
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopoDS import TopoDS
+    from OCP.XCAFDoc import XCAFDoc_ColorType, XCAFDoc_DocumentTool
+    from OCP.gp import gp_Pnt
+
+    document = TDocStd_Document(TCollection_ExtendedString("XmlXCAF"))
+    shape_tool = XCAFDoc_DocumentTool.ShapeTool_s(document.Main())
+    color_tool = XCAFDoc_DocumentTool.ColorTool_s(document.Main())
+    for name, origin, width in (
+        ("First IGES Part", 0.0, 2.0),
+        ("Second IGES Part", 10.0, 1.0),
+    ):
+        shape = BRepPrimAPI_MakeBox(gp_Pnt(origin, 0.0, 0.0), width, 3.0, 4.0).Shape()
+        label = shape_tool.AddShape(shape, False)
+        TDataStd_Name.Set_s(label, TCollection_ExtendedString(name))
+        if origin == 0.0:
+            face = TopExp_Explorer(shape, TopAbs_FACE)
+            face_label = shape_tool.AddSubShape(
+                label, TopoDS.Face_s(face.Current()),
+            )
+            color_tool.SetColor(
+                face_label,
+                Quantity_Color(0.2, 0.4, 0.6, Quantity_TOC_RGB),
+                XCAFDoc_ColorType.XCAFDoc_ColorSurf,
+            )
+    writer = IGESCAFControl_Writer()
+    writer.SetNameMode(True)
+    writer.SetColorMode(True)
+    writer.SetLayerMode(True)
+    if not writer.Transfer(document) or not writer.Write(str(path)):
+        raise RuntimeError("Could not create named IGES/XCAF test input.")
 
 
 def _valid_scene_bundle() -> dict[str, object]:
@@ -309,7 +402,7 @@ class PreparedSceneRuntimeTests(unittest.TestCase):
             self.assertEqual(prepared.descriptor.display_artifact_path, "")
             self.assertEqual(prepared.descriptor.cache_manifest_path, "")
             self.assertEqual(prepared.descriptor.display_format, ".vtp")
-            self.assertEqual(prepared.descriptor.length_unit, "m")
+            self.assertEqual(prepared.descriptor.length_unit, "mm")
             self.assertEqual(
                 prepared.descriptor.source.sha256,
                 expected_fingerprint,
@@ -536,6 +629,52 @@ class PreparedSceneRuntimeTests(unittest.TestCase):
                     owner_scope=cached_ref.owner_scope,
                 ),
                 1,
+            )
+
+    def test_parallel_processes_publish_one_cad_model_cache_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_path = root / "shared.step"
+            _write_xcaf_step(source_path)
+            cache_root = root / "cache"
+            context = multiprocessing.get_context("spawn")
+            ready = context.Queue()
+            start = context.Event()
+            results = context.Queue()
+            workers = [
+                context.Process(
+                    target=_prepare_shared_cad_cache_worker,
+                    args=(str(source_path), str(cache_root), ready, start, results),
+                )
+                for _index in range(2)
+            ]
+            try:
+                for worker in workers:
+                    worker.start()
+                self.assertEqual(len({ready.get(timeout=60) for _ in workers}), 2)
+                start.set()
+                outcomes = [results.get(timeout=60) for _ in workers]
+            finally:
+                start.set()
+                for worker in workers:
+                    worker.join(timeout=10)
+                    if worker.is_alive():
+                        worker.terminate()
+                        worker.join(timeout=10)
+            self.assertEqual([worker.exitcode for worker in workers], [0, 0])
+            self.assertTrue(all("error" not in outcome for outcome in outcomes), outcomes)
+            self.assertEqual(sum(outcome["writes"] for outcome in outcomes), 1)
+            self.assertEqual(len({outcome["manifest"] for outcome in outcomes}), 1)
+            self.assertEqual(
+                {outcome["source_sha256"] for outcome in outcomes},
+                {hashlib.sha256(source_path.read_bytes()).hexdigest()},
+            )
+            manifest = json.loads(
+                Path(outcomes[0]["manifest"]).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                validate_scene_bundle(manifest["scene"])["source"]["sha256"],
+                outcomes[0]["source_sha256"],
             )
 
     def test_reset_waits_for_inflight_prepare_and_leaves_no_late_handle(
@@ -1751,9 +1890,11 @@ class EngineeringImportNodeTests(unittest.TestCase):
         cad_import = registry.get_spec("engineering.cad_import")
 
         pointer_path = next(port for port in path_pointer.ports if port.key == "path")
-        for spec in (fe_import, cad_import):
+        mesh_import = registry.get_spec("engineering.mesh_import")
+        for spec in (fe_import, cad_import, mesh_import):
             input_path = next(port for port in spec.ports if port.key == "path")
-            output_scene = next(port for port in spec.ports if port.key == "scene")
+            output_key = "scene" if spec is fe_import else "model"
+            output_scene = next(port for port in spec.ports if port.key == output_key)
             path_property = next(prop for prop in spec.properties if prop.key == "path")
             self.assertTrue(
                 ports_compatible(
@@ -1763,7 +1904,14 @@ class EngineeringImportNodeTests(unittest.TestCase):
                 )
             )
             self.assertTrue(input_path.required)
-            self.assertEqual(output_scene.data_type, COREX_SCENE_DATA_TYPE)
+            self.assertEqual(
+                output_scene.data_type,
+                {
+                    "engineering.fe_import": COREX_SCENE_DATA_TYPE,
+                    "engineering.cad_import": CAD_MODEL_DATA_TYPE_ID,
+                    "engineering.mesh_import": SURFACE_MODEL_DATA_TYPE_ID,
+                }[spec.type_id],
+            )
             self.assertTrue(path_property.file_filter)
 
     def test_fe_import_node_emits_scene_handle(self) -> None:
@@ -1829,6 +1977,259 @@ class EngineeringImportNodeTests(unittest.TestCase):
                 prepared.descriptor.source.resolved_path,
                 str(source_path.resolve()),
             )
+
+    def test_cad_import_emits_exact_whole_file_model_and_viewer_prepares_scene(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "assembly.step"
+            _write_xcaf_step(path)
+            services = _services(root / "cache")
+            result = execute_engineering_import(
+                _context(path=path, services=services), source_kind="cad",
+            )
+            self.assertEqual(set(result.outputs), {"model"})
+            model_ref = result.outputs["model"]
+            self.assertEqual(model_ref.data_type_id, CAD_MODEL_DATA_TYPE_ID)
+            self.assertEqual(model_ref.kind, CAD_MODEL_HANDLE_KIND)
+            self.assertEqual(model_ref.metadata, {})
+            model = resolve_cad_model(services, model_ref)
+            self.assertEqual(model.source_unit, "mm")
+            self.assertEqual(model.length_unit, "mm")
+            self.assertEqual(model.source_sha256, hashlib.sha256(path.read_bytes()).hexdigest())
+            self.assertEqual([item["name"] for item in model.cad_metadata.hierarchy],
+                             ["Named Assembly", "Named Box Instance"])
+            self.assertIsNotNone(model.cad_metadata.document)
+            self.assertIs(model.cad_metadata.parts[0].document, model.cad_metadata.document)
+            self.assertEqual(list((root / "cache").rglob("*")), [])
+
+            scene_ref = services.prepared_scene_runtime.prepare_cad_model(
+                model,
+                source_identity=model_ref.handle_id,
+                owner_scope=model_ref.owner_scope,
+            )
+            prepared = services.resolve_handle(scene_ref, expected_kind=COREX_SCENE_HANDLE_KIND)
+            self.assertEqual(prepared.descriptor.length_unit, "mm")
+            self.assertEqual(prepared.descriptor.source.sha256, model.source_sha256)
+            self.assertEqual(
+                prepared.descriptor.provenance["source_sha256"], model.source_sha256,
+            )
+            self.assertEqual(scene_ref.metadata["source"]["sha256"], model.source_sha256)
+            self.assertEqual(
+                scene_ref.metadata["representation_sha256"],
+                hashlib.sha256(
+                    f"cad-model:{SCENE_IMPORTER_VERSION}:{model_ref.handle_id}".encode("utf-8")
+                ).hexdigest(),
+            )
+            self.assertEqual(prepared.descriptor.bounds[:2], (10.0, 12.0))
+            self.assertEqual(prepared.descriptor.storage, "file")
+            self.assertEqual(
+                {asset["role"] for asset in prepared.descriptor.geometry_assets},
+                {"coarse", "full", "topology_edges", "topology_vertices", "selection_topology"},
+            )
+            topology_asset = next(
+                asset for asset in prepared.descriptor.geometry_assets
+                if asset["role"] == "selection_topology"
+            )
+            topology = validate_engineering_selection_topology(
+                json.loads(Path(topology_asset["path"]).read_text(encoding="utf-8"))
+            )
+            self.assertEqual(len(topology["parts"][0]["faces"]), 6)
+            self.assertEqual(
+                [item["name"] for item in prepared.descriptor.hierarchy[1:]],
+                ["Named Assembly", "Named Box Instance"],
+            )
+            self.assertTrue(prepared.descriptor.geometry_assets[0]["attribute_colors"]["available"])
+            repeated = services.prepared_scene_runtime.prepare_cad_model(
+                model,
+                source_identity=model_ref.handle_id,
+                owner_scope=model_ref.owner_scope,
+            )
+            self.assertEqual(repeated.handle_id, scene_ref.handle_id)
+            services.cleanup_run("run_engineering_import")
+            with self.assertRaises(StaleHandleError):
+                resolve_cad_model(services, model_ref)
+
+    def test_step_file_units_are_normalized_once_and_explicit_choice_overrides(self) -> None:
+        from OCP.Bnd import Bnd_Box
+        from OCP.BRepBndLib import BRepBndLib
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "metre_assembly.step"
+            _write_xcaf_step(path)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("SI_UNIT(.MILLI.,.METRE.)", text)
+            path.write_text(
+                text.replace("SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT($,.METRE.)"),
+                encoding="utf-8",
+            )
+            services = _services(root / "cache")
+            for choice, expected_width, interpreted in (("", 2000.0, "m"), ("mm", 2.0, "mm")):
+                model_ref = services.prepared_scene_runtime.import_cad_model(
+                    path, length_unit=choice, owner_scope="run:units",
+                )
+                model = resolve_cad_model(services, model_ref)
+                bounds = Bnd_Box()
+                BRepBndLib.Add_s(model.shape, bounds)
+                minimum_x, _, _, maximum_x, _, _ = bounds.Get()
+                self.assertAlmostEqual(maximum_x - minimum_x, expected_width, delta=1e-4)
+                self.assertEqual(model.source_unit, "m")
+                self.assertEqual(model.interpreted_unit, interpreted)
+                self.assertEqual(model.length_unit, "mm")
+                self.assertEqual(model.cad_metadata.provenance["source_length_unit"], "m")
+                scene_ref = services.prepared_scene_runtime.prepare_cad_model(
+                    model, source_identity=model_ref.handle_id, owner_scope="run:units",
+                )
+                scene = services.resolve_handle(scene_ref, expected_kind=COREX_SCENE_HANDLE_KIND)
+                self.assertAlmostEqual(
+                    scene.descriptor.bounds[1] - scene.descriptor.bounds[0],
+                    expected_width,
+                    delta=1e-4,
+                )
+                self.assertTrue(
+                    next(asset for asset in scene.descriptor.geometry_assets if asset["role"] == "full")
+                    ["attribute_colors"]["available"]
+                )
+            services.cleanup_run("units")
+
+    def test_mixed_step_units_report_single_override_limitation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "mixed.step"
+            _write_xcaf_step(path)
+            with mock.patch.object(
+                PreparedSceneRuntime,
+                "_step_length_unit_names",
+                return_value=("millimetre", "metre"),
+            ):
+                with self.assertRaisesRegex(ValueError, "single Length Unit choice"):
+                    _services(Path(temp_dir) / "cache").prepared_scene_runtime.import_cad_model(
+                        path, length_unit="mm", owner_scope="run:mixed",
+                    )
+
+    def test_iges_and_brep_models_normalize_to_millimetres(self) -> None:
+        from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+        from OCP.BRepTools import BRepTools
+        from OCP.Bnd import Bnd_Box
+        from OCP.BRepBndLib import BRepBndLib
+        from OCP.IGESControl import IGESControl_Writer
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            services = _services(root / "cache")
+            cases = (("m", 2000.0), ("in", 50.8))
+            for unit, physical_width in cases:
+                path = root / f"part_{unit}.iges"
+                writer = IGESControl_Writer(unit.upper())
+                writer.AddShape(BRepPrimAPI_MakeBox(physical_width, 20.0, 30.0).Shape())
+                self.assertTrue(writer.Write(str(path)))
+                ref = services.prepared_scene_runtime.import_cad_model(
+                    path, owner_scope="run:units",
+                )
+                model = resolve_cad_model(services, ref)
+                box = Bnd_Box()
+                BRepBndLib.Add_s(model.shape, box)
+                self.assertAlmostEqual(box.Get()[3] - box.Get()[0], physical_width, delta=1e-4)
+                self.assertEqual(model.source_unit, unit)
+
+            brep_path = root / "part.brep"
+            self.assertTrue(BRepTools.Write_s(BRepPrimAPI_MakeBox(2, 3, 4).Shape(), str(brep_path)))
+            with self.assertRaisesRegex(ValueError, "Choose Length Unit"):
+                services.prepared_scene_runtime.import_cad_model(
+                    brep_path, owner_scope="run:units",
+                )
+            ref = services.prepared_scene_runtime.import_cad_model(
+                brep_path, length_unit="in", owner_scope="run:units",
+            )
+            model = resolve_cad_model(services, ref)
+            box = Bnd_Box()
+            BRepBndLib.Add_s(model.shape, box)
+            self.assertAlmostEqual(box.Get()[3] - box.Get()[0], 50.8, delta=1e-4)
+            self.assertEqual(model.source_unit, "")
+            self.assertEqual(model.interpreted_unit, "in")
+
+    def test_iges_xcaf_retains_available_names_hierarchy_and_face_color(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "named_parts.iges"
+            _write_named_colored_iges(path)
+            services = _services(root / "cache")
+            model_ref = services.prepared_scene_runtime.import_cad_model(
+                path, owner_scope="run:iges_xcaf",
+            )
+            model = resolve_cad_model(services, model_ref)
+            self.assertEqual(model.source_unit, "mm")
+            self.assertEqual(model.length_unit, "mm")
+            self.assertEqual(model.cad_metadata.provenance["cad_metadata"], "xcaf")
+            self.assertIsNotNone(model.cad_metadata.document)
+            self.assertEqual(
+                [item["name"] for item in model.cad_metadata.hierarchy],
+                ["First IGES Part", "Second IGES Part"],
+            )
+            self.assertEqual(len(model.cad_metadata.parts), 2)
+            self.assertTrue(all(part.document is model.cad_metadata.document
+                                for part in model.cad_metadata.parts))
+            scene_ref = services.prepared_scene_runtime.prepare_cad_model(
+                model, source_identity=model_ref.handle_id, owner_scope="run:iges_xcaf",
+            )
+            prepared = services.resolve_handle(scene_ref, expected_kind=COREX_SCENE_HANDLE_KIND)
+            self.assertEqual(prepared.descriptor.bounds[:2], (0.0, 11.0))
+            self.assertEqual(prepared.descriptor.source.sha256, model.source_sha256)
+            self.assertEqual(
+                prepared.descriptor.provenance["source_sha256"], model.source_sha256,
+            )
+            self.assertEqual(scene_ref.metadata["source"]["sha256"], model.source_sha256)
+            self.assertEqual(
+                scene_ref.metadata["representation_sha256"],
+                hashlib.sha256(
+                    f"cad-model:{SCENE_IMPORTER_VERSION}:{model_ref.handle_id}".encode("utf-8")
+                ).hexdigest(),
+            )
+            colors = {
+                tuple(value)
+                for value in prepared.dataset.cell_data["corex_source_rgba"]
+            }
+            self.assertIn((51, 102, 153, 255), colors)
+
+    def test_mesh_import_requires_unit_and_viewer_prepares_surface_scene(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "part.stl"
+            pyvista.Cube().triangulate().save(path)
+            services = _services(root / "cache")
+            with self.assertRaisesRegex(ValueError, "Choose Length Unit"):
+                services.prepared_scene_runtime.import_surface_model(
+                    path, length_unit="", owner_scope="run:mesh",
+                )
+            with self.assertRaisesRegex(ValueError, "STEP, IGES, or BREP"):
+                services.prepared_scene_runtime.import_cad_model(
+                    path, length_unit="mm", owner_scope="run:mesh",
+                )
+            context = _context(path=path, services=services)
+            context.properties["length_unit"] = "m"
+            model_ref = execute_engineering_import(context, source_kind="mesh").outputs["model"]
+            self.assertEqual(model_ref.data_type_id, SURFACE_MODEL_DATA_TYPE_ID)
+            self.assertEqual(model_ref.kind, SURFACE_MODEL_HANDLE_KIND)
+            self.assertEqual(model_ref.metadata, {})
+            model = resolve_surface_model(services, model_ref)
+            self.assertEqual(model.source_unit, "m")
+            self.assertEqual(model.length_unit, "mm")
+            self.assertAlmostEqual(model.dataset.bounds.x_max - model.dataset.bounds.x_min, 1000.0)
+            scene_ref = services.prepared_scene_runtime.prepare_surface_model(
+                model, source_identity=model_ref.handle_id, owner_scope=model_ref.owner_scope,
+            )
+            prepared = services.resolve_handle(scene_ref, expected_kind=COREX_SCENE_HANDLE_KIND)
+            self.assertEqual(prepared.descriptor.length_unit, "mm")
+            self.assertEqual(prepared.descriptor.source.sha256, model.source_sha256)
+            self.assertEqual(
+                prepared.descriptor.provenance["source_sha256"], model.source_sha256,
+            )
+            self.assertEqual(scene_ref.metadata["source"]["sha256"], model.source_sha256)
+            self.assertEqual(
+                scene_ref.metadata["representation_sha256"],
+                hashlib.sha256(model_ref.handle_id.encode("utf-8")).hexdigest(),
+            )
+            self.assertEqual(prepared.descriptor.storage, "memory")
+            self.assertEqual(prepared.descriptor.bounds[:2], (-500.0, 500.0))
 
 
 if __name__ == "__main__":

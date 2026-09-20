@@ -62,42 +62,35 @@ def cylinder(ctx, plane, radius, interval):
 @corex.node(
     id="geometry.construct_group",
     _solution_reuse_scope="session",
-    name="Construct Geometry Group",
+    name="CAD Assembly",
     category=("Geometry", "Model"),
     icon="select_all",
-    description="Groups ordered OCP bodies and per-body tolerances.",
-    keywords=("geometry", "group", "body", "tolerance"),
+    description="Groups ordered CAD models, OCP bodies, and nested CAD assemblies without changing their positions.",
+    keywords=("geometry", "CAD", "assembly", "group", "body"),
 )
 @corex.input(
     "name",
     value_type="COREX.DataTypes.String",
     required=True,
     label="Name",
-    description="Name assigned to the geometry group.",
+    description="Name assigned to the CAD assembly.",
 )
 @corex.input(
     "geometry",
-    value_type="COREX.Geometry.OCPBody",
+    value_type="COREX.Geometry.CADModel",
+    _accepted_data_types=("COREX.Geometry.OCPBody", "COREX.Geometry.Group"),
     structure="list",
     required=True,
-    label="Geometry",
-    description="Ordered OCP bodies in the geometry group.",
-)
-@corex.input(
-    "tolerances",
-    value_type="COREX.DataTypes.Double",
-    structure="list",
-    required=False,
-    label="Tolerances",
-    description="Optional per-body tolerances.",
+    label="Components",
+    description="Ordered CAD models, OCP bodies, and nested CAD assemblies.",
 )
 @corex.output(
     "group",
     value_type="COREX.Geometry.Group",
-    label="Geometry Group",
-    description="Geometry group containing the supplied bodies and tolerances.",
+    label="CAD Assembly",
+    description="CAD assembly containing the supplied components.",
 )
-def construct_geometry_group(ctx, name, geometry, tolerances):
+def construct_geometry_group(ctx, name, geometry):
     return _outputs(
         ctx,
         execute_construct_geometry_group(ctx),

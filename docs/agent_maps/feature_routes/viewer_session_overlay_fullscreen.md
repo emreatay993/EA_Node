@@ -76,7 +76,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
   edits `scene_styles` through ViewerControlBridge. Export receives live ID-based
   visibility and appearance; scene-specific queries carry the selected layer ID.
 - Engineering sessions may hold both a memory-backed prepared scene and its
-  native OCPBody or Geometry Group source. The binder accepts the backend's bounded,
+  native OCP Body or CAD Assembly source. The binder accepts the backend's bounded,
   hashed shared-memory VTK XML descriptor, deep-copies the reconstructed
   dataset before closing its attachment, and retains the existing file-backed
   path as fallback. Shared-memory unlinking remains backend/session cleanup,

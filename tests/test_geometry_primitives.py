@@ -13,6 +13,7 @@ import math
 import pytest
 
 from ea_node_editor.execution.worker_services import WorkerServices
+from ea_node_editor.graph.effective_ports import ports_compatible
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtin_functions import engineering_geometry
 from ea_node_editor.nodes.builtins.geometry_contracts import BODY_DATA_TYPE_ID
@@ -91,6 +92,32 @@ def test_geometry_function_declarations_match_golden() -> None:
     } == expected
 
 
+def test_cad_assembly_ports_accept_exact_components_and_reject_surface_mesh() -> None:
+    registry = build_builtin_registry()
+    assembly = registry.get_spec(CONSTRUCT_GEOMETRY_GROUP_NODE_TYPE_ID)
+    components = next(port for port in assembly.ports if port.key == "geometry")
+    self_output = next(port for port in assembly.ports if port.key == "group")
+    cad_output = next(
+        port for port in registry.get_spec("engineering.cad_import").ports
+        if port.key == "model"
+    )
+    mesh_output = next(
+        port for port in registry.get_spec("engineering.mesh_import").ports
+        if port.key == "model"
+    )
+    body_output = next(
+        port for port in registry.get_spec(CYLINDER_NODE_TYPE_ID).ports
+        if port.key == "body"
+    )
+    assert assembly.display_name == "CAD Assembly"
+    assert components.label == "Components"
+    assert self_output.label == "CAD Assembly"
+    assert "tolerances" not in {port.key for port in assembly.ports}
+    for output in (cad_output, body_output, self_output):
+        assert ports_compatible(output, components, data_types=registry.data_types)
+    assert not ports_compatible(mesh_output, components, data_types=registry.data_types)
+
+
 def _runtime() -> tuple[object, WorkerServices, ExecutionContext]:
     registry = build_builtin_registry()
     services = WorkerServices()
@@ -113,37 +140,33 @@ def _runtime() -> tuple[object, WorkerServices, ExecutionContext]:
 
 
 
-def test_construct_geometry_group_broadcasts_tolerance_and_releases_leases() -> None:
+def test_cad_assembly_preserves_order_and_releases_component_leases() -> None:
     cylinder, services, cylinder_context = _runtime()
     first_body = cylinder.execute(cylinder_context).outputs["body"]
     second_body = cylinder.execute(cylinder_context).outputs["body"]
     group_node = _function_adapters()[CONSTRUCT_GEOMETRY_GROUP_NODE_TYPE_ID]
 
-    def group_context(geometry: list[object], tolerances: list[object]):
+    def group_context(geometry: list[object]):
         return ExecutionContext(
             run_id=cylinder_context.run_id,
             node_id="construct-geometry-group-node",
             workspace_id=cylinder_context.workspace_id,
             inputs={
-                "name": "Primary Geometry Group",
+                "name": "Primary CAD Assembly",
                 "geometry": geometry,
-                "tolerances": tolerances,
             },
             properties={},
             emit_log=lambda _level, _message: None,
             worker_services=services,
         )
 
-    group_ref = group_node.execute(
-        group_context([first_body, second_body], [-1.25])
-    ).outputs["group"]
+    group_ref = group_node.execute(group_context([first_body, second_body])).outputs["group"]
     resolved_ref, record = _resolve_geometry_group(
-        group_context([], []),
+        group_context([]),
         group_ref,
     )
     assert resolved_ref is group_ref
-    assert record.name == "Primary Geometry Group"
-    assert record.tolerances == (-1.25, -1.25)
+    assert record.name == "Primary CAD Assembly"
     assert [ref.handle_id for ref in record.child_leases] == [
         first_body.handle_id,
         second_body.handle_id,
@@ -162,26 +185,24 @@ def test_construct_geometry_group_broadcasts_tolerance_and_releases_leases() -> 
     ) == 1
 
     lease_count = services.handle_registry.active_lease_count
-    with pytest.raises(ValueError, match="match geometry count"):
-        group_node.execute(
-            group_context([first_body, second_body], [1.0, 2.0, 3.0])
-        )
+    with pytest.raises(TypeError, match="CAD Model, OCP Body, or CAD Assembly"):
+        group_node.execute(group_context([first_body, replace(second_body, data_type_id="COREX.Mesh.SurfaceModel")]))
     assert services.handle_registry.active_lease_count == lease_count
 
     wrong_kind = replace(second_body, kind="wrong.kind")
     with pytest.raises(TypeError, match="exact COREX OCPBody handle"):
-        group_node.execute(group_context([first_body, wrong_kind], []))
+        group_node.execute(group_context([first_body, wrong_kind]))
     assert services.handle_registry.active_lease_count == lease_count
 
     class Hostile:
         def __getattribute__(self, _name: str) -> object:
             raise AssertionError("hostile input was accessed")
 
-    with pytest.raises(TypeError, match="exact COREX Geometry Group handle"):
-        _resolve_geometry_group(group_context([], []), Hostile())
-    with pytest.raises(TypeError, match="exact COREX Geometry Group handle"):
+    with pytest.raises(TypeError, match="exact CAD Assembly handle"):
+        _resolve_geometry_group(group_context([]), Hostile())
+    with pytest.raises(TypeError, match="exact CAD Assembly handle"):
         _resolve_geometry_group(
-            group_context([], []),
+            group_context([]),
             replace(group_ref, kind="wrong.kind"),
         )
 

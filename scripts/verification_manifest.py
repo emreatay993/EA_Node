@@ -1473,7 +1473,7 @@ NOVICE_PLUGIN_SDK_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
         "REQ-NODE-050": (
             "17 public names",
             "literal-only AST discovery",
-            "76-function",
+            "77-function",
             "53-trusted-exception",
         ),
         "AC-REQ-NODE-050-01": ("exact 17-name export set", "hostile-source non-execution"),

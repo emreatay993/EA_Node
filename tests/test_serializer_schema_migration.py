@@ -29,6 +29,40 @@ def _workspace_doc(workspace_id: str, name: str) -> dict[str, object]:
 
 
 class SerializerSchemaMigrationTests(unittest.TestCase):
+    def test_removed_cad_scene_and_assembly_tolerance_links_report_clean_break(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        workspace = _workspace_doc("ws_cad_ports", "CAD Ports")
+        workspace["nodes"] = [
+            {"node_id": "cad", "type_id": "engineering.cad_import", "title": "CAD Import"},
+            {"node_id": "assembly", "type_id": "geometry.construct_group",
+             "title": "Construct Geometry Group"},
+            {"node_id": "viewer", "type_id": "model.viewer", "title": "Model Viewer"},
+        ]
+        workspace["edges"] = [
+            {"edge_id": "old_scene", "source_node_id": "cad", "source_port_key": "scene",
+             "target_node_id": "viewer", "target_port_key": "scene_1"},
+            {"edge_id": "old_tolerances", "source_node_id": "cad", "source_port_key": "model",
+             "target_node_id": "assembly", "target_port_key": "tolerances"},
+            {"edge_id": "current_model", "source_node_id": "cad", "source_port_key": "model",
+             "target_node_id": "assembly", "target_port_key": "geometry"},
+        ]
+        project = serializer.from_document({
+            "schema_version": SCHEMA_VERSION,
+            "project_id": "proj_cad_ports",
+            "name": "CAD Ports",
+            "active_workspace_id": "ws_cad_ports",
+            "workspaces": [workspace],
+            "metadata": {},
+        })
+        loaded = project.workspaces["ws_cad_ports"]
+        self.assertEqual(set(loaded.edges), {"current_model"})
+        self.assertEqual(loaded.nodes["assembly"].title, "CAD Assembly")
+        self.assertTrue(loaded.dirty)
+        self.assertTrue(any("old_scene" in item and "'model'" in item
+                            for item in project.migration_report))
+        self.assertTrue(any("old_tolerances" in item and "Tolerances" in item
+                            for item in project.migration_report))
+
     def test_migrate_prefers_explicit_workspace_order_and_normalizes_metadata_copy(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
         payload = {

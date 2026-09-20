@@ -1390,7 +1390,7 @@ class EngineeringViewerBackend:
                 {
                     **layer,
                     "id": layer_id,
-                    "name": str(labels.get(layer_id, f"Scene {index}")),
+                    "name": str(labels.get(layer_id, f"Model {index}")),
                 }
             )
         return {"layers": layers}
@@ -1436,6 +1436,9 @@ class EngineeringViewerBackend:
             if descriptor_payload.get("schema") == COREX_SCENE_SCHEMA
             else descriptor_payload
         )
+        resolved_descriptor["representation_sha256"] = str(
+            runtime_ref.metadata.get("representation_sha256", "")
+        ).strip().casefold()
         if hasattr(resolved_value, "dataset"):
             resolved_descriptor["_prepared_scene"] = resolved_value
         return resolved_descriptor
@@ -1542,6 +1545,7 @@ class EngineeringViewerBackend:
             "scene_id": str(layer.get("scene_id", "")),
             "source_kind": str(layer.get("source_kind", "")),
             "source": copy.deepcopy(_mapping(layer.get("source"))),
+            "representation_sha256": str(layer.get("representation_sha256", "")).strip().casefold(),
             "hierarchy": [
                 copy.deepcopy(dict(item))
                 for item in layer.get("hierarchy", ())

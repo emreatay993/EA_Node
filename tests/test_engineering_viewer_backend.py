@@ -379,25 +379,25 @@ class EngineeringViewerBackendTests(unittest.TestCase):
                 cached = service.materialize_data(MaterializeViewerDataCommand(**identity))
             for event in (updated, reopened, cached):
                 self.assertEqual(event.transport_revision, first.transport_revision)
-                self.assertEqual([layer["name"] for layer in event.transport["layers"]], ["Renamed", "Scene 2"])
-                self.assertEqual([layer["name"] for layer in event.summary["scene_layers"]], ["Renamed", "Scene 2"])
+                self.assertEqual([layer["name"] for layer in event.transport["layers"]], ["Renamed", "Model 2"])
+                self.assertEqual([layer["name"] for layer in event.summary["scene_layers"]], ["Renamed", "Model 2"])
             exported = service.query_session_command(QueryViewerSessionCommand(
                 **identity, query_type="export", payload={"path": str(root / "renamed.vtm"), "format": "vtm"},
             ))
             self.assertTrue(exported.supported, exported.explanation)
-            self.assertEqual(exported.value["visible_layers"], ["Renamed", "Scene 2"])
-            self.assertEqual(pyvista.read(root / "renamed.vtm").keys(), ["Renamed", "Scene 2"])
+            self.assertEqual(exported.value["visible_layers"], ["Renamed", "Model 2"])
+            self.assertEqual(pyvista.read(root / "renamed.vtm").keys(), ["Renamed", "Model 2"])
             record = service._sessions[(identity["workspace_id"], identity["session_id"])]
-            self.assertEqual(record.source_refs["scene_labels"], {"a": "Renamed", "b": "Scene 2"})
+            self.assertEqual(record.source_refs["scene_labels"], {"a": "Renamed", "b": "Model 2"})
             # A backend re-materialization sees the same geometry and only new names.
             with mock.patch.object(self.backend, "_allocate_shared_memory", side_effect=AssertionError("label change allocated geometry")):
                 reused = self.backend.materialize(_request(dict(record.source_refs), session_id="labels"))
             self.assertEqual(reused.transport_revision, first.transport_revision)
             self.assertEqual(reused.transport["layers"][0]["display_asset"], first.transport["layers"][0]["display_asset"])
-            self.assertEqual([layer["name"] for layer in reused.transport["layers"]], ["Renamed", "Scene 2"])
-            self.assertEqual([item["layer_name"] for item in reused.summary["model_tree"]], ["Renamed", "Scene 2"])
+            self.assertEqual([layer["name"] for layer in reused.transport["layers"]], ["Renamed", "Model 2"])
+            self.assertEqual([item["layer_name"] for item in reused.summary["model_tree"]], ["Renamed", "Model 2"])
             forced = service.materialize_data(MaterializeViewerDataCommand(**identity, options={"force_recompute": True}))
-            self.assertEqual([layer["name"] for layer in forced.transport["layers"]], ["Renamed", "Scene 2"])
+            self.assertEqual([layer["name"] for layer in forced.transport["layers"]], ["Renamed", "Model 2"])
             self.assertEqual(forced.transport_revision, first.transport_revision + 1)
 
     def test_scene_queries_and_export_use_stable_ids_with_duplicate_sources(
@@ -1956,11 +1956,11 @@ class EngineeringViewerBackendTests(unittest.TestCase):
             )
 
             self.assertTrue(vtm.supported, vtm.explanation)
-            self.assertEqual(vtm.value["visible_layers"], ["Scene 2"])
+            self.assertEqual(vtm.value["visible_layers"], ["Model 2"])
             self.assertEqual(pyvista.read(vtm_path).n_blocks, 1)
             self.assertTrue(glb.supported, glb.explanation)
             self.assertEqual(glb_path.read_bytes()[:4], b"glTF")
-            self.assertEqual(glb.value["visible_layers"], ["Scene 2"])
+            self.assertEqual(glb.value["visible_layers"], ["Model 2"])
             self.assertFalse(hidden.supported)
             self.assertFalse(hidden_path.exists())
 

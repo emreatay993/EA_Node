@@ -13,7 +13,7 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
     name="Model Viewer",
     category=("Engineering", "Viewer"),
     icon="deployed_code",
-    description="Displays multiple CAD/FE scenes, OCP Bodies, and Geometry Groups together with per-scene appearance.",
+    description="Displays CAD models, surface meshes, OCP bodies, CAD assemblies, and FE models together with per-model appearance.",
     keywords=("viewer", "cad", "finite element"),
     _surface_family="viewer",
     _render_quality_tiers=("full", "proxy"),
@@ -82,7 +82,7 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
 @corex.text(
     "scene_input_ids",
     default="",
-    label="Scene Inputs",
+    label="Model Inputs",
     _inline_editor="",
     _inspector_visible=False,
     _property_type="json",
@@ -91,7 +91,7 @@ from ea_node_editor.nodes.builtins.engineering_viewer import execute_engineering
 @corex.text(
     "scene_styles", affects_execution=False,
     default="",
-    label="Scene Appearance",
+    label="Model Appearance",
     _inline_editor="",
     _inspector_visible=False,
     _property_type="json",

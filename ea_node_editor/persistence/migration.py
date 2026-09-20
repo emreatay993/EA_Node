@@ -210,16 +210,16 @@ class JsonProjectMigration:
                 "Unsupported schema version: "
                 f"{version}. Only schema versions {_LEGACY_SCHEMA_VERSION} and {SCHEMA_VERSION} are supported."
             )
+        report: list[str] = []
         if version == _LEGACY_SCHEMA_VERSION:
             self._reject_unresolved_legacy_nodes(doc)
-            report: list[str] = [
-                f"Migrated project schema {_LEGACY_SCHEMA_VERSION} to {SCHEMA_VERSION}."
-            ]
+            report.append(f"Migrated project schema {_LEGACY_SCHEMA_VERSION} to {SCHEMA_VERSION}.")
             doc = self._migrate_v4_document(doc, report=report)
-            self.last_report = tuple(sorted(set(report)))
             self.source_schema_version = version
         doc["schema_version"] = SCHEMA_VERSION
-        return self._normalize_document(doc)
+        normalized = self._normalize_document(doc, report=report)
+        self.last_report = tuple(sorted(set(report)))
+        return normalized
 
     def _reject_unresolved_legacy_nodes(self, doc: Mapping[str, Any]) -> None:
         unresolved = sorted(
@@ -491,7 +491,7 @@ class JsonProjectMigration:
         metadata["artifact_store"] = normalize_artifact_store_metadata(metadata.get("artifact_store"))
         return metadata
 
-    def _normalize_document(self, doc: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_document(self, doc: dict[str, Any], *, report: list[str]) -> dict[str, Any]:
         normalized_workspaces: dict[str, dict[str, Any]] = {}
         for workspace_doc in self.as_list(doc.get("workspaces", [])):
             if not isinstance(workspace_doc, Mapping):
@@ -499,7 +499,9 @@ class JsonProjectMigration:
             workspace_id = self._coerce_str(workspace_doc.get("workspace_id"))
             if not workspace_id or workspace_id in normalized_workspaces:
                 continue
-            normalized_workspaces[workspace_id] = self._normalize_workspace_doc(workspace_doc, workspace_id)
+            normalized_workspaces[workspace_id] = self._normalize_workspace_doc(
+                workspace_doc, workspace_id, report=report,
+            )
 
         ownership = resolve_workspace_ownership(
             normalized_workspaces,
@@ -522,7 +524,9 @@ class JsonProjectMigration:
             "metadata": metadata,
         }
 
-    def _normalize_workspace_doc(self, workspace_doc: Mapping[str, Any], workspace_id: str) -> dict[str, Any]:
+    def _normalize_workspace_doc(
+        self, workspace_doc: Mapping[str, Any], workspace_id: str, *, report: list[str],
+    ) -> dict[str, Any]:
         views_by_id: dict[str, dict[str, Any]] = {}
         for index, view_doc in enumerate(self.as_list(workspace_doc.get("views", [])), start=1):
             if not isinstance(view_doc, Mapping):
@@ -569,6 +573,29 @@ class JsonProjectMigration:
         edges_by_id: dict[str, dict[str, Any]] = {}
         for edge_doc in self.as_list(workspace_doc.get("edges", [])):
             if not isinstance(edge_doc, Mapping):
+                continue
+            source_node = nodes_by_id.get(self._coerce_str(edge_doc.get("source_node_id")))
+            target_node = nodes_by_id.get(self._coerce_str(edge_doc.get("target_node_id")))
+            edge_id = self._coerce_str(edge_doc.get("edge_id"), "wire")
+            if (
+                source_node is not None
+                and source_node["type_id"] == "engineering.cad_import"
+                and self._coerce_str(edge_doc.get("source_port_key")) == "scene"
+            ):
+                report.append(
+                    f"Removed incompatible wire {edge_id}: CAD Import output 'scene' was replaced "
+                    "by 'model'. Reconnect this input to CAD Model."
+                )
+                continue
+            if (
+                target_node is not None
+                and target_node["type_id"] == "geometry.construct_group"
+                and self._coerce_str(edge_doc.get("target_port_key")) == "tolerances"
+            ):
+                report.append(
+                    f"Removed incompatible wire {edge_id}: CAD Assembly no longer has a "
+                    "Tolerances input."
+                )
                 continue
             normalized_edge = self._normalize_edge_doc(
                 edge_doc,
@@ -619,6 +646,8 @@ class JsonProjectMigration:
         title = self._coerce_str(node_doc.get("title"), title_default)
         if legacy_engineering_viewer and title == "Engineering Viewer":
             title = "Model Viewer"
+        if type_id == "geometry.construct_group" and title == "Construct Geometry Group":
+            title = "CAD Assembly"
         normalized["title"] = title
         normalized["x"] = self._coerce_float(node_doc.get("x"), 0.0)
         normalized["y"] = self._coerce_float(node_doc.get("y"), 0.0)

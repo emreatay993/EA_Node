@@ -1,4 +1,4 @@
-# Purpose: Hold inert decorated source for neutral CAD and FE import built-ins.
+# Purpose: Hold inert decorated source for CAD, mesh, and FE import built-ins.
 # Map: feature_routes/neutral_cad_fe_engineering_viewer.md
 # Tests: tests/test_engineering_import_nodes.py
 
@@ -59,14 +59,14 @@ def fe_import(ctx, settings):
     name="CAD Import",
     category=("Engineering", "Import"),
     icon="integrations/download.svg",
-    description="Imports a neutral CAD file as a prepared COREX scene.",
+    description="Imports a STEP, IGES, or BREP model as exact geometry. Mixed or unsupported STEP units cannot be overridden with one Length Unit choice.",
     keywords=("cad", "geometry", "import"),
 )
 @corex.path(
     "path",
     default="",
     label="CAD File",
-    file_filter="Neutral CAD Files (*.stl *.step *.stp *.iges *.igs *.brep);;All Files (*)",
+    file_filter="CAD Files (*.step *.stp *.iges *.igs *.brep);;All Files (*)",
     port=True,
     _inline_editor="",
     _inspector_editor="",
@@ -78,10 +78,10 @@ def fe_import(ctx, settings):
     _port_value_type="COREX.DataTypes.Path",
 )
 @corex.output(
-    "scene",
-    value_type="COREX.Engineering.Scene",
-    label="",
-    description="Prepared CAD scene for viewing or downstream processing.",
+    "model",
+    value_type="COREX.Geometry.CADModel",
+    label="CAD Model",
+    description="Exact CAD model with original part hierarchy and source metadata.",
 )
 @corex.dropdown(
     "length_unit",
@@ -96,6 +96,52 @@ def cad_import(ctx, settings):
     result = execute_engineering_import(ctx, source_kind="cad")
     for warning in result.warnings:
         ctx.warn(warning, code="cad_import")
+    return dict(result.outputs)
+
+
+@corex.node(
+    id="engineering.mesh_import",
+    _solution_reuse_scope="session",
+    name="Mesh Import",
+    category=("Engineering", "Import"),
+    icon="integrations/download.svg",
+    description="Imports an STL surface mesh as a reusable model for viewing.",
+    keywords=("stl", "surface mesh", "import"),
+)
+@corex.path(
+    "path",
+    default="",
+    label="Mesh File",
+    file_filter="STL Files (*.stl);;All Files (*)",
+    port=True,
+    _inline_editor="",
+    _inspector_editor="",
+    _port_accepted_data_types=(),
+    _port_description="Path to the STL surface mesh to import.",
+    _port_label="",
+    _port_required=True,
+    _port_structure="item",
+    _port_value_type="COREX.DataTypes.Path",
+)
+@corex.output(
+    "model",
+    value_type="COREX.Mesh.SurfaceModel",
+    label="Surface Mesh",
+    description="Reusable surface mesh normalized to millimetres.",
+)
+@corex.dropdown(
+    "length_unit",
+    default="choose",
+    options=("choose", "m", "mm", "cm", "in", "ft"),
+    label="Source Length Unit",
+    _inline_editor="",
+    _inspector_editor="",
+    _property_group="Import",
+)
+def mesh_import(ctx, settings):
+    result = execute_engineering_import(ctx, source_kind="mesh")
+    for warning in result.warnings:
+        ctx.warn(warning, code="mesh_import")
     return dict(result.outputs)
 '''
 

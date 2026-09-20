@@ -138,7 +138,7 @@ def test_file_provenance_binding_roundtrip_and_changes(tmp_path, change):
 
 
 @pytest.mark.parametrize("connected", [False, True])
-def test_real_process_cad_reuse_provenance_reset_and_restart(tmp_path, connected):
+def test_real_process_mesh_reuse_provenance_reset_and_restart(tmp_path, connected):
     import pyvista
     from ea_node_editor.execution.runtime import CorexRuntime
     from ea_node_editor.execution.runtime_requests import ExecutionRequest
@@ -155,12 +155,12 @@ def test_real_process_cad_reuse_provenance_reset_and_restart(tmp_path, connected
     wid = workspace.workspace_id
     source = model.add_node(wid, "data.panel", "Path", 0, 0,
                             properties={"value": str(path), "interpretation": "text"})
-    cad = model.add_node(wid, "engineering.cad_import", "CAD", 200, 0,
+    mesh = model.add_node(wid, "engineering.mesh_import", "Mesh", 200, 0,
                         properties={"length_unit": "mm", "path": "" if connected else str(path)})
-    sink = model.add_node(wid, "data.panel", "Scene", 400, 0)
+    sink = model.add_node(wid, "model.viewer", "Model Viewer", 400, 0)
     if connected:
-        model.add_edge(wid, source.node_id, "output", cad.node_id, "path")
-    model.add_edge(wid, cad.node_id, "scene", sink.node_id, "input")
+        model.add_edge(wid, source.node_id, "output", mesh.node_id, "path")
+    model.add_edge(wid, mesh.node_id, "model", sink.node_id, "scene_1")
     runtime = CorexRuntime(registry=registry)
     events = []
     runtime.subscribe(events.append)
@@ -178,16 +178,16 @@ def test_real_process_cad_reuse_provenance_reset_and_restart(tmp_path, connected
         return result
     try:
         first = run()
-        cad_event = next(item for item in first if item.get("type") == "node_settled" and item.get("node_id") == cad.node_id)
-        assert cad_event["accepted_solution_record"]
+        mesh_event = next(item for item in first if item.get("type") == "node_settled" and item.get("node_id") == mesh.node_id)
+        assert mesh_event["accepted_solution_record"]
         if connected:
-            assert cad_event["source_provenance_bindings"]
-        assert runtime._client._process_client.solution_resources._offers, cad_event
+            assert mesh_event["source_provenance_bindings"]
+        assert runtime._client._process_client.solution_resources._offers, mesh_event
         store = runtime.solution_store
-        record = store.record(cad_event["record_id"])
+        record = store.record(mesh_event["record_id"])
         kwargs = dict(solution_key=record.solution_key, project_id=model.project.project_id,
-                      workspace_id=wid, node_id=cad.node_id, runtime_generation=record.runtime_generation,
-                      catalog=registry.data_types, port_keys=("scene",))
+                      workspace_id=wid, node_id=mesh.node_id, runtime_generation=record.runtime_generation,
+                      catalog=registry.data_types, port_keys=("model",))
         entry = store._records[record.record_id]
         retained = entry.resource_leases
         entry.resource_leases = ()
@@ -199,19 +199,19 @@ def test_real_process_cad_reuse_provenance_reset_and_restart(tmp_path, connected
         assert store.current_outputs(**kwargs) is not None
         if not connected:
             general = run()
-            reused = next(item for item in general if item.get("type") == "node_settled" and item.get("node_id") == cad.node_id)
+            reused = next(item for item in general if item.get("type") == "node_settled" and item.get("node_id") == mesh.node_id)
             assert reused["disposition"] == "recomputed"
-            assert reused["record_id"] != cad_event["record_id"]
+            assert reused["record_id"] != mesh_event["record_id"]
             forced = run(force=True)
             assert not [item for item in forced if item.get("type") == "solution_nondeterminism"]
-            assert next(item for item in forced if item.get("type") == "node_settled" and item.get("node_id") == cad.node_id)["accepted_solution_record"]
+            assert next(item for item in forced if item.get("type") == "node_settled" and item.get("node_id") == mesh.node_id)["accepted_solution_record"]
             assert retained[0].offer_id not in runtime._client._process_client.solution_resources._offers
         second = run((sink.node_id,))
-        assert cad.node_id not in [item["node_id"] for item in second if item["type"] == "node_started"]
-        assert not [item for item in second if item["type"] == "node_settled" and item.get("node_id") == cad.node_id]
+        assert mesh.node_id not in [item["node_id"] for item in second if item["type"] == "node_started"]
+        assert not [item for item in second if item["type"] == "node_settled" and item.get("node_id") == mesh.node_id]
         pyvista.Sphere().triangulate().save(path)
         changed = run((sink.node_id,))
-        assert cad.node_id in [item["node_id"] for item in changed if item["type"] == "node_started"]
+        assert mesh.node_id in [item["node_id"] for item in changed if item["type"] == "node_started"]
         client = runtime._client._process_client
         process = client._process
         old_generation = client._physical_generation_token
@@ -220,10 +220,10 @@ def test_real_process_cad_reuse_provenance_reset_and_restart(tmp_path, connected
         client._check_worker_health(process, old_generation)
         restarted = run()
         assert client._physical_generation_token > old_generation
-        restart_cad = next(item for item in restarted if item.get("type") == "node_settled" and item.get("node_id") == cad.node_id)
-        assert restart_cad["accepted_solution_record"]
+        restart_mesh = next(item for item in restarted if item.get("type") == "node_settled" and item.get("node_id") == mesh.node_id)
+        assert restart_mesh["accepted_solution_record"]
         after_restart = run((sink.node_id,))
-        assert cad.node_id not in [item["node_id"] for item in after_restart if item["type"] == "node_started"]
+        assert mesh.node_id not in [item["node_id"] for item in after_restart if item["type"] == "node_started"]
         assert client.solution_resources._offers
         runtime.reset_project_session(model.project.project_id)
         runtime.retire_workspace(wid)  # ACK is a barrier after queued release commands.
@@ -372,17 +372,17 @@ def test_property_file_change_between_preparation_and_execution_is_rejected(tmp_
     path = tmp_path / "part.stl"
     path.write_bytes(b"old source")
     registry = build_default_registry(include_public_plugins=False)
-    spec = registry.get_spec("engineering.cad_import")
+    spec = registry.get_spec("engineering.mesh_import")
     node = SimpleNamespace(type_id=spec.type_id, properties={"path": str(path)})
-    plan = SimpleNamespace(nodes={"cad": node}, node_specs={"cad": spec}, incoming_edges_for=lambda *args: ())
-    fingerprint = node_input_provenance_digest(plan=plan, node_id="cad",
-                                               normalized_properties=registry.normalize_properties(spec.type_id, node.properties))
+    plan = SimpleNamespace(nodes={"mesh": node}, node_specs={"mesh": spec}, incoming_edges_for=lambda *args: ())
+    fingerprint = node_input_provenance_digest(plan=plan, node_id="mesh",
+                                                normalized_properties=registry.normalize_properties(spec.type_id, node.properties))
     executor = SimpleNamespace(_plan=plan, _registry=registry, _source_dependencies={},
-                               _executing_source_provenance={}, source_provenance_by_node={"cad": fingerprint},
+                               _executing_source_provenance={}, source_provenance_by_node={"mesh": fingerprint},
                                _artifact_service=SimpleNamespace(resolve_authored_path=lambda value: path))
     path.write_bytes(b"new source")
     with pytest.raises(RetainedResourceError, match="after execution preparation"):
-        NodeExecutor._capture_declared_source_provenance(executor, "cad", None)
+        NodeExecutor._capture_declared_source_provenance(executor, "mesh", None)
 
 
 def test_installed_current_input_survives_accepted_owner_release_until_run_cleanup():

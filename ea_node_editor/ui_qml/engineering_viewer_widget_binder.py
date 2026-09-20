@@ -112,6 +112,13 @@ def _string(value: Any) -> str:
     return "" if value is None else str(value).strip()
 
 
+def _selection_fingerprint(layer: Mapping[str, Any]) -> str:
+    representation = _string(layer.get("representation_sha256")).casefold()
+    if len(representation) == 64 and all(char in "0123456789abcdef" for char in representation):
+        return representation
+    return _string(_mapping(layer.get("source")).get("sha256")).casefold()
+
+
 def _coerce_bool(value: Any, *, default: bool = False) -> bool:
     if value is None:
         return default
@@ -1519,8 +1526,7 @@ class EngineeringViewerWidgetBinder(QObject):
             return
         for name, layer in state.layers.items():
             layer_id = _string(layer.get("id"))
-            source = _mapping(layer.get("source"))
-            source_fingerprint = _string(source.get("sha256")).casefold()
+            source_fingerprint = _selection_fingerprint(layer)
             assets = _mapping(layer.get("selection_assets"))
             for entity_kind, dataset in _mapping(layer.get("selection_datasets")).items():
                 asset = _mapping(assets.get(entity_kind))
@@ -1920,8 +1926,7 @@ class EngineeringViewerWidgetBinder(QObject):
                 value
                 for value in state.layers.values()
                 if _string(value.get("id")) == entity["layer_id"]
-                and _string(_mapping(value.get("source")).get("sha256")).casefold()
-                == entity["source_fingerprint"]
+                and _selection_fingerprint(value) == entity["source_fingerprint"]
             ),
             None,
         )

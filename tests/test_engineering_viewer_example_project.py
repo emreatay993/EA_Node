@@ -52,7 +52,7 @@ EXPECTED_NODES = {
 }
 
 EXPECTED_EDGES = {
-    ("node_cad_import", "scene", VIEWER_NODE_ID, "scene_1"),
+    ("node_cad_import", "model", VIEWER_NODE_ID, "scene_1"),
     ("node_fe_import", "scene", VIEWER_NODE_ID, "scene_2"),
 }
 
@@ -473,6 +473,8 @@ def test_example_runs_solution_and_materializes_exact_viewer_capabilities(
         assert capabilities[capability] is True
 
     assert primary["topological_edge_path"]
+    assert len(primary["representation_sha256"]) == 64
+    assert primary["representation_sha256"] != primary["source"]["sha256"]
     assert primary["attribute_colors"]["available"] is True
     assert primary["attribute_colors"]["array_name"] == "corex_source_rgba"
     assert overlay["attribute_colors"]["available"] is True

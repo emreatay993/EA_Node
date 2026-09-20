@@ -542,6 +542,7 @@ def _request(
     attribute_colors: dict[str, object] | None = None,
     topology_attribute_colors: dict[str, object] | None = None,
     source_kind: str = "fe",
+    representation_sha256: str = "",
     selection_topology_path: Path | None = None,
     container: QWidget | None = None,
 ) -> ViewerWidgetBindRequest:
@@ -576,6 +577,7 @@ def _request(
                 "visible": True,
                 "source_kind": source_kind,
                 "source": {"sha256": "a" * 64},
+                "representation_sha256": representation_sha256,
                 "style": {"representation": "surface_with_edges", "scalars": "stress"},
                 "interaction_display_path": str(interaction_path) if interaction_path is not None else "",
                 "topological_edge_path": str(topology_path) if topology_path is not None else "",
@@ -2006,6 +2008,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                     surface_path,
                     source_kind="cad",
                     selection_topology_path=topology_path,
+                    representation_sha256="b" * 64,
                     options={"show_view_cube": False, "show_orientation_triad": False},
                 )
             )
@@ -2021,6 +2024,7 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 [value["entity_id"] for value in state.selected_entities],
                 ["part:2/face:5"],
             )
+            self.assertEqual(state.selected_entities[0]["source_fingerprint"], "b" * 64)
             self.assertEqual(
                 state.selection_source_actors["scene_1:cad_face"]["actor"].property.opacity,
                 0.0,

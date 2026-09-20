@@ -13,18 +13,20 @@ vector arrays.
 4. Select **Detach** on the inline viewer, or enter fullscreen, to show the complete
    bottom control strip and right-side advanced panel.
 
-The CAD assembly uses Scene 1 and the RGBA FE sphere uses Scene 2. Both inputs
-use millimetres and are stored as project-managed sources. The sphere has a
-per-scene opacity of 0.32; new scene ports default to fully opaque.
+The imported CAD model uses Model 1 and the RGBA FE sphere uses Model 2. Both
+inputs use millimetres and are stored as project-managed sources. The sphere has
+a per-model opacity of 0.32; new model ports default to fully opaque.
 
-Use the input-side `+` to add scenes (zoom in for on-node controls), or the port
+Use the input-side `+` to add models (zoom in for on-node controls), or the port
 context menu to insert/remove them and edit their labels. Empty ports are ignored;
-at least one connected scene is needed. Each port accepts a prepared CAD/FE scene,
-OCP Body, or Geometry Group. The sidebar scene selector controls opacity and a
-solid `#RRGGBB` color override; Auto restores source coloring. Hide/show and isolate
-remain per-scene, while the camera, representation, and clipping are shared.
-Scene coordinates are preserved and units are converted to the first populated
-scene's units. Old overlay connections/settings are not automatically migrated.
+at least one connected model is needed. Each port accepts a CAD Model, Surface
+Model, OCP Body, CAD Assembly, or prepared FE scene. The sidebar model selector
+controls opacity and a solid `#RRGGBB` color override; Auto restores source
+coloring. Hide/show and isolate remain per-model, while the camera,
+representation, and clipping are shared. CAD geometry uses millimetres internally;
+the viewer converts layer units for a shared display. Old CAD Import `scene`
+connections and removed CAD Assembly Tolerances links are reported and discarded
+on load so they can be reconnected manually.
 
 ## Guided tour
 

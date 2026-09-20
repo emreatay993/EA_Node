@@ -1601,7 +1601,7 @@ class ViewerSessionService:
         record.options["scene_labels"] = labels
         if "scene_order" in record.source_refs:
             record.source_refs["scene_labels"] = {
-                key: labels.get(key, str(record.source_refs.get("scene_labels", {}).get(key, f"Scene {index}")))
+                key: labels.get(key, str(record.source_refs.get("scene_labels", {}).get(key, f"Model {index}")))
                 for index, key in enumerate(record.source_refs["scene_order"], start=1)
             }
         for entries, identity_key, label_key in (

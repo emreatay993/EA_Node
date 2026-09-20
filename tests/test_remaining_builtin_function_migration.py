@@ -76,7 +76,7 @@ def test_exact_t15_entries_match_golden_and_leave_exact_exception_set(
         if row["spec"]["type_id"] in _T15_CONVERTED_TYPE_IDS
     }
 
-    assert len(golden_rows) == 142
+    assert len(golden_rows) == 143
     assert len(_T15_CONVERTED_TYPE_IDS) == 30
     assert set(expected) == set(_T15_CONVERTED_TYPE_IDS)
     for type_id in _T15_CONVERTED_TYPE_IDS:
@@ -89,7 +89,7 @@ def test_exact_t15_entries_match_golden_and_leave_exact_exception_set(
     bundle = registry.plugin_bundle_refs()
     assert len(bundle) == 1
     assert bundle[0].owner_id == INTERNAL_BUILTIN_FUNCTION_OWNER_ID
-    assert len(bundle[0].functions) == 76
+    assert len(bundle[0].functions) == 77
     assert set(registry.all_python_function_refs()) == set(bundle[0].functions)
 
     expected_exceptions = {
@@ -158,7 +158,7 @@ print(json.dumps({
         text=True,
     )
 
-    assert json.loads(completed.stdout) == {"count": 76, "heavy": []}
+    assert json.loads(completed.stdout) == {"count": 77, "heavy": []}
 
 
 def test_t15_typed_carrier_defaults_are_normalized_values(tmp_path: Path) -> None:

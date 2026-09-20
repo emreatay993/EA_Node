@@ -132,7 +132,7 @@ def test_media_panel_has_exact_active_contract_and_static_settings_superset() ->
 
 def test_registry_keeps_media_panel_and_mail_as_separate_nodes() -> None:
     registry = build_builtin_registry()
-    assert len(registry.all_specs()) == 124
+    assert len(registry.all_specs()) == 125
     assert registry.spec_or_none(MEDIA_PANEL_TYPE_ID) is not None
     mail = registry.spec_or_none("passive.media.mail_panel")
     assert mail is not None

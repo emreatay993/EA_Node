@@ -11,6 +11,8 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 - `ea_node_editor/nodes/builtin_functions/engineering_imports.py`
 - `ea_node_editor/nodes/builtin_functions/engineering_viewer.py`
 - `ea_node_editor/nodes/builtin_functions/engineering_geometry.py`
+- `ea_node_editor/nodes/builtins/imported_models.py`
+- `ea_node_editor/nodes/solution_provenance.py`
 - `ea_node_editor/nodes/builtins/engineering_viewer.py`
 - `ea_node_editor/nodes/builtins/geometry_primitives.py`
 - `ea_node_editor/execution/prepared_scene_runtime.py`
@@ -20,12 +22,22 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 - `tests/test_engineering_viewer_example_project.py`
 
 ## Behavior
-- Model Viewer accepts supported engineering carriers and produces an owned
-  prepared scene without exposing live worker objects to QML.
+- CAD Import outputs one strict `COREX.Geometry.CADModel` handle for a whole
+  STEP/IGES/BREP file. Mesh Import outputs a `COREX.Mesh.SurfaceModel` for STL;
+  FE Import keeps its prepared scene output. Exact CAD models retain available
+  XCAF hierarchy, names, colors, source-unit provenance, and topology. Imported
+  geometry and primitive OCP bodies use millimetres internally.
+- CAD Assembly is the public name for internal `geometry.construct_group` /
+  `COREX.Geometry.Group`. Its Components list accepts ordered CAD Models, OCP
+  Bodies, and nested CAD Assemblies, leasing each child without transforms or
+  fusion. The inactive Tolerances input is removed; surface meshes are excluded.
+- Model Viewer prepares CAD and mesh scenes through the shared worker runtime
+  when consuming model handles, without exposing live worker objects to QML.
 - Model Viewer uses the existing dynamic input group (`scene_input_ids`): one
-  initial Scene 1 socket, add/remove/label editing, and optional empty slots.
-  Each socket accepts Scene, OCP Body, or Geometry Group. `scene_styles` persists
-  per-ID opacity/color; the sidebar selects a scene and Auto restores its colors.
+  initial Model 1 socket, add/remove/label editing, and optional empty slots.
+  Each socket accepts prepared FE Scene, CAD Model, Surface Model, OCP Body, or
+  CAD Assembly. `scene_styles` persists per-ID opacity/color; the sidebar selects
+  a model and Auto restores its colors.
   Ports, actors, selections, queries, and export use stable scene IDs, not names.
 - Empty scene-slot add/remove and history edits do not invalidate results or
   dispatch Auto work. Connected slots remain computational; populated changes
@@ -40,10 +52,10 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
   unchanged and display units follow the first populated port. Removed source
   handles are released on authoritative scene replacement; identity-only opens
   preserve the active session. There is no old overlay contract or migration.
-- CAD/FE Import, Model Viewer, Cylinder, Construct Geometry Group, and Deconstruct Mesh
+- CAD/FE/Mesh Import, Model Viewer, Cylinder, CAD Assembly, and Deconstruct Mesh
   Face are inert reserved-bundle declarations; the existing trusted helpers
   retain file validation, prepared-scene work, native geometry, and session ownership.
-- CAD Import and FE Import receive trusted registry-owned file provenance for their `path` input. Content hashing is bounded and link/reparse-safe; connected paths bind through upstream keys plus captured file-content provenance. CURRENT reads revalidate ordinary files and admitted project-managed artifacts; tampered managed bytes retain descriptor-integrity rejection. Native outputs remain session-only/current-only, without general historical-key reuse or durable persistence.
+- CAD, FE, and Mesh Import receive trusted registry-owned file provenance for their `path` input. Content hashing is bounded and link/reparse-safe; connected paths bind through upstream keys plus captured file-content provenance. CURRENT reads revalidate ordinary files and admitted project-managed artifacts; tampered managed bytes retain descriptor-integrity rejection. Native outputs remain session-only/current-only, without general historical-key reuse or durable persistence. Prepared model scenes keep original file SHA-256 as provenance and a separate unit-sensitive representation fingerprint for viewer selections.
 - Viewer sessions own camera, selection, clipping, display options, and export
   state through validated handles.
 - Model Viewer starts as a lightweight proxy without native warm-up. Selection,
@@ -69,6 +81,8 @@ sessions, selection, clipping, export, and the shared fullscreen/detached host.
 - Keep CAD/FE preparation in execution and UI projection in the viewer bridge.
 - Keep project serialization limited to stable configuration and saved view
   facts; native scene and worker identities never persist.
+- Loading old CAD Import `scene` or removed assembly Tolerances wires reports
+  and discards those links without changing other graph links.
 - Keep identifiers, comments, tests, maps, and verification records functional.
 
 ## Focused Tests

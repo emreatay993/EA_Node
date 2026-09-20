@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import pyvista
@@ -26,11 +27,14 @@ from tests.typed_handle_support import core_worker_services
 from ea_node_editor.nodes.bootstrap import build_builtin_registry
 from ea_node_editor.nodes.builtins.engineering_viewer import (
     _composition_fingerprint,
+    _prepare_scene,
     _require_scene,
+    _scene_fingerprint,
     _selection_output_for_scene,
     execute_engineering_viewer,
 )
 from ea_node_editor.nodes.builtins import geometry_primitives
+from ea_node_editor.nodes.builtins.imported_models import resolve_cad_model
 from ea_node_editor.nodes.builtins.geometry_primitives import (
     GEOMETRY_GROUP_DATA_TYPE_ID,
     GEOMETRY_GROUP_HANDLE_KIND,
@@ -49,9 +53,182 @@ from ea_node_editor.runtime_contracts import (
     RuntimeHandleRef,
     TypedInlineValue,
 )
+from tests.test_engineering_import_nodes import _write_xcaf_step
 
 
 class EngineeringViewerNodeTests(unittest.TestCase):
+    def test_selection_fingerprint_distinguishes_unit_interpretations(self) -> None:
+        file_sha256 = "a" * 64
+        first = SimpleNamespace(metadata={
+            "source": {"sha256": file_sha256},
+            "representation_sha256": "b" * 64,
+        })
+        second = SimpleNamespace(metadata={
+            "source": {"sha256": file_sha256},
+            "representation_sha256": "c" * 64,
+        })
+        self.assertNotEqual(_scene_fingerprint(first), _scene_fingerprint(second))
+        self.assertEqual(
+            _scene_fingerprint(SimpleNamespace(metadata={"source": {"sha256": file_sha256}})),
+            file_sha256,
+        )
+
+    def test_nested_cad_assembly_retains_import_parts_colors_and_positions(self) -> None:
+        from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+        from OCP.BRepTools import BRepTools
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            step_path = root / "colored.step"
+            brep_path = root / "plain.brep"
+            _write_xcaf_step(step_path)
+            self.assertTrue(BRepTools.Write_s(
+                BRepPrimAPI_MakeBox(2, 3, 4).Shape(), str(brep_path),
+            ))
+            services = WorkerServices()
+            services.bind_data_types(build_builtin_registry().data_types)
+            services._prepared_scene_runtime = PreparedSceneRuntime(  # noqa: SLF001
+                services, cache_root=root / "cache",
+            )
+            run_id = "run-mixed-assembly"
+
+            def context(node_id: str, inputs: dict[str, object]) -> ExecutionContext:
+                return ExecutionContext(
+                    run_id=run_id, node_id=node_id, workspace_id="mixed-assembly",
+                    inputs=inputs, properties={}, emit_log=lambda *_args: None,
+                    worker_services=services,
+                )
+
+            first = services.prepared_scene_runtime.import_cad_model(
+                step_path, length_unit="mm", owner_scope=services.run_owner_scope(run_id),
+            )
+            second = services.prepared_scene_runtime.import_cad_model(
+                brep_path, length_unit="mm", owner_scope=services.run_owner_scope(run_id),
+            )
+            body = execute_cylinder(context("body", {
+                "plane": TypedInlineValue(PLANE_DATA_TYPE_ID, 1, {
+                    "origin": [0.0, 0.0, 0.0],
+                    "axes": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+                    "normal": [0.0, 0.0, 1.0],
+                }),
+                "radius": 1.0, "interval": Interval1D(0.0, 2.0),
+            })).outputs["body"]
+            nested = execute_construct_geometry_group(context("nested", {
+                "name": "Subassembly", "geometry": [first, body],
+            })).outputs["group"]
+            outer = execute_construct_geometry_group(context("outer", {
+                "name": "Main Assembly", "geometry": [nested, second],
+            })).outputs["group"]
+            session_ref = execute_engineering_viewer(context(
+                "viewer", {"scene_1": outer},
+            )).outputs["session"]
+            session = services.resolve_handle(session_ref)
+            scene_ref = services.viewer_session_service._sessions[  # noqa: SLF001
+                ("mixed-assembly", session_ref.metadata["session_id"])
+            ].source_refs["scene:scene_1"]
+            prepared = services.resolve_handle(scene_ref)
+            hierarchy = prepared.descriptor.hierarchy
+            self.assertEqual(
+                [(item["name"], item["kind"]) for item in hierarchy[:5]],
+                [
+                    ("Main Assembly", "scene"),
+                    ("Main Assembly", "assembly"),
+                    ("Subassembly", "assembly"),
+                    ("colored.step", "assembly"),
+                    ("Named Assembly", "assembly"),
+                ],
+            )
+            self.assertEqual(
+                [item["name"] for item in hierarchy if item["kind"] == "body"],
+                ["OCP Body", "plain.brep"],
+            )
+            self.assertIn(
+                ("Named Box Instance", "instance"),
+                [(item["name"], item["kind"]) for item in hierarchy],
+            )
+            source_part = resolve_cad_model(services, first).cad_metadata.parts[0]
+            composed_part = next(
+                part for part in prepared.descriptor.topology_mappings["parts"]
+                if part.get("part_index") == 1
+            )
+            self.assertTrue(composed_part["id"].startswith("cad:assembly/0/0/"))
+            self.assertAlmostEqual(
+                source_part.location.Transformation().TranslationPart().X(), 10.0,
+            )
+            self.assertGreater(prepared.descriptor.bounds[1], 11.0)
+            self.assertTrue(any(
+                asset["role"] == "selection_topology"
+                for asset in prepared.descriptor.geometry_assets
+            ))
+            self.assertTrue(any(
+                asset["role"] == "full"
+                and asset["attribute_colors"]["available"]
+                for asset in prepared.descriptor.geometry_assets
+            ))
+            self.assertEqual(session["transport"]["layers"][0]["length_unit"], "mm")
+
+            repeated_first = services.prepared_scene_runtime.import_cad_model(
+                step_path, length_unit="mm", owner_scope=services.run_owner_scope(run_id),
+            )
+            repeated_second = services.prepared_scene_runtime.import_cad_model(
+                brep_path, length_unit="mm", owner_scope=services.run_owner_scope(run_id),
+            )
+            repeated_nested = execute_construct_geometry_group(context("nested-again", {
+                "name": "Subassembly", "geometry": [repeated_first, body],
+            })).outputs["group"]
+            repeated_outer = execute_construct_geometry_group(context("outer-again", {
+                "name": "Main Assembly", "geometry": [repeated_nested, repeated_second],
+            })).outputs["group"]
+            repeated_scene, _source = _prepare_scene(
+                context("viewer-again", {}), repeated_outer, label="Model 1",
+            )
+            self.assertEqual(
+                repeated_scene.metadata["source"]["sha256"],
+                scene_ref.metadata["source"]["sha256"],
+            )
+
+            services.cleanup_run(run_id)
+            for ref in (
+                first, second, repeated_first, repeated_second, body,
+                nested, outer, repeated_nested, repeated_outer,
+            ):
+                with self.assertRaises(StaleHandleError):
+                    services.resolve_handle(ref)
+            self.assertIsNotNone(services.resolve_handle(scene_ref))
+            services.viewer_session_service.close_session(CloseViewerSessionCommand(
+                workspace_id="mixed-assembly", node_id="viewer",
+                session_id=session_ref.metadata["session_id"],
+            ))
+
+    def test_surface_mesh_model_is_viewable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "surface.stl"
+            pyvista.Cube(x_length=2.0, y_length=3.0, z_length=4.0).triangulate().save(source)
+            services = WorkerServices()
+            services.bind_data_types(build_builtin_registry().data_types)
+            services._prepared_scene_runtime = PreparedSceneRuntime(  # noqa: SLF001
+                services, cache_root=root / "cache",
+            )
+            run_id = "run-surface-viewer"
+            mesh_ref = services.prepared_scene_runtime.import_surface_model(
+                source, length_unit="mm", owner_scope=services.run_owner_scope(run_id),
+            )
+            context = ExecutionContext(
+                run_id=run_id, node_id="viewer", workspace_id="surface-viewer",
+                inputs={"scene_1": mesh_ref}, properties={},
+                emit_log=lambda *_args: None, worker_services=services,
+            )
+            session_ref = execute_engineering_viewer(context).outputs["session"]
+            session = services.resolve_handle(session_ref)
+            self.assertEqual(session["transport"]["layers"][0]["length_unit"], "mm")
+            self.assertEqual(session["summary"]["scene_layers"][0]["name"], "Model 1")
+            services.viewer_session_service.close_session(CloseViewerSessionCommand(
+                workspace_id="surface-viewer", node_id="viewer",
+                session_id=session_ref.metadata["session_id"],
+            ))
+            services.cleanup_run(run_id)
+
     def test_dynamic_callback_fingerprints_are_trusted_and_deterministic(self) -> None:
         from ea_node_editor.nodes.builtins.engineering_viewer import resolve_scene_input_ports
         from ea_node_editor.nodes.function_plugin import _stable_fingerprint_value
@@ -70,7 +247,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
             properties={"scene_input_ids": ["scene_1", "scene_2"]},
             emit_log=lambda *_args: None,
         )
-        with self.assertRaisesRegex(NodeInputNotReadyError, "at least one scene"):
+        with self.assertRaisesRegex(NodeInputNotReadyError, "at least one model"):
             execute_engineering_viewer(context)
         context.inputs["scene_2"] = 42
         context.node_port_labels = {"scene_2": "Housing"}
@@ -99,7 +276,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
         arguments = opened.call_args.kwargs
         self.assertEqual(list(arguments["scenes"]), ["scene_2", "scene_4", "scene_5"])
         self.assertIs(arguments["scenes"]["scene_2"], arguments["scenes"]["scene_5"])
-        self.assertEqual(arguments["labels"], {"scene_2": "Housing", "scene_4": "Scene 4", "scene_5": "Housing"})
+        self.assertEqual(arguments["labels"], {"scene_2": "Housing", "scene_4": "Model 4", "scene_5": "Housing"})
 
     def test_scene_guard_rejects_correct_kind_with_wrong_semantic_type(self) -> None:
         spoof = RuntimeHandleRef(
@@ -123,7 +300,10 @@ class EngineeringViewerNodeTests(unittest.TestCase):
         self.assertEqual(ports["scene_1"].data_type, COREX_SCENE_DATA_TYPE)
         self.assertEqual(
             ports["scene_1"].accepted_data_types,
-            (OCP_BODY_DATA_TYPE_ID, GEOMETRY_GROUP_DATA_TYPE_ID),
+            (
+                "COREX.Geometry.CADModel", "COREX.Mesh.SurfaceModel",
+                OCP_BODY_DATA_TYPE_ID, GEOMETRY_GROUP_DATA_TYPE_ID,
+            ),
         )
         self.assertEqual(ports["scene_2"].data_type, COREX_SCENE_DATA_TYPE)
         self.assertEqual(ports["scene_2"].accepted_data_types, ports["scene_1"].accepted_data_types)
@@ -453,7 +633,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 node_id="node-construct-geometry-group",
                 workspace_id=workspace_id,
                 inputs={
-                    "name": "Primary Geometry Group",
+                    "name": "Primary CAD Assembly",
                     "geometry": body_refs,
                     "tolerances": [],
                 },
@@ -467,8 +647,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
                 expected_data_type=GEOMETRY_GROUP_DATA_TYPE_ID,
                 expected_kind=GEOMETRY_GROUP_HANDLE_KIND,
             )
-            self.assertEqual(group_record.name, "Primary Geometry Group")
-            self.assertEqual(group_record.tolerances, (0.0, 0.0))
+            self.assertEqual(group_record.name, "Primary CAD Assembly")
             self.assertEqual(
                 [ref.handle_id for ref in group_record.child_leases],
                 [ref.handle_id for ref in body_refs],
@@ -496,10 +675,11 @@ class EngineeringViewerNodeTests(unittest.TestCase):
 
             self.assertEqual(session["live_open_status"], "ready")
             self.assertEqual(asset["storage"], "shared_memory")
-            self.assertEqual(primary["display_path"], "")
-            self.assertTrue(
-                all(not item["path"] for item in primary["geometry_assets"])
-            )
+            self.assertTrue(Path(primary["display_path"]).is_file())
+            self.assertTrue(any(
+                item["role"] == "selection_topology" and Path(item["path"]).is_file()
+                for item in primary["geometry_assets"]
+            ))
             self.assertEqual(body_disposals, [])
             self.assertEqual(group_disposals, [])
             json.dumps(group_ref.metadata, allow_nan=False)
@@ -517,7 +697,7 @@ class EngineeringViewerNodeTests(unittest.TestCase):
             self.assertIs(services.resolve_handle(native_source_ref), group_record)
             self.assertEqual(
                 prepared_scene_ref.metadata["source"]["source_path"],
-                "memory://corex/GeometryGroup",
+                "Primary CAD Assembly",
             )
 
             services.cleanup_run(run_id)

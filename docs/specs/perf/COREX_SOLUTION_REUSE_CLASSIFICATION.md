@@ -77,7 +77,7 @@ Apply these rules in order; later rules cannot broaden an earlier decision.
 | Markdown rendering from session-only input | 1 | `session` | Durable text output is capped by the non-durable flowchart input codec. |
 | Plane value container | 1 | `durable` | Canonical inline plane codec. |
 | Signal image rendering | 1 | `durable` | Deterministic renderer identity plus validated image digest/codec. |
-| File/import readers | 5 | `session` | Content hash, path policy, importer/environment digest; initially session-only. |
+| File/import readers | 6 | `session` | Content hash, path policy, importer/environment digest; initially session-only. |
 | Model Viewer | 1 | `session` | Live viewer handle and transport require exact runtime generation. |
 | Geometry/FE/optimization handles | 7 | `session` | Live/native/runtime handles require exact generation validation. |
 | Tabular runtime refs | 5 | `session` | Runtime-local refs or declared non-durable materialization codecs. |
@@ -86,10 +86,10 @@ Apply these rules in order; later rules cannot broaden an earlier decision.
 
 ## Primary Acceptance Chain
 
-`engineering.cad_import` is `session`: its identity requires the source content
+`engineering.cad_import` and `engineering.mesh_import` are `session`: their identities require the source content
 SHA-256, normalized path policy, importer/build/environment digest, applicable
 artifact semantic identity and current integrity, normalized properties, and a
-session-valid prepared-scene result. Timestamp-only identity is forbidden.
+session-valid model handles. Timestamp-only identity is forbidden.
 
 `model.viewer` is `session`: its identity requires ordered upstream solution keys,
 normalized viewer settings, backend/build/environment identity, and exact live
@@ -126,12 +126,13 @@ locations, and package paths are deliberately absent from this tracked artifact.
 | `data.number_slider` | Number Slider | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/data_control.py` | Data/Control | `durable` | `pure` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys` | `durable_catalog_codec` | `none` | `pure_portable_codec` | `tests/test_number_slider_node.py` |
 | `data.panel` | Panel | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/data_control.py` | Data/Control | `session` | `pure` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys+handle_generation_or_artifact_integrity` | `session_any_output_validated` | `handle_generation+artifact_semantic_identity+current_integrity_as_applicable` | `portable_output_codec_unavailable` | `tests/test_panel_node.py` |
 | `data.select` | Select | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/data_control.py` | Data/Control | `durable` | `pure` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys` | `durable_catalog_codec` | `none` | `pure_portable_codec` | `tests/test_select_node.py` |
-| `engineering.cad_import` | CAD Import | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/engineering_imports.py` | Engineering/Import | `session` | `read_only_external` | `core_build+bundle+source` | `file_sha256+path_policy+environment_digest+artifact_semantic_identity+current_integrity` | `session_prepared_scene` | `prepared_scene_runtime_generation+artifact_semantic_identity+current_integrity` | `external_file_reader_session_only` | `tests/test_engineering_import_nodes.py` |
+| `engineering.cad_import` | CAD Import | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/engineering_imports.py` | Engineering/Import | `session` | `read_only_external` | `core_build+bundle+source` | `file_sha256+path_policy+environment_digest+artifact_semantic_identity+current_integrity` | `session_runtime_handle_or_inline` | `live_handle_generation+current_integrity` | `external_file_reader_session_only` | `tests/test_engineering_import_nodes.py` |
 | `engineering.fe_import` | FE Import | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/engineering_imports.py` | Engineering/Import | `session` | `read_only_external` | `core_build+bundle+source` | `file_sha256+path_policy+environment_digest+artifact_semantic_identity+current_integrity` | `session_prepared_scene` | `prepared_scene_runtime_generation+artifact_semantic_identity+current_integrity` | `external_file_reader_session_only` | `tests/test_engineering_import_nodes.py` |
+| `engineering.mesh_import` | Mesh Import | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/engineering_imports.py` | Engineering/Import | `session` | `read_only_external` | `core_build+bundle+source` | `file_sha256+path_policy+environment_digest+artifact_semantic_identity+current_integrity` | `session_runtime_handle_or_inline` | `live_handle_generation+current_integrity` | `external_file_reader_session_only` | `tests/test_engineering_import_nodes.py` |
 | `fea.force` | Force | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/engineering_fem.py` | FEA/Loads | `session` | `pure_runtime_local` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys+handle_generation` | `session_runtime_handle_or_inline` | `live_handle_generation` | `runtime_handle_generation_bound` | `tests/test_fem_contracts.py` |
 | `fea.load_container` | Load Container | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/engineering_fem.py` | FEA/Loads | `session` | `pure_runtime_local` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys+handle_generation` | `session_runtime_handle_or_inline` | `live_handle_generation` | `runtime_handle_generation_bound` | `tests/test_fem_contracts.py` |
 | `geometry.chain_transforms` | Chain Transforms | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/spatial.py` | Geometry/Transform | `durable` | `pure` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys` | `durable_catalog_codec` | `none` | `pure_portable_codec` | `tests/test_spatial_values.py` |
-| `geometry.construct_group` | Construct Geometry Group | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/engineering_geometry.py` | Geometry/Model | `session` | `pure_runtime_local` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys+handle_generation` | `session_runtime_handle_or_inline` | `live_handle_generation` | `runtime_handle_generation_bound` | `tests/test_geometry_primitives.py` |
+| `geometry.construct_group` | CAD Assembly | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/engineering_geometry.py` | Geometry/Model | `session` | `pure_runtime_local` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys+handle_generation` | `session_runtime_handle_or_inline` | `live_handle_generation` | `runtime_handle_generation_bound` | `tests/test_geometry_primitives.py` |
 | `geometry.construct_transform` | Construct Transform | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/spatial.py` | Geometry/Transform | `durable` | `pure` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys` | `durable_catalog_codec` | `none` | `pure_portable_codec` | `tests/test_transform3d.py` |
 | `geometry.cylinder` | Cylinder | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/engineering_geometry.py` | Geometry/Primitive | `session` | `pure_runtime_local` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys+handle_generation` | `session_runtime_handle_or_inline` | `live_handle_generation` | `runtime_handle_generation_bound` | `tests/test_geometry_primitives.py` |
 | `geometry.deconstruct_transform` | Deconstruct Transform | `active` | `PythonFunctionEntry` | `ea_node_editor/nodes/builtin_functions/spatial.py` | Geometry/Transform | `durable` | `pure` | `core_build+bundle+source` | `canonical_values+ordered_upstream_keys` | `durable_catalog_codec` | `none` | `pure_portable_codec` | `tests/test_transform3d.py` |
@@ -280,11 +281,11 @@ Review and implementation checks must prove all of the following:
 
 1. The executable table has exactly 109 unique repo-owned type IDs and the excluded
    table has exactly 34 unique IDs with no overlap.
-2. Executable totals are exactly 29 `durable`, 27 `session`, and 53 `never`.
+2. Executable totals are exactly 28 `durable`, 29 `session`, and 52 `never`.
 3. The excluded table contains exactly 31 passive and 3 compile-only rows.
 4. Every executable row contains all fourteen required columns and every excluded
    row contains all seven required columns.
-5. `engineering.cad_import` and `model.viewer` are `session` with the exact
+5. `engineering.cad_import`, `engineering.mesh_import`, and `model.viewer` are `session` with the exact
    content/importer and live-handle/transport reasons stated above.
 6. Runtime-discovered public declarations are hard-locked to `never` without
    recording private IDs or paths.

@@ -330,7 +330,7 @@ def _build_document(
             -500.0,
             20.0,
             properties={"path": cad_ref, "length_unit": "mm"},
-            exposed_ports={"path": True, "scene": True},
+            exposed_ports={"path": True, "model": True},
             width=330.0,
         ),
         _node(
@@ -361,7 +361,7 @@ def _build_document(
         ),
     ]
     edges = [
-        _edge("edge_cad_scene", CAD_IMPORT_ID, "scene", VIEWER_ID, "scene_1"),
+        _edge("edge_cad_model", CAD_IMPORT_ID, "model", VIEWER_ID, "scene_1"),
         _edge("edge_fe_scene", FE_IMPORT_ID, "scene", VIEWER_ID, "scene_2"),
     ]
     return {

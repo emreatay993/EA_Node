@@ -4299,11 +4299,11 @@
           "type_from_input": ""
         },
         {
-          "key": "scene",
+          "key": "model",
           "direction": "out",
           "kind": "data",
-          "data_type": "COREX.Engineering.Scene",
-          "label": "",
+          "data_type": "COREX.Geometry.CADModel",
+          "label": "CAD Model",
           "required": null,
           "uses_property_default": false,
           "exposed": true,
@@ -4312,16 +4312,16 @@
           "side": "",
           "accepted_data_types": [],
           "display_tier": "",
-          "description": "Prepared CAD scene for viewing or downstream processing.",
+          "description": "Exact CAD model with original part hierarchy and source metadata.",
           "data_access": "item",
           "type_from_input": ""
         }
       ],
       "properties": [
         {
+          "default": "",
           "key": "path",
           "type": "path",
-          "default": "",
           "label": "CAD File",
           "expose_port_toggle": false,
           "enum_values": [],
@@ -4333,7 +4333,7 @@
           "inspector_editor": "",
           "inspector_visible": true,
           "group": "",
-          "file_filter": "Neutral CAD Files (*.stl *.step *.stp *.iges *.igs *.brep);;All Files (*)",
+          "file_filter": "CAD Files (*.step *.stp *.iges *.igs *.brep);;All Files (*)",
           "enabled_when": null,
           "searchable": false,
           "interval_direction": "",
@@ -4351,9 +4351,9 @@
           "affects_execution": true
         },
         {
+          "default": "file",
           "key": "length_unit",
           "type": "enum",
-          "default": "file",
           "label": "Length Unit",
           "expose_port_toggle": false,
           "enum_values": [
@@ -4391,7 +4391,7 @@
         }
       ],
       "collapsible": true,
-      "description": "Imports a neutral CAD file as a prepared COREX scene.",
+      "description": "Imports a STEP, IGES, or BREP model as exact geometry. Mixed or unsupported STEP units cannot be overridden with one Length Unit choice.",
       "is_async": false,
       "runtime_behavior": "active",
       "solution_reuse_scope": "session",
@@ -4441,11 +4441,11 @@
         "type_from_input": ""
       },
       {
-        "key": "scene",
+        "key": "model",
         "direction": "out",
         "kind": "data",
-        "data_type": "COREX.Engineering.Scene",
-        "label": "",
+        "data_type": "COREX.Geometry.CADModel",
+        "label": "CAD Model",
         "required": null,
         "uses_property_default": false,
         "exposed": true,
@@ -4454,7 +4454,7 @@
         "side": "",
         "accepted_data_types": [],
         "display_tier": "",
-        "description": "Prepared CAD scene for viewing or downstream processing.",
+        "description": "Exact CAD model with original part hierarchy and source metadata.",
         "data_access": "item",
         "type_from_input": ""
       }
@@ -4645,6 +4645,190 @@
         "accepted_data_types": [],
         "display_tier": "",
         "description": "Prepared finite-element scene for viewing or downstream processing.",
+        "data_access": "item",
+        "type_from_input": ""
+      }
+    ]
+  },
+  {
+    "spec": {
+      "type_id": "engineering.mesh_import",
+      "display_name": "Mesh Import",
+      "category_path": [
+        "Engineering",
+        "Import"
+      ],
+      "icon": "integrations/download.svg",
+      "ports": [
+        {
+          "key": "path",
+          "direction": "in",
+          "kind": "data",
+          "data_type": "COREX.DataTypes.Path",
+          "label": "",
+          "required": true,
+          "uses_property_default": true,
+          "exposed": true,
+          "allow_multiple_connections": false,
+          "allow_empty_string": false,
+          "side": "",
+          "accepted_data_types": [],
+          "display_tier": "",
+          "description": "Path to the STL surface mesh to import.",
+          "data_access": "item",
+          "type_from_input": ""
+        },
+        {
+          "key": "model",
+          "direction": "out",
+          "kind": "data",
+          "data_type": "COREX.Mesh.SurfaceModel",
+          "label": "Surface Mesh",
+          "required": null,
+          "uses_property_default": false,
+          "exposed": true,
+          "allow_multiple_connections": false,
+          "allow_empty_string": false,
+          "side": "",
+          "accepted_data_types": [],
+          "display_tier": "",
+          "description": "Reusable surface mesh normalized to millimetres.",
+          "data_access": "item",
+          "type_from_input": ""
+        }
+      ],
+      "properties": [
+        {
+          "default": "",
+          "key": "path",
+          "type": "path",
+          "label": "Mesh File",
+          "expose_port_toggle": false,
+          "enum_values": [],
+          "enum_codes": [],
+          "minimum": null,
+          "maximum": null,
+          "step": 0.0,
+          "inline_editor": "",
+          "inspector_editor": "",
+          "inspector_visible": true,
+          "group": "",
+          "file_filter": "STL Files (*.stl);;All Files (*)",
+          "enabled_when": null,
+          "searchable": false,
+          "interval_direction": "",
+          "description": "",
+          "sensitive": false,
+          "sensitive_scope_key": "",
+          "persistence_data_type_id": "",
+          "nullable": false,
+          "list_item_type": "",
+          "list_item_enum_values": [],
+          "list_item_enum_codes": [],
+          "list_item_minimum": null,
+          "list_item_maximum": null,
+          "list_item_step": 0.0,
+          "affects_execution": true
+        },
+        {
+          "default": "choose",
+          "key": "length_unit",
+          "type": "enum",
+          "label": "Source Length Unit",
+          "expose_port_toggle": false,
+          "enum_values": [
+            "choose",
+            "m",
+            "mm",
+            "cm",
+            "in",
+            "ft"
+          ],
+          "enum_codes": [],
+          "minimum": null,
+          "maximum": null,
+          "step": 0.0,
+          "inline_editor": "",
+          "inspector_editor": "",
+          "inspector_visible": true,
+          "group": "Import",
+          "file_filter": "",
+          "enabled_when": null,
+          "searchable": false,
+          "interval_direction": "",
+          "description": "",
+          "sensitive": false,
+          "sensitive_scope_key": "",
+          "persistence_data_type_id": "",
+          "nullable": false,
+          "list_item_type": "",
+          "list_item_enum_values": [],
+          "list_item_enum_codes": [],
+          "list_item_minimum": null,
+          "list_item_maximum": null,
+          "list_item_step": 0.0,
+          "affects_execution": true
+        }
+      ],
+      "collapsible": true,
+      "description": "Imports an STL surface mesh as a reusable model for viewing.",
+      "is_async": false,
+      "runtime_behavior": "active",
+      "solution_reuse_scope": "session",
+      "solution_provenance_inputs": [],
+      "surface_family": "standard",
+      "surface_variant": "",
+      "render_quality": {
+        "supported_quality_tiers": [
+          "full"
+        ]
+      },
+      "show_title_icon": false,
+      "keywords": [
+        "stl",
+        "surface mesh",
+        "import"
+      ],
+      "settings_groups": [],
+      "default_expanded_settings_group_ids": [],
+      "readiness_requirements": [],
+      "dynamic_port_groups": [],
+      "instance_spec_resolver": null
+    },
+    "resolved_default_ports": [
+      {
+        "key": "path",
+        "direction": "in",
+        "kind": "data",
+        "data_type": "COREX.DataTypes.Path",
+        "label": "",
+        "required": true,
+        "uses_property_default": true,
+        "exposed": true,
+        "allow_multiple_connections": false,
+        "allow_empty_string": false,
+        "side": "",
+        "accepted_data_types": [],
+        "display_tier": "",
+        "description": "Path to the STL surface mesh to import.",
+        "data_access": "item",
+        "type_from_input": ""
+      },
+      {
+        "key": "model",
+        "direction": "out",
+        "kind": "data",
+        "data_type": "COREX.Mesh.SurfaceModel",
+        "label": "Surface Mesh",
+        "required": null,
+        "uses_property_default": false,
+        "exposed": true,
+        "allow_multiple_connections": false,
+        "allow_empty_string": false,
+        "side": "",
+        "accepted_data_types": [],
+        "display_tier": "",
+        "description": "Reusable surface mesh normalized to millimetres.",
         "data_access": "item",
         "type_from_input": ""
       }
@@ -5384,7 +5568,7 @@
   {
     "spec": {
       "type_id": "geometry.construct_group",
-      "display_name": "Construct Geometry Group",
+      "display_name": "CAD Assembly",
       "category_path": [
         "Geometry",
         "Model"
@@ -5405,7 +5589,7 @@
           "side": "",
           "accepted_data_types": [],
           "display_tier": "",
-          "description": "Name assigned to the geometry group.",
+          "description": "Name assigned to the CAD assembly.",
           "data_access": "item",
           "type_from_input": ""
         },
@@ -5413,35 +5597,20 @@
           "key": "geometry",
           "direction": "in",
           "kind": "data",
-          "data_type": "COREX.Geometry.OCPBody",
-          "label": "Geometry",
+          "data_type": "COREX.Geometry.CADModel",
+          "label": "Components",
           "required": true,
           "uses_property_default": false,
           "exposed": true,
           "allow_multiple_connections": false,
           "allow_empty_string": false,
           "side": "",
-          "accepted_data_types": [],
+          "accepted_data_types": [
+            "COREX.Geometry.OCPBody",
+            "COREX.Geometry.Group"
+          ],
           "display_tier": "",
-          "description": "Ordered OCP bodies in the geometry group.",
-          "data_access": "list",
-          "type_from_input": ""
-        },
-        {
-          "key": "tolerances",
-          "direction": "in",
-          "kind": "data",
-          "data_type": "COREX.DataTypes.Double",
-          "label": "Tolerances",
-          "required": false,
-          "uses_property_default": false,
-          "exposed": true,
-          "allow_multiple_connections": false,
-          "allow_empty_string": false,
-          "side": "",
-          "accepted_data_types": [],
-          "display_tier": "",
-          "description": "Optional per-body tolerances.",
+          "description": "Ordered CAD models, OCP bodies, and nested CAD assemblies.",
           "data_access": "list",
           "type_from_input": ""
         },
@@ -5450,7 +5619,7 @@
           "direction": "out",
           "kind": "data",
           "data_type": "COREX.Geometry.Group",
-          "label": "Geometry Group",
+          "label": "CAD Assembly",
           "required": null,
           "uses_property_default": false,
           "exposed": true,
@@ -5459,14 +5628,14 @@
           "side": "",
           "accepted_data_types": [],
           "display_tier": "",
-          "description": "Geometry group containing the supplied bodies and tolerances.",
+          "description": "CAD assembly containing the supplied components.",
           "data_access": "item",
           "type_from_input": ""
         }
       ],
       "properties": [],
       "collapsible": true,
-      "description": "Groups ordered OCP bodies and per-body tolerances.",
+      "description": "Groups ordered CAD models, OCP bodies, and nested CAD assemblies without changing their positions.",
       "is_async": false,
       "runtime_behavior": "active",
       "solution_reuse_scope": "session",
@@ -5481,9 +5650,10 @@
       "show_title_icon": false,
       "keywords": [
         "geometry",
+        "CAD",
+        "assembly",
         "group",
-        "body",
-        "tolerance"
+        "body"
       ],
       "settings_groups": [],
       "default_expanded_settings_group_ids": [],
@@ -5506,7 +5676,7 @@
         "side": "",
         "accepted_data_types": [],
         "display_tier": "",
-        "description": "Name assigned to the geometry group.",
+        "description": "Name assigned to the CAD assembly.",
         "data_access": "item",
         "type_from_input": ""
       },
@@ -5514,35 +5684,20 @@
         "key": "geometry",
         "direction": "in",
         "kind": "data",
-        "data_type": "COREX.Geometry.OCPBody",
-        "label": "Geometry",
+        "data_type": "COREX.Geometry.CADModel",
+        "label": "Components",
         "required": true,
         "uses_property_default": false,
         "exposed": true,
         "allow_multiple_connections": false,
         "allow_empty_string": false,
         "side": "",
-        "accepted_data_types": [],
+        "accepted_data_types": [
+          "COREX.Geometry.OCPBody",
+          "COREX.Geometry.Group"
+        ],
         "display_tier": "",
-        "description": "Ordered OCP bodies in the geometry group.",
-        "data_access": "list",
-        "type_from_input": ""
-      },
-      {
-        "key": "tolerances",
-        "direction": "in",
-        "kind": "data",
-        "data_type": "COREX.DataTypes.Double",
-        "label": "Tolerances",
-        "required": false,
-        "uses_property_default": false,
-        "exposed": true,
-        "allow_multiple_connections": false,
-        "allow_empty_string": false,
-        "side": "",
-        "accepted_data_types": [],
-        "display_tier": "",
-        "description": "Optional per-body tolerances.",
+        "description": "Ordered CAD models, OCP bodies, and nested CAD assemblies.",
         "data_access": "list",
         "type_from_input": ""
       },
@@ -5551,7 +5706,7 @@
         "direction": "out",
         "kind": "data",
         "data_type": "COREX.Geometry.Group",
-        "label": "Geometry Group",
+        "label": "CAD Assembly",
         "required": null,
         "uses_property_default": false,
         "exposed": true,
@@ -5560,7 +5715,7 @@
         "side": "",
         "accepted_data_types": [],
         "display_tier": "",
-        "description": "Geometry group containing the supplied bodies and tolerances.",
+        "description": "CAD assembly containing the supplied components.",
         "data_access": "item",
         "type_from_input": ""
       }
@@ -18229,7 +18384,7 @@
           "label": "Version",
           "expose_port_toggle": false,
           "enum_values": [
-            "Auto · 2026 R1 or newer",
+            "Auto \u00b7 2026 R1 or newer",
             "2026 R1 (261)"
           ],
           "enum_codes": [
@@ -21820,9 +21975,9 @@
       ],
       "properties": [
         {
+          "default": false,
           "key": "show_mesh_edges",
           "type": "bool",
-          "default": false,
           "label": "Show Mesh Edges",
           "expose_port_toggle": false,
           "enum_values": [],
@@ -21852,9 +22007,9 @@
           "affects_execution": false
         },
         {
+          "default": "surface_with_edges",
           "key": "representation",
           "type": "enum",
-          "default": "surface_with_edges",
           "label": "Representation",
           "expose_port_toggle": false,
           "enum_values": [
@@ -21890,9 +22045,9 @@
           "affects_execution": false
         },
         {
+          "default": false,
           "key": "show_attribute_colors",
           "type": "bool",
-          "default": false,
           "label": "Show Attribute Colors",
           "expose_port_toggle": false,
           "enum_values": [],
@@ -21922,9 +22077,9 @@
           "affects_execution": false
         },
         {
+          "default": true,
           "key": "show_orientation_triad",
           "type": "bool",
-          "default": true,
           "label": "Show Orientation Triad",
           "expose_port_toggle": false,
           "enum_values": [],
@@ -21954,9 +22109,9 @@
           "affects_execution": false
         },
         {
+          "default": true,
           "key": "show_view_cube",
           "type": "bool",
-          "default": true,
           "label": "Show View Cube",
           "expose_port_toggle": false,
           "enum_values": [],
@@ -21986,9 +22141,9 @@
           "affects_execution": false
         },
         {
+          "default": false,
           "key": "show_world_axes",
           "type": "bool",
-          "default": false,
           "label": "Show World Axes",
           "expose_port_toggle": false,
           "enum_values": [],
@@ -22018,12 +22173,12 @@
           "affects_execution": false
         },
         {
-          "key": "scene_input_ids",
-          "type": "json",
           "default": [
             "scene_1"
           ],
-          "label": "Scene Inputs",
+          "key": "scene_input_ids",
+          "type": "json",
+          "label": "Model Inputs",
           "expose_port_toggle": false,
           "enum_values": [],
           "enum_codes": [],
@@ -22052,10 +22207,10 @@
           "affects_execution": true
         },
         {
+          "default": {},
           "key": "scene_styles",
           "type": "json",
-          "default": {},
-          "label": "Scene Appearance",
+          "label": "Model Appearance",
           "expose_port_toggle": false,
           "enum_values": [],
           "enum_codes": [],
@@ -22084,9 +22239,9 @@
           "affects_execution": false
         },
         {
+          "default": false,
           "key": "clip_enabled",
           "type": "bool",
-          "default": false,
           "label": "Enable Clipping",
           "expose_port_toggle": false,
           "enum_values": [],
@@ -22116,9 +22271,9 @@
           "affects_execution": false
         },
         {
+          "default": "x",
           "key": "clip_axis",
           "type": "enum",
-          "default": "x",
           "label": "Clipping Axis",
           "expose_port_toggle": false,
           "enum_values": [
@@ -22152,9 +22307,9 @@
           "affects_execution": false
         },
         {
+          "default": 0.0,
           "key": "clip_offset",
           "type": "float",
-          "default": 0.0,
           "label": "Clipping Offset",
           "expose_port_toggle": false,
           "enum_values": [],
@@ -22184,9 +22339,9 @@
           "affects_execution": false
         },
         {
+          "default": false,
           "key": "parallel_projection",
           "type": "bool",
-          "default": false,
           "label": "Parallel Projection",
           "expose_port_toggle": false,
           "enum_values": [],
@@ -22216,9 +22371,9 @@
           "affects_execution": false
         },
         {
+          "default": "theme",
           "key": "viewer_background",
           "type": "enum",
-          "default": "theme",
           "label": "Background",
           "expose_port_toggle": false,
           "enum_values": [
@@ -22253,14 +22408,14 @@
           "affects_execution": false
         },
         {
-          "key": "saved_selections",
-          "type": "json",
           "default": {
             "published_name": "",
             "scene_fingerprint": "",
             "schema": "engineering_selection_set.v2",
             "selections": []
           },
+          "key": "saved_selections",
+          "type": "json",
           "label": "Saved Selections",
           "expose_port_toggle": false,
           "enum_values": [],
@@ -22290,9 +22445,9 @@
           "affects_execution": true
         },
         {
+          "default": [],
           "key": "camera_bookmarks",
           "type": "json",
-          "default": [],
           "label": "Camera Bookmarks",
           "expose_port_toggle": false,
           "enum_values": [],
@@ -22323,7 +22478,7 @@
         }
       ],
       "collapsible": true,
-      "description": "Displays multiple CAD/FE scenes, OCP Bodies, and Geometry Groups together with per-scene appearance.",
+      "description": "Displays CAD models, surface meshes, OCP bodies, CAD assemblies, and FE models together with per-model appearance.",
       "is_async": false,
       "runtime_behavior": "active",
       "solution_reuse_scope": "session",
@@ -22404,7 +22559,7 @@
         "direction": "in",
         "kind": "data",
         "data_type": "COREX.Engineering.Scene",
-        "label": "Scene 1",
+        "label": "Model 1",
         "required": false,
         "uses_property_default": false,
         "exposed": true,
@@ -22412,11 +22567,13 @@
         "allow_empty_string": false,
         "side": "",
         "accepted_data_types": [
+          "COREX.Geometry.CADModel",
+          "COREX.Mesh.SurfaceModel",
           "COREX.Geometry.OCPBody",
           "COREX.Geometry.Group"
         ],
         "display_tier": "",
-        "description": "Prepared CAD/FE scene, OCP Body, or Geometry Group. Empty inputs are ignored.",
+        "description": "CAD Model, Surface Mesh Model, OCP Body, CAD Assembly, or prepared FE scene. Empty inputs are ignored.",
         "data_access": "item",
         "type_from_input": ""
       }

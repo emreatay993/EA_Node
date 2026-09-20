@@ -3377,6 +3377,7 @@ class RegistryValidationTests(unittest.TestCase):
         for type_id in (
             "engineering.cad_import",
             "engineering.fe_import",
+            "engineering.mesh_import",
             "io.file_read",
             "io.image_import",
             "io.excel_read",

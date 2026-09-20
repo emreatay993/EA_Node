@@ -99,12 +99,12 @@
       "dirty": true,
       "edges": [
         {
-          "edge_id": "edge_cad_scene",
+          "edge_id": "edge_cad_model",
           "enabled": true,
           "input_order": 0,
           "label": "",
           "source_node_id": "node_cad_import",
-          "source_port_key": "scene",
+          "source_port_key": "model",
           "target_node_id": "node_engineering_viewer",
           "target_port_key": "scene_1",
           "visual_style": {}
@@ -130,8 +130,8 @@
           "custom_width": 330.0,
           "expanded_settings_group_ids": [],
           "exposed_ports": {
-            "path": true,
-            "scene": true
+            "model": true,
+            "path": true
           },
           "links": [],
           "locked": false,

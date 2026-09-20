@@ -2,9 +2,9 @@
 
 This inventory records the current repo-owned node migration boundary. The source-of-truth catalog proof is `tests/fixtures/node_catalog/current_repo_owned_catalog.json`; implementation owners may change, while type IDs and preserved port/property keys must remain stable unless this table is explicitly revised.
 
-Disposition counts: **78 convert**, **8 native function**, **48 internal exception**; **134 total unique type IDs**.
+Disposition counts: **79 convert**, **8 native function**, **48 internal exception**; **135 total unique type IDs**.
 
-`tests/test_corex_contract_catalog.py` proves the exact 134-node current repo-owned catalog.
+`tests/test_corex_contract_catalog.py` proves this 135-node SDK inventory.
 
 | Type ID | Disposition | Current owner | Preserved port keys | Preserved property keys | Reason | Proving test |
 |---|---|---|---|---|---|---|
@@ -30,13 +30,14 @@ Disposition counts: **78 convert**, **8 native function**, **48 internal excepti
 | `data.number_slider` | convert | `ea_node_editor/nodes/builtin_functions/data_control.py` | value | value, minimum, maximum, rounding, decimals | Function-honest node. | `tests/test_remaining_builtin_function_migration.py` |
 | `data.panel` | convert | `ea_node_editor/nodes/builtin_functions/data_control.py` | input, output | value, mode, font_size, alignment, auto_resize, interpretation | Function-honest node. | `tests/test_remaining_builtin_function_migration.py` |
 | `data.select` | convert | `ea_node_editor/nodes/builtin_functions/data_control.py` | selected_value | options, selected_index | Function-honest node. | `tests/test_remaining_builtin_function_migration.py` |
-| `engineering.cad_import` | convert | `ea_node_editor/nodes/builtin_functions/engineering_imports.py` | path, scene | path, length_unit | Function-honest node. | `tests/test_remaining_builtin_function_migration.py` |
+| `engineering.cad_import` | convert | `ea_node_editor/nodes/builtin_functions/engineering_imports.py` | path, model | path, length_unit | Function-honest node with a reusable exact CAD Model output. | `tests/test_remaining_builtin_function_migration.py` |
 | `engineering.fe_import` | convert | `ea_node_editor/nodes/builtin_functions/engineering_imports.py` | path, scene | path, length_unit | Function-honest node. | `tests/test_remaining_builtin_function_migration.py` |
+| `engineering.mesh_import` | convert | `ea_node_editor/nodes/builtin_functions/engineering_imports.py` | path, model | path, length_unit | Function-honest node with a reusable surface mesh output. | `tests/test_engineering_import_nodes.py` |
 | `excalidraw.board` | internal exception | `ea_node_editor/nodes/builtins/excalidraw.py` | top, right, bottom, left | excalidraw_state, excalidraw_preview_ref | Passive custom web surface remains a trusted internal exception. | `tests/test_corex_web_host_assets.py` |
 | `fea.force` | convert | `ea_node_editor/nodes/builtin_functions/engineering_fem.py` | name, index, geometry, tolerances, vector, load | — | Function-honest node. | `tests/test_remaining_builtin_function_migration.py` |
 | `fea.load_container` | convert | `ea_node_editor/nodes/builtin_functions/engineering_fem.py` | load, output | — | Function-honest node. | `tests/test_remaining_builtin_function_migration.py` |
 | `geometry.chain_transforms` | convert | `ea_node_editor/nodes/builtin_functions/spatial.py` | transforms, transform | — | Function-honest node. | `tests/test_corex_contract_catalog.py` |
-| `geometry.construct_group` | convert | `ea_node_editor/nodes/builtin_functions/engineering_geometry.py` | name, geometry, tolerances, group | — | Function-honest node. | `tests/test_remaining_builtin_function_migration.py` |
+| `geometry.construct_group` | convert | `ea_node_editor/nodes/builtin_functions/engineering_geometry.py` | name, geometry, group | — | Public CAD Assembly node with ordered, nested components. | `tests/test_remaining_builtin_function_migration.py` |
 | `geometry.construct_transform` | convert | `ea_node_editor/nodes/builtin_functions/spatial.py` | entries, order, transform | order | Function-honest node. | `tests/test_remaining_builtin_function_migration.py` |
 | `geometry.cylinder` | convert | `ea_node_editor/nodes/builtin_functions/engineering_geometry.py` | plane, radius, interval, body | — | Function-honest node. | `tests/test_remaining_builtin_function_migration.py` |
 | `geometry.deconstruct_transform` | convert | `ea_node_editor/nodes/builtin_functions/spatial.py` | transform, order, entries | order | Function-honest node. | `tests/test_remaining_builtin_function_migration.py` |

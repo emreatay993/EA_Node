@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from contextlib import suppress
 from dataclasses import dataclass
+import hashlib
+import json
 import math
 from numbers import Real
 from typing import Any, Callable
@@ -16,11 +18,10 @@ from ea_node_editor.nodes.builtins.rich_value_nodes import (
     PLANE_DATA_TYPE_ID,
     is_plane_payload,
 )
-from ea_node_editor.nodes.core_data_types import (
-    DOUBLE_DATA_TYPE_ID,
-    GRAPH_DATA_TYPE_ID,
-    INTERVAL_1D_GRAPH_DATA_TYPE_ID,
-    STRING_DATA_TYPE_ID,
+from ea_node_editor.nodes.core_data_types import GRAPH_DATA_TYPE_ID
+from ea_node_editor.nodes.builtins.imported_models import (
+    CAD_MODEL_DATA_TYPE_ID,
+    resolve_cad_model,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 from ea_node_editor.nodes.plugin_contracts import PluginContractManifest
@@ -90,7 +91,7 @@ def _resolve_geometry_group(
 ) -> tuple[RuntimeHandleRef, "_GeometryGroupRecord"]:
     if not is_geometry_group_handle(value):
         raise TypeError(
-            "Geometry Group input must be an exact COREX Geometry Group handle"
+            "CAD Assembly input must be an exact CAD Assembly handle"
         )
     record = ctx.resolve_handle(
         value,
@@ -98,7 +99,7 @@ def _resolve_geometry_group(
         expected_kind=GEOMETRY_GROUP_HANDLE_KIND,
     )
     if type(record) is not _GeometryGroupRecord or record.closed:
-        raise RuntimeError("Geometry Group handle no longer owns a live record")
+        raise RuntimeError("CAD Assembly handle no longer owns a live record")
     return value, record
 
 
@@ -113,7 +114,13 @@ def _geometry_group_compound(
     builder = BRep_Builder()
     builder.MakeCompound(compound)
     for child_ref in record.child_leases:
-        _child_ref, shape = _resolve_ocp_body(ctx, child_ref)
+        if child_ref.data_type_id == OCP_BODY_DATA_TYPE_ID:
+            _child_ref, shape = _resolve_ocp_body(ctx, child_ref)
+        elif child_ref.data_type_id == CAD_MODEL_DATA_TYPE_ID:
+            shape = resolve_cad_model(ctx.worker_services, child_ref).shape
+        else:
+            _child_ref, child = _resolve_geometry_group(ctx, child_ref)
+            shape = _geometry_group_compound(ctx, child)
         builder.Add(compound, shape)
     return compound
 
@@ -133,7 +140,7 @@ OCP_BODY_DATA_TYPE = DataTypeSpec(
 
 GEOMETRY_GROUP_DATA_TYPE = DataTypeSpec(
     GEOMETRY_GROUP_DATA_TYPE_ID,
-    "Geometry Group",
+    "CAD Assembly",
     "engineering",
     is_geometry_group_handle,
     parents=(GRAPH_DATA_TYPE_ID,),
@@ -152,6 +159,7 @@ COREX_GEOMETRY_PRIMITIVES_CONTRACT_MANIFEST = PluginContractManifest(
 @dataclass(slots=True)
 class _OcpBodyRecord:
     shape: Any | None
+    source_identity: str = ""
 
     def close(self) -> None:
         self.shape = None
@@ -163,7 +171,6 @@ class _OcpBodyRecord:
 class _GeometryGroupRecord:
     name: str
     child_leases: tuple[RuntimeHandleRef, ...]
-    tolerances: tuple[float, ...]
     _release_handle: Callable[[object], bool]
     closed: bool = False
 
@@ -185,34 +192,6 @@ class _GeometryGroupRecord:
             raise first_error
 
     dispose = close
-
-
-def _geometry_group_tolerances(
-    ctx: ExecutionContext,
-    *,
-    geometry_count: int,
-) -> tuple[float, ...]:
-    raw_values = ctx.inputs.get("tolerances", [])
-    if raw_values is None:
-        raw_values = []
-    if type(raw_values) is not list:
-        raise TypeError("Construct Geometry Group tolerances must be a list")
-    double_spec = ctx.worker_services.data_types.require(DOUBLE_DATA_TYPE_ID)
-    if any(not double_spec.validate_item(value) for value in raw_values):
-        raise TypeError(
-            "Construct Geometry Group tolerances must contain COREXDouble values"
-        )
-    values = tuple(float(value) for value in raw_values)
-    if not values:
-        return (0.0,) * geometry_count
-    if len(values) == 1:
-        return values * geometry_count
-    if len(values) != geometry_count:
-        raise ValueError(
-            "Construct Geometry Group tolerances must be empty, one value, or match "
-            "geometry count"
-        )
-    return values
 
 
 def _plane_payload(value: object) -> dict[str, Any]:
@@ -282,8 +261,13 @@ def execute_cylinder(ctx: ExecutionContext) -> NodeResult:
     plane = _plane_payload(ctx.inputs["plane"])
     radius = _positive_radius(ctx.inputs["radius"])
     interval = _increasing_interval(ctx.inputs["interval"])
+    source_identity = hashlib.sha256(json.dumps({
+        "primitive": "cylinder", "unit": "mm", "plane": plane,
+        "radius": radius, "interval": [interval.start, interval.end],
+    }, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
     record = _OcpBodyRecord(
-        _make_cylinder_shape(plane, radius=radius, interval=interval)
+        _make_cylinder_shape(plane, radius=radius, interval=interval),
+        source_identity=source_identity,
     )
     body_ref: RuntimeHandleRef | None = None
     try:
@@ -306,22 +290,30 @@ def execute_cylinder(ctx: ExecutionContext) -> NodeResult:
 def execute_construct_geometry_group(ctx: ExecutionContext) -> NodeResult:
     name = ctx.inputs.get("name")
     if not isinstance(name, str):
-        raise TypeError("Construct Geometry Group name must be a COREXString value")
+        raise TypeError("CAD Assembly name must be a COREXString value")
     geometry = ctx.inputs.get("geometry")
     if type(geometry) is not list or not geometry:
-        raise ValueError("Construct Geometry Group requires a nonempty OCPBody list")
-    tolerances = _geometry_group_tolerances(ctx, geometry_count=len(geometry))
+        raise ValueError("CAD Assembly requires a nonempty Components list")
     aggregate_scope = f"cache:geometry_group:{uuid4().hex}"
     record = _GeometryGroupRecord(
         name=name,
         child_leases=(),
-        tolerances=tolerances,
         _release_handle=ctx.worker_services.release_handle,
     )
     acquired: list[RuntimeHandleRef] = []
     try:
         for value in geometry:
-            child_ref, _shape = _resolve_ocp_body(ctx, value)
+            if type(value) is not RuntimeHandleRef:
+                raise TypeError("CAD Assembly Components require exact CAD Model, OCP Body, or CAD Assembly handles")
+            if value.data_type_id == OCP_BODY_DATA_TYPE_ID:
+                child_ref, _shape = _resolve_ocp_body(ctx, value)
+            elif value.data_type_id == CAD_MODEL_DATA_TYPE_ID:
+                resolve_cad_model(ctx.worker_services, value)
+                child_ref = value
+            elif value.data_type_id == GEOMETRY_GROUP_DATA_TYPE_ID:
+                child_ref, _group = _resolve_geometry_group(ctx, value)
+            else:
+                raise TypeError("CAD Assembly Components require CAD Model, OCP Body, or CAD Assembly handles")
             acquired.append(ctx.lease_handle(child_ref, owner_scope=aggregate_scope))
         record.child_leases = tuple(acquired)
         group_ref = ctx.register_handle(

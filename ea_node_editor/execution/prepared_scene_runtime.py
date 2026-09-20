@@ -8,6 +8,7 @@ import json
 import math
 import os
 import tempfile
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -27,11 +28,20 @@ from ea_node_editor.common.scene_protocol import (
     SCENE_IMPORTER_VERSION,
     SceneDescriptor,
     SceneSourceMetadata,
+    length_unit_scale,
     normalize_length_unit,
     validate_engineering_selection_topology,
     validate_scene_bundle,
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
+from ea_node_editor.nodes.builtins.imported_models import (
+    CAD_MODEL_DATA_TYPE_ID,
+    CAD_MODEL_HANDLE_KIND,
+    SURFACE_MODEL_DATA_TYPE_ID,
+    SURFACE_MODEL_HANDLE_KIND,
+    CADModelRecord,
+    SurfaceModelRecord,
+)
 from ea_node_editor.runtime_contracts.value_refs import RuntimeHandleRef
 from ea_node_editor.runtime_contracts import ENGINEERING_SCENE_DATA_TYPE_ID
 
@@ -61,6 +71,9 @@ class _CadPart:
     location: Any
     instance_label: Any | None = None
     definition_label: Any | None = None
+    document: Any | None = None
+    source_shape: Any | None = None
+    source_location: Any | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -68,9 +81,20 @@ class _CadMetadata:
     hierarchy: tuple[dict[str, Any], ...] = ()
     topology_mappings: dict[str, Any] | None = None
     length_unit: str = ""
+    source_unit: str = ""
+    interpreted_unit: str = ""
     provenance: dict[str, Any] | None = None
     document: Any | None = None
     parts: tuple[_CadPart, ...] = ()
+
+
+@dataclass(slots=True, frozen=True)
+class CADAssemblyComponent:
+    name: str
+    shape: Any | None = None
+    cad_metadata: _CadMetadata | None = None
+    children: tuple["CADAssemblyComponent", ...] = ()
+    source_name: str = ""
 
 
 @dataclass(slots=True)
@@ -193,14 +217,417 @@ class PreparedSceneRuntime:
                 owner_scope=owner_scope,
             )
 
+    def import_cad_model(
+        self,
+        path: str | Path,
+        *,
+        length_unit: str = "",
+        owner_scope: str,
+    ) -> RuntimeHandleRef:
+        with self._lifecycle_lock:
+            source_path = Path(path).expanduser().resolve()
+            if not source_path.is_file():
+                raise FileNotFoundError(f"CAD import file does not exist: {source_path}")
+            if source_path.suffix.lower() not in OCP_CAD_SCENE_SUFFIXES:
+                raise ValueError("CAD Import requires a STEP, IGES, or BREP file.")
+            unit_override = normalize_length_unit(length_unit)
+            if length_unit and not unit_override:
+                raise ValueError(f"Unsupported CAD length unit: {length_unit!r}")
+            stat = source_path.stat()
+            fingerprint = self._sha256(source_path)
+            self._assert_source_unchanged(
+                source_path, source_kind="cad", initial_stat=stat,
+                initial_sha256=fingerprint, verify_hash=False,
+            )
+            shape, cad_metadata = self._load_ocp_cad(
+                source_path, length_unit=unit_override,
+            )
+            self._assert_source_unchanged(
+                source_path, source_kind="cad", initial_stat=stat,
+                initial_sha256=fingerprint,
+            )
+            record = CADModelRecord(
+                shape=shape,
+                cad_metadata=cad_metadata,
+                source_name=source_path.name,
+                source_format=source_path.suffix.lower(),
+                source_sha256=fingerprint,
+                source_unit=cad_metadata.source_unit,
+                interpreted_unit=cad_metadata.interpreted_unit,
+            )
+            return self._worker_services.register_handle(
+                record,
+                data_type_id=CAD_MODEL_DATA_TYPE_ID,
+                kind=CAD_MODEL_HANDLE_KIND,
+                owner_scope=owner_scope,
+                dispose=record.close,
+            )
+
+    def import_surface_model(
+        self,
+        path: str | Path,
+        *,
+        length_unit: str,
+        owner_scope: str,
+    ) -> RuntimeHandleRef:
+        with self._lifecycle_lock:
+            source_path = Path(path).expanduser().resolve()
+            if not source_path.is_file():
+                raise FileNotFoundError(f"Mesh import file does not exist: {source_path}")
+            if source_path.suffix.lower() != ".stl":
+                raise ValueError("Mesh Import requires an STL file.")
+            source_unit = normalize_length_unit(length_unit)
+            if not source_unit:
+                raise ValueError("STL has no declared length unit. Choose Length Unit on Mesh Import.")
+            stat = source_path.stat()
+            fingerprint = self._sha256(source_path)
+            self._assert_source_unchanged(
+                source_path, source_kind="mesh", initial_stat=stat,
+                initial_sha256=fingerprint, verify_hash=False,
+            )
+            dataset, _reader = self._read_display_dataset(source_path, source_kind="mesh")
+            import pyvista
+
+            if not isinstance(dataset, pyvista.PolyData) or dataset.n_cells == 0:
+                raise ValueError("STL must contain a nonempty surface mesh.")
+            # Work on a detached copy: source data stays unchanged and normalization
+            # happens exactly once before the model is shared with other nodes.
+            dataset = dataset.copy(deep=True)
+            dataset.points *= length_unit_scale(source_unit, "mm")
+            self._assert_source_unchanged(
+                source_path, source_kind="mesh", initial_stat=stat,
+                initial_sha256=fingerprint,
+            )
+            record = SurfaceModelRecord(
+                dataset=dataset,
+                source_name=source_path.name,
+                source_sha256=fingerprint,
+                source_unit=source_unit,
+            )
+            return self._worker_services.register_handle(
+                record,
+                data_type_id=SURFACE_MODEL_DATA_TYPE_ID,
+                kind=SURFACE_MODEL_HANDLE_KIND,
+                owner_scope=owner_scope,
+                dispose=record.close,
+            )
+
+    def prepare_cad_model(
+        self,
+        model: CADModelRecord,
+        *,
+        source_identity: str,
+        owner_scope: str,
+    ) -> RuntimeHandleRef:
+        if type(model) is not CADModelRecord or model.shape is None:
+            raise TypeError("A live CAD Model record is required.")
+        if type(source_identity) is not str or not source_identity:
+            raise ValueError("CAD Model source_identity is required.")
+        with self._lifecycle_lock:
+            signature = hashlib.sha256(
+                f"cad-model:{SCENE_IMPORTER_VERSION}:{source_identity}".encode("utf-8")
+            ).hexdigest()
+            manifest_path = self._manifest_path(signature, workspace_id="")
+            source = SceneSourceMetadata(
+                source_path=model.source_name,
+                resolved_path=f"memory://corex/cad-model/{signature}",
+                source_format=model.source_format,
+                size_bytes=0,
+                modified_time_ns=0,
+                sha256=model.source_sha256,
+            )
+            import_settings = {
+                "source_kind": "cad-model",
+                "source_sha256": model.source_sha256,
+                "length_unit": "mm",
+                "importer_version": SCENE_IMPORTER_VERSION,
+            }
+            # The in-process lifecycle lock does not protect a shared cache
+            # against other worker processes. Hold one OS file lock from the
+            # manifest check through all asset and manifest publication.
+            with self._cad_cache_publication_lock(manifest_path):
+                cached_descriptor = self._load_cached_descriptor(
+                    manifest_path,
+                    signature=signature,
+                    source=source,
+                    import_settings=import_settings,
+                )
+                cached = self._cache.get(signature)
+                if cached is not None:
+                    try:
+                        existing = self._worker_services.resolve_handle(
+                            cached,
+                            expected_data_type=ENGINEERING_SCENE_DATA_TYPE_ID,
+                            expected_kind=COREX_SCENE_HANDLE_KIND,
+                        )
+                        if (
+                            cached_descriptor is not None
+                            and type(existing) is PreparedScene
+                            and existing.descriptor.to_payload()
+                            == cached_descriptor.to_payload()
+                        ):
+                            return self._lease_for_owner(cached, owner_scope=owner_scope)
+                    except (StaleHandleError, TypeError):
+                        pass
+                    self._discard_cached(signature)
+
+                if cached_descriptor is not None:
+                    descriptor = cached_descriptor
+                    dataset, _reader = self._read_display_dataset(
+                        Path(descriptor.display_artifact_path), source_kind="cad",
+                    )
+                else:
+                    display_paths = self._display_artifact_paths(
+                        signature, workspace_id="",
+                    )
+                    written_paths: list[Path] = []
+                    try:
+                        written_paths, surface_colors, edge_colors, topology_sha256 = (
+                            self._write_cad_lods(
+                                model.shape,
+                                Path(model.source_name),
+                                display_paths,
+                                cad_metadata=model.cad_metadata,
+                            )
+                        )
+                        geometry_assets = self._cad_lod_assets(
+                            display_paths,
+                            surface_colors=surface_colors,
+                            edge_colors=edge_colors,
+                            topology_sha256=topology_sha256,
+                        )
+                        dataset, _reader = self._read_display_dataset(
+                            display_paths["full"], source_kind="cad",
+                        )
+                        descriptor = self._scene_descriptor(
+                            dataset,
+                            source_kind="cad",
+                            source=source,
+                            display_path=display_paths["full"],
+                            length_unit="mm",
+                            exact_model_available=True,
+                            cache_manifest_path=manifest_path,
+                            geometry_assets=geometry_assets,
+                            reader=None,
+                            cad_metadata=model.cad_metadata,
+                        )
+                        descriptor = SceneDescriptor.from_payload(descriptor.to_payload())
+                        self._write_manifest(
+                            descriptor,
+                            signature=signature,
+                            import_settings=import_settings,
+                        )
+                    except Exception:
+                        manifest_path.unlink(missing_ok=True)
+                        for written_path in written_paths:
+                            written_path.unlink(missing_ok=True)
+                        raise
+                prepared = PreparedScene(
+                    descriptor=descriptor,
+                    dataset=dataset,
+                    exact_model=model.shape,
+                )
+                ref = self._worker_services.register_handle(
+                    prepared,
+                    data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
+                    kind=COREX_SCENE_HANDLE_KIND,
+                    owner_scope=self._cache_owner_scope(signature),
+                    metadata={
+                        **self._handle_metadata(descriptor),
+                        "representation_sha256": signature,
+                    },
+                )
+                self._cache[signature] = ref
+                return self._lease_for_owner(ref, owner_scope=owner_scope)
+
+    @classmethod
+    def compose_cad_assembly(
+        cls,
+        name: str,
+        components: tuple[CADAssemblyComponent, ...],
+        *,
+        source_sha256: str,
+    ) -> CADModelRecord:
+        """Build an exact assembly while retaining every child's CAD metadata."""
+        from OCP.BRep import BRep_Builder
+        from OCP.TopLoc import TopLoc_Location
+        from OCP.TopoDS import TopoDS_Compound
+
+        if not components:
+            raise ValueError("CAD Assembly requires at least one component")
+        builder = BRep_Builder()
+        hierarchy: list[dict[str, Any]] = []
+        parts: list[_CadPart] = []
+
+        def compound() -> Any:
+            result = TopoDS_Compound()
+            builder.MakeCompound(result)
+            return result
+
+        def append_component(
+            component: CADAssemblyComponent,
+            *,
+            parent_id: str,
+            path: str,
+        ) -> Any:
+            if component.children:
+                if component.shape is not None:
+                    raise ValueError("Nested CAD Assembly component cannot also own a shape")
+                hierarchy.append({
+                    "id": path, "parent_id": parent_id, "name": component.name,
+                    "kind": "assembly", "visible": True,
+                })
+                result = compound()
+                for index, child in enumerate(component.children):
+                    builder.Add(result, append_component(
+                        child, parent_id=path, path=f"{path}/{index}",
+                    ))
+                return result
+
+            shape = component.shape
+            if shape is None or shape.IsNull():
+                raise ValueError("CAD Assembly component must own a live shape")
+            metadata = component.cad_metadata
+            if metadata is None:
+                part_index = len(parts) + 1
+                hierarchy.append({
+                    "id": path, "parent_id": parent_id, "name": component.name,
+                    "kind": "body", "visible": True, "part_index": part_index,
+                })
+                parts.append(_CadPart(
+                    part_index=part_index, hierarchy_id=path,
+                    shape=shape, location=TopLoc_Location(),
+                ))
+                return shape
+
+            hierarchy.append({
+                "id": path, "parent_id": parent_id, "name": component.name,
+                "kind": "assembly", "visible": True,
+                "source_path": component.source_name,
+            })
+            id_map = {
+                str(item["id"]): f"{path}/{item['id']}"
+                for item in metadata.hierarchy
+            }
+            part_map = {
+                part.part_index: len(parts) + index
+                for index, part in enumerate(cls._cad_parts(shape, metadata), start=1)
+            }
+            for item in metadata.hierarchy:
+                original_parent = str(item.get("parent_id", ""))
+                copied = dict(item)
+                copied["id"] = id_map[str(item["id"])]
+                copied["parent_id"] = id_map.get(original_parent, path)
+                if "part_index" in copied:
+                    copied["part_index"] = part_map[int(copied["part_index"])]
+                hierarchy.append(copied)
+            for part in cls._cad_parts(shape, metadata):
+                new_id = id_map.get(part.hierarchy_id, f"{path}/body:{part.part_index}")
+                if new_id not in {entry["id"] for entry in hierarchy}:
+                    hierarchy.append({
+                        "id": new_id, "parent_id": path,
+                        "name": component.name, "kind": "body", "visible": True,
+                        "part_index": part_map[part.part_index],
+                    })
+                parts.append(replace(
+                    part, part_index=part_map[part.part_index],
+                    hierarchy_id=new_id,
+                ))
+            return shape
+
+        root_shape = compound()
+        hierarchy.append({
+            "id": "cad:assembly", "parent_id": "scene:root", "name": name,
+            "kind": "assembly", "visible": True,
+        })
+        for index, component in enumerate(components):
+            builder.Add(root_shape, append_component(
+                component, parent_id="cad:assembly", path=f"cad:assembly/{index}",
+            ))
+        metadata = _CadMetadata(
+            hierarchy=tuple(hierarchy),
+            topology_mappings=cls._exact_topology_mappings(
+                root_shape, tuple(hierarchy), parts=tuple(parts),
+            ),
+            length_unit="mm", source_unit="mm", interpreted_unit="mm",
+            provenance={"cad_metadata": "assembly", "component_count": len(components)},
+            parts=tuple(parts),
+        )
+        return CADModelRecord(
+            shape=root_shape, cad_metadata=metadata, source_name=name,
+            source_format=".ocp", source_sha256=source_sha256,
+            source_unit="mm", interpreted_unit="mm",
+        )
+
+    def prepare_surface_model(
+        self,
+        model: SurfaceModelRecord,
+        *,
+        source_identity: str,
+        owner_scope: str,
+    ) -> RuntimeHandleRef:
+        if type(model) is not SurfaceModelRecord or model.dataset is None:
+            raise TypeError("A live Surface Model record is required.")
+        if type(source_identity) is not str or not source_identity:
+            raise ValueError("Surface Model source_identity is required.")
+        with self._lifecycle_lock:
+            fingerprint = hashlib.sha256(source_identity.encode("utf-8")).hexdigest()
+            source = SceneSourceMetadata(
+                source_path=f"memory://corex/{model.source_name}",
+                resolved_path=f"memory://corex/surface-model/{fingerprint}",
+                source_format=".stl",
+                size_bytes=0,
+                modified_time_ns=0,
+                sha256=model.source_sha256,
+            )
+            geometry_assets = (
+                {
+                    "id": "geometry:full",
+                    "role": "full",
+                    "path": "",
+                    "format": ".vtp",
+                    "content": "mesh",
+                    "attribute_colors": self._direct_color_metadata(model.dataset),
+                    "entity_arrays": {},
+                },
+            )
+            descriptor = self._scene_descriptor(
+                model.dataset,
+                source_kind="cad",
+                source=source,
+                display_path=None,
+                length_unit="mm",
+                exact_model_available=False,
+                cache_manifest_path=None,
+                geometry_assets=geometry_assets,
+                reader=None,
+                cad_metadata=_CadMetadata(
+                    provenance={"source_length_unit": model.source_unit},
+                ),
+                storage="memory",
+            )
+            descriptor = SceneDescriptor.from_payload(descriptor.to_payload())
+            prepared = PreparedScene(descriptor=descriptor, dataset=model.dataset)
+            return self._worker_services.register_handle(
+                prepared,
+                data_type_id=ENGINEERING_SCENE_DATA_TYPE_ID,
+                kind=COREX_SCENE_HANDLE_KIND,
+                owner_scope=owner_scope,
+                metadata={
+                    **self._handle_metadata(descriptor),
+                    "representation_sha256": fingerprint,
+                },
+            )
+
     def prepare_cad_shape(
         self,
         shape: Any,
         *,
         source_identity: str,
         owner_scope: str,
-        length_unit: str = "m",
+        length_unit: str = "mm",
         source_name: str = "OCPBody",
+        cad_metadata: _CadMetadata | None = None,
     ) -> RuntimeHandleRef:
         with self._lifecycle_lock:
             if type(source_identity) is not str or not source_identity:
@@ -213,7 +640,7 @@ class PreparedSceneRuntime:
             fingerprint = hashlib.sha256(source_identity.encode("utf-8")).hexdigest()
             source_uri = f"memory://corex/ocp-body/{fingerprint}"
             source_label = Path(f"{normalized_source_name}.ocp")
-            parts = self._cad_parts(shape, _CadMetadata())
+            parts = self._cad_parts(shape, cad_metadata or _CadMetadata())
             hierarchy = (
                 {
                     "id": "cad:body:0",
@@ -224,7 +651,7 @@ class PreparedSceneRuntime:
                     "part_index": 1,
                 },
             )
-            cad_metadata = _CadMetadata(
+            cad_metadata = cad_metadata or _CadMetadata(
                 hierarchy=hierarchy,
                 topology_mappings=self._exact_topology_mappings(
                     shape,
@@ -405,7 +832,9 @@ class PreparedSceneRuntime:
                 geometry_assets = ()
 
             if source_kind == "cad" and source_format in OCP_CAD_SCENE_SUFFIXES:
-                exact_model, cad_metadata = self._load_ocp_cad(resolved_path)
+                exact_model, cad_metadata = self._load_ocp_cad(
+                    resolved_path, length_unit=normalized_length_unit,
+                )
                 if cached_descriptor is None:
                     written_paths, surface_colors, edge_colors, topology_sha256 = (
                         self._write_cad_lods(
@@ -669,6 +1098,46 @@ class PreparedSceneRuntime:
 
     def _manifest_path(self, signature: str, *, workspace_id: str) -> Path:
         return self._workspace_cache_root(workspace_id) / f"{signature}.scene.json"
+
+    @staticmethod
+    @contextmanager
+    def _cad_cache_publication_lock(manifest_path: Path) -> Iterator[None]:
+        """Serialize one CAD cache bundle across worker processes."""
+        lock_path = manifest_path.with_suffix(".lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with lock_path.open("a+b") as lock_file:
+            lock_file.seek(0, os.SEEK_END)
+            if lock_file.tell() == 0:
+                lock_file.write(b"0")
+                lock_file.flush()
+            lock_file.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                deadline = time.monotonic() + 300.0
+                while True:
+                    try:
+                        msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+                        break
+                    except OSError as exc:
+                        if time.monotonic() >= deadline:
+                            raise TimeoutError(
+                                f"Timed out waiting for CAD cache publication: {manifest_path}"
+                            ) from exc
+                        time.sleep(0.1)
+                try:
+                    yield
+                finally:
+                    lock_file.seek(0)
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     def _workspace_cache_root(self, workspace_id: str) -> Path:
         workspace_token = hashlib.sha1(
@@ -1938,15 +2407,18 @@ class PreparedSceneRuntime:
         *,
         edge: bool,
     ) -> tuple[tuple[int, int, int, int], bool]:
-        if cad_metadata.document is None:
+        document = part.document or cad_metadata.document
+        if document is None:
             return _FALLBACK_RGBA, False
 
         from OCP.Quantity import Quantity_ColorRGBA
         from OCP.TDF import TDF_Label
+        from OCP.TopExp import TopExp
+        from OCP.TopTools import TopTools_IndexedMapOfShape
         from OCP.XCAFDoc import XCAFDoc_ColorType, XCAFDoc_DocumentTool
 
-        color_tool = XCAFDoc_DocumentTool.ColorTool_s(cad_metadata.document.Main())
-        shape_tool = XCAFDoc_DocumentTool.ShapeTool_s(cad_metadata.document.Main())
+        color_tool = XCAFDoc_DocumentTool.ColorTool_s(document.Main())
+        shape_tool = XCAFDoc_DocumentTool.ShapeTool_s(document.Main())
         color_types = (
             (
                 XCAFDoc_ColorType.XCAFDoc_ColorCurv,
@@ -1969,18 +2441,29 @@ class PreparedSceneRuntime:
                 round(float(color.Alpha()) * 255.0),
             )
 
-        located_subshape = subshape.Moved(part.location)
+        color_subshape = subshape
+        color_location = part.location
+        if part.source_shape is not None:
+            scaled = TopTools_IndexedMapOfShape()
+            original = TopTools_IndexedMapOfShape()
+            TopExp.MapShapes_s(part.shape, subshape.ShapeType(), scaled)
+            TopExp.MapShapes_s(part.source_shape, subshape.ShapeType(), original)
+            index = scaled.FindIndex(subshape)
+            if 0 < index <= original.Extent():
+                color_subshape = original.FindKey(index)
+                color_location = part.source_location
+        located_subshape = color_subshape.Moved(color_location)
         for color_type in color_types:
             color = Quantity_ColorRGBA()
             if color_tool.GetInstanceColor(located_subshape, color_type, color):
                 return rgba_bytes(color), True
             color = Quantity_ColorRGBA()
-            if color_tool.GetColor(subshape, color_type, color):
+            if color_tool.GetColor(color_subshape, color_type, color):
                 return rgba_bytes(color), True
 
         if part.definition_label is not None:
             subshape_label = TDF_Label()
-            if shape_tool.FindSubShape(part.definition_label, subshape, subshape_label):
+            if shape_tool.FindSubShape(part.definition_label, color_subshape, subshape_label):
                 for color_type in color_types:
                     color = Quantity_ColorRGBA()
                     if color_tool.GetColor_s(subshape_label, color_type, color):
@@ -2705,22 +3188,73 @@ class PreparedSceneRuntime:
         return ""
 
     @staticmethod
-    def _load_ocp_cad(source_path: Path) -> tuple[Any, _CadMetadata]:
+    def _load_ocp_cad(
+        source_path: Path,
+        *,
+        length_unit: str = "",
+    ) -> tuple[Any, _CadMetadata]:
         suffix = source_path.suffix.lower()
         try:
             import OCP  # noqa: F401
 
             if suffix in {".step", ".stp"}:
-                return PreparedSceneRuntime._load_step_xcaf(source_path)
+                return PreparedSceneRuntime._load_step_xcaf(
+                    source_path, length_unit=length_unit,
+                )
             elif suffix in {".iges", ".igs"}:
                 from OCP.IFSelect import IFSelect_RetDone
-                from OCP.IGESControl import IGESControl_Reader
+                from OCP.IGESCAFControl import IGESCAFControl_Reader
+                from OCP.Interface import Interface_Static
+                from OCP.TCollection import TCollection_ExtendedString
+                from OCP.TDocStd import TDocStd_Document
+                from OCP.XCAFDoc import XCAFDoc_DocumentTool
 
-                reader = IGESControl_Reader()
+                document = TDocStd_Document(TCollection_ExtendedString("XmlXCAF"))
+                reader = IGESCAFControl_Reader()
+                reader.SetNameMode(True)
+                reader.SetColorMode(True)
+                reader.SetLayerMode(True)
                 if reader.ReadFile(str(source_path)) != IFSelect_RetDone:
                     raise ValueError(f"OCP could not read IGES file: {source_path}")
-                reader.TransferRoots()
-                shape = reader.OneShape()
+                # IGES transfer uses the process-wide Cascade unit. Refuse a
+                # different setting instead of silently double-scaling geometry.
+                if str(Interface_Static.CVal_s("xstep.cascade.unit")).upper() != "MM":
+                    raise RuntimeError("IGES transfer requires OpenCascade system unit MM.")
+                unit_name = reader.IGESModel().GlobalSection().UnitName()
+                declared_unit = normalize_length_unit(
+                    unit_name.ToCString() if hasattr(unit_name, "ToCString") else unit_name
+                )
+                source_unit = length_unit or declared_unit
+                if not source_unit:
+                    raise ValueError(
+                        f"IGES file '{source_path.name}' has no usable length unit. "
+                        "Choose Length Unit on CAD Import."
+                    )
+                if reader.Transfer(document) is False:
+                    raise ValueError(f"OCP could not transfer IGES/XCAF data: {source_path}")
+                shape_tool = XCAFDoc_DocumentTool.ShapeTool_s(document.Main())
+                shape = shape_tool.GetOneShape()
+                if shape.IsNull():
+                    raise ValueError(f"OCP returned an empty IGES shape for: {source_path}")
+                hierarchy, parts = PreparedSceneRuntime._xcaf_hierarchy(document, source_path)
+                scale = length_unit_scale(source_unit, declared_unit or "mm")
+                if not math.isclose(scale, 1.0):
+                    shape, parts = PreparedSceneRuntime._scale_cad_parts(shape, parts, scale)
+                return shape, _CadMetadata(
+                    hierarchy=hierarchy,
+                    topology_mappings=PreparedSceneRuntime._exact_topology_mappings(
+                        shape, hierarchy, parts=parts,
+                    ),
+                    length_unit="mm",
+                    source_unit=declared_unit,
+                    interpreted_unit=source_unit,
+                    provenance={
+                        "cad_metadata": "xcaf",
+                        "source_length_unit": declared_unit,
+                    },
+                    document=document,
+                    parts=parts,
+                )
             else:
                 from OCP.BRep import BRep_Builder
                 from OCP.BRepTools import BRepTools
@@ -2734,11 +3268,24 @@ class PreparedSceneRuntime:
                     raise RuntimeError("Installed OCP does not expose BRepTools.Read.")
                 if read_shape(shape, str(source_path), BRep_Builder()) is False:
                     raise ValueError(f"OCP could not read BREP file: {source_path}")
+                declared_unit = ""
         except ModuleNotFoundError as exc:
             raise PreparedSceneRuntime._missing_ocp_error(source_path) from exc
 
         if hasattr(shape, "IsNull") and shape.IsNull():
             raise ValueError(f"OCP returned an empty CAD shape for: {source_path}")
+        source_unit = length_unit or declared_unit
+        if not source_unit:
+            raise ValueError(
+                f"CAD file '{source_path.name}' has no usable length unit. "
+                "Choose Length Unit on CAD Import."
+            )
+        # IGES transfer has already converted a declared unit to mm. BREP has
+        # no unit header, so its raw coordinates still use the selected unit.
+        transferred_unit = declared_unit if suffix in {".iges", ".igs"} and declared_unit else "mm"
+        scale = length_unit_scale(source_unit, transferred_unit)
+        if not math.isclose(scale, 1.0):
+            shape = PreparedSceneRuntime._scaled_ocp_shape(shape, scale)
         body_id = "cad:body:0"
         hierarchy = (
             {
@@ -2757,11 +3304,18 @@ class PreparedSceneRuntime:
                 shape,
                 hierarchy,
             ),
-            provenance={"cad_metadata": "shape_only"},
+            length_unit="mm",
+            source_unit=declared_unit,
+            interpreted_unit=source_unit,
+            provenance={"cad_metadata": "shape_only", "source_length_unit": declared_unit},
         )
 
     @staticmethod
-    def _load_step_xcaf(source_path: Path) -> tuple[Any, _CadMetadata]:
+    def _load_step_xcaf(
+        source_path: Path,
+        *,
+        length_unit: str = "",
+    ) -> tuple[Any, _CadMetadata]:
         try:
             from OCP.IFSelect import IFSelect_RetDone
             from OCP.STEPCAFControl import STEPCAFControl_Reader
@@ -2779,6 +3333,29 @@ class PreparedSceneRuntime:
         reader.SetPropsMode(True)
         if reader.ReadFile(str(source_path)) != IFSelect_RetDone:
             raise ValueError(f"OCP could not read STEP file: {source_path}")
+        unit_names = PreparedSceneRuntime._step_length_unit_names(reader.Reader())
+        normalized_units = {
+            normalized
+            for unit_name in unit_names
+            if (normalized := normalize_length_unit(unit_name))
+        }
+        if len(normalized_units) > 1 or any(
+            not normalize_length_unit(unit_name) for unit_name in unit_names
+        ):
+            raise ValueError(
+                f"STEP file '{source_path.name}' declares mixed or unsupported length units. "
+                "A single Length Unit choice cannot safely reinterpret every part."
+            )
+        declared_unit = next(iter(normalized_units)) if len(normalized_units) == 1 else ""
+        source_unit = length_unit or declared_unit
+        if not source_unit:
+            raise ValueError(
+                f"STEP file '{source_path.name}' has no unambiguous length unit. "
+                "Choose Length Unit on CAD Import."
+            )
+        # STEPCAF's transfer target is measured in millimetres at 1.0. Set it
+        # explicitly, then compensate only when the user overrides the header.
+        reader.Reader().SetSystemLengthUnit(1.0)
         if reader.Transfer(document) is False:
             raise ValueError(f"OCP could not transfer STEP/XCAF data: {source_path}")
         shape_tool = XCAFDoc_DocumentTool.ShapeTool_s(document.Main())
@@ -2787,13 +3364,14 @@ class PreparedSceneRuntime:
             raise ValueError(f"OCP returned an empty STEP shape for: {source_path}")
 
         hierarchy, parts = PreparedSceneRuntime._xcaf_hierarchy(document, source_path)
-        unit_names = PreparedSceneRuntime._step_length_unit_names(reader.Reader())
-        normalized_units = {
-            normalized
-            for unit_name in unit_names
-            if (normalized := normalize_length_unit(unit_name))
-        }
-        length_unit = next(iter(normalized_units)) if len(normalized_units) == 1 else ""
+        if length_unit and declared_unit and length_unit != declared_unit:
+            scale = length_unit_scale(length_unit, declared_unit)
+            shape, parts = PreparedSceneRuntime._scale_cad_parts(shape, parts, scale)
+        elif length_unit and not declared_unit:
+            # Without a known declaration, treat the transferred raw
+            # coordinates as authored in the explicitly selected unit.
+            scale = length_unit_scale(length_unit, "mm")
+            shape, parts = PreparedSceneRuntime._scale_cad_parts(shape, parts, scale)
         return shape, _CadMetadata(
             hierarchy=hierarchy,
             topology_mappings=PreparedSceneRuntime._exact_topology_mappings(
@@ -2801,10 +3379,13 @@ class PreparedSceneRuntime:
                 hierarchy,
                 parts=parts,
             ),
-            length_unit=length_unit,
+            length_unit="mm",
+            source_unit=declared_unit,
+            interpreted_unit=source_unit,
             provenance={
                 "cad_metadata": "xcaf",
                 "source_length_units": list(unit_names),
+                "source_length_unit": declared_unit,
             },
             document=document,
             parts=parts,
@@ -2823,6 +3404,48 @@ class PreparedSceneRuntime:
             for index in range(1, length_names.Length() + 1)
             if str(length_names.Value(index).ToCString()).strip()
         )
+
+    @staticmethod
+    def _scaled_ocp_shape(shape: Any, scale: float) -> Any:
+        from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
+        from OCP.gp import gp_Pnt, gp_Trsf
+
+        transformation = gp_Trsf()
+        transformation.SetScale(gp_Pnt(0.0, 0.0, 0.0), scale)
+        return BRepBuilderAPI_Transform(shape, transformation, True).Shape()
+
+    @staticmethod
+    def _scale_cad_parts(
+        shape: Any,
+        parts: tuple[_CadPart, ...],
+        scale: float,
+    ) -> tuple[Any, tuple[_CadPart, ...]]:
+        from OCP.TopLoc import TopLoc_Location
+        from OCP.gp import gp_Trsf, gp_Vec
+
+        scaled_parts: list[_CadPart] = []
+        for part in parts:
+            original_transform = part.location.Transformation()
+            translation = original_transform.TranslationPart()
+            transformed_location = gp_Trsf()
+            transformed_location.Multiply(original_transform)
+            transformed_location.SetTranslationPart(
+                gp_Vec(
+                    translation.X() * scale,
+                    translation.Y() * scale,
+                    translation.Z() * scale,
+                )
+            )
+            scaled_parts.append(
+                replace(
+                    part,
+                    shape=PreparedSceneRuntime._scaled_ocp_shape(part.shape, scale),
+                    location=TopLoc_Location(transformed_location),
+                    source_shape=part.shape,
+                    source_location=part.location,
+                )
+            )
+        return PreparedSceneRuntime._scaled_ocp_shape(shape, scale), tuple(scaled_parts)
 
     @staticmethod
     def _xcaf_hierarchy(
@@ -2926,6 +3549,7 @@ class PreparedSceneRuntime:
                             location=world_location,
                             instance_label=label,
                             definition_label=definition,
+                            document=document,
                         )
                     )
             hierarchy.append(item)
@@ -2974,6 +3598,7 @@ class PreparedSceneRuntime:
                     hierarchy_id="cad:body:0",
                     shape=fallback_shape,
                     location=TopLoc_Location(),
+                    document=document,
                 ),
             ),
         )

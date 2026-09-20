@@ -38,6 +38,7 @@ _FILE_PATH = (SolutionProvenanceInputSpec("path", "file"),)
 _TRUSTED_OVERLAY = {
     (_BUILTIN_FUNCTION_OWNER_ID, "engineering.cad_import"): _FILE_PATH,
     (_BUILTIN_FUNCTION_OWNER_ID, "engineering.fe_import"): _FILE_PATH,
+    (_BUILTIN_FUNCTION_OWNER_ID, "engineering.mesh_import"): _FILE_PATH,
     (_BUILTIN_FUNCTION_OWNER_ID, "io.file_read"): _FILE_PATH,
     (_BUILTIN_FUNCTION_OWNER_ID, "io.image_import"): _FILE_PATH,
     (_BUILTIN_FUNCTION_OWNER_ID, "io.excel_read"): _FILE_PATH,

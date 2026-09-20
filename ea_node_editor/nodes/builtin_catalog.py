@@ -43,6 +43,11 @@ from ea_node_editor.nodes.builtins.geometry_primitives import (
 from ea_node_editor.nodes.builtins.integrations_file_io import (
     FILE_IO_NODE_DESCRIPTORS,
 )
+from ea_node_editor.nodes.builtins.imported_models import (
+    IMPORTED_MODEL_CONTRACT_MANIFEST,
+    IMPORTED_MODEL_OWNER_ID,
+    IMPORTED_MODEL_OWNER_VERSION,
+)
 from ea_node_editor.nodes.builtins.integrations_ssh_sftp import (
     SSH_SFTP_DATA_TYPE_FAMILIES,
     SSH_SFTP_DATA_TYPE_OWNER_ID,
@@ -200,6 +205,13 @@ _TRUSTED_BUILTIN_TYPE_IDS = frozenset(
 )
 
 BUILTIN_CONTRACT_CONTRIBUTIONS = (
+    (
+        IMPORTED_MODEL_CONTRACT_MANIFEST,
+        IMPORTED_MODEL_OWNER_ID,
+        IMPORTED_MODEL_OWNER_VERSION,
+        "ea_node_editor.nodes.builtins.imported_models",
+        False,
+    ),
     (
         PluginContractManifest(
             data_type_families=CORE_DATA_TYPE_FAMILIES,

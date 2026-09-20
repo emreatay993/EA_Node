@@ -524,14 +524,14 @@ Rectangle {
                 }
 
                 Text {
-                    text: "Scene"
+                    text: "Model"
                     visible: sidePanel.supportsSceneLayers
                     color: sidePanel.themePalette.muted_fg
                     font.pixelSize: 11
                 }
                 ComboBox {
                     objectName: "viewerSidePanelSceneSelector"
-                    Accessible.name: "Scene"
+                    Accessible.name: "Model"
                     Layout.fillWidth: true
                     visible: sidePanel.supportsSceneLayers
                     model: sidePanel.sceneLayers
@@ -554,7 +554,7 @@ Rectangle {
                 }
                 PanelField {
                     objectName: "viewerSidePanelSceneOpacityField"
-                    Accessible.name: "Scene opacity"
+                    Accessible.name: "Model opacity"
                     visible: sidePanel.supportsSceneLayers
                     text: String(sidePanel.selectedSceneStyle.opacity === undefined
                         ? 1.0 : sidePanel.selectedSceneStyle.opacity)
@@ -572,7 +572,7 @@ Rectangle {
                     Layout.fillWidth: true
                     PanelField {
                         objectName: "viewerSidePanelSceneColorField"
-                        Accessible.name: "Scene color"
+                        Accessible.name: "Model color"
                         Layout.fillWidth: true
                         text: String(sidePanel.selectedSceneStyle.color || "")
                         placeholderText: "Auto / #RRGGBB"
@@ -852,7 +852,7 @@ Rectangle {
             }
 
             Text {
-                text: sidePanel.engineeringViewer ? "Selected Scene" : "Result Info"
+                text: sidePanel.engineeringViewer ? "Selected Model" : "Result Info"
                 visible: sidePanel.supportsScalars || sidePanel.supportsSceneLayers
                 color: sidePanel.themePalette.panel_title_fg
                 font.pixelSize: 12

@@ -58,7 +58,7 @@ Settings-section size transitions use shared 180 ms width/height animations with
 - [Plotter Nodes](feature_routes/plotter_nodes.md)
 - [Tabular Data Add-on And Preview](feature_routes/tabular_data_addon_preview.md) — composed views, isolated queries, themed composer controls, border-safe previews, floating-toolbar configuration and CSV/TSV QML acceptance
 - [MARS Solver Add-on](feature_routes/mars_solver_addon.md)
-- [Neutral CAD/FE Engineering Viewer](feature_routes/neutral_cad_fe_engineering_viewer.md)
+- [Neutral CAD/FE Engineering Viewer](feature_routes/neutral_cad_fe_engineering_viewer.md) — CAD/mesh model imports, nested CAD Assembly, and viewer preparation
 - [Managed Artifacts And Project Data](feature_routes/managed_artifacts_project_data.md)
 - [Project Session Files And Managed Artifacts](feature_routes/project_session_files_managed_artifacts.md)
 - [Workspace Tabs, Library, And Context Menus](feature_routes/workspace_tabs_library_context_menus.md)

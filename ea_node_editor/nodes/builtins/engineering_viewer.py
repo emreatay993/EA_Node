@@ -21,9 +21,14 @@ from ea_node_editor.common.scene_protocol import (
 from ea_node_editor.nodes.builtins.geometry_primitives import (
     GEOMETRY_GROUP_DATA_TYPE_ID,
     OCP_BODY_DATA_TYPE_ID,
-    _geometry_group_compound,
     _resolve_ocp_body,
     _resolve_geometry_group,
+)
+from ea_node_editor.nodes.builtins.imported_models import (
+    CAD_MODEL_DATA_TYPE_ID,
+    SURFACE_MODEL_DATA_TYPE_ID,
+    resolve_cad_model,
+    resolve_surface_model,
 )
 from ea_node_editor.nodes.execution_context import NodeInputNotReadyError, NodeResult
 from ea_node_editor.nodes.node_specs import DynamicPortGroupSpec, PortSpec
@@ -55,9 +60,12 @@ def resolve_scene_input_ports(properties: Mapping[str, object]) -> tuple[PortSpe
     return tuple(
         PortSpec(
             key, "in", "data", COREX_SCENE_DATA_TYPE,
-            label=f"Scene {index}", required=False,
-            accepted_data_types=(OCP_BODY_DATA_TYPE_ID, GEOMETRY_GROUP_DATA_TYPE_ID),
-            description="Prepared CAD/FE scene, OCP Body, or Geometry Group. Empty inputs are ignored.",
+            label=f"Model {index}", required=False,
+            accepted_data_types=(
+                CAD_MODEL_DATA_TYPE_ID, SURFACE_MODEL_DATA_TYPE_ID,
+                OCP_BODY_DATA_TYPE_ID, GEOMETRY_GROUP_DATA_TYPE_ID,
+            ),
+            description="CAD Model, Surface Mesh Model, OCP Body, CAD Assembly, or prepared FE scene. Empty inputs are ignored.",
         )
         for index, key in enumerate(scene_input_ids(properties), start=1)
     )
@@ -89,34 +97,112 @@ def _require_scene(value: object, *, label: str):  # noqa: ANN202
 
 
 def _scene_fingerprint(scene_ref: Any) -> str:
+    representation = str(scene_ref.metadata.get("representation_sha256", "")).strip()
+    if representation:
+        return representation
     source = scene_ref.metadata.get("source")
     if not isinstance(source, dict):
         return ""
     return str(source.get("sha256", "")).strip()
 
 
+def _identity(payload: object) -> str:
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def _assembly_component(ctx, value):  # noqa: ANN001, ANN202
+    from ea_node_editor.execution.prepared_scene_runtime import CADAssemblyComponent
+
+    if value.data_type_id == CAD_MODEL_DATA_TYPE_ID:
+        model = resolve_cad_model(ctx.worker_services, value)
+        identity = _identity((
+            "cad-model", model.source_sha256, model.source_format,
+            model.source_unit, model.interpreted_unit, model.length_unit,
+            model.source_name,
+        ))
+        return CADAssemblyComponent(
+            name=model.source_name, shape=model.shape,
+            cad_metadata=model.cad_metadata, source_name=model.source_name,
+        ), identity
+    if value.data_type_id == OCP_BODY_DATA_TYPE_ID:
+        body_ref, shape = _resolve_ocp_body(ctx, value)
+        record = ctx.resolve_handle(body_ref)
+        return CADAssemblyComponent(name="OCP Body", shape=shape), (
+            record.source_identity or f"body:{body_ref.handle_id}:{body_ref.worker_generation}"
+        )
+    if value.data_type_id == GEOMETRY_GROUP_DATA_TYPE_ID:
+        _group_ref, group = _resolve_geometry_group(ctx, value)
+        children = tuple(_assembly_component(ctx, child) for child in group.child_leases)
+        return CADAssemblyComponent(
+            name=group.name, children=tuple(child for child, _child_identity in children),
+        ), _identity(("cad-assembly", group.name, [part_identity for _, part_identity in children]))
+    raise TypeError("CAD Assembly contains an unsupported component")
+
+
 def _prepare_scene(ctx, value: object, *, label: str):  # noqa: ANN001, ANN202
     runtime_ref = coerce_runtime_handle_ref(value)
     if runtime_ref is None:
         return _require_scene(value, label=label), None
-
-    if runtime_ref.data_type_id == OCP_BODY_DATA_TYPE_ID:
-        native_source_ref, shape = _resolve_ocp_body(ctx, value)
-        source_name = "OCPBody"
-    elif runtime_ref.data_type_id == GEOMETRY_GROUP_DATA_TYPE_ID:
-        native_source_ref, group = _resolve_geometry_group(ctx, value)
-        shape = _geometry_group_compound(ctx, group)
-        source_name = "GeometryGroup"
-    else:
+    if runtime_ref.data_type_id == COREX_SCENE_DATA_TYPE:
+        return _require_scene(value, label=label), None
+    if runtime_ref.data_type_id not in {
+        CAD_MODEL_DATA_TYPE_ID, SURFACE_MODEL_DATA_TYPE_ID,
+        OCP_BODY_DATA_TYPE_ID, GEOMETRY_GROUP_DATA_TYPE_ID,
+    }:
         return _require_scene(value, label=label), None
 
     services = ctx.worker_services
+    owner_scope = services.run_owner_scope(ctx.run_id)
+    if runtime_ref.data_type_id == CAD_MODEL_DATA_TYPE_ID:
+        model = resolve_cad_model(services, value)
+        source_identity = _identity((
+            "cad-model", model.source_sha256, model.source_format,
+            model.source_unit, model.interpreted_unit, model.length_unit,
+            model.source_name,
+        ))
+        return services.prepared_scene_runtime.prepare_cad_model(
+            model, source_identity=source_identity, owner_scope=owner_scope,
+        ), runtime_ref
+    if runtime_ref.data_type_id == SURFACE_MODEL_DATA_TYPE_ID:
+        model = resolve_surface_model(services, value)
+        source_identity = _identity((
+            "surface-model", model.source_sha256, model.source_unit,
+            model.length_unit, model.source_name,
+        ))
+        return services.prepared_scene_runtime.prepare_surface_model(
+            model, source_identity=source_identity, owner_scope=owner_scope,
+        ), runtime_ref
+    if runtime_ref.data_type_id == OCP_BODY_DATA_TYPE_ID:
+        native_source_ref, shape = _resolve_ocp_body(ctx, value)
+        body = ctx.resolve_handle(native_source_ref)
+        source_identity = body.source_identity or (
+            f"{native_source_ref.handle_id}:{native_source_ref.worker_generation}"
+        )
+        source_name = "OCPBody"
+    elif runtime_ref.data_type_id == GEOMETRY_GROUP_DATA_TYPE_ID:
+        native_source_ref, group = _resolve_geometry_group(ctx, value)
+        children = tuple(_assembly_component(ctx, child) for child in group.child_leases)
+        source_identity = _identity((
+            "cad-assembly", group.name,
+            [part_identity for _, part_identity in children],
+        ))
+        assembly = services.prepared_scene_runtime.compose_cad_assembly(
+            group.name,
+            tuple(component for component, _child_identity in children),
+            source_sha256=source_identity,
+        )
+        return services.prepared_scene_runtime.prepare_cad_model(
+            assembly, source_identity=source_identity, owner_scope=owner_scope,
+        ), native_source_ref
+    else:
+        return _require_scene(value, label=label), None
+
     scene_ref = services.prepared_scene_runtime.prepare_cad_shape(
         shape,
-        source_identity=(
-            f"{native_source_ref.handle_id}:{native_source_ref.worker_generation}"
-        ),
-        owner_scope=services.run_owner_scope(ctx.run_id),
+        source_identity=source_identity,
+        owner_scope=owner_scope,
         source_name=source_name,
     )
     return scene_ref, native_source_ref
@@ -374,7 +460,7 @@ def execute_engineering_viewer(ctx) -> NodeResult:  # noqa: ANN001
         value = ctx.inputs.get(key)
         if value is None:
             continue
-        label = port_labels.get(key) or f"Scene {index}"
+        label = port_labels.get(key) or f"Model {index}"
         try:
             scenes[key], native_source = _prepare_scene(ctx, value, label=label)
         except (TypeError, ValueError) as exc:
@@ -383,7 +469,7 @@ def execute_engineering_viewer(ctx) -> NodeResult:  # noqa: ANN001
         if native_source is not None:
             native_sources[key] = native_source
     if not scenes:
-        raise NodeInputNotReadyError("Connect at least one scene to Model Viewer.")
+        raise NodeInputNotReadyError("Connect at least one model to Model Viewer.")
     layer_fingerprints = {key: _scene_fingerprint(ref) for key, ref in scenes.items()}
     selections = _selection_output_for_scene(
         ctx.properties.get("saved_selections"),
