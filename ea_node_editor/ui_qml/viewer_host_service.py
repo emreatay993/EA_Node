@@ -522,6 +522,7 @@ class ViewerHostService(QObject):
         self._pending_detached_sessions: dict[_OverlayKey, str] = {}
         self._fullscreen_hold_key: _OverlayKey | None = None
         self._embedded_interaction_active: set[_OverlayKey] = set()
+        self._transient_preview_handoffs: dict[_OverlayKey, bool] = {}
         self._native_presentation_handoff = NativePresentationHandoff(
             overlay_manager_provider=lambda: self._overlay_manager,
             completion_callback=self._complete_embedded_exit_demotion,
@@ -559,6 +560,10 @@ class ViewerHostService(QObject):
         self._shortcut_filtered_widgets: set[QWidget] = set()
 
         self._connect_signals()
+        if overlay_manager is not None:
+            overlay_manager.set_native_suppression_handler(
+                VIEWER_SESSION_OVERLAY_OWNER, self._prepare_native_suppression
+            )
         self._schedule_sync()
 
     @property
@@ -605,6 +610,8 @@ class ViewerHostService(QObject):
             return
         changed = False
         demotion_deferred = False
+        # A real interaction-mode change supersedes a temporary gesture hold.
+        self._transient_preview_handoffs.pop(key, None)
         if bool(active):
             self._native_presentation_handoff.cancel(key)
             self._remember_inline_retention_identity(key)
@@ -672,6 +679,31 @@ class ViewerHostService(QObject):
         self.state_changed.emit()
         return started
 
+    def _prepare_native_suppression(self, key: _OverlayKey, suppressed: bool) -> bool:
+        """Freeze the current camera for a canvas gesture without changing live mode."""
+        if self._shutdown:
+            return True
+        if not suppressed:
+            if key in self._transient_preview_handoffs:
+                self._transient_preview_handoffs.pop(key)
+                self._native_presentation_handoff.cancel(key)
+                self._preview_state.mark_live_frame_dirty(key)
+                self._bump_viewer_overlay_revision()
+                self._schedule_sync()
+            return True
+        if key in self._transient_preview_handoffs:
+            return self._transient_preview_handoffs[key]
+        if self._native_presentation_handoff.contains(key):
+            # An actual live exit already owns this visual handoff.
+            return False
+        if key not in self._embedded_interaction_active or not self._inline_exit_can_wait(key):
+            return True
+        self._transient_preview_handoffs[key] = False
+        self._preview_state.mark_live_frame_dirty(key)
+        deferred = self._capture_embedded_exit_state(key)
+        self._transient_preview_handoffs[key] = not deferred
+        return not deferred
+
     def _capture_embedded_exit_state(self, key: _OverlayKey) -> bool:
         """Capture the live frame and report whether demotion was deferred."""
         if self._native_presentation_handoff.contains(key):
@@ -723,6 +755,16 @@ class ViewerHostService(QObject):
 
     def _complete_embedded_exit_demotion(self, key: _OverlayKey) -> None:
         if self._shutdown:
+            return
+        if key in self._transient_preview_handoffs:
+            if not self._inline_exit_can_wait(key):
+                self._transient_preview_handoffs.pop(key)
+                self._schedule_sync()
+                return
+            self._transient_preview_handoffs[key] = True
+            self._bump_viewer_overlay_revision()
+            self._sync_overlay_manager_now()
+            self.state_changed.emit()
             return
         if key in self._embedded_interaction_active:
             return
@@ -1395,8 +1437,13 @@ class ViewerHostService(QObject):
         previous_overlay_manager = self._overlay_manager
         self._overlay_manager = overlay_manager
         if previous_overlay_manager is not None:
+            previous_overlay_manager.set_native_suppression_handler(VIEWER_SESSION_OVERLAY_OWNER, None)
             self._set_viewer_content_fullscreen_target(previous_overlay_manager, None, force_clear=True)
             self._set_active_viewer_overlays(previous_overlay_manager, ())
+        if overlay_manager is not None:
+            overlay_manager.set_native_suppression_handler(
+                VIEWER_SESSION_OVERLAY_OWNER, self._prepare_native_suppression
+            )
         self._schedule_sync()
 
     def reset(self, *, reason: str = "") -> None:
@@ -1410,6 +1457,7 @@ class ViewerHostService(QObject):
         self._clear_pending_detached_sessions()
         self._clear_fullscreen_hold()
         self._embedded_interaction_active.clear()
+        self._transient_preview_handoffs.clear()
         self._preview_state.clear_all()
         self._preview_warmup.clear()
         overlay_manager = self._overlay_manager
@@ -1439,6 +1487,9 @@ class ViewerHostService(QObject):
         if self._shutdown:
             return
         self._shutdown = True
+        if self._overlay_manager is not None:
+            self._overlay_manager.set_native_suppression_handler(VIEWER_SESSION_OVERLAY_OWNER, None)
+        self._transient_preview_handoffs.clear()
         self._sync_queued = False
         self._sync_suspended = False
         self._native_presentation_handoff.shutdown()
@@ -1720,6 +1771,7 @@ class ViewerHostService(QObject):
 
         for key, bound in list(self._bound_overlays.items()):
             if bound.widget is not None and sip.isdeleted(bound.widget):
+                self._transient_preview_handoffs.pop(key, None)
                 self._native_presentation_handoff.cancel(key)
                 self._bound_overlays.pop(key, None)
                 self._inline_retention_identities.pop(key, None)
@@ -1730,6 +1782,7 @@ class ViewerHostService(QObject):
             desired = desired_overlays.get(key)
             handoff = self._native_presentation_handoff
             if handoff.contains(key) and not self._inline_exit_can_wait(key):
+                self._transient_preview_handoffs.pop(key, None)
                 handoff.cancel(key)
             if (
                 desired is None
@@ -1740,6 +1793,7 @@ class ViewerHostService(QObject):
                 # queued interaction sync. The visual lifetime still belongs
                 # to this host, including that bridge-driven exit path.
                 self._embedded_interaction_active.discard(key)
+                self._transient_preview_handoffs.pop(key, None)
                 self._capture_embedded_exit_state(key)
             if handoff.contains(key):
                 desired = (bound.snapshot, bound.binder)
@@ -2387,6 +2441,7 @@ class ViewerHostService(QObject):
         self._inline_retention_identities.clear()
 
     def _release_binding(self, key: _OverlayKey, *, reason: str) -> bool:
+        self._transient_preview_handoffs.pop(key, None)
         self._native_presentation_handoff.cancel(key)
         bound = self._bound_overlays.get(key)
         if bound is None:

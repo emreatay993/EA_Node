@@ -133,6 +133,7 @@ class _OverlayRecord:
     geometry_retry_budget: int = 0
     geometry_ready: bool = False
     ready_geometry: QRect | None = None
+    native_suppression_requested: bool = False
 
 
 def _empty_overlay_metrics() -> dict[str, int | float | str | bool]:
@@ -521,6 +522,7 @@ class EmbeddedViewerOverlayManager(QObject):
         self._observed_graph_canvas: QQuickItem | None = None
         self._desired_overlays: dict[_OverlayKey, EmbeddedViewerOverlaySpec] = {}
         self._desired_overlay_sources: dict[str, dict[_OverlayKey, EmbeddedViewerOverlaySpec]] = {}
+        self._native_suppression_handlers: dict[str, Callable[[_OverlayKey, bool], bool]] = {}
         self._overlay_records: dict[_OverlayKey, _OverlayRecord] = {}
         self._content_fullscreen_target: _OverlayKey | None = None
         self._last_error = ""
@@ -539,6 +541,43 @@ class EmbeddedViewerOverlayManager(QObject):
     @property
     def quick_widget(self) -> Any:
         return self._quick_widget
+
+    def set_native_suppression_handler(
+        self, owner: str, handler: Callable[[_OverlayKey, bool], bool] | None
+    ) -> None:
+        """Let an owner prepare its preview before a gesture hides its native view.
+
+        A false result defers the hide; the owner requests another sync once
+        its preview is ready. Resuming the native view notifies it with false.
+        """
+        if handler is None:
+            self._native_suppression_handlers.pop(owner, None)
+        else:
+            self._native_suppression_handlers[owner] = handler
+
+    def _native_suppression_handler(
+        self, key: _OverlayKey
+    ) -> Callable[[_OverlayKey, bool], bool] | None:
+        owner = self._overlay_owners_by_key().get(key, _DEFAULT_OVERLAY_OWNER)
+        return self._native_suppression_handlers.get(owner)
+
+    def _suppress_native_record(self, key: _OverlayKey) -> None:
+        record = self._overlay_records[key]
+        record.native_suppression_requested = True
+        handler = self._native_suppression_handler(key)
+        if handler is not None and not handler(key, True):
+            return
+        record.fullscreen_target_active = False
+        self._set_widget_updates_suspended(record, True)
+        self._hide_record(key)
+
+    def _resume_native_record(self, key: _OverlayKey, record: _OverlayRecord) -> None:
+        if not record.native_suppression_requested:
+            return
+        record.native_suppression_requested = False
+        handler = self._native_suppression_handler(key)
+        if handler is not None:
+            handler(key, False)
 
     @property
     def overlay_parent_widget(self) -> QWidget | None:
@@ -991,12 +1030,12 @@ class EmbeddedViewerOverlayManager(QObject):
                     and self._record_uses_native_window_overlay(record)
                 }
                 for key in suppressed_keys:
-                    record = self._overlay_records[key]
-                    record.fullscreen_target_active = False
-                    self._set_widget_updates_suspended(record, True)
-                    self._hide_record(key)
+                    self._suppress_native_record(key)
                 if suppressed_keys == set(self._desired_overlays):
-                    metrics["hidden_count"] = len(suppressed_keys)
+                    metrics["hidden_count"] = sum(
+                        not self._overlay_records[key].container.isVisible() for key in suppressed_keys
+                    )
+                    metrics["visible_count"] = len(suppressed_keys) - int(metrics["hidden_count"])
                     return
 
             node_payloads = self._node_payloads_by_id(
@@ -1028,10 +1067,9 @@ class EmbeddedViewerOverlayManager(QObject):
                     and self._record_uses_native_window_overlay(record)
                     and self._native_overlay_suppression_active(graph_canvas_item)
                 ):
-                    record.fullscreen_target_active = False
-                    self._set_widget_updates_suspended(record, True)
-                    self._hide_record(key)
-                    metrics["hidden_count"] = int(metrics["hidden_count"]) + 1
+                    self._suppress_native_record(key)
+                    count_key = "visible_count" if record.container.isVisible() else "hidden_count"
+                    metrics[count_key] = int(metrics[count_key]) + 1
                     continue
 
                 cached_node_card_item = record.node_card_item if self._is_alive_item(record.node_card_item) else None
@@ -1110,6 +1148,10 @@ class EmbeddedViewerOverlayManager(QObject):
                     else self._overlay_live_preview_active(node_card_item, node_payload, graph_canvas_item)
                 )
                 native_window_overlay = self._record_uses_native_window_overlay(record)
+                if record.fullscreen_target_active or not (
+                    live_preview_active or self._canvas_interaction_active(graph_canvas_item)
+                ):
+                    self._resume_native_record(key, record)
                 direct_viewport_geometry = None
                 if (
                     plot_live_overlay
@@ -1156,10 +1198,9 @@ class EmbeddedViewerOverlayManager(QObject):
                 if native_window_overlay and not record.fullscreen_target_active and (
                     live_preview_active or self._canvas_interaction_active(graph_canvas_item)
                 ):
-                    record.geometry_ready = False
-                    record.ready_geometry = None
-                    self._hide_record(key)
-                    metrics["hidden_count"] = int(metrics["hidden_count"]) + 1
+                    self._suppress_native_record(key)
+                    count_key = "visible_count" if record.container.isVisible() else "hidden_count"
+                    metrics[count_key] = int(metrics[count_key]) + 1
                     continue
 
                 self._show_record(record, geometry, focus=record.fullscreen_target_active)
@@ -1567,6 +1608,7 @@ class EmbeddedViewerOverlayManager(QObject):
         record = self._overlay_records.pop(key, None)
         if record is None:
             return
+        self._resume_native_record(key, record)
         record.fullscreen_target_active = False
         if record.overlay_widget is not None:
             self._teardown_widget(record.overlay_widget)

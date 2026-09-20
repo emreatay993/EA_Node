@@ -86,7 +86,7 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
 - Registry publication refuses active/pending viewer sessions and shares the execution admission guard with new viewer opens. Once idle, `ViewerSessionBridge.replace_data_types(...)` moves the bridge to the accepted frozen catalog in the same reversible shell transaction.
 - Runtime composition injects execution-client, active-workspace, and live workspace providers into `ViewerSessionBridge`; active-workspace/workspace/model/registry providers plus preferences, the save callback, and direct viewer-host reference into `ViewerControlBridge`; QML-engine/save/bookmark callbacks into `ViewerHostService`; and the active-workspace provider into `PlotHostService`. The four classes store no `_shell_window` and perform no shell service discovery; QObject `parent=host` is lifecycle ownership only.
 - Exactly two construction-cycle callbacks are late-bound: viewer overlay camera capture resolves the later `ViewerHostService`, and viewer-host PageUp/PageDown bookmark cycling resolves the later `ViewerControlBridge`. Preview capture/cache remains host-owned; do not route it through the session bridge or hide either callback in a shell facade, adapter, or dependency bag.
-- Viewer and plot hosts each construct their own plain `NativePresentationHandoff`. The shared owner gates demotion on the expected preview source plus one render frame, rejects stale timeout and queued-render serials, disconnects when idle/cancelled/shut down, and queues completion outside `afterRendering`. Hosts can distinguish timeout recovery from successful rendering. Capture plus viewer-session demotion or plot-overlay release remain distinct host callbacks; do not merge host state, binders, windows, backend policy, or overlay geometry.
+- Viewer and plot hosts each construct their own plain `NativePresentationHandoff`. The shared owner gates demotion on the expected preview source plus one render frame, rejects stale timeout and queued-render serials, disconnects when idle/cancelled/shut down, and queues completion outside `afterRendering`. The queued GUI callback repaints the QWidget preview surface before hiding native content: scene rendering alone does not establish that the backing store has been painted. Hosts can distinguish timeout recovery from successful rendering. Capture plus viewer-session demotion or plot-overlay release remain distinct host callbacks; do not merge host state, binders, windows, backend policy, or overlay geometry.
 - Viewer host sync applies the same visual-exit gate to bridge-driven focus/selection demotion as to explicit inline deactivation. While pending, preserve the visible native binding and render the fresh QML preview beneath it; acknowledge only a ready current image or the explicit unavailable placeholder. Parking must not run before that presentation completes. Capture/load/timeout failure clears older cached pixels, while reactivation or session/transport/workspace/lifecycle replacement prevents late callbacks from demoting a newer view.
 - The same composition root supplies `ContentFullscreenBridge` with live model, registry, active-workspace, and project-context providers plus its exact scene/viewer/run/script/dialog/trim/Web-artifact owners. The bridge stores no `ShellWindow`, policy service, aggregate dependency bag, or compatibility alias. Candidate workspace/name/node/title/type facts are frozen together for each open.
 - `ViewerHostService` and `PlotHostService` receive the content bridge directly, connect once during construction, retain that connection across reset, and disconnect at terminal shutdown. Dynamic model/registry providers remain live across replacement, and scene/manager workspace disagreement still fails closed.
@@ -142,9 +142,13 @@ Use this for execution viewer sessions, native overlay lifecycle, fullscreen con
   clears that explicit activation, and reselecting does not reactivate it.
 - Transient canvas pan/wheel/box zoom, node drag/resize, and wire drag keep the
   explicitly activated session at `live_mode=full` and send zero worker
-  live-mode updates. QML and the host locally suppress the native overlay by
-  hiding it, marking its geometry unready, and disabling widget updates, then
-  restore the same widget after the gesture. After true demotion, at most one
+  live-mode updates. The overlay manager's owner-specific suppression handler
+  lets the viewer host capture the current live frame once per gesture and
+  pass the existing rendered-preview handoff before hiding native content.
+  Holding the gesture neither recaptures nor rebinds; release cancels pending
+  work, restores the same widget, and marks its next live frame dirty. A real
+  deselection during this handoff still completes as demotion. Suppressed
+  widgets have unready geometry and disabled updates. After true demotion, at most one
   widget previously created by explicit inline activation may remain hidden
   and non-updating for unchanged
   session/transport reactivation. Fullscreen- or detached-only widgets are not

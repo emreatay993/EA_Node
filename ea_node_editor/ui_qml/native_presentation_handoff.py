@@ -146,6 +146,23 @@ class NativePresentationHandoff:
         QTimer.singleShot(0, lambda: self._complete_rendered(rendered))
 
     def _complete_rendered(self, rendered: tuple[tuple[NativePresentationKey, int], ...]) -> None:
+        if not any(
+            (pending := self._pending.get(key)) is not None
+            and pending.serial == serial and pending.armed
+            for key, serial in rendered
+        ):
+            return
+        # QQuickWidget renders into a texture before its QWidget backing store
+        # is painted. Present that texture while the native overlay still
+        # covers it; otherwise hiding the overlay can expose an older/empty
+        # backing-store frame. This runs on the queued GUI callback, never
+        # within the scene graph's render callback.
+        provider = self._overlay_manager_provider
+        manager = provider() if provider is not None else None
+        quick_widget = getattr(manager, "quick_widget", None)
+        repaint = getattr(quick_widget, "repaint", None)
+        if callable(repaint):
+            repaint()
         for key, serial in rendered:
             pending = self._pending.get(key)
             if pending is not None and pending.serial == serial and pending.armed:

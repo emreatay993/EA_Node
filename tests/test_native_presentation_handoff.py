@@ -150,6 +150,50 @@ def test_timeout_uses_recovery_instead_of_claiming_a_rendered_preview() -> None:
     assert expired == [key]
 
 
+def test_widget_preview_is_painted_before_native_overlay_completion() -> None:
+    app = QCoreApplication.instance() or QCoreApplication([])
+    window = _RenderWindow()
+    manager = _OverlayManager(window)
+    events = []
+    manager.quick_widget.repaint = lambda: events.append("paint")
+    handoff = NativePresentationHandoff(
+        overlay_manager_provider=lambda: manager,
+        completion_callback=lambda key: events.append("hide"),
+        timeout_ms=10_000,
+    )
+    key = ("workspace", "node")
+    handoff.begin(key, expected_source="current")
+    handoff.notify_preview_swapped(key, "current")
+    window.afterRendering.emit()
+    assert events == []
+    app.processEvents()
+    assert events == ["paint", "hide"]
+
+
+def test_widget_paint_cannot_complete_a_replacement_handoff() -> None:
+    app = QCoreApplication.instance() or QCoreApplication([])
+    window = _RenderWindow()
+    manager = _OverlayManager(window)
+    completed = []
+    handoff = NativePresentationHandoff(
+        overlay_manager_provider=lambda: manager,
+        completion_callback=completed.append,
+        timeout_ms=10_000,
+    )
+    key = ("workspace", "node")
+    def repaint():
+        handoff.begin(key, expected_source="replacement")
+        handoff.notify_preview_swapped(key, "replacement")
+    manager.quick_widget.repaint = repaint
+    handoff.begin(key, expected_source="current")
+    handoff.notify_preview_swapped(key, "current")
+    window.afterRendering.emit()
+    app.processEvents()
+    assert completed == []
+    assert handoff.expected_source(key) == "replacement"
+    handoff.shutdown()
+
+
 def test_real_qt_timeout_completes_separate_viewer_and_plot_host_outcomes() -> None:
     app = QCoreApplication.instance() or QCoreApplication([])
     viewer_outcomes: list[tuple[str, tuple[str, str]]] = []

@@ -1930,6 +1930,102 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "proxy")
         self.assertFalse(handoff.render_gate_connected)
 
+    def test_pan_replaces_an_existing_preview_before_hiding_native_view(self) -> None:
+        node_id = self._open_live_embedded_viewer()
+        key = (self.workspace_id, node_id)
+        host = self.host_service
+        widget = host._bound_overlays[key].widget
+        binder = host._bound_overlays[key].binder
+        widget.setProperty("ea.nativeWindowOverlay", True)
+        # Reproduce the reported sequence, including an older saved preview.
+        self._deactivate_inline(node_id)
+        previous = host.cached_preview_source(node_id)
+        self.assertTrue(previous)
+        host.set_embedded_interaction_active(node_id, True)
+        self.app.processEvents()
+        canvas = self._graph_canvas_item()
+        updates_before = len(self.window.execution_client.update_calls)
+        binds_before = len(binder.bind_calls)
+        for color in ("green", "red"):
+            with self.subTest(color=color):
+                binder.captured_preview_image.fill(QColor(color))
+                captures_before = len(binder.capture_preview_calls)
+                handoff = host._native_presentation_handoff
+                with patch.object(handoff, "_connect_render_gate", return_value=True):
+                    canvas.setProperty("interactionActive", True)
+                    self.overlay_manager.sync()
+                    source = host.cached_preview_source(node_id)
+                    self.assertNotEqual(source, previous)
+                    self.assertEqual(host._preview_state.preview_image(key).pixelColor(0, 0), QColor(color))
+                    self.assertTrue(widget.isVisible())
+                    for _ in range(3):
+                        self.overlay_manager.sync()
+                        host.sync()
+                    self.assertEqual(len(binder.capture_preview_calls), captures_before + 1)
+                    self.assertTrue(widget.isVisible())
+                    host.notify_cached_preview_swapped(node_id, source)
+                    handoff._on_render_gate_frame()
+                    self.app.processEvents()
+                    self.overlay_manager.sync()
+                self.assertFalse(widget.isVisible())
+                self.assertFalse(widget.updatesEnabled())
+                self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "full")
+                self.assertEqual(host.retained_inline_viewer_node_id, "")
+                self.assertEqual(len(self.window.execution_client.update_calls), updates_before)
+                canvas.setProperty("interactionActive", False)
+                self.app.processEvents()
+                self.overlay_manager.sync()
+                self.assertTrue(widget.isVisible())
+                self.assertTrue(widget.updatesEnabled())
+                self.assertIs(host._bound_overlays[key].widget, widget)
+                self.assertEqual(len(binder.bind_calls), binds_before)
+                previous = source
+        self.assertEqual(binder.release_calls, [])
+
+    def test_pan_end_cancels_pending_preview_without_demoting_live_view(self) -> None:
+        node_id = self._open_live_embedded_viewer()
+        key = (self.workspace_id, node_id)
+        host = self.host_service
+        widget = host._bound_overlays[key].widget
+        widget.setProperty("ea.nativeWindowOverlay", True)
+        canvas = self._graph_canvas_item()
+        canvas.setProperty("interactionActive", True)
+        self.overlay_manager.sync()
+        source = host.embedded_preview_handoff_source(node_id)
+        self.assertTrue(source)
+        handoff = host._native_presentation_handoff
+        with patch.object(handoff, "_connect_render_gate", return_value=True):
+            host.notify_cached_preview_swapped(node_id, source)
+            handoff._on_render_gate_frame()
+            canvas.setProperty("interactionActive", False)
+            self.overlay_manager.sync()
+            self.app.processEvents()
+        self.assertTrue(widget.isVisible())
+        self.assertFalse(handoff.contains(key))
+        self.assertNotIn(key, host._transient_preview_handoffs)
+        self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "full")
+
+    def test_deselection_during_pending_pan_finishes_as_a_real_live_exit(self) -> None:
+        node_id = self._open_live_embedded_viewer()
+        key = (self.workspace_id, node_id)
+        host = self.host_service
+        widget = host._bound_overlays[key].widget
+        widget.setProperty("ea.nativeWindowOverlay", True)
+        canvas = self._graph_canvas_item()
+        canvas.setProperty("interactionActive", True)
+        self.overlay_manager.sync()
+        self.assertIn(key, host._transient_preview_handoffs)
+        self.bridge.clear_viewer_focus()
+        host.sync()
+        self.assertNotIn(key, host._transient_preview_handoffs)
+        self._complete_inline_exit(node_id)
+        self.assertFalse(widget.isVisible())
+        self.assertEqual(host.retained_inline_viewer_node_id, node_id)
+        canvas.setProperty("interactionActive", False)
+        self.app.processEvents()
+        self.assertFalse(widget.isVisible())
+        self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "proxy")
+
     def test_focus_and_selection_exits_keep_final_frame_until_render_ack(self) -> None:
         node_id = self._open_live_embedded_viewer()
         key = (self.workspace_id, node_id)
