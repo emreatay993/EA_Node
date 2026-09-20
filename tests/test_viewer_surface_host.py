@@ -17,6 +17,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             from pathlib import Path
 
             from PyQt6.QtCore import QObject, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
+            from PyQt6.QtGui import QImage
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
             from PyQt6.QtWidgets import QApplication
 
@@ -316,6 +317,8 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     self.copy_calls = []
                     self._cached_preview_source = "image://viewer-preview-cache/preview?workspace=ws_main&node=node_viewer_surface_host&revision=1"
                     self._cached_preview_stale = False
+                    self._handoff_source = ""
+                    self.preview_failure_calls = []
 
                 @pyqtProperty(int, notify=state_changed)
                 def active_overlay_count(self):
@@ -359,6 +362,14 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 def notify_cached_preview_swapped(self, node_id, source):
                     self.preview_swap_calls.append((str(node_id), str(source)))
 
+                @pyqtSlot(str, result=str)
+                def embedded_preview_handoff_source(self, node_id):
+                    return self._handoff_source
+
+                @pyqtSlot(str, str)
+                def notify_cached_preview_failed(self, node_id, source):
+                    self.preview_failure_calls.append((str(node_id), str(source)))
+
                 @pyqtSlot(str, result=bool)
                 def open_detached_viewer(self, node_id):
                     self.detached_calls.append(str(node_id))
@@ -388,7 +399,11 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             engine = QQmlEngine()
             engine.addImageProvider(UI_ICON_PROVIDER_ID, UiIconImageProvider())
             engine.addImageProvider(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider())
-            engine.addImageProvider(VIEWER_PREVIEW_CACHE_PROVIDER_ID, ViewerPreviewCacheImageProvider())
+            preview_provider = ViewerPreviewCacheImageProvider()
+            preview_frame = QImage(24, 16, QImage.Format.Format_RGB32)
+            preview_frame.fill(0xff2f89ff)
+            preview_provider.set_preview("ws_main", "node_viewer_surface_host", preview_frame, signature="initial")
+            engine.addImageProvider(VIEWER_PREVIEW_CACHE_PROVIDER_ID, preview_provider)
             # setContextProperty does not take ownership, so these bridges must
             # stay referenced from Python or QML sees an undefined context
             # property once they are collected.
@@ -815,7 +830,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert bool(host.property("isSelected"))
                 assert bool(surface.property("proxySurfaceActive"))
                 assert bool(surface.property("viewerShowsPlaceholder"))
-                assert headline.property("text") == "Double-click to activate 3D view"
+                assert headline.property("text") == "Preview unavailable\\nDouble-click to activate 3D view"
                 assert not bool(surface.property("inlineLiveRequested"))
                 assert not bool(surface.property("embeddedInteractionActive"))
                 assert viewerHostServiceStub.active_calls == []
@@ -1479,6 +1494,72 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 cached_image_source = cached_image.property("source")
                 cached_image_source_text = cached_image_source.toString() if hasattr(cached_image_source, "toString") else str(cached_image_source)
                 assert cached_image_source_text == swapped_source
+            finally:
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
+    def test_pending_exit_renders_fresh_preview_beneath_live_overlay_and_rejects_error(self) -> None:
+        self._run_qml_probe(
+            "viewer-preview-pending-render-readiness",
+            """
+            bridge = ViewerSessionBridgeStub()
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+            viewerHostServiceStub.session_bridge = bridge
+            canvas_item, _scene_bridge = create_viewer_canvas(selected=True)
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            host.setProperty("canvasItem", canvas_item)
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            image_item = host.findChild(QObject, "graphNodeViewerCachedPreviewImage")
+            proxy = host.findChild(QObject, "graphNodeViewerProxyPane")
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                surface.setProperty("_inlineLiveRequested", True)
+                viewerHostServiceStub._overlay_ready = True
+                viewerHostServiceStub._viewer_overlay_revision += 1
+                viewerHostServiceStub.state_changed.emit()
+                settle_events(5)
+                assert surface.property("liveOverlayReady")
+                assert not proxy.isVisible()
+
+                preview_frame.fill(0xffee4422)
+                preview_provider.set_preview("ws_main", "node_viewer_surface_host", preview_frame, signature="latest")
+                source = preview_provider.preview_source("ws_main", "node_viewer_surface_host")
+                viewerHostServiceStub._cached_preview_source = source
+                viewerHostServiceStub._handoff_source = source
+                viewerHostServiceStub._preview_cache_revision += 1
+                viewerHostServiceStub._viewer_overlay_revision += 1
+                viewerHostServiceStub.preview_cache_changed.emit()
+                viewerHostServiceStub.state_changed.emit()
+                settle_events(5)
+                assert surface.property("liveOverlayReady")
+                assert proxy.isVisible() and image_item.isVisible()
+                assert viewerHostServiceStub.preview_swap_calls[-1][1] == source
+
+                failed_source = "image://viewer-preview-cache/preview?workspace=missing&node=missing"
+                viewerHostServiceStub.preview_swap_calls.clear()
+                viewerHostServiceStub._cached_preview_source = failed_source
+                viewerHostServiceStub._handoff_source = failed_source
+                viewerHostServiceStub._preview_cache_revision += 1
+                viewerHostServiceStub._viewer_overlay_revision += 1
+                viewerHostServiceStub.preview_cache_changed.emit()
+                viewerHostServiceStub.state_changed.emit()
+                settle_events(5)
+                assert viewerHostServiceStub.preview_swap_calls == []
+                assert viewerHostServiceStub.preview_failure_calls[-1][1] == failed_source
+                viewerHostServiceStub._cached_preview_source = ""
+                viewerHostServiceStub._handoff_source = "unavailable"
+                viewerHostServiceStub._preview_cache_revision += 1
+                viewerHostServiceStub._viewer_overlay_revision += 1
+                viewerHostServiceStub.preview_cache_changed.emit()
+                viewerHostServiceStub.state_changed.emit()
+                settle_events(5)
+                assert surface.property("viewerShowsPlaceholder")
+                assert viewerHostServiceStub.preview_swap_calls[-1][1] == "unavailable"
+                headline = host.findChild(QObject, "graphNodeViewerSurfaceHeadline")
+                assert "Preview unavailable" in headline.property("text")
             finally:
                 dispose_host_window(host, window)
                 engine.deleteLater()

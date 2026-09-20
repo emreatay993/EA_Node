@@ -59,6 +59,7 @@ _FALLBACK_PREVIEW_RENDER_SIZE = QSize(960, 540)
 _MAX_PREVIEW_RENDER_EDGE_PX = 960
 # Below this relative aspect error a re-render buys nothing visible.
 _PREVIEW_ASPECT_TOLERANCE = 0.02
+_UNAVAILABLE_PREVIEW_SOURCE = "unavailable"
 
 def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
@@ -524,6 +525,7 @@ class ViewerHostService(QObject):
         self._native_presentation_handoff = NativePresentationHandoff(
             overlay_manager_provider=lambda: self._overlay_manager,
             completion_callback=self._complete_embedded_exit_demotion,
+            timeout_callback=self._expire_embedded_exit,
             timeout_ms=300,
         )
         # Resolved through self on every call so the host stays patchable and
@@ -647,18 +649,59 @@ class ViewerHostService(QObject):
             return
         self._native_presentation_handoff.notify_preview_swapped(key, source)
 
+    @pyqtSlot(str, result=str)
+    def embedded_preview_handoff_source(self, node_id: str) -> str:
+        key = self._key_for_node_id(node_id) if not self._shutdown else None
+        return self._native_presentation_handoff.expected_source(key) if key is not None else ""
+
+    @pyqtSlot(str, str)
+    def notify_cached_preview_failed(self, node_id: str, source: str) -> None:
+        key = self._key_for_node_id(node_id) if not self._shutdown else None
+        if (
+            key is None
+            or self._native_presentation_handoff.expected_source(key) != source
+            or not self._inline_exit_can_wait(key)
+        ):
+            return
+        self._preview_state.clear_preview(key)
+        self._begin_embedded_exit(key, _UNAVAILABLE_PREVIEW_SOURCE)
+
+    def _begin_embedded_exit(self, key: _OverlayKey, source: str) -> bool:
+        started = self._native_presentation_handoff.begin(key, expected_source=source)
+        self._bump_viewer_overlay_revision()
+        self.state_changed.emit()
+        return started
+
     def _capture_embedded_exit_state(self, key: _OverlayKey) -> bool:
         """Capture the live frame and report whether demotion was deferred."""
-        source_before = self._preview_state.preview_source(key)
-        self._capture_live_state(key)
-        source_after = self._preview_state.preview_source(key)
-        if not source_after or source_after == source_before:
-            return False
+        if self._native_presentation_handoff.contains(key):
+            return True
+        captured = self._capture_live_state(key)
+        if not captured:
+            self._preview_state.clear_preview(key)
         if not self._embedded_exit_overlay_visible(key):
             return False
-        return self._native_presentation_handoff.begin(
-            key, expected_source=source_after
+        return self._begin_embedded_exit(
+            key, self._preview_state.preview_source(key) or _UNAVAILABLE_PREVIEW_SOURCE
         )
+
+    def _inline_exit_can_wait(self, key: _OverlayKey) -> bool:
+        if not self._binding_can_be_retained(key):
+            return False
+        bound = self._bound_overlays[key]
+        current = self._snapshot_for_key(key)
+        return bool(
+            current is not None
+            and current.live_open_status == "ready"
+            and self._preview_state.camera_signature(current)
+            == self._preview_state.camera_signature(bound.snapshot)
+        )
+
+    def _expire_embedded_exit(self, key: _OverlayKey) -> None:
+        # A timer is recovery, never proof that the new raster was painted.
+        if self._inline_exit_can_wait(key):
+            self._preview_state.clear_preview(key)
+        self._complete_embedded_exit_demotion(key)
 
     def _embedded_exit_overlay_visible(self, key: _OverlayKey) -> bool:
         bound = self._bound_overlays.get(key)
@@ -685,6 +728,10 @@ class ViewerHostService(QObject):
             return
         if self._content_fullscreen_key() == key:
             return
+        if not self._inline_exit_can_wait(key):
+            self._schedule_sync()
+            return
+        self._bump_viewer_overlay_revision()
         bridge = self._viewer_session_bridge
         bridge_setter = getattr(bridge, "set_embedded_interaction_active", None)
         if callable(bridge_setter):
@@ -692,6 +739,10 @@ class ViewerHostService(QObject):
                 bridge_setter(key[1], False, {"workspace_id": key[0]})
             except TypeError:
                 bridge_setter(key[1], False)
+        # Mark the completed presentation before the next sync so it cannot
+        # start another capture/handoff for the same live episode.
+        if not self._retain_inline_binding(key):
+            self._release_binding(key, reason="inactive")
         self._schedule_sync()
 
     @pyqtSlot(str, result=str)
@@ -1669,6 +1720,7 @@ class ViewerHostService(QObject):
 
         for key, bound in list(self._bound_overlays.items()):
             if bound.widget is not None and sip.isdeleted(bound.widget):
+                self._native_presentation_handoff.cancel(key)
                 self._bound_overlays.pop(key, None)
                 self._inline_retention_identities.pop(key, None)
                 if self._retained_inline_key == key:
@@ -1676,6 +1728,22 @@ class ViewerHostService(QObject):
                 self._bump_viewer_overlay_revision()
                 continue
             desired = desired_overlays.get(key)
+            handoff = self._native_presentation_handoff
+            if handoff.contains(key) and not self._inline_exit_can_wait(key):
+                handoff.cancel(key)
+            if (
+                desired is None
+                and bound.presentation == _PRESENTATION_OVERLAY
+                and self._inline_exit_can_wait(key)
+            ):
+                # Selection/focus loss can demote the session before QML's
+                # queued interaction sync. The visual lifetime still belongs
+                # to this host, including that bridge-driven exit path.
+                self._embedded_interaction_active.discard(key)
+                self._capture_embedded_exit_state(key)
+            if handoff.contains(key):
+                desired = (bound.snapshot, bound.binder)
+                desired_overlays[key] = desired
             if desired is None:
                 if bound.presentation != _PRESENTATION_RETAINED_INLINE:
                     # Live presentation is ending (inline exit, fullscreen
@@ -1713,6 +1781,10 @@ class ViewerHostService(QObject):
         self._sync_overlay_manager_now()
 
         for key, (snapshot, binder) in desired_overlays.items():
+            if self._native_presentation_handoff.contains(key):
+                # Preserve the last applied native frame until its raster is
+                # painted. In particular, do not bind the projected proxy state.
+                continue
             presentation = self._presentation_target_for_key(key)
             container, current_widget = self._container_and_current_widget(
                 key,
@@ -2315,6 +2387,7 @@ class ViewerHostService(QObject):
         self._inline_retention_identities.clear()
 
     def _release_binding(self, key: _OverlayKey, *, reason: str) -> bool:
+        self._native_presentation_handoff.cancel(key)
         bound = self._bound_overlays.get(key)
         if bound is None:
             return True
@@ -2448,7 +2521,7 @@ class ViewerHostService(QObject):
                 snapshots.append(snapshot)
         return snapshots
 
-    def _capture_live_state(self, key: _OverlayKey) -> None:
+    def _capture_live_state(self, key: _OverlayKey) -> bool:
         """Capture the live frame, then correct its aspect if it cannot crop.
 
         A frame captured while the widget was fullscreen or detached carries
@@ -2457,9 +2530,10 @@ class ViewerHostService(QObject):
         it offscreen at the node's own rect instead of showing a frame that
         has lost height the node would have drawn.
         """
-        self._preview_state.capture_live_state(key)
+        captured = self._preview_state.capture_live_state(key)
         if self._preview_reframe_needed(key):
             self._preview_warmup.enqueue([key])
+        return captured
 
     def _preview_reframe_needed(self, key: _OverlayKey) -> bool:
         stored = self._preview_state.preview_size(key)

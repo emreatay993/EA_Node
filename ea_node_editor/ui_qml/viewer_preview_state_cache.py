@@ -153,15 +153,15 @@ class ViewerPreviewStateCache:
         """
         self._live_frame_dirty.add(key)
 
-    def capture_live_state(self, key: OverlayKey) -> None:
-        """Refresh the cached frame and camera from the live widget."""
+    def capture_live_state(self, key: OverlayKey) -> bool:
+        """Refresh the frame and camera; report whether the current frame is available."""
         bound = self._bound_for_key(key)
         if bound is None:
-            return
+            return False
         current_snapshot = self._snapshot_for_key(key)
         if current_snapshot is None:
             self.clear_viewer_state(key)
-            return
+            return False
         camera_signature = self.camera_signature(current_snapshot)
         signature = self.preview_signature(current_snapshot)
         if self._binding_signature(current_snapshot) != bound.signature:
@@ -173,22 +173,23 @@ class ViewerPreviewStateCache:
                 self._view_states.pop(key, None)
             if signature != self.preview_signature(bound.snapshot):
                 self.clear_preview(key)
-                return
+                return False
         else:
             self._capture_view_state(key, bound, camera_signature)
         if self._provider is None:
-            return
+            return False
         cached_signature = self._provider.preview_signature(key[0], key[1])
         if cached_signature is not None and cached_signature != signature:
             self.clear_preview(key)
         if key not in self._live_frame_dirty and self.has_preview(key):
-            return
+            return True
         image = self._capture_image(bound.snapshot.node_id, bound.snapshot.workspace_id)
         if image.isNull():
-            return
+            return False
         self._set_preview(key, image, signature)
         self._live_frame_dirty.discard(key)
         self._stale_previews.discard(key)
+        return True
 
     def restore_view_state(
         self,

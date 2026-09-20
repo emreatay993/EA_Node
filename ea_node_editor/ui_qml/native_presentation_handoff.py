@@ -29,6 +29,7 @@ class NativePresentationHandoff:
         overlay_manager_provider: Callable[[], Any],
         completion_callback: Callable[[NativePresentationKey], None],
         timeout_ms: int,
+        timeout_callback: Callable[[NativePresentationKey], None] | None = None,
     ) -> None:
         self._overlay_manager_provider: Callable[[], Any] | None = (
             overlay_manager_provider
@@ -37,6 +38,7 @@ class NativePresentationHandoff:
             completion_callback
         )
         self._timeout_ms = max(0, int(timeout_ms))
+        self._timeout_callback = timeout_callback
         self._pending: dict[NativePresentationKey, _PendingPreviewSwap] = {}
         self._serial = 0
         self._render_gate_window: QObject | None = None
@@ -60,6 +62,10 @@ class NativePresentationHandoff:
     def pending_serial(self, key: NativePresentationKey) -> int:
         pending = self._pending.get(key)
         return pending.serial if pending is not None else 0
+
+    def expected_source(self, key: NativePresentationKey) -> str:
+        pending = self._pending.get(key)
+        return pending.expected_source if pending is not None else ""
 
     def is_armed(self, key: NativePresentationKey) -> bool:
         pending = self._pending.get(key)
@@ -97,7 +103,7 @@ class NativePresentationHandoff:
             return
         pending.armed = True
         if not self._connect_render_gate():
-            QTimer.singleShot(0, self._complete_armed)
+            self._queue_armed_completion()
 
     def cancel(self, key: NativePresentationKey) -> None:
         self._pending.pop(key, None)
@@ -115,26 +121,34 @@ class NativePresentationHandoff:
         self._disconnect_render_gate()
         self._overlay_manager_provider = None
         self._completion_callback = None
+        self._timeout_callback = None
 
     def _expire(self, key: NativePresentationKey, serial: int) -> None:
         pending = self._pending.get(key)
         if pending is None or pending.serial != serial:
             return
-        self._complete(key)
+        self._complete(key, timed_out=True)
 
-    def _complete(self, key: NativePresentationKey) -> None:
+    def _complete(self, key: NativePresentationKey, *, timed_out: bool = False) -> None:
         if self._pending.pop(key, None) is None:
             return
         self._disconnect_render_gate_if_idle()
         if self._shutdown:
             return
-        callback = self._completion_callback
+        callback = self._timeout_callback if timed_out and self._timeout_callback else self._completion_callback
         if callback is not None:
             callback(key)
 
-    def _complete_armed(self) -> None:
-        for key, pending in list(self._pending.items()):
-            if pending.armed:
+    def _queue_armed_completion(self) -> None:
+        rendered = tuple(
+            (key, pending.serial) for key, pending in self._pending.items() if pending.armed
+        )
+        QTimer.singleShot(0, lambda: self._complete_rendered(rendered))
+
+    def _complete_rendered(self, rendered: tuple[tuple[NativePresentationKey, int], ...]) -> None:
+        for key, serial in rendered:
+            pending = self._pending.get(key)
+            if pending is not None and pending.serial == serial and pending.armed:
                 self._complete(key)
 
     def _render_gate_source_window(self) -> QObject | None:
@@ -168,7 +182,7 @@ class NativePresentationHandoff:
     def _on_render_gate_frame(self) -> None:
         # Never mutate host or overlay state inside the render callback.
         self._disconnect_render_gate()
-        QTimer.singleShot(0, self._complete_armed)
+        self._queue_armed_completion()
 
     def _disconnect_render_gate(self) -> None:
         window = self._render_gate_window

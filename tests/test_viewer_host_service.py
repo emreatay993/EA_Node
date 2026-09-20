@@ -678,6 +678,19 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.app.processEvents()
         self.host_service.set_embedded_interaction_active(node_id, False)
         self.app.processEvents()
+        self._complete_inline_exit(node_id)
+
+    def _complete_inline_exit(self, node_id: str) -> None:
+        # Tests using this helper need a completed exit, including the real
+        # source/render acknowledgement that now guards selection-driven exits.
+        self.host_service.sync()
+        handoff = self.host_service._native_presentation_handoff
+        source = self.host_service.embedded_preview_handoff_source(node_id)
+        if source:
+            self.host_service.notify_cached_preview_swapped(node_id, source)
+            handoff._on_render_gate_frame()
+            self.app.processEvents()
+            self.app.processEvents()
 
     def _close_viewer_session(self, *, node_id: str, session_id: str = "") -> None:
         resolved_session_id = session_id or f"session::{node_id}"
@@ -1179,7 +1192,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         first_widget = self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
         self.assertIsNotNone(first_widget)
         self.assertEqual(len(binder.bind_calls), 1)
-        self.assertNotIn(_SHOW_MESH_EDGES_PROPERTY, binder.bind_calls[-1]["options"])
+        self.assertFalse(binder.bind_calls[-1]["options"][_SHOW_MESH_EDGES_PROPERTY])
 
         self.assertTrue(
             self.bridge.sync_node_property_option(
@@ -1616,6 +1629,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id),
             live_widget,
         )
+        self._complete_inline_exit(node_id)
         self.assertEqual(self.host_service.retained_inline_viewer_node_id, node_id)
         self.assertEqual(binder.release_calls, [])
         cached, cached_size = provider.requestImage(source.split("image://viewer-preview-cache/", 1)[1], QSize())
@@ -1915,6 +1929,130 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertFalse(handoff.contains(key))
         self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "proxy")
         self.assertFalse(handoff.render_gate_connected)
+
+    def test_focus_and_selection_exits_keep_final_frame_until_render_ack(self) -> None:
+        node_id = self._open_live_embedded_viewer()
+        key = (self.workspace_id, node_id)
+        host = self.host_service
+        bound = host._bound_overlays[key]
+        binder, widget = bound.binder, bound.widget
+        old_source = ""
+        for exit_kind, color in (("focus", "red"), ("selection", "green"), ("focus", "blue")):
+            with self.subTest(exit_kind=exit_kind, color=color):
+                self.window.scene.select_node(node_id, False)
+                host.set_embedded_interaction_active(node_id, True)
+                self.app.processEvents()
+                binder.captured_preview_image.fill(QColor(color))
+                capture_count = len(binder.capture_preview_calls)
+                bind_count = len(binder.bind_calls)
+                with patch.object(host._native_presentation_handoff, "_connect_render_gate", return_value=True):
+                    if exit_kind == "focus":
+                        self.bridge.clear_viewer_focus()
+                    else:
+                        self.window.scene.clear_selection()
+                    host.sync()
+                    source = host.embedded_preview_handoff_source(node_id)
+                    self.assertTrue(source.startswith("image://viewer-preview-cache/"))
+                    self.assertNotEqual(source, old_source)
+                    host.sync()
+                    host.set_embedded_interaction_active(node_id, False)
+                    host.sync()
+                    self.assertTrue(widget.isVisible())
+                    self.assertEqual(host._bound_overlays[key].presentation, "overlay")
+                    self.assertEqual(len(binder.capture_preview_calls), capture_count + 1)
+                    self.assertEqual(len(binder.bind_calls), bind_count)
+                    self.assertEqual(host._preview_state.preview_image(key).pixelColor(0, 0), QColor(color))
+                    host.notify_cached_preview_swapped(node_id, old_source)
+                    self.assertFalse(host._native_presentation_handoff.is_armed(key))
+                    host.notify_cached_preview_swapped(node_id, source)
+                    self.assertTrue(widget.isVisible())
+                    host._native_presentation_handoff._on_render_gate_frame()
+                    self.app.processEvents()
+                    host.sync()
+                self.assertFalse(widget.isVisible())
+                self.assertEqual(host._bound_overlays[key].presentation, "retained_inline")
+                self.assertIs(host._bound_overlays[key].widget, widget)
+                self.assertEqual(binder.release_calls, [])
+                old_source = source
+
+    def test_reactivation_cancels_queued_exit_without_hiding_widget(self) -> None:
+        node_id = self._open_live_embedded_viewer()
+        key = (self.workspace_id, node_id)
+        host = self.host_service
+        widget = host._bound_overlays[key].widget
+        self.bridge.clear_viewer_focus()
+        host.sync()
+        source = host.embedded_preview_handoff_source(node_id)
+        with patch.object(host._native_presentation_handoff, "_connect_render_gate", return_value=True):
+            host.notify_cached_preview_swapped(node_id, source)
+            host._native_presentation_handoff._on_render_gate_frame()
+            host.set_embedded_interaction_active(node_id, True)
+            self.app.processEvents()
+            host.sync()
+        self.assertTrue(widget.isVisible())
+        self.assertIs(host._bound_overlays[key].widget, widget)
+        self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "full")
+        self.assertEqual(host.embedded_preview_handoff_source(node_id), "")
+
+    def test_queued_exit_cannot_demote_a_replaced_transport_before_host_sync(self) -> None:
+        node_id = self._open_live_embedded_viewer()
+        key = (self.workspace_id, node_id)
+        host = self.host_service
+        self.bridge.clear_viewer_focus()
+        host.sync()
+        handoff = host._native_presentation_handoff
+        with patch.object(handoff, "_connect_render_gate", return_value=True):
+            host.notify_cached_preview_swapped(node_id, host.embedded_preview_handoff_source(node_id))
+            handoff._on_render_gate_frame()
+        original = host._snapshot_for_key(key)
+        replacement = replace(original, transport_revision=original.transport_revision + 1)
+        with (
+            patch.object(host, "_snapshot_for_key", return_value=replacement),
+            patch.object(self.bridge, "set_embedded_interaction_active") as demote,
+        ):
+            self.app.processEvents()
+            demote.assert_not_called()
+        self.assertFalse(handoff.contains(key))
+
+    def test_capture_failure_and_timeout_do_not_reveal_an_old_preview(self) -> None:
+        node_id = self._open_live_embedded_viewer()
+        key = (self.workspace_id, node_id)
+        host = self.host_service
+        self._deactivate_inline(node_id)
+        self.assertTrue(host.cached_preview_source(node_id))
+        host.set_embedded_interaction_active(node_id, True)
+        self.app.processEvents()
+        with patch.object(host, "capture_overlay_preview_image", return_value=QImage()):
+            self.bridge.clear_viewer_focus()
+            host.sync()
+            self.assertEqual(host.cached_preview_source(node_id), "")
+            self.assertEqual(host.embedded_preview_handoff_source(node_id), "unavailable")
+            self.assertTrue(host._bound_overlays[key].widget.isVisible())
+            handoff = host._native_presentation_handoff
+            handoff._expire(key, handoff.pending_serial(key))
+            host.sync()
+        self.assertEqual(host.cached_preview_source(node_id), "")
+        self.assertFalse(host._bound_overlays[key].widget.isVisible())
+
+    def test_failed_preview_load_waits_for_unavailable_presentation(self) -> None:
+        node_id = self._open_live_embedded_viewer()
+        key = (self.workspace_id, node_id)
+        host = self.host_service
+        self.bridge.clear_viewer_focus()
+        host.sync()
+        source = host.embedded_preview_handoff_source(node_id)
+        host.notify_cached_preview_failed(node_id, "obsolete")
+        self.assertEqual(host.embedded_preview_handoff_source(node_id), source)
+        host.notify_cached_preview_failed(node_id, source)
+        self.assertEqual(host.cached_preview_source(node_id), "")
+        self.assertEqual(host.embedded_preview_handoff_source(node_id), "unavailable")
+        self.assertTrue(host._bound_overlays[key].widget.isVisible())
+        with patch.object(host._native_presentation_handoff, "_connect_render_gate", return_value=True):
+            host.notify_cached_preview_swapped(node_id, "unavailable")
+            host._native_presentation_handoff._on_render_gate_frame()
+            self.app.processEvents()
+            host.sync()
+        self.assertFalse(host._bound_overlays[key].widget.isVisible())
 
     def test_snapshot_from_projected_state_prefers_projected_camera_state_during_pending_transition(self) -> None:
         snapshot = self.host_service._snapshot_from_projected_state(
@@ -2666,8 +2804,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             self.app.sendEvent(self.window, QEvent(QEvent.Type.WindowDeactivate))
             self.app.processEvents()
         unowned.deleteLater()
-        self.host_service._native_presentation_handoff.flush()
-        self.app.processEvents()
+        self._complete_inline_exit(node_id)
 
         self.assertEqual(len(binder.capture_calls), 1)
         self.assertEqual(len(self.window.execution_client.update_calls), update_count + 1)

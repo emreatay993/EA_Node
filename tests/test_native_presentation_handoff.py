@@ -110,6 +110,46 @@ def test_stale_timeout_serial_cannot_complete_newer_pending_handoff() -> None:
     assert completed == [key]
 
 
+def test_queued_render_completion_cannot_complete_a_newer_armed_swap() -> None:
+    app = QCoreApplication.instance() or QCoreApplication([])
+    window = _RenderWindow()
+    manager = _OverlayManager(window)
+    completed = []
+    handoff = NativePresentationHandoff(
+        overlay_manager_provider=lambda: manager,
+        completion_callback=completed.append,
+        timeout_ms=10_000,
+    )
+    key = ("workspace", "node")
+    handoff.begin(key, expected_source="first")
+    handoff.notify_preview_swapped(key, "first")
+    window.afterRendering.emit()
+    handoff.cancel(key)
+    handoff.begin(key, expected_source="second")
+    handoff.notify_preview_swapped(key, "second")
+    app.processEvents()
+    assert completed == []
+    assert handoff.expected_source(key) == "second"
+    window.afterRendering.emit()
+    app.processEvents()
+    assert completed == [key]
+
+
+def test_timeout_uses_recovery_instead_of_claiming_a_rendered_preview() -> None:
+    completed, expired = [], []
+    handoff = NativePresentationHandoff(
+        overlay_manager_provider=lambda: None,
+        completion_callback=completed.append,
+        timeout_callback=expired.append,
+        timeout_ms=10_000,
+    )
+    key = ("workspace", "node")
+    handoff.begin(key, expected_source="current")
+    handoff._expire(key, handoff.pending_serial(key))
+    assert completed == []
+    assert expired == [key]
+
+
 def test_real_qt_timeout_completes_separate_viewer_and_plot_host_outcomes() -> None:
     app = QCoreApplication.instance() or QCoreApplication([])
     viewer_outcomes: list[tuple[str, tuple[str, str]]] = []

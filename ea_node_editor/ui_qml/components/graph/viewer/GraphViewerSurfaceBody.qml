@@ -273,6 +273,13 @@ Item {
             ? Number(viewerHostServiceRef.active_overlay_count)
             : 0)
     readonly property bool liveOverlayReady: liveSurfaceActive && _embeddedLiveOverlayReady()
+    readonly property string previewHandoffSource: {
+        var revision = surface.hostOverlayRevision;
+        return revision >= 0 && surface.viewerHostServiceRef
+                && surface.viewerHostServiceRef.embedded_preview_handoff_source
+            ? String(surface.viewerHostServiceRef.embedded_preview_handoff_source(surface.viewerNodeId) || "")
+            : "";
+    }
     readonly property int previewCacheRevision: viewerHostServiceRef !== null
         && viewerHostServiceRef.preview_cache_revision !== undefined
         ? Number(viewerHostServiceRef.preview_cache_revision)
@@ -288,7 +295,7 @@ Item {
     readonly property string viewerStalePreviewTitle:
         "Preview is out of date - double-click to activate the 3D view."
     readonly property bool cachedPreviewVisible: !contentFullscreenOpen
-        && !liveOverlayReady
+        && (!liveOverlayReady || previewHandoffSource.length > 0)
         && cachedPreviewSource.length > 0
         && !viewerRunRequired
         && (viewerSessionOpen || viewerSessionBusy)
@@ -320,7 +327,8 @@ Item {
             && surface.viewerLiveOpenStatus === "ready";
     }
     readonly property bool viewerShowsPlaceholder: !surface.cachedPreviewVisible
-        && (!surface.viewerSessionOpen || surface.proxySurfaceActive || surface.viewerRunRequired)
+        && (!surface.viewerSessionOpen || surface.proxySurfaceActive || surface.viewerRunRequired
+            || surface.previewHandoffSource === "unavailable")
     readonly property string viewerSessionIconName: {
         if (surface.viewerPhase === "opening")
             return "open-session";
@@ -532,6 +540,7 @@ Item {
     }
     onCachedPreviewSourceChanged: _queueCachedPreviewImageRefresh()
     onCachedPreviewVisibleChanged: _queueCachedPreviewImageRefresh()
+    onPreviewHandoffSourceChanged: _queueCachedPreviewImageRefresh()
     onContentFullscreenOpenChanged: {
         if (surface.contentFullscreenOpen)
             _clearCachedPreviewImage();
@@ -792,18 +801,41 @@ Item {
         var nextSource = surface._retainableCachedPreviewSource();
         if (!nextSource.length) {
             surface._cachedPreviewImageSource = "";
+            Qt.callLater(surface._confirmCachedPreviewReady);
             return;
         }
-        if (surface._cachedPreviewImageSource === nextSource)
+        if (surface._cachedPreviewImageSource === nextSource) {
+            Qt.callLater(surface._confirmCachedPreviewReady);
             return;
+        }
         Qt.callLater(function() {
             if (surface._cachedPreviewImageSerial !== serial)
                 return;
             if (surface._retainableCachedPreviewSource() !== nextSource)
                 return;
             surface._cachedPreviewImageSource = nextSource;
-            surface._notifyCachedPreviewSwapped(nextSource);
+            surface._confirmCachedPreviewReady();
         });
+    }
+
+    function _confirmCachedPreviewReady() {
+        if (!surface.visible || surface.contentFullscreenOpen)
+            return;
+        if (surface.previewHandoffSource === "unavailable") {
+            if (surface.viewerShowsPlaceholder && !surface._cachedPreviewImageSource.length)
+                surface._notifyCachedPreviewSwapped("unavailable");
+            return;
+        }
+        var source = String(cachedPreviewImage.source || "");
+        if (!surface.cachedPreviewVisible || !cachedPreviewImage.visible
+                || source !== surface.cachedPreviewSource || !source.length)
+            return;
+        if (cachedPreviewImage.status === Image.Ready)
+            surface._notifyCachedPreviewSwapped(source);
+        else if (cachedPreviewImage.status === Image.Error
+                && surface.viewerHostServiceRef
+                && surface.viewerHostServiceRef.notify_cached_preview_failed)
+            surface.viewerHostServiceRef.notify_cached_preview_failed(surface.viewerNodeId, source);
     }
 
     function _notifyCachedPreviewSwapped(source) {
@@ -1084,7 +1116,7 @@ Item {
                 Rectangle {
                     id: proxyPane
                     objectName: "graphNodeViewerProxyPane"
-                    visible: surface.proxySurfaceActive
+                    visible: surface.proxySurfaceActive || surface.previewHandoffSource.length > 0
                     anchors.fill: viewportFrame
                     radius: viewportFrame.radius
                     color: host ? Qt.alpha(host.surfaceColor, 0.16) : "#22304a"
@@ -1105,6 +1137,8 @@ Item {
                             && String(source).length > 0
                         anchors.fill: parent
                         source: surface._cachedPreviewImageSource
+                        onStatusChanged: Qt.callLater(surface._confirmCachedPreviewReady)
+                        onVisibleChanged: Qt.callLater(surface._confirmCachedPreviewReady)
                         fillMode: Image.PreserveAspectCrop
                         clip: true
                         asynchronous: false
@@ -1182,7 +1216,7 @@ Item {
 
                 Rectangle {
                     objectName: "graphNodeViewerLivePane"
-                    visible: surface.liveSurfaceActive
+                    visible: surface.liveSurfaceActive && !surface.previewHandoffSource.length
                     anchors.fill: viewportFrame
                     radius: viewportFrame.radius
                     color: host ? Qt.alpha(host.selectedOutlineColor, 0.08) : "#11243d"
@@ -1224,9 +1258,9 @@ Item {
                                 : (surface.viewerRunRequired || surface.viewerPhase === "invalidated"
                                     ? surface.viewerStatusLabel
                                     : (surface.viewerSessionOpen
-                                        ? (surface.inlineLiveRequested
+                                        ? (surface.inlineLiveRequested && surface.previewHandoffSource !== "unavailable"
                                             ? "Activating 3D view"
-                                            : "Double-click to activate 3D view")
+                                            : "Preview unavailable\nDouble-click to activate 3D view")
                                         : "Open session to view"))
                             color: (
                                 surface.viewerRunRequired
