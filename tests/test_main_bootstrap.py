@@ -301,6 +301,19 @@ class AppBootstrapTests(unittest.TestCase):
         build_registry_mock.assert_called_once_with(preferences_document=preferences_document)
         self.assertEqual(captured, [sentinel_registry])
 
+    def test_opening_splash_displays_launch_build_identity(self) -> None:
+        from ea_node_editor.common.build_info import BuildInfo
+
+        info = BuildInfo(commit="a" * 40, revision=1234, dirty=True)
+        with patch.object(opening_screen_module, "get_build_info", return_value=info):
+            splash = opening_screen_module.OpeningSplash()
+        try:
+            self.assertEqual(splash._version, info.label)
+            self.assertIn(info.build_id, splash.accessibleName())
+            self.assertIn("dirty", splash.accessibleName())
+        finally:
+            splash.close()
+
     def test_opening_splash_boot_completion_stops_before_ready_label(self) -> None:
         self.assertEqual(
             len(opening_screen_module.BOOT_STEP_DETAILS),

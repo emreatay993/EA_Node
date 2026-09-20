@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import sys
 from pathlib import Path, PurePosixPath
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
@@ -11,6 +12,8 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy
 
 _SPEC_PATH = Path(globals().get("__file__", Path.cwd() / "ea_node_editor.spec")).resolve()
 PROJECT_ROOT = _SPEC_PATH.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+from ea_node_editor.common.build_info import write_build_info
 PACKAGE_PROFILE_ENV_VAR = "EA_NODE_EDITOR_PACKAGE_PROFILE"
 PACKAGE_APP_NAME = "COREX_Node_Editor"
 BASE_PACKAGE_PROFILE = "base"
@@ -438,7 +441,10 @@ hiddenimports += _collect_qt_multimedia_hiddenimports(require=True)
 imageio_ffmpeg_hiddenimports, imageio_ffmpeg_datas = _collect_imageio_ffmpeg_payload(require=True)
 hiddenimports += imageio_ffmpeg_hiddenimports
 
-datas = []
+build_info_path = write_build_info(
+    PROJECT_ROOT, Path(WORKPATH) / "build_info.json", _package_profile()
+)
+datas = [(str(build_info_path), "ea_node_editor")]
 datas += copy_metadata("paramiko")
 datas += copy_metadata("xy")
 datas += collect_data_files("xy", includes=["_native_lib/*", "static/index.js"])

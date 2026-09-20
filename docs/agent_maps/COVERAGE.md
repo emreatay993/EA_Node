@@ -85,6 +85,7 @@ Settings-section size transitions use shared 180 ms width/height animations with
   independent presentation animation are owned by `ui/splash/opening_screen.py`.
   The [splash route](feature_routes/shell_startup_qml_context_splash.md) owns startup
   contract tests and the deterministic native preview command; app handoff timing remains unchanged.
+- Splash source/build provenance is shared through `common/build_info.py`; the packaging map covers the embedded JSON stamp and `scripts/resolve_build_id.py`, with behavioral checks in `tests/test_build_info.py`.
 - Imported project artifacts carry Path runtime descriptors. Staging remains in `ProjectFilesService`; authored-property admission and integrity checks remain in `RuntimeArtifactService`; Panel preserves admitted carriers through its existing execution helper. The project-files, execution, surface-input, and clipboard maps cover this handoff and its real-process tests.
 - Shared external canvas imports are owned by `ui/shell/controllers/canvas_import_controller.py`, with MIME/choice construction in `ui/shell/clipboard_paste_nodes.py`, the native chooser/capture in `ui/shell/`, and one graph-scene batch in `ui_qml/graph_scene_mutation/node_creation_batch.py`. The clipboard/history route covers import behaviour; the graphics route covers the shared Automatic/Ask app preference and its two controls.
 - Port-row sizing reserves editor height only for a nonempty `inline_editor`; stored input defaults alone do not create extra vertical space.

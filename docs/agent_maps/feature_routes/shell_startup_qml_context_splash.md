@@ -23,6 +23,7 @@ Use this for startup handoff, QML context bootstrap, shell root loading, splash 
 
 ## Native Splash Rendering
 
+- The muted lower-right label comes from `ea_node_editor/common/build_info.py`: source/bootstrap launches capture the current checkout once per process; frozen apps read their embedded stamp without Git. `tests/test_build_info.py` covers provenance and `scripts/resolve_build_id.py` maps a reported code back to local history.
 - `OpeningSplash` owns the dark blue surface, original circular-node emblem, and a 15% emblem-only scale increase; text and progress anchors remain fixed.
 - Its presentation timer drives only entrance/core motion. Boot state and app handoff remain on their existing independent path.
 - `scripts/render_splash_preview.py` captures entrance, waiting, workspace-building, and Ready states at explicit device-pixel ratios and checks handoff.

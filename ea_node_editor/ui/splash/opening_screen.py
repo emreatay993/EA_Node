@@ -12,6 +12,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QApplication, QWidget
 
+from ea_node_editor.common.build_info import get_build_info
 
 SPLASH_W = 720
 SPLASH_H = 440
@@ -52,7 +53,7 @@ class OpeningSplash(QWidget):
     def __init__(
         self,
         *,
-        version: str = "v0.9.3",
+        version: str | None = None,
         mark_size: float = MARK_SIZE,
         breathe_ms: int = BREATHE_MS,
         parent: QWidget | None = None,
@@ -61,7 +62,7 @@ class OpeningSplash(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setFixedSize(QSize(SPLASH_W, SPLASH_H))
-        self._version = str(version)
+        self._version = get_build_info().label if version is None else str(version)
         self._mark_size = float(mark_size)
         self._breathe_ms = max(1, int(breathe_ms))
         self.setAccessibleName(f"COREX Node Editor {self._version}")
@@ -329,7 +330,7 @@ class OpeningSplash(QWidget):
 
         tag_font = QFont("Cascadia Mono", -1, QFont.Weight.Normal)
         tag_font.setPixelSize(11)
-        tag_width = QFontMetricsF(tag_font).horizontalAdvance("COREX")
+        tag_width = QFontMetricsF(tag_font).horizontalAdvance(self._version)
         label_font = QFont("Segoe UI", -1, QFont.Weight.Normal)
         label_font.setPixelSize(11)
         metrics = QFontMetricsF(label_font)
@@ -340,7 +341,8 @@ class OpeningSplash(QWidget):
         p.setPen(QColor("#BDD0ED"))
         p.drawText(QPointF(margin, baseline), label)
         p.setFont(tag_font)
-        p.drawText(QPointF(SPLASH_W - margin - tag_width, baseline), "COREX")
+        p.setPen(QColor("#8FA9CB"))
+        p.drawText(QPointF(SPLASH_W - margin - tag_width, baseline), self._version)
 
         p.fillRect(QRectF(margin, bar_y, width, 3), QColor(168, 205, 255, 34))
         progress = self._step_index / (len(BOOT_STEPS) - 1)
