@@ -352,9 +352,7 @@ Item {
     }
     readonly property color viewerViewportBorderColor: surface.host
         ? Qt.alpha(
-            surface.proxySurfaceActive
-                ? surface.host.outlineColor
-                : (surface.liveSurfaceActive ? surface.host.selectedOutlineColor : surface.viewerAccentColor),
+            surface.hostSelected ? surface.host.selectedOutlineColor : surface.host.outlineColor,
             0.4
         )
         : Qt.alpha(surface.viewerAccentColor, 0.4)
@@ -1044,7 +1042,7 @@ Item {
                         border.width: 1
                         border.color: Qt.alpha(surface.viewerAccentColor, 0.46)
                         height: modeLabel.implicitHeight + 6
-                        width: modeLabel.implicitWidth + 12
+                        width: Math.max(modeLabel.implicitWidth, previewBadgeWidthReference.implicitWidth) + 12
 
                         Text {
                             id: modeLabel
@@ -1056,6 +1054,13 @@ Item {
                             font.bold: true
                             renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                         }
+
+                        Text {
+                            id: previewBadgeWidthReference
+                            visible: false
+                            text: "Preview"
+                            font: modeLabel.font
+                        }
                     }
                 }
             }
@@ -1066,14 +1071,26 @@ Item {
                 height: Math.max(60, bodyFrame.height - statusStrip.height)
 
                 Rectangle {
-                    id: viewportFrame
-                    objectName: "graphNodeViewerViewport"
+                    id: viewportOutline
+                    objectName: "graphNodeViewerViewportOutline"
                     anchors.fill: parent
                     anchors.margins: 8
                     radius: 6
                     color: host ? Qt.alpha(host.surfaceColor, 0.12) : "#101724"
-                    border.width: surface.viewerShowsPlaceholder ? 0 : 1
+                    border.width: 1
                     border.color: surface.viewerViewportBorderColor
+                }
+
+                Rectangle {
+                    id: viewportFrame
+                    objectName: "graphNodeViewerViewport"
+                    anchors.fill: parent
+                    // Keep the shared rounded frame outside both native and
+                    // raster content, including its curved corners.
+                    anchors.margins: 8 + viewportOutline.radius
+                    radius: 0
+                    color: "transparent"
+                    border.width: 0
                     clip: true
 
                     TapHandler {
@@ -1152,15 +1169,6 @@ Item {
                     }
 
                     Rectangle {
-                        objectName: "graphNodeViewerProxyPaneBorder"
-                        anchors.fill: parent
-                        radius: parent.radius
-                        color: "transparent"
-                        border.width: 1
-                        border.color: host ? Qt.alpha(host.scopeBadgeBorderColor, 0.7) : "#4c7bc0"
-                    }
-
-                    Rectangle {
                         id: stalePreviewBadge
                         objectName: "graphNodeViewerStalePreviewBadge"
                         visible: surface.cachedPreviewVisible && surface.cachedPreviewStale
@@ -1212,16 +1220,6 @@ Item {
                             Accessible.name: text
                         }
                     }
-                }
-
-                Rectangle {
-                    objectName: "graphNodeViewerLivePane"
-                    visible: surface.liveSurfaceActive && !surface.previewHandoffSource.length
-                    anchors.fill: viewportFrame
-                    radius: viewportFrame.radius
-                    color: host ? Qt.alpha(host.selectedOutlineColor, 0.08) : "#11243d"
-                    border.width: 1
-                    border.color: host ? Qt.alpha(host.selectedOutlineColor, 0.76) : "#5da9ff"
                 }
 
                 Item {

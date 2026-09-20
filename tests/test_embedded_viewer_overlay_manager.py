@@ -5,8 +5,9 @@ import unittest
 from typing import Any
 from unittest.mock import patch
 
+from PyQt6 import sip
 from PyQt6.QtCore import QEvent, QObject, QPointF, QRectF, Qt
-from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtGui import QMouseEvent, QWindow
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QWidget
 
@@ -410,6 +411,142 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self.assertTrue(container.isVisible())
         self._assert_rect_close(container, node_id, delta=2.0)
         self.assertEqual(widget.geometry(), container.rect())
+
+    def test_native_reveal_runs_at_final_geometry_before_publishing_readiness(self) -> None:
+        node_id = self._add_viewer_node()
+        events = []
+        def prepare(key, widget, size):
+            self.assertFalse(widget.isVisible())
+            self.assertEqual(widget.windowHandle().geometry(), widget.geometry())
+            self.assertEqual(widget.parentWidget().windowHandle().geometry(), widget.parentWidget().geometry())
+            events.append("prepare")
+            return True
+        def reveal(key, widget):
+            self.assertTrue(widget.isVisible())
+            self.assertFalse(self.manager.overlay_geometry_ready(node_id, workspace_id=self.workspace_id))
+            self._assert_rect_matches_item(widget.parentWidget(), self._graph_viewer_viewport(node_id))
+            events.append("reveal")
+            return True
+        widget = self._activate_overlay(node_id)
+        # Independent window geometry models Qt's deferred hidden HWND update
+        # without requiring native child-window support from the offscreen QPA.
+        native_widget, native_container = QWindow(), QWindow()
+        with (
+            patch.object(widget, "windowHandle", return_value=native_widget),
+            patch.object(widget.parentWidget(), "windowHandle", return_value=native_container),
+        ):
+            self.manager.set_native_presentation_handler("default", prepare, reveal=reveal)
+            self.manager.sync()
+            self.assertEqual(events, ["prepare", "reveal"])
+            self.manager.sync()
+            self.assertEqual(events, ["prepare", "reveal"])
+            self.window.view.pan_by(20, 10)
+            self.app.processEvents()
+            self.manager.sync()
+            self.assertEqual(events, ["prepare", "reveal", "prepare", "reveal"])
+
+    def test_navigation_restarting_during_reveal_keeps_native_view_unready(self) -> None:
+        node_id = self._add_viewer_node()
+        key = (self.workspace_id, node_id)
+        def reveal(key, widget):
+            self.manager.set_navigation_hold(key, True)
+            return True
+        self.manager.set_native_presentation_handler("default", lambda *_args: True, reveal=reveal)
+        widget = _FakeOverlayWidget()
+        widget.setProperty("ea.nativeWindowOverlay", True)
+        self._activate_overlay(node_id, widget=widget)
+        wait_for_condition_or_raise(lambda: self.manager._overlay_records[key].navigation_hold, app=self.app)
+        self.assertFalse(widget.isVisible())
+        self.assertFalse(self.manager.overlay_geometry_ready(node_id, workspace_id=self.workspace_id))
+        self.assertIsNone(self.manager._overlay_records[key].prepared_geometry)
+
+    def test_stale_canvas_frame_cannot_reveal_a_new_preparation(self) -> None:
+        node_id = self._add_viewer_node()
+        key = (self.workspace_id, node_id)
+        self.manager.set_native_presentation_handler("default", lambda *_args: True)
+        widget = _FakeOverlayWidget()
+        widget.setProperty("ea.nativeWindowOverlay", True)
+        handoff = self.manager._native_reveal_handoff
+        self._activate_overlay(node_id, widget=widget)
+        self.assertTrue(widget.isVisible())
+        with patch.object(handoff, "_connect_render_gate", return_value=True):
+            self.window.view.pan_by(5, 0)
+            self.manager.sync()
+            self.assertFalse(widget.isVisible())
+            self.assertTrue(handoff.contains(key))
+            old_serial = handoff.pending_serial(key)
+            handoff._on_render_gate_frame()
+            self.window.view.set_zoom(0.8)
+            self.manager.sync()
+            self.assertGreater(handoff.pending_serial(key), old_serial)
+            self.app.processEvents()
+            self.assertFalse(widget.isVisible())
+            handoff._on_render_gate_frame()
+            self.app.processEvents()
+            self.manager.sync()
+            self.assertTrue(widget.isVisible())
+            self._assert_rect_matches_item(widget.parentWidget(), self._graph_viewer_viewport(node_id))
+
+    def test_widget_deleted_during_native_callback_is_rejected_safely(self) -> None:
+        for phase in ("prepare", "reveal"):
+            with self.subTest(phase=phase):
+                node_id = self._add_viewer_node()
+                def prepare(key, widget, size):
+                    if phase == "prepare":
+                        sip.delete(widget)
+                    return True
+                def reveal(key, widget):
+                    sip.delete(widget)
+                    return True
+                self.manager.set_native_presentation_handler("default", prepare, reveal=reveal)
+                self._activate_overlay(node_id)
+                self.manager.sync()
+                self.assertFalse(self.manager.overlay_geometry_ready(node_id, workspace_id=self.workspace_id))
+                self.assertIsNone(self.manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+                self.assertFalse(self.manager.overlay_container(node_id, workspace_id=self.workspace_id).isVisible())
+
+    def test_prepared_viewer_clips_pixels_without_resizing_render_target(self) -> None:
+        node_id = self._add_viewer_node()
+        prepared = []
+        self.manager.set_native_presentation_handler(
+            "default", lambda key, widget, size: prepared.append(size) or True
+        )
+        widget = self._activate_overlay(node_id)
+        container = self.manager.overlay_container(node_id, workspace_id=self.workspace_id)
+        initial_size = widget.size()
+        canvas = self._graph_canvas_quick_item()
+        self.window.view.pan_by(canvas.width() / 2, 0)
+        self.app.processEvents()
+        self.manager.sync()
+        self.assertTrue(self.manager.overlay_geometry_ready(node_id, workspace_id=self.workspace_id))
+        self.assertEqual(widget.size(), initial_size)
+        self._assert_rect_matches_item(container, self._graph_viewer_viewport(node_id))
+        self.assertLess(container.mask().boundingRect().width(), container.width())
+        self.assertGreater(container.mask().boundingRect().width(), 0)
+        snapshot, = self.manager.export_overlay_snapshots()
+        self.assertLess(snapshot.rect.x(), 0)
+        self.assertEqual(snapshot.rect.size().toSize(), initial_size)
+        self.assertEqual(prepared[-1], initial_size)
+
+    def test_superseded_native_preparation_stays_hidden_until_latest_geometry_prepared(self) -> None:
+        node_id = self._add_viewer_node()
+        widget = self._activate_overlay(node_id)
+        prepared = []
+        def prepare(key, target, size):
+            self.assertFalse(target.isVisible())
+            prepared.append(size)
+            if len(prepared) == 1:
+                self.window.view.set_zoom(0.8)
+            return True
+        self.manager.set_native_presentation_handler("default", prepare)
+        self.manager.sync()
+        self.assertFalse(widget.isVisible())
+        self.assertFalse(self.manager.overlay_geometry_ready(node_id, workspace_id=self.workspace_id))
+        self.manager.sync()
+        self.assertTrue(widget.isVisible())
+        self.assertEqual(len(prepared), 2)
+        self.assertLess(prepared[1].width(), prepared[0].width())
+        self.assertTrue(self.manager.overlay_geometry_ready(node_id, workspace_id=self.workspace_id))
 
     def test_live_overlay_geometry_tracks_rendered_node_position_changes(self) -> None:
         node_id = self._add_viewer_node()

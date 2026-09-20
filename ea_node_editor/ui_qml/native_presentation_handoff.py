@@ -1,4 +1,4 @@
-# Purpose: Own the renderer-neutral cached-preview handoff state shared by native viewer and plot hosts.
+# Purpose: Gate native presentation changes on painted QML previews and canvas geometry.
 # Map: subsystems/viewer_surfaces.md
 # Tests: tests/test_native_presentation_handoff.py
 from __future__ import annotations
@@ -21,14 +21,14 @@ class _PendingPreviewSwap:
 
 
 class NativePresentationHandoff:
-    """Gate native-overlay demotion until the replacement preview is rendered."""
+    """Gate native presentation changes until the supporting QML frame is painted."""
 
     def __init__(
         self,
         *,
         overlay_manager_provider: Callable[[], Any],
         completion_callback: Callable[[NativePresentationKey], None],
-        timeout_ms: int,
+        timeout_ms: int | None,
         timeout_callback: Callable[[NativePresentationKey], None] | None = None,
     ) -> None:
         self._overlay_manager_provider: Callable[[], Any] | None = (
@@ -37,7 +37,7 @@ class NativePresentationHandoff:
         self._completion_callback: Callable[[NativePresentationKey], None] | None = (
             completion_callback
         )
-        self._timeout_ms = max(0, int(timeout_ms))
+        self._timeout_ms = None if timeout_ms is None else max(0, int(timeout_ms))
         self._timeout_callback = timeout_callback
         self._pending: dict[NativePresentationKey, _PendingPreviewSwap] = {}
         self._serial = 0
@@ -83,11 +83,17 @@ class NativePresentationHandoff:
             expected_source=normalized_source,
             serial=serial,
         )
-        QTimer.singleShot(
-            self._timeout_ms,
-            lambda key=key, serial=serial: self._expire(key, serial),
-        )
+        if self._timeout_ms is not None:
+            QTimer.singleShot(
+                self._timeout_ms,
+                lambda key=key, serial=serial: self._expire(key, serial),
+            )
         return True
+
+    def wait_for_render(self, key: NativePresentationKey) -> None:
+        """Wait for canvas geometry to paint when its preview source is unchanged."""
+        if self.begin(key, expected_source="canvas-geometry"):
+            self.notify_preview_swapped(key, "canvas-geometry")
 
     def notify_preview_swapped(
         self,

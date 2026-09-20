@@ -451,6 +451,27 @@ def test_compositor_draws_overlay_at_scaled_canvas_rect(tmp_path) -> None:  # no
     assert QColor(result.pixel(5, 5)).name() == "#ffffff"
 
 
+def test_compositor_clips_full_viewer_extent_without_squeezing_image(tmp_path) -> None:  # noqa: ANN001
+    base_path = tmp_path / "base.png"
+    output_path = tmp_path / "out.png"
+    _solid_png(base_path, 100, 100, "#ffffff")
+    overlay = QImage(100, 20, QImage.Format.Format_RGB32)
+    overlay.fill(QColor("red"))
+    for x in range(50, 100):
+        for y in range(20):
+            overlay.setPixelColor(x, y, QColor("blue"))
+    composite_canvas_view_png(
+        base_png_path=base_path, output_png_path=output_path,
+        canvas_logical_width=100, canvas_logical_height=100,
+        overlay_snapshots=[SimpleNamespace(rect=QRectF(-50, 20, 100, 20))],
+        capture_overlay_image=lambda _snapshot: overlay,
+    )
+    result = QImage(str(output_path))
+    assert result.pixelColor(0, 25) == QColor("blue")
+    assert result.pixelColor(49, 25) == QColor("blue")
+    assert result.pixelColor(50, 25) == QColor("white")
+
+
 def test_compositor_crops_after_overlay_composite(tmp_path) -> None:  # noqa: ANN001
     base_path = tmp_path / "base.png"
     overlay_path = tmp_path / "overlay.png"

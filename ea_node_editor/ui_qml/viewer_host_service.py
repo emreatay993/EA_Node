@@ -489,6 +489,8 @@ class ViewerHostService(QObject):
     state_changed = pyqtSignal()
     last_error_changed = pyqtSignal()
     preview_cache_changed = pyqtSignal()
+    canvas_navigation_ready = pyqtSignal()
+    canvas_navigation_cancelled = pyqtSignal()
 
     def __init__(
         self,
@@ -523,6 +525,7 @@ class ViewerHostService(QObject):
         self._fullscreen_hold_key: _OverlayKey | None = None
         self._embedded_interaction_active: set[_OverlayKey] = set()
         self._transient_preview_handoffs: dict[_OverlayKey, bool] = {}
+        self._navigation_preview_keys: set[_OverlayKey] = set()
         self._native_presentation_handoff = NativePresentationHandoff(
             overlay_manager_provider=lambda: self._overlay_manager,
             completion_callback=self._complete_embedded_exit_demotion,
@@ -563,6 +566,10 @@ class ViewerHostService(QObject):
         if overlay_manager is not None:
             overlay_manager.set_native_suppression_handler(
                 VIEWER_SESSION_OVERLAY_OWNER, self._prepare_native_suppression
+            )
+            overlay_manager.set_native_presentation_handler(
+                VIEWER_SESSION_OVERLAY_OWNER, self._prepare_native_presentation,
+                reveal=self._present_native_viewport,
             )
         self._schedule_sync()
 
@@ -608,10 +615,18 @@ class ViewerHostService(QObject):
         key = self._key_for_node_id(node_id)
         if key is None:
             return
+        reactivating_navigation = bool(active) and key in self._navigation_preview_keys
+        if reactivating_navigation and key in self._embedded_interaction_active:
+            # Navigation already owns a transition for this active viewer.
+            # A duplicate activation must not strand its queued viewport state.
+            return
         changed = False
         demotion_deferred = False
         # A real interaction-mode change supersedes a temporary gesture hold.
-        self._transient_preview_handoffs.pop(key, None)
+        if reactivating_navigation:
+            self._transient_preview_handoffs[key] = False
+        else:
+            self._transient_preview_handoffs.pop(key, None)
         if bool(active):
             self._native_presentation_handoff.cancel(key)
             self._remember_inline_retention_identity(key)
@@ -637,6 +652,10 @@ class ViewerHostService(QObject):
                     bridge_setter(key[1], bool(active), {"workspace_id": key[0]})
                 except TypeError:
                     bridge_setter(key[1], bool(active))
+        if reactivating_navigation and not self._capture_embedded_exit_state(key):
+            self._transient_preview_handoffs[key] = True
+            self._sync_overlay_manager_now()
+            self._finish_canvas_navigation()
         if changed:
             self._schedule_sync()
 
@@ -704,6 +723,108 @@ class ViewerHostService(QObject):
         self._transient_preview_handoffs[key] = not deferred
         return not deferred
 
+    def prepare_canvas_navigation(self) -> bool:
+        """Hold view-state publication until old-rectangle native content is hidden."""
+        if self._shutdown or self._overlay_manager is None:
+            return True
+        if self._navigation_preview_keys:
+            if all(self._inline_exit_can_wait(key) for key in self._navigation_preview_keys):
+                return False
+            self._cancel_canvas_navigation()
+        candidates = self._embedded_interaction_active | {
+            key for key in self._bound_overlays if self._native_presentation_handoff.contains(key)
+        }
+        keys = [key for key in candidates
+                if self._inline_exit_can_wait(key) and self._embedded_exit_overlay_visible(key)]
+        for key in keys:
+            self._navigation_preview_keys.add(key)
+            self._overlay_manager.set_navigation_hold(key, True)
+            self._prepare_native_suppression(key, True)
+        if not keys:
+            return True
+        if any(self._native_presentation_handoff.contains(key) for key in keys):
+            return False
+        self._sync_overlay_manager_now()
+        self._navigation_preview_keys.clear()
+        for key in keys:
+            self._overlay_manager.set_navigation_hold(key, False)
+        return True
+
+    def _finish_canvas_navigation(self) -> None:
+        keys = tuple(self._navigation_preview_keys)
+        if not keys or any(self._native_presentation_handoff.contains(key) for key in keys):
+            return
+        self._navigation_preview_keys.clear()
+        self.canvas_navigation_ready.emit()
+        if self._overlay_manager is not None:
+            for key in keys:
+                self._overlay_manager.set_navigation_hold(key, False)
+
+    def _cancel_canvas_navigation(self) -> None:
+        keys = tuple(self._navigation_preview_keys)
+        self._navigation_preview_keys.clear()
+        for key in keys:
+            self._native_presentation_handoff.cancel(key)
+            self._transient_preview_handoffs.pop(key, None)
+            if self._overlay_manager is not None:
+                self._overlay_manager.set_navigation_hold(key, False)
+        if keys:
+            self.canvas_navigation_cancelled.emit()
+
+    def _set_binder_presentation(
+        self, key: _OverlayKey, binder: ViewerWidgetBinder, widget: QWidget, presentation: str
+    ) -> None:
+        setter = getattr(binder, "set_presentation_mode", None)
+        if callable(setter):
+            mode = "fullscreen" if self._content_fullscreen_key() == key else (
+                "detached" if presentation == _PRESENTATION_DETACHED else "inline"
+            )
+            if setter(widget, mode) and self._overlay_manager is not None:
+                self._overlay_manager.invalidate_native_presentation(key)
+
+    def _prepare_native_presentation(self, key: _OverlayKey, widget: QWidget, size: QSize) -> bool:
+        bound = self._bound_overlays.get(key)
+        current = self._snapshot_for_key(key)
+        if (
+            self._shutdown or bound is None or bound.widget is not widget
+            or current is None or not self._snapshot_ready_for_live_widget(current)
+            or bound.signature != self._binding_signature(current)
+            or bound.presentation != _PRESENTATION_OVERLAY
+        ):
+            return False
+        self._set_binder_presentation(key, bound.binder, widget, bound.presentation)
+        prepare = getattr(bound.binder, "prepare_viewport", None)
+        if callable(prepare):
+            try:
+                return bool(prepare(widget, size))
+            except ViewerWidgetNoBind as exc:
+                if bool(getattr(exc, "retry_when_ready", False)):
+                    self._schedule_sync()
+                else:
+                    self._set_last_error(str(exc))
+                return False
+            except Exception as exc:  # noqa: BLE001
+                self._set_last_error(str(exc))
+                return False
+        return True
+
+    def _present_native_viewport(self, key: _OverlayKey, widget: QWidget) -> bool:
+        bound = self._bound_overlays.get(key)
+        if self._shutdown or bound is None or bound.widget is not widget:
+            return False
+        present = getattr(bound.binder, "present_viewport", None) if bound is not None else None
+        try:
+            if callable(present) and not present(widget):
+                return False
+        except Exception as exc:  # noqa: BLE001
+            self._set_last_error(str(exc))
+            return False
+        # The manager publishes geometry readiness after this callback returns.
+        # Notify QML on the queued host sync, including delayed canvas reveals.
+        self._bump_viewer_overlay_revision()
+        self._schedule_sync()
+        return True
+
     def _capture_embedded_exit_state(self, key: _OverlayKey) -> bool:
         """Capture the live frame and report whether demotion was deferred."""
         if self._native_presentation_handoff.contains(key):
@@ -758,19 +879,22 @@ class ViewerHostService(QObject):
             return
         if key in self._transient_preview_handoffs:
             if not self._inline_exit_can_wait(key):
-                self._transient_preview_handoffs.pop(key)
+                self._cancel_canvas_navigation()
+                self._transient_preview_handoffs.pop(key, None)
                 self._schedule_sync()
                 return
             self._transient_preview_handoffs[key] = True
             self._bump_viewer_overlay_revision()
             self._sync_overlay_manager_now()
             self.state_changed.emit()
+            self._finish_canvas_navigation()
             return
         if key in self._embedded_interaction_active:
             return
         if self._content_fullscreen_key() == key:
             return
         if not self._inline_exit_can_wait(key):
+            self._cancel_canvas_navigation()
             self._schedule_sync()
             return
         self._bump_viewer_overlay_revision()
@@ -785,6 +909,7 @@ class ViewerHostService(QObject):
         # start another capture/handoff for the same live episode.
         if not self._retain_inline_binding(key):
             self._release_binding(key, reason="inactive")
+        self._finish_canvas_navigation()
         self._schedule_sync()
 
     @pyqtSlot(str, result=str)
@@ -1430,6 +1555,7 @@ class ViewerHostService(QObject):
             return
         if self._overlay_manager is overlay_manager:
             return
+        self._cancel_canvas_navigation()
         self._native_presentation_handoff.flush()
         self._release_all_bindings(reason="overlay_manager_replaced")
         self._close_all_detached_windows(reason="overlay_manager_replaced")
@@ -1438,17 +1564,23 @@ class ViewerHostService(QObject):
         self._overlay_manager = overlay_manager
         if previous_overlay_manager is not None:
             previous_overlay_manager.set_native_suppression_handler(VIEWER_SESSION_OVERLAY_OWNER, None)
+            previous_overlay_manager.set_native_presentation_handler(VIEWER_SESSION_OVERLAY_OWNER, None)
             self._set_viewer_content_fullscreen_target(previous_overlay_manager, None, force_clear=True)
             self._set_active_viewer_overlays(previous_overlay_manager, ())
         if overlay_manager is not None:
             overlay_manager.set_native_suppression_handler(
                 VIEWER_SESSION_OVERLAY_OWNER, self._prepare_native_suppression
             )
+            overlay_manager.set_native_presentation_handler(
+                VIEWER_SESSION_OVERLAY_OWNER, self._prepare_native_presentation,
+                reveal=self._present_native_viewport,
+            )
         self._schedule_sync()
 
     def reset(self, *, reason: str = "") -> None:
         if self._shutdown:
             return
+        self._cancel_canvas_navigation()
         if self._engineering_binder is not None:
             self._engineering_binder.cancel_all_loads()
         self._native_presentation_handoff.flush()
@@ -1487,8 +1619,10 @@ class ViewerHostService(QObject):
         if self._shutdown:
             return
         self._shutdown = True
+        self._cancel_canvas_navigation()
         if self._overlay_manager is not None:
             self._overlay_manager.set_native_suppression_handler(VIEWER_SESSION_OVERLAY_OWNER, None)
+            self._overlay_manager.set_native_presentation_handler(VIEWER_SESSION_OVERLAY_OWNER, None)
         self._transient_preview_handoffs.clear()
         self._sync_queued = False
         self._sync_suspended = False
@@ -1536,6 +1670,7 @@ class ViewerHostService(QObject):
         self._sync_fullscreen_hold()
 
     def _on_content_fullscreen_changed(self) -> None:
+        self._cancel_canvas_navigation()
         self._sync_fullscreen_hold()
         self._schedule_sync()
 
@@ -1771,6 +1906,8 @@ class ViewerHostService(QObject):
 
         for key, bound in list(self._bound_overlays.items()):
             if bound.widget is not None and sip.isdeleted(bound.widget):
+                if key in self._navigation_preview_keys:
+                    self._cancel_canvas_navigation()
                 self._transient_preview_handoffs.pop(key, None)
                 self._native_presentation_handoff.cancel(key)
                 self._bound_overlays.pop(key, None)
@@ -1782,6 +1919,8 @@ class ViewerHostService(QObject):
             desired = desired_overlays.get(key)
             handoff = self._native_presentation_handoff
             if handoff.contains(key) and not self._inline_exit_can_wait(key):
+                if key in self._navigation_preview_keys:
+                    self._cancel_canvas_navigation()
                 self._transient_preview_handoffs.pop(key, None)
                 handoff.cancel(key)
             if (
@@ -1871,6 +2010,7 @@ class ViewerHostService(QObject):
                 if self._retained_inline_key == key:
                     self._retained_inline_key = None
                 self._bump_viewer_overlay_revision()
+                self._sync_overlay_manager_now()
                 continue
             if (
                 bound is not None
@@ -1979,6 +2119,7 @@ class ViewerHostService(QObject):
                 self._preview_state.camera_signature(snapshot),
             )
             self._bump_viewer_overlay_revision()
+            self._sync_overlay_manager_now()
 
         retained_key = self._retained_inline_key
         if retained_key is not None:
@@ -2153,6 +2294,7 @@ class ViewerHostService(QObject):
                         active_snapshot.node_id,
                         workspace_id=active_snapshot.workspace_id,
                     )
+            self._set_binder_presentation(key, active_binder, widget, _PRESENTATION_DETACHED)
             window.attach_widget(widget)
             if bound is None:
                 continue
@@ -2217,6 +2359,7 @@ class ViewerHostService(QObject):
         presentation: str,
         already_prepared: bool = False,
     ) -> bool:
+        self._set_binder_presentation(key, binder, widget, presentation)
         window = self._detached_windows.get(key)
         prepared_widget = bool(already_prepared)
         if presentation == _PRESENTATION_DETACHED:
@@ -2441,6 +2584,8 @@ class ViewerHostService(QObject):
         self._inline_retention_identities.clear()
 
     def _release_binding(self, key: _OverlayKey, *, reason: str) -> bool:
+        if key in self._navigation_preview_keys:
+            self._cancel_canvas_navigation()
         self._transient_preview_handoffs.pop(key, None)
         self._native_presentation_handoff.cancel(key)
         bound = self._bound_overlays.get(key)

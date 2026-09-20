@@ -8,10 +8,12 @@ from typing import TYPE_CHECKING, Any
 
 from PyQt6 import sip
 from PyQt6.QtCore import QEvent, QObject, QPointF, QRect, QRectF, QSize, Qt, QTimer, pyqtSlot
+from PyQt6.QtGui import QRegion
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.ui_qml.native_overlay_owners import VIEWER_SESSION_OVERLAY_OWNER
+from ea_node_editor.ui_qml.native_presentation_handoff import NativePresentationHandoff
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
@@ -134,6 +136,11 @@ class _OverlayRecord:
     geometry_ready: bool = False
     ready_geometry: QRect | None = None
     native_suppression_requested: bool = False
+    navigation_hold: bool = False
+    prepared_geometry: QRect | None = None
+    prepared_dpr: float = 0.0
+    presentation_frame_ready: bool = False
+    last_presented_geometry: QRect | None = None
 
 
 def _empty_overlay_metrics() -> dict[str, int | float | str | bool]:
@@ -166,6 +173,7 @@ class _OverlayGeometryService:
         node_payload: Mapping[str, Any],
         node_card_item: QQuickItem | None = None,
         viewer_viewport_item: QQuickItem | None = None,
+        clip_to_canvas: bool = True,
     ) -> QRect | None:
         canvas_origin = graph_canvas_item.mapToItem(root_item, QPointF(0.0, 0.0))
         canvas_width = max(0.0, _number(graph_canvas_item.width(), 0.0))
@@ -188,6 +196,7 @@ class _OverlayGeometryService:
             node_payload=node_payload,
             scene_geometry=scene_geometry,
             node_local_rect=node_local_rect,
+            clip_to_canvas=clip_to_canvas,
         )
 
     def overlay_geometry_from_scene(
@@ -199,6 +208,7 @@ class _OverlayGeometryService:
         node_payload: Mapping[str, Any],
         scene_geometry: Mapping[str, Any],
         node_local_rect: Mapping[str, Any] | None = None,
+        clip_to_canvas: bool = True,
     ) -> QRect | None:
         view_bridge = self._view_bridge_provider()
         zoom_value = max(1e-6, _number(getattr(view_bridge, "zoom_value", 1.0), 1.0))
@@ -231,7 +241,7 @@ class _OverlayGeometryService:
         clipped_rect = rect.intersected(canvas_rect)
         if clipped_rect.width() <= 0.0 or clipped_rect.height() <= 0.0:
             return None
-        return _aligned_rect(clipped_rect)
+        return _aligned_rect(clipped_rect if clip_to_canvas else rect)
 
     @staticmethod
     def viewer_viewport_local_rect(
@@ -523,6 +533,8 @@ class EmbeddedViewerOverlayManager(QObject):
         self._desired_overlays: dict[_OverlayKey, EmbeddedViewerOverlaySpec] = {}
         self._desired_overlay_sources: dict[str, dict[_OverlayKey, EmbeddedViewerOverlaySpec]] = {}
         self._native_suppression_handlers: dict[str, Callable[[_OverlayKey, bool], bool]] = {}
+        self._native_presentation_handlers: dict[str, Callable[[_OverlayKey, QWidget, QSize], bool]] = {}
+        self._native_reveal_handlers: dict[str, Callable[[_OverlayKey, QWidget], bool]] = {}
         self._overlay_records: dict[_OverlayKey, _OverlayRecord] = {}
         self._content_fullscreen_target: _OverlayKey | None = None
         self._last_error = ""
@@ -531,6 +543,14 @@ class EmbeddedViewerOverlayManager(QObject):
         self._syncing = False
         self._skipped_node_delta_sync_count = 0
         self._overlay_metrics = _empty_overlay_metrics()
+        self._native_reveal_handoff = NativePresentationHandoff(
+            overlay_manager_provider=lambda: self,
+            completion_callback=self._native_reveal_frame_ready,
+            # Keep the preview while minimized or awaiting a slow frame. A
+            # later canvas render resumes reveal; geometry/lifecycle cancels it.
+            timeout_ms=None,
+        )
+        self.destroyed.connect(self._native_reveal_handoff.shutdown)
 
         install_event_filter = getattr(self._event_filter_widget, "installEventFilter", None)
         if callable(install_event_filter):
@@ -560,6 +580,85 @@ class EmbeddedViewerOverlayManager(QObject):
     ) -> Callable[[_OverlayKey, bool], bool] | None:
         owner = self._overlay_owners_by_key().get(key, _DEFAULT_OVERLAY_OWNER)
         return self._native_suppression_handlers.get(owner)
+
+    def set_native_presentation_handler(
+        self, owner: str, handler: Callable[[_OverlayKey, QWidget, QSize], bool] | None,
+        *, reveal: Callable[[_OverlayKey, QWidget], bool] | None = None,
+    ) -> None:
+        if handler is None:
+            self._native_presentation_handlers.pop(owner, None)
+        else:
+            self._native_presentation_handlers[owner] = handler
+        if handler is None or reveal is None:
+            self._native_reveal_handlers.pop(owner, None)
+        else:
+            self._native_reveal_handlers[owner] = reveal
+
+    def _native_presentation_handler(
+        self, key: _OverlayKey
+    ) -> Callable[[_OverlayKey, QWidget, QSize], bool] | None:
+        owner = self._overlay_owners_by_key().get(key, _DEFAULT_OVERLAY_OWNER)
+        return self._native_presentation_handlers.get(owner)
+
+    def set_navigation_hold(self, key: _OverlayKey, held: bool) -> None:
+        record = self._overlay_records.get(key)
+        if record is not None:
+            record.navigation_hold = bool(held)
+            self._schedule_transform_sync()
+
+    def invalidate_native_presentation(self, key: _OverlayKey) -> None:
+        record = self._overlay_records.get(key)
+        if record is not None:
+            record.prepared_geometry = None
+            record.presentation_frame_ready = False
+            self._native_reveal_handoff.cancel(key)
+
+    def _native_reveal_frame_ready(self, key: _OverlayKey) -> None:
+        if sip.isdeleted(self):
+            return
+        record = self._overlay_records.get(key)
+        if record is not None:
+            record.presentation_frame_ready = True
+            self._schedule_transform_sync()
+
+    def _prepare_native_record(self, key: _OverlayKey, record: _OverlayRecord, geometry: QRect) -> bool:
+        widget = record.overlay_widget
+        if widget is None or sip.isdeleted(widget):
+            self._hide_record(key)
+            return False
+        handler = self._native_presentation_handler(key)
+        if handler is None:
+            return True
+        if record.prepared_geometry == geometry and record.prepared_dpr == widget.devicePixelRatioF():
+            # Revalidate the owner's session after the queued canvas frame,
+            # while the native window is still hidden. Reveal itself stays short.
+            if record.presentation_frame_ready and not widget.isVisible():
+                return handler(key, widget, widget.size())
+            return True
+        widget.hide()
+        record.container.hide()
+        record.geometry_ready = False
+        record.presentation_frame_ready = False
+        self._native_reveal_handoff.cancel(key)
+        self._apply_widget_geometry(record.container, geometry)
+        self._apply_widget_geometry(widget, record.container.rect())
+        # QWidget defers native-window geometry while hidden. Preparing only
+        # its logical rect leaves the HWND at the old origin/size until show(),
+        # which can expose copied old pixels before the first correct render.
+        # Deliver geometry through Qt's existing windows, without reparenting.
+        for target in (record.container, widget):
+            native_window = target.windowHandle()
+            if native_window is not None and native_window.geometry() != target.geometry():
+                native_window.setGeometry(target.geometry())
+        if not handler(key, widget, widget.size()):
+            return False
+        if record.overlay_widget is not widget or sip.isdeleted(widget):
+            if self._overlay_records.get(key) is record:
+                self._hide_record(key)
+            return False
+        record.prepared_geometry = QRect(geometry)
+        record.prepared_dpr = widget.devicePixelRatioF()
+        return True
 
     def _suppress_native_record(self, key: _OverlayKey) -> None:
         record = self._overlay_records[key]
@@ -746,10 +845,10 @@ class EmbeddedViewerOverlayManager(QObject):
                     node_id=record.node_id,
                     session_id=record.session_id,
                     rect=QRectF(
-                        clipped_rect.x() - canvas_origin.x(),
-                        clipped_rect.y() - canvas_origin.y(),
-                        clipped_rect.width(),
-                        clipped_rect.height(),
+                        root_rect.x() - canvas_origin.x(),
+                        root_rect.y() - canvas_origin.y(),
+                        root_rect.width(),
+                        root_rect.height(),
                     ),
                 )
             )
@@ -781,12 +880,17 @@ class EmbeddedViewerOverlayManager(QObject):
         if not widget.objectName():
             widget.setObjectName(f"embeddedViewerWidget::{resolved_workspace_id}::{normalized_node_id}")
         record.overlay_widget = widget
+        record.last_presented_geometry = None
+        self.invalidate_native_presentation((resolved_workspace_id, normalized_node_id))
         record.viewer_geometry_item = None
         record.geometry_retry_budget = 3
         record.geometry_ready = False
         record.ready_geometry = None
         widget.setGeometry(record.container.rect())
-        if not _bool(widget.property("ea.plotLiveOverlay")):
+        if (
+            not _bool(widget.property("ea.plotLiveOverlay"))
+            and self._native_presentation_handler((resolved_workspace_id, normalized_node_id)) is None
+        ):
             overlay_parent = self._overlay_parent_widget
             parent_visible = overlay_parent.isVisible() if overlay_parent is not None else True
             if record.container.width() > 0 and record.container.height() > 0 and parent_visible:
@@ -1021,13 +1125,16 @@ class EmbeddedViewerOverlayManager(QObject):
                 self._clear_records()
                 return
 
-            if self._native_overlay_suppression_active(graph_canvas_item):
+            if self._native_overlay_suppression_active(graph_canvas_item) or any(
+                record.navigation_hold for record in self._overlay_records.values()
+            ):
                 suppressed_keys = {
                     key
                     for key in self._desired_overlays
                     if key != self._content_fullscreen_target
                     and (record := self._overlay_records.get(key)) is not None
                     and self._record_uses_native_window_overlay(record)
+                    and (record.navigation_hold or self._native_overlay_suppression_active(graph_canvas_item))
                 }
                 for key in suppressed_keys:
                     self._suppress_native_record(key)
@@ -1065,7 +1172,7 @@ class EmbeddedViewerOverlayManager(QObject):
                 if (
                     key != fullscreen_target
                     and self._record_uses_native_window_overlay(record)
-                    and self._native_overlay_suppression_active(graph_canvas_item)
+                    and (record.navigation_hold or self._native_overlay_suppression_active(graph_canvas_item))
                 ):
                     self._suppress_native_record(key)
                     count_key = "visible_count" if record.container.isVisible() else "hidden_count"
@@ -1140,6 +1247,7 @@ class EmbeddedViewerOverlayManager(QObject):
                         node_payload=node_payload,
                         node_card_item=node_card_item,
                         viewer_viewport_item=viewer_viewport_item,
+                        clip_to_canvas=self._native_presentation_handler(key) is None,
                     )
                 )
                 live_preview_active = (
@@ -1203,9 +1311,87 @@ class EmbeddedViewerOverlayManager(QObject):
                     metrics[count_key] = int(metrics[count_key]) + 1
                     continue
 
+                expected_widget = record.overlay_widget
+                expected_session = record.session_id
+                def presentation_is_current() -> bool:
+                    # Preparation and rendering can invoke owner callbacks.
+                    # Neither may publish readiness for a superseded target.
+                    if (
+                        self._overlay_records.get(key) is not record
+                        or record.overlay_widget is not expected_widget
+                        or expected_widget is None or sip.isdeleted(expected_widget)
+                        or record.session_id != expected_session
+                        or self._desired_overlays.get(key) != overlay
+                        or self._active_workspace_id() != key[0]
+                        or self._content_fullscreen_target != fullscreen_target
+                        or not self._is_alive_item(root_item)
+                        or not self._is_alive_item(graph_canvas_item)
+                        or (viewer_viewport_item is not None and not self._is_alive_item(viewer_viewport_item))
+                        or (fullscreen_viewport_item is not None and not self._is_alive_item(fullscreen_viewport_item))
+                    ):
+                        return False
+                    latest = self._content_fullscreen_geometry(
+                        root_item=root_item, viewer_viewport_item=fullscreen_viewport_item
+                    ) or self._overlay_geometry(
+                        root_item=root_item, graph_canvas_item=graph_canvas_item,
+                        node_payload=node_payload, node_card_item=node_card_item,
+                        viewer_viewport_item=viewer_viewport_item,
+                        clip_to_canvas=False,
+                    )
+                    suppressed = not record.fullscreen_target_active and (
+                        record.navigation_hold or self._native_overlay_suppression_active(graph_canvas_item)
+                    )
+                    return latest == geometry and not suppressed
+
+                if not self._prepare_native_record(key, record, geometry):
+                    metrics["hidden_count"] = int(metrics["hidden_count"]) + 1
+                    continue
+                if self._native_presentation_handler(key) is not None and not presentation_is_current():
+                    if self._overlay_records.get(key) is record:
+                        self._hide_record(key)
+                    self._schedule_transform_sync()
+                    continue
+                if (
+                    native_window_overlay and self._native_presentation_handler(key) is not None
+                    and not record.presentation_frame_ready
+                    and record.last_presented_geometry is not None
+                    and record.last_presented_geometry != geometry
+                ):
+                    # Qt properties can already describe the new rectangle while
+                    # the Quick backing store still contains the previous canvas.
+                    # Keep native pixels hidden until that new canvas is painted.
+                    if not self._native_reveal_handoff.contains(key):
+                        self._native_reveal_handoff.wait_for_render(key)
+                        self._overlay_parent_widget.update()
+                        root_item.window().update()
+                    metrics["hidden_count"] = int(metrics["hidden_count"]) + 1
+                    continue
+                # Preserve the full renderer aspect ratio at the canvas edge.
+                # The container clips pixels; it must not resize the camera.
+                if self._native_presentation_handler(key) is not None and not record.fullscreen_target_active:
+                    origin = graph_canvas_item.mapToItem(root_item, QPointF())
+                    canvas_rect = _aligned_rect(QRectF(origin, QPointF(
+                        origin.x() + graph_canvas_item.width(), origin.y() + graph_canvas_item.height()
+                    )))
+                    visible = geometry.intersected(canvas_rect).translated(-geometry.topLeft())
+                    record.container.setMask(QRegion(visible))
+                else:
+                    record.container.clearMask()
+                revealing = record.overlay_widget is not None and not record.overlay_widget.isVisible()
                 self._show_record(record, geometry, focus=record.fullscreen_target_active)
+                owner = self._overlay_owners_by_key().get(key, _DEFAULT_OVERLAY_OWNER)
+                reveal = self._native_reveal_handlers.get(owner)
+                if revealing and reveal is not None and (
+                    not reveal(key, record.overlay_widget) or not presentation_is_current()
+                ):
+                    if self._overlay_records.get(key) is record:
+                        self._hide_record(key)
+                    self._schedule_transform_sync()
+                    metrics["hidden_count"] = int(metrics["hidden_count"]) + 1
+                    continue
                 record.geometry_ready = exact_viewport_geometry or not plot_live_overlay
                 record.ready_geometry = QRect(geometry) if record.geometry_ready else None
+                record.last_presented_geometry = QRect(geometry)
                 metrics["visible_count"] = int(metrics["visible_count"]) + 1
                 if transform_only:
                     metrics["geometry_only_updates"] = int(metrics["geometry_only_updates"]) + 1
@@ -1478,6 +1664,7 @@ class EmbeddedViewerOverlayManager(QObject):
         node_payload: Mapping[str, Any],
         node_card_item: QQuickItem | None = None,
         viewer_viewport_item: QQuickItem | None = None,
+        clip_to_canvas: bool = True,
     ) -> QRect | None:
         return self._geometry_service.overlay_geometry(
             root_item=root_item,
@@ -1485,6 +1672,7 @@ class EmbeddedViewerOverlayManager(QObject):
             node_payload=node_payload,
             node_card_item=node_card_item,
             viewer_viewport_item=viewer_viewport_item,
+            clip_to_canvas=clip_to_canvas,
         )
 
     def _overlay_geometry_from_scene(
@@ -1595,16 +1783,24 @@ class EmbeddedViewerOverlayManager(QObject):
         if record is None:
             return
         record.geometry_ready = False
+        record.prepared_geometry = None
+        record.presentation_frame_ready = False
+        self._native_reveal_handoff.cancel(key)
         record.ready_geometry = None
         if record.overlay_widget is not None:
-            record.overlay_widget.hide()
-        record.container.hide()
+            if sip.isdeleted(record.overlay_widget):
+                record.overlay_widget = None
+            else:
+                record.overlay_widget.hide()
+        if not sip.isdeleted(record.container):
+            record.container.hide()
 
     def _hide_all_records(self) -> None:
         for key in list(self._overlay_records):
             self._hide_record(key)
 
     def _teardown_record(self, key: _OverlayKey) -> None:
+        self._native_reveal_handoff.cancel(key)
         record = self._overlay_records.pop(key, None)
         if record is None:
             return

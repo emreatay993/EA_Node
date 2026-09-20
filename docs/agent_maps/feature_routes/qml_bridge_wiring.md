@@ -33,6 +33,7 @@ Optimization Setup-to-Pool authoring follows `GraphCanvasContextMenus.qml` -> `g
 - `tests/test_data_type_ui_projection.py`
 
 ## Frozen QML-Visible Surface
+- Viewer runtime composition supplies `ViewportBridge` with a view-change guard and ready/cancel connections. `navigation_zoom`, `flush_deferred_view_state`, and `cancel_deferred_view_state` are additive slots recorded in the bridge snapshot; requested state stays private until the viewer handoff permits publication. The bridge remains independent of viewer implementations.
 - The QML-visible meta-object surface of the focused graph-canvas owner family (slots, properties, and signals on `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, `ViewportBridge`, the graph-scene read/command/policy bridges, `GraphSceneBridge`, and `ShellContextBundle`) is snapshot-frozen by `tests/test_graph_canvas_surface_snapshot.py` against `tests/fixtures/graph_canvas_surface_snapshot.json`. Additions are allowed (regenerate with `--write`); removals/renames fail.
 - The snapshot includes `insert_dynamic_port`, `remove_dynamic_port`, and `rename_dynamic_port` on the graph command/scene chain.
 - Dedicated `set_node_secret` and `clear_node_secret` slots are part of the graph-scene bridge chain; Inspector wrappers forward to the same owner.

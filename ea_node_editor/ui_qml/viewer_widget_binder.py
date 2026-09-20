@@ -65,6 +65,19 @@ class ViewerWidgetPreviewCapture(Protocol):
         ...
 
 
+class ViewerWidgetViewportPreparer(Protocol):
+    """Optional native preparation after Qt geometry is set, before reveal."""
+
+    def set_presentation_mode(self, widget: QWidget, mode: str) -> bool:
+        ...
+
+    def prepare_viewport(self, widget: QWidget, size: QSize) -> bool:
+        ...
+
+    def present_viewport(self, widget: QWidget) -> bool:
+        ...
+
+
 class ViewerWidgetPreviewRenderer(Protocol):
     """Render a proxy frame without binding a live widget.
 
@@ -110,5 +123,6 @@ __all__ = [
     "ViewerWidgetNoBind",
     "ViewerWidgetPreviewCapture",
     "ViewerWidgetPreviewRenderer",
+    "ViewerWidgetViewportPreparer",
     "ViewerWidgetReleaseRequest",
 ]

@@ -74,6 +74,8 @@ Use this for graph canvas QML layers, retained edge rendering, node chrome, view
 - QML-heavy questions should check `docs/qml_navigation_index.md`, `docs/qml_navigation_index.json`, and `docs/agent_route_index.md` before bounded source reads.
 
 ## Focused Verification
+- `ViewportBridge` owns requested-versus-committed navigation math. Shell runtime composition injects the viewer's native-preview guard and connects its ready/cancel signals; pending pan and cursor-anchored zoom accumulate without publishing an obsolete live-overlay rectangle. Workspace replacement cancels pending state. `GraphCanvasInputLayers.qml` uses the requested navigation zoom for pan conversion during a held handoff. Focused proof: `tests/test_viewport_navigation_handoff.py` and the host navigation tests.
+
 ```powershell
 $env:QT_QPA_PLATFORM = "offscreen"
 .\venv\Scripts\python.exe -m unittest tests.test_graph_surface_input_contract tests.test_graph_surface_input_inline tests.test_passive_graph_surface_host -v

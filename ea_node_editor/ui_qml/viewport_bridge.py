@@ -1,6 +1,10 @@
+# Purpose: Own viewport geometry and defer navigation publication behind native preview handoffs.
+# Map: subsystems/graph_canvas.md
+# Tests: tests/test_viewport_navigation_handoff.py, tests/graph_track_b/viewport.py
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 
 from PyQt6.QtCore import QObject, QPointF, QRect, QRectF, pyqtProperty, pyqtSignal, pyqtSlot
 
@@ -32,6 +36,8 @@ class ViewportBridge(QObject):
         self._zoom = 1.0
         self._center_x = 0.0
         self._center_y = 0.0
+        self._view_change_guard: Callable[[], bool] | None = None
+        self._deferred_view_state: tuple[float, float, float] | None = None
         self._viewport_rect = QRect(0, 0, 1600, 900)
         self._visible_scene_rect = QRectF()
         self._visible_scene_rect_payload: dict[str, float] = {}
@@ -164,6 +170,39 @@ class ViewportBridge(QObject):
         if not math.isfinite(next_center_x) or not math.isfinite(next_center_y):
             return False
 
+        target = (clamped_zoom, next_center_x, next_center_y)
+        if all(abs(a - b) < 1e-6 for a, b in zip(target, self._navigation_state())):
+            return False
+        if self._view_change_guard is not None and not self._view_change_guard():
+            self._deferred_view_state = target
+            return True
+        self._deferred_view_state = None
+        return self._commit_view_state(*target)
+
+    def set_view_change_guard(self, guard: Callable[[], bool] | None) -> None:
+        """Composition supplies the native-preview barrier; viewport math stays local."""
+        self._view_change_guard = guard
+        self.cancel_deferred_view_state()
+
+    def _navigation_state(self) -> tuple[float, float, float]:
+        return self._deferred_view_state or (self._zoom, self._center_x, self._center_y)
+
+    @pyqtSlot(result=float)
+    def navigation_zoom(self) -> float:
+        return self._navigation_state()[0]
+
+    @pyqtSlot()
+    def flush_deferred_view_state(self) -> None:
+        target, self._deferred_view_state = self._deferred_view_state, None
+        if target is not None:
+            self._commit_view_state(*target)
+
+    @pyqtSlot()
+    def cancel_deferred_view_state(self) -> None:
+        self._deferred_view_state = None
+
+    def _commit_view_state(self, clamped_zoom: float, next_center_x: float, next_center_y: float) -> bool:
+
         zoom_changed = abs(self._zoom - clamped_zoom) >= 1e-6
         center_changed = (
             abs(self._center_x - next_center_x) >= 1e-6
@@ -186,16 +225,22 @@ class ViewportBridge(QObject):
 
     @pyqtSlot(float)
     def set_zoom(self, zoom: float) -> None:
-        self.set_view_state(zoom, self._center_x, self._center_y)
+        _, cx, cy = self._navigation_state()
+        self.set_view_state(zoom, cx, cy)
 
     @pyqtSlot(float)
     def adjust_zoom(self, factor: float) -> None:
-        self.set_view_state(self._zoom * float(factor), self._center_x, self._center_y)
+        zoom, cx, cy = self._navigation_state()
+        self.set_view_state(zoom * float(factor), cx, cy)
 
     @pyqtSlot(float, float, float, result=bool)
     def adjust_zoom_at_viewport_point(self, factor: float, viewport_x: float, viewport_y: float) -> bool:
-        target_zoom = self._clamp_zoom(self._zoom * float(factor))
-        anchor_scene_point = self.scene_point_for_viewport_point(viewport_x, viewport_y)
+        zoom, cx, cy = self._navigation_state()
+        target_zoom = self._clamp_zoom(zoom * float(factor))
+        anchor_scene_point = QPointF(
+            cx + (float(viewport_x) - self._viewport_rect.width() * 0.5) / zoom,
+            cy + (float(viewport_y) - self._viewport_rect.height() * 0.5) / zoom,
+        )
         anchored_center = self._center_for_scene_anchor(
             anchor_scene_point.x(),
             anchor_scene_point.y(),
@@ -206,21 +251,23 @@ class ViewportBridge(QObject):
         return self.set_view_state(target_zoom, anchored_center.x(), anchored_center.y())
 
     def centerOn(self, x: float | QPointF, y: float | None = None) -> None:  # noqa: N802
+        zoom, _, previous_y = self._navigation_state()
         if isinstance(x, QPointF):
             cx = float(x.x())
             cy = float(x.y())
         elif y is None:
             cx = float(x)
-            cy = self._center_y
+            cy = previous_y
         else:
             cx = float(x)
             cy = float(y)
 
-        self.set_view_state(self._zoom, cx, cy)
+        self.set_view_state(zoom, cx, cy)
 
     @pyqtSlot(float, float)
     def pan_by(self, delta_x: float, delta_y: float) -> None:
-        self.set_view_state(self._zoom, self._center_x + float(delta_x), self._center_y + float(delta_y))
+        zoom, cx, cy = self._navigation_state()
+        self.set_view_state(zoom, cx + float(delta_x), cy + float(delta_y))
 
     def mapToScene(self, point) -> QPointF:  # noqa: ANN001, N802
         point_x = getattr(point, "x", None)

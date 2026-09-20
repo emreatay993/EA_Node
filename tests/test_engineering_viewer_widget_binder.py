@@ -1389,17 +1389,21 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             binder.shutdown()
 
     def test_view_cube_scales_with_the_render_window(self) -> None:
-        """A 120px cube fills an inline node but is lost in fullscreen."""
+        """Inline controls scale like raster pixels across zoom and DPR."""
 
         class _Representation:
             def __init__(self) -> None:
                 self.size = (120, 120)
+                self.padding = (10, 10)
 
             def GetSize(self):  # noqa: N802
                 return self.size
 
             def SetSize(self, width, height):  # noqa: N802
                 self.size = (int(width), int(height))
+
+            def SetPadding(self, x, y):  # noqa: N802
+                self.padding = (int(x), int(y))
 
         class _Cube:
             def __init__(self) -> None:
@@ -1408,12 +1412,12 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
             def GetRepresentation(self):  # noqa: N802
                 return self.representation
 
-        def _state_for(width, height):
+        def _state_for(width, height, mode="inline"):
             cube = _Cube()
             interactor = SimpleNamespace(
                 render_window=SimpleNamespace(GetSize=lambda: (width, height))
             )
-            state = SimpleNamespace(view_cube_widget=cube, view_cube_resize_observer=None)
+            state = SimpleNamespace(view_cube_widget=cube, view_cube_resize_observer=None, presentation_mode=mode)
             binder = EngineeringViewerWidgetBinder(
                 interactor_factory=lambda parent: _FakeInteractor(parent),
                 background_loading=False,
@@ -1422,19 +1426,95 @@ class EngineeringViewerWidgetBinderTests(unittest.TestCase):
                 binder._sync_view_cube_scale(interactor, state)
             finally:
                 binder.shutdown()
-            return cube.representation.size
+            return cube.representation.size, cube.representation.padding
 
         # An inline node viewport: well under the fixed default.
         inline = _state_for(516, 300)
-        self.assertEqual(inline, (48, 48))
+        self.assertEqual(inline, ((48, 48), (6, 6)))
 
         # A fullscreen viewport: the cap keeps it from growing without bound.
-        fullscreen = _state_for(2560, 1400)
-        self.assertEqual(fullscreen, (120, 120))
+        fullscreen = _state_for(2560, 1400, "fullscreen")
+        self.assertEqual(fullscreen, ((120, 120), (10, 10)))
 
-        # Tiny viewports still get a readable cube rather than a speck.
+        # No absolute floor/cap may make inline native controls differ from
+        # the uniformly scaled cached image.
         tiny = _state_for(180, 120)
-        self.assertEqual(tiny, (44, 44))
+        self.assertEqual(tiny, ((19, 19), (2, 2)))
+        for dpr in (1.0, 1.5, 2.0):
+            for zoom in (0.25, 0.5, 1.0, 2.0, 4.0):
+                with self.subTest(dpr=dpr, zoom=zoom):
+                    w, h = round(600 * dpr * zoom), round(400 * dpr * zoom)
+                    size, padding = _state_for(w, h)
+                    self.assertEqual(size, (round(h * 0.16),) * 2)
+                    self.assertEqual(padding, (round(h * 0.02),) * 2)
+        self.assertEqual(_state_for(2560, 1400, "detached"), ((120, 120), (10, 10)))
+
+    def test_hidden_viewport_preparation_updates_vtk_size_and_controls_before_render(self) -> None:
+        from vtkmodules.vtkInteractionWidgets import vtkCameraOrientationWidget
+        from ea_node_editor.ui_qml.engineering_viewer_widget_binder import _EngineeringWidgetState
+
+        binder = EngineeringViewerWidgetBinder(background_loading=False)
+        widget = _FakeInteractor()
+        preparation_events = []
+        def resize_window(width, height):
+            preparation_events.append("resize")
+            widget.render_size = (width, height)
+        widget.render_window = SimpleNamespace(
+            GetSize=widget.GetSize, SetSize=resize_window,
+            ReleaseCurrent=lambda: preparation_events.append("release_current"),
+        )
+        state = _EngineeringWidgetState(
+            backend_id=ENGINEERING_VIEWER_BACKEND_ID,
+            current_options={"show_orientation_triad": False},
+            view_cube_widget=vtkCameraOrientationWidget(),
+        )
+        binder._widget_state[widget] = state
+        rendered = []
+        representation = state.view_cube_widget.GetRepresentation()
+        widget.render = lambda: rendered.append((
+            widget.isVisible(), widget.GetSize(), representation.GetSize(), representation.GetPadding()
+        ))
+        try:
+            widget.resize(500, 300)
+            widget.device_pixel_ratio = 1.5
+            self.assertTrue(binder.prepare_viewport(widget, widget.size()))
+            self.assertEqual(preparation_events[:2], ["release_current", "resize"])
+            self.assertEqual(rendered[-1], (False, (750, 450), (72, 72), (9, 9)))
+            count = len(rendered)
+            self.assertTrue(binder.prepare_viewport(widget, widget.size()))
+            self.assertEqual(len(rendered), count)
+            widget.resize(118, 67)
+            self.assertTrue(binder.prepare_viewport(widget, widget.size()))
+            self.assertEqual(rendered[-1], (False, (177, 101), (16, 16), (2, 2)))
+            widget.resize(1000, 600)
+            widget.device_pixel_ratio = 2.0
+            self.assertTrue(binder.prepare_viewport(widget, widget.size()))
+            self.assertEqual(rendered[-1], (False, (2000, 1200), (192, 192), (24, 24)))
+            binder.set_presentation_mode(widget, "fullscreen")
+            self.assertTrue(binder.prepare_viewport(widget, widget.size()))
+            self.assertEqual(rendered[-1], (False, (2000, 1200), (120, 120), (10, 10)))
+        finally:
+            binder.shutdown()
+
+    def test_native_reveal_rebinds_context_before_render_without_rebuilding_scene(self) -> None:
+        from ea_node_editor.ui_qml.engineering_viewer_widget_binder import _EngineeringWidgetState
+        binder = EngineeringViewerWidgetBinder(background_loading=False)
+        widget = _FakeInteractor()
+        events = []
+        widget.render_window = SimpleNamespace(ReleaseCurrent=lambda: events.append("release_current"))
+        widget.render = lambda: events.append("render")
+        state = _EngineeringWidgetState(backend_id=ENGINEERING_VIEWER_BACKEND_ID)
+        binder._widget_state[widget] = state
+        try:
+            self.assertFalse(binder.present_viewport(widget))
+            self.assertEqual(events, [])
+            widget.show()
+            self.assertTrue(binder.present_viewport(widget))
+            self.assertEqual(events, ["release_current", "render"])
+            self.assertIs(binder._widget_state[widget], state)
+        finally:
+            widget.close()
+            binder.shutdown()
 
     def test_view_cube_cleanup_uses_widget_component(self) -> None:
         interactor = _FakeInteractor()

@@ -27,6 +27,7 @@ from ea_node_editor.ui_qml.viewer_preview_state_cache import (
 )
 from ea_node_editor.ui_qml.viewer_widget_binder import ViewerWidgetNoBind
 from tests.main_window_shell.base import MainWindowShellTestBase
+from tests.qt_wait import wait_for_condition_or_raise
 
 _SHOW_MESH_EDGES_PROPERTY = "show_mesh_edges"
 
@@ -1930,6 +1931,108 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "proxy")
         self.assertFalse(handoff.render_gate_connected)
 
+    def test_navigation_waits_for_hidden_preview_and_keeps_input_after_early_release(self) -> None:
+        node_id = self._open_live_embedded_viewer()
+        key = (self.workspace_id, node_id)
+        host, view = self.host_service, self.window.view
+        widget = host._bound_overlays[key].widget
+        widget.setProperty("ea.nativeWindowOverlay", True)
+        self._deactivate_inline(node_id)
+        old_source = host.cached_preview_source(node_id)
+        view.set_view_state(1.0, 340.0, 230.0)
+        self._activate_inline(node_id)
+        initial = (view.zoom_value, view.center_x, view.center_y)
+        wait_for_condition_or_raise(lambda: host.embedded_live_overlay_ready(node_id), app=self.app)
+        changes = []
+        view.view_state_changed.connect(lambda: changes.append(widget.isVisible()))
+        handoff = host._native_presentation_handoff
+        with patch.object(handoff, "_connect_render_gate", return_value=True):
+            self._graph_canvas_item().setProperty("interactionActive", True)
+            view.pan_by(10, 5)
+            view.adjust_zoom(2)
+            view.pan_by(-2, 3)
+            self.assertEqual((view.zoom_value, view.center_x, view.center_y), initial)
+            self.assertNotEqual(host.cached_preview_source(node_id), old_source)
+            self.assertTrue(widget.isVisible())
+            self._graph_canvas_item().setProperty("interactionActive", False)
+            self.overlay_manager.sync()
+            self.assertTrue(handoff.contains(key))
+            host.notify_cached_preview_swapped(node_id, host.cached_preview_source(node_id))
+            handoff._on_render_gate_frame()
+            self.app.processEvents()
+        self.assertEqual(view.zoom_value, initial[0] * 2)
+        self.assertEqual((view.center_x, view.center_y), (initial[1] + 8, initial[2] + 8))
+        self.assertEqual(changes, [False])
+        self.app.processEvents()
+        host.sync()
+        wait_for_condition_or_raise(lambda: host.embedded_live_overlay_ready(node_id), app=self.app)
+        self.assertTrue(widget.isVisible())
+        self.assertIs(host._bound_overlays[key].widget, widget)
+
+    def test_navigation_during_a_pending_live_exit_cannot_move_old_native_pixels(self) -> None:
+        node_id = self._open_live_embedded_viewer()
+        host, view = self.host_service, self.window.view
+        widget = host._bound_overlays[(self.workspace_id, node_id)].widget
+        initial = view.center_x
+        host.set_embedded_interaction_active(node_id, False)
+        self.assertTrue(host.embedded_preview_handoff_source(node_id))
+        view.pan_by(30, 0)
+        self.assertEqual(view.center_x, initial)
+        self.assertTrue(widget.isVisible())
+        self._complete_inline_exit(node_id)
+        self.assertEqual(view.center_x, initial + 30)
+        self.assertFalse(widget.isVisible())
+        self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "proxy")
+
+    def test_reactivation_during_navigation_keeps_barrier_and_restores_live_intent(self) -> None:
+        node_id = self._open_live_embedded_viewer()
+        key = (self.workspace_id, node_id)
+        host, view = self.host_service, self.window.view
+        self._deactivate_inline(node_id)
+        view.set_view_state(1, 340, 230)
+        self._activate_inline(node_id)
+        widget = host._bound_overlays[key].widget
+        view.pan_by(10, 0)
+        host.set_embedded_interaction_active(node_id, False)
+        self.assertNotIn(key, host._embedded_interaction_active)
+        host.set_embedded_interaction_active(node_id, True)
+        self.assertIn(key, host._embedded_interaction_active)
+        self.assertEqual(view.center_x, 340)
+        self._complete_inline_exit(node_id)
+        self.assertEqual(view.center_x, 350)
+        self.app.processEvents()
+        host.sync()
+        self.assertTrue(widget.isVisible())
+        self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "full")
+        self.assertFalse(host._navigation_preview_keys)
+
+    def test_fullscreen_viewer_stays_visible_while_canvas_is_suppressed(self) -> None:
+        binder = _RecordingBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_engineering_viewer_node()
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+        self.assertTrue(self.window.content_fullscreen_bridge.request_toggle_for_node(node_id))
+        self.app.processEvents()
+        self.host_service.sync()
+        self._graph_canvas_item().setProperty("interactionActive", True)
+        self.overlay_manager.sync()
+        widget = self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
+        self.assertIsNotNone(widget)
+        self.assertTrue(widget.isVisible())
+        self.assertTrue(self.overlay_manager.overlay_geometry_ready(node_id, workspace_id=self.workspace_id))
+
+    def test_reset_discards_queued_navigation_and_late_render_completion(self) -> None:
+        node_id = self._open_live_embedded_viewer()
+        host, view = self.host_service, self.window.view
+        initial = (view.zoom_value, view.center_x, view.center_y)
+        view.pan_by(80, 90)
+        self.assertTrue(host._navigation_preview_keys)
+        host.reset(reason="project_replaced")
+        self.app.processEvents()
+        view.flush_deferred_view_state()
+        self.assertEqual((view.zoom_value, view.center_x, view.center_y), initial)
+        self.assertFalse(host._navigation_preview_keys)
+
     def test_pan_replaces_an_existing_preview_before_hiding_native_view(self) -> None:
         node_id = self._open_live_embedded_viewer()
         key = (self.workspace_id, node_id)
@@ -1943,6 +2046,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertTrue(previous)
         host.set_embedded_interaction_active(node_id, True)
         self.app.processEvents()
+        wait_for_condition_or_raise(lambda: host.embedded_live_overlay_ready(node_id), app=self.app)
         canvas = self._graph_canvas_item()
         updates_before = len(self.window.execution_client.update_calls)
         binds_before = len(binder.bind_calls)
@@ -1975,6 +2079,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
                 canvas.setProperty("interactionActive", False)
                 self.app.processEvents()
                 self.overlay_manager.sync()
+                wait_for_condition_or_raise(lambda: host.embedded_live_overlay_ready(node_id), app=self.app)
                 self.assertTrue(widget.isVisible())
                 self.assertTrue(widget.updatesEnabled())
                 self.assertIs(host._bound_overlays[key].widget, widget)

@@ -59,8 +59,9 @@ _SHOW_VIEW_CUBE_OPTION = "show_view_cube"
 # vtkCameraOrientationRepresentation is sized in pixels and defaults to
 # 120x120, so it keeps that size no matter how small the render window is:
 # roughly a tenth of a fullscreen viewer but nearly half of an inline node.
-# Scale it with the window instead, with a floor that keeps it readable.
+# Inline controls scale with cached pixels; standalone views retain readable bounds.
 _VIEW_CUBE_WINDOW_FRACTION = 0.16
+_VIEW_CUBE_PADDING_FRACTION = 0.02
 _VIEW_CUBE_MIN_EDGE_PX = 44
 _VIEW_CUBE_MAX_EDGE_PX = 120
 _SHOW_WORLD_AXES_OPTION = "show_world_axes"
@@ -155,6 +156,8 @@ class _EngineeringWidgetState:
     selection_last_click_position: tuple[int, int] | None = None
     selection_last_click_time: float = 0.0
     view_cube_widget: Any | None = None
+    presentation_mode: str = "inline"
+    prepared_viewport: tuple[int, int, float, str] | None = None
     view_cube_resize_observer: tuple[Any, Any] | None = None
     orientation_triad_widget: Any | None = None
     orientation_triad_actor: Any | None = None
@@ -370,6 +373,8 @@ class EngineeringViewerWidgetBinder(QObject):
         widget: QWidget,
         state: _EngineeringWidgetState,
     ) -> None:
+        self._release_current_context(widget)
+        self._sync_render_window_size(widget)
         if state.initial_attach_pending:
             if state.pending_camera_state:
                 apply_camera_state(widget, state.pending_camera_state)
@@ -401,6 +406,86 @@ class EngineeringViewerWidgetBinder(QObject):
         render = getattr(widget, "render", None)
         if callable(render):
             render()
+        size = self._render_window_size(widget)
+        state.prepared_viewport = (*size, widget.devicePixelRatioF(), state.presentation_mode) if size is not None else None
+
+    def set_presentation_mode(self, widget: QWidget, mode: str) -> bool:
+        if mode not in {"inline", "fullscreen", "detached"}:
+            raise ValueError(f"Unknown viewer presentation: {mode}")
+        state = self._widget_state.get(widget)
+        if state is not None and state.presentation_mode != mode:
+            state.presentation_mode = mode
+            state.prepared_viewport = None
+            return True
+        return False
+
+    def prepare_viewport(self, widget: QWidget, size: QSize) -> bool:
+        """Render a retained widget at its destination size before native reveal."""
+        state = self._widget_state.get(widget)
+        if state is None or not self._native_interactor_ready(widget):
+            return False
+        self._release_current_context(widget)
+        if state.presentation_attach_required:
+            return self.refresh_after_attach(widget)
+        target = self._sync_render_window_size(widget, size)
+        if target is None:
+            return False
+        if state.prepared_viewport != (*target, widget.devicePixelRatioF(), state.presentation_mode):
+            self._refresh_after_attach_now(widget, state)
+        return self._render_window_size(widget) == target
+
+    def present_viewport(self, widget: QWidget) -> bool:
+        """Present after Qt has mapped the native window at its final position."""
+        if widget not in self._widget_state or not widget.isVisible():
+            return False
+        self._release_current_context(widget)
+        render = getattr(widget, "render", None)
+        if callable(render):
+            render()
+        return True
+
+    @staticmethod
+    def _release_current_context(widget: QWidget) -> None:
+        window = getattr(widget, "render_window", None)
+        release_current = getattr(window, "ReleaseCurrent", None)
+        if callable(release_current):
+            # WGL can retain the old drawable origin/clip across a hidden move.
+            # VTK's MakeCurrent skips rebinding an already-current context;
+            # release only that binding, retaining the context and GPU assets.
+            release_current()
+
+    @staticmethod
+    def _sync_render_window_size(widget: QWidget, size: QSize | None = None) -> tuple[int, int] | None:
+        # Qt may defer ResizeEvent while hidden. Synchronize VTK explicitly;
+        # native HWND/context ownership and QWidget geometry remain with Qt.
+        logical = size if size is not None else widget.size()
+        dpr = widget.devicePixelRatioF()
+        # Match Qt's positive half-up device-pixel rounding (not Python's
+        # ties-to-even), including odd logical dimensions at fractional DPR.
+        target = (max(1, int(logical.width() * dpr + 0.5)), max(1, int(logical.height() * dpr + 0.5)))
+        window = getattr(widget, "render_window", None)
+        getter, setter = getattr(window, "GetSize", None), getattr(window, "SetSize", None)
+        if not callable(getter) or not callable(setter):
+            return None
+        set_dpi = getattr(window, "SetDPI", None)
+        if callable(set_dpi):
+            set_dpi(round(72 * dpr))
+        if tuple(getter()) != target:
+            from vtkmodules.vtkRenderingCore import vtkRenderWindow
+
+            if isinstance(window, vtkRenderWindow):
+                # As in QVTK's resizeEvent, resize VTK's buffers, not Qt's HWND.
+                # The Win32 override also calls SetWindowPos and can overwrite
+                # Qt's already-prepared geometry and copy stale window pixels.
+                vtkRenderWindow.SetSize(window, *target)
+            else:
+                setter(*target)
+        iren = getattr(widget, "iren", None)
+        raw = getattr(iren, "interactor", iren)
+        set_size = getattr(raw, "SetSize", None)
+        if callable(set_size):
+            set_size(*target)
+        return target
 
     @staticmethod
     def _native_interactor_ready(widget: QWidget) -> bool:
@@ -672,6 +757,10 @@ class EngineeringViewerWidgetBinder(QObject):
     def capture_preview_image(self, widget: QWidget | None) -> QImage | None:
         if not self._is_reusable_interactor(widget):
             return QImage()
+        state = self._widget_state.get(widget)
+        if state is not None:
+            self._sync_render_window_size(widget)
+            self._sync_view_cube_scale(widget, state)
         render = getattr(widget, "render", None)
         if callable(render):
             try:
@@ -2458,7 +2547,15 @@ class EngineeringViewerWidgetBinder(QObject):
         if window_size is None:
             return
         edge = int(round(min(window_size) * _VIEW_CUBE_WINDOW_FRACTION))
-        edge = max(_VIEW_CUBE_MIN_EDGE_PX, min(_VIEW_CUBE_MAX_EDGE_PX, edge))
+        if state.presentation_mode == "inline":
+            edge = max(1, edge)
+            padding = max(0, round(min(window_size) * _VIEW_CUBE_PADDING_FRACTION))
+        else:
+            edge = max(_VIEW_CUBE_MIN_EDGE_PX, min(_VIEW_CUBE_MAX_EDGE_PX, edge))
+            padding = 10
+        set_padding = getattr(representation, "SetPadding", None)
+        if callable(set_padding):
+            set_padding(padding, padding)
         get_size = getattr(representation, "GetSize", None)
         if callable(get_size):
             try:

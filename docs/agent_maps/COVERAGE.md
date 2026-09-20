@@ -213,6 +213,8 @@ Settings-section size transitions use shared 180 ms width/height animations with
 
 ## Hygiene
 
+- Inline viewer visual parity is owned jointly by the viewer and graph-canvas routes: one shared QML outline/inner content rectangle, proportional inline orientation controls, viewport navigation publication gated by the native preview handoff, and hidden native geometry/render preparation before reveal. Runtime composition wires the guard without adding a viewer dependency to viewport math; dedicated viewport-handoff, host, binder, overlay and QML tests own proof.
+
 - Model Viewer dynamic inputs reuse graph-owned port mutations and generic QML
   authoring controls. Trusted node registration owns the scene-group metadata;
   engineering execution owns v2 ordered layers and source leases; the binder and

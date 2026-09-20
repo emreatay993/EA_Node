@@ -1501,6 +1501,50 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_live_and_preview_share_an_uncovered_viewport_outline(self) -> None:
+        self._run_qml_probe(
+            "viewer-shared-viewport-outline",
+            """
+            from PyQt6.QtQml import QQmlProperty
+            bridge = ViewerSessionBridgeStub()
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+            viewerHostServiceStub.session_bridge = bridge
+            canvas_item, _scene_bridge = create_viewer_canvas(selected=True)
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            host.setProperty("canvasItem", canvas_item)
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            outline = host.findChild(QObject, "graphNodeViewerViewportOutline")
+            viewport = host.findChild(QObject, "graphNodeViewerViewport")
+            assert host.findChild(QObject, "graphNodeViewerProxyPaneBorder") is None
+            assert host.findChild(QObject, "graphNodeViewerLivePane") is None
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                settle_events(5)
+                geometry = (outline.x(), outline.y(), outline.width(), outline.height())
+                color = QQmlProperty.read(outline, "border.color")
+                width = QQmlProperty.read(outline, "border.width")
+                assert width == 1, ("width", width)
+                assert viewport.x() > outline.x() + width, ("left", viewport.x(), outline.x())
+                assert viewport.y() > outline.y() + width, ("top", viewport.y(), outline.y())
+                assert viewport.x() + viewport.width() < outline.x() + outline.width() - width, ("right", viewport.width(), outline.width())
+                assert viewport.y() + viewport.height() < outline.y() + outline.height() - width, ("bottom", viewport.height(), outline.height())
+                surface.setProperty("_inlineLiveRequested", True)
+                viewerHostServiceStub._overlay_ready = True
+                viewerHostServiceStub._viewer_overlay_revision += 1
+                viewerHostServiceStub.state_changed.emit()
+                settle_events(5)
+                assert surface.property("liveOverlayReady"), "live overlay"
+                assert outline.isVisible(), "outline visibility"
+                assert (outline.x(), outline.y(), outline.width(), outline.height()) == geometry, ("geometry",geometry,(outline.x(),outline.y(),outline.width(),outline.height()))
+                assert QQmlProperty.read(outline, "border.color") == color, ("color",color,QQmlProperty.read(outline,"border.color"))
+                assert QQmlProperty.read(outline, "border.width") == width, "border width"
+            finally:
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
     def test_pending_exit_renders_fresh_preview_beneath_live_overlay_and_rejects_error(self) -> None:
         self._run_qml_probe(
             "viewer-preview-pending-render-readiness",

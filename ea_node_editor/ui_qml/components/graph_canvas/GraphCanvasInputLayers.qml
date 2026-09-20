@@ -539,8 +539,10 @@ Item {
                 return;
             if (root.canvasItem)
                 root.canvasItem.noteViewportInteraction();
-            var dx = (mouse.x - lastX) / Math.max(0.1, root.viewStateBridge.zoom_value);
-            var dy = (mouse.y - lastY) / Math.max(0.1, root.viewStateBridge.zoom_value);
+            var navigationZoom = root.viewCommandBridge.navigation_zoom
+                ? root.viewCommandBridge.navigation_zoom() : root.viewStateBridge.zoom_value;
+            var dx = (mouse.x - lastX) / Math.max(0.1, navigationZoom);
+            var dy = (mouse.y - lastY) / Math.max(0.1, navigationZoom);
             var scheduler = root._frameScheduler();
             if (!scheduler || !scheduler.queuePanBy || !scheduler.queuePanBy(root.viewCommandBridge, -dx, -dy))
                 root.viewCommandBridge.pan_by(-dx, -dy);

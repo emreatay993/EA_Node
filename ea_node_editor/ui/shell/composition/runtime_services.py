@@ -223,6 +223,10 @@ def create_viewer_service_dependencies(
         preview_cache_provider=primitives._viewer_preview_cache_provider,
     )
     viewer_host_service_ref[0] = viewer_host_service
+    primitives.view.set_view_change_guard(viewer_host_service.prepare_canvas_navigation)
+    viewer_host_service.canvas_navigation_ready.connect(primitives.view.flush_deferred_view_state)
+    viewer_host_service.canvas_navigation_cancelled.connect(primitives.view.cancel_deferred_view_state)
+    primitives.scene.workspace_changed.connect(primitives.view.cancel_deferred_view_state)
     viewer_control_bridge = ViewerControlBridge(
         host,
         active_workspace_id_provider=active_workspace_id_provider,
