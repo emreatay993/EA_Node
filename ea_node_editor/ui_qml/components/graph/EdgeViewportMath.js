@@ -46,14 +46,6 @@ function screenMarginToScene(screenMarginPx, viewportTransformArg) {
     return screenLengthToScene(screenMarginPx, viewportTransformArg);
 }
 
-function dashPatternToScene(screenPattern, viewportTransformArg) {
-    var pattern = screenPattern || [];
-    var scenePattern = [];
-    for (var i = 0; i < pattern.length; i++)
-        scenePattern.push(screenLengthToScene(pattern[i], viewportTransformArg));
-    return scenePattern;
-}
-
 function applyViewportTransform(ctx, viewportTransformArg) {
     ctx.translate(viewportTransformArg.offsetX, viewportTransformArg.offsetY);
     ctx.scale(viewportTransformArg.zoom, viewportTransformArg.zoom);

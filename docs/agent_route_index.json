@@ -992,8 +992,8 @@
         "tests/graph_track_b/qml_preference_rendering_suite.py",
         "tests/graph_surface/passive_host_interaction_suite.py",
         "tests/test_type_forwarding_ui.py",
-        "tests/test_graph_output_mode_ui.py",
         "tests/test_edge_snapshot_spatial_index.py",
+        "tests/test_graph_output_mode_ui.py",
         "tests/test_data_tree_ui.py"
       ],
       "qml_candidates": [
@@ -1085,12 +1085,12 @@
         "ensurespatialindex",
         "contentkey",
         "edgedata",
-        "canvasstatebridgeref",
-        "scenebridge",
-        "output",
         "snapshot",
         "spatial",
         "index",
+        "canvasstatebridgeref",
+        "scenebridge",
+        "output",
         "tree"
       ],
       "aliases": [],

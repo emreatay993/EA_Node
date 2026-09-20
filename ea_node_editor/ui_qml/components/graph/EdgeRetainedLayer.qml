@@ -73,6 +73,13 @@ Item {
         root._paintViewportOffsetY = isFinite(offsetY) ? offsetY : 0.0;
     }
 
+    function needsSelectionOverlay(snapshot) {
+        // Keep the shared background / node-highlight / direct-selection order
+        // when a node-highlight gradient needs the Canvas overlay.
+        return Boolean(snapshot && !snapshot.culled && (snapshot.selected || snapshot.previewed
+            || (snapshot.activeDataWire && (snapshot.sourceNodeSelected || snapshot.targetNodeSelected))));
+    }
+
     function _compatibleSnapshot(snapshot) {
         if (!snapshot || snapshot.culled || !snapshot.geometry)
             return false;
@@ -82,8 +89,6 @@ Item {
             return false;
         if (snapshot.activeDataWire
                 && Boolean(snapshot.edgeData && snapshot.edgeData.data_type_warning))
-            return false;
-        if (!snapshot.selected && (snapshot.sourceNodeSelected || snapshot.targetNodeSelected))
             return false;
         if ((snapshot.crossingBreaks || []).length > 0)
             return false;
@@ -133,18 +138,12 @@ Item {
         return screenPoints;
     }
 
-    function _polylineSegments(points) {
-        var segments = [];
+    function _polylinePath(points) {
+        var commands = [];
         var source = points || [];
-        for (var i = 1; i < source.length; i++) {
-            segments.push({
-                "sx": Number(source[i - 1].x || 0.0),
-                "sy": Number(source[i - 1].y || 0.0),
-                "tx": Number(source[i].x || 0.0),
-                "ty": Number(source[i].y || 0.0)
-            });
-        }
-        return segments;
+        for (var i = 0; i < source.length; i++)
+            commands.push((i === 0 ? "M " : "L ") + source[i].x + " " + source[i].y);
+        return commands.join(" ");
     }
 
     function _endpointNodeId(edge, prefix) {
@@ -179,21 +178,6 @@ Item {
         return numeric.toFixed(digits);
     }
 
-    function _segmentKey(segments) {
-        var parts = [];
-        var source = segments || [];
-        for (var i = 0; i < source.length; i++) {
-            var segment = source[i] || ({});
-            parts.push(
-                root._fixed(segment.sx, 2),
-                root._fixed(segment.sy, 2),
-                root._fixed(segment.tx, 2),
-                root._fixed(segment.ty, 2)
-            );
-        }
-        return parts.join(",");
-    }
-
     function _offsetKey(offsets) {
         var parts = [];
         var source = offsets || [];
@@ -210,18 +194,9 @@ Item {
         return parts.join(",");
     }
 
-    function _shapeDashPattern(screenPattern, strokeWidthScreenPx) {
-        var width = Math.max(1.0, Number(strokeWidthScreenPx || 1.0));
-        var result = [];
-        for (var i = 0; i < (screenPattern || []).length; i++)
-            result.push(Math.max(0.1, Number(screenPattern[i] || 0.0) / width));
-        return result;
-    }
-
     function _contentKeyForEntry(entry) {
         return [
             String(entry.route || "bezier"),
-            root._fixed(entry.drawOrderIndex, 4),
             String(entry.sourceNodeId || ""),
             String(entry.targetNodeId || ""),
             root._fixed(entry.sx, 2),
@@ -232,7 +207,8 @@ Item {
             root._fixed(entry.c2y, 2),
             root._fixed(entry.tx, 2),
             root._fixed(entry.ty, 2),
-            root._segmentKey(entry.segments),
+            entry.pipePath,
+            entry.selectionOverlay ? "selection-overlay" : "retained",
             root._fixed(entry.appliedSourceDragDx, 2),
             root._fixed(entry.appliedSourceDragDy, 2),
             root._fixed(entry.appliedTargetDragDx, 2),
@@ -308,7 +284,8 @@ Item {
             "c2y": geometry.c2y,
             "tx": geometry.tx,
             "ty": geometry.ty,
-            "segments": root._polylineSegments(screenPolyline),
+            "pipePath": root._polylinePath(screenPolyline),
+            "selectionOverlay": root.needsSelectionOverlay(snapshot),
             "sourceNodeId": sourceNodeId,
             "targetNodeId": targetNodeId,
             "appliedSourceDragDx": sourceDragged ? dragDx : 0.0,
@@ -323,7 +300,7 @@ Item {
                 paintState.strokeOffsetsScreenPx || [0.0]
             ),
             "dashed": (paintState.dashPatternScreenPx || []).length > 0,
-            "dashPattern": root._shapeDashPattern(
+            "dashPattern": EdgePaintPolicy.dashPatternInStrokeWidths(
                 paintState.dashPatternScreenPx || [],
                 paintState.strokeWidthScreenPx
             ),
@@ -368,6 +345,8 @@ Item {
         var current = retainedEdgeModel.get(index);
         var currentEntry = current ? (current.edgeEntry || ({})) : ({});
         var currentEdgeId = current ? String(current.edgeId || "") : "";
+        if (current && current.drawOrderIndex !== entry.drawOrderIndex)
+            retainedEdgeModel.setProperty(index, "drawOrderIndex", entry.drawOrderIndex);
         if (currentEntry.contentKey === entry.contentKey && currentEdgeId === String(entry.edgeId || "")) {
             root.profileRetainedModelEntrySkipCount += 1;
             return;
@@ -400,7 +379,9 @@ Item {
                 root._setRetainedModelEntry(targetIndex, entry);
                 continue;
             }
-            retainedEdgeModel.insert(targetIndex, {"edgeId": edgeId, "edgeEntry": entry});
+            retainedEdgeModel.insert(targetIndex, {
+                "edgeId": edgeId, "edgeEntry": entry, "drawOrderIndex": entry.drawOrderIndex
+            });
         }
         while (retainedEdgeModel.count > source.length)
             retainedEdgeModel.remove(retainedEdgeModel.count - 1);
@@ -465,7 +446,8 @@ Item {
                     edgeEntry.targetNodeId,
                     edgeEntry.appliedTargetDragDy
                 )
-                z: Number(edgeEntry.drawOrderIndex || 0)
+                z: Number(model.drawOrderIndex || 0)
+                visible: !edgeEntry.selectionOverlay
                 anchors.fill: parent
                 Component.onCompleted: root.profileRetainedDelegateCreateCount += 1
                 Component.onDestruction: root.profileRetainedDelegateDestroyCount += 1
@@ -522,35 +504,29 @@ Item {
                             }
                         }
 
-                        Repeater {
-                            model: String(retainedEdgeDelegate.edgeEntry.route || "bezier") === "pipe"
-                                ? (retainedEdgeDelegate.edgeEntry.segments || [])
-                                : []
-                            delegate: Shape {
-                                anchors.fill: parent
-                                opacity: Math.max(0.0, Math.min(1.0, Number(retainedEdgeDelegate.edgeEntry.strokeAlpha || 0.0)))
-                                containsMode: Shape.FillContains
+                        Shape {
+                            visible: String(retainedEdgeDelegate.edgeEntry.route || "bezier") === "pipe"
+                            anchors.fill: parent
+                            opacity: Math.max(0.0, Math.min(1.0, Number(retainedEdgeDelegate.edgeEntry.strokeAlpha || 0.0)))
+                            containsMode: Shape.FillContains
+                            transform: Translate {
+                                x: Number(retainedStrokeDelegate.strokeOffset.x || 0.0)
+                                y: Number(retainedStrokeDelegate.strokeOffset.y || 0.0)
+                            }
 
-                                ShapePath {
-                                    fillColor: "transparent"
-                                    strokeColor: retainedEdgeDelegate.edgeEntry.strokeColor
-                                    strokeWidth: Math.max(1.0, Number(retainedEdgeDelegate.edgeEntry.strokeWidthScreenPx || 1.0))
-                                    capStyle: ShapePath.RoundCap
-                                    joinStyle: ShapePath.RoundJoin
-                                    strokeStyle: retainedEdgeDelegate.edgeEntry.dashed
-                                        ? ShapePath.DashLine
-                                        : ShapePath.SolidLine
-                                    dashPattern: retainedEdgeDelegate.edgeEntry.dashPattern || []
-                                    startX: Number(modelData.sx || 0.0)
-                                        + Number(retainedStrokeDelegate.strokeOffset.x || 0.0)
-                                    startY: Number(modelData.sy || 0.0)
-                                        + Number(retainedStrokeDelegate.strokeOffset.y || 0.0)
-                                    PathLine {
-                                        x: Number(modelData.tx || 0.0)
-                                            + Number(retainedStrokeDelegate.strokeOffset.x || 0.0)
-                                        y: Number(modelData.ty || 0.0)
-                                            + Number(retainedStrokeDelegate.strokeOffset.y || 0.0)
-                                    }
+                            ShapePath {
+                                fillColor: "transparent"
+                                strokeColor: retainedEdgeDelegate.edgeEntry.strokeColor
+                                strokeWidth: Math.max(1.0, Number(retainedEdgeDelegate.edgeEntry.strokeWidthScreenPx || 1.0))
+                                capStyle: ShapePath.RoundCap
+                                joinStyle: ShapePath.RoundJoin
+                                strokeStyle: retainedEdgeDelegate.edgeEntry.dashed
+                                    ? ShapePath.DashLine
+                                    : ShapePath.SolidLine
+                                dashPattern: retainedEdgeDelegate.edgeEntry.dashPattern || []
+                                PathSvg {
+                                    // One path preserves dash phase through every corner.
+                                    path: retainedEdgeDelegate.edgeEntry.pipePath || ""
                                 }
                             }
                         }

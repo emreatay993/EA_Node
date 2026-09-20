@@ -406,6 +406,115 @@ class EdgeSnapshotSpatialIndexTests(unittest.TestCase):
             """,
         )
 
+    def test_wire_selection_preserves_dash_pixels_and_unrelated_retained_items(self) -> None:
+        self._run_edge_layer_probe(
+            "wire-selection-dash-stability",
+            """
+            from PyQt6.QtCore import QRect
+            from PyQt6.QtGui import QColor
+            from PyQt6.QtQuick import QQuickWindow
+            from PyQt6.QtTest import QTest
+
+            window = QQuickWindow()
+            window.resize(400, 700)
+            window.setColor(QColor("transparent"))
+            edge_layer.setProperty("height", 700.0)
+            view.set_viewport_size(400.0, 700.0)
+            view.centerOn(150.0, 220.0)
+            edge_layer.setParentItem(window.contentItem())
+            window.show()
+            retained = edge_layer.findChild(QObject, "graphCanvasEdgeRetainedLayer")
+            canvas = edge_layer.findChild(QObject, "graphCanvasEdgeCanvasLayer")
+
+            edges = []
+            for index, access in enumerate(("tree", "list", "tree")):
+                y = index * 170.0
+                edge = bezier_edge(
+                    str(index), 250.0, y, 120.0, y + 40.0,
+                    source_node_id="source_" + str(index),
+                    target_node_id="target_" + str(index),
+                    active_data_wire=True, data_access=access,
+                    source_active_node=True, target_active_node=True,
+                    route="pipe", pipe_points=[
+                        {"x": 250.0, "y": y}, {"x": 300.0, "y": y},
+                        {"x": 300.0, "y": y + 20.0}, {"x": 80.0, "y": y + 20.0},
+                        {"x": 80.0, "y": y + 40.0}, {"x": 120.0, "y": y + 40.0},
+                    ],
+                )
+                edges.append(edge)
+            edge_layer.setProperty("edges", edges)
+
+            def frame():
+                refresh(edge_layer)
+                QTest.qWait(40)
+                app.processEvents()
+                result = window.grabWindow()
+                assert not result.isNull()
+                return result
+
+            def band(image, index):
+                # Include all turns and endpoints, at the image's device pixel ratio.
+                scale = image.width() / 400.0
+                points = snapshot(edge_layer, str(index))["geometry"]["pipe_points"]
+                left = edge_layer.sceneToScreenX(min(p["x"] for p in points) - 5.0)
+                top = edge_layer.sceneToScreenY(min(p["y"] for p in points) - 5.0)
+                right = edge_layer.sceneToScreenX(max(p["x"] for p in points) + 5.0)
+                bottom = edge_layer.sceneToScreenY(max(p["y"] for p in points) + 5.0)
+                return image.copy(QRect(round(left * scale), round(top * scale),
+                    round((right - left) * scale), round((bottom - top) * scale)))
+
+            def ink_mask(image):
+                return [image.pixelColor(x, y).alpha() > 128
+                    for y in range(image.height()) for x in range(image.width())]
+
+            for zoom in (0.75, 1.0):
+                view.set_zoom(zoom)
+                for index in (0, 1):
+                    edge_layer.setProperty("selectedNodeIds", [])
+                    edge_layer.setProperty("selectedEdgeIds", [])
+                    baseline = frame()
+                    creates = int(retained.property("profileRetainedDelegateCreateCount"))
+                    destroys = int(retained.property("profileRetainedDelegateDestroyCount"))
+                    baseline_entries = {entry["edgeId"]: entry for entry in
+                        to_variant(retained.property("_retainedEdgeModel"))}
+                    for selected_nodes, selected_edges, gradient in (
+                        (["source_" + str(index)], [], "selected_source"),
+                        (["target_" + str(index)], [], "selected_target"),
+                        (["source_" + str(index), "target_" + str(index)], [], "selected_both"),
+                        ([], [str(index)], "none"),
+                        ([], [], "none"),
+                    ):
+                        updates = int(retained.property("profileRetainedModelEntryUpdateCount"))
+                        selection_changes = int(to_variant(edge_layer.property("selectedNodeIds")) != selected_nodes)
+                        selection_changes += int(to_variant(edge_layer.property("selectedEdgeIds")) != selected_edges)
+                        edge_layer.setProperty("selectedNodeIds", selected_nodes)
+                        edge_layer.setProperty("selectedEdgeIds", selected_edges)
+                        selected_frame = frame()
+                        assert edge_layer.property("edgeRendererKind") == "retained_qml"
+                        assert int(retained.property("profileRetainedDelegateCreateCount")) == creates
+                        assert int(retained.property("profileRetainedDelegateDestroyCount")) == destroys
+                        assert int(retained.property("profileRetainedModelEntryUpdateCount")) <= updates + selection_changes
+                        entries = {entry["edgeId"]: entry for entry in
+                            to_variant(retained.property("_retainedEdgeModel"))}
+                        assert entries["2"]["contentKey"] == baseline_entries["2"]["contentKey"], (
+                            entries["2"]["contentKey"], baseline_entries["2"]["contentKey"])
+                        assert band(selected_frame, 2) == band(baseline, 2), "Unrelated wire repainted differently"
+                        before = ink_mask(band(baseline, index))
+                        after = ink_mask(band(selected_frame, index))
+                        changed = sum(a != b for a, b in zip(before, after))
+                        assert sum(before) > 100, "Expected visible dashed wire pixels"
+                        assert changed < sum(before) * 0.08, (zoom, index, gradient, changed, sum(before))
+                        diagnostics = to_variant(edge_layer.property("activeEdgePaintDiagnosticsByEdgeId"))
+                        assert diagnostics[str(index)]["gradientKind"] == gradient
+                        if selected_nodes or selected_edges:
+                            painted = to_variant(canvas.property("_paintDiagnosticsByEdgeId"))
+                            assert set(painted) == {str(index)}, painted.keys()
+                            assert band(selected_frame, index) != band(baseline, index), "Highlight missing"
+                        else:
+                            assert not canvas.property("visible")
+            """,
+        )
+
     def test_retained_edges_and_flow_labels_keep_delegates_for_targeted_updates(self) -> None:
         self._run_edge_layer_probe(
             "qml-delegate-stability",

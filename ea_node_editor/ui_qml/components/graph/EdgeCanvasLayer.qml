@@ -7,6 +7,7 @@ Item {
     id: root
     objectName: "graphCanvasEdgeCanvasLayer"
     property Item edgeLayer: null
+    property var paintSnapshots: edgeLayer ? edgeLayer._visibleEdgeSnapshots : []
     readonly property var canvasStateBridgeRef: root.edgeLayer
         && root.edgeLayer.sceneBridge
         ? root.edgeLayer.sceneBridge
@@ -202,7 +203,7 @@ Item {
         }
     }
 
-    function strokeStandardGeometry(ctx, geometry, sampledPoints, breakRanges, dashPatternScene) {
+    function strokeStandardGeometry(ctx, geometry, sampledPoints, breakRanges, dashPattern) {
         if (!(breakRanges || []).length) {
             ctx.beginPath();
             root.traceGeometry(ctx, geometry);
@@ -225,7 +226,7 @@ Item {
             if (visibleEnd > cursor + 1e-6) {
                 ctx.beginPath();
                 root._tracePolylineRange(ctx, metrics.segments, cursor, visibleEnd);
-                ctx.lineDashOffset = (dashPatternScene || []).length ? -cursor : 0.0;
+                ctx.lineDashOffset = (dashPattern || []).length ? cursor / ctx.lineWidth : 0.0;
                 ctx.stroke();
             }
             if (i < ranges.length)
@@ -690,7 +691,7 @@ Item {
                     return;
                 }
                 var zoom = EdgeViewportMath.zoomValue(root.edgeLayer);
-                var snapshots = root.edgeLayer._visibleEdgeSnapshots || [];
+                var snapshots = root.paintSnapshots || [];
                 var viewportTransform = EdgeViewportMath.viewportTransform(root.edgeLayer);
                 var paintDiagnosticsByEdgeId = {};
                 root._rememberPaintViewport(viewportTransform);
@@ -733,7 +734,7 @@ Item {
                             viewportTransform
                         );
                         ctx.setLineDash(
-                            EdgeViewportMath.dashPatternToScene(flowDashPatternScreenPx, viewportTransform)
+                            EdgePaintPolicy.dashPatternInStrokeWidths(flowDashPatternScreenPx, flowStrokeWidthScreenPx)
                         );
                         ctx.stroke();
                         root.drawFlowArrowHead(ctx, geometry, edge, flowStrokeColor, zoom, viewportTransform);
@@ -772,11 +773,11 @@ Item {
                                 standardPaint.strokeWidthScreenPx,
                                 viewportTransform
                             );
-                            var standardDashPatternScene = EdgeViewportMath.dashPatternToScene(
+                            var standardDashPattern = EdgePaintPolicy.dashPatternInStrokeWidths(
                                 standardPaint.dashPatternScreenPx,
-                                viewportTransform
+                                standardPaint.strokeWidthScreenPx
                             );
-                            ctx.setLineDash(standardDashPatternScene);
+                            ctx.setLineDash(standardDashPattern);
                             ctx.lineCap = "round";
                             ctx.lineJoin = "round";
                             var strokeOffsets = standardPaint.strokeOffsetsScreenPx || [0.0];
@@ -793,7 +794,7 @@ Item {
                                     geometry,
                                     snapshot.crossingSamplePoints || [],
                                     crossingBreaks,
-                                    standardDashPatternScene
+                                    standardDashPattern
                                 );
                                 ctx.restore();
                             }
@@ -834,13 +835,13 @@ Item {
                             viewportTransform
                         );
                         ctx.setLineDash(
-                            EdgeViewportMath.dashPatternToScene(
+                            EdgePaintPolicy.dashPatternInStrokeWidths(
                                 EdgePaintPolicy.dragConnectionDashPattern(
                                     root.edgeLayer,
                                     liveDrag,
                                     zoom
                                 ),
-                                viewportTransform
+                                EdgePaintPolicy.dragConnectionStrokeWidthScreenPx(root.edgeLayer, liveDrag, zoom)
                             )
                         );
                         ctx.lineCap = "round";

@@ -80,6 +80,15 @@ function flowDashPattern(edge, zoom) {
     return [];
 }
 
+function dashPatternInStrokeWidths(screenPattern, strokeWidthScreenPx) {
+    // Both ShapePath and Qt Canvas forward dash values to QPen in pen-width units.
+    var width = Math.max(1.0, Number(strokeWidthScreenPx || 1.0));
+    var result = [];
+    for (var i = 0; i < (screenPattern || []).length; i++)
+        result.push(Number(screenPattern[i]) / width);
+    return result;
+}
+
 function standardEdgeActive(edge) {
     return Boolean(edge && edge.active_data_wire);
 }

@@ -77,7 +77,7 @@ Item {
     readonly property int profileRetainedModelEntrySkipCount: edgeRetainedLayer.profileRetainedModelEntrySkipCount
     readonly property int profileFlowLabelModelSyncSkipCount: flowLabelLayer.profileFlowLabelModelSyncSkipCount
     readonly property real profileLastEdgePaintMs: root.edgeRendererKind === "retained_qml"
-        ? edgeRetainedLayer.profileLastPaintMs
+        ? edgeRetainedLayer.profileLastPaintMs + (root._selectionOverlaySnapshots.length ? edgeCanvasLayer.profileLastPaintMs : 0.0)
         : (root.edgeRendererKind === "native_scenegraph"
             ? edgeScenegraphLayer.profileLastPaintMs
             : edgeCanvasLayer.profileLastPaintMs)
@@ -95,6 +95,7 @@ Item {
         : edgeCanvasLayer._paintDiagnosticsByEdgeId
     property string _activeEdgeRendererKind: "canvas"
     property string _edgeRendererFallbackReason: ""
+    property var _selectionOverlaySnapshots: []
     property real viewportCullMarginPx: 96.0
     property var _cachedBaseNodeMap: null
     property var _cachedNodeMap: null
@@ -227,12 +228,22 @@ Item {
         var activeKind = fallbackReason ? "canvas" : requestedKind;
         root._activeEdgeRendererKind = activeKind;
         root._edgeRendererFallbackReason = fallbackReason;
-        edgeCanvasLayer.visible = activeKind === "canvas";
+        var selectionOverlays = [];
+        if (activeKind === "retained_qml") {
+            for (var i = 0; i < snapshots.length; i++) {
+                if (edgeRetainedLayer.needsSelectionOverlay(snapshots[i]))
+                    selectionOverlays.push(snapshots[i]);
+            }
+        }
+        root._selectionOverlaySnapshots = selectionOverlays;
+        edgeCanvasLayer.visible = activeKind === "canvas" || selectionOverlays.length > 0;
         edgeRetainedLayer.visible = activeKind === "retained_qml";
         edgeScenegraphLayer.visible = activeKind === "native_scenegraph";
         if (activeKind === "retained_qml") {
             edgeCanvasLayer.clearCanvasPaintDiagnostics();
             edgeRetainedLayer.requestRetainedPaint();
+            if (selectionOverlays.length > 0)
+                edgeCanvasLayer.requestCanvasPaint();
         } else if (activeKind === "native_scenegraph") {
             edgeRetainedLayer.clearRetainedPaint();
             edgeCanvasLayer.clearCanvasPaintDiagnostics();
@@ -1118,6 +1129,11 @@ Item {
         id: edgeCanvasLayer
         anchors.fill: parent
         edgeLayer: root
+        // Canvas supplies gradient highlighting and preserves selection stacking.
+        // All wire delegates stay retained while only highlighted wires repaint.
+        paintSnapshots: root.edgeRendererKind === "retained_qml"
+            ? root._selectionOverlaySnapshots : root._visibleEdgeSnapshots
+        z: root.edgeRendererKind === "retained_qml" ? 1 : 0
     }
 
     EdgeRetainedLayer {
