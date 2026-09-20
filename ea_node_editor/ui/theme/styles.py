@@ -386,6 +386,7 @@ QMessageBox QPushButton,
 QInputDialog QPushButton {{
     background: {tokens.panel_alt_bg};
     border: 1px solid {tokens.border};
+    padding: 4px 8px;
     color: {tokens.app_fg};
 }}
 QDialog QPushButton:hover,
@@ -412,8 +413,8 @@ QInputDialog QPushButton:default {{
     background: {tokens.panel_alt_bg};
     border: 2px solid {tokens.accent};
     color: {tokens.app_fg};
-    font-weight: 600;
-    padding: 6px 20px;
+    /* Qt may set default after layout: preserve the normal font and total insets. */
+    padding: 3px 7px;
 }}
 QDialog QPushButton:default:hover,
 QDialog QPushButton#primaryButton:hover,

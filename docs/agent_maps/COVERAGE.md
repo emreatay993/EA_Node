@@ -22,6 +22,8 @@ implementation studies are intentionally excluded.
 
 ## Cross-layer feature routes
 
+Shared Qt dialog styling preserves button content space when the default role changes after layout. The PyQt dialog/theme map owns label visibility and keyboard-acceptance coverage for input and message dialogs.
+
 Unused Model Viewer inputs share the execution-owned computational projection.
 Native CAD CURRENT reads retain process resources with validated provenance;
 viewer label changes preserve actors, camera and previews through history and

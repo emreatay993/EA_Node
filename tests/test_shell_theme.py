@@ -8,7 +8,10 @@ from unittest.mock import patch
 from PyQt6.QtCore import QObject, QPoint, Qt
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QDialog, QLineEdit
+from PyQt6.QtWidgets import (
+    QApplication, QDialog, QDialogButtonBox, QInputDialog, QLineEdit,
+    QMessageBox, QStyle, QStyleOptionButton,
+)
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.telemetry.status_service import ShellStatusService
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
@@ -91,6 +94,67 @@ class ShellThemeServiceTests(unittest.TestCase):
         self.assertIn(STITCH_LIGHT_V1.inspector_danger_border, stylesheet)
         self.assertNotIn("QFileDialog", stylesheet)
         self.assertNotIn("QColorDialog", stylesheet)
+
+    def test_standard_dialog_default_buttons_keep_labels_visible(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        self.addCleanup(app.setStyleSheet, app.styleSheet())
+        self.addCleanup(app.setPalette, app.palette())
+
+        for theme_id, tokens in (("stitch_dark", STITCH_DARK_V1), ("stitch_light", STITCH_LIGHT_V1)):
+            app.setStyleSheet(build_theme_stylesheet(theme_id))
+            app.setPalette(build_theme_palette(theme_id))
+            for dialog_kind in ("input", "message"):
+                with self.subTest(theme=theme_id, dialog=dialog_kind):
+                    if dialog_kind == "input":
+                        dialog = QInputDialog()
+                        dialog.setLabelText("New name:")
+                        dialog.setTextValue("CAD Paths")
+                    else:
+                        dialog = QMessageBox(
+                            QMessageBox.Icon.Question, "Confirm", "Continue?",
+                            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+                        )
+                    self.addCleanup(dialog.deleteLater)
+                    self.addCleanup(dialog.close)
+                    dialog.show()
+                    app.processEvents()
+                    box = dialog.findChild(QDialogButtonBox)
+                    self.assertIsNotNone(box)
+                    ok_button = box.button(QDialogButtonBox.StandardButton.Ok)
+                    self.assertTrue(ok_button.isDefault())
+
+                    for button in box.buttons():
+                        option = QStyleOptionButton()
+                        button.initStyleOption(option)
+                        content = button.style().subElementRect(
+                            QStyle.SubElement.SE_PushButtonContents, option, button,
+                        )
+                        label = button.fontMetrics().boundingRect(button.text())
+                        self.assertGreaterEqual(content.width(), label.width(), button.text())
+                        self.assertGreaterEqual(content.height(), label.height(), button.text())
+                        pixels = button.grab().toImage()
+                        scale = pixels.devicePixelRatio()
+                        self.assertTrue(any(
+                            pixels.pixelColor(round(x * scale), round(y * scale)) == QColor(tokens.app_fg)
+                            for x in range(content.left(), content.right() + 1)
+                            for y in range(content.top(), content.bottom() + 1)
+                        ), f"Missing rendered {button.text()} label")
+
+                    # Qt can assign the default role after the button box was sized.
+                    sizes = []
+                    for default in (False, True):
+                        ok_button.setDefault(default)
+                        option = QStyleOptionButton()
+                        ok_button.initStyleOption(option)
+                        sizes.append(ok_button.style().subElementRect(
+                            QStyle.SubElement.SE_PushButtonContents, option, ok_button,
+                        ))
+                    self.assertEqual(sizes[0], sizes[1])
+                    QTest.keyClick(dialog, Qt.Key.Key_Return)
+                    expected_result = (QDialog.DialogCode.Accepted if dialog_kind == "input"
+                                       else QMessageBox.StandardButton.Ok)
+                    self.assertEqual(dialog.result(), int(expected_result))
+                    self.assertFalse(dialog.isVisible())
 
     def test_theme_bridge_delegates_resolution_to_shell_theme_service(self) -> None:
         service = ShellThemeService(theme_id="stitch_dark")
