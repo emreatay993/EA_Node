@@ -22,6 +22,9 @@ SCHEMA_VERSION = 5
 AUTOSAVE_INTERVAL_MS = 30_000
 APP_PREFERENCES_KIND = "ea-node-editor/app-preferences"
 APP_PREFERENCES_VERSION = 8
+DEFAULT_TOOLTIP_DELAY_MS = 400
+TOOLTIP_DELAY_MIN_MS = 0
+TOOLTIP_DELAY_MAX_MS = 5000
 
 DEFAULT_WORKFLOW_SETTINGS = {
     "general": {
@@ -284,6 +287,7 @@ DEFAULT_GRAPHICS_SETTINGS = {
         "passive_node_library_display_mode": DEFAULT_PASSIVE_NODE_LIBRARY_DISPLAY_MODE,
         "panel_collapsed": DEFAULT_SHELL_PANEL_COLLAPSED,
         "tooltip_categories": default_tooltip_category_preferences(),
+        "tooltip_delay_ms": DEFAULT_TOOLTIP_DELAY_MS,
         "node_library_usage": [],
     },
     "theme": {

@@ -291,6 +291,11 @@ class ShellWindow(
         fget=context_properties._qt_graphics_tooltip_category_visibility,
         notify=graphics_preferences_changed,
     )
+    graphics_tooltip_delay_ms = pyqtProperty(
+        int,
+        fget=context_properties._qt_graphics_tooltip_delay_ms,
+        notify=graphics_preferences_changed,
+    )
     graphics_minimap_expanded = pyqtProperty(
         bool,
         fget=context_properties._qt_graphics_minimap_expanded,

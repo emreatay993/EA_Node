@@ -710,7 +710,6 @@ Rectangle {
                         category: "general"
                         active: parent.hovered && !parent.actionAvailable
                         text: TooltipCopy.text(tooltipCopyBridge, "viewer.render.points_unavailable")
-                        delay: 300
                     }
                 }
 

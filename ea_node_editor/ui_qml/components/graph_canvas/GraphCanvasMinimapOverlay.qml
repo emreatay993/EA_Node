@@ -125,7 +125,6 @@ Rectangle {
             active: minimapToggleMouse.containsMouse
             text: TooltipCopy.text(tooltipCopyBridge, root.toggleTooltipKey)
             textFormat: root.tooltipTextFormat
-            delay: 400
         }
 
         MouseArea {

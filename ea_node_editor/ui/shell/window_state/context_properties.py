@@ -187,6 +187,10 @@ def _qt_graphics_tooltip_category_visibility(self: "ShellWindow") -> dict[str, b
     return self.shell_workspace_presenter.graphics_tooltip_category_visibility
 
 
+def _qt_graphics_tooltip_delay_ms(self: "ShellWindow") -> int:
+    return self.shell_workspace_presenter.graphics_tooltip_delay_ms
+
+
 def _qt_graphics_minimap_expanded(self: "ShellWindow") -> bool:
     return bool(self.search_scope_state.graphics_minimap_expanded)
 

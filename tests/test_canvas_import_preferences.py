@@ -248,7 +248,32 @@ Item {
                 dialog = GraphicsSettingsDialog(controller.graphics_settings())
                 assert dialog.canvas_import_mode_combo.currentData() == mode
                 dialog.close()
-        assert notifications == ["ask", "automatic"]
+        tooltip_delay_row = canvas.findChild(QQuickItem, "canvasOptionsTooltipDelayRow")
+        assert tooltip_delay_row is not None
+        assert tooltip_delay_row.property("value") == "400 ms"
+        menu.setProperty("activeSubmenu", "tooltipDelay")
+        app.processEvents()
+        tooltip_delay_submenu = canvas.findChild(
+            QQuickItem,
+            "canvasOptionsTooltipDelaySubmenu",
+        )
+        assert tooltip_delay_submenu is not None
+        descendants = list(tooltip_delay_submenu.childItems())
+        for item in descendants:
+            descendants.extend(item.childItems())
+        delay_choice = next(
+            item for item in descendants if item.property("optionValue") == "800"
+        )
+        click(delay_choice)
+        assert controller.graphics_settings()["shell"]["tooltip_delay_ms"] == 800
+        assert state.graphics_tooltip_delay_ms == 800
+        assert menu.property("tooltipDelayMs") == 800
+        assert tooltip_delay_row.property("value") == "800 ms"
+        if canvas_height == 1000:
+            dialog = GraphicsSettingsDialog(controller.graphics_settings())
+            assert dialog.tooltip_delay_spin.value() == 800
+            dialog.close()
+        assert notifications == ["ask", "automatic", "automatic"]
         if canvas_height < 1000:
             main_scroll = canvas.findChild(QQuickItem, "canvasOptionsMainScroll")
             wheel_to_bottom(main_scroll)

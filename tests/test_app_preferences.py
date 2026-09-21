@@ -23,6 +23,7 @@ from ea_node_editor.app_preferences import (
     normalize_selection_toolbar_minimal_menu_trigger,
     normalize_selection_toolbar_mode,
     normalize_shell_panel_collapsed,
+    normalize_tooltip_delay_ms,
 )
 from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
@@ -36,7 +37,9 @@ from ea_node_editor.settings import (
     DEFAULT_SELECTION_TOOLBAR_MINIMAL_MENU_TRIGGER,
     DEFAULT_SELECTION_TOOLBAR_MODE,
     DEFAULT_SHELL_PANEL_COLLAPSED,
+    DEFAULT_TOOLTIP_DELAY_MS,
     SCHEMA_VERSION,
+    TOOLTIP_DELAY_MAX_MS,
 )
 
 
@@ -48,6 +51,25 @@ class AppPreferencesTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self._temp_dir.cleanup()
+
+    def test_tooltip_delay_normalizes_bounded_millisecond_values(self) -> None:
+        for value in (0, 1, 625, TOOLTIP_DELAY_MAX_MS):
+            with self.subTest(value=value):
+                self.assertEqual(normalize_tooltip_delay_ms(value), value)
+
+        for value in (None, True, -1, TOOLTIP_DELAY_MAX_MS + 1, "slow", [], {}):
+            with self.subTest(value=value):
+                self.assertEqual(
+                    normalize_tooltip_delay_ms(value),
+                    DEFAULT_TOOLTIP_DELAY_MS,
+                )
+
+        self.assertEqual(
+            normalize_graphics_settings({"shell": {"tooltip_delay_ms": 750}})["shell"][
+                "tooltip_delay_ms"
+            ],
+            750,
+        )
 
     def test_engineering_viewer_tangent_angle_is_app_wide_and_clamped(self) -> None:
         self.assertEqual(

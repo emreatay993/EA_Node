@@ -84,7 +84,6 @@ GraphShared.GraphSurfaceBase {
                 active: nameHelpHover.hovered
                 text: surface.host ? surface.host.nodeHelpTooltipText : ""
                 textFormat: Text.RichText
-                delay: 400
                 screenStablePositioning: true
                 screenStablePlacement: surface.host ? surface.host.nodeHelpTooltipPlacement : "below"
                 anchorScale: surface.host ? surface.host.nodeHelpTooltipAnchorScale : 1.0

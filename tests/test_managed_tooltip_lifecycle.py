@@ -42,6 +42,13 @@ Rectangle {
     width: 400
     height: 200
     property bool hovering: false
+    property int tooltipDelayMs: 400
+
+    QtObject {
+        id: tooltipPolicy
+        property int graphics_tooltip_delay_ms: tooltipDelayMs
+        property var graphics_tooltip_category_visibility: ({ "general": true })
+    }
 
     Item {
         id: pane
@@ -58,17 +65,17 @@ Rectangle {
             Common.ManagedToolTip {
                 id: tip
                 objectName: "lifecycleProbeToolTip"
-                policyBridge: null
+                policyBridge: tooltipPolicy
                 category: "general"
                 active: hovering
                 text: "port help"
-                delay: 0
                 anchorWatchInterval: 25
             }
         }
     }
 
     function tipVisible() { return tip.visible }
+    function tipDelay() { return tip.delay }
     function anchorMoved() { return tip._anchorMoved }
     function panCanvas() { pane.x = -300 }
     function hideAnchor() { anchorItem.visible = false }
@@ -87,6 +94,10 @@ class _Probe:
 
     def set_hovering(self, hovering: bool) -> None:
         self._root.setProperty("hovering", hovering)
+        self.pump()
+
+    def set_tooltip_delay(self, delay_ms: int) -> None:
+        self._root.setProperty("tooltipDelayMs", delay_ms)
         self.pump()
 
     def pump(self, seconds: float = 0.05) -> None:
@@ -139,6 +150,12 @@ def probe(qapp, tmp_path):  # noqa: ANN001
 def test_tooltip_opens_while_the_anchor_is_hovered(probe) -> None:  # noqa: ANN001
     probe.set_hovering(True)
     assert probe.wait_for_visible(True)
+
+
+def test_tooltip_delay_follows_the_bridge_preference(probe) -> None:  # noqa: ANN001
+    assert int(probe.call("tipDelay")) == 400
+    probe.set_tooltip_delay(875)
+    assert int(probe.call("tipDelay")) == 875
 
 
 def test_tooltip_closes_when_the_anchor_item_hides(probe) -> None:  # noqa: ANN001

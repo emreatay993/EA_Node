@@ -136,6 +136,7 @@ class _GraphCanvasShellHostStub(QObject):
             **self.graphics_tooltip_categories,
             "critical": True,
         }
+        self.graphics_tooltip_delay_ms = 400
         self.graphics_folder_explorer_column_widths: dict[str, int] = {}
         self.graphics_node_shadow = True
         self.graphics_shadow_strength = 70
@@ -1107,6 +1108,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
                 **default_tooltip_category_preferences(),
                 "critical": True,
             },
+            "graphics_tooltip_delay_ms": 400,
             "graphics_node_shadow": True,
             "graphics_shadow_strength": 70,
             "graphics_shadow_softness": 50,
@@ -1131,7 +1133,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             "snap_to_grid_enabled": True,
             "snap_grid_size": 24.0,
         }
-        self.assertEqual(len(graphics_expectations), 39)
+        self.assertEqual(len(graphics_expectations), 40)
         self.assertEqual(len(canvas_expectations), 4)
         for name, expected in (*graphics_expectations.items(), *canvas_expectations.items()):
             with self.subTest(property_name=name):

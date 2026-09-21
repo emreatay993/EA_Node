@@ -36,6 +36,10 @@ class ShellWindowRunAndStyleStateMixin:
     def set_graphics_tooltip_category_enabled(self: "ShellWindow", category: str, enabled: bool) -> None:
         self.shell_workspace_presenter.set_graphics_tooltip_category_enabled(category, enabled)
 
+    @pyqtSlot(int)
+    def set_graphics_tooltip_delay_ms(self: "ShellWindow", delay_ms: int) -> None:
+        self.shell_workspace_presenter.set_graphics_tooltip_delay_ms(delay_ms)
+
     @pyqtSlot(str, result=bool)
     def tooltip_category_enabled(self: "ShellWindow", category: str) -> bool:
         return bool(self.shell_workspace_presenter.tooltip_category_enabled(category))

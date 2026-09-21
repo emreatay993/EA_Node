@@ -95,7 +95,6 @@ Item {
                 active: pickButton.hovered
                 text: "Pick color"
                 textFormat: root.tooltipTextFormat
-                delay: 280
             }
 
             contentItem: Item {

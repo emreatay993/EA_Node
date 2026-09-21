@@ -24,6 +24,7 @@ class _GraphCanvasGraphicsSource(Protocol):
     graphics_graph_label_pixel_size: int
     graphics_tooltip_categories: dict[str, bool]
     graphics_tooltip_category_visibility: dict[str, bool]
+    graphics_tooltip_delay_ms: int
     graphics_expand_collision_avoidance: dict[str, Any]
     graphics_lightweight_canvas: bool
     graphics_plot_default_backend_per_type: dict[str, str]

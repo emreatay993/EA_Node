@@ -25,6 +25,7 @@ from ea_node_editor.app_preferences import (
     normalize_selection_toolbar_minimal_menu_trigger,
     normalize_selection_toolbar_mode,
     normalize_shell_panel_collapsed,
+    normalize_tooltip_delay_ms,
 )
 from ea_node_editor.graph.type_forwarding import GraphTypeResolver, ResolvedSourceContract
 from ea_node_editor.graph.hierarchy import is_node_in_scope
@@ -74,6 +75,7 @@ class ShellWorkspaceUiState:
     passive_node_library_display_mode: str
     shell_panel_collapsed: dict[str, bool]
     graphics_tooltip_categories: dict[str, bool]
+    tooltip_delay_ms: int
     active_theme_id: str
     media_panel_default_show_title: bool
     media_panel_default_show_frame: bool
@@ -226,6 +228,9 @@ def build_default_shell_workspace_ui_state(
             shell.get("panel_collapsed")
         ),
         graphics_tooltip_categories=tooltip_categories,
+        tooltip_delay_ms=normalize_tooltip_delay_ms(
+            shell.get("tooltip_delay_ms")
+        ),
         active_theme_id=str(theme.get("theme_id", DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])),
         media_panel_default_show_title=bool(media_panel_settings["show_title"]),
         media_panel_default_show_frame=bool(media_panel_settings["show_frame"]),

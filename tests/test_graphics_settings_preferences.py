@@ -274,6 +274,33 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         )
         self.assertEqual(seen["graphics_preferences_changed"], 1)
 
+    def test_tooltip_delay_persists_and_projects_through_canvas_bridges(self) -> None:
+        host = _RuntimeTooltipHost(self._controller)
+        presenter = host.shell_workspace_presenter
+        state_bridge = GraphCanvasStateBridge(graphics_source=presenter)
+        command_bridge = GraphCanvasCommandBridge(graphics_source=presenter)
+        notifications: list[int] = []
+        state_bridge.graphics_preferences_changed.connect(
+            lambda: notifications.append(state_bridge.graphics_tooltip_delay_ms)
+        )
+
+        command_bridge.set_graphics_tooltip_delay_ms(725)
+
+        self.assertEqual(presenter.graphics_tooltip_delay_ms, 725)
+        self.assertEqual(host.workspace_ui_state.tooltip_delay_ms, 725)
+        self.assertEqual(state_bridge.graphics_tooltip_delay_ms, 725)
+        self.assertEqual(
+            self._controller.graphics_settings()["shell"]["tooltip_delay_ms"],
+            725,
+        )
+        self.assertEqual(
+            AppPreferencesController(store=self._store).graphics_settings()["shell"][
+                "tooltip_delay_ms"
+            ],
+            725,
+        )
+        self.assertEqual(notifications, [725])
+
     def test_shell_graphics_apply_writes_tooltip_manager_once(self) -> None:
         host = _RuntimeTooltipHost()
         shell_presenter = SimpleNamespace(

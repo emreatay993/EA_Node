@@ -846,7 +846,6 @@ Item {
                         category: "general"
                         active: pathModeChoiceButton.hovered
                         text: pathModeChoiceButton.text
-                        delay: 350
                     }
                     onClicked: {
                         if (root._setEdgePathMode(String(modelData.value || "auto")))
@@ -905,7 +904,6 @@ Item {
                         category: "general"
                         active: patternChoiceButton.hovered
                         text: patternChoiceButton.text
-                        delay: 350
                     }
                     onClicked: {
                         if (root._setFlowEdgeVisualStyle({ "stroke_pattern": String(modelData.value || "solid") }))
@@ -976,7 +974,6 @@ Item {
                         category: "general"
                         active: arrowChoiceButton.hovered
                         text: arrowChoiceButton.text
-                        delay: 350
                     }
                     onClicked: {
                         if (root._setFlowEdgeVisualStyle({ "arrow_head": String(modelData.value || "filled") }))

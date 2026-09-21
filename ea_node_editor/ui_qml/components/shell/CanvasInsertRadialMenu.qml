@@ -267,7 +267,6 @@ Item {
                     policyBridge: root.graphCanvasStateBridgeRef
                     category: "general"
                     active: slotMouse.containsMouse || slot.activeFocus
-                    delay: 300
                     maximumTextWidth: 320
                     text: slot.isTemplates
                         ? "Templates (Ctrl+T)\nComing later."

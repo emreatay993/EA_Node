@@ -19,6 +19,7 @@ from ea_node_editor.app_preferences import (
     normalize_source_import_settings,
     normalize_selected_run_settings,
     normalize_solution_settings,
+    normalize_tooltip_delay_ms,
 )
 from ea_node_editor.common.payload_tools import merge_defaults
 from ea_node_editor.settings import app_preferences_path
@@ -171,6 +172,17 @@ class AppPreferencesController:
         )
         current_categories[normalized_category] = bool(enabled)
         return self.set_graphics_tooltip_categories(current_categories, host=host)
+
+    def set_graphics_tooltip_delay_ms(
+        self,
+        delay_ms: Any,
+        *,
+        host: ShellWindow | None = None,
+    ) -> dict[str, Any]:
+        return self.update_graphics_settings(
+            {"shell": {"tooltip_delay_ms": normalize_tooltip_delay_ms(delay_ms)}},
+            host=host,
+        )
 
     def set_graphics_floating_toolbar_style(self, style: str, *, host: ShellWindow | None = None) -> dict[str, Any]:
         return self.update_graphics_settings(

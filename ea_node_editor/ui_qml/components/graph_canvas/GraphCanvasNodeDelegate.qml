@@ -16,6 +16,7 @@ GraphComponents.GraphNodeHost {
     previewPort: canvasItem ? canvasItem.dropPreviewPort : null
     pendingPort: canvasItem ? canvasItem.pendingConnectionPort : null
     dragSourcePort: canvasItem ? canvasItem.wireDragSourcePort() : null
+    wireDragInProgress: canvasItem ? Boolean(canvasItem.wireDragState) : false
     liveDragDx: 0.0
     liveDragDy: 0.0
     showShadow: !nodeCard._groupBackdropNode

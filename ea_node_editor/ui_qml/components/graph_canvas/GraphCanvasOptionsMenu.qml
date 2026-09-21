@@ -105,6 +105,11 @@ Item {
     readonly property string nodeCommentEditorDefaultLabel: root.nodeCommentEditorDefaultValue === "inspector"
         ? "Inspector"
         : "Canvas popover"
+    readonly property int tooltipDelayMs: root.canvasPrefs
+        && root.canvasPrefs.tooltipDelayMs !== undefined
+        ? Number(root.canvasPrefs.tooltipDelayMs)
+        : 400
+    readonly property string tooltipDelayLabel: String(root.tooltipDelayMs) + " ms"
     readonly property string shellThemeLabel: root.activeShellThemeId === "stitch_light" ? "Light" : "Dark"
     readonly property var tooltipPolicyBridge: root.canvasItem && root.canvasItem.canvasStateBridgeRef
         ? root.canvasItem.canvasStateBridgeRef
@@ -142,6 +147,8 @@ Item {
             return elapsedTimeUnitSubmenuLoader.item.height;
         if (commentEditorSubmenuLoader.active && commentEditorSubmenuLoader.item)
             return commentEditorSubmenuLoader.item.height;
+        if (tooltipDelaySubmenuLoader.active && tooltipDelaySubmenuLoader.item)
+            return tooltipDelaySubmenuLoader.item.height;
         if (shellSubmenuLoader.active && shellSubmenuLoader.item)
             return shellSubmenuLoader.item.height;
         if (selectedWireDisplayModeSubmenuLoader.active && selectedWireDisplayModeSubmenuLoader.item)
@@ -232,6 +239,11 @@ Item {
     function setNodeCommentEditorDefault(value) {
         if (root.commandBridge && root.commandBridge.set_graphics_node_comment_editor_default)
             root.commandBridge.set_graphics_node_comment_editor_default(String(value || "canvas_popover"));
+    }
+
+    function setTooltipDelayMs(value) {
+        if (root.commandBridge && root.commandBridge.set_graphics_tooltip_delay_ms)
+            root.commandBridge.set_graphics_tooltip_delay_ms(Math.round(Number(value)));
     }
 
     function setShellTheme(value) {
@@ -377,6 +389,18 @@ Item {
 
                 Divider {}
 
+                SectionHeader { label: "TOOLTIPS" }
+                SubmenuRow {
+                    objectName: "canvasOptionsTooltipDelayRow"
+                    label: "Appearance delay"
+                    value: root.tooltipDelayLabel
+                    tooltipText: "Choose how long the pointer must remain still before tooltips appear."
+                    isOpen: root.activeSubmenu === "tooltipDelay"
+                    onClicked: root.activeSubmenu = root.activeSubmenu === "tooltipDelay" ? "" : "tooltipDelay"
+                }
+
+                Divider {}
+
                 SectionHeader { label: "EFFECTS" }
                 ToggleRow {
                     label: "Node shadows"
@@ -436,6 +460,30 @@ Item {
             currentValue: root.selectedWireDisplayModeValue
             onPicked: function(value) {
                 root.setSelectedWiresDisplayMode(value);
+                root.activeSubmenu = "";
+            }
+        }
+    }
+
+    Loader {
+        id: tooltipDelaySubmenuLoader
+        active: root.activeSubmenu === "tooltipDelay"
+        x: root.submenuOffsetX
+        y: 0
+        sourceComponent: SubmenuPanel {
+            objectName: "canvasOptionsTooltipDelaySubmenu"
+            title: "Tooltip delay"
+            options: [
+                { "label": "No delay", "value": "0" },
+                { "label": "200 ms", "value": "200" },
+                { "label": "400 ms", "value": "400" },
+                { "label": "600 ms", "value": "600" },
+                { "label": "800 ms", "value": "800" },
+                { "label": "1000 ms", "value": "1000" }
+            ]
+            currentValue: String(root.tooltipDelayMs)
+            onPicked: function(value) {
+                root.setTooltipDelayMs(value);
                 root.activeSubmenu = "";
             }
         }
@@ -696,7 +744,6 @@ Item {
             category: parent.tooltipCategory
             active: toggleMouseArea.containsMouse && !parent.dim
             text: parent.tooltipText
-            delay: 400
         }
     }
 
@@ -780,7 +827,6 @@ Item {
             category: parent.tooltipCategory
             active: submenuMouseArea.containsMouse && !parent.dim
             text: parent.tooltipText
-            delay: 400
         }
     }
 

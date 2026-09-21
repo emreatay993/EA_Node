@@ -140,7 +140,6 @@ FocusScope {
                             category: "general"
                             active: textModeButton.hovered
                             text: "Text mode\nThe whole content is interpreted as one text value."
-                            delay: 280
                         }
                     }
 
@@ -176,7 +175,6 @@ FocusScope {
                             category: "general"
                             active: dataModeButton.hovered
                             text: "Data mode\nEach line is interpreted as one item of a list.\nStart a line with an asterisk followed by a path description (for example * 0;1) to start a new branch. All following lines will be placed on that branch until another branch is defined."
-                            delay: 280
                         }
                     }
                 }

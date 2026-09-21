@@ -18,6 +18,7 @@ Item {
     property var previewPort: null
     property var pendingPort: null
     property var dragSourcePort: null
+    property bool wireDragInProgress: false
     property real liveDragDx: 0
     property real liveDragDy: 0
     property bool showShadow: false

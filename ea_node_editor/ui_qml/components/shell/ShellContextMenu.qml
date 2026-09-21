@@ -264,7 +264,6 @@ FocusScope {
                         category: parent.actionTooltipCategory
                         active: actionEnabled && actionMouseArea.containsMouse
                         text: parent.actionTooltipText
-                        delay: 400
                     }
                 }
             }

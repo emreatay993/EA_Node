@@ -52,7 +52,6 @@ Button {
         active: control.tooltipVisible
         text: control.tooltipText
         textFormat: control.tooltipTextFormat
-        delay: 280
     }
 
     contentItem: Item {

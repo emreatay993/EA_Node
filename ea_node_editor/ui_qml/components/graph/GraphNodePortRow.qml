@@ -78,7 +78,10 @@ Item {
     readonly property alias labelContainerItem: labelContainer
     readonly property alias labelEditorItem: labelEditor
     readonly property alias removeButtonItem: removeButton
+    readonly property bool wireDragInProgress: !!host && host.wireDragInProgress
     readonly property string requestedHelpTooltipText: visible && enabled
+        && !wireDragInProgress
+        && !portMouse.pressed
         && (portMouse.effectiveHoverActive || portMouse.activeFocus
             || labelText.helpTooltipHovered || labelMouse.activeFocus)
         ? portsLayer._portHelpTooltipText(portData) : ""
@@ -408,12 +411,17 @@ Item {
             property bool tooltipVisible: TooltipPolicy.tooltipVisible(
                 row.portsLayer.tooltipPolicyBridge,
                 "general",
-                effectiveHoverActive && portHelpTooltipText.length > 0
+                effectiveHoverActive
+                    && !row.wireDragInProgress
+                    && !pressed
+                    && portHelpTooltipText.length > 0
             )
             property bool inactiveTooltipVisible: TooltipPolicy.tooltipVisible(
                 row.portsLayer.tooltipPolicyBridge,
                 "inactive",
                 effectiveHoverActive
+                    && !row.wireDragInProgress
+                    && !pressed
                     && (row.isInput ? portDot.inactiveState : portDot.lockedState)
                     && inactiveTooltipText.length > 0
             )
@@ -433,7 +441,6 @@ Item {
                 textFormat: row.isInput && portMouse.inactiveTooltipVisible
                     ? Text.PlainText
                     : Text.RichText
-                delay: 400
                 screenStablePositioning: true
                 screenStablePlacement: row.portsLayer.nodeTooltipPlacement
                 anchorScale: row.portsLayer.nodeTooltipAnchorScale
@@ -783,7 +790,6 @@ Item {
                 active: labelMouse.containsMouse
                 text: labelText.helpTooltipText
                 textFormat: Text.RichText
-                delay: 400
                 screenStablePositioning: true
                 screenStablePlacement: row.portsLayer.nodeTooltipPlacement
                 anchorScale: row.portsLayer.nodeTooltipAnchorScale
@@ -857,7 +863,7 @@ Item {
                 category: "general"
                 active: labelEditor.visible && row.portsLayer.portLabelEditError.length > 0
                 text: row.portsLayer.portLabelEditError
-                delay: 0
+                delayOverride: 0
                 screenStablePositioning: true
                 screenStablePlacement: "below"
                 anchorScale: row.portsLayer.nodeTooltipAnchorScale

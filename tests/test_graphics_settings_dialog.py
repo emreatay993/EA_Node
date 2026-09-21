@@ -200,6 +200,11 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 },
                 default_tooltip_category_preferences(),
             )
+            self.assertEqual(
+                dialog.tooltip_delay_spin.objectName(),
+                "graphicsSettingsTooltipDelaySpin",
+            )
+            self.assertEqual(dialog.tooltip_delay_spin.value(), 400)
             self.assertEqual(dialog.edge_crossing_style_combo.currentData(), "none")
             self.assertEqual(dialog.node_elapsed_time_visibility_combo.currentData(), "always")
             self.assertEqual(dialog.node_elapsed_time_unit_combo.currentData(), "seconds")
@@ -911,6 +916,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             dialog.tooltip_category_checks["advanced"].setChecked(True)
             dialog.tooltip_category_checks["warning"].setChecked(False)
             dialog.tooltip_category_checks["inactive"].setChecked(False)
+            dialog.tooltip_delay_spin.setValue(725)
 
             shell = dialog.values()["shell"]
             self.assertNotIn("show_tooltips", shell)
@@ -924,6 +930,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                     "inactive": False,
                 },
             )
+            self.assertEqual(shell["tooltip_delay_ms"], 725)
         finally:
             dialog.close()
 

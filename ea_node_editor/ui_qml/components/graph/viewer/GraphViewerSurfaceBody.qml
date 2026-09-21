@@ -1216,7 +1216,6 @@ Item {
                             category: "warning"
                             active: stalePreviewBadgeHover.hovered
                             text: surface.viewerStalePreviewTitle
-                            delay: 240
                             Accessible.name: text
                         }
                     }

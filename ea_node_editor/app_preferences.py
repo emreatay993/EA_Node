@@ -31,6 +31,7 @@ from ea_node_editor.settings import (
     DEFAULT_STATUS_BAR_LAYOUT,
     DEFAULT_GRID_OVERLAY_STYLE,
     DEFAULT_GRAPHICS_SETTINGS,
+    DEFAULT_TOOLTIP_DELAY_MS,
     DEFAULT_MEDIA_PANEL_SETTINGS,
     DEFAULT_NODE_COMMENT_EDITOR_DEFAULT,
     DEFAULT_NODE_ELAPSED_TIME_UNIT,
@@ -65,6 +66,8 @@ from ea_node_editor.settings import (
     NODE_ELAPSED_TIME_VISIBILITY_CHOICES,
     NODE_COMMENT_EDITOR_DEFAULT_CHOICES,
     STATUS_BAR_LAYOUT_CHOICES,
+    TOOLTIP_DELAY_MAX_MS,
+    TOOLTIP_DELAY_MIN_MS,
     GRID_OVERLAY_STYLE_CHOICES,
     CANVAS_BACKGROUND_VARIANT_CHOICES,
     CANVAS_IMPORT_MODE_CHOICES,
@@ -236,6 +239,20 @@ def normalize_expand_collision_avoidance_settings(payload: Any) -> dict[str, Any
     )
     normalized["animate"] = _normalize_bool(payload.get("animate"), defaults["animate"])
     return normalized
+
+
+def normalize_tooltip_delay_ms(
+    value: Any,
+    default: int = DEFAULT_TOOLTIP_DELAY_MS,
+) -> int:
+    if isinstance(value, bool):
+        return int(default)
+    return _normalize_int(
+        value,
+        int(default),
+        TOOLTIP_DELAY_MIN_MS,
+        TOOLTIP_DELAY_MAX_MS,
+    )
 
 
 def normalize_media_panel_settings(payload: Any) -> dict[str, bool]:
@@ -534,6 +551,9 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
         )
         normalized["shell"]["tooltip_categories"] = normalize_tooltip_category_preferences(
             shell_payload.get("tooltip_categories")
+        )
+        normalized["shell"]["tooltip_delay_ms"] = normalize_tooltip_delay_ms(
+            shell_payload.get("tooltip_delay_ms")
         )
         normalized["shell"]["node_library_usage"] = normalize_node_library_usage(
             shell_payload.get("node_library_usage")
@@ -1076,6 +1096,7 @@ __all__ = [
     "normalize_selected_run_settings",
     "normalize_solution_settings",
     "normalize_shell_panel_collapsed",
+    "normalize_tooltip_delay_ms",
     "resolve_startup_theme_id",
     "set_addon_state",
 ]

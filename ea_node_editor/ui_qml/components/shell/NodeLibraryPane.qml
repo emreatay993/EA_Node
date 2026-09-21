@@ -252,7 +252,6 @@ ShellCollapsibleSidePane {
                     active: mouseArea.containsMouse && !libraryRow.isCategory
                     text: root.libraryItemTooltip(modelData)
                     maximumTextWidth: 320
-                    delay: 350
                 }
 
                 Item {
@@ -353,7 +352,6 @@ ShellCollapsibleSidePane {
                                 active: tileMouseArea.containsMouse
                                 text: root.libraryItemTooltip(modelData)
                                 maximumTextWidth: 320
-                                delay: 350
                             }
 
                             Item {

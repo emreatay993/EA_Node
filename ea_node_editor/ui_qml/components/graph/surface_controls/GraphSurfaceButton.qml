@@ -109,7 +109,6 @@ Button {
         active: control.tooltipVisible
         text: control.resolvedTooltipText
         textFormat: control.tooltipTextFormat
-        delay: 280
         screenStablePositioning: control.tooltipScreenStablePositioning
         anchorScale: control.resolvedTooltipAnchorScale
         screenGap: control.tooltipScreenGap

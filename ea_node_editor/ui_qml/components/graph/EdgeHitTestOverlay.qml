@@ -84,7 +84,6 @@ Item {
             category: "general"
             active: root.hoveredEdgeId.length > 0
             text: root.hoveredEdgeTooltipText
-            delay: 400
             maximumTextWidth: 360
             font.family: "monospace"
             font.pixelSize: 12

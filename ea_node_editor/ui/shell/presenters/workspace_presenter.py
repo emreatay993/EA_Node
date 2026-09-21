@@ -29,6 +29,7 @@ from ea_node_editor.app_preferences import (
     normalize_selection_toolbar_minimal_menu_trigger,
     normalize_selection_toolbar_mode,
     normalize_shell_panel_collapsed,
+    normalize_tooltip_delay_ms,
 )
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.text_style import normalize_recent_text_colors
@@ -140,6 +141,10 @@ class ShellWorkspacePresenter(QObject):
     @property
     def graphics_tooltip_category_visibility(self) -> dict[str, bool]:
         return dict(self._tooltip_category_visibility_projection())
+
+    @property
+    def graphics_tooltip_delay_ms(self) -> int:
+        return int(self._ui_state.tooltip_delay_ms)
 
     def tooltip_category_enabled(self, category: object) -> bool:
         return bool(
@@ -475,6 +480,12 @@ class ShellWorkspacePresenter(QObject):
             host=self._host,
         )
 
+    def set_graphics_tooltip_delay_ms(self, delay_ms: Any) -> None:
+        self._host.app_preferences_controller.set_graphics_tooltip_delay_ms(
+            delay_ms,
+            host=self._host,
+        )
+
     def set_graphics_expand_collision_avoidance(self, settings: Any) -> None:
         self._host.app_preferences_controller.set_graphics_expand_collision_avoidance(
             settings,
@@ -688,6 +699,10 @@ class ShellWorkspacePresenter(QObject):
             if "tooltip_categories" in shell
             else copy.deepcopy(self._ui_state.graphics_tooltip_categories)
         )
+        tooltip_delay_ms = normalize_tooltip_delay_ms(
+            shell.get("tooltip_delay_ms", self._ui_state.tooltip_delay_ms),
+            self._ui_state.tooltip_delay_ms,
+        )
         active_theme_id = self._host.shell_host_presenter.apply_theme(
             theme.get("theme_id", self._ui_state.active_theme_id)
         )
@@ -850,6 +865,9 @@ class ShellWorkspacePresenter(QObject):
         if self._ui_state.graphics_tooltip_categories != tooltip_categories:
             self._ui_state.graphics_tooltip_categories = copy.deepcopy(tooltip_categories)
             changed = True
+        if self._ui_state.tooltip_delay_ms != tooltip_delay_ms:
+            self._ui_state.tooltip_delay_ms = tooltip_delay_ms
+            changed = True
         tooltip_manager = getattr(self._host, "tooltip_manager", None)
         if tooltip_manager is not None:
             tooltip_manager.set_tooltip_categories(tooltip_categories)
@@ -913,6 +931,7 @@ class ShellWorkspacePresenter(QObject):
                 ),
                 "panel_collapsed": copy.deepcopy(self._ui_state.shell_panel_collapsed),
                 "tooltip_categories": copy.deepcopy(self._ui_state.graphics_tooltip_categories),
+                "tooltip_delay_ms": int(self._ui_state.tooltip_delay_ms),
             },
             "theme": {
                 "theme_id": str(self._ui_state.active_theme_id),

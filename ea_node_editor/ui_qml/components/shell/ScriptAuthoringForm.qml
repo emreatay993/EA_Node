@@ -145,7 +145,7 @@ ColumnLayout {
                 text: field.name === "minimum" ? "Limits" : field.name === "default" ? "Default" : field.name === "port" ? "Input port" : field.definition.label
                 color: root.pane.themePalette.input_fg; font.pixelSize: 12; wrapMode: Text.Wrap
                 MouseArea { id: fieldHelpHover; anchors.fill: parent; hoverEnabled: true }
-                Common.ManagedToolTip { policyBridge: root.pane.graphCanvasStateBridgeRef; category: "general"; active: fieldHelpHover.containsMouse; text: field.definition.help; delay: 300 }
+                Common.ManagedToolTip { policyBridge: root.pane.graphCanvasStateBridgeRef; category: "general"; active: fieldHelpHover.containsMouse; text: field.definition.help }
             }
             Loader {
                 Layout.fillWidth: true

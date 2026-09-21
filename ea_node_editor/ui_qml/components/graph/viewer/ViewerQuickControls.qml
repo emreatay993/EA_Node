@@ -526,7 +526,6 @@ Rectangle {
                     category: "general"
                     active: parent.hovered && !parent.actionAvailable
                     text: quickControls.capabilityReason("orientation_triad", TooltipCopy.text(tooltipCopyBridge, "viewer.view.orientation_triad_unavailable"))
-                    delay: 300
                 }
             }
             CheckBox {
@@ -548,7 +547,6 @@ Rectangle {
                     category: "general"
                     active: parent.hovered && !parent.actionAvailable
                     text: quickControls.capabilityReason("view_cube", TooltipCopy.text(tooltipCopyBridge, "viewer.view.view_cube_unavailable"))
-                    delay: 300
                 }
             }
             CheckBox {
@@ -569,7 +567,6 @@ Rectangle {
                     category: "general"
                     active: parent.hovered && !parent.actionAvailable
                     text: quickControls.capabilityReason("world_axes", TooltipCopy.text(tooltipCopyBridge, "viewer.view.world_axes_unavailable"))
-                    delay: 300
                 }
             }
         }

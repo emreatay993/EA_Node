@@ -34,7 +34,6 @@ Item {
         category: root.tooltipCategory
         active: hoverHandler.hovered && root.tooltipText.length > 0
         text: root.tooltipText
-        delay: 300
     }
 
     ShellButton {

@@ -10,6 +10,9 @@ ToolTip {
     property var themeBridgeRef: typeof themeBridge !== "undefined" ? themeBridge : null
     property string category: TooltipPolicy.GENERAL
     property bool active: false
+    // Negative keeps the app-wide preference; non-negative is reserved for
+    // non-hover feedback that must appear immediately (for example validation).
+    property int delayOverride: -1
     property int textFormat: Text.PlainText
     property int maximumTextWidth: 360
     property bool screenStablePositioning: false
@@ -30,6 +33,10 @@ ToolTip {
         || control.themePalette.panel_title_fg
         || "#e8e8e8"
     readonly property bool policyAllowsTooltip: TooltipPolicy.categoryEnabled(policyBridge, category)
+    readonly property int configuredDelay: policyBridge
+        && policyBridge.graphics_tooltip_delay_ms !== undefined
+        ? Math.max(0, Math.min(5000, Math.round(Number(policyBridge.graphics_tooltip_delay_ms))))
+        : 400
 
     // Lifecycle guards. Because popupType is Popup.Window (see below) an open
     // tooltip is a real top-level OS window, and Qt will not take it down when
@@ -82,6 +89,7 @@ ToolTip {
     }
 
     visible: managedVisible
+    delay: delayOverride >= 0 ? delayOverride : configuredDelay
     // Bounded lifetime so any hover-exit event we never receive cannot pin the
     // popup window open indefinitely. Closing this way does not destroy the
     // `visible: managedVisible` binding, so the next hover reopens normally.

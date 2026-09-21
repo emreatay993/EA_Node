@@ -12,6 +12,7 @@ Use this for tooltip manager behavior, tooltip policy tiers, central tooltip cop
 - `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml` - schema-backed node help and warning-diagnostic badge tooltips.
 - `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml` - schema-backed port help plus status-only flow summaries.
+- `ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml` - port tooltip activation and wire-gesture suppression.
 - `tests/test_passive_graph_surface_host.py`
 - `tests/test_media_panel_qml_surface.py` — update indicator geometry, warning precedence and image handoff
 
@@ -42,7 +43,11 @@ accepted missing-category inventory by declaring their policy at the call site.
 `ManagedToolTip` owns explicit shell-themed QML tooltip chrome using the
 `themeBridge` palette and a rounded card. Its implicit width is capped by
 `maximumTextWidth`, so plain and rich text content receives a bounded width and
-wraps. QML callers use it instead of the native `ToolTip` control.
+wraps. QML callers use it instead of the native `ToolTip` control. Its appearance
+delay comes from the app-wide `graphics.shell.tooltip_delay_ms` preference through
+the graph-canvas state bridge; hover callers do not hard-code local delays. The
+`delayOverride` escape hatch is only for immediate non-hover feedback such as an
+inline validation error.
 `ManagedToolTip` renders as a popup window
 (`popupType: Popup.Window` with a negative bottom inset carrying the shadow
 tail) so tooltips stack above native embedded-surface overlays (plots,
@@ -91,13 +96,18 @@ labels keep this documentation under `general` even when a port is inactive;
 the grip/indicator keeps the separate inactive-reason tooltip under `inactive`.
 Neutral passive-flow ports intentionally publish no tooltip; they are visual
 connection grips without data or execution semantics.
+All standard port help and inactive-state tooltips are suppressed from pointer
+press through completion or cancellation of a wire gesture, including candidate
+ports, so help cards cannot cover the intended wire endpoint. They re-arm after
+the wire-drag state clears, a fresh hover begins, and the normal configured
+delay elapses.
 
 ## Breadcrumbs
 - [UI Shell, Controllers, And Presenters](../subsystems/ui_shell.md)
 - [Retained Work-Packet QA Evidence And Spec Navigation](work_packet_docs_status_qa.md)
 
 ## Update Triggers
-Update when tooltip manager APIs, policy tiers, central copy files, port type/availability/accessibility summaries, shell display behavior, `ManagedToolTip` popup-window lifecycle guards, or tooltip packet proof changes.
+Update when tooltip manager APIs, policy tiers, central copy files, tooltip-delay preferences, port type/availability/accessibility summaries, wire-drag suppression, shell display behavior, `ManagedToolTip` popup-window lifecycle guards, or tooltip packet proof changes.
 
 ## 2026-07-11 Performance Ownership
 

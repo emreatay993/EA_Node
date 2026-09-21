@@ -55,7 +55,6 @@ ToolButton {
         active: control.tooltipVisible
         text: control.resolvedTooltipText
         textFormat: control.tooltipTextFormat
-        delay: 300
     }
 
     contentItem: Item {

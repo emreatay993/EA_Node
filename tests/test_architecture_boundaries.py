@@ -2684,8 +2684,8 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
                 name: declaration_count(combined, name)
                 for name in ("Item", "QtObject", "Timer", "Loader")
             },
-            # Includes the port animation clip added to GraphNodeHost.
-            {"Item": 15, "QtObject": 2, "Timer": 0, "Loader": 8},
+            # Includes the port animation clip and tooltip-delay submenu loader.
+            {"Item": 15, "QtObject": 2, "Timer": 0, "Loader": 9},
         )
 
     def test_graph_node_toolbar_popover_host_directly_replaces_inline_owner(self) -> None:

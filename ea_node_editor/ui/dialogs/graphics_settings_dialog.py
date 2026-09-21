@@ -42,6 +42,8 @@ from ea_node_editor.settings import (
     SELECTION_TOOLBAR_MODE_CHOICES,
     STATUS_BAR_LAYOUT_CHOICES,
     TAB_STRIP_DENSITY_CHOICES,
+    TOOLTIP_DELAY_MAX_MS,
+    TOOLTIP_DELAY_MIN_MS,
 )
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
 from ea_node_editor.ui.graph_theme import default_graph_theme_id_for_shell_theme, resolve_graph_theme
@@ -808,6 +810,23 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
 
         outer.addWidget(self._make_section_title("Tooltips", page))
         tooltip_card, tooltip_lay = self._make_section_card(page)
+        tooltip_delay_form = QFormLayout()
+        tooltip_delay_form.setContentsMargins(0, 0, 0, 0)
+        tooltip_delay_form.setVerticalSpacing(8)
+        self.tooltip_delay_spin = QSpinBox(tooltip_card)
+        self.tooltip_delay_spin.setObjectName("graphicsSettingsTooltipDelaySpin")
+        self.tooltip_delay_spin.setRange(TOOLTIP_DELAY_MIN_MS, TOOLTIP_DELAY_MAX_MS)
+        self.tooltip_delay_spin.setSingleStep(50)
+        self.tooltip_delay_spin.setSuffix(" ms")
+        tooltip_delay_form.addRow("Appearance delay", self.tooltip_delay_spin)
+        tooltip_lay.addLayout(tooltip_delay_form)
+        tooltip_delay_helper = QLabel(
+            "Time the pointer must remain over a control before its tooltip appears.",
+            tooltip_card,
+        )
+        tooltip_delay_helper.setObjectName("graphicsSettingsTooltipDelayHelper")
+        tooltip_delay_helper.setWordWrap(True)
+        tooltip_lay.addWidget(tooltip_delay_helper)
         self.tooltip_category_checks: dict[str, QCheckBox] = {}
         for category in TOOLTIP_CONFIGURABLE_CATEGORY_NAMES:
             label, description = self._TOOLTIP_CATEGORY_COPY[category]
@@ -983,6 +1002,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         tooltip_categories = normalize_tooltip_category_preferences(
             settings["shell"].get("tooltip_categories")
         )
+        self.tooltip_delay_spin.setValue(settings["shell"]["tooltip_delay_ms"])
         for category, check in self.tooltip_category_checks.items():
             check.setChecked(bool(tooltip_categories[category]))
         property_pane_variant_id = settings["shell"]["property_pane_variant"]
@@ -1126,6 +1146,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                         category: check.isChecked()
                         for category, check in self.tooltip_category_checks.items()
                     },
+                    "tooltip_delay_ms": self.tooltip_delay_spin.value(),
                 },
                 "theme": {
                     "theme_id": str(theme_id) if theme_id is not None else "",

@@ -353,7 +353,6 @@ Item {
                     active: disabledReasonHover.hovered && inlineRow.disabledReason.length > 0
                     text: inlineRow.disabledReason
                     textFormat: Text.PlainText
-                    delay: 400
                     screenStablePositioning: true
                     screenStablePlacement: root.host ? root.host.nodeHelpTooltipPlacement : "above"
                     anchorScale: root.host ? root.host.nodeHelpTooltipAnchorScale : 1.0

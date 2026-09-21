@@ -506,6 +506,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
                 self._graphics_minimap_expanded = True
                 self._graphics_show_port_labels = False
                 self._graphics_tooltip_categories = default_tooltip_category_preferences()
+                self._graphics_tooltip_delay_ms = 0
                 self._graphics_node_shadow = True
                 self._graphics_shadow_strength = 70
                 self._graphics_shadow_softness = 50
@@ -547,6 +548,10 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
                     )
                     for category in TOOLTIP_CATEGORY_NAMES
                 }
+
+            @property
+            def graphics_tooltip_delay_ms(self) -> int:
+                return int(self._graphics_tooltip_delay_ms)
 
             def tooltip_category_enabled(self, category: str) -> bool:
                 return tooltip_category_effectively_visible(
@@ -670,6 +675,10 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             def graphics_tooltip_category_visibility(self) -> dict[str, bool]:
                 return dict(self._preference_bridge.graphics_tooltip_category_visibility)
 
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_tooltip_delay_ms(self) -> int:
+                return int(self._preference_bridge.graphics_tooltip_delay_ms)
+
             @pyqtProperty("QVariantMap", notify=failure_highlight_changed)
             def failed_node_lookup(self) -> dict[str, bool]:
                 return {}
@@ -734,6 +743,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             timeout_message="Timed out waiting for graph canvas tooltip-policy input port to appear.",
         )
         node_card = _named_child_items(self.canvas, "graphNodeCard")[0]
+        input_row = _named_child_items(self.canvas, "graphNodeInputPortRow")[0]
         input_mouse = _named_child_items(self.canvas, "graphNodeInputPortMouseArea")[0]
 
         window = QQuickWindow()
@@ -755,6 +765,51 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             self.assertTrue(bool(input_mouse.property("infoTooltipsEnabled")))
             self.assertTrue(bool(input_mouse.property("tooltipVisible")))
             self.assertTrue(bool(input_mouse.property("inactiveTooltipVisible")))
+
+            self.assertTrue(
+                self.canvas.setProperty(
+                    "wireDragState",
+                    {
+                        "node_id": "node_tooltip_policy_test",
+                        "port_key": "result",
+                        "source_direction": "out",
+                        "start_x": 330.0,
+                        "start_y": 200.0,
+                        "cursor_x": 330.0,
+                        "cursor_y": 200.0,
+                        "active": True,
+                    },
+                )
+            )
+            self.app.processEvents()
+            self.assertIsNotNone(self.canvas.property("wireDragState"))
+            self.assertTrue(bool(node_card.property("wireDragInProgress")))
+            self.assertTrue(bool(input_row.property("wireDragInProgress")))
+            wait_for_condition_or_raise(
+                lambda: bool(input_row.property("wireDragInProgress"))
+                and not bool(input_mouse.property("tooltipVisible"))
+                and not bool(input_mouse.property("inactiveTooltipVisible")),
+                timeout_ms=300,
+                app=self.app,
+                timeout_message="Timed out waiting for wire drag to suppress port tooltips.",
+            )
+            self.assertEqual(input_mouse.property("portHelpTooltipText"), "")
+            self.assertTrue(self.canvas.setProperty("wireDragState", None))
+            QTest.mouseMove(window, QPoint(10, 10))
+            wait_for_condition_or_raise(
+                lambda: not bool(input_mouse.property("containsMouse")),
+                timeout_ms=300,
+                app=self.app,
+                timeout_message="Timed out waiting for port hover to clear after wire drag.",
+            )
+            QTest.mouseMove(window, item_scene_point(input_mouse))
+            wait_for_condition_or_raise(
+                lambda: bool(input_mouse.property("tooltipVisible"))
+                and bool(input_mouse.property("inactiveTooltipVisible")),
+                timeout_ms=300,
+                app=self.app,
+                timeout_message="Timed out waiting for port tooltips to rearm after wire drag.",
+            )
 
             preference_bridge.set_general_tooltips_value(False)
             wait_for_condition_or_raise(

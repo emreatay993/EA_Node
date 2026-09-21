@@ -1258,7 +1258,6 @@ Item {
                 category: "inactive"
                 active: outputPortRow.portMouseAreaItem.inactiveTooltipVisible
                 text: outputPortRow.portMouseAreaItem.inactiveTooltipText
-                delay: 240
                 screenStablePositioning: true
                 screenStablePlacement: root.nodeTooltipPlacement
                 anchorScale: root.nodeTooltipAnchorScale

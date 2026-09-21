@@ -12,6 +12,7 @@ from ea_node_editor.app_preferences import (
     normalize_node_elapsed_time_unit,
     normalize_node_elapsed_time_visibility,
     normalize_status_bar_layout,
+    normalize_tooltip_delay_ms,
     normalize_plot_settings,
 )
 from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE, DEFAULT_GRAPHICS_SETTINGS
@@ -279,6 +280,15 @@ class GraphicsPreferencesProps:
         return _tooltip_category_visibility_payload(
             tooltip_categories=self.graphics_tooltip_categories
         )
+
+    @pyqtProperty(int, notify=graphics_preferences_changed)
+    def graphics_tooltip_delay_ms(self) -> int:
+        value = _source_attr(
+            self._graphics_source,
+            "graphics_tooltip_delay_ms",
+            DEFAULT_GRAPHICS_SETTINGS["shell"]["tooltip_delay_ms"],
+        )
+        return normalize_tooltip_delay_ms(value)
 
     @pyqtSlot(str, result=bool)
     def tooltip_category_enabled(self, category: str) -> bool:

@@ -93,6 +93,7 @@
         "selection",
         "client",
         "evaluate",
+        "managedtooltip",
         "propertyspec",
         "affects",
         "changes",
@@ -2467,6 +2468,10 @@
         "opens",
         "hover",
         "toolbaractivesource",
+        "tooltip",
+        "delay",
+        "managedtooltip",
+        "delayoverride",
         "media",
         "panel",
         "title",
@@ -6967,7 +6972,8 @@
         "ea_node_editor/ui_qml/components/common/TooltipCopy.js",
         "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml",
-        "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml"
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml"
       ],
       "test_candidates": [
         "tests/test_passive_graph_surface_host.py",
@@ -6979,7 +6985,8 @@
       "qml_candidates": [
         "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml",
-        "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml"
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml"
       ],
       "keywords": [
         "tooltips",
@@ -7001,6 +7008,7 @@
         "graph",
         "graphnodeheaderlayer",
         "graphnodeportslayer",
+        "graphnodeportrow",
         "tests",
         "test",
         "passive",
@@ -7012,6 +7020,9 @@
         "graphsurfacebutton",
         "themebridge",
         "maximumtextwidth",
+        "graphics",
+        "delay",
+        "delayoverride",
         "popuptype",
         "popup",
         "window",
@@ -7062,6 +7073,7 @@
         "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml",
         "ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml",
+        "ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml",
         "tests/test_passive_graph_surface_host.py",
         "tests/test_media_panel_qml_surface.py"
       ],

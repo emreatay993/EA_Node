@@ -132,6 +132,10 @@ class GraphicsSettingsOps:
     def set_graphics_node_comment_editor_default(self, value: str) -> None:
         _invoke(self._graphics_source, "set_graphics_node_comment_editor_default", value)
 
+    @pyqtSlot(int)
+    def set_graphics_tooltip_delay_ms(self, delay_ms: int) -> None:
+        _invoke(self._graphics_source, "set_graphics_tooltip_delay_ms", int(delay_ms))
+
     @pyqtSlot()
     def request_open_graphics_settings(self) -> None:
         _invoke(self._graphics_source, "request_open_graphics_settings")

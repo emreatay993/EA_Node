@@ -58,6 +58,10 @@ QtObject {
         : "stitch_dark"
     readonly property var tooltipCategoryVisibility: TooltipPolicy.categoryVisibility(facts.stateBridge)
     readonly property bool showTooltips: facts.tooltipCategoryEnabled("general")
+    readonly property int tooltipDelayMs: facts.stateBridge
+        && facts.stateBridge.graphics_tooltip_delay_ms !== undefined
+        ? Math.max(0, Math.min(5000, Math.round(Number(facts.stateBridge.graphics_tooltip_delay_ms))))
+        : 400
     readonly property int graphLabelPixelSize: {
         if (!facts.stateBridge)
             return 10;

@@ -444,7 +444,6 @@ Item {
                 active: titleHelpHover.hovered
                 text: root.nodeHelpText
                 textFormat: Text.RichText
-                delay: 400
                 screenStablePositioning: true
                 screenStablePlacement: root.nodeTooltipPlacement
                 anchorScale: root.nodeTooltipAnchorScale
@@ -554,7 +553,6 @@ Item {
             text: root.host
                 ? String(root.host.nodeDiagnostic.tooltip_text || root.warningDiagnosticTitle || "")
                 : ""
-            delay: 240
             screenStablePositioning: true
             screenStablePlacement: root.nodeTooltipPlacement
             anchorScale: root.nodeTooltipAnchorScale
@@ -690,7 +688,6 @@ Item {
             text: presentationBadge.statusText + " — showing the last completed plot."
                 + (root.host && root.host.isDiagnosticWarningNode
                    ? "\n" + String(root.host.nodeDiagnostic.tooltip_text || "") : "")
-            delay: 240
             screenStablePositioning: true
             screenStablePlacement: root.nodeTooltipPlacement
             anchorScale: root.nodeTooltipAnchorScale
@@ -732,7 +729,6 @@ Item {
             category: "general"
             active: failureBadgeHover.hovered
             text: "Execution halted"
-            delay: 240
             screenStablePositioning: true
             screenStablePlacement: root.nodeTooltipPlacement
             anchorScale: root.nodeTooltipAnchorScale

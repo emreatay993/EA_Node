@@ -888,7 +888,6 @@ Item {
             category: "nodes.links.close"
             active: iconMouse.containsMouse && iconControl.tooltipText.length > 0
             text: iconControl.tooltipText
-            delay: 280
             screenStablePositioning: true
             anchorScale: Math.max(0.1, root.scale)
             screenGap: 8.0
