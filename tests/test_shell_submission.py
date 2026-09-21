@@ -164,7 +164,7 @@ def test_empty_viewer_slots_preserve_pending_and_active_computation(phase):
     wid = workspace.workspace_id
     cad = host.model.add_node(wid, "engineering.cad_import", "CAD", 0, 0)
     viewer = host.model.add_node(wid, "model.viewer", "Viewer", 200, 0)
-    host.model.add_edge(wid, cad.node_id, "scene", viewer.node_id, "scene_1")
+    host.model.add_edge(wid, cad.node_id, "model", viewer.node_id, "scene_1")
     controller = _run_controller(host)
     controller.set_auto_run_enabled(True)
     before = workspace.capture_snapshot()

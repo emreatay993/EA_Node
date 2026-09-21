@@ -686,9 +686,12 @@ def test_real_process_connected_path_retains_current_source_but_not_computation(
 
 def test_real_process_path_ports_receive_unquoted_windows_copy_as_path_text(tmp_path):
     """Path ports canonicalize wired text before provenance capture or any node sees it."""
-    pyvista = pytest.importorskip("pyvista")
-    part = tmp_path / "part.stl"
-    pyvista.Cube().triangulate().save(part)
+    pytest.importorskip("OCP")
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+    from OCP.BRepTools import BRepTools
+
+    part = tmp_path / "part.brep"
+    assert BRepTools.Write_s(BRepPrimAPI_MakeBox(2, 3, 4).Shape(), str(part))
     registry = build_default_registry(include_public_plugins=False)
     model = GraphModel()
     wid = model.active_workspace.workspace_id
@@ -731,12 +734,12 @@ def test_real_process_path_ports_receive_unquoted_windows_copy_as_path_text(tmp_
         }
         assert result.status == "completed", result.events
         assert settled[cad.node_id]["status"] == "completed", settled[cad.node_id]
-        assert settled[cad.node_id]["outputs"]["scene"].status == "value"
+        assert settled[cad.node_id]["outputs"]["model"].status == "value"
         parts = settled[deconstruct.node_id]["outputs"]
         assert [
             [item for _path, items in parts[key].value.branches for item in items]
             for key in ("directory", "file_extension")
-        ] == [[str(tmp_path)], [".stl"]], parts
+        ] == [[str(tmp_path)], [".brep"]], parts
     finally:
         runtime.shutdown()
 
