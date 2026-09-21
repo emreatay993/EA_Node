@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import os
 import time
 import unittest
 from pathlib import Path
+
+# Match the app bootstrap; plain unittest runs skip tests/conftest.py and would
+# otherwise pick the native Windows style, whose plugin DLL fails to load here.
+os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
 
 from PyQt6.QtCore import QEvent, QObject, QPoint, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QKeyEvent
