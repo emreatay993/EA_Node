@@ -6,7 +6,7 @@ pytestmark = pytest.mark.xdist_group("p03_graph_surface")  # noqa: F405
 
 class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
     def test_graph_surface_pointer_audit_rejects_hover_proxy_shims_and_untracked_surface_mouse_areas(self) -> None:
-        failures = self._graph_surface_pointer_audit_failures_with_fallback()
+        failures = graph_surface_pointer_audit_failures()  # noqa: F405
         if failures:
             self.fail("\n\n".join(failures))
 
@@ -19,13 +19,18 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
             assert loader is not None
 
             embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
+            assert len(embedded_rects) == 1, embedded_rects
+            rect = {key: rect_field(embedded_rects[0], key) for key in ("x", "y", "width", "height")}
 
-            assert len(embedded_rects) == 1
-            assert rect_field(embedded_rects[0], "x") > 80.0
-            assert rect_field(embedded_rects[0], "y") >= 30.0
-            assert rect_field(embedded_rects[0], "width") > 80.0
-            assert rect_field(embedded_rects[0], "width") < 120.0
-            assert rect_field(embedded_rects[0], "height") >= 18.0
+            # Text editors are stacked: the label owns its own line and the control-scoped
+            # rect covers only the full-width editor underneath it.
+            row = host_item_rect(host, named_item(host, "graphNodeInlinePropertyRow", "message"))
+            label = host_item_rect(host, named_item(host, "graphNodeInlinePropertyLabel", "message"))
+            assert abs(rect["x"] - label["x"]) < 0.5, (rect, label)
+            assert rect["y"] >= label["y"] + label["height"] - 0.5, (rect, label)
+            assert rect["x"] >= row["x"] and rect["x"] + rect["width"] <= row["x"] + row["width"], (rect, row)
+            assert rect["width"] >= row["width"] * 0.8, (rect, row)
+            assert rect["height"] >= 18.0, rect
             """,
         )
 
@@ -75,16 +80,32 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
             assert loader is not None
 
             embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
-            assert len(embedded_rects) == 4
+            assert len(embedded_rects) == 4, embedded_rects
+            rects = [
+                {key: rect_field(rect, key) for key in ("x", "y", "width", "height")}
+                for rect in embedded_rects
+            ]
+            assert [rect["y"] for rect in rects] == sorted(rect["y"] for rect in rects), rects
 
-            xs = [rect_field(rect, "x") for rect in embedded_rects]
-            widths = [rect_field(rect, "width") for rect in embedded_rects]
-            ys = [rect_field(rect, "y") for rect in embedded_rects]
+            # The toggle stays a compact control right-aligned on its label line.
+            toggle, *stacked = rects
+            toggle_row = host_item_rect(host, named_item(host, "graphNodeInlinePropertyRow", "enabled"))
+            toggle_label = host_item_rect(host, named_item(host, "graphNodeInlinePropertyLabel", "enabled"))
+            assert toggle["width"] < 40.0, toggle
+            assert toggle["x"] > 80.0, toggle
+            assert toggle["x"] + toggle["width"] <= toggle_row["x"] + toggle_row["width"], (toggle, toggle_row)
+            assert toggle["y"] >= toggle_label["y"], (toggle, toggle_label)
+            assert toggle["y"] + toggle["height"] <= toggle_label["y"] + toggle_label["height"] + 0.5, (
+                toggle,
+                toggle_label,
+            )
 
-            assert all(x > 80.0 for x in xs)
-            assert widths[0] < 40.0
-            assert all(width > 80.0 for width in widths[1:])
-            assert ys == sorted(ys)
+            # Enum, text, and number editors stack a full-width control under their label.
+            for rect, key in zip(stacked, ("mode", "message", "count")):
+                label = host_item_rect(host, named_item(host, "graphNodeInlinePropertyLabel", key))
+                assert abs(rect["x"] - label["x"]) < 0.5, (key, rect, label)
+                assert rect["y"] >= label["y"] + label["height"] - 0.5, (key, rect, label)
+                assert rect["width"] > 80.0, (key, rect)
             """,
         )
 
@@ -92,7 +113,7 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
         self._run_qml_probe(
             "embedded-rect-hit-testing",
             """
-            host = create_component(graph_node_host_qml_path, {"nodeData": node_payload()})
+            host = create_component(graph_node_host_qml_path, {"nodeData": stacked_inline_node_payload()})
             loader = host.findChild(QObject, "graphNodeSurfaceLoader")
             gesture_layer = host.findChild(QObject, "graphNodeHostGestureLayer")
             drag_area = host.findChild(QObject, "graphNodeDragArea")
@@ -104,7 +125,8 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
             embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
             assert len(embedded_rects) == 1
             row_rect = embedded_rects[0]
-            assert rect_field(row_rect, "x") > 80.0
+            label = host_item_rect(host, named_item(host, "graphNodeInlinePropertyLabel", "message"))
+            assert rect_field(row_rect, "y") >= label["y"] + label["height"] - 0.5, (row_rect, label)
 
             window = attach_host_to_window(host)
 
@@ -113,8 +135,9 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
                 rect_field(row_rect, "x") + 8.0,
                 rect_field(row_rect, "y") + rect_field(row_rect, "height") * 0.5,
             )
-            body_local_x = rect_field(row_rect, "x") - 8.0
-            body_local_y = rect_field(row_rect, "y") + rect_field(row_rect, "height") * 0.5
+            # The stacked label line directly above the editor is plain node body.
+            body_local_x = rect_field(row_rect, "x") + 8.0
+            body_local_y = label["y"] + label["height"] * 0.5
             body_point = host_scene_point(host, body_local_x, body_local_y)
 
             QTest.mouseMove(window, inside_point)
@@ -144,7 +167,7 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
         self._run_qml_probe(
             "embedded-rect-release-finishes-drag",
             """
-            payload = node_payload()
+            payload = stacked_inline_node_payload()
             host = create_component(graph_node_host_qml_path, {"nodeData": payload})
             loader = host.findChild(QObject, "graphNodeSurfaceLoader")
             drag_area = host.findChild(QObject, "graphNodeDragArea")
@@ -154,6 +177,7 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
             embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
             assert len(embedded_rects) == 1
             row_rect = embedded_rects[0]
+            label = host_item_rect(host, named_item(host, "graphNodeInlinePropertyLabel", "message"))
 
             offset_events = []
             finish_events = []
@@ -169,16 +193,19 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
             host.dragCanceled.connect(lambda node_id: cancel_events.append(str(node_id)))
 
             window = attach_host_to_window(host)
+            # Press on the stacked label line (node body) and release inside the editor below it.
             body_point = host_scene_point(
                 host,
-                max(12.0, rect_field(row_rect, "x") - 20.0),
-                rect_field(row_rect, "y") + rect_field(row_rect, "height") * 0.5,
+                rect_field(row_rect, "x") + 20.0,
+                label["y"] + label["height"] * 0.5,
             )
             control_point = host_scene_point(
                 host,
-                rect_field(row_rect, "x") + 12.0,
+                rect_field(row_rect, "x") + 52.0,
                 rect_field(row_rect, "y") + rect_field(row_rect, "height") * 0.5,
             )
+            expected_x = payload["x"] + (control_point.x() - body_point.x())
+            expected_y = payload["y"] + (control_point.y() - body_point.y())
 
             QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, body_point)
             settle_events(2)
@@ -188,7 +215,7 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
             settle_events(2)
 
             assert offset_events, "drag did not emit a live offset before release"
-            assert finish_events == [("node_surface_contract_test", 152.0, 120.0, True, "")]
+            assert finish_events == [("node_surface_contract_test", expected_x, expected_y, True, "")], finish_events
             assert cancel_events == []
             assert not bool(drag_area.property("manualDragActive"))
 

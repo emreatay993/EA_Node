@@ -77,6 +77,10 @@ QML_POINTER_REGRESSION_HELPERS = textwrap.dedent(
         scene_point = host.mapToScene(QPointF(local_x, local_y))
         return QPoint(round(scene_point.x()), round(scene_point.y()))
 
+    def host_item_rect(host, item):
+        origin = item.mapToItem(host, QPointF(0.0, 0.0))
+        return {"x": origin.x(), "y": origin.y(), "width": item.width(), "height": item.height()}
+
     def settle_events(cycles=1):
         for _index in range(max(1, int(cycles))):
             app.processEvents()
@@ -587,6 +591,18 @@ def graph_surface_pointer_audit_failures() -> list[str]:
                         f"{path.relative_to(_REPO_ROOT)}: {message}"
                     )
             continue
+        if path.name == "GraphPanelSurface.qml":
+            # DATA mode scrolls its row list from a wheel-only MouseArea; it must never
+            # accept buttons, or it would steal presses from the host body drag.
+            if len(matches) != 1:
+                unexpected_mouse_areas.append(
+                    f"{path.relative_to(_REPO_ROOT)}: expected exactly one wheel-only MouseArea, found {len(matches)}"
+                )
+            elif "acceptedButtons: Qt.NoButton" not in _qml_block_after(path, r"\bMouseArea\s*\{"):
+                unexpected_mouse_areas.append(
+                    f"{path.relative_to(_REPO_ROOT)}: wheel-only MouseArea must declare acceptedButtons: Qt.NoButton"
+                )
+            continue
         unexpected_mouse_areas.extend(matches)
 
     if unexpected_mouse_areas:
@@ -608,6 +624,23 @@ def _expand_scan_paths(paths: list[Path]) -> list[Path]:
     return expanded
 
 
+def _qml_block_after(path: Path, pattern: str) -> str:
+    """Return the brace-balanced QML block opened by the first ``pattern`` match."""
+    text = path.read_text(encoding="utf-8")
+    match = re.search(pattern, text)
+    if match is None:
+        return ""
+    depth = 0
+    for index in range(match.end() - 1, len(text)):
+        if text[index] == "{":
+            depth += 1
+        elif text[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[match.start() : index + 1]
+    return text[match.start() :]
+
+
 def _search_pattern(pattern: str, paths: list[Path]) -> list[str]:
     if shutil.which("rg"):
         scan_paths: list[str] = []
@@ -616,17 +649,22 @@ def _search_pattern(pattern: str, paths: list[Path]) -> list[str]:
                 scan_paths.append(path.relative_to(_REPO_ROOT).as_posix())
             except ValueError:
                 scan_paths.append(str(path))
-        result = subprocess.run(
-            ["rg", "--with-filename", "-n", pattern, *scan_paths],
-            cwd=_REPO_ROOT,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode not in (0, 1):
-            raise AssertionError(
-                f"rg audit failed for pattern {pattern!r} with exit code {result.returncode}: {result.stderr.strip()}"
+        try:
+            result = subprocess.run(
+                ["rg", "--with-filename", "-n", pattern, *scan_paths],
+                cwd=_REPO_ROOT,
+                capture_output=True,
+                text=True,
             )
-        return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        except PermissionError:
+            # Sandboxed runners can deny launching rg; the Python scan below is equivalent.
+            result = None
+        if result is not None:
+            if result.returncode not in (0, 1):
+                raise AssertionError(
+                    f"rg audit failed for pattern {pattern!r} with exit code {result.returncode}: {result.stderr.strip()}"
+                )
+            return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
     compiled = re.compile(pattern)
     matches: list[str] = []

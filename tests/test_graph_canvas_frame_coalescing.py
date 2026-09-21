@@ -10,6 +10,7 @@ from PyQt6.QtTest import QSignalSpy, QTest
 
 from ea_node_editor.nodes import decorators as _node_decorators
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui_qml.graph_geometry.surface_contract import VIEWER_DEFAULT_WIDTH
 from ea_node_editor.ui_qml.surface_contracts import surface_spec_payload_for_values
 
 if "category" not in inspect.signature(_node_decorators.node_type).parameters:
@@ -355,8 +356,11 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
         scene = GraphSceneBridge()
         scene.bind_graphics_preferences_source(self.bridge)
         scene.set_workspace(model, registry, workspace_id)
-        viewer_id = scene.add_node_from_type("model.viewer", -180.0, -100.0)
-        other_id = scene.add_node_from_type("core.logger", 260.0, -80.0)
+        viewer_x = -180.0
+        viewer_id = scene.add_node_from_type("model.viewer", viewer_x, -100.0)
+        # Derive the neighbour's position from the authored viewer width so a
+        # default-size change cannot slide the viewer over the click target.
+        other_id = scene.add_node_from_type("core.logger", viewer_x + VIEWER_DEFAULT_WIDTH + 40.0, -80.0)
         scene.select_node(viewer_id, False)
 
         view = ViewportBridge()

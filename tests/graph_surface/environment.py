@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import gc
 import os
-import re
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -752,6 +751,36 @@ class GraphSurfaceInputContractTestBase(unittest.TestCase):
                         }
                     ],
                 }
+
+            def stacked_inline_node_payload():
+                # node_payload() metrics predate stacked inline editors, so its port rows
+                # overlap a stacked editor. Size the body the way standard_inline_body_height
+                # does, keeping the stub's port-row reserve below it.
+                from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
+                    standard_inline_property_row_height,
+                )
+                from ea_node_editor.ui_qml.graph_geometry.surface_contract import (
+                    STANDARD_INLINE_ROW_SPACING,
+                    STANDARD_INLINE_SECTION_PADDING,
+                )
+
+                payload = node_payload()
+                metrics = dict(payload["surface_metrics"])
+                row_heights = [
+                    standard_inline_property_row_height(item["inline_editor"])
+                    for item in payload["inline_properties"]
+                ]
+                body_height = (
+                    STANDARD_INLINE_SECTION_PADDING
+                    + sum(row_heights)
+                    + STANDARD_INLINE_ROW_SPACING * max(0, len(row_heights) - 1)
+                )
+                port_reserve = payload["height"] - metrics["port_top"]
+                metrics["body_height"] = body_height
+                metrics["port_top"] = metrics["body_top"] + body_height
+                payload["height"] = metrics["port_top"] + port_reserve
+                payload["surface_metrics"] = metrics
+                return payload
             """,
             QML_POINTER_REGRESSION_HELPERS,
             body,
@@ -765,105 +794,6 @@ class GraphSurfaceInputContractTestBase(unittest.TestCase):
             except AssertionError as exc:
                 if "exit code 3221226505" not in str(exc) or attempt + 1 >= retries:
                     raise
-
-    def _expand_graph_surface_scan_paths(self, paths: list[Path]) -> list[Path]:
-        expanded: list[Path] = []
-        for path in paths:
-            if path.is_dir():
-                expanded.extend(sorted(path.rglob("*.qml")))
-            else:
-                expanded.append(path)
-        return expanded
-
-    def _search_graph_surface_pattern(self, pattern: str, paths: list[Path]) -> list[str]:
-        compiled = re.compile(pattern)
-        matches: list[str] = []
-        for path in self._expand_graph_surface_scan_paths(paths):
-            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-                if compiled.search(line):
-                    matches.append(f"{path.relative_to(_REPO_ROOT)}:{line_number}:{line.strip()}")
-        return matches
-
-    def _graph_surface_pointer_audit_failures_with_fallback(self) -> list[str]:
-        try:
-            return graph_surface_pointer_audit_failures()
-        except PermissionError as exc:
-            if "Access is denied" not in str(exc):
-                raise
-
-        graph_dir = _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph"
-        passive_dir = graph_dir / "passive"
-        surface_files = [
-            graph_dir / "GraphInlinePropertiesLayer.qml",
-            graph_dir / "GraphStandardNodeSurface.qml",
-            *sorted(passive_dir.glob("*Surface.qml")),
-        ]
-        failures: list[str] = []
-
-        hover_proxy_matches = self._search_graph_surface_pattern(
-            r"hoverActionHitRect|graphNodeSurfaceHoverActionButton",
-            [graph_dir, passive_dir],
-        )
-        if hover_proxy_matches:
-            failures.append(
-                "Removed hover-proxy compatibility shims reappeared:\n"
-                + "\n".join(hover_proxy_matches)
-            )
-
-        tap_handler_matches = self._search_graph_surface_pattern(r"\bTapHandler\s*\{", surface_files)
-        if tap_handler_matches:
-            failures.append(
-                "Unexpected TapHandler usage in graph-surface QML:\n"
-                + "\n".join(tap_handler_matches)
-            )
-
-        unexpected_mouse_areas: list[str] = []
-        for path in surface_files:
-            matches = self._search_graph_surface_pattern(r"\bMouseArea\s*\{", [path])
-            if not matches:
-                continue
-            if path.name == "GraphMediaPanelSurface.qml":
-                if len(matches) != 1:
-                    unexpected_mouse_areas.append(
-                        f"{path.relative_to(_REPO_ROOT)}: expected exactly one crop-handle MouseArea, found {len(matches)}"
-                    )
-                text = path.read_text(encoding="utf-8")
-                if 'objectName: "graphNodeMediaCropHandleMouseArea"' not in text:
-                    unexpected_mouse_areas.append(
-                        f"{path.relative_to(_REPO_ROOT)}: allowed crop-handle MouseArea objectName is missing"
-                    )
-                if "targetItem: handleMouseArea" not in text:
-                    unexpected_mouse_areas.append(
-                        f"{path.relative_to(_REPO_ROOT)}: crop-handle MouseArea is no longer tied to GraphSurfaceInteractiveRegion"
-                    )
-                continue
-            if path.name == "GraphNativeExplorerSurface.qml":
-                if len(matches) != 2:
-                    unexpected_mouse_areas.append(
-                        f"{path.relative_to(_REPO_ROOT)}: expected exactly two registered folder-explorer MouseAreas, found {len(matches)}"
-                    )
-                text = path.read_text(encoding="utf-8")
-                required_snippets = {
-                    'objectName: "graphFolderExplorerRowMouseArea"': "row MouseArea objectName is missing",
-                    'objectName: "graphFolderExplorerHeaderMouseArea"': "header MouseArea objectName is missing",
-                    "targetItem: rowMouseArea": "row MouseArea is no longer tied to GraphSurfaceInteractiveRegion",
-                    "targetItem: headerMouseArea": "header MouseArea is no longer tied to GraphSurfaceInteractiveRegion",
-                }
-                for snippet, message in required_snippets.items():
-                    if snippet not in text:
-                        unexpected_mouse_areas.append(
-                            f"{path.relative_to(_REPO_ROOT)}: {message}"
-                        )
-                continue
-            unexpected_mouse_areas.extend(matches)
-
-        if unexpected_mouse_areas:
-            failures.append(
-                "Unexpected raw MouseArea usage in graph-surface QML:\n"
-                + "\n".join(unexpected_mouse_areas)
-            )
-
-        return failures
 
 __all__ = [
     "GraphModel",
