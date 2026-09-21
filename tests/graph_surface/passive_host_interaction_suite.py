@@ -4201,6 +4201,79 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_passive_graph_node_host_shift_resize_keeps_press_aspect_ratio(self) -> None:
+        self._run_qml_probe(
+            "passive-host-shift-resize-proportional",
+            """
+            from PyQt6.QtCore import QCoreApplication, QEvent, QPoint, QPointF
+            from PyQt6.QtGui import QMouseEvent
+            from PyQt6.QtTest import QTest
+
+            payload = node_payload()
+            payload["type_id"] = "tests.passive.resize"
+            payload["runtime_behavior"] = "passive"
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            finish_events = []
+            host.resizeFinished.connect(
+                lambda node_id, x, y, width, height: finish_events.append((node_id, x, y, width, height))
+            )
+
+            window = attach_host_to_window(host)
+            hover_host_local_point(window, host, 40.0, 24.0)
+
+            def move_with(point, modifiers):
+                # QTest.mouseMove always sends NoModifier in Qt 6.
+                event = QMouseEvent(
+                    QEvent.Type.MouseMove,
+                    QPointF(point),
+                    QPointF(window.mapToGlobal(point)),
+                    Qt.MouseButton.NoButton,
+                    Qt.MouseButton.LeftButton,
+                    modifiers,
+                )
+                QCoreApplication.sendEvent(window, event)
+                settle_events(2)
+
+            def assert_geometry(x, y, width, height):
+                actual = (float(host.x()), float(host.y()), float(host.width()), float(host.height()))
+                assert all(abs(a - e) < 0.75 for a, e in zip(actual, (x, y, width, height))), actual
+
+            bottom_right_handle = [
+                handle
+                for handle in named_child_items(host, "graphNodeResizeHandle")
+                if str(handle.property("cornerRole")) == "bottomRight"
+            ][0]
+            start_point = item_scene_point(bottom_right_handle, 0.75, 0.75)
+            end_point = QPoint(start_point.x() + 42, start_point.y() + 6)
+            shift = Qt.KeyboardModifier.ShiftModifier
+            QTest.mouseMove(window, start_point)
+            settle_events(2)
+
+            QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start_point)
+            settle_events(2)
+            move_with(end_point, Qt.KeyboardModifier.NoModifier)
+            # Free resize: each axis follows the pointer independently.
+            assert_geometry(120.0, 120.0, 252.0, 94.0)
+
+            move_with(end_point, shift)
+            # Shift mid-drag: the dominant width change drives height at the 210:88 press ratio.
+            assert_geometry(120.0, 120.0, 252.0, 252.0 * 88.0 / 210.0)
+
+            QTest.mouseRelease(window, Qt.MouseButton.LeftButton, shift, end_point)
+            settle_events(2)
+            assert len(finish_events) == 1, finish_events
+            node_id, x, y, width, height = finish_events[0]
+            assert node_id == "node_surface_host_test"
+            assert abs(float(width) / float(height) - 210.0 / 88.0) < 0.01, finish_events
+            assert abs(float(width) - 252.0) < 0.75, finish_events
+            assert not bool(host.property("_liveGeometryActive"))
+
+            dispose_host_window(host, window)
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_bare_text_resize_handle_ignores_vertical_pointer_delta(self) -> None:
         self._run_qml_probe(
             "bare-text-horizontal-only-resize",
@@ -4751,12 +4824,107 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert canvas.property("liveDragDx") == 11.0
             assert canvas.property("liveDragDy") == 9.0
 
-            node_card.dragFinished.emit(node_id, 131.0, 149.0, True)
+            node_card.dragFinished.emit(node_id, 131.0, 149.0, True, "")
             app.processEvents()
             assert canvas.property("liveDragDx") == 0.0
             assert canvas.property("liveDragDy") == 0.0
             assert scene.nodes_model[0]["x"] == 140.0
             assert scene.nodes_model[0]["y"] == 140.0
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_axis_locked_drag_commit_keeps_locked_axis_off_grid(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-axis-locked-snap-commit",
+            """
+            from PyQt6.QtCore import pyqtProperty, pyqtSignal
+
+            class MainWindowBridge(QObject):
+                snap_to_grid_changed = pyqtSignal()
+                graphics_preferences_changed = pyqtSignal()
+
+                @pyqtProperty(bool, notify=snap_to_grid_changed)
+                def snap_to_grid_enabled(self):
+                    return True
+
+                @pyqtProperty(float, constant=True)
+                def snap_grid_size(self):
+                    return 20.0
+
+                @pyqtProperty(bool, notify=graphics_preferences_changed)
+                def graphics_show_grid(self):
+                    return True
+
+                @pyqtProperty(bool, notify=graphics_preferences_changed)
+                def graphics_show_minimap(self):
+                    return True
+
+                @pyqtProperty(bool, notify=graphics_preferences_changed)
+                def graphics_node_shadow(self):
+                    return True
+
+                @pyqtProperty(int, notify=graphics_preferences_changed)
+                def graphics_shadow_strength(self):
+                    return 70
+
+                @pyqtProperty(int, notify=graphics_preferences_changed)
+                def graphics_shadow_softness(self):
+                    return 50
+
+                @pyqtProperty(int, notify=graphics_preferences_changed)
+                def graphics_shadow_offset(self):
+                    return 4
+
+                @pyqtProperty(bool, notify=graphics_preferences_changed)
+                def graphics_minimap_expanded(self):
+                    return True
+
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            scene.add_node_from_type("core.logger", 120.0, 140.0)
+            scene.clear_selection()
+            node_id = scene.nodes_model[0]["node_id"]
+
+            view = ViewportBridge()
+            view.set_viewport_size(1280.0, 720.0)
+            main_window_bridge = MainWindowBridge()
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "mainWindowBridge": main_window_bridge,
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 1280.0,
+                    "height": 720.0,
+                },
+            )
+            node_cards = named_child_items(canvas, "graphNodeCard")
+            assert len(node_cards) == 1
+            node_card = node_cards[0]
+            assert canvas.snapToGridEnabled() is True
+
+            def commit_from_off_grid(final_x, final_y, axis_lock):
+                scene.move_node(node_id, 113.0, 147.0)
+                app.processEvents()
+                assert (scene.nodes_model[0]["x"], scene.nodes_model[0]["y"]) == (113.0, 147.0)
+                node_card.dragFinished.emit(node_id, final_x, final_y, True, axis_lock)
+                app.processEvents()
+                return scene.nodes_model[0]["x"], scene.nodes_model[0]["y"]
+
+            # The locked axis must not snap to the grid.
+            assert commit_from_off_grid(173.0, 147.0, "horizontal") == (180.0, 147.0)
+            assert commit_from_off_grid(113.0, 201.0, "vertical") == (113.0, 200.0)
+            # Free drags still snap both axes.
+            assert commit_from_off_grid(173.0, 147.0, "") == (180.0, 140.0)
 
             canvas.deleteLater()
             app.processEvents()
@@ -4876,7 +5044,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert canvas.property("liveDragDx") == 25.0
             assert canvas.property("liveDragDy") == 15.0
 
-            node_cards[second_node_id].dragFinished.emit(second_node_id, 345.0, 195.0, True)
+            node_cards[second_node_id].dragFinished.emit(second_node_id, 345.0, 195.0, True, "")
             app.processEvents()
             after = {item["node_id"]: (item["x"], item["y"]) for item in scene.nodes_model}
 

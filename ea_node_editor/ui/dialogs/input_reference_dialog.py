@@ -141,6 +141,11 @@ INPUT_REFERENCE_SECTIONS: tuple[InputReferenceSection, ...] = (
             InputReferenceEntry("Node body", "Left-click", "Select the node."),
             InputReferenceEntry("Node body", "Ctrl+left-click or Shift+left-click", "Add or remove the node from selection."),
             InputReferenceEntry("Node body", "Left-drag", "Move the node or selected node group."),
+            InputReferenceEntry(
+                "Node body",
+                "Shift+left-drag",
+                "Move the node or selected node group horizontally or vertically only.",
+            ),
             InputReferenceEntry("Embedded node control", "Click, type, drag, or choose", "Use the control without changing graph selection."),
             InputReferenceEntry(
                 "Node body",
@@ -157,6 +162,11 @@ INPUT_REFERENCE_SECTIONS: tuple[InputReferenceSection, ...] = (
             InputReferenceEntry("Locked add-on node", "Right-click", "Open the locked placeholder context menu."),
             InputReferenceEntry("Locked add-on node", "Double-click", "Open the Add-On Manager recovery affordance."),
             InputReferenceEntry("Node resize handle", "Left-drag", "Resize the node."),
+            InputReferenceEntry(
+                "Node resize handle",
+                "Shift+left-drag",
+                "Resize the node while keeping its proportions.",
+            ),
             InputReferenceEntry("Edge", "Left-click", "Select the edge."),
             InputReferenceEntry("Edge", "Ctrl+left-click or Shift+left-click", "Add or remove the edge from selection."),
             InputReferenceEntry("Edge", "Double-click", "Edit the flow-edge label inline."),

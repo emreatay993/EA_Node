@@ -1052,7 +1052,7 @@ class GroupBackdropInteractionTests(unittest.TestCase):
         self.assertEqual(drag_node_ids[0], outer_id)
         self.assertEqual(set(drag_node_ids), {outer_id, inner_id, inner_logger_id, outer_logger_id})
 
-        outer_input_host.dragFinished.emit(outer_id, 120.0, 90.0, True)
+        outer_input_host.dragFinished.emit(outer_id, 120.0, 90.0, True, "")
 
         _wait_for(
             lambda: abs(float(workspace.nodes[outer_id].x) - 120.0) < 0.01,

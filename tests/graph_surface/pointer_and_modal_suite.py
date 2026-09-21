@@ -162,8 +162,8 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
                 lambda node_id, dx, dy: offset_events.append((str(node_id), float(dx), float(dy)))
             )
             host.dragFinished.connect(
-                lambda node_id, final_x, final_y, moved: finish_events.append(
-                    (str(node_id), float(final_x), float(final_y), bool(moved))
+                lambda node_id, final_x, final_y, moved, axis_lock: finish_events.append(
+                    (str(node_id), float(final_x), float(final_y), bool(moved), str(axis_lock))
                 )
             )
             host.dragCanceled.connect(lambda node_id: cancel_events.append(str(node_id)))
@@ -188,9 +188,78 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
             settle_events(2)
 
             assert offset_events, "drag did not emit a live offset before release"
-            assert finish_events == [("node_surface_contract_test", 152.0, 120.0, True)]
+            assert finish_events == [("node_surface_contract_test", 152.0, 120.0, True, "")]
             assert cancel_events == []
             assert not bool(drag_area.property("manualDragActive"))
+
+            dispose_host_window(host, window)
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_host_shift_drag_locks_move_to_dominant_axis(self) -> None:
+        self._run_qml_probe(
+            "shift-drag-axis-lock",
+            """
+            from PyQt6.QtCore import QCoreApplication, QEvent
+            from PyQt6.QtGui import QMouseEvent
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": node_payload()})
+            gesture_layer = host.findChild(QObject, "graphNodeHostGestureLayer")
+            assert gesture_layer is not None
+
+            offset_events = []
+            finish_events = []
+            host.dragOffsetChanged.connect(
+                lambda node_id, dx, dy: offset_events.append((float(dx), float(dy)))
+            )
+            host.dragFinished.connect(
+                lambda node_id, final_x, final_y, moved, axis_lock: finish_events.append(
+                    (float(final_x), float(final_y), bool(moved), str(axis_lock))
+                )
+            )
+            window = attach_host_to_window(host)
+
+            def move_with(point, modifiers):
+                # QTest.mouseMove always sends NoModifier in Qt 6.
+                event = QMouseEvent(
+                    QEvent.Type.MouseMove,
+                    QPointF(point),
+                    QPointF(window.mapToGlobal(point)),
+                    Qt.MouseButton.NoButton,
+                    Qt.MouseButton.LeftButton,
+                    modifiers,
+                )
+                QCoreApplication.sendEvent(window, event)
+                settle_events(2)
+
+            def shift_drag(dx, dy):
+                offset_events.clear()
+                finish_events.clear()
+                shift = Qt.KeyboardModifier.ShiftModifier
+                start = host_scene_point(host, 40.0, 44.0)
+                mid = QPoint(start.x() + dx // 2, start.y() + dy // 2)
+                end = QPoint(start.x() + dx, start.y() + dy)
+                QTest.mousePress(window, Qt.MouseButton.LeftButton, shift, start)
+                settle_events(2)
+                move_with(mid, shift)
+                move_with(end, shift)
+                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, shift, end)
+                settle_events(2)
+
+            shift_drag(40, 12)
+            assert offset_events, "shift drag did not emit a live offset"
+            assert all(dy == 0.0 for _dx, dy in offset_events), offset_events
+            assert offset_events[-1][0] == 40.0, offset_events
+            assert finish_events == [(160.0, 120.0, True, "horizontal")], finish_events
+            assert str(gesture_layer.property("dragAxisLock")) == ""
+
+            shift_drag(10, -36)
+            assert offset_events, "shift drag did not emit a live offset"
+            assert all(dx == 0.0 for dx, _dy in offset_events), offset_events
+            assert offset_events[-1][1] == -36.0, offset_events
+            assert finish_events == [(120.0, 84.0, True, "vertical")], finish_events
 
             dispose_host_window(host, window)
             engine.deleteLater()

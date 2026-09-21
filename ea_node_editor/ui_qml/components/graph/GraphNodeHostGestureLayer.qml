@@ -5,6 +5,7 @@ Item {
     objectName: "graphNodeHostGestureLayer"
     property Item host: null
     readonly property bool dragActive: nodeDragArea.manualDragActive
+    readonly property string dragAxisLock: nodeDragArea.dragAxisLock
     readonly property bool containsMouse: nodeDragArea.containsMouse
     readonly property bool pointerInteractionActive: nodeDragArea.pressed || nodeDragArea.manualDragActive
     z: 1.5
@@ -29,6 +30,8 @@ Item {
         property real pressPointerY: 0.0
         property real lastDragDx: 0.0
         property real lastDragDy: 0.0
+        // Shift+drag constrains the move to the dominant axis: "", "horizontal", or "vertical".
+        property string dragAxisLock: ""
         property bool edgePressHandled: false
         readonly property bool edgeHoverActive: containsMouse && _edgeAtLocalPosition(mouseX, mouseY).length > 0
         readonly property bool surfaceClaimHoverActive: containsMouse
@@ -42,6 +45,7 @@ Item {
             manualDragActive = false;
             lastDragDx = 0.0;
             lastDragDy = 0.0;
+            dragAxisLock = "";
         }
 
         function _dragThreshold() {
@@ -105,6 +109,16 @@ Item {
                 dy = 0.0;
             if (!force && !dragMoved && Math.max(Math.abs(dx), Math.abs(dy)) < _dragThreshold())
                 return false;
+            // Re-evaluated on every move so pressing or releasing Shift mid-drag applies.
+            if (mouse.modifiers & Qt.ShiftModifier) {
+                dragAxisLock = Math.abs(dx) >= Math.abs(dy) ? "horizontal" : "vertical";
+                if (dragAxisLock === "horizontal")
+                    dy = 0.0;
+                else
+                    dx = 0.0;
+            } else {
+                dragAxisLock = "";
+            }
             dragMoved = true;
             manualDragActive = true;
             lastDragDx = dx;
@@ -213,7 +227,8 @@ Item {
                 root.host.nodeData.node_id,
                 baseX + (moved ? lastDragDx : 0.0),
                 baseY + (moved ? lastDragDy : 0.0),
-                moved
+                moved,
+                moved ? dragAxisLock : ""
             );
             suppressNextClick = moved;
             _resetDragMotionState();

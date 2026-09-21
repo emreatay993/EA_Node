@@ -305,6 +305,14 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
                 "Toggle unused optional data ports for the active view.",
             )
             self.assertEqual(
+                entries[("Node body", "Shift+left-drag")],
+                "Move the node or selected node group horizontally or vertically only.",
+            )
+            self.assertEqual(
+                entries[("Node resize handle", "Shift+left-drag")],
+                "Resize the node while keeping its proportions.",
+            )
+            self.assertEqual(
                 entries[("Node body", "Right-click")],
                 "Open the node context menu, including Add Link and Add Comment for editable nodes.",
             )

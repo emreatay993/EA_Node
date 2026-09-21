@@ -483,7 +483,7 @@ Item {
     signal nodeOpenRequested(string nodeId)
     signal nodeContextRequested(string nodeId, real localX, real localY)
     signal dragOffsetChanged(string nodeId, real dx, real dy)
-    signal dragFinished(string nodeId, real finalX, real finalY, bool moved)
+    signal dragFinished(string nodeId, real finalX, real finalY, bool moved, string axisLock)
     signal dragCanceled(string nodeId)
     signal resizePreviewChanged(string nodeId, real newX, real newY, real newWidth, real newHeight, bool active)
     signal resizeFinished(string nodeId, real newX, real newY, real newWidth, real newHeight)

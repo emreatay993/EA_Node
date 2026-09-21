@@ -73,6 +73,8 @@ Item {
         property real pressY: 0
         property real pressWidth: 0
         property real pressHeight: 0
+        // Shift+resize keeps the press-time aspect ratio; bare text owns its height.
+        property bool shiftProportional: false
         readonly property bool triangleContainsMouse: containsMouse
             && GraphNodeHostHitTesting.cornerTriangleContainsPoint(
                 mouseX,
@@ -83,7 +85,13 @@ Item {
                 root._topCorner
             )
 
+        function _shiftProportionalFor(mouse) {
+            return !root._horizontalOnly && Boolean(mouse.modifiers & Qt.ShiftModifier);
+        }
+
         function _lockAspectRatioEnabled() {
+            if (shiftProportional)
+                return true;
             if (!root.host || !root.host.loadedSurfaceItem)
                 return false;
             return Boolean(root.host.loadedSurfaceItem.aspectRatioLocked);
@@ -207,6 +215,7 @@ Item {
             pressY = root.host._liveGeometryActive ? root.host._liveY : Number(root.host.nodeData.y);
             pressWidth = root.host.width;
             pressHeight = root.host.height;
+            shiftProportional = _shiftProportionalFor(mouse);
             updatePreviewFromDelta(0.0, 0.0, true);
             mouse.accepted = true;
         }
@@ -218,6 +227,7 @@ Item {
             var zoom = root.host.currentViewportZoom ? root.host.currentViewportZoom() : 1.0;
             var dx = (gp.x - pressGlobalX) / zoom;
             var dy = (gp.y - pressGlobalY) / zoom;
+            shiftProportional = _shiftProportionalFor(mouse);
             updatePreviewFromDelta(dx, dy, true);
         }
 
@@ -240,6 +250,7 @@ Item {
         }
 
         onReleased: function(_mouse) {
+            shiftProportional = false;
             if (!root.host || !root.host.nodeData || !root.host._liveGeometryActive)
                 return;
             var finalX = root.host._liveX;
@@ -264,6 +275,7 @@ Item {
         }
 
         onCanceled: {
+            shiftProportional = false;
             if (!root.host || !root.host.nodeData)
                 return;
             var fallbackX = root.host._liveGeometryActive ? root.host._liveX : Number(root.host.nodeData.x);

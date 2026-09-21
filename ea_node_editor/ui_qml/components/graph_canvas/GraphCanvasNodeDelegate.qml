@@ -185,7 +185,7 @@ GraphComponents.GraphNodeHost {
             return;
         canvasItem.setLiveDragOffset(nodeId, Number(dx), Number(dy));
     }
-    onDragFinished: function(nodeId, finalX, finalY, _moved) {
+    onDragFinished: function(nodeId, finalX, finalY, _moved, axisLock) {
         if (!canvasItem)
             return;
         var bridge = canvasItem.sceneCommandBridge;
@@ -208,6 +208,11 @@ GraphComponents.GraphNodeHost {
             deltaX = 0.0;
         if (!isFinite(deltaY))
             deltaY = 0.0;
+        // Grid snap must not reintroduce motion on a Shift-locked axis.
+        if (axisLock === "horizontal")
+            deltaY = 0.0;
+        else if (axisLock === "vertical")
+            deltaX = 0.0;
         var finalSnappedX = anchorX + deltaX;
         var finalSnappedY = anchorY + deltaY;
         var movedByCommit = Math.abs(deltaX) >= 0.01 || Math.abs(deltaY) >= 0.01;
