@@ -5,6 +5,12 @@ Item {
     id: root
     objectName: "graphNodeChromeBackgroundLayer"
     property Item host: null
+    property var notchCutoutCenters: ({"left": [], "right": []})
+    readonly property bool notchMaskActive: !!root.host
+        && root.host._notchedPortsEffective
+        && ((root.notchCutoutCenters.left || []).length > 0
+            || (root.notchCutoutCenters.right || []).length > 0)
+    readonly property url notchMaskSvgSource: root._notchMaskSvgSource()
     readonly property bool cacheActive: !!root.host && root.host.chromeShadowCacheActive
     readonly property string cacheKey: root.host ? root.host.chromeShadowCacheKey : ""
     readonly property bool chromeCacheActive: root.host ? root.host.chromeCacheActive : false
@@ -40,6 +46,31 @@ Item {
                     ? "idle"
                     : root.host.semanticChromeState)))
     z: 0
+
+    function _svgNumber(value) {
+        return Number(value).toFixed(3).replace(/\.?0+$/, "");
+    }
+
+    function _notchMaskSvgSource() {
+        if (!root.notchMaskActive)
+            return "";
+        var resolvedWidth = Math.max(1.0, Number(root.width));
+        var resolvedHeight = Math.max(1.0, Number(root.height));
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + root._svgNumber(resolvedWidth)
+            + '" height="' + root._svgNumber(resolvedHeight) + '" viewBox="0 0 '
+            + root._svgNumber(resolvedWidth) + ' ' + root._svgNumber(resolvedHeight) + '">'
+            + '<mask id="port-notches" maskUnits="userSpaceOnUse">'
+            + '<rect width="100%" height="100%" fill="white"/>';
+        var left = root.notchCutoutCenters.left || [];
+        var right = root.notchCutoutCenters.right || [];
+        for (var leftIndex = 0; leftIndex < left.length; ++leftIndex)
+            svg += '<circle cx="0" cy="' + root._svgNumber(left[leftIndex]) + '" r="9" fill="black"/>';
+        for (var rightIndex = 0; rightIndex < right.length; ++rightIndex)
+            svg += '<circle cx="' + root._svgNumber(resolvedWidth) + '" cy="'
+                + root._svgNumber(right[rightIndex]) + '" r="9" fill="black"/>';
+        svg += '</mask><rect width="100%" height="100%" fill="white" mask="url(#port-notches)"/></svg>';
+        return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    }
 
     RectangularShadow {
         id: cardShadow
@@ -124,6 +155,10 @@ Item {
         border.color: root.effectiveOutlineColor
         radius: root.host ? root.host.resolvedCornerRadius : 0
         layer.enabled: root.chromeCacheActive
+        layer.effect: MultiEffect {
+            maskEnabled: root.notchMaskActive && notchMask.status === Image.Ready
+            maskSource: notchMask
+        }
 
         GraphNodeGradientFill {
             objectName: "graphNodeBodyGradientFill"
@@ -200,5 +235,20 @@ Item {
                 Component.onCompleted: requestPaint()
             }
         }
+    }
+
+    Image {
+        id: notchMask
+        objectName: "graphNodeChromeNotchMask"
+        visible: false
+        width: root.width
+        height: root.height
+        sourceSize: Qt.size(Math.max(1, Math.ceil(width)), Math.max(1, Math.ceil(height)))
+        source: root.notchMaskSvgSource
+        cache: true
+        asynchronous: false
+        smooth: true
+        mipmap: false
+        fillMode: Image.Stretch
     }
 }

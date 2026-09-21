@@ -1649,6 +1649,7 @@ Item {
         id: chromeBackground
         anchors.fill: parent
         host: card
+        notchCutoutCenters: portsLayer.notchCutoutCenters
     }
 
     Rectangle {

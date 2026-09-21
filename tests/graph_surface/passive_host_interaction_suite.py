@@ -2053,7 +2053,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
-    def test_standard_host_notches_follow_canvas_background_and_inset_shadow(self) -> None:
+    def test_standard_host_notches_cut_through_chrome_and_preserve_inset_shadow(self) -> None:
         self._run_qml_probe(
             "standard-host-notched-port-rendering",
             """
@@ -2099,6 +2099,8 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 {"nodeData": payload, "canvasItem": canvas_stub, "showShadow": True},
             )
             window = attach_host_to_window(host)
+            backdrop_color = QColor("#b040d0")
+            window.setColor(backdrop_color)
             try:
                 input_notch = named_item(host, "graphNodeInputPortNotch", "payload")
                 output_notch = named_item(host, "graphNodeOutputPortNotch", "result")
@@ -2107,6 +2109,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 notches = [input_notch, output_notch]
                 shadow = host.findChild(QObject, "graphNodeShadow")
                 background_layer = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
+                notch_mask = host.findChild(QObject, "graphNodeChromeNotchMask")
                 selected_halo = host.findChild(QObject, "graphNodeSelectedHalo")
                 removed_halos = [
                     host.findChild(QObject, "graphNodeFailureHalo"),
@@ -2160,12 +2163,10 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 host.setScale(1.0)
                 svg = unquote(sources[0].split(",", 1)[1])
                 assert svg.startswith("<svg ")
-                assert svg.count("<path ") == 2
-                assert 'M0 0 A9 9 0 0 1 0 18 Z' in svg
+                assert svg.count("<path ") == 1
                 assert 'fill="none"' in svg
                 assert 'stroke-linecap="round"' in svg
-                assert " Z" not in svg.split("<path ", 2)[2]
-                assert all(QColor(notch.property("notchFillColor")).name().lower() == "#151821" for notch in notches)
+                assert all(QColor(notch.property("notchFillColor")).alpha() == 0 for notch in notches)
                 assert not named_child_items(host, "graphNodePortNotchOuterHalfCover")
                 assert not named_child_items(host, "graphNodePortNotchDiameterCover")
 
@@ -2190,8 +2191,15 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
 
                 assert shadow is not None
                 assert background_layer is not None
+                assert notch_mask is not None
                 assert selected_halo is not None
                 assert all(halo is None for halo in removed_halos)
+                assert bool(background_layer.property("notchMaskActive"))
+                mask_source = bytes(background_layer.property("notchMaskSvgSource").toEncoded()).decode("ascii")
+                mask_svg = unquote(mask_source.split(",", 1)[1])
+                assert '<circle cx="0"' in mask_svg
+                assert f'<circle cx="{int(host.width())}"' in mask_svg
+                assert mask_svg.count('r="9" fill="black"') == 2
                 assert bool(background_layer.property("suppressHorizontalGlowSpill"))
                 assert not bool(selected_halo.property("autoPaddingEnabled"))
                 padding = selected_halo.property("paddingRect")
@@ -2220,25 +2228,30 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 assert all(bool(notch.property("visible")) for notch in notches)
                 host.setProperty("showShadow", True)
 
-                expected_colors = {
-                    "dark": "#1d1f24",
-                    "light": "#f3f5f8",
-                    "white": "#ffffff",
-                }
-                variant_sources = set()
-                for variant, expected_color in expected_colors.items():
-                    previous_source = encoded_source(input_notch)
+                QTest.qWait(30)
+                frame = window.grabWindow()
+                scale = frame.width() / window.width()
+                for local_point in (
+                    QPointF(7.0, input_center.y()),
+                    QPointF(float(host.width()) - 7.0, output_center.y()),
+                ):
+                    screen = host.mapToScene(local_point)
+                    pixel = frame.pixelColor(round(screen.x() * scale), round(screen.y() * scale))
+                    assert abs(pixel.red() - backdrop_color.red()) <= 3, (pixel.name(), backdrop_color.name())
+                    assert abs(pixel.green() - backdrop_color.green()) <= 3, (pixel.name(), backdrop_color.name())
+                    assert abs(pixel.blue() - backdrop_color.blue()) <= 3, (pixel.name(), backdrop_color.name())
+
+                stable_notch_sources = [encoded_source(notch) for notch in notches]
+                stable_mask_source = bytes(
+                    background_layer.property("notchMaskSvgSource").toEncoded()
+                ).decode("ascii")
+                for variant in ("dark", "light", "white"):
                     prefs.setProperty("canvasBackgroundVariant", variant)
-                    wait_for_condition_or_raise(
-                        lambda: float(input_notch.property("progress")) >= 0.999
-                        and encoded_source(input_notch) != previous_source,
-                        timeout_ms=1000,
-                        app=app,
-                        timeout_message=f"Timed out waiting for {variant} notch SVG.",
-                    )
-                    assert QColor(input_notch.property("notchFillColor")).name().lower() == expected_color
-                    variant_sources.add(encoded_source(input_notch))
-                assert len(variant_sources) == len(expected_colors)
+                    app.processEvents()
+                    assert [encoded_source(notch) for notch in notches] == stable_notch_sources
+                    assert bytes(background_layer.property("notchMaskSvgSource").toEncoded()).decode(
+                        "ascii"
+                    ) == stable_mask_source
 
                 idle_outline = QColor(background_layer.property("effectiveOutlineColor"))
                 idle_source = encoded_source(input_notch)
@@ -2273,6 +2286,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 app.processEvents()
                 assert not bool(host.property("_notchedPortsEffective"))
                 assert all(not bool(notch.property("visible")) for notch in notches)
+                assert not bool(background_layer.property("notchMaskActive"))
                 assert not bool(background_layer.property("suppressHorizontalGlowSpill"))
                 assert bool(selected_halo.property("autoPaddingEnabled"))
                 assert abs(float(shadow.property("horizontalInset"))) < 0.01

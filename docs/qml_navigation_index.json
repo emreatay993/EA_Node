@@ -6,11 +6,11 @@
   ],
   "summary": {
     "qml_files": 200,
-    "repeater_constructs": 98,
-    "loader_constructs": 29,
-    "signal_handlers": 1016,
+    "repeater_constructs": 97,
+    "loader_constructs": 30,
+    "signal_handlers": 1019,
     "connections": 52,
-    "property_bindings": 8066,
+    "property_bindings": 8054,
     "local_component_refs": 338
   },
   "entries": [
@@ -824,6 +824,10 @@
         },
         {
           "kind": "int",
+          "name": "delayOverride"
+        },
+        {
+          "kind": "int",
           "name": "textFormat"
         },
         {
@@ -873,6 +877,10 @@
         {
           "kind": "bool",
           "name": "policyAllowsTooltip"
+        },
+        {
+          "kind": "int",
+          "name": "configuredDelay"
         },
         {
           "kind": "var",
@@ -950,6 +958,14 @@
           "name": "visible",
           "targets": [
             "managedVisible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "delay",
+          "targets": [
+            "delayOverride",
+            "configuredDelay"
           ]
         },
         {
@@ -1183,6 +1199,12 @@
           "detail": "bool"
         },
         {
+          "anchor": "ManagedToolTipPropertyDelayOverride",
+          "kind": "property",
+          "name": "delayOverride",
+          "detail": "int"
+        },
+        {
           "anchor": "ManagedToolTipPropertyTextFormat",
           "kind": "property",
           "name": "textFormat",
@@ -1259,6 +1281,12 @@
           "kind": "property",
           "name": "policyAllowsTooltip",
           "detail": "bool"
+        },
+        {
+          "anchor": "ManagedToolTipPropertyConfiguredDelay",
+          "kind": "property",
+          "name": "configuredDelay",
+          "detail": "int"
         },
         {
           "anchor": "ManagedToolTipPropertyAnchorWindow",
@@ -3986,6 +4014,10 @@
         },
         {
           "kind": "var",
+          "name": "paintSnapshots"
+        },
+        {
+          "kind": "var",
           "name": "canvasStateBridgeRef"
         },
         {
@@ -4248,6 +4280,12 @@
           "kind": "property",
           "name": "edgeLayer",
           "detail": "Item"
+        },
+        {
+          "anchor": "EdgeCanvasLayerPropertyPaintSnapshots",
+          "kind": "property",
+          "name": "paintSnapshots",
+          "detail": "var"
         },
         {
           "anchor": "EdgeCanvasLayerPropertyCanvasStateBridgeRef",
@@ -5468,10 +5506,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "maximumTextWidth"
         },
         {
@@ -5909,6 +5943,10 @@
         {
           "kind": "string",
           "name": "_edgeRendererFallbackReason"
+        },
+        {
+          "kind": "var",
+          "name": "_selectionOverlaySnapshots"
         },
         {
           "kind": "real",
@@ -6455,6 +6493,20 @@
         },
         {
           "kind": "binding",
+          "name": "paintSnapshots",
+          "targets": [
+            "root.edgeRendererKind"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "z",
+          "targets": [
+            "root.edgeRendererKind"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "visible",
           "targets": [
             "root.edgeRendererKind"
@@ -6923,6 +6975,12 @@
           "kind": "property",
           "name": "_edgeRendererFallbackReason",
           "detail": "string"
+        },
+        {
+          "anchor": "EdgeLayerPropertySelectionOverlaySnapshots",
+          "kind": "property",
+          "name": "_selectionOverlaySnapshots",
+          "detail": "var"
         },
         {
           "anchor": "EdgeLayerPropertyViewportCullMarginPx",
@@ -7875,6 +7933,9 @@
           "name": "_rememberPaintViewport"
         },
         {
+          "name": "needsSelectionOverlay"
+        },
+        {
           "name": "_compatibleSnapshot"
         },
         {
@@ -7887,7 +7948,7 @@
           "name": "_screenPolyline"
         },
         {
-          "name": "_polylineSegments"
+          "name": "_polylinePath"
         },
         {
           "name": "_endpointNodeId"
@@ -7905,16 +7966,10 @@
           "name": "_fixed"
         },
         {
-          "name": "_segmentKey"
-        },
-        {
           "name": "_offsetKey"
         },
         {
           "name": "_numberArrayKey"
-        },
-        {
-          "name": "_shapeDashPattern"
         },
         {
           "name": "_contentKeyForEntry"
@@ -7961,7 +8016,7 @@
           "name": "PathCubic"
         },
         {
-          "name": "PathLine"
+          "name": "PathSvg"
         },
         {
           "name": "Rectangle"
@@ -7987,19 +8042,6 @@
           "kind": "model",
           "targets": [
             "retainedEdgeDelegate.edgeEntry.strokeOffsets"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "String",
-            "retainedEdgeDelegate.edgeEntry.route"
-          ]
-        },
-        {
-          "kind": "delegate",
-          "targets": [
-            "Shape"
           ]
         }
       ],
@@ -8066,7 +8108,14 @@
           "name": "z",
           "targets": [
             "Number",
-            "edgeEntry.drawOrderIndex"
+            "model.drawOrderIndex"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "edgeEntry.selectionOverlay"
           ]
         },
         {
@@ -8215,18 +8264,9 @@
         },
         {
           "kind": "binding",
-          "name": "startX",
+          "name": "transform",
           "targets": [
-            "Number",
-            "modelData.sx"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "startY",
-          "targets": [
-            "Number",
-            "modelData.sy"
+            "Translate"
           ]
         },
         {
@@ -8234,7 +8274,7 @@
           "name": "x",
           "targets": [
             "Number",
-            "modelData.tx"
+            "retainedStrokeDelegate.strokeOffset.x"
           ]
         },
         {
@@ -8242,7 +8282,14 @@
           "name": "y",
           "targets": [
             "Number",
-            "modelData.ty"
+            "retainedStrokeDelegate.strokeOffset.y"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "path",
+          "targets": [
+            "retainedEdgeDelegate.edgeEntry.pipePath"
           ]
         },
         {
@@ -8480,6 +8527,11 @@
           "name": "_rememberPaintViewport"
         },
         {
+          "anchor": "EdgeRetainedLayerFunctionNeedsSelectionOverlay",
+          "kind": "function",
+          "name": "needsSelectionOverlay"
+        },
+        {
           "anchor": "EdgeRetainedLayerFunctionCompatibleSnapshot",
           "kind": "function",
           "name": "_compatibleSnapshot"
@@ -8500,9 +8552,9 @@
           "name": "_screenPolyline"
         },
         {
-          "anchor": "EdgeRetainedLayerFunctionPolylineSegments",
+          "anchor": "EdgeRetainedLayerFunctionPolylinePath",
           "kind": "function",
-          "name": "_polylineSegments"
+          "name": "_polylinePath"
         },
         {
           "anchor": "EdgeRetainedLayerFunctionEndpointNodeId",
@@ -8530,11 +8582,6 @@
           "name": "_fixed"
         },
         {
-          "anchor": "EdgeRetainedLayerFunctionSegmentKey",
-          "kind": "function",
-          "name": "_segmentKey"
-        },
-        {
           "anchor": "EdgeRetainedLayerFunctionOffsetKey",
           "kind": "function",
           "name": "_offsetKey"
@@ -8543,11 +8590,6 @@
           "anchor": "EdgeRetainedLayerFunctionNumberArrayKey",
           "kind": "function",
           "name": "_numberArrayKey"
-        },
-        {
-          "anchor": "EdgeRetainedLayerFunctionShapeDashPattern",
-          "kind": "function",
-          "name": "_shapeDashPattern"
         },
         {
           "anchor": "EdgeRetainedLayerFunctionContentKeyForEntry",
@@ -9376,10 +9418,6 @@
           "targets": [
             "Text.PlainText"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         },
         {
           "kind": "binding",
@@ -10490,6 +10528,9 @@
         },
         {
           "name": "lockedHatchLoader"
+        },
+        {
+          "name": "notchMask"
         }
       ],
       "object_names": [
@@ -10513,12 +10554,27 @@
         },
         {
           "name": "graphNodeLockedHatchOverlay"
+        },
+        {
+          "name": "graphNodeChromeNotchMask"
         }
       ],
       "properties": [
         {
           "kind": "Item",
           "name": "host"
+        },
+        {
+          "kind": "var",
+          "name": "notchCutoutCenters"
+        },
+        {
+          "kind": "bool",
+          "name": "notchMaskActive"
+        },
+        {
+          "kind": "url",
+          "name": "notchMaskSvgSource"
         },
         {
           "kind": "bool",
@@ -10578,7 +10634,14 @@
         }
       ],
       "signals": [],
-      "functions": [],
+      "functions": [
+        {
+          "name": "_svgNumber"
+        },
+        {
+          "name": "_notchMaskSvgSource"
+        }
+      ],
       "instantiated_components": [
         {
           "name": "RectangularShadow"
@@ -10597,6 +10660,9 @@
         },
         {
           "name": "Loader"
+        },
+        {
+          "name": "Image"
         }
       ],
       "dynamic_refs": [
@@ -10613,6 +10679,12 @@
           "kind": "sourceComponent",
           "targets": [
             "Canvas"
+          ]
+        },
+        {
+          "kind": "source",
+          "targets": [
+            "root.notchMaskSvgSource"
           ]
         }
       ],
@@ -10873,6 +10945,29 @@
         },
         {
           "kind": "binding",
+          "name": "layer.effect",
+          "targets": [
+            "MultiEffect"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "maskEnabled",
+          "targets": [
+            "root.notchMaskActive",
+            "notchMask.status",
+            "Image.Ready"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "maskSource",
+          "targets": [
+            "notchMask"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "visible",
           "targets": [
             "root.host",
@@ -10966,6 +11061,50 @@
         {
           "kind": "binding",
           "name": "layer.smooth"
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "root.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "root.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "sourceSize",
+          "targets": [
+            "Qt.size",
+            "Math.max",
+            "Math.ceil",
+            "width",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "cache"
+        },
+        {
+          "kind": "binding",
+          "name": "smooth"
+        },
+        {
+          "kind": "binding",
+          "name": "mipmap"
+        },
+        {
+          "kind": "binding",
+          "name": "fillMode",
+          "targets": [
+            "Image.Stretch"
+          ]
         }
       ],
       "local_component_refs": [
@@ -10981,6 +11120,24 @@
           "kind": "property",
           "name": "host",
           "detail": "Item"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundPropertyNotchCutoutCenters",
+          "kind": "property",
+          "name": "notchCutoutCenters",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundPropertyNotchMaskActive",
+          "kind": "property",
+          "name": "notchMaskActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundPropertyNotchMaskSvgSource",
+          "kind": "property",
+          "name": "notchMaskSvgSource",
+          "detail": "url"
         },
         {
           "anchor": "GraphNodeChromeBackgroundPropertyCacheActive",
@@ -11065,6 +11222,16 @@
           "kind": "property",
           "name": "hatchSpacing",
           "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundFunctionSvgNumber",
+          "kind": "function",
+          "name": "_svgNumber"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundFunctionNotchMaskSvgSource",
+          "kind": "function",
+          "name": "_notchMaskSvgSource"
         },
         {
           "anchor": "GraphNodeChromeBackgroundHandlerOnPaint",
@@ -12399,10 +12566,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "screenStablePositioning"
         },
         {
@@ -13728,6 +13891,10 @@
         {
           "kind": "var",
           "name": "dragSourcePort"
+        },
+        {
+          "kind": "bool",
+          "name": "wireDragInProgress"
         },
         {
           "kind": "real",
@@ -15670,6 +15837,13 @@
         },
         {
           "kind": "binding",
+          "name": "notchCutoutCenters",
+          "targets": [
+            "portsLayer.notchCutoutCenters"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "visible",
           "targets": [
             "elapsedTimerLabel.visible"
@@ -16155,6 +16329,12 @@
           "kind": "property",
           "name": "dragSourcePort",
           "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeHostPropertyWireDragInProgress",
+          "kind": "property",
+          "name": "wireDragInProgress",
+          "detail": "bool"
         },
         {
           "anchor": "GraphNodeHostPropertyLiveDragDx",
@@ -21472,6 +21652,10 @@
           "name": "removeButtonItem"
         },
         {
+          "kind": "bool",
+          "name": "wireDragInProgress"
+        },
+        {
           "kind": "string",
           "name": "requestedHelpTooltipText"
         },
@@ -22166,10 +22350,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "screenStablePositioning"
         },
         {
@@ -22635,6 +22815,10 @@
         },
         {
           "kind": "binding",
+          "name": "delayOverride"
+        },
+        {
+          "kind": "binding",
           "name": "screenStablePlacement"
         }
       ],
@@ -22853,6 +23037,12 @@
           "kind": "property",
           "name": "removeButtonItem",
           "detail": "alias"
+        },
+        {
+          "anchor": "GraphNodePortRowPropertyWireDragInProgress",
+          "kind": "property",
+          "name": "wireDragInProgress",
+          "detail": "bool"
         },
         {
           "anchor": "GraphNodePortRowPropertyRequestedHelpTooltipText",
@@ -23312,7 +23502,6 @@
         "\"../common\" as Common",
         "\"../common/TooltipPolicy.js\" as TooltipPolicy",
         "\"../common/PresentationModelKeys.js\" as PresentationModelKeys",
-        "\"../graph_canvas/CanvasBackgroundStyle.js\" as CanvasBackgroundStyle",
         "\"GraphNodeSurfaceMetrics.js\" as GraphNodeSurfaceMetrics",
         "\"surface_controls\" as SurfaceControls",
         "\"surface_controls/SurfaceControlGeometry.js\" as SurfaceControlGeometry"
@@ -23326,6 +23515,9 @@
         },
         {
           "name": "outputPortModel"
+        },
+        {
+          "name": "settingsGroupAggregateRepeater"
         },
         {
           "name": "settingsGroupAggregate"
@@ -23535,6 +23727,10 @@
           "name": "_portPresentation"
         },
         {
+          "kind": "var",
+          "name": "notchCutoutCenters"
+        },
+        {
           "kind": "bool",
           "name": "_portModelsUpdating"
         },
@@ -23593,6 +23789,10 @@
         {
           "kind": "real",
           "name": "animationYOffset"
+        },
+        {
+          "kind": "real",
+          "name": "notchCenterY"
         },
         {
           "kind": "bool",
@@ -23677,6 +23877,9 @@
         },
         {
           "name": "_syncPortModels"
+        },
+        {
+          "name": "_notchCutoutCenters"
         },
         {
           "name": "onNodeDataChanged"
@@ -24444,10 +24647,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "screenStablePositioning"
         },
         {
@@ -24857,6 +25056,12 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphNodePortsLayerPropertyNotchCutoutCenters",
+          "kind": "property",
+          "name": "notchCutoutCenters",
+          "detail": "var"
+        },
+        {
           "anchor": "GraphNodePortsLayerPropertyPortModelsUpdating",
           "kind": "property",
           "name": "_portModelsUpdating",
@@ -24944,6 +25149,12 @@
           "anchor": "GraphNodePortsLayerPropertyAnimationYOffset",
           "kind": "property",
           "name": "animationYOffset",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyNotchCenterY",
+          "kind": "property",
+          "name": "notchCenterY",
           "detail": "real"
         },
         {
@@ -25067,6 +25278,11 @@
           "anchor": "GraphNodePortsLayerFunctionSyncPortModels",
           "kind": "function",
           "name": "_syncPortModels"
+        },
+        {
+          "anchor": "GraphNodePortsLayerFunctionNotchCutoutCenters",
+          "kind": "function",
+          "name": "_notchCutoutCenters"
         },
         {
           "anchor": "GraphNodePortsLayerFunctionOnNodeDataChanged",
@@ -30592,10 +30808,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "color",
           "targets": [
             "root.toolbarPathMode",
@@ -32638,10 +32850,6 @@
           "targets": [
             "iconControl.tooltipText"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         },
         {
           "kind": "binding",
@@ -36662,10 +36870,6 @@
           "targets": [
             "iconControl.tooltipText"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         },
         {
           "kind": "binding",
@@ -43584,10 +43788,6 @@
           "targets": [
             "Text.RichText"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         },
         {
           "kind": "binding",
@@ -58527,10 +58727,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "screenStablePositioning"
         },
         {
@@ -59293,10 +59489,6 @@
           "targets": [
             "textModeButton.hovered"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         },
         {
           "kind": "binding",
@@ -63869,10 +64061,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "screenStablePositioning"
         },
         {
@@ -65304,10 +65492,6 @@
           "targets": [
             "Text.RichText"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         },
         {
           "kind": "binding",
@@ -68042,10 +68226,6 @@
           "targets": [
             "control.tooltipTextFormat"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         },
         {
           "kind": "binding",
@@ -83228,7 +83408,13 @@
           "name": "modeLabel"
         },
         {
+          "name": "previewBadgeWidthReference"
+        },
+        {
           "name": "viewportContainer"
+        },
+        {
+          "name": "viewportOutline"
         },
         {
           "name": "viewportFrame"
@@ -83287,6 +83473,9 @@
           "name": "graphNodeViewerSurfaceModeLabel"
         },
         {
+          "name": "graphNodeViewerViewportOutline"
+        },
+        {
           "name": "graphNodeViewerViewport"
         },
         {
@@ -83299,9 +83488,6 @@
           "name": "graphNodeViewerCachedPreviewImage"
         },
         {
-          "name": "graphNodeViewerProxyPaneBorder"
-        },
-        {
           "name": "graphNodeViewerStalePreviewBadge"
         },
         {
@@ -83312,9 +83498,6 @@
         },
         {
           "name": "graphNodeViewerStalePreviewToolTip"
-        },
-        {
-          "name": "graphNodeViewerLivePane"
         },
         {
           "name": "graphNodeViewerPlaceholderIcon"
@@ -83572,6 +83755,10 @@
           "name": "liveOverlayReady"
         },
         {
+          "kind": "string",
+          "name": "previewHandoffSource"
+        },
+        {
           "kind": "int",
           "name": "previewCacheRevision"
         },
@@ -83762,6 +83949,9 @@
           "name": "_queueCachedPreviewImageRefresh"
         },
         {
+          "name": "_confirmCachedPreviewReady"
+        },
+        {
           "name": "_notifyCachedPreviewSwapped"
         },
         {
@@ -83893,6 +84083,10 @@
         },
         {
           "kind": "handler",
+          "name": "onPreviewHandoffSourceChanged"
+        },
+        {
+          "kind": "handler",
           "name": "onContentFullscreenOpenChanged"
         },
         {
@@ -83922,6 +84116,14 @@
         {
           "kind": "handler",
           "name": "onHeightChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onStatusChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onVisibleChanged"
         }
       ],
       "connections": [],
@@ -84193,7 +84395,9 @@
           "kind": "binding",
           "name": "width",
           "targets": [
-            "modeLabel.implicitWidth"
+            "Math.max",
+            "modeLabel.implicitWidth",
+            "previewBadgeWidthReference.implicitWidth"
           ]
         },
         {
@@ -84220,6 +84424,17 @@
         },
         {
           "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "font",
+          "targets": [
+            "modeLabel.font"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "height",
           "targets": [
             "Math.max",
@@ -84242,16 +84457,16 @@
         },
         {
           "kind": "binding",
-          "name": "border.width",
+          "name": "border.color",
           "targets": [
-            "surface.viewerShowsPlaceholder"
+            "surface.viewerViewportBorderColor"
           ]
         },
         {
           "kind": "binding",
-          "name": "border.color",
+          "name": "anchors.margins",
           "targets": [
-            "surface.viewerViewportBorderColor"
+            "viewportOutline.radius"
           ]
         },
         {
@@ -84290,7 +84505,8 @@
           "kind": "binding",
           "name": "visible",
           "targets": [
-            "surface.proxySurfaceActive"
+            "surface.proxySurfaceActive",
+            "surface.previewHandoffSource.length"
           ]
         },
         {
@@ -84342,22 +84558,6 @@
           "name": "opacity",
           "targets": [
             "surface.cachedPreviewStale"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "parent.radius"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "host",
-            "Qt.alpha",
-            "host.scopeBadgeBorderColor"
           ]
         },
         {
@@ -84444,10 +84644,6 @@
         },
         {
           "kind": "binding",
-          "name": "text"
-        },
-        {
-          "kind": "binding",
           "name": "font.pixelSize",
           "targets": [
             "surface.viewerBadgePixelSize"
@@ -84480,38 +84676,9 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "Accessible.name",
           "targets": [
             "text"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "surface.liveSurfaceActive"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "host",
-            "Qt.alpha",
-            "host.selectedOutlineColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "host",
-            "Qt.alpha",
-            "host.selectedOutlineColor"
           ]
         },
         {
@@ -84963,6 +85130,12 @@
           "detail": "bool"
         },
         {
+          "anchor": "GraphViewerSurfaceBodyPropertyPreviewHandoffSource",
+          "kind": "property",
+          "name": "previewHandoffSource",
+          "detail": "string"
+        },
+        {
           "anchor": "GraphViewerSurfaceBodyPropertyPreviewCacheRevision",
           "kind": "property",
           "name": "previewCacheRevision",
@@ -85254,6 +85427,11 @@
           "name": "_queueCachedPreviewImageRefresh"
         },
         {
+          "anchor": "GraphViewerSurfaceBodyFunctionConfirmCachedPreviewReady",
+          "kind": "function",
+          "name": "_confirmCachedPreviewReady"
+        },
+        {
           "anchor": "GraphViewerSurfaceBodyFunctionNotifyCachedPreviewSwapped",
           "kind": "function",
           "name": "_notifyCachedPreviewSwapped"
@@ -85364,6 +85542,11 @@
           "name": "onCachedPreviewVisibleChanged"
         },
         {
+          "anchor": "GraphViewerSurfaceBodyHandlerOnPreviewHandoffSourceChanged",
+          "kind": "handler",
+          "name": "onPreviewHandoffSourceChanged"
+        },
+        {
           "anchor": "GraphViewerSurfaceBodyHandlerOnContentFullscreenOpenChanged",
           "kind": "handler",
           "name": "onContentFullscreenOpenChanged"
@@ -85402,6 +85585,16 @@
           "anchor": "GraphViewerSurfaceBodyHandlerOnHeightChanged",
           "kind": "handler",
           "name": "onHeightChanged"
+        },
+        {
+          "anchor": "GraphViewerSurfaceBodyHandlerOnStatusChanged",
+          "kind": "handler",
+          "name": "onStatusChanged"
+        },
+        {
+          "anchor": "GraphViewerSurfaceBodyHandlerOnVisibleChanged",
+          "kind": "handler",
+          "name": "onVisibleChanged"
         },
         {
           "anchor": "GraphViewerSurfaceBodyLocalComponentCommonManagedToolTip",
@@ -86450,10 +86643,6 @@
             "TooltipCopy.text",
             "tooltipCopyBridge"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         },
         {
           "kind": "binding",
@@ -88908,10 +89097,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "checked",
           "targets": [
             "sidePanel.sessionOptions.show_scalar_bar"
@@ -89607,10 +89792,6 @@
           "targets": [
             "root.tooltipText"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         },
         {
           "kind": "binding",
@@ -96869,10 +97050,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "anchors.fill",
           "targets": [
             "parent"
@@ -97774,6 +97951,15 @@
         },
         {
           "kind": "binding",
+          "name": "wireDragInProgress",
+          "targets": [
+            "canvasItem",
+            "Boolean",
+            "canvasItem.wireDragState"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "liveDragDx"
         },
         {
@@ -98501,6 +98687,9 @@
           "name": "selectedWireDisplayModeSubmenuLoader"
         },
         {
+          "name": "tooltipDelaySubmenuLoader"
+        },
+        {
           "name": "canvasSubmenuLoader"
         },
         {
@@ -98551,10 +98740,16 @@
           "name": "canvasOptionsPasteAndDropRow"
         },
         {
+          "name": "canvasOptionsTooltipDelayRow"
+        },
+        {
           "name": "canvasOptionsOpenGraphicsSettingsRow"
         },
         {
           "name": "canvasOptionsPasteAndDropSubmenu"
+        },
+        {
+          "name": "canvasOptionsTooltipDelaySubmenu"
         },
         {
           "name": "canvasOptionsSubmenuScroll"
@@ -98766,6 +98961,14 @@
           "name": "nodeCommentEditorDefaultLabel"
         },
         {
+          "kind": "int",
+          "name": "tooltipDelayMs"
+        },
+        {
+          "kind": "string",
+          "name": "tooltipDelayLabel"
+        },
+        {
           "kind": "string",
           "name": "shellThemeLabel"
         },
@@ -98890,6 +99093,9 @@
         },
         {
           "name": "setNodeCommentEditorDefault"
+        },
+        {
+          "name": "setTooltipDelayMs"
         },
         {
           "name": "setShellTheme"
@@ -99216,6 +99422,13 @@
         },
         {
           "kind": "binding",
+          "name": "value",
+          "targets": [
+            "root.tooltipDelayLabel"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "checked",
           "targets": [
             "root.nodeShadows"
@@ -99273,6 +99486,14 @@
           "name": "currentValue",
           "targets": [
             "root.selectedWireDisplayModeValue"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "currentValue",
+          "targets": [
+            "String",
+            "root.tooltipDelayMs"
           ]
         },
         {
@@ -99607,10 +99828,6 @@
           "targets": [
             "parent.tooltipText"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         },
         {
           "kind": "binding",
@@ -100098,6 +100315,18 @@
           "detail": "string"
         },
         {
+          "anchor": "GraphCanvasOptionsMenuPropertyTooltipDelayMs",
+          "kind": "property",
+          "name": "tooltipDelayMs",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasOptionsMenuPropertyTooltipDelayLabel",
+          "kind": "property",
+          "name": "tooltipDelayLabel",
+          "detail": "string"
+        },
+        {
           "anchor": "GraphCanvasOptionsMenuPropertyShellThemeLabel",
           "kind": "property",
           "name": "shellThemeLabel",
@@ -100290,6 +100519,11 @@
           "name": "setNodeCommentEditorDefault"
         },
         {
+          "anchor": "GraphCanvasOptionsMenuFunctionSetTooltipDelayMs",
+          "kind": "function",
+          "name": "setTooltipDelayMs"
+        },
+        {
           "anchor": "GraphCanvasOptionsMenuFunctionSetShellTheme",
           "kind": "function",
           "name": "setShellTheme"
@@ -100421,6 +100655,10 @@
         {
           "kind": "bool",
           "name": "showTooltips"
+        },
+        {
+          "kind": "int",
+          "name": "tooltipDelayMs"
         },
         {
           "kind": "int",
@@ -100577,6 +100815,12 @@
           "kind": "property",
           "name": "showTooltips",
           "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasPreferenceFactsPropertyTooltipDelayMs",
+          "kind": "property",
+          "name": "tooltipDelayMs",
+          "detail": "int"
         },
         {
           "anchor": "GraphCanvasPreferenceFactsPropertyGraphLabelPixelSize",
@@ -111109,10 +111353,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "maximumTextWidth"
         },
         {
@@ -114707,10 +114947,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "contentItem",
           "targets": [
             "Item"
@@ -116190,10 +116426,6 @@
           "targets": [
             "root.tooltipTextFormat"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         },
         {
           "kind": "binding",
@@ -130353,10 +130585,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "width",
           "targets": [
             "parent.width"
@@ -137299,10 +137527,6 @@
         },
         {
           "kind": "binding",
-          "name": "delay"
-        },
-        {
-          "kind": "binding",
           "name": "contentItem",
           "targets": [
             "Item"
@@ -139393,10 +139617,6 @@
           "targets": [
             "parent.actionTooltipText"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         }
       ],
       "local_component_refs": [
@@ -140115,10 +140335,6 @@
           "targets": [
             "control.tooltipTextFormat"
           ]
-        },
-        {
-          "kind": "binding",
-          "name": "delay"
         },
         {
           "kind": "binding",

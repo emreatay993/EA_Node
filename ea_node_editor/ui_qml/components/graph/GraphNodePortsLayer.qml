@@ -3,7 +3,6 @@ import QtQuick.Controls 2.15
 import "../common" as Common
 import "../common/TooltipPolicy.js" as TooltipPolicy
 import "../common/PresentationModelKeys.js" as PresentationModelKeys
-import "../graph_canvas/CanvasBackgroundStyle.js" as CanvasBackgroundStyle
 import "GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
 import "surface_controls" as SurfaceControls
 import "surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
@@ -50,10 +49,7 @@ Item {
     readonly property bool notchedPortsEffective: root.host ? Boolean(root.host._notchedPortsEffective) : false
     readonly property color notchOutlineColor: root.host ? root.host._effectiveChromeOutlineColor : "transparent"
     readonly property real notchOutlineWidth: root.host ? root.host._effectiveChromeBorderWidth : 0
-    readonly property color notchColor: CanvasBackgroundStyle.fillColor(
-        root.host && root.host.prefs ? root.host.prefs.canvasBackgroundVariant : "theme",
-        typeof themeBridge !== "undefined" && themeBridge ? themeBridge.palette : ({})
-    )
+    readonly property color notchColor: "transparent"
     readonly property url notchSvgSource: root._notchSvgSource()
     readonly property var settingsGroups: root.host ? root.host.settingsGroups : []
     property var settingsGroupModelKeys: []
@@ -123,6 +119,7 @@ Item {
 
     ListModel { id: inputPortModel }
     ListModel { id: outputPortModel }
+    readonly property var notchCutoutCenters: root._notchCutoutCenters()
     property bool _portModelsUpdating: false
     property string _appliedPortPresentationSignature: ""
 
@@ -187,6 +184,28 @@ Item {
         } finally {
             root._portModelsUpdating = false;
         }
+    }
+
+    function _notchCutoutCenters() {
+        var centers = {"left": [], "right": []};
+        if (!root.notchedPortsEffective || root._portModelsUpdating)
+            return centers;
+        for (var inputIndex = 0; inputIndex < inputPortsRepeater.count; ++inputIndex) {
+            var inputRow = inputPortsRepeater.itemAt(inputIndex);
+            if (inputRow && inputRow.visible && isFinite(Number(inputRow.portPoint.y)))
+                centers.left.push(Number(inputRow.portPoint.y));
+        }
+        for (var outputIndex = 0; outputIndex < outputPortsRepeater.count; ++outputIndex) {
+            var outputRow = outputPortsRepeater.itemAt(outputIndex);
+            if (outputRow && outputRow.visible && isFinite(Number(outputRow.portPoint.y)))
+                centers.right.push(Number(outputRow.portPoint.y));
+        }
+        for (var groupIndex = 0; groupIndex < settingsGroupAggregateRepeater.count; ++groupIndex) {
+            var aggregate = settingsGroupAggregateRepeater.itemAt(groupIndex);
+            if (aggregate && aggregate.visible && isFinite(Number(aggregate.notchCenterY)))
+                centers.left.push(Number(aggregate.notchCenterY));
+        }
+        return centers;
     }
     property var dynamicPortGroups: []
     property int dynamicPortGroupModelRevision: 0
@@ -426,9 +445,7 @@ Item {
         var halfStroke = strokeWidth * 0.5;
         var radius = Math.max(0.0, 9.0 - halfStroke);
         var bottom = 18.0 - halfStroke;
-        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="18" viewBox="0 0 9 18">'
-            + '<path d="M0 0 A9 9 0 0 1 0 18 Z" fill="' + root._svgColor(root.notchColor)
-            + '" fill-opacity="' + root._svgOpacity(root.notchColor.a) + '"/>';
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="18" viewBox="0 0 9 18">';
         if (strokeWidth > 0.0) {
             svg += '<path d="M' + root._svgNumber(halfStroke) + ' ' + root._svgNumber(halfStroke)
                 + ' A' + root._svgNumber(radius) + ' ' + root._svgNumber(radius)
@@ -1070,6 +1087,7 @@ Item {
     visible: root.host && root.host.nodeData ? !root.host.nodeData.collapsed : false
 
     Repeater {
+        id: settingsGroupAggregateRepeater
         model: root.settingsGroupModelKeys
 
         delegate: Item {
@@ -1080,6 +1098,9 @@ Item {
             readonly property int connectedCount: anchor ? Number(anchor.connected_count || 0) : 0
             readonly property real animationYOffset: root.host
                 ? Number(root.host.settingsGroupOffsets[groupId] || 0) : 0
+            readonly property real notchCenterY: anchor
+                ? Number(anchor.y || 0) + root.settingsBandYOffset + animationYOffset
+                : NaN
             visible: Boolean(anchor) && !Boolean(groupData.expanded)
             width: root.width
             height: root.height

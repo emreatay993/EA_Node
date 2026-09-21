@@ -1,7 +1,5 @@
-// Shared canvas-background color mapping. Consumed by GraphCanvasBackground
-// (the actual canvas fill) and GraphNodePortsLayer (port notch disks that must
-// visually match the canvas behind the node edge). Keep the two in sync by
-// editing only this file.
+// Shared canvas-background color mapping consumed by GraphCanvasBackground.
+// Port notches are true chrome cutouts and do not imitate this fill color.
 .pragma library
 
 function effectiveVariant(variant) {
