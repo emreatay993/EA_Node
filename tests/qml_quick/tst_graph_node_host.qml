@@ -1667,6 +1667,7 @@ TestCase {
             return findNamedItems(host, "graphNodeGroupBackdropSurface").length === 1
         }, 1000)
         var loader = findNamedItems(host, "graphNodeSurfaceLoader")[0]
+        var surface = findNamedItems(host, "graphNodeGroupBackdropSurface")[0]
         var titleText = findNamedItems(host, "graphNodeTitle")[0]
         compare(findNamedItems(host, "graphNodeGroupBackdropBodyText").length, 0)
         compare(findNamedItems(host, "graphGroupBackdropBodyEditor").length, 0)
@@ -1674,6 +1675,7 @@ TestCase {
         compare(findNamedItems(host, "graphGroupBackdropLivePreviewShadow").length, 0)
         compare(findNamedItems(host, "graphNodeGroupBackdropBadgeDot").length, 0)
         verify(titleText !== null)
+        compare(surface.backdropFillAlpha, 0.26)
         compare(loader.loadedSurfaceKey, "group_backdrop")
         verify(loader.contentHeight > 0)
         verify(!host._useHostChrome)

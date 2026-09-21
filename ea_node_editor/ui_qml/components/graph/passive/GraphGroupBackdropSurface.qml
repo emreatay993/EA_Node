@@ -8,7 +8,7 @@ GraphShared.GraphSurfaceBase {
         ? String(host.surfaceVariant || "") === "group_backdrop_input_overlay"
         : false
     readonly property bool backdropVisible: !surface.inputOverlayMode
-    readonly property real backdropFillAlpha: host && host.hasPassiveFillOverride ? 0.34 : 0.22
+    readonly property real backdropFillAlpha: host && host.hasPassiveFillOverride ? 0.34 : 0.26
     readonly property color backdropFillColor: _backdropFillColor()
     readonly property bool backdropGradientActive: Boolean(surface.backdropVisible && host && host.passiveBodyGradientActive)
     readonly property color backdropGradientEndColor: host
