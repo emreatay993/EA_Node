@@ -2200,6 +2200,33 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 assert '<circle cx="0"' in mask_svg
                 assert f'<circle cx="{int(host.width())}"' in mask_svg
                 assert mask_svg.count('r="9" fill="black"') == 2
+                # Check the opaque body as well as the holes: a truncated mask
+                # can pass notch-only checks while erasing most of the card.
+                from PyQt6.QtGui import QImage, QPainter
+                from PyQt6.QtSvg import QSvgRenderer
+
+                def assert_full_mask_body():
+                    source = bytes(background_layer.property("notchMaskSvgSource").toEncoded()).decode("ascii")
+                    renderer = QSvgRenderer(unquote(source.split(",", 1)[1]).encode("utf-8"))
+                    assert renderer.isValid()
+                    image = QImage(round(host.width()), round(host.height()), QImage.Format.Format_ARGB32)
+                    image.fill(Qt.GlobalColor.transparent)
+                    painter = QPainter(image)
+                    renderer.render(painter)
+                    painter.end()
+                    for y in range(12, image.height() - 12, 11):
+                        for x in range(12, image.width() - 12, 11):
+                            assert image.pixelColor(x, y).alpha() == 255, (
+                                "missing-mask-body", x, y, image.width(), image.height())
+
+                assert_full_mask_body()
+                host.setProperty("_liveWidth", 420.0)
+                host.setProperty("_liveHeight", 260.0)
+                host.setProperty("_liveGeometryActive", True)
+                app.processEvents()
+                assert_full_mask_body()
+                host.setProperty("_liveGeometryActive", False)
+                app.processEvents()
                 assert bool(background_layer.property("suppressHorizontalGlowSpill"))
                 assert not bool(selected_halo.property("autoPaddingEnabled"))
                 padding = selected_halo.property("paddingRect")
@@ -2226,11 +2253,16 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 app.processEvents()
                 assert not bool(shadow.property("visible"))
                 assert all(bool(notch.property("visible")) for notch in notches)
-                host.setProperty("showShadow", True)
 
                 QTest.qWait(30)
                 frame = window.grabWindow()
                 scale = frame.width() / window.width()
+                for x_fraction in (0.2, 0.5, 0.8):
+                    screen = host.mapToScene(QPointF(host.width() * x_fraction, host.height() - 12.0))
+                    pixel = frame.pixelColor(round(screen.x() * scale), round(screen.y() * scale))
+                    assert max(abs(pixel.red() - backdrop_color.red()),
+                        abs(pixel.green() - backdrop_color.green()),
+                        abs(pixel.blue() - backdrop_color.blue())) > 30, ("missing-card-body", x_fraction)
                 for local_point in (
                     QPointF(7.0, input_center.y()),
                     QPointF(float(host.width()) - 7.0, output_center.y()),
@@ -2240,6 +2272,25 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     assert abs(pixel.red() - backdrop_color.red()) <= 3, (pixel.name(), backdrop_color.name())
                     assert abs(pixel.green() - backdrop_color.green()) <= 3, (pixel.name(), backdrop_color.name())
                     assert abs(pixel.blue() - backdrop_color.blue()) <= 3, (pixel.name(), backdrop_color.name())
+
+                # Compare intact chrome with the unmasked card, beyond the old
+                # 100-unit cutoff. Run on a graphics backend that supports effects.
+                from PyQt6.QtQuick import QSGRendererInterface
+                if window.rendererInterface().graphicsApi() != QSGRendererInterface.GraphicsApi.Software:
+                    prefs.setProperty("notchedPortsEnabled", False)
+                    QTest.qWait(30)
+                    unmasked_frame = window.grabWindow()
+                    for x_fraction in (0.2, 0.5, 0.8):
+                        screen = host.mapToScene(QPointF(host.width() * x_fraction, 12.0))
+                        x, y = round(screen.x() * scale), round(screen.y() * scale)
+                        masked = frame.pixelColor(x, y)
+                        unmasked = unmasked_frame.pixelColor(x, y)
+                        assert max(abs(masked.red() - unmasked.red()),
+                            abs(masked.green() - unmasked.green()),
+                            abs(masked.blue() - unmasked.blue())) <= 3, ("changed-card-body", x_fraction)
+                    prefs.setProperty("notchedPortsEnabled", True)
+                    app.processEvents()
+                host.setProperty("showShadow", True)
 
                 stable_notch_sources = [encoded_source(notch) for notch in notches]
                 stable_mask_source = bytes(

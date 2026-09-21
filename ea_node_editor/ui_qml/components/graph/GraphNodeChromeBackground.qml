@@ -56,11 +56,15 @@ Item {
             return "";
         var resolvedWidth = Math.max(1.0, Number(root.width));
         var resolvedHeight = Math.max(1.0, Number(root.height));
+        // Qt SVG resolves percentage rectangle lengths to 100 units here.
+        // Use explicit dimensions for the mask region and both painted rects.
+        var dimensions = 'width="' + root._svgNumber(resolvedWidth)
+            + '" height="' + root._svgNumber(resolvedHeight) + '"';
         var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + root._svgNumber(resolvedWidth)
             + '" height="' + root._svgNumber(resolvedHeight) + '" viewBox="0 0 '
             + root._svgNumber(resolvedWidth) + ' ' + root._svgNumber(resolvedHeight) + '">'
-            + '<mask id="port-notches" maskUnits="userSpaceOnUse">'
-            + '<rect width="100%" height="100%" fill="white"/>';
+            + '<mask id="port-notches" maskUnits="userSpaceOnUse" x="0" y="0" ' + dimensions + '>'
+            + '<rect ' + dimensions + ' fill="white"/>';
         var left = root.notchCutoutCenters.left || [];
         var right = root.notchCutoutCenters.right || [];
         for (var leftIndex = 0; leftIndex < left.length; ++leftIndex)
@@ -68,7 +72,7 @@ Item {
         for (var rightIndex = 0; rightIndex < right.length; ++rightIndex)
             svg += '<circle cx="' + root._svgNumber(resolvedWidth) + '" cy="'
                 + root._svgNumber(right[rightIndex]) + '" r="9" fill="black"/>';
-        svg += '</mask><rect width="100%" height="100%" fill="white" mask="url(#port-notches)"/></svg>';
+        svg += '</mask><rect ' + dimensions + ' fill="white" mask="url(#port-notches)"/></svg>';
         return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
     }
 
