@@ -6,6 +6,7 @@ Item {
     property var _impl: null
     readonly property bool proxySurfaceActive: _impl ? Boolean(_impl.proxySurfaceActive) : false
     readonly property bool liveSurfaceActive: _impl ? Boolean(_impl.liveSurfaceActive) : false
+    readonly property bool aspectRatioLocked: true
     readonly property bool blocksHostInteraction: _impl ? Boolean(_impl.blocksHostInteraction) : false
     readonly property var embeddedInteractiveRects: _impl && _impl.embeddedInteractiveRects !== undefined && _impl.embeddedInteractiveRects !== null ? _impl.embeddedInteractiveRects : []
     readonly property var viewerInteractiveRects: _impl && _impl.viewerInteractiveRects !== undefined && _impl.viewerInteractiveRects !== null ? _impl.viewerInteractiveRects : []

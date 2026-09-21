@@ -1207,7 +1207,7 @@ TestCase {
         })
     }
 
-    function test_graph_node_host_shows_resize_handles_only_for_passive_expanded_nodes() {
+    function test_graph_node_host_shows_resize_handles_only_for_eligible_expanded_nodes() {
         mouseMove(stage, 1, 1)
         var activePayload = nodePayload()
         activePayload.x = 20.0
@@ -1229,6 +1229,19 @@ TestCase {
         mouseMove(compileOnlyHost, 84.0, 40.0)
         tryVerify(function() { return compileOnlyHost.hoverActive })
         verify(allVisible(compileOnlyHandles, false))
+
+        var viewerPayload = nodePayload()
+        viewerPayload.x = 20.0
+        viewerPayload.y = 260.0
+        viewerPayload.type_id = "model.viewer"
+        var viewerHost = createHost(viewerPayload)
+        verify(viewerHost !== null)
+        var viewerHandles = findNamedItems(viewerHost, "graphNodeResizeHandle")
+        compare(viewerHandles.length, 4)
+        verify(allVisible(viewerHandles, false))
+        mouseMove(viewerHost, 84.0, 40.0)
+        tryVerify(function() { return viewerHost.hoverActive })
+        tryVerify(function() { return allVisible(viewerHandles, true) })
 
         var passivePayload = nodePayload()
         passivePayload.x = 560.0

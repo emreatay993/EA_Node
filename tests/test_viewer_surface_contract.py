@@ -768,6 +768,123 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             """,
         )
 
+    def test_model_viewer_resize_handles_preserve_the_node_aspect_ratio(self) -> None:
+        self._run_qml_probe(
+            "model-viewer-aspect-locked-resize",
+            """
+            from PyQt6.QtCore import QPoint, Qt
+            from PyQt6.QtTest import QTest
+
+            for runtime_behavior in ("active", "compile_only"):
+                excluded_payload = viewer_payload()
+                excluded_payload["runtime_behavior"] = runtime_behavior
+                excluded_host = create_component(
+                    graph_node_host_qml_path,
+                    {"nodeData": excluded_payload},
+                )
+                assert not bool(excluded_host.property("manualResizeEligible"))
+                excluded_host.deleteLater()
+
+            payload = viewer_payload()
+            payload["type_id"] = "model.viewer"
+            payload["title"] = "Model Viewer"
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            finish_events = []
+            host.resizeFinished.connect(
+                lambda node_id, x, y, width, height: finish_events.append(
+                    (str(node_id), float(x), float(y), float(width), float(height))
+                )
+            )
+
+            window = attach_host_to_window(host, 760, 620)
+            try:
+                settle_events(5)
+                surface = host.property("loadedSurfaceItem")
+                assert surface is not None
+                assert bool(host.property("manualResizeEligible"))
+                assert bool(surface.property("aspectRatioLocked"))
+
+                hover_host_local_point(window, host, 80.0, 40.0)
+                handles = named_child_items(host, "graphNodeResizeHandle")
+                assert len(handles) == 4
+                assert all(bool(handle.property("visible")) for handle in handles)
+                bottom_right = next(
+                    handle
+                    for handle in handles
+                    if str(handle.property("cornerRole")) == "bottomRight"
+                )
+
+                initial_x = float(host.x())
+                initial_y = float(host.y())
+                initial_width = float(host.width())
+                initial_height = float(host.height())
+                initial_ratio = initial_width / initial_height
+                start = item_scene_point(bottom_right, 0.75, 0.75)
+                end = QPoint(start.x() + 60, start.y() + 10)
+
+                QTest.mousePress(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    start,
+                )
+                QTest.mouseMove(window, end)
+                settle_events(3)
+
+                assert bool(host.property("_liveGeometryActive"))
+                assert float(host.width()) > initial_width
+                assert float(host.height()) > initial_height
+                assert abs((float(host.width()) / float(host.height())) - initial_ratio) < 0.01
+                assert abs(float(host.x()) - initial_x) < 0.75
+                assert abs(float(host.y()) - initial_y) < 0.75
+
+                QTest.mouseRelease(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    end,
+                )
+                settle_events(3)
+
+                assert len(finish_events) == 1, finish_events
+                _, final_x, final_y, final_width, final_height = finish_events[0]
+                assert abs(final_x - initial_x) < 0.75
+                assert abs(final_y - initial_y) < 0.75
+                assert abs((final_width / final_height) - initial_ratio) < 0.01
+                assert not bool(host.property("_liveGeometryActive"))
+
+                finish_events.clear()
+                hover_host_local_point(window, host, 80.0, 40.0)
+                shrink_start = item_scene_point(bottom_right, 0.75, 0.75)
+                QTest.mousePress(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    shrink_start,
+                )
+                shrink_end = QPoint(shrink_start.x() - 200, shrink_start.y() - 200)
+                QTest.mouseMove(window, shrink_end)
+                settle_events(3)
+
+                assert float(host.width()) >= float(payload["surface_metrics"]["min_width"])
+                assert float(host.height()) >= float(payload["surface_metrics"]["min_height"])
+                assert abs((float(host.width()) / float(host.height())) - initial_ratio) < 0.01
+
+                QTest.mouseRelease(
+                    window,
+                    Qt.MouseButton.LeftButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    shrink_end,
+                )
+                settle_events(3)
+                assert len(finish_events) == 1, finish_events
+            finally:
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
     def test_viewer_ports_stay_within_shell_when_height_is_reduced_above_minimum(self) -> None:
         self._run_qml_probe(
             "viewer-mid-height-port-fit",

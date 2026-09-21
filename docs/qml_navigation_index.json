@@ -14242,6 +14242,10 @@
         },
         {
           "kind": "bool",
+          "name": "manualResizeEligible"
+        },
+        {
+          "kind": "bool",
           "name": "lockEligible"
         },
         {
@@ -16850,6 +16854,12 @@
           "anchor": "GraphNodeHostPropertyIsPassiveNode",
           "kind": "property",
           "name": "isPassiveNode",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeHostPropertyManualResizeEligible",
+          "kind": "property",
+          "name": "manualResizeEligible",
           "detail": "bool"
         },
         {
@@ -83192,6 +83202,10 @@
         },
         {
           "kind": "bool",
+          "name": "aspectRatioLocked"
+        },
+        {
+          "kind": "bool",
           "name": "blocksHostInteraction"
         },
         {
@@ -83299,6 +83313,12 @@
           "anchor": "GraphViewerSurfacePropertyLiveSurfaceActive",
           "kind": "property",
           "name": "liveSurfaceActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphViewerSurfacePropertyAspectRatioLocked",
+          "kind": "property",
+          "name": "aspectRatioLocked",
           "detail": "bool"
         },
         {

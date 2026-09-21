@@ -306,6 +306,9 @@ Item {
     readonly property string runtimeBehavior: String(nodeData && nodeData.runtime_behavior || "").toLowerCase()
     readonly property bool isActiveWireNode: runtimeBehavior === "active" || runtimeBehavior === "compile_only"
     readonly property bool isPassiveNode: runtimeBehavior === "passive"
+    readonly property bool manualResizeEligible: isPassiveNode
+        || panelLikeSurface
+        || String(nodeData && nodeData.type_id || "") === "model.viewer"
     readonly property bool lockEligible: !!nodeData && String(nodeData.type_id || "").indexOf("passive.") === 0
     readonly property bool authorLocked: lockEligible && Boolean(nodeData.locked)
     readonly property bool lockedInteractionEnabled: !!canvasItem && Boolean(canvasItem.interactWithLockedObjects)
@@ -1253,7 +1256,7 @@ Item {
     }
 
     function _isResizeHandlePoint(localX, localY) {
-        return card.isPassiveNode && interactionState.isResizeHandlePoint(localX, localY);
+        return card.manualResizeEligible && interactionState.isResizeHandlePoint(localX, localY);
     }
 
     function _pointInRect(localX, localY, rectLike) {
@@ -1585,7 +1588,7 @@ Item {
     readonly property bool renderActive: card._forceRenderActive
         || card._sceneRectsIntersect(card._nodeSceneRect(), card.renderActivationSceneRectPayload)
     readonly property bool _resizeHandlesVisible: !!card.nodeData
-        && (card.isPassiveNode || card.panelLikeSurface)
+        && card.manualResizeEligible
         && !card.isCollapsed
         && !card.surfaceInteractionLocked
         && (card._hostHoverActive || card._resizeInteractionActive)
