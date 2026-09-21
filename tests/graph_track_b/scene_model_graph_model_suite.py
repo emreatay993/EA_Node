@@ -110,6 +110,107 @@ class GraphModelTrackBTests(unittest.TestCase):
         self.assertNotIn(inner_edge.edge_id, workspace.edges)
         self.assertEqual(workspace.nodes[pin_in.node_id].properties["kind"], "flow")
 
+    def test_inner_subnode_edge_enablement_propagates_to_all_upper_segments(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        mutations = model.validated_mutations(workspace.workspace_id, registry)
+
+        def _add_node(
+            type_id: str,
+            title: str,
+            *,
+            parent_node_id: str | None = None,
+        ):
+            spec = registry.get_spec(type_id)
+            return mutations.add_node(
+                type_id=type_id,
+                title=title,
+                x=0.0,
+                y=0.0,
+                properties=registry.default_properties(type_id),
+                exposed_ports={port.key: port.exposed for port in spec.ports},
+                parent_node_id=parent_node_id,
+            )
+
+        source = _add_node("core.constant", "Source")
+        outer_shell = _add_node("core.subnode", "Outer")
+        outer_input = _add_node(
+            "core.subnode_input", "Outer Input", parent_node_id=outer_shell.node_id
+        )
+        nested_shell = _add_node(
+            "core.subnode", "Nested", parent_node_id=outer_shell.node_id
+        )
+        nested_input = _add_node(
+            "core.subnode_input", "Nested Input", parent_node_id=nested_shell.node_id
+        )
+        nested_target = _add_node(
+            "core.logger", "Nested Target", parent_node_id=nested_shell.node_id
+        )
+        mutations.set_exposed_port(outer_shell.node_id, outer_input.node_id, True)
+        mutations.set_exposed_port(nested_shell.node_id, nested_input.node_id, True)
+
+        outermost_input_edge = mutations.add_edge(
+            source_node_id=source.node_id,
+            source_port_key="value",
+            target_node_id=outer_shell.node_id,
+            target_port_key=outer_input.node_id,
+        )
+        middle_input_edge = mutations.add_edge(
+            source_node_id=outer_input.node_id,
+            source_port_key="pin",
+            target_node_id=nested_shell.node_id,
+            target_port_key=nested_input.node_id,
+        )
+        deepest_input_edge = mutations.add_edge(
+            source_node_id=nested_input.node_id,
+            source_port_key="pin",
+            target_node_id=nested_target.node_id,
+            target_port_key="message",
+        )
+        nested_input_chain = (
+            deepest_input_edge.edge_id,
+            middle_input_edge.edge_id,
+            outermost_input_edge.edge_id,
+        )
+
+        self.assertTrue(mutations.set_edge_enabled(deepest_input_edge.edge_id, False))
+        self.assertTrue(
+            all(not workspace.edges[edge_id].enabled for edge_id in nested_input_chain)
+        )
+        self.assertTrue(mutations.set_edge_enabled(deepest_input_edge.edge_id, True))
+        self.assertTrue(
+            all(workspace.edges[edge_id].enabled for edge_id in nested_input_chain)
+        )
+
+        producer = _add_node(
+            "core.constant", "Producer", parent_node_id=outer_shell.node_id
+        )
+        output_pin = _add_node(
+            "core.subnode_output", "Output", parent_node_id=outer_shell.node_id
+        )
+        sink = _add_node("core.python_script", "Sink")
+        mutations.set_exposed_port(outer_shell.node_id, output_pin.node_id, True)
+        inner_output_edge = mutations.add_edge(
+            source_node_id=producer.node_id,
+            source_port_key="value",
+            target_node_id=output_pin.node_id,
+            target_port_key="pin",
+        )
+        upper_output_edge = mutations.add_edge(
+            source_node_id=outer_shell.node_id,
+            source_port_key=output_pin.node_id,
+            target_node_id=sink.node_id,
+            target_port_key="payload",
+        )
+
+        self.assertTrue(mutations.set_edge_enabled(inner_output_edge.edge_id, False))
+        self.assertFalse(workspace.edges[inner_output_edge.edge_id].enabled)
+        self.assertFalse(workspace.edges[upper_output_edge.edge_id].enabled)
+        self.assertTrue(mutations.set_edge_enabled(inner_output_edge.edge_id, True))
+        self.assertTrue(workspace.edges[inner_output_edge.edge_id].enabled)
+        self.assertTrue(workspace.edges[upper_output_edge.edge_id].enabled)
+
     def test_validated_mutation_rejects_descendant_parent_assignment(self) -> None:
         registry = build_default_registry()
         model = GraphModel()

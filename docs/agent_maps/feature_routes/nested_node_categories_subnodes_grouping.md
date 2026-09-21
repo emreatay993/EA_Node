@@ -21,6 +21,7 @@ Use this for `category_path`, nested library categories, subnodes, group transfo
 ## Routing Notes
 - Subnode membership is stored as `NodeInstance.parent_node_id`. Parent topology checks live in `graph/hierarchy.py` and are enforced by validated mutation, private record writers, workspace sanitization, and fragment insertion.
 - Subnode pin `data_type` values preserve canonical CLR-style casing. Grouping copies the inner port's primary type plus ordered `accepted_data_types` into hidden pin properties; shell ports, nested pin ports, and custom-workflow snapshots must project that same union. Flow pins use the canonical generic graph type rather than a retired scalar alias.
+- `subnode_contract.expand_subnode_boundary_edge_ids_upward(...)` maps an inner input/output pin edge to the matching parent-shell edge. Edge enable/disable uses that closure recursively so nested upper-level segments change atomically while direct shell-edge toggles remain scoped to the selected upper edge.
 
 ## Breadcrumbs
 - [Nodes, Registry, Built-ins, And Plugin Loading](../subsystems/nodes_registry_builtins.md)

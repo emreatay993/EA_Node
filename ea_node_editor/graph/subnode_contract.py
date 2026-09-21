@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
+from ea_node_editor.graph.records import EdgeInstance, NodeInstance
 from ea_node_editor.runtime_contracts import GRAPH_DATA_TYPE_ID
 
 SUBNODE_TYPE_ID = "core.subnode"
@@ -51,6 +52,68 @@ def is_subnode_pin_type(type_id: object) -> bool:
 
 def is_subnode_authoring_type(type_id: object) -> bool:
     return str(type_id).strip() in SUBNODE_AUTHORING_TYPE_IDS
+
+
+def expand_subnode_boundary_edge_ids_upward(
+    *,
+    nodes: Mapping[str, NodeInstance],
+    edges: Iterable[EdgeInstance],
+    edge_ids: Iterable[str],
+) -> tuple[str, ...]:
+    """Include shell-level segments for requested inner boundary edges.
+
+    A grouped crossing is represented by two durable edges: one incident to the
+    pin node inside the subnode and one incident to the matching dynamic port on
+    the parent shell. Following newly discovered inner segments makes the same
+    enablement request reach every containing shell in a nested subnode chain.
+    """
+
+    edge_values = tuple(edges)
+    edge_by_id = {edge.edge_id: edge for edge in edge_values}
+    source_edges: dict[tuple[str, str], list[str]] = {}
+    target_edges: dict[tuple[str, str], list[str]] = {}
+    for edge in edge_values:
+        source_edges.setdefault((edge.source_node_id, edge.source_port_key), []).append(
+            edge.edge_id
+        )
+        target_edges.setdefault((edge.target_node_id, edge.target_port_key), []).append(
+            edge.edge_id
+        )
+
+    upper_edge_ids_by_inner_id: dict[str, list[str]] = {}
+    for pin in nodes.values():
+        parent_node_id = str(pin.parent_node_id or "").strip()
+        if not parent_node_id:
+            continue
+        if is_subnode_input_type(pin.type_id):
+            inner_edge_ids = source_edges.get((pin.node_id, SUBNODE_PIN_PORT_KEY), ())
+            upper_edge_ids = target_edges.get((parent_node_id, pin.node_id), ())
+        elif is_subnode_output_type(pin.type_id):
+            inner_edge_ids = target_edges.get((pin.node_id, SUBNODE_PIN_PORT_KEY), ())
+            upper_edge_ids = source_edges.get((parent_node_id, pin.node_id), ())
+        else:
+            continue
+        for inner_edge_id in inner_edge_ids:
+            upper_edge_ids_by_inner_id.setdefault(inner_edge_id, []).extend(
+                upper_edge_ids
+            )
+
+    expanded: list[str] = []
+    seen: set[str] = set()
+    for raw_edge_id in edge_ids:
+        edge_id = str(raw_edge_id).strip()
+        if edge_id and edge_id in edge_by_id and edge_id not in seen:
+            seen.add(edge_id)
+            expanded.append(edge_id)
+    offset = 0
+    while offset < len(expanded):
+        edge_id = expanded[offset]
+        offset += 1
+        for upper_edge_id in upper_edge_ids_by_inner_id.get(edge_id, ()):
+            if upper_edge_id not in seen:
+                seen.add(upper_edge_id)
+                expanded.append(upper_edge_id)
+    return tuple(expanded)
 
 
 def default_subnode_pin_label(pin_type_id: object) -> str:
@@ -153,6 +216,7 @@ __all__ = [
     "SUBNODE_TYPE_ID",
     "SubnodePinDefinition",
     "default_subnode_pin_label",
+    "expand_subnode_boundary_edge_ids_upward",
     "is_subnode_authoring_type",
     "is_subnode_input_type",
     "is_subnode_output_type",

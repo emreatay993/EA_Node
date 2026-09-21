@@ -1,6 +1,6 @@
 # Purpose: Apply invariant-checked graph mutations through graph-owned record writers.
 # Map: subsystems/graph_domain.md
-# Tests: tests/test_graph_node_reconciliation.py, tests/test_python_script_scene_integration.py, tests/mechanical_catalogue/test_controls.py
+# Tests: tests/test_graph_node_reconciliation.py, tests/test_graph_track_b.py, tests/test_python_script_scene_integration.py, tests/mechanical_catalogue/test_controls.py
 # Landmarks: ValidatedGraphMutation; add_node; rewire_edges; set_node_properties; dynamic-port mutation; edge pruning
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from ea_node_editor.graph.subnode_contract import (
     SUBNODE_PIN_DATA_ACCESS_PROPERTY,
     SUBNODE_PIN_DATA_TYPE_PROPERTY,
     SUBNODE_PIN_KIND_PROPERTY,
+    expand_subnode_boundary_edge_ids_upward,
     is_subnode_pin_type,
 )
 from ea_node_editor.graph.workspace_state import ViewState, WorkspaceData
@@ -362,17 +363,34 @@ class ValidatedGraphMutation:
         ).is_compatible
 
     def set_edges_enabled(self, edge_ids: list[str], enabled: bool) -> bool:
-        requested = [self.workspace.edges[key] for key in dict.fromkeys(edge_ids)
-                     if key in self.workspace.edges and self.workspace.edges[key].enabled != bool(enabled)]
+        normalized_enabled = bool(enabled)
+        seed_ids = [
+            key
+            for key in dict.fromkeys(edge_ids)
+            if key in self.workspace.edges
+            and self.workspace.edges[key].enabled != normalized_enabled
+        ]
+        expanded_ids = expand_subnode_boundary_edge_ids_upward(
+            nodes=self.workspace.nodes,
+            edges=self.workspace.edges.values(),
+            edge_ids=seed_ids,
+        )
+        requested = [
+            self.workspace.edges[key]
+            for key in expanded_ids
+            if self.workspace.edges[key].enabled != normalized_enabled
+        ]
         if not requested:
             return False
         requested_ids = {edge.edge_id for edge in requested}
         candidates = [edge.clone() for edge in self.workspace.edges.values()]
         for edge in candidates:
             if edge.edge_id in requested_ids:
-                edge.enabled = bool(enabled)
+                edge.enabled = normalized_enabled
         if enabled:
-            kernel = GraphInvariantKernel(self.registry, self.workspace.nodes, candidates)
+            kernel = GraphInvariantKernel(
+                self.registry, self.workspace.nodes, candidates
+            )
             memo = RegistryValidationPassMemo()
             try:
                 for edge in requested:
@@ -384,7 +402,9 @@ class ValidatedGraphMutation:
             except (KeyError, ValueError):
                 return False
         for edge in requested:
-            self.model._set_edge_enabled_record(self.workspace_id, edge.edge_id, bool(enabled))
+            self.model._set_edge_enabled_record(
+                self.workspace_id, edge.edge_id, normalized_enabled
+            )
         self._prune_edges_for_nodes({edge.target_node_id for edge in requested})
         return True
 

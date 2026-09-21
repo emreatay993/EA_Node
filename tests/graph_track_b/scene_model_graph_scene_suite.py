@@ -1750,6 +1750,66 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
             ["output_0", "output_1"],
         )
 
+    def test_inner_subnode_edge_toggle_updates_upper_payload_and_history(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        workspace = self.model.project.workspaces[self.workspace_id]
+        mutations = self.model.validated_mutations(self.workspace_id, self.registry)
+
+        source = mutations.add_node(
+            type_id="core.constant", title="Source", x=0.0, y=0.0
+        )
+        shell = mutations.add_node(
+            type_id="core.subnode", title="Shell", x=220.0, y=0.0
+        )
+        pin = mutations.add_node(
+            type_id="core.subnode_input",
+            title="Input",
+            x=40.0,
+            y=40.0,
+            parent_node_id=shell.node_id,
+        )
+        target = mutations.add_node(
+            type_id="core.logger",
+            title="Target",
+            x=300.0,
+            y=40.0,
+            parent_node_id=shell.node_id,
+        )
+        mutations.set_exposed_port(shell.node_id, pin.node_id, True)
+        upper_edge = mutations.add_edge(
+            source_node_id=source.node_id,
+            source_port_key="value",
+            target_node_id=shell.node_id,
+            target_port_key=pin.node_id,
+        )
+        inner_edge = mutations.add_edge(
+            source_node_id=pin.node_id,
+            source_port_key="pin",
+            target_node_id=target.node_id,
+            target_port_key="message",
+        )
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        history.clear_workspace(self.workspace_id)
+
+        self.assertTrue(self.scene.set_edge_enabled(inner_edge.edge_id, False))
+        self.assertFalse(workspace.edges[inner_edge.edge_id].enabled)
+        self.assertFalse(workspace.edges[upper_edge.edge_id].enabled)
+        upper_payload = {
+            item["edge_id"]: item for item in self.scene.edges_model
+        }[upper_edge.edge_id]
+        self.assertFalse(upper_payload["enabled"])
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+
+        self.assertIsNotNone(history.undo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertTrue(workspace.edges[inner_edge.edge_id].enabled)
+        self.assertTrue(workspace.edges[upper_edge.edge_id].enabled)
+        self.assertIsNotNone(history.redo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertFalse(workspace.edges[inner_edge.edge_id].enabled)
+        self.assertFalse(workspace.edges[upper_edge.edge_id].enabled)
+
     def test_move_edge_source_preserves_identity_metadata_order_and_one_history_entry(self) -> None:
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)

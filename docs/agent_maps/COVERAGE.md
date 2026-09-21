@@ -69,6 +69,7 @@ Settings-section size transitions use shared 180 ms width/height animations with
 
 ## Current ownership notes
 
+- Subnode boundary edge enablement is graph-owned: inner pin-segment toggles expand recursively to matching upper shell segments before validation, while the scene mutation layer publishes all changed edge records and keeps one history action. The graph-domain, nested-subnode, and edge-routing maps cover the contract and focused tests.
 - The development-only TypeSafe navigation pilot is owned by `scripts/nav_assist.py`, `scripts/nav_assist_inventory.py`, `scripts/nav_assist_selection.py` and `scripts/nav_assist_client.py`; `scripts/evaluate_nav_assist.py` owns isolated baseline/pilot qualification. The verification/testing map owns its focused tests and qualification guidance; existing navigation stays available and no application runtime dependency is introduced.
 
 - Canvas-only Plot presentation retains the last decoded frame during recomputation while strict source/current-result consumers remain unchanged. The media and visualization routes own metadata-bound prior previews and asynchronous image handoff; the run-controller route owns target-scoped remaining-work UI facts; the tooltip route owns the shared upper-right updating/out-of-date icon geometry and policy.

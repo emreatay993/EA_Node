@@ -1611,14 +1611,27 @@ def set_edges_enabled(self, edge_ids: list[Any], enabled: bool) -> bool:
 
     mutations = self._validated_mutations()
     history_before = self._capture_history_snapshot()
-    before_edges = dict(workspace.edges)
+    before_edges = {
+        edge_id: edge.clone() for edge_id, edge in workspace.edges.items()
+    }
+    before_enabled = {
+        edge_id: bool(edge.enabled) for edge_id, edge in before_edges.items()
+    }
     if not mutations.set_edges_enabled(requested_edge_ids, normalized_enabled):
         return False
     removed_edge_ids = set(before_edges).difference(workspace.edges)
-    changed_edge_ids = set(requested_edge_ids).intersection(workspace.edges)
+    changed_edge_ids = {
+        edge_id
+        for edge_id, was_enabled in before_enabled.items()
+        if edge_id in workspace.edges
+        and bool(workspace.edges[edge_id].enabled) != was_enabled
+    }
     dirty_node_ids = {
-        node_id for edge_id in set(requested_edge_ids) | removed_edge_ids
-        for node_id in (before_edges[edge_id].source_node_id, before_edges[edge_id].target_node_id)
+        node_id for edge_id in changed_edge_ids | removed_edge_ids
+        for node_id in (
+            before_edges[edge_id].source_node_id,
+            before_edges[edge_id].target_node_id,
+        )
     }
     self._scene_context.publish_edge_topology_delta(
         updated_edge_ids=changed_edge_ids, removed_edge_ids=removed_edge_ids,
