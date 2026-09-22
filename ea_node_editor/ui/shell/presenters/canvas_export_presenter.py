@@ -18,14 +18,16 @@ from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QMessageBox, QWidget
 
 from ea_node_editor.ui.canvas_view_export import (
-    DEFAULT_CANVAS_EXPORT_CROP_PADDING_PX,
-    CanvasExportCropRect,
-    CanvasViewExportError,
     canvas_export_crop_rect_for_scene_bounds,
     canvas_export_crop_rect_with_overlay_snapshots,
     canvas_view_png_output_paths,
+    CanvasExportCropRect,
+    CanvasViewExportError,
     collision_safe_path,
+    DEFAULT_CANVAS_EXPORT_CROP_PADDING_PX,
     final_export_pixel_size,
+    positive_capture_dimension,
+    positive_capture_integer,
     validate_export_pixel_size,
 )
 from ea_node_editor.ui.canvas_view_export_compositor import (
@@ -765,10 +767,10 @@ class CanvasExportPresenter:
         return graph_canvas_item
 
     def _canvas_logical_size(self, graph_canvas_item: QObject) -> tuple[float, float]:
-        width = self._positive_capture_dimension(
+        width = positive_capture_dimension(
             self._numeric_qobject_value(graph_canvas_item, "width")
         )
-        height = self._positive_capture_dimension(
+        height = positive_capture_dimension(
             self._numeric_qobject_value(graph_canvas_item, "height")
         )
         if width is None or height is None:
@@ -903,20 +905,20 @@ class CanvasExportPresenter:
             )
         if not output_path.exists():
             raise CanvasViewExportError("Canvas base PNG was not written.")
-        canvas_logical_width = self._positive_capture_dimension(
+        canvas_logical_width = positive_capture_dimension(
             result.get("base_logical_width")
         )
-        canvas_logical_height = self._positive_capture_dimension(
+        canvas_logical_height = positive_capture_dimension(
             result.get("base_logical_height")
         )
         if canvas_logical_width is None or canvas_logical_height is None:
             raise CanvasViewExportError(
                 "Canvas base capture returned an invalid logical size."
             )
-        output_width = self._positive_capture_integer(
+        output_width = positive_capture_integer(
             result.get("output_pixel_width", result.get("width"))
         )
-        output_height = self._positive_capture_integer(
+        output_height = positive_capture_integer(
             result.get("output_pixel_height", result.get("height"))
         )
         if output_width is None or output_height is None:
@@ -924,7 +926,7 @@ class CanvasExportPresenter:
                 "Canvas base capture returned an invalid pixel size."
             )
         validate_export_pixel_size(output_width, output_height)
-        result_dpr = self._positive_capture_dimension(result.get("device_pixel_ratio"))
+        result_dpr = positive_capture_dimension(result.get("device_pixel_ratio"))
         if result_dpr is None:
             raise CanvasViewExportError(
                 "Canvas base capture returned an invalid device pixel ratio."

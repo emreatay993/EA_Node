@@ -44,6 +44,32 @@ def _numeric_value(value: object) -> float | None:
     return resolved if math.isfinite(resolved) else None
 
 
+def positive_capture_dimension(value: object) -> float | None:
+    """Return ``value`` as a finite positive float, or ``None`` when unusable.
+
+    Shared by the canvas export presenter and the media panel capture path so
+    both validate QML-reported sizes and device pixel ratios the same way.
+    """
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number) or number <= 0:
+        return None
+    return number
+
+
+def positive_capture_integer(value: object) -> int | None:
+    """Return ``value`` as a positive int, or ``None`` when unusable."""
+    try:
+        number = int(value)  # type: ignore[call-overload]
+    except (TypeError, ValueError):
+        return None
+    if number <= 0:
+        return None
+    return number
+
+
 def _rect_value(rect: object, name: str) -> float | None:
     if isinstance(rect, Mapping):
         return _numeric_value(rect.get(name))

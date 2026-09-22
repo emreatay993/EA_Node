@@ -17,6 +17,7 @@ from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.builtins.passive_annotation import (
     PASSIVE_ANNOTATION_TEXT_TYPE_ID,
 )
+from ea_node_editor.ui.canvas_view_export import positive_capture_dimension
 from ea_node_editor.ui.image_crop import (
     ImageCropError,
     crop_image_file_to_png_bytes,
@@ -258,8 +259,8 @@ class MediaPanelActionService(QObject):
             )
 
         source_ref: dict[str, str] = {"value": ""}
-        initial_width = self._positive_capture_dimension(capture_width)
-        initial_height = self._positive_capture_dimension(capture_height)
+        initial_width = positive_capture_dimension(capture_width)
+        initial_height = positive_capture_dimension(capture_height)
 
         def _after_create(node, mutations) -> bool:  # noqa: ANN001
             staged_ref = self._stage_video_frame_capture(

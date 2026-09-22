@@ -874,3 +874,39 @@ def test_export_canvas_views_restores_original_view_when_all_views_fail(
         )
 
     assert workspace.active_view_id == "view-b"
+
+
+def test_positive_capture_helpers_reject_non_positive_and_non_finite_values() -> None:
+    from ea_node_editor.ui.canvas_view_export import (
+        positive_capture_dimension,
+        positive_capture_integer,
+    )
+
+    assert positive_capture_dimension(1.5) == 1.5
+    assert positive_capture_dimension("640") == 640.0
+    assert positive_capture_dimension(0) is None
+    assert positive_capture_dimension(-3) is None
+    assert positive_capture_dimension(float("nan")) is None
+    assert positive_capture_dimension(float("inf")) is None
+    assert positive_capture_dimension(None) is None
+    assert positive_capture_dimension("wide") is None
+    assert positive_capture_integer(3) == 3
+    assert positive_capture_integer("7") == 7
+    assert positive_capture_integer(0) is None
+    assert positive_capture_integer(None) is None
+    assert positive_capture_integer("x") is None
+
+
+def test_capture_owners_do_not_call_retired_presenter_capture_helpers() -> None:
+    # Commit 1ac032e9 retired the mixin that owned ``_positive_capture_*``; the
+    # real capture path raised AttributeError until the helpers moved to
+    # ``canvas_view_export``. Keep both owners on the module-level functions.
+    repo_root = Path(__file__).resolve().parents[1]
+    for relative_path in (
+        "ea_node_editor/ui/shell/presenters/canvas_export_presenter.py",
+        "ea_node_editor/ui/shell/media_panel_action_service.py",
+    ):
+        source = (repo_root / relative_path).read_text(encoding="utf-8")
+        assert "self._positive_capture_dimension(" not in source, relative_path
+        assert "self._positive_capture_integer(" not in source, relative_path
+        assert "positive_capture_dimension" in source, relative_path
