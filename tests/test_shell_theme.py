@@ -568,7 +568,7 @@ class ShellThemeTests(SharedMainWindowShellTestBase):
         shadow_color = QColor(shadow_item.property("color"))
         self.assertEqual(shadow_color.alpha(), int(15 * 255 / 100))
 
-    def test_inspector_cards_and_tabs_follow_runtime_theme_palette(self) -> None:
+    def test_inspector_definition_card_follows_runtime_theme_palette(self) -> None:
         node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=80.0)
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
@@ -576,32 +576,15 @@ class ShellThemeTests(SharedMainWindowShellTestBase):
         root_object = self.window.quick_widget.rootObject()
         inspector_pane = root_object.findChild(QObject, "inspectorPane")
         node_definition_card = root_object.findChild(QObject, "inspectorNodeDefinitionCard")
-        port_management_card = root_object.findChild(QObject, "inspectorPortManagementCard")
-        inputs_tab = root_object.findChild(QObject, "inspectorInputsTab")
-        outputs_tab = root_object.findChild(QObject, "inspectorOutputsTab")
 
         self.assertIsNotNone(inspector_pane)
         self.assertIsNotNone(node_definition_card)
-        self.assertIsNotNone(port_management_card)
-        self.assertIsNotNone(inputs_tab)
-        self.assertIsNotNone(outputs_tab)
 
         self.assertEqual(_color_name(node_definition_card.property("color")), STITCH_DARK_V1.inspector_card_bg)
-        self.assertEqual(_color_name(port_management_card.property("color")), STITCH_DARK_V1.inspector_card_bg)
-        self.assertTrue(bool(inputs_tab.property("selectedStyle")))
-        self.assertEqual(_color_name(inputs_tab.property("fillColor")), STITCH_DARK_V1.inspector_selected_bg)
-
-        inspector_pane.setProperty("activePortDirection", "out")
-        self.app.processEvents()
-
-        self.assertTrue(bool(outputs_tab.property("selectedStyle")))
-        self.assertEqual(_color_name(outputs_tab.property("fillColor")), STITCH_DARK_V1.inspector_selected_bg)
 
         self._apply_theme("stitch_light")
 
         self.assertEqual(_color_name(node_definition_card.property("color")), STITCH_LIGHT_V1.inspector_card_bg)
-        self.assertEqual(_color_name(port_management_card.property("color")), STITCH_LIGHT_V1.inspector_card_bg)
-        self.assertEqual(_color_name(outputs_tab.property("fillColor")), STITCH_LIGHT_V1.inspector_selected_bg)
 
     def test_persisted_theme_is_applied_when_shell_starts(self) -> None:
         self.window.app_preferences_controller.set_graphics_settings(

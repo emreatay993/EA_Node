@@ -1427,24 +1427,11 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
             1,
         )
 
-    def test_qml_inspector_required_port_toggle_is_disabled_and_noops(self) -> None:
+    def test_qml_required_port_exposure_cannot_be_disabled(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("core.if", x=80.0, y=60.0)
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
-
-        inspector_pane = self._inspector_object("inspectorPane")
-        toggles_by_key = {
-            str(item.property("portKey")): item
-            for item in self._walk_items(inspector_pane)
-            if item.objectName() == "inspectorPortExposedToggle"
-        }
-
-        self.assertIn("condition", toggles_by_key)
-        self.assertIn("false_value", toggles_by_key)
-        self.assertFalse(bool(toggles_by_key["condition"].property("enabled")))
-        self.assertTrue(bool(toggles_by_key["condition"].property("checked")))
-        self.assertTrue(bool(toggles_by_key["false_value"].property("enabled")))
 
         self.window.set_selected_port_exposed("condition", False)
         self.app.processEvents()
@@ -1458,11 +1445,11 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
     def test_qml_inspector_cards_swap_between_empty_and_selected_states(self) -> None:
         empty_card = self._inspector_object("inspectorEmptyStateCard")
         node_definition_card = self._inspector_object("inspectorNodeDefinitionCard")
-        port_management_card = self._inspector_object("inspectorPortManagementCard")
+        inspector_pane = self._inspector_object("inspectorPane")
 
         self.assertTrue(bool(empty_card.property("visible")))
         self.assertFalse(bool(node_definition_card.property("visible")))
-        self.assertFalse(bool(port_management_card.property("visible")))
+        self.assertIsNone(inspector_pane.findChild(QObject, "inspectorPortManagementCard"))
 
         node_id = self.window.scene.add_node_from_type("core.logger", x=80.0, y=60.0)
         self.window.scene.focus_node(node_id)
@@ -1470,7 +1457,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
 
         self.assertFalse(bool(empty_card.property("visible")))
         self.assertTrue(bool(node_definition_card.property("visible")))
-        self.assertTrue(bool(port_management_card.property("visible")))
+        self.assertIsNone(inspector_pane.findChild(QObject, "inspectorPortManagementCard"))
 
     def test_qml_inspector_property_variant_loader_defaults_to_smart_groups(self) -> None:
         self.window.shell_inspector_presenter.set_property_pane_variant("smart_groups")
@@ -1508,58 +1495,6 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         finally:
             presenter.set_property_pane_variant("smart_groups")
             self.app.processEvents()
-
-    def test_qml_inspector_port_direction_switch_reselects_visible_port(self) -> None:
-        node_id = self.window.scene.add_node_from_type("core.python_script", x=80.0, y=60.0)
-        self.window.scene.focus_node(node_id)
-        self.app.processEvents()
-
-        inspector_pane = self._inspector_object("inspectorPane")
-        inputs_tab = self._inspector_object("inspectorInputsTab")
-        outputs_tab = self._inspector_object("inspectorOutputsTab")
-
-        input_keys = {
-            item["key"]
-            for item in self.window.selected_node_port_items
-            if item["direction"] == "in"
-        }
-        output_keys = {
-            item["key"]
-            for item in self.window.selected_node_port_items
-            if item["direction"] == "out"
-        }
-
-        self.assertIn(str(inspector_pane.property("selectedPortKey")), input_keys)
-        self.assertTrue(bool(inputs_tab.property("selectedStyle")))
-        self.assertFalse(bool(outputs_tab.property("selectedStyle")))
-
-        inspector_pane.setProperty("activePortDirection", "out")
-        self.app.processEvents()
-
-        self.assertIn(str(inspector_pane.property("selectedPortKey")), output_keys)
-        self.assertFalse(bool(inputs_tab.property("selectedStyle")))
-        self.assertTrue(bool(outputs_tab.property("selectedStyle")))
-
-    def test_qml_inspector_background_focus_commits_inline_port_rename(self) -> None:
-        workspace_id = self.window.workspace_manager.active_workspace_id()
-        workspace = self.window.model.project.workspaces[workspace_id]
-        shell_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=120.0)
-        self.window.scene.focus_node(shell_id)
-        self.app.processEvents()
-
-        port_node_id = self.window.request_add_selected_subnode_pin("out")
-        self.assertTrue(port_node_id)
-        inspector_pane = self._inspector_object("inspectorPane")
-        inspector_pane.setProperty("activePortDirection", "out")
-        inspector_pane.setProperty("editingPortKey", port_node_id)
-        inspector_pane.setProperty("editingPortLabel", "Committed From Pane")
-        self.app.processEvents()
-
-        QMetaObject.invokeMethod(inspector_pane, "focusInspectorBackground")
-        self.app.processEvents()
-
-        self.assertEqual(str(inspector_pane.property("editingPortKey")), "")
-        self.assertEqual(workspace.nodes[port_node_id].properties["label"], "Committed From Pane")
 
     def test_graph_canvas_command_bridge_commits_port_label_rename(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -1617,35 +1552,6 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.app.processEvents()
 
         self.assertEqual(workspace.nodes[port_node_id].properties["label"], "Renamed Inner Pin")
-
-    def test_qml_inspector_delete_selected_subnode_port_removes_pin_node(self) -> None:
-        workspace_id = self.window.workspace_manager.active_workspace_id()
-        workspace = self.window.model.project.workspaces[workspace_id]
-        shell_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=120.0)
-        self.window.scene.focus_node(shell_id)
-        self.app.processEvents()
-
-        first_port_id = self.window.request_add_selected_subnode_pin("out")
-        second_port_id = self.window.request_add_selected_subnode_pin("out")
-        self.assertTrue(first_port_id)
-        self.assertTrue(second_port_id)
-        inspector_pane = self._inspector_object("inspectorPane")
-        inspector_pane.setProperty("activePortDirection", "out")
-        inspector_pane.setProperty("selectedPortKey", second_port_id)
-        self.app.processEvents()
-
-        QMetaObject.invokeMethod(inspector_pane, "deleteSelectedPort")
-        self.app.processEvents()
-
-        self.assertIn(first_port_id, workspace.nodes)
-        self.assertNotIn(second_port_id, workspace.nodes)
-        remaining_output_keys = {
-            item["key"]
-            for item in self.window.selected_node_port_items
-            if item["direction"] == "out"
-        }
-        self.assertEqual(remaining_output_keys, {first_port_id})
-        self.assertEqual(str(inspector_pane.property("selectedPortKey")), first_port_id)
 
     def test_qml_selected_node_header_metadata_exposes_clean_fields(self) -> None:
         first_node_id = self.window.scene.add_node_from_type("core.constant", x=0.0, y=0.0)
@@ -1708,7 +1614,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertEqual(workspace.nodes[pin_id].parent_node_id, shell_id)
         self.assertIn(custom_data_type, self.window.pin_data_type_options)
 
-    def test_qml_pin_inspector_hides_port_management_card(self) -> None:
+    def test_qml_pin_inspector_shows_definition_and_pin_hint(self) -> None:
         shell_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=120.0)
         self.assertTrue(self.window.request_open_subnode_scope(shell_id))
         pin_id = self.window.scene.add_node_from_type("core.subnode_input", x=40.0, y=40.0)
@@ -1716,11 +1622,11 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.app.processEvents()
 
         node_definition_card = self._inspector_object("inspectorNodeDefinitionCard")
-        port_management_card = self._inspector_object("inspectorPortManagementCard")
+        inspector_pane = self._inspector_object("inspectorPane")
         pin_hint_banner = self._inspector_object("inspectorPinHintBanner")
 
         self.assertTrue(bool(node_definition_card.property("visible")))
-        self.assertFalse(bool(port_management_card.property("visible")))
+        self.assertIsNone(inspector_pane.findChild(QObject, "inspectorPortManagementCard"))
         self.assertTrue(bool(pin_hint_banner.property("visible")))
 
     def test_qml_node_payload_port_list_tracks_exposed_ports(self) -> None:

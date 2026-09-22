@@ -17,13 +17,13 @@ This compact index gives agents deterministic aliases for QML components, symbol
 
 | Metric | Count |
 | --- | ---: |
-| QML files | 200 |
-| Repeater constructs | 97 |
+| QML files | 197 |
+| Repeater constructs | 96 |
 | Loader constructs | 30 |
-| Signal handlers | 1019 |
+| Signal handlers | 1006 |
 | Connections targets | 52 |
-| Property bindings | 8054 |
-| Local component refs | 338 |
+| Property bindings | 7944 |
+| Local component refs | 332 |
 
 ## Component Families
 
@@ -40,7 +40,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `components/graph/tabular` | 12 |
 | `components/graph/viewer` | 6 |
 | `components/graph_canvas` | 21 |
-| `components/shell` | 63 |
+| `components/shell` | 60 |
 | `components/web` | 8 |
 | `ea_node_editor/ui_qml` | 2 |
 
@@ -198,15 +198,12 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `InspectorNodeLinksSection.qml` | `ea_node_editor/ui_qml/components/shell/InspectorNodeLinksSection.qml` | `InspectorSectionCard` | `Text`, `Column`, `Repeater`, `Row`, `Rectangle`, `Image`, `LinkActionButton`, `MouseArea`, ... +2 more | `Repeater`, `model`, `delegate`, `source` |
 | `InspectorOverrideBadge.qml` | `ea_node_editor/ui_qml/components/shell/InspectorOverrideBadge.qml` | `Rectangle` | `Row`, `Text` | _None_ |
 | `InspectorPaletteBody.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPaletteBody.qml` | `Column` | `Rectangle`, `InspectorFilterBar`, `Repeater`, `MouseArea`, `RowLayout`, `Text`, `InspectorOverrideBadge`, `InspectorPropertyEditor`, ... +1 more | `Repeater`, `model`, `delegate` |
-| `InspectorPane.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPane.qml` | `ShellCollapsibleSidePane` | `ColumnLayout`, `RowLayout`, `Repeater`, `Text`, `MouseArea`, `StackLayout`, `Rectangle`, `TapHandler`, ... +14 more | `Repeater`, `model`, `delegate`, `Loader`, `sourceComponent`, `Component` |
+| `InspectorPane.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPane.qml` | `ShellCollapsibleSidePane` | `ColumnLayout`, `RowLayout`, `Repeater`, `Text`, `MouseArea`, `StackLayout`, `Rectangle`, `ScrollView`, ... +13 more | `Repeater`, `model`, `delegate`, `Loader`, `sourceComponent`, `Component` |
 | `InspectorPathPropertyEditor.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPathPropertyEditor.qml` | `Column` | `RowLayout`, `InspectorTextField`, `InspectorButton`, `Text`, `InspectorComboBox`, `Rectangle`, `Connections` | `model` |
-| `InspectorPortManagementSection.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPortManagementSection.qml` | `Rectangle` | `Column`, `InspectorSmartGroupHeader`, `InspectorButton`, `Row`, `InspectorSegmentButton`, `Text`, `Repeater` | `Repeater`, `model`, `delegate` |
-| `InspectorPortRow.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPortRow.qml` | `Rectangle` | `RowLayout`, `InspectorCheckBox`, `ColumnLayout`, `Item`, `Text`, `TextField`, `MouseArea`, `TapHandler` | _None_ |
 | `InspectorPropertyEditor.qml` | `ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml` | `Column` | `Text`, `Rectangle`, `Row`, `Loader`, `Component`, `Common.SecretEditor`, `InspectorCheckBox`, `InspectorComboBox`, ... +8 more | `Loader`, `sourceComponent`, `Component`, `model` |
 | `InspectorRowsModel.qml` | `ea_node_editor/ui_qml/components/shell/InspectorRowsModel.qml` | `ListModel` | _None_ | _None_ |
 | `InspectorScopeToggle.qml` | `ea_node_editor/ui_qml/components/shell/InspectorScopeToggle.qml` | `Rectangle` | `Row`, `Repeater`, `Text`, `MouseArea` | `Repeater`, `model`, `delegate` |
 | `InspectorSectionCard.qml` | `ea_node_editor/ui_qml/components/shell/InspectorSectionCard.qml` | `Rectangle` | `Column`, `Text`, `Item` | _None_ |
-| `InspectorSegmentButton.qml` | `ea_node_editor/ui_qml/components/shell/InspectorSegmentButton.qml` | `Button` | _None_ | _None_ |
 | `InspectorSmartGroupHeader.qml` | `ea_node_editor/ui_qml/components/shell/InspectorSmartGroupHeader.qml` | `Rectangle` | `Row`, `InspectorChevron`, `Text`, `MouseArea` | _None_ |
 | `InspectorSmartGroupsBody.qml` | `ea_node_editor/ui_qml/components/shell/InspectorSmartGroupsBody.qml` | `Column` | `InspectorFilterBar`, `Repeater`, `InspectorSmartGroupHeader` | `Repeater`, `model`, `delegate` |
 | `InspectorTextArea.qml` | `ea_node_editor/ui_qml/components/shell/InspectorTextArea.qml` | `TextArea` | _None_ | _None_ |
@@ -583,7 +580,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`
 - IDs: `root`, `nodeDragArea`
 - Object names: `graphNodeHostGestureLayer`, `graphNodeDragArea`
-- Properties: `host: Item`, `dragActive: bool`, `containsMouse: bool`, `pointerInteractionActive: bool`, `dragMoved: bool`, `manualDragActive: bool`, `suppressNextClick: bool`, `pressPointerX: real`, `pressPointerY: real`, `lastDragDx: real`, `lastDragDy: real`, `edgePressHandled: bool`, `edgeHoverActive: bool`, `surfaceClaimHoverActive: bool`, `hostDragCursorSuppressed: bool`
+- Properties: `host: Item`, `dragActive: bool`, `dragAxisLock: string`, `containsMouse: bool`, `pointerInteractionActive: bool`, `dragMoved: bool`, `manualDragActive: bool`, `suppressNextClick: bool`, `pressPointerX: real`, `pressPointerY: real`, `lastDragDx: real`, `lastDragDy: real`, `edgePressHandled: bool`, `edgeHoverActive: bool`, `surfaceClaimHoverActive: bool`, `hostDragCursorSuppressed: bool`
 - Signals: _None_
 - Functions: `_resetDragMotionState`, `_dragThreshold`, `_pointerPoint`, `_pointerInCanvasAt`, `_edgeAtLocalPosition`, `_handleEdgePress`, `_emitDragOffset`
 - Instantiates: `MouseArea`
@@ -745,9 +742,9 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `"GraphNodeHostHitTesting.js" as GraphNodeHostHitTesting`
 - IDs: `root`, `resizeGrip`, `resizeDragArea`
 - Object names: `graphNodeResizeHandle`, `graphNodeResizeDragArea`
-- Properties: `host: Item`, `cornerRole: string`, `containsMouse: bool`, `dragActive: bool`, `_leftCorner: bool`, `_rightCorner: bool`, `_topCorner: bool`, `_bottomCorner: bool`, `_forwardDiagonal: bool`, `_horizontalOnly: bool`, `pressGlobalX: real`, `pressGlobalY: real`, `pressX: real`, `pressY: real`, `pressWidth: real`, `pressHeight: real`, `triangleContainsMouse: bool`
+- Properties: `host: Item`, `cornerRole: string`, `containsMouse: bool`, `dragActive: bool`, `_leftCorner: bool`, `_rightCorner: bool`, `_topCorner: bool`, `_bottomCorner: bool`, `_forwardDiagonal: bool`, `_horizontalOnly: bool`, `pressGlobalX: real`, `pressGlobalY: real`, `pressX: real`, `pressY: real`, `pressWidth: real`, `pressHeight: real`, `shiftProportional: bool`, `triangleContainsMouse: bool`
 - Signals: `fitDisplayedTextRequested`
-- Functions: `_lockAspectRatioEnabled`, `_applyAspectRatioLock`, `updatePreviewFromDelta`
+- Functions: `_shiftProportionalFor`, `_lockAspectRatioEnabled`, `_applyAspectRatioLock`, `updatePreviewFromDelta`
 - Instantiates: `Canvas`, `MouseArea`
 - Dynamic constructs: _None_
 - Signal handlers: `handler` `onPaint`; `handler` `onPressed`; `handler` `onPositionChanged`; `handler` `onDoubleClicked`; `handler` `onReleased`; `handler` `onCanceled`
@@ -2959,15 +2956,15 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`, `"../common/TooltipCopy.js" as TooltipCopy`
 - IDs: `root`, `inspectorScroll`, `inspectorColumn`, `nodeLinksSection`, `nodeCommentsSection`, `inspectorPropertyVariantLoader`, `smartGroupsBodyComponent`, `accordionCardsBodyComponent`, `paletteBodyComponent`
 - Object names: `inspectorPane`, `inspectorContentSurface`, `inspectorScrollView`, `inspectorEmptyStateCard`, `inspectorPropertyVariantLoader`, `inspectorHelpSurface`
-- Properties: `inspectorBridgeRef: var`, `helpBridgeRef: var`, `activeTabIndex: int`, `activePortDirection: string`, `selectedPortKey: string`, `editingPortKey: string`, `editingPortLabel: string`, `hasSelectedNode: bool`, `isPinInspector: bool`, `showPortSection: bool`, `canManageSubnodePorts: bool`, `canEditPortLabels: bool`, `selectedNodeTitle: string`, `selectedNodeSubtitle: string`, `selectedNodeId: string`, `selectedNodeWorkspaceId: string`, `selectedNodeCollapsible: bool`, `selectedNodeCollapsed: bool`, ... +23 more
+- Properties: `inspectorBridgeRef: var`, `helpBridgeRef: var`, `activeTabIndex: int`, `hasSelectedNode: bool`, `isPinInspector: bool`, `isSubnodeShellInspector: bool`, `selectedNodeTitle: string`, `selectedNodeSubtitle: string`, `selectedNodeId: string`, `selectedNodeWorkspaceId: string`, `selectedNodeCollapsible: bool`, `selectedNodeCollapsed: bool`, `selectedNodeHeaderItems: var`, `propertyPresentationLookup: var`, `selectedNodePropertyItems: var`, `selectedNodeLinkItems: var`, `selectedNodeCommentItems: var`, `selectedNodeLinkNodeOptions: var`, ... +13 more
 - Signals: `linkTargetPickRequested`, `linkTargetPickCancelled`
-- Functions: `refreshPropertyPresentation`, `refreshContent`, `portItemsForDirection`, `_propertyItemsWithPresentation`, `hasVisiblePort`, `portItemByKey`, `syncSelectedPortSelection`, `addSubnodePort`, `selectPort`, `beginPortLabelEdit`, `commitPortLabelEdit`, `cancelPortLabelEdit`, `focusInspectorBackground`, `deleteSelectedPort`, `openCommentsForSelectedNode`, `beginAddCommentForSelectedNode`, `applyLinkTargetPick`, `cancelLinkTargetPick`, ... +3 more
-- Instantiates: `ColumnLayout`, `RowLayout`, `Repeater`, `Text`, `MouseArea`, `StackLayout`, `Rectangle`, `TapHandler`, `ScrollView`, `Column`, `InspectorSectionCard`, `InspectorNodeDefinitionSection`, `InspectorNodeLinksSection`, `InspectorNodeCommentsSection`, `Loader`, `Component`, `InspectorSmartGroupsBody`, `InspectorAccordionCardsBody`, ... +4 more
+- Functions: `refreshPropertyPresentation`, `refreshContent`, `_propertyItemsWithPresentation`, `openCommentsForSelectedNode`, `beginAddCommentForSelectedNode`, `applyLinkTargetPick`, `cancelLinkTargetPick`, `onHelp_visible_changed`, `onHelp_tab_requested`, `onInspector_state_changed`
+- Instantiates: `ColumnLayout`, `RowLayout`, `Repeater`, `Text`, `MouseArea`, `StackLayout`, `Rectangle`, `ScrollView`, `TapHandler`, `Column`, `InspectorSectionCard`, `InspectorNodeDefinitionSection`, `InspectorNodeLinksSection`, `InspectorNodeCommentsSection`, `Loader`, `Component`, `InspectorSmartGroupsBody`, `InspectorAccordionCardsBody`, ... +3 more
 - Dynamic constructs: `Repeater`; `model`; `delegate` -> `Rectangle`; `Loader`; `sourceComponent`; `Component`
-- Signal handlers: `handler` `onPropertiesRequestedChanged`; `handler` `onInspectorBridgeRefChanged`; `handler` `onPropertyPresentationLookupChanged`; `handler` `Component.onCompleted`; `handler` `onVisiblePortItemsChanged`; `handler` `onShowPortSectionChanged`; `handler` `onClicked`; `handler` `onTapped`; `handler` `onPickTargetRequested`; `handler` `onPickTargetCancelled`
+- Signal handlers: `handler` `onPropertiesRequestedChanged`; `handler` `onInspectorBridgeRefChanged`; `handler` `onPropertyPresentationLookupChanged`; `handler` `Component.onCompleted`; `handler` `onClicked`; `handler` `onTapped`; `handler` `onPickTargetRequested`; `handler` `onPickTargetCancelled`
 - Connections: `target` `root.helpBridgeRef`; `target` `root.inspectorBridgeRef`
-- Property bindings: `binding` `tooltipCategory` -> `inspector.pane.collapse`, `TooltipCopy.category`, `tooltipCopyBridge`; `binding` `selected_node_title` -> `bridge.selected_node_title`; `binding` `selected_node_subtitle` -> `bridge.selected_node_subtitle`; `binding` `selected_node_is_subnode_pin` -> `bridge.selected_node_is_subnode_pin`; `binding` `selected_node_is_subnode_shell` -> `bridge.selected_node_is_subnode_shell`; `binding` `selected_node_collapsible` -> `bridge.selected_node_collapsible`; `binding` `selected_node_collapsed` -> `bridge.selected_node_collapsed`; `binding` `selected_node_port_items` -> `bridge.selected_node_port_items`; `binding` `selected_node_header_items` -> `bridge.selected_node_header_items`; `binding` `selected_node_property_items` -> `bridge.selected_node_property_items`; `binding` `selected_node_link_items` -> `bridge.selected_node_link_items`; `binding` `selected_node_comment_items` -> `bridge.selected_node_comment_items`; `binding` `selected_node_link_node_options` -> `bridge.selected_node_link_node_options`; `binding` `selected_node_link_workspace_options` -> `bridge.selected_node_link_workspace_options`; `binding` `paneTitle`; `binding` `side`; `binding` `persistedPanelId`; `binding` `expandedWidth`; ... +42 more
-- Local component refs: `localComponent` `InspectorSectionCard`: `ea_node_editor/ui_qml/components/shell/InspectorSectionCard.qml`; `localComponent` `InspectorNodeDefinitionSection`: `ea_node_editor/ui_qml/components/shell/InspectorNodeDefinitionSection.qml`; `localComponent` `InspectorNodeLinksSection`: `ea_node_editor/ui_qml/components/shell/InspectorNodeLinksSection.qml`; `localComponent` `InspectorNodeCommentsSection`: `ea_node_editor/ui_qml/components/shell/InspectorNodeCommentsSection.qml`; `localComponent` `InspectorSmartGroupsBody`: `ea_node_editor/ui_qml/components/shell/InspectorSmartGroupsBody.qml`; `localComponent` `InspectorAccordionCardsBody`: `ea_node_editor/ui_qml/components/shell/InspectorAccordionCardsBody.qml`; `localComponent` `InspectorPaletteBody`: `ea_node_editor/ui_qml/components/shell/InspectorPaletteBody.qml`; `localComponent` `InspectorPortManagementSection`: `ea_node_editor/ui_qml/components/shell/InspectorPortManagementSection.qml`; `localComponent` `HelpPane`: `ea_node_editor/ui_qml/components/shell/HelpPane.qml`
+- Property bindings: `binding` `tooltipCategory` -> `inspector.pane.collapse`, `TooltipCopy.category`, `tooltipCopyBridge`; `binding` `selected_node_title` -> `bridge.selected_node_title`; `binding` `selected_node_subtitle` -> `bridge.selected_node_subtitle`; `binding` `selected_node_is_subnode_pin` -> `bridge.selected_node_is_subnode_pin`; `binding` `selected_node_is_subnode_shell` -> `bridge.selected_node_is_subnode_shell`; `binding` `selected_node_collapsible` -> `bridge.selected_node_collapsible`; `binding` `selected_node_collapsed` -> `bridge.selected_node_collapsed`; `binding` `selected_node_header_items` -> `bridge.selected_node_header_items`; `binding` `selected_node_property_items` -> `bridge.selected_node_property_items`; `binding` `selected_node_link_items` -> `bridge.selected_node_link_items`; `binding` `selected_node_comment_items` -> `bridge.selected_node_comment_items`; `binding` `selected_node_link_node_options` -> `bridge.selected_node_link_node_options`; `binding` `selected_node_link_workspace_options` -> `bridge.selected_node_link_workspace_options`; `binding` `paneTitle`; `binding` `side`; `binding` `persistedPanelId`; `binding` `expandedWidth`; `binding` `contentSpacing`; ... +40 more
+- Local component refs: `localComponent` `InspectorSectionCard`: `ea_node_editor/ui_qml/components/shell/InspectorSectionCard.qml`; `localComponent` `InspectorNodeDefinitionSection`: `ea_node_editor/ui_qml/components/shell/InspectorNodeDefinitionSection.qml`; `localComponent` `InspectorNodeLinksSection`: `ea_node_editor/ui_qml/components/shell/InspectorNodeLinksSection.qml`; `localComponent` `InspectorNodeCommentsSection`: `ea_node_editor/ui_qml/components/shell/InspectorNodeCommentsSection.qml`; `localComponent` `InspectorSmartGroupsBody`: `ea_node_editor/ui_qml/components/shell/InspectorSmartGroupsBody.qml`; `localComponent` `InspectorAccordionCardsBody`: `ea_node_editor/ui_qml/components/shell/InspectorAccordionCardsBody.qml`; `localComponent` `InspectorPaletteBody`: `ea_node_editor/ui_qml/components/shell/InspectorPaletteBody.qml`; `localComponent` `HelpPane`: `ea_node_editor/ui_qml/components/shell/HelpPane.qml`
 
 ### `InspectorPathPropertyEditor.qml`
 
@@ -2986,42 +2983,6 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Connections: `target` `editorContext`
 - Property bindings: `binding` `width` -> `parent.width`; `binding` `spacing`; `binding` `pane` -> `editorContext.pane`; `binding` `Layout.fillWidth`; `binding` `enabled` -> `editorContext.editorEnabled`; `binding` `text` -> `editorContext._displayEditorText`; `binding` `compact`; `binding` `text`; `binding` `iconName`; `binding` `visible` -> `editorContext.pathSourceModeChoicesVisible`; `binding` `Layout.alignment` -> `Qt.AlignVCenter`; `binding` `color` -> `editorContext.pane.themePalette.muted_fg`; `binding` `font.pixelSize`; `binding` `elide` -> `Text.ElideRight`; `binding` `currentIndex`; `binding` `visible` -> `editorContext.propertyItem`, `editorContext.propertyItem.file_issue_active`; `binding` `radius`; `binding` `color` -> `Qt.alpha`, `editorContext.pane.themePalette.accent`; ... +8 more
 - Local component refs: `localComponent` `InspectorTextField`: `ea_node_editor/ui_qml/components/shell/InspectorTextField.qml`; `localComponent` `InspectorButton`: `ea_node_editor/ui_qml/components/shell/InspectorButton.qml`; `localComponent` `InspectorComboBox`: `ea_node_editor/ui_qml/components/shell/InspectorComboBox.qml`
-
-### `InspectorPortManagementSection.qml`
-
-- Path: `ea_node_editor/ui_qml/components/shell/InspectorPortManagementSection.qml`
-- Root component: `Rectangle`
-- Agent route aliases: `InspectorPortManagementSection`, `InspectorPortManagementSection.qml`, `ea_node_editor/ui_qml/components/shell/InspectorPortManagementSection.qml`, `ea_node_editor\ui_qml\components\shell\InspectorPortManagementSection.qml`
-- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `"../common/TooltipCopy.js" as TooltipCopy`
-- IDs: `portSection`, `cardColumn`, `cardBody`
-- Object names: `inspectorPortManagementCard`, `inspectorPortManagementHeader`, `inspectorPortManagementBody`, `inspectorDeletePortButton`, `inspectorPortTabs`, `inspectorInputsTab`, `inspectorOutputsTab`, `inspectorPortList`, `inspectorAddPortButton`
-- Properties: `pane: var`, `open: bool`, `contentWidth: real`
-- Signals: _None_
-- Functions: _None_
-- Instantiates: `Column`, `InspectorSmartGroupHeader`, `InspectorButton`, `Row`, `InspectorSegmentButton`, `Text`, `Repeater`
-- Dynamic constructs: `Repeater`; `model` -> `portSection.pane.visiblePortItems`; `delegate` -> `InspectorPortRow`
-- Signal handlers: `handler` `onToggleRequested`; `handler` `onClicked`
-- Connections: _None_
-- Property bindings: `binding` `width` -> `parent`, `parent.width`, `implicitWidth`; `binding` `visible` -> `pane.showPortSection`; `binding` `radius`; `binding` `color` -> `pane.cardBackgroundColor`; `binding` `border.color` -> `pane.themePalette.border`; `binding` `border.width`; `binding` `clip`; `binding` `implicitHeight` -> `cardColumn.implicitHeight`; `binding` `height` -> `implicitHeight`; `binding` `width` -> `parent.width`; `binding` `spacing`; `binding` `pane` -> `portSection.pane`; `binding` `width` -> `cardColumn.width`; `binding` `label`; `binding` `open` -> `portSection.open`; `binding` `uppercase`; `binding` `showCount`; `binding` `visible` -> `portSection.open`; ... +29 more
-- Local component refs: `localComponent` `InspectorSmartGroupHeader`: `ea_node_editor/ui_qml/components/shell/InspectorSmartGroupHeader.qml`; `localComponent` `InspectorButton`: `ea_node_editor/ui_qml/components/shell/InspectorButton.qml`; `localComponent` `InspectorSegmentButton`: `ea_node_editor/ui_qml/components/shell/InspectorSegmentButton.qml`; `localComponent` `InspectorPortRow`: `ea_node_editor/ui_qml/components/shell/InspectorPortRow.qml`
-
-### `InspectorPortRow.qml`
-
-- Path: `ea_node_editor/ui_qml/components/shell/InspectorPortRow.qml`
-- Root component: `Rectangle`
-- Agent route aliases: `InspectorPortRow`, `InspectorPortRow.qml`, `ea_node_editor/ui_qml/components/shell/InspectorPortRow.qml`, `ea_node_editor\ui_qml\components\shell\InspectorPortRow.qml`
-- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQuick.Layouts 1.15`
-- IDs: `portRow`, `portLabelEditor`, `requiredLabel`
-- Object names: `inspectorPortExposedToggle`, `inspectorPortLabelEditor`
-- Properties: `pane: var`, `portItem: var`, `portKey: string`
-- Signals: _None_
-- Functions: _None_
-- Instantiates: `RowLayout`, `InspectorCheckBox`, `ColumnLayout`, `Item`, `Text`, `TextField`, `MouseArea`, `TapHandler`
-- Dynamic constructs: _None_
-- Signal handlers: `handler` `onClicked`; `handler` `onToggled`; `handler` `onVisibleChanged`; `handler` `onTextChanged`; `handler` `onAccepted`; `handler` `onEditingFinished`; `handler` `onActiveFocusChanged`; `handler` `Keys.onEscapePressed`; `handler` `onTapped`
-- Connections: _None_
-- Property bindings: `binding` `width` -> `parent`, `parent.width`, `implicitWidth`; `binding` `radius`; `binding` `color` -> `pane.selectedPortKey`, `portKey`; `binding` `border.color` -> `pane.selectedPortKey`, `portKey`; `binding` `border.width`; `binding` `implicitHeight`; `binding` `anchors.fill` -> `parent`; `binding` `anchors.leftMargin`; `binding` `anchors.rightMargin`; `binding` `spacing`; `binding` `pane` -> `portRow.pane`; `binding` `Layout.alignment` -> `Qt.AlignVCenter`; `binding` `enabled` -> `Boolean`, `portRow.portItem.required`; `binding` `checked` -> `Boolean`, `portRow.portItem.required`, `portRow.portItem.exposed`; `binding` `Layout.fillWidth`; `binding` `anchors.left` -> `parent.left`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.verticalCenter` -> `parent.verticalCenter`; ... +27 more
-- Local component refs: `localComponent` `InspectorCheckBox`: `ea_node_editor/ui_qml/components/shell/InspectorCheckBox.qml`
 
 ### `InspectorPropertyEditor.qml`
 
@@ -3093,24 +3054,6 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Signal handlers: _None_
 - Connections: _None_
 - Property bindings: `binding` `width` -> `parent`, `parent.width`, `implicitWidth`; `binding` `radius`; `binding` `color` -> `pane.cardBackgroundColor`; `binding` `border.color` -> `pane.themePalette.border`; `binding` `border.width`; `binding` `clip`; `binding` `implicitHeight` -> `cardColumn.implicitHeight`; `binding` `width` -> `parent.width`; `binding` `spacing`; `binding` `height` -> `headerColumn.implicitHeight`; `binding` `color` -> `pane.sectionHeaderColor`; `binding` `anchors.left` -> `parent.left`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.verticalCenter` -> `parent.verticalCenter`; `binding` `anchors.leftMargin`; `binding` `anchors.rightMargin`; `binding` `spacing` -> `subtitleLabel.visible`; `binding` `text` -> `card.title.toUpperCase`; ... +12 more
-- Local component refs: _None_
-
-### `InspectorSegmentButton.qml`
-
-- Path: `ea_node_editor/ui_qml/components/shell/InspectorSegmentButton.qml`
-- Root component: `Button`
-- Agent route aliases: `InspectorSegmentButton`, `InspectorSegmentButton.qml`, `ea_node_editor/ui_qml/components/shell/InspectorSegmentButton.qml`, `ea_node_editor\ui_qml\components\shell\InspectorSegmentButton.qml`
-- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`
-- IDs: `control`
-- Object names: _None_
-- Properties: `pane: var`, `selectedStyle: bool`, `fillColor: color`, `outlineColor: color`, `labelColor: color`
-- Signals: _None_
-- Functions: _None_
-- Instantiates: _None_
-- Dynamic constructs: _None_
-- Signal handlers: _None_
-- Connections: _None_
-- Property bindings: `binding` `implicitHeight`; `binding` `hoverEnabled`; `binding` `padding`; `binding` `contentItem` -> `Text`; `binding` `text` -> `control.text`; `binding` `color` -> `control.labelColor`; `binding` `font.pixelSize`; `binding` `font.bold`; `binding` `horizontalAlignment` -> `Text.AlignHCenter`; `binding` `verticalAlignment` -> `Text.AlignVCenter`; `binding` `elide` -> `Text.ElideRight`; `binding` `background` -> `Rectangle`; `binding` `radius`; `binding` `color` -> `control.fillColor`; `binding` `border.color` -> `control.outlineColor`; `binding` `border.width`
 - Local component refs: _None_
 
 ### `InspectorSmartGroupHeader.qml`

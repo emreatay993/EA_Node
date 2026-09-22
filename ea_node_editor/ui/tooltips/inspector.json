@@ -18,9 +18,5 @@
   "inspector.pane.expand": {
     "text": "Expand properties pane",
     "category": "general"
-  },
-  "inspector.ports.delete_selected": {
-    "text": "Delete the selected subnode port; affected connections may be removed.",
-    "category": "warning"
   }
 }

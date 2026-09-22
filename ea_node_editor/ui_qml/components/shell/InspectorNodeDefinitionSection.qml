@@ -61,7 +61,7 @@ InspectorSectionCard {
         InspectorButton {
             pane: definitionSection.pane
             objectName: "inspectorUngroupButton"
-            visible: definitionSection.pane.canManageSubnodePorts
+            visible: definitionSection.pane.isSubnodeShellInspector
             compact: true
             destructive: true
             text: "UNGROUP"

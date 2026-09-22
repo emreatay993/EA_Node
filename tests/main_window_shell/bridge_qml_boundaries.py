@@ -107,13 +107,6 @@ class TooltipManagerTierCatalogQmlBoundaryTests(unittest.TestCase):
                 "ShellCreateButton {",
                 'tooltipCategory: "tutorial"',
             ),
-            "ea_node_editor/ui_qml/components/shell/InspectorPortManagementSection.qml": (
-                'objectName: "inspectorDeletePortButton"',
-                'tooltipText: TooltipCopy.text(tooltipCopyBridge, "inspector.ports.delete_selected")',
-                'tooltipCategory: TooltipCopy.category(tooltipCopyBridge, "inspector.ports.delete_selected")',
-                'objectName: "inspectorAddPortButton"',
-                'tooltipCategory: "tutorial"',
-            ),
             "ea_node_editor/ui_qml/components/shell/InspectorNodeDefinitionSection.qml": (
                 'objectName: "inspectorUngroupButton"',
                 'tooltipText: TooltipCopy.text(tooltipCopyBridge, "inspector.node_definition.ungroup")',
@@ -133,7 +126,6 @@ class TooltipManagerTierCatalogQmlBoundaryTests(unittest.TestCase):
                 '"category": "tutorial"',
             ),
             "ea_node_editor/ui/tooltips/inspector.json": (
-                "affected connections may be removed",
                 '"category": "warning"',
                 "child nodes move to the parent scope",
             ),
@@ -418,7 +410,6 @@ class ShellInspectorBridgeQmlBoundaryTests(unittest.TestCase):
                     "root.inspectorBridgeRef.has_selected_node",
                     "bridge.selected_node_is_subnode_pin",
                     "bridge.selected_node_is_subnode_shell",
-                    "bridge.selected_node_port_items",
                     "bridge.selected_node_title",
                     "bridge.selected_node_subtitle",
                     "bridge.selected_node_collapsible",
@@ -428,9 +419,6 @@ class ShellInspectorBridgeQmlBoundaryTests(unittest.TestCase):
                     "bridge.selected_node_link_items",
                     "bridge.selected_node_comment_items",
                     "bridge.pin_data_type_options",
-                    "root.inspectorBridgeRef.request_add_selected_subnode_pin",
-                    "root.inspectorBridgeRef.set_selected_port_label",
-                    "root.inspectorBridgeRef.request_remove_selected_port",
                     "InspectorNodeLinksSection {",
                     "InspectorNodeCommentsSection {",
                     "target: root.inspectorBridgeRef",
@@ -499,10 +487,6 @@ class ShellInspectorBridgeQmlBoundaryTests(unittest.TestCase):
             "ea_node_editor/ui_qml/components/shell/InspectorColorField.qml": (
                 ("mainWindowRef.pick_selected_node_property_color",),
                 ("root.pane.inspectorBridgeRef.pick_selected_node_property_color",),
-            ),
-            "ea_node_editor/ui_qml/components/shell/InspectorPortRow.qml": (
-                ("mainWindowRef.set_selected_port_exposed",),
-                ("portRow.pane.inspectorBridgeRef.set_selected_port_exposed",),
             ),
         }
 

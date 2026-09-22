@@ -770,12 +770,6 @@ class SharedMainWindowShellTestBase(MainWindowShellTestBase):
         window._new_project()
         window._clear_recent_projects()
         window._frame_rate_sampler = FrameRateSampler()
-        inspector_pane = self._qml_root_object().findChild(QObject, "inspectorPane")
-        if inspector_pane is not None:
-            inspector_pane.setProperty("activePortDirection", "in")
-            inspector_pane.setProperty("selectedPortKey", "")
-            inspector_pane.setProperty("editingPortKey", "")
-            inspector_pane.setProperty("editingPortLabel", "")
         window.metrics_timer.start()
         window.autosave_timer.start()
         _flush_shell_qt_events(app)

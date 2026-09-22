@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 200,
-    "repeater_constructs": 97,
+    "qml_files": 197,
+    "repeater_constructs": 96,
     "loader_constructs": 30,
-    "signal_handlers": 1019,
+    "signal_handlers": 1006,
     "connections": 52,
-    "property_bindings": 8054,
-    "local_component_refs": 338
+    "property_bindings": 7944,
+    "local_component_refs": 332
   },
   "entries": [
     {
@@ -19059,6 +19059,10 @@
           "name": "dragActive"
         },
         {
+          "kind": "string",
+          "name": "dragAxisLock"
+        },
+        {
           "kind": "bool",
           "name": "containsMouse"
         },
@@ -19237,6 +19241,12 @@
           "kind": "property",
           "name": "dragActive",
           "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeHostGestureLayerPropertyDragAxisLock",
+          "kind": "property",
+          "name": "dragAxisLock",
+          "detail": "string"
         },
         {
           "anchor": "GraphNodeHostGestureLayerPropertyContainsMouse",
@@ -25831,6 +25841,10 @@
         },
         {
           "kind": "bool",
+          "name": "shiftProportional"
+        },
+        {
+          "kind": "bool",
           "name": "triangleContainsMouse"
         }
       ],
@@ -25840,6 +25854,9 @@
         }
       ],
       "functions": [
+        {
+          "name": "_shiftProportionalFor"
+        },
         {
           "name": "_lockAspectRatioEnabled"
         },
@@ -26111,6 +26128,12 @@
           "detail": "real"
         },
         {
+          "anchor": "GraphNodeResizeHandlePropertyShiftProportional",
+          "kind": "property",
+          "name": "shiftProportional",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphNodeResizeHandlePropertyTriangleContainsMouse",
           "kind": "property",
           "name": "triangleContainsMouse",
@@ -26120,6 +26143,11 @@
           "anchor": "GraphNodeResizeHandleSignalFitDisplayedTextRequested",
           "kind": "signal",
           "name": "fitDisplayedTextRequested"
+        },
+        {
+          "anchor": "GraphNodeResizeHandleFunctionShiftProportionalFor",
+          "kind": "function",
+          "name": "_shiftProportionalFor"
         },
         {
           "anchor": "GraphNodeResizeHandleFunctionLockAspectRatioEnabled",
@@ -119658,7 +119686,7 @@
           "kind": "binding",
           "name": "visible",
           "targets": [
-            "definitionSection.pane.canManageSubnodePorts"
+            "definitionSection.pane.isSubnodeShellInspector"
           ]
         },
         {
@@ -121762,22 +121790,6 @@
           "name": "activeTabIndex"
         },
         {
-          "kind": "string",
-          "name": "activePortDirection"
-        },
-        {
-          "kind": "string",
-          "name": "selectedPortKey"
-        },
-        {
-          "kind": "string",
-          "name": "editingPortKey"
-        },
-        {
-          "kind": "string",
-          "name": "editingPortLabel"
-        },
-        {
           "kind": "bool",
           "name": "hasSelectedNode"
         },
@@ -121787,15 +121799,7 @@
         },
         {
           "kind": "bool",
-          "name": "showPortSection"
-        },
-        {
-          "kind": "bool",
-          "name": "canManageSubnodePorts"
-        },
-        {
-          "kind": "bool",
-          "name": "canEditPortLabels"
+          "name": "isSubnodeShellInspector"
         },
         {
           "kind": "string",
@@ -121820,10 +121824,6 @@
         {
           "kind": "bool",
           "name": "selectedNodeCollapsed"
-        },
-        {
-          "kind": "var",
-          "name": "selectedNodePortItems"
         },
         {
           "kind": "var",
@@ -121878,18 +121878,6 @@
           "name": "_contentWorkspaceId"
         },
         {
-          "kind": "var",
-          "name": "visiblePortItems"
-        },
-        {
-          "kind": "int",
-          "name": "inputPortCount"
-        },
-        {
-          "kind": "int",
-          "name": "outputPortCount"
-        },
-        {
           "kind": "color",
           "name": "cardBackgroundColor"
         },
@@ -121930,40 +121918,7 @@
           "name": "refreshContent"
         },
         {
-          "name": "portItemsForDirection"
-        },
-        {
           "name": "_propertyItemsWithPresentation"
-        },
-        {
-          "name": "hasVisiblePort"
-        },
-        {
-          "name": "portItemByKey"
-        },
-        {
-          "name": "syncSelectedPortSelection"
-        },
-        {
-          "name": "addSubnodePort"
-        },
-        {
-          "name": "selectPort"
-        },
-        {
-          "name": "beginPortLabelEdit"
-        },
-        {
-          "name": "commitPortLabelEdit"
-        },
-        {
-          "name": "cancelPortLabelEdit"
-        },
-        {
-          "name": "focusInspectorBackground"
-        },
-        {
-          "name": "deleteSelectedPort"
         },
         {
           "name": "openCommentsForSelectedNode"
@@ -122010,10 +121965,10 @@
           "name": "Rectangle"
         },
         {
-          "name": "TapHandler"
+          "name": "ScrollView"
         },
         {
-          "name": "ScrollView"
+          "name": "TapHandler"
         },
         {
           "name": "Column"
@@ -122044,9 +121999,6 @@
         },
         {
           "name": "InspectorPaletteBody"
-        },
-        {
-          "name": "InspectorPortManagementSection"
         },
         {
           "name": "HelpPane"
@@ -122094,14 +122046,6 @@
         {
           "kind": "handler",
           "name": "Component.onCompleted"
-        },
-        {
-          "kind": "handler",
-          "name": "onVisiblePortItemsChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onShowPortSectionChanged"
         },
         {
           "kind": "handler",
@@ -122180,13 +122124,6 @@
           "name": "selected_node_collapsed",
           "targets": [
             "bridge.selected_node_collapsed"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "selected_node_port_items",
-          "targets": [
-            "bridge.selected_node_port_items"
           ]
         },
         {
@@ -122357,20 +122294,6 @@
         },
         {
           "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "root.editingPortKey.length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "acceptedButtons",
-          "targets": [
-            "Qt.LeftButton"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "anchors.leftMargin"
         },
         {
@@ -122386,6 +122309,13 @@
           "name": "background",
           "targets": [
             "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "acceptedButtons",
+          "targets": [
+            "Qt.LeftButton"
           ]
         },
         {
@@ -122546,11 +122476,6 @@
         },
         {
           "kind": "localComponent",
-          "name": "InspectorPortManagementSection",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorPortManagementSection.qml"
-        },
-        {
-          "kind": "localComponent",
           "name": "HelpPane",
           "detail": "ea_node_editor/ui_qml/components/shell/HelpPane.qml"
         }
@@ -122575,30 +122500,6 @@
           "detail": "int"
         },
         {
-          "anchor": "InspectorPanePropertyActivePortDirection",
-          "kind": "property",
-          "name": "activePortDirection",
-          "detail": "string"
-        },
-        {
-          "anchor": "InspectorPanePropertySelectedPortKey",
-          "kind": "property",
-          "name": "selectedPortKey",
-          "detail": "string"
-        },
-        {
-          "anchor": "InspectorPanePropertyEditingPortKey",
-          "kind": "property",
-          "name": "editingPortKey",
-          "detail": "string"
-        },
-        {
-          "anchor": "InspectorPanePropertyEditingPortLabel",
-          "kind": "property",
-          "name": "editingPortLabel",
-          "detail": "string"
-        },
-        {
           "anchor": "InspectorPanePropertyHasSelectedNode",
           "kind": "property",
           "name": "hasSelectedNode",
@@ -122611,21 +122512,9 @@
           "detail": "bool"
         },
         {
-          "anchor": "InspectorPanePropertyShowPortSection",
+          "anchor": "InspectorPanePropertyIsSubnodeShellInspector",
           "kind": "property",
-          "name": "showPortSection",
-          "detail": "bool"
-        },
-        {
-          "anchor": "InspectorPanePropertyCanManageSubnodePorts",
-          "kind": "property",
-          "name": "canManageSubnodePorts",
-          "detail": "bool"
-        },
-        {
-          "anchor": "InspectorPanePropertyCanEditPortLabels",
-          "kind": "property",
-          "name": "canEditPortLabels",
+          "name": "isSubnodeShellInspector",
           "detail": "bool"
         },
         {
@@ -122663,12 +122552,6 @@
           "kind": "property",
           "name": "selectedNodeCollapsed",
           "detail": "bool"
-        },
-        {
-          "anchor": "InspectorPanePropertySelectedNodePortItems",
-          "kind": "property",
-          "name": "selectedNodePortItems",
-          "detail": "var"
         },
         {
           "anchor": "InspectorPanePropertySelectedNodeHeaderItems",
@@ -122749,24 +122632,6 @@
           "detail": "string"
         },
         {
-          "anchor": "InspectorPanePropertyVisiblePortItems",
-          "kind": "property",
-          "name": "visiblePortItems",
-          "detail": "var"
-        },
-        {
-          "anchor": "InspectorPanePropertyInputPortCount",
-          "kind": "property",
-          "name": "inputPortCount",
-          "detail": "int"
-        },
-        {
-          "anchor": "InspectorPanePropertyOutputPortCount",
-          "kind": "property",
-          "name": "outputPortCount",
-          "detail": "int"
-        },
-        {
           "anchor": "InspectorPanePropertyCardBackgroundColor",
           "kind": "property",
           "name": "cardBackgroundColor",
@@ -122823,64 +122688,9 @@
           "name": "refreshContent"
         },
         {
-          "anchor": "InspectorPaneFunctionPortItemsForDirection",
-          "kind": "function",
-          "name": "portItemsForDirection"
-        },
-        {
           "anchor": "InspectorPaneFunctionPropertyItemsWithPresentation",
           "kind": "function",
           "name": "_propertyItemsWithPresentation"
-        },
-        {
-          "anchor": "InspectorPaneFunctionHasVisiblePort",
-          "kind": "function",
-          "name": "hasVisiblePort"
-        },
-        {
-          "anchor": "InspectorPaneFunctionPortItemByKey",
-          "kind": "function",
-          "name": "portItemByKey"
-        },
-        {
-          "anchor": "InspectorPaneFunctionSyncSelectedPortSelection",
-          "kind": "function",
-          "name": "syncSelectedPortSelection"
-        },
-        {
-          "anchor": "InspectorPaneFunctionAddSubnodePort",
-          "kind": "function",
-          "name": "addSubnodePort"
-        },
-        {
-          "anchor": "InspectorPaneFunctionSelectPort",
-          "kind": "function",
-          "name": "selectPort"
-        },
-        {
-          "anchor": "InspectorPaneFunctionBeginPortLabelEdit",
-          "kind": "function",
-          "name": "beginPortLabelEdit"
-        },
-        {
-          "anchor": "InspectorPaneFunctionCommitPortLabelEdit",
-          "kind": "function",
-          "name": "commitPortLabelEdit"
-        },
-        {
-          "anchor": "InspectorPaneFunctionCancelPortLabelEdit",
-          "kind": "function",
-          "name": "cancelPortLabelEdit"
-        },
-        {
-          "anchor": "InspectorPaneFunctionFocusInspectorBackground",
-          "kind": "function",
-          "name": "focusInspectorBackground"
-        },
-        {
-          "anchor": "InspectorPaneFunctionDeleteSelectedPort",
-          "kind": "function",
-          "name": "deleteSelectedPort"
         },
         {
           "anchor": "InspectorPaneFunctionOpenCommentsForSelectedNode",
@@ -122936,16 +122746,6 @@
           "anchor": "InspectorPaneHandlerComponentOnCompleted",
           "kind": "handler",
           "name": "Component.onCompleted"
-        },
-        {
-          "anchor": "InspectorPaneHandlerOnVisiblePortItemsChanged",
-          "kind": "handler",
-          "name": "onVisiblePortItemsChanged"
-        },
-        {
-          "anchor": "InspectorPaneHandlerOnShowPortSectionChanged",
-          "kind": "handler",
-          "name": "onShowPortSectionChanged"
         },
         {
           "anchor": "InspectorPaneHandlerOnClicked",
@@ -123018,12 +122818,6 @@
           "kind": "localComponent",
           "name": "InspectorPaletteBody",
           "detail": "ea_node_editor/ui_qml/components/shell/InspectorPaletteBody.qml"
-        },
-        {
-          "anchor": "InspectorPaneLocalComponentInspectorPortManagementSection",
-          "kind": "localComponent",
-          "name": "InspectorPortManagementSection",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorPortManagementSection.qml"
         },
         {
           "anchor": "InspectorPaneLocalComponentHelpPane",
@@ -123430,974 +123224,6 @@
           "kind": "localComponent",
           "name": "InspectorComboBox",
           "detail": "ea_node_editor/ui_qml/components/shell/InspectorComboBox.qml"
-        }
-      ]
-    },
-    {
-      "path": "ea_node_editor/ui_qml/components/shell/InspectorPortManagementSection.qml",
-      "component_name": "InspectorPortManagementSection",
-      "aliases": [
-        "InspectorPortManagementSection",
-        "InspectorPortManagementSection.qml",
-        "ea_node_editor/ui_qml/components/shell/InspectorPortManagementSection.qml",
-        "ea_node_editor\\ui_qml\\components\\shell\\InspectorPortManagementSection.qml"
-      ],
-      "root_component": "Rectangle",
-      "imports": [
-        "QtQuick 2.15",
-        "QtQuick.Controls 2.15",
-        "\"../common/TooltipCopy.js\" as TooltipCopy"
-      ],
-      "ids": [
-        {
-          "name": "portSection"
-        },
-        {
-          "name": "cardColumn"
-        },
-        {
-          "name": "cardBody"
-        }
-      ],
-      "object_names": [
-        {
-          "name": "inspectorPortManagementCard"
-        },
-        {
-          "name": "inspectorPortManagementHeader"
-        },
-        {
-          "name": "inspectorPortManagementBody"
-        },
-        {
-          "name": "inspectorDeletePortButton"
-        },
-        {
-          "name": "inspectorPortTabs"
-        },
-        {
-          "name": "inspectorInputsTab"
-        },
-        {
-          "name": "inspectorOutputsTab"
-        },
-        {
-          "name": "inspectorPortList"
-        },
-        {
-          "name": "inspectorAddPortButton"
-        }
-      ],
-      "properties": [
-        {
-          "kind": "var",
-          "name": "pane"
-        },
-        {
-          "kind": "bool",
-          "name": "open"
-        },
-        {
-          "kind": "real",
-          "name": "contentWidth"
-        }
-      ],
-      "signals": [],
-      "functions": [],
-      "instantiated_components": [
-        {
-          "name": "Column"
-        },
-        {
-          "name": "InspectorSmartGroupHeader"
-        },
-        {
-          "name": "InspectorButton"
-        },
-        {
-          "name": "Row"
-        },
-        {
-          "name": "InspectorSegmentButton"
-        },
-        {
-          "name": "Text"
-        },
-        {
-          "name": "Repeater"
-        }
-      ],
-      "dynamic_refs": [
-        {
-          "kind": "Repeater"
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "portSection.pane.visiblePortItems"
-          ]
-        },
-        {
-          "kind": "delegate",
-          "targets": [
-            "InspectorPortRow"
-          ]
-        }
-      ],
-      "signal_handlers": [
-        {
-          "kind": "handler",
-          "name": "onToggleRequested"
-        },
-        {
-          "kind": "handler",
-          "name": "onClicked"
-        }
-      ],
-      "connections": [],
-      "property_bindings": [
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "parent",
-            "parent.width",
-            "implicitWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "pane.showPortSection"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius"
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "pane.cardBackgroundColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "pane.themePalette.border"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width"
-        },
-        {
-          "kind": "binding",
-          "name": "clip"
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "cardColumn.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "parent.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "spacing"
-        },
-        {
-          "kind": "binding",
-          "name": "pane",
-          "targets": [
-            "portSection.pane"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "cardColumn.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "label"
-        },
-        {
-          "kind": "binding",
-          "name": "open",
-          "targets": [
-            "portSection.open"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "uppercase"
-        },
-        {
-          "kind": "binding",
-          "name": "showCount"
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "portSection.open"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "topPadding",
-          "targets": [
-            "portSection.open"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "bottomPadding",
-          "targets": [
-            "portSection.open"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "leftPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "rightPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "cardBody.contentWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "portSection.pane.canManageSubnodePorts"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "destructive"
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "portSection.pane.selectedPortKey.length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text"
-        },
-        {
-          "kind": "binding",
-          "name": "tooltipText",
-          "targets": [
-            "TooltipCopy.text",
-            "tooltipCopyBridge"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "tooltipCategory",
-          "targets": [
-            "TooltipCopy.category",
-            "tooltipCopyBridge"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height"
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "portSection.pane.themePalette.input_bg"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "portSection.pane.themePalette.input_border"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.fill",
-          "targets": [
-            "parent"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.margins"
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "parent.height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "portSection.pane.inputPortCount"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "selectedStyle",
-          "targets": [
-            "portSection.pane.activePortDirection"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "portSection.pane.outputPortCount"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "portSection.pane.visiblePortItems.length"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "wrapMode",
-          "targets": [
-            "Text.WordWrap"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "portSection.pane.activePortDirection"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "portSection.pane.themePalette.muted_fg"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.pixelSize"
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "parent",
-            "parent.width",
-            "portSection.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "portItem",
-          "targets": [
-            "modelData"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "tooltipText",
-          "targets": [
-            "portSection.pane.activePortDirection"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "tooltipCategory"
-        }
-      ],
-      "local_component_refs": [
-        {
-          "kind": "localComponent",
-          "name": "InspectorSmartGroupHeader",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorSmartGroupHeader.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "InspectorButton",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorButton.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "InspectorSegmentButton",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorSegmentButton.qml"
-        },
-        {
-          "kind": "localComponent",
-          "name": "InspectorPortRow",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorPortRow.qml"
-        }
-      ],
-      "symbol_anchors": [
-        {
-          "anchor": "InspectorPortManagementSectionPropertyPane",
-          "kind": "property",
-          "name": "pane",
-          "detail": "var"
-        },
-        {
-          "anchor": "InspectorPortManagementSectionPropertyOpen",
-          "kind": "property",
-          "name": "open",
-          "detail": "bool"
-        },
-        {
-          "anchor": "InspectorPortManagementSectionPropertyContentWidth",
-          "kind": "property",
-          "name": "contentWidth",
-          "detail": "real"
-        },
-        {
-          "anchor": "InspectorPortManagementSectionHandlerOnToggleRequested",
-          "kind": "handler",
-          "name": "onToggleRequested"
-        },
-        {
-          "anchor": "InspectorPortManagementSectionHandlerOnClicked",
-          "kind": "handler",
-          "name": "onClicked"
-        },
-        {
-          "anchor": "InspectorPortManagementSectionLocalComponentInspectorSmartGroupHeader",
-          "kind": "localComponent",
-          "name": "InspectorSmartGroupHeader",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorSmartGroupHeader.qml"
-        },
-        {
-          "anchor": "InspectorPortManagementSectionLocalComponentInspectorButton",
-          "kind": "localComponent",
-          "name": "InspectorButton",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorButton.qml"
-        },
-        {
-          "anchor": "InspectorPortManagementSectionLocalComponentInspectorSegmentButton",
-          "kind": "localComponent",
-          "name": "InspectorSegmentButton",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorSegmentButton.qml"
-        },
-        {
-          "anchor": "InspectorPortManagementSectionLocalComponentInspectorPortRow",
-          "kind": "localComponent",
-          "name": "InspectorPortRow",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorPortRow.qml"
-        }
-      ]
-    },
-    {
-      "path": "ea_node_editor/ui_qml/components/shell/InspectorPortRow.qml",
-      "component_name": "InspectorPortRow",
-      "aliases": [
-        "InspectorPortRow",
-        "InspectorPortRow.qml",
-        "ea_node_editor/ui_qml/components/shell/InspectorPortRow.qml",
-        "ea_node_editor\\ui_qml\\components\\shell\\InspectorPortRow.qml"
-      ],
-      "root_component": "Rectangle",
-      "imports": [
-        "QtQuick 2.15",
-        "QtQuick.Controls 2.15",
-        "QtQuick.Layouts 1.15"
-      ],
-      "ids": [
-        {
-          "name": "portRow"
-        },
-        {
-          "name": "portLabelEditor"
-        },
-        {
-          "name": "requiredLabel"
-        }
-      ],
-      "object_names": [
-        {
-          "name": "inspectorPortExposedToggle"
-        },
-        {
-          "name": "inspectorPortLabelEditor"
-        }
-      ],
-      "properties": [
-        {
-          "kind": "var",
-          "name": "pane"
-        },
-        {
-          "kind": "var",
-          "name": "portItem"
-        },
-        {
-          "kind": "string",
-          "name": "portKey"
-        }
-      ],
-      "signals": [],
-      "functions": [],
-      "instantiated_components": [
-        {
-          "name": "RowLayout"
-        },
-        {
-          "name": "InspectorCheckBox"
-        },
-        {
-          "name": "ColumnLayout"
-        },
-        {
-          "name": "Item"
-        },
-        {
-          "name": "Text"
-        },
-        {
-          "name": "TextField"
-        },
-        {
-          "name": "MouseArea"
-        },
-        {
-          "name": "TapHandler"
-        }
-      ],
-      "dynamic_refs": [],
-      "signal_handlers": [
-        {
-          "kind": "handler",
-          "name": "onClicked"
-        },
-        {
-          "kind": "handler",
-          "name": "onToggled"
-        },
-        {
-          "kind": "handler",
-          "name": "onVisibleChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onTextChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onAccepted"
-        },
-        {
-          "kind": "handler",
-          "name": "onEditingFinished"
-        },
-        {
-          "kind": "handler",
-          "name": "onActiveFocusChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "Keys.onEscapePressed"
-        },
-        {
-          "kind": "handler",
-          "name": "onTapped"
-        }
-      ],
-      "connections": [],
-      "property_bindings": [
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "parent",
-            "parent.width",
-            "implicitWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius"
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "pane.selectedPortKey",
-            "portKey"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "pane.selectedPortKey",
-            "portKey"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width"
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight"
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.fill",
-          "targets": [
-            "parent"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.leftMargin"
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.rightMargin"
-        },
-        {
-          "kind": "binding",
-          "name": "spacing"
-        },
-        {
-          "kind": "binding",
-          "name": "pane",
-          "targets": [
-            "portRow.pane"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "Layout.alignment",
-          "targets": [
-            "Qt.AlignVCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "Boolean",
-            "portRow.portItem.required"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "checked",
-          "targets": [
-            "Boolean",
-            "portRow.portItem.required",
-            "portRow.portItem.exposed"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "Layout.fillWidth"
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.left",
-          "targets": [
-            "parent.left"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.right",
-          "targets": [
-            "parent.right"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.verticalCenter",
-          "targets": [
-            "parent.verticalCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "portLabelEditor.visible"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "String",
-            "portRow.portItem.label",
-            "portRow.portItem.key"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "portRow.pane.themePalette.panel_title_fg"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.pixelSize"
-        },
-        {
-          "kind": "binding",
-          "name": "font.bold"
-        },
-        {
-          "kind": "binding",
-          "name": "elide",
-          "targets": [
-            "Text.ElideRight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "portRow.pane.canEditPortLabels"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "leftPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "rightPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "topPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "bottomPadding"
-        },
-        {
-          "kind": "binding",
-          "name": "selectByMouse"
-        },
-        {
-          "kind": "binding",
-          "name": "background",
-          "targets": [
-            "Rectangle"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "portRow.pane.themePalette.input_bg"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "portRow.pane.themePalette.accent"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "enabled",
-          "targets": [
-            "portRow.pane.canEditPortLabels"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "cursorShape",
-          "targets": [
-            "Qt.IBeamCursor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "/",
-            "COREX.DataTypes.Any",
-            "String",
-            "portRow.portItem.kind",
-            "portRow.portItem.data_type"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "portRow.pane.themePalette.muted_fg"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "portRow.portItem.required"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "portRow.pane.sectionHeaderColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "portRow.pane.themePalette.input_border"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitWidth",
-          "targets": [
-            "requiredLabel.implicitWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "implicitHeight",
-          "targets": [
-            "requiredLabel.implicitHeight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.centerIn",
-          "targets": [
-            "parent"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text"
-        },
-        {
-          "kind": "binding",
-          "name": "font.letterSpacing"
-        }
-      ],
-      "local_component_refs": [
-        {
-          "kind": "localComponent",
-          "name": "InspectorCheckBox",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorCheckBox.qml"
-        }
-      ],
-      "symbol_anchors": [
-        {
-          "anchor": "InspectorPortRowPropertyPane",
-          "kind": "property",
-          "name": "pane",
-          "detail": "var"
-        },
-        {
-          "anchor": "InspectorPortRowPropertyPortItem",
-          "kind": "property",
-          "name": "portItem",
-          "detail": "var"
-        },
-        {
-          "anchor": "InspectorPortRowPropertyPortKey",
-          "kind": "property",
-          "name": "portKey",
-          "detail": "string"
-        },
-        {
-          "anchor": "InspectorPortRowHandlerOnClicked",
-          "kind": "handler",
-          "name": "onClicked"
-        },
-        {
-          "anchor": "InspectorPortRowHandlerOnToggled",
-          "kind": "handler",
-          "name": "onToggled"
-        },
-        {
-          "anchor": "InspectorPortRowHandlerOnVisibleChanged",
-          "kind": "handler",
-          "name": "onVisibleChanged"
-        },
-        {
-          "anchor": "InspectorPortRowHandlerOnTextChanged",
-          "kind": "handler",
-          "name": "onTextChanged"
-        },
-        {
-          "anchor": "InspectorPortRowHandlerOnAccepted",
-          "kind": "handler",
-          "name": "onAccepted"
-        },
-        {
-          "anchor": "InspectorPortRowHandlerOnEditingFinished",
-          "kind": "handler",
-          "name": "onEditingFinished"
-        },
-        {
-          "anchor": "InspectorPortRowHandlerOnActiveFocusChanged",
-          "kind": "handler",
-          "name": "onActiveFocusChanged"
-        },
-        {
-          "anchor": "InspectorPortRowHandlerKeysOnEscapePressed",
-          "kind": "handler",
-          "name": "Keys.onEscapePressed"
-        },
-        {
-          "anchor": "InspectorPortRowHandlerOnTapped",
-          "kind": "handler",
-          "name": "onTapped"
-        },
-        {
-          "anchor": "InspectorPortRowLocalComponentInspectorCheckBox",
-          "kind": "localComponent",
-          "name": "InspectorCheckBox",
-          "detail": "ea_node_editor/ui_qml/components/shell/InspectorCheckBox.qml"
         }
       ]
     },
@@ -126318,181 +125144,6 @@
           "kind": "property",
           "name": "bodyData",
           "detail": "alias"
-        }
-      ]
-    },
-    {
-      "path": "ea_node_editor/ui_qml/components/shell/InspectorSegmentButton.qml",
-      "component_name": "InspectorSegmentButton",
-      "aliases": [
-        "InspectorSegmentButton",
-        "InspectorSegmentButton.qml",
-        "ea_node_editor/ui_qml/components/shell/InspectorSegmentButton.qml",
-        "ea_node_editor\\ui_qml\\components\\shell\\InspectorSegmentButton.qml"
-      ],
-      "root_component": "Button",
-      "imports": [
-        "QtQuick 2.15",
-        "QtQuick.Controls 2.15"
-      ],
-      "ids": [
-        {
-          "name": "control"
-        }
-      ],
-      "object_names": [],
-      "properties": [
-        {
-          "kind": "var",
-          "name": "pane"
-        },
-        {
-          "kind": "bool",
-          "name": "selectedStyle"
-        },
-        {
-          "kind": "color",
-          "name": "fillColor"
-        },
-        {
-          "kind": "color",
-          "name": "outlineColor"
-        },
-        {
-          "kind": "color",
-          "name": "labelColor"
-        }
-      ],
-      "signals": [],
-      "functions": [],
-      "instantiated_components": [],
-      "dynamic_refs": [],
-      "signal_handlers": [],
-      "connections": [],
-      "property_bindings": [
-        {
-          "kind": "binding",
-          "name": "implicitHeight"
-        },
-        {
-          "kind": "binding",
-          "name": "hoverEnabled"
-        },
-        {
-          "kind": "binding",
-          "name": "padding"
-        },
-        {
-          "kind": "binding",
-          "name": "contentItem",
-          "targets": [
-            "Text"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "text",
-          "targets": [
-            "control.text"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "control.labelColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "font.pixelSize"
-        },
-        {
-          "kind": "binding",
-          "name": "font.bold"
-        },
-        {
-          "kind": "binding",
-          "name": "horizontalAlignment",
-          "targets": [
-            "Text.AlignHCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "verticalAlignment",
-          "targets": [
-            "Text.AlignVCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "elide",
-          "targets": [
-            "Text.ElideRight"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "background",
-          "targets": [
-            "Rectangle"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius"
-        },
-        {
-          "kind": "binding",
-          "name": "color",
-          "targets": [
-            "control.fillColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
-          "targets": [
-            "control.outlineColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.width"
-        }
-      ],
-      "local_component_refs": [],
-      "symbol_anchors": [
-        {
-          "anchor": "InspectorSegmentButtonPropertyPane",
-          "kind": "property",
-          "name": "pane",
-          "detail": "var"
-        },
-        {
-          "anchor": "InspectorSegmentButtonPropertySelectedStyle",
-          "kind": "property",
-          "name": "selectedStyle",
-          "detail": "bool"
-        },
-        {
-          "anchor": "InspectorSegmentButtonPropertyFillColor",
-          "kind": "property",
-          "name": "fillColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "InspectorSegmentButtonPropertyOutlineColor",
-          "kind": "property",
-          "name": "outlineColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "InspectorSegmentButtonPropertyLabelColor",
-          "kind": "property",
-          "name": "labelColor",
-          "detail": "color"
         }
       ]
     },
