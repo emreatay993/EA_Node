@@ -11,16 +11,17 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 
 | Metric | Count |
 | --- | ---: |
-| Route entries | 268 |
-| Agent-map entries | 68 |
+| Route entries | 269 |
+| Agent-map entries | 69 |
 | QML component entries | 200 |
 
 ## Agent Map Routes
 
 | Route key | Kind | Map | Source | Tests | QML | Keywords |
 | --- | --- | --- | ---: | ---: | ---: | --- |
-| `coverage:coverage` | `coverage` | `docs/agent_maps/COVERAGE.md` | 23 | 26 | - | `agent`, `map`, `coverage`, `node`, `editor`, `graph`, `execution`, `persistence`, `nodes`, `addons`, ... +265 more |
+| `coverage:coverage` | `coverage` | `docs/agent_maps/COVERAGE.md` | 23 | 26 | - | `agent`, `map`, `coverage`, `node`, `editor`, `graph`, `execution`, `persistence`, `nodes`, `addons`, ... +267 more |
 | `feature_route:feature-routes-addon-manager` | `feature_route` | `docs/agent_maps/feature_routes/addon_manager.md` | 11 | 7 | 1 | `add`, `manager`, `addon`, `node`, `editor`, `addons`, `contracts`, `catalog`, `registry`, `contributions`, ... +26 more |
+| `feature_route:feature-routes-automation-api-mcp` | `feature_route` | `docs/agent_maps/feature_routes/automation_api_mcp.md` | 21 | 5 | - | `automation`, `api`, `and`, `mcp`, `server`, `corex`, `agent`, `corexclient`, `graph`, `apply`, ... +83 more |
 | `feature_route:feature-routes-clipboard-undo-redo-mutation-history` | `feature_route` | `docs/agent_maps/feature_routes/clipboard_undo_redo_mutation_history.md` | 15 | 10 | - | `clipboard`, `undo`, `redo`, `and`, `mutation`, `history`, `node`, `editor`, `qml`, `graph`, ... +78 more |
 | `feature_route:feature-routes-core-integrations-file-process-email-spreadsheet` | `feature_route` | `docs/agent_maps/feature_routes/core_integrations_file_process_email_spreadsheet.md` | 15 | 6 | - | `core`, `integrations`, `file`, `process`, `email`, `spreadsheet`, `node`, `editor`, `nodes`, `builtin`, ... +24 more |
 | `feature_route:feature-routes-durable-node-linking` | `feature_route` | `docs/agent_maps/feature_routes/durable_node_linking.md` | 27 | 11 | 10 | `durable`, `node`, `linking`, `corex`, `link`, `editor`, `graph`, `links`, `common`, `optimization`, ... +121 more |
@@ -29,7 +30,7 @@ This index is the machine-readable companion to `docs/agent_maps/`. Use it to fi
 | `feature_route:feature-routes-floating-toolbar-checked-states` | `feature_route` | `docs/agent_maps/feature_routes/floating_toolbar_checked_states.md` | 15 | 10 | 10 | `floating`, `toolbar`, `and`, `checked`, `states`, `execution`, `graph`, `changes`, `tests`, `test`, ... +88 more |
 | `feature_route:feature-routes-graph-actions-and-context-menus` | `feature_route` | `docs/agent_maps/feature_routes/graph_actions_and_context_menus.md` | 23 | 12 | 10 | `graph`, `actions`, `and`, `context`, `menus`, `node`, `editor`, `shell`, `action`, `contracts`, ... +128 more |
 | `feature_route:feature-routes-graph-canvas-feature-recipes` | `feature_route` | `docs/agent_maps/feature_routes/graph_canvas_feature_recipes.md` | 10 | 4 | 5 | `graph`, `canvas`, `feature`, `recipes`, `tests`, `test`, `qml`, `drill`, `budget`, `surface`, ... +68 more |
-| `feature_route:feature-routes-graph-canvas-input-layers` | `feature_route` | `docs/agent_maps/feature_routes/graph_canvas_input_layers.md` | 14 | 8 | 9 | `graph`, `canvas`, `input`, `layers`, `node`, `editor`, `qml`, `components`, `graphcanvasinputlayers`, `graphcanvassurfaceinteractionhost`, ... +54 more |
+| `feature_route:feature-routes-graph-canvas-input-layers` | `feature_route` | `docs/agent_maps/feature_routes/graph_canvas_input_layers.md` | 14 | 8 | 9 | `graph`, `canvas`, `input`, `layers`, `node`, `editor`, `qml`, `components`, `graphcanvasinputlayers`, `graphcanvassurfaceinteractionhost`, ... +58 more |
 | `feature_route:feature-routes-graph-scene-payload-and-projection` | `feature_route` | `docs/agent_maps/feature_routes/graph_scene_payload_and_projection.md` | 16 | 20 | 1 | `graph`, `scene`, `payload`, `and`, `projection`, `bounded`, `rich`, `preview`, `settings`, `band`, ... +210 more |
 | `feature_route:feature-routes-graphics-settings-themes-preferences` | `feature_route` | `docs/agent_maps/feature_routes/graphics_settings_themes_preferences.md` | 17 | 14 | 5 | `graphics`, `settings`, `themes`, `and`, `preferences`, `node`, `editor`, `app`, `dialogs`, `dialog`, ... +148 more |
 | `feature_route:feature-routes-group-backdrops-peek-membership` | `feature_route` | `docs/agent_maps/feature_routes/group_backdrops_peek_membership.md` | 13 | 7 | 5 | `group`, `backdrops`, `peek`, `and`, `membership`, `node`, `editor`, `graph`, `backdrop`, `geometry`, ... +56 more |
