@@ -18,9 +18,10 @@ DOMAIN = "run"
 RUN_STATUS_RESULT = object_schema(
     {
         "idle": boolean_schema(description="No active run/submission and no pending auto-run"),
-        "engine_state": string_schema(enum=("ready", "running", "paused", "error")),
+        "engine_state": string_schema(enum=("ready", "preparing", "running", "paused", "error")),
         "active_run_id": string_schema(),
         "outcome": string_schema(description="completed | failed | stopped | running | idle"),
+        "started": boolean_schema(description="run.start only: whether a submission was created"),
         "running_node_ids": array_schema(NODE_ID),
         "completed_node_ids": array_schema(NODE_ID),
         "failed_node_ids": array_schema(NODE_ID),

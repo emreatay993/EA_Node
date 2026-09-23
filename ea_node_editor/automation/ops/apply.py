@@ -32,9 +32,16 @@ APPLY = OpSpec(
     domain=DOMAIN,
     summary="Apply up to 500 graph ops as ONE undo step; later ops reference earlier results with $id (or $id.field).",
     description=(
-        "All ops are validated before anything mutates. atomic=true (default) restores the workspace snapshot "
-        "if any op fails. $ref tokens are only resolved in each op's declared ref_fields (never inside markdown "
-        "or titles); write $$ for a literal dollar. Staged files and artifact-folder renames do not roll back."
+        "All ops are validated before anything mutates (unknown op names -> UNKNOWN_OP; every other static "
+        "problem -> one INVALID_PARAMS listing ops[i].<path> entries). $ref tokens are only resolved in each op's "
+        "declared ref_fields (never inside markdown or titles); $id is the earlier op's primary id, $id.field / "
+        "$id.list.0 read nested result fields; write $$ for a literal dollar. atomic=true (default): the first "
+        "failing op restores the pre-batch workspace snapshot, scope and selection, no undo entry is recorded, and "
+        "the call raises APPLY_FAILED (details: failed_index, failed_op, error, rolled_back=true, results so far). "
+        "atomic=false: earlier ops are kept as one undo step and the call returns ok with failed_index >= 0 and the "
+        "failing row's error in results; it still raises APPLY_FAILED when the very first op fails. The batch runs "
+        "in the active workspace and the open scope; scope.navigate inside a batch changes the scope for later ops. "
+        "Staged files and artifact-folder renames do not roll back."
     ),
     params=object_schema(
         {
