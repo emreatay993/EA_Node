@@ -180,17 +180,17 @@ class PortTypePresentationQmlTests(PassiveGraphSurfaceHostTestBase):
                 waiting = QColor("#E8A838").name()
                 invalid = QColor("#FF543E").name()
                 assert QColor(normal_dot.property("portColor")).name() == data_accent
-                assert QColor(QQmlProperty.read(normal_dot, "border.color")).name() == data_accent
-                assert QColor(QQmlProperty.read(input_dot, "border.color")).name() == invalid
+                assert QColor(QQmlProperty.read(normal_dot, "borderColor")).name() == data_accent
+                assert QColor(QQmlProperty.read(input_dot, "borderColor")).name() == invalid
                 assert bool(input_dot.property("compatibleTargetState")) is True
-                assert QColor(QQmlProperty.read(input_ring, "border.color")).name() == invalid
+                assert QColor(QQmlProperty.read(input_ring, "borderColor")).name() == invalid
                 assert float(input_ring.property("width")) > float(input_dot.property("width"))
-                assert QColor(QQmlProperty.read(availability_dot, "border.color")).name() == waiting
+                assert QColor(QQmlProperty.read(availability_dot, "borderColor")).name() == waiting
                 assert bool(availability_dot.property("compatibleTargetState")) is False
-                assert QColor(QQmlProperty.read(availability_dot, "border.color")).name() != invalid
-                assert QColor(output_dot.property("color")).name() == QColor("#67D487").name()
-                assert QColor(QQmlProperty.read(output_dot, "border.color")).name() == data_accent
-                assert QColor(QQmlProperty.read(output_dot, "border.color")).name() != invalid
+                assert QColor(QQmlProperty.read(availability_dot, "borderColor")).name() != invalid
+                assert QColor(output_dot.property("fillColor")).name() == QColor("#67D487").name()
+                assert QColor(QQmlProperty.read(output_dot, "borderColor")).name() == data_accent
+                assert QColor(QQmlProperty.read(output_dot, "borderColor")).name() != invalid
 
                 input_accessible = str(input_mouse.property("accessiblePortText"))
                 output_accessible = str(output_mouse.property("accessiblePortText"))
@@ -274,7 +274,7 @@ class PortTypePresentationQmlTests(PassiveGraphSurfaceHostTestBase):
                 input_dot = named_item(host, "graphNodeInputPortDot", "payload")
                 initial = QColor(input_dot.property("portColor")).name()
                 assert initial == QColor(graph_theme_bridge.port_kind_palette["data"]).name()
-                assert QColor(QQmlProperty.read(input_dot, "border.color")).name() == initial
+                assert QColor(QQmlProperty.read(input_dot, "borderColor")).name() == initial
             finally:
                 dispose_host_window(host, window)
                 engine.deleteLater()

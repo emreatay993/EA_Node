@@ -2216,7 +2216,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
                         str(compatible_dot.property("propertyKey")),
                     )
                     assert float(ring.property("width")) > float(compatible_dot.property("width"))
-                    assert float(QQmlProperty.read(ring, "border.width")) > 0.0
+                    assert float(QQmlProperty.read(ring, "borderWidth")) > 0.0
                 if incompatible_dot is not None:
                     assert bool(incompatible_dot.property("compatibleTargetState")) is False
                 canvas.finishPortWireDrag(

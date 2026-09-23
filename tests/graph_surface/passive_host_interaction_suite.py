@@ -1152,7 +1152,9 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     assert abs(center.x() - card.width()) < 0.1
                     edges = {item["edge_id"]: item for item in scene.edges_model}
                     edge = edges[edge_id]
-                    assert edge["source_anchor_bounds"]["width"] == card.width()
+                    assert edge["source_anchor_bounds"]["width"] == card.width(), (
+                        edge["source_anchor_bounds"]["width"], card.width(),
+                        card.property("settingsGroupAnimationRunning"), card.property("_settingsGroupAnimationArmed"))
                     port = next(port for port in payload["ports"] if port["key"] == "image")
                     point = variant_value(canvas._scenePortPoint(payload, port, -1, 0))
                     assert abs(point["x"] - (payload["x"] + center.x())) < 0.1
@@ -1327,7 +1329,9 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
 
                 def assert_finished():
                     QTest.qWait(220)
-                    assert not card.property("settingsGroupAnimationRunning")
+                    assert not card.property("settingsGroupAnimationRunning"), (
+                        card.width(), card.height(), variant_value(card.property("nodeData"))["width"],
+                        variant_value(card.property("nodeData"))["height"], node.expanded_settings_group_ids)
                     assert not card.property("_settingsGroupAnimationArmed")
                     assert card.property("_settingsGroupGeometryNodeId") == ""
                     assert signal_id not in variant_value(canvas.property("liveNodeGeometry"))

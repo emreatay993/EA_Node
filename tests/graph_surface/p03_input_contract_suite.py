@@ -98,7 +98,7 @@ class GraphSurfaceDefaultPropertyContractTests(GraphSurfaceInputContractTestBase
                 row = named_item(host, "graphNodeInputPortRow", key)
                 dot = named_item(host, "graphNodeInputPortDot", key)
                 assert bool(row.property("defaultEditorVisible")) is False, key
-                assert QColor(QQmlProperty.read(dot, "border.color")).name() == QColor("#67D487").name()
+                assert QColor(QQmlProperty.read(dot, "borderColor")).name() == QColor("#67D487").name()
 
             editor_rects = variant_list(ports_layer.property("embeddedInteractiveRects"))
             assert len(editor_rects) == len(editor_facts), editor_rects
