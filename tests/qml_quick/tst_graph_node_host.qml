@@ -518,31 +518,35 @@ TestCase {
             "locked_input": t21RowTopology(lockedInput),
             "locked_output": t21RowTopology(lockedOutput)
         }
+        // Qt's offscreen font engine gives the named Text children different
+        // intrinsic sizes. Keep exact geometry baselines for both engines;
+        // topology, item counts, interactive rectangles, and parents are shared.
+        var offscreen = Qt.platform.pluginName === "offscreen"
         var expected = {
             "unlocked_input": {
                 "topology_hash": "5866be9b",
-                "geometry_hash": "8da43bfd",
+                "geometry_hash": offscreen ? "fbd3cbcb" : "8da43bfd",
                 "qquickitem_count": 35,
                 "loader_count": 1,
                 "canvas_count": 1
             },
             "unlocked_output": {
                 "topology_hash": "dabaa113",
-                "geometry_hash": "40ae953b",
+                "geometry_hash": offscreen ? "f08ad0fc" : "40ae953b",
                 "qquickitem_count": 20,
                 "loader_count": 1,
                 "canvas_count": 0
             },
             "locked_input": {
                 "topology_hash": "038c372f",
-                "geometry_hash": "5c286d2e",
+                "geometry_hash": offscreen ? "b63a7b9c" : "5c286d2e",
                 "qquickitem_count": 24,
                 "loader_count": 0,
                 "canvas_count": 1
             },
             "locked_output": {
                 "topology_hash": "12359bd3",
-                "geometry_hash": "2d679328",
+                "geometry_hash": offscreen ? "c94b9867" : "2d679328",
                 "qquickitem_count": 21,
                 "loader_count": 1,
                 "canvas_count": 1
