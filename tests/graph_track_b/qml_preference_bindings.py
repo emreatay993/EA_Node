@@ -1495,9 +1495,6 @@ class GraphCanvasQmlPreferenceBindingTests(
         self.assertEqual(data_input_label.property("font").weight(), int(typography.property("portLabelFontWeight")))
         self.assertEqual(result_output_label.property("font").weight(), int(typography.property("portLabelFontWeight")))
 
-    def test_node_execution_visualization_graph_canvas_host_chrome_follows_bridge_state_priority(self) -> None:
-        self._assert_persistent_node_elapsed_footer_rendering()
-
     def test_persistent_node_elapsed_footer_graph_canvas_host_renders_live_and_cached_timing_states(self) -> None:
         self._assert_persistent_node_elapsed_footer_rendering()
 

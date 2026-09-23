@@ -1100,14 +1100,12 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         selected_halo = node_card.findChild(QObject, "graphNodeSelectedHalo")
         elapsed_timer = node_card.findChild(QObject, "graphNodeElapsedTimer")
         failure_badge = node_card.findChild(QObject, "graphNodeFailureBadge")
-        input_port_dot = node_card.findChild(QObject, "graphNodeInputPortDot")
-        output_port_dot = node_card.findChild(QObject, "graphNodeOutputPortDot")
+        input_port_dot = _named_child_items(node_card, "graphNodeInputPortDot")[0]
+        output_port_dot = _named_child_items(node_card, "graphNodeOutputPortDot")[0]
         self.assertIsNotNone(background_layer)
         self.assertIsNotNone(selected_halo)
         self.assertIsNotNone(elapsed_timer)
         self.assertIsNotNone(failure_badge)
-        self.assertIsNotNone(input_port_dot)
-        self.assertIsNotNone(output_port_dot)
         for removed_name in (
             "graphNodeFailureHalo",
             "graphNodeFailurePulseHalo",
@@ -1128,8 +1126,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertEqual(dict(self.canvas.property("runningNodeLookup")), {})
         self.assertEqual(dict(self.canvas.property("completedNodeLookup")), {})
         self.assertFalse(bool(elapsed_timer.property("visible")))
-        input_port_fill = _color_name(input_port_dot.property("color"))
-        output_port_fill = _color_name(output_port_dot.property("color"))
+        input_port_fill = _color_name(input_port_dot.property("fillColor"))
+        output_port_fill = _color_name(output_port_dot.property("fillColor"))
         self.assertEqual(input_port_fill, _color_name(node_card.property("themeSurfaceColor")))
         self.assertEqual(output_port_fill, _color_name("#67D487"))
 
@@ -1155,8 +1153,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertEqual(_color_name(node_card.property("surfaceColor")), _color_name("#1F5369"))
         self.assertEqual(_color_name(node_card.property("bodyGradientEndColor")), _color_name("#1A485B"))
         self.assertEqual(_color_name(background_layer.property("effectiveOutlineColor")), _color_name("#00A5E4"))
-        self.assertEqual(_color_name(input_port_dot.property("color")), input_port_fill)
-        self.assertEqual(_color_name(output_port_dot.property("color")), output_port_fill)
+        self.assertEqual(_color_name(input_port_dot.property("fillColor")), input_port_fill)
+        self.assertEqual(_color_name(output_port_dot.property("fillColor")), output_port_fill)
 
         canvas_state_bridge.clear_selected_node_state()
         wait_for_condition_or_raise(
@@ -1247,8 +1245,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             app=self.app,
             timeout_message="Timed out waiting for warning chrome on graph canvas host.",
         )
-        self.assertEqual(_color_name(input_port_dot.property("color")), input_port_fill)
-        self.assertEqual(_color_name(output_port_dot.property("color")), output_port_fill)
+        self.assertEqual(_color_name(input_port_dot.property("fillColor")), input_port_fill)
+        self.assertEqual(_color_name(output_port_dot.property("fillColor")), output_port_fill)
 
         canvas_state_bridge.set_failed_node_state(node_id)
         wait_for_condition_or_raise(
@@ -1270,8 +1268,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         # at the error weight, not only recoloured.
         self.assertGreaterEqual(float(background_layer.property("effectiveBorderWidth")), 2.4)
         self.assertNotEqual(border_signature()[0], idle_key[0])
-        self.assertEqual(_color_name(input_port_dot.property("color")), input_port_fill)
-        self.assertEqual(_color_name(output_port_dot.property("color")), output_port_fill)
+        self.assertEqual(_color_name(input_port_dot.property("fillColor")), input_port_fill)
+        self.assertEqual(_color_name(output_port_dot.property("fillColor")), output_port_fill)
 
         canvas_state_bridge.set_selected_node_state(node_id)
         wait_for_condition_or_raise(
@@ -1284,8 +1282,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertEqual(_color_name(background_layer.property("effectiveOutlineColor")), _color_name("#00A5E4"))
         self.assertTrue(bool(failure_badge.property("visible")))
         self.assertFalse(bool(selected_halo.property("visible")))
-        self.assertEqual(_color_name(input_port_dot.property("color")), input_port_fill)
-        self.assertEqual(_color_name(output_port_dot.property("color")), output_port_fill)
+        self.assertEqual(_color_name(input_port_dot.property("fillColor")), input_port_fill)
+        self.assertEqual(_color_name(output_port_dot.property("fillColor")), output_port_fill)
 
     def test_toggle_minimap_expanded_routes_through_bridge_slot(self) -> None:
         self.assertEqual(self.canvas_source.minimap_update_history, [])
