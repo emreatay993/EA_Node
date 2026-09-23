@@ -968,3 +968,6 @@ def test_mcp_extra_is_optional_dev_only_and_excluded_from_frozen_profiles() -> N
     assert pyproject["project"]["scripts"]["corex-mcp"] == "ea_node_editor.automation.mcp_server:main"
     spec_text = (REPO_ROOT / "ea_node_editor.spec").read_text(encoding="utf-8")
     assert '"mcp",' in spec_text
+    # Op specs and handlers are imported by name at runtime; frozen builds must collect them.
+    assert 'collect_submodules("ea_node_editor.automation.ops")' in spec_text
+    assert 'collect_submodules("ea_node_editor.ui.shell.automation.handlers")' in spec_text

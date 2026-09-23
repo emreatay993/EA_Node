@@ -42,7 +42,9 @@ First-pass limits:
 - A failed run refocuses the canvas on the failed node (existing UI behaviour).
 - `graph.apply` rollback cannot undo staged files or the title-driven artifact
   folder rename.
-- Frozen (PyInstaller) profiles do not ship the `[mcp]` extra.
+- Frozen (PyInstaller) builds include the in-app server (`--automation`) but
+  not the `[mcp]` extra: run `corex-mcp` from a Python environment and use
+  `attach`.
 
 ## Setup
 
@@ -94,6 +96,9 @@ first tool call, so a private spawn (10-20 s) never trips a client's startup
 timeout. When no instance is reachable the tool call returns `NOT_FOUND` with a
 hint instead of the server failing; when COREX closes, the next tool call
 reconnects (and, in `auto` or `private` mode, spawns a new instance).
+One `corex-mcp` session sends one request at a time, so a long
+`run_status(wait=true)` delays later tool calls, including `run_control(stop)`;
+use a short `timeout_s` and poll when you may need to stop a run.
 
 ### Register with Codex
 
@@ -324,6 +329,13 @@ room for edge labels and the decision diamond. Keep loops on their own row and
 let `layout.arrange` tidy alignment afterwards. `view.set_camera(frame=all)`
 frames everything before a screenshot.
 
+Default shape heights differ (start and end 78, process 84, input/output and
+predefined process 94, document 104, decision and database 128; read
+`catalog.describe_node_type` `default_size`). Nodes placed at the same `y`
+align their top edges, so their side ports sit at different heights and
+horizontal connectors get small jogs. For straight rows place each node at
+`y = row_center - height / 2`.
+
 ### Error handling
 
 Every failure is `{code, message, hint, details, retryable}`; the Python client
@@ -331,7 +343,8 @@ raises `AutomationOpError` with the same fields. Read `hint` first.
 
 | Code | What to do |
 | --- | --- |
-| `APP_BUSY`, `APP_BUSY_MODAL`, `TIMEOUT` | Retryable. Wait briefly (ask the user to close the dialog for `APP_BUSY_MODAL`), then resend. |
+| `APP_BUSY`, `APP_BUSY_MODAL` | Retryable. Wait briefly (ask the user to close the dialog for `APP_BUSY_MODAL`), then resend. `app.status` stays answerable while a dialog is open. |
+| `TIMEOUT` | Resend only when `retryable` is true (the request expired in COREX's queue, `details.executed=false`). A client-side timeout (`retryable=false`, `details.client_side=true`) means COREX may still finish the op: check `app.status`, `graph.get` or `app.history` first. |
 | `INVALID_PARAMS`, `UNKNOWN_OP`, `UNKNOWN_NODE_TYPE` | Fix the request; `details.problems` / `details.suggestions` name the issue. |
 | `NOT_FOUND`, `WRONG_SCOPE`, `WRONG_WORKSPACE` | Refresh ids with `graph.get` / `workspace.list`, navigate or activate, then retry. |
 | `PORT_INCOMPATIBLE`, `NOT_PASSIVE`, `PROPERTY_LOCKED_BY_PORT` | Inspect the node with `graph.get_node` and choose another port, op, or unexpose the port. |
@@ -1377,7 +1390,7 @@ mode=views uses the canvas export pipeline (node shadows are disabled during the
 | `view_ids` | `array<string>` | no |  | Views to render; defaults to the active view |
 | `scale` | `integer` | no | `1` | >= 1 and \<= 4 |
 | `crop_to_content` | `boolean` | no | `true` |  |
-| `output_dir` | `string` | no |  | Directory for PNG files; defaults to a per-instance temp folder |
+| `output_dir` | `string` | no |  | Directory for PNG files. Default: a temp folder; for a spawned instance, inside its session folder, which its launcher deletes on close. Pass output_dir to keep files |
 | `filename_stem` | `string` | no |  | Optional file stem for mode=window |
 | `inline` | `boolean` | no | `true` | Include png_base64 in the result |
 
@@ -1460,7 +1473,7 @@ Example:
 | `SAVE_FAILED` | no | Check the path is writable and ends with .cxproj, then retry project.save. |
 | `OPEN_FAILED` | no | Check the path exists and is a readable .cxproj, then retry project.open. |
 | `CAPTURE_FAILED` | no | Ensure the canvas has content and the app is idle, then retry capture.screenshot. |
-| `RUN_ACTIVE` | no | Wait with run.status(wait=true) or stop the run with run.control(stop) before mutating the graph. |
+| `RUN_ACTIVE` | no | A run (or the auto-run your edits queued) is in flight: wait with run.status(wait=true) or stop it with run.control(stop), then start again. |
 | `TIMEOUT` | yes | Retry with a larger timeout_s, or poll run.status without wait. |
 | `APPLY_FAILED` | no | Fix the failing op in the batch; atomic batches were rolled back. |
 | `APP_BUSY` | yes | The app is saving or loading a project; retry shortly. |
@@ -1485,7 +1498,7 @@ Example:
 | Offscreen screenshots show empty web / 3D panels | `fidelity=offscreen_layout`: those surfaces are not rendered offscreen. | Use `private` with `headless=False`, or attach to a visible instance. |
 | `Popen.pid` differs from `corex_status.pid` on Windows | `bootstrap` re-execs into the venv interpreter, so the child pid changes. | Expected. The launcher sets `EA_NODE_EDITOR_BOOTSTRAPPED=1` and matches instances by `instance_id`, never by pid. Attach by `instance_id` when several instances run. |
 | `NOT_IMPLEMENTED` | The op is declared in the catalog but this build has no handler for it. | Update the checkout; the guide's op reference lists what the catalog declares. |
-| `TIMEOUT` from `run.start(wait=true)` | The workflow took longer than `timeout_s`. | Poll `run.status` without `wait`, or raise both the op `timeout_s` and the client `timeout_s`. |
+| `timed_out=true` from `run.start(wait=true)` or `run.status(wait=true)` | The run outlasted `timeout_s`; the call returns the current status instead of failing. | Poll `run.status` again, or raise `timeout_s` (the client waits `timeout_s` plus a margin). |
 | `APP_SHUTTING_DOWN` / connection lost | COREX closed or the socket dropped. | Reconnect with `CorexClient.connect()` or launch a new instance; the old client stays disconnected. |
 | `PROJECT_DIRTY` on `project.open` / `workspace.close` / `app.quit` | Unsaved changes. | Save first (`project.save`) or pass `discard_unsaved=true` deliberately. |
 | Private instance keeps running after a crash | The script exited without `close()`. | Always use `with CorexClient.launch(...) as corex:`; stray instances vanish from discovery when their process exits, and their temp session dirs live under the system temp folder (`corex-automation-*`). |

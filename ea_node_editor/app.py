@@ -215,6 +215,22 @@ def package_smoke(ctx):
             os.environ["APPDATA"] = previous_appdata
 
 
+def _start_automation_server(window: Any) -> Any:
+    """Start the opt-in automation server; a failure must never abort startup.
+
+    This runs inside the startup QTimer slot, where an uncaught exception makes PyQt6
+    abort the whole process, so failures (port in use, unwritable discovery folder)
+    are logged and COREX keeps running without automation.
+    """
+    from ea_node_editor.ui.shell.automation.service import start_automation_if_enabled
+
+    try:
+        return start_automation_if_enabled(window)
+    except Exception:  # noqa: BLE001 - keep the app alive; the log explains the failure
+        logger.exception("Automation server failed to start; continuing without automation.")
+        return None
+
+
 def run() -> int:
     with phase("run.mp.freeze_support"):
         mp.freeze_support()
@@ -308,9 +324,7 @@ def run() -> int:
             # Automation API (opt-in via --automation): started after the splash hands
             # off, outside the composition package; the service stops itself on
             # aboutToQuit/atexit. Disabled gate -> None.
-            from ea_node_editor.ui.shell.automation.service import start_automation_if_enabled
-
-            state["automation"] = start_automation_if_enabled(window)
+            state["automation"] = _start_automation_server(window)
             if is_autoquit():
                 QTimer.singleShot(500, lambda: (summary(), app.quit()))
 

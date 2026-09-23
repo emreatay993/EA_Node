@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +20,8 @@ AUTOMATION_INSTANCE_ID_FLAG = "--automation-instance-id"
 _AUTOMATION_ENV_ENABLED = "COREX_AUTOMATION_ENABLED"
 _AUTOMATION_ENV_PORT = "COREX_AUTOMATION_PORT"
 _AUTOMATION_ENV_INSTANCE_ID = "COREX_AUTOMATION_INSTANCE_ID"
+# Same rule as ea_node_editor.automation.discovery (the id names the discovery file).
+_AUTOMATION_INSTANCE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 class AutomationFlagError(ValueError):
@@ -67,6 +70,11 @@ def extract_automation_flags(argv: list[str]) -> tuple[list[str], dict[str, str]
             else:
                 if not value:
                     raise AutomationFlagError(f"{key} requires a non-empty id")
+                if not _AUTOMATION_INSTANCE_ID_RE.match(value):
+                    raise AutomationFlagError(
+                        f"{key} must be 1-128 characters of letters, digits, '.', '_' or '-' "
+                        f"and start with a letter or digit, got {value!r}"
+                    )
                 env[_AUTOMATION_ENV_INSTANCE_ID] = value
             enabled = True
             index += 1

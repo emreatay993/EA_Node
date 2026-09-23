@@ -222,6 +222,25 @@ class GuardTests(_BridgeTestCase):
         self.assertTrue(_wait(bridge.submit(_request(READ_OP))).ok)
         self.assertEqual(self.calls, [READ_OP])
 
+    def test_app_status_is_answered_while_a_modal_dialog_is_open(self) -> None:
+        # Agents are told to check corex_status.busy; the modal guard must not hide it.
+        calls: list[str] = []
+
+        def status_handler(context, params):  # noqa: ANN001, ARG001
+            calls.append("app.status")
+            return {"busy": {"modal_dialog": True}}
+
+        handlers = dict(self.handlers())
+        handlers["app.status"] = status_handler
+        bridge = self.make_bridge(handlers)
+        dialog = _dialog("Unsaved Changes")
+        with patch.object(QApplication, "activeModalWidget", return_value=dialog):
+            status = _wait(bridge.submit(_request("app.status")))
+            blocked = _wait(bridge.submit(_request(READ_OP)))
+        self.assertTrue(status.ok, status.error)
+        self.assertEqual(calls, ["app.status"])
+        self.assertFailure(blocked, APP_BUSY_MODAL)
+
     def test_active_popup_widget_blocks_with_app_busy_modal(self) -> None:
         bridge = self.make_bridge(self.handlers())
         popup = _dialog("Context Menu")

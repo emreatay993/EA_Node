@@ -87,7 +87,7 @@ _DEFAULT_HINTS: dict[str, str] = {
     SAVE_FAILED: "Check the path is writable and ends with .cxproj, then retry project.save.",
     OPEN_FAILED: "Check the path exists and is a readable .cxproj, then retry project.open.",
     CAPTURE_FAILED: "Ensure the canvas has content and the app is idle, then retry capture.screenshot.",
-    RUN_ACTIVE: "Wait with run.status(wait=true) or stop the run with run.control(stop) before mutating the graph.",
+    RUN_ACTIVE: "A run (or the auto-run your edits queued) is in flight: wait with run.status(wait=true) or stop it with run.control(stop), then start again.",
     TIMEOUT: "Retry with a larger timeout_s, or poll run.status without wait.",
     APPLY_FAILED: "Fix the failing op in the batch; atomic batches were rolled back.",
     APP_BUSY: "The app is saving or loading a project; retry shortly.",

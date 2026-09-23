@@ -170,6 +170,11 @@ class _DialogWatchdog:
             logger.exception("automation dialog watchdog failed")
 
 
+# Read-only ops that never open dialogs and that agents use to *see* a busy app
+# (``app.status`` reports ``busy.modal_dialog``); everything else waits for the dialog.
+MODAL_EXEMPT_OPS: frozenset[str] = frozenset({"app.status"})
+
+
 class AutomationBridge(QObject):
     """Serialises automation requests onto the GUI thread (see module docstring)."""
 
@@ -346,9 +351,12 @@ class AutomationBridge(QObject):
         host = self._context.host
         if host is not None and host._shell_teardown_started:
             return AutomationOpError(APP_SHUTTING_DOWN, "COREX is shutting down.", details={"op": request.op})
-        modal = QApplication.activeModalWidget()
-        popup = QApplication.activePopupWidget() if modal is None else None
-        blocker = modal if modal is not None else popup
+        blocker = None
+        modal = None
+        if request.op not in MODAL_EXEMPT_OPS:
+            modal = QApplication.activeModalWidget()
+            popup = QApplication.activePopupWidget() if modal is None else None
+            blocker = modal if modal is not None else popup
         if blocker is not None:
             kind = "modal dialog" if modal is not None else "popup"
             return AutomationOpError(

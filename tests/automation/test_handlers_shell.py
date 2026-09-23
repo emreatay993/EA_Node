@@ -139,12 +139,11 @@ class _ShellHandlerCase(unittest.TestCase):
     # ------------------------------------------------------------------ helpers
 
     def refresh_context(self) -> None:
-        """Rebuild the context from the live host.
+        """Rebuild the context from the live host (fresh helpers between phases).
 
-        Installing a project (open / new) replaces ``host.model`` and
-        ``host.workspace_manager``; ``AutomationContext`` currently captures both at
-        build time, so tests rebuild it after every project replacement (see
-        ``test_context_follows_project_replacement``).
+        ``AutomationContext`` reads ``model`` / ``workspace_manager`` / ``registry`` live
+        from the host, so this is hygiene, not a correctness requirement
+        (``test_context_follows_project_replacement`` proves the live lookup).
         """
         self.context = AutomationContext.from_host(self.window)
 
@@ -476,12 +475,10 @@ class ProjectHandlerTests(_ShellHandlerCase):
     def test_context_follows_project_replacement(self) -> None:
         # The automation service builds ONE context at startup, so it must keep
         # targeting the live model after project.open / new replace host.model and
-        # host.workspace_manager. Skips (instead of failing) until context.py resolves
-        # those fields from the host; then it becomes a real regression assertion.
+        # host.workspace_manager.
         service_context = self.context
         call(service_context, "project.open", {"new": True, "discard_unsaved": True})
-        if service_context.model is not self.window.model:
-            self.skipTest("AutomationContext pins host.model/workspace_manager at build time (coordinator fix in context.py)")
+        self.assertIs(service_context.model, self.window.model)
         node_id = call(service_context, "node.add", {"type_id": PROCESS, "x": 0, "y": 0})["node_id"]
         live_workspace_id = self.window.workspace_manager.active_workspace_id()
         self.assertIn(node_id, self.window.model.project.workspaces[live_workspace_id].nodes)
@@ -594,7 +591,11 @@ class CaptureHandlerTests(_ShellHandlerCase):
         presenter.set_graphics_node_shadow(True)
         self.assertTrue(presenter.graphics_node_shadow)
         output_dir = self.tmp_path / "captures"
-        result = call(self.context, "capture.screenshot", {"output_dir": str(output_dir)})
+        # The offscreen shadow toggle applies to this window only: app_preferences.json
+        # is shared with the user's own settings and other COREX instances.
+        with patch.object(self.window.app_preferences_controller, "persist") as persist:
+            result = call(self.context, "capture.screenshot", {"output_dir": str(output_dir)})
+        persist.assert_not_called()
         self.assertEqual(result["mode"], "views")
         self.assertEqual(result["fidelity"], "offscreen_layout")
         self.assertEqual(result["failures"], [])

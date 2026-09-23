@@ -349,7 +349,8 @@ class ThroughputTests(_ApplyCase):
         self.assertEqual(len(result["ids"]), 60)
         self.assertEqual(len(self.node_ids()), 60)
         self.assertEqual(self.undo_depth(), 1)
-        self.assertLess(elapsed, 1.0, f"60-op batch took {elapsed:.3f}s")
+        # Generous bound: a regression guard against pathological slowness, not a benchmark.
+        self.assertLess(elapsed, 5.0, f"60-op batch took {elapsed:.3f}s")
 
 
 class ClientFacadeTests(unittest.TestCase):

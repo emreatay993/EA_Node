@@ -421,6 +421,10 @@ if not full_profile_enabled:
 hiddenimports = collect_submodules("ea_node_editor.nodes.builtins")
 hiddenimports += collect_submodules("ea_node_editor.addons.mars")
 hiddenimports += collect_submodules("ea_node_editor.addons.tabular_data")
+# The automation API imports its op specs and GUI handlers by name (importlib), which
+# PyInstaller cannot follow; collect them so --automation works in frozen builds.
+hiddenimports += collect_submodules("ea_node_editor.automation.ops")
+hiddenimports += collect_submodules("ea_node_editor.ui.shell.automation.handlers")
 hiddenimports += [
     "corex",
     "PyQt6.QtPdf",

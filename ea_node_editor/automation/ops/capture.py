@@ -41,7 +41,7 @@ SCREENSHOT = OpSpec(
             "view_ids": array_schema(string_schema(), "Views to render; defaults to the active view"),
             "scale": number_schema(minimum=1, maximum=4, default=1, integer=True),
             "crop_to_content": boolean_schema(default=True),
-            "output_dir": string_schema("Directory for PNG files; defaults to a per-instance temp folder"),
+            "output_dir": string_schema("Directory for PNG files. Default: a temp folder; for a spawned instance, inside its session folder, which its launcher deletes on close. Pass output_dir to keep files"),
             "filename_stem": string_schema("Optional file stem for mode=window"),
             "inline": boolean_schema("Include png_base64 in the result", default=True),
         },

@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import QApplication, QWidget
 
 from ea_node_editor.automation.errors import CAPTURE_FAILED, NOT_FOUND, AutomationOpError
 from ea_node_editor.automation.op_model import Deferred
+from ea_node_editor.settings import SESSION_STATE_DIR_ENV_VAR
 from ea_node_editor.ui.canvas_view_export import CanvasViewExportError
 from ea_node_editor.ui.canvas_view_export_compositor import CanvasViewExportCompositeError
 from ea_node_editor.ui.shell.automation.context import AutomationContext
@@ -39,7 +40,14 @@ _default_capture_dir: dict[str, Path] = {}
 def default_capture_dir() -> Path:
     path = _default_capture_dir.get("path")
     if path is None or not path.is_dir():
-        path = Path(tempfile.mkdtemp(prefix=CAPTURE_DIR_PREFIX))
+        state_dir = str(os.environ.get(SESSION_STATE_DIR_ENV_VAR) or "").strip()
+        if state_dir:
+            # Spawned instances: keep captures inside the per-instance session folder so
+            # they are removed with it when the instance quits.
+            path = Path(state_dir) / "automation_captures"
+            path.mkdir(parents=True, exist_ok=True)
+        else:
+            path = Path(tempfile.mkdtemp(prefix=CAPTURE_DIR_PREFIX))
         _default_capture_dir["path"] = path
     return path
 
@@ -126,11 +134,17 @@ def _capture_views(context: AutomationContext, output_dir: Path, params: Mapping
     scale = int(params.get("scale", 1))
     crop_to_content = bool(params.get("crop_to_content", True))
     presenter = context.workspace_presenter
+    host = context.require_shell("capture.screenshot")
+    preferences = host.app_preferences_controller
     shadow_was_on = bool(presenter.graphics_node_shadow)
     try:
         if shadow_was_on:
             # Offscreen, passive bodies do not render under the QML drop shadow (T00 spike).
-            presenter.set_graphics_node_shadow(False)
+            # Apply the change to this window only; never persist it to app_preferences.json,
+            # which the user's own settings and other COREX instances share.
+            graphics = preferences.graphics_settings()  # already a deep copy
+            graphics.setdefault("canvas", {})["node_shadow"] = False
+            preferences.apply_graphics_settings_to_host(host, graphics)
         settle_events()
         result = context.canvas_export.capture_canvas_view_pngs(
             view_ids=view_ids,
@@ -146,7 +160,7 @@ def _capture_views(context: AutomationContext, output_dir: Path, params: Mapping
         ) from exc
     finally:
         if shadow_was_on:
-            presenter.set_graphics_node_shadow(True)
+            preferences.apply_graphics_settings_to_host(host)
     images = [
         _image_row(
             Path(export.path),

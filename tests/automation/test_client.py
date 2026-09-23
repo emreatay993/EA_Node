@@ -313,7 +313,9 @@ class CorexClientTests(unittest.TestCase):
                 client.call("slow.op", {"sleep_s": 0.6}, timeout_s=0.1)
         elapsed = time.monotonic() - started
         self.assertEqual(raised.exception.code, errors.TIMEOUT)
-        self.assertTrue(raised.exception.retryable)
+        # Client-side: COREX may still apply the op, so resending blindly could double it.
+        self.assertFalse(raised.exception.retryable)
+        self.assertTrue(raised.exception.details["client_side"])
         self.assertEqual(raised.exception.details["request_id"], "r1")
         self.assertLess(elapsed, 0.5)
         self.assertTrue(client.connected)

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ea_node_editor.automation.errors import (
+    INTERNAL,
     NOT_FOUND,
     NOT_PASSIVE,
     UNKNOWN_NODE_TYPE,
@@ -128,7 +129,7 @@ class AutomationContext:
     def require_shell(self, op: str) -> Any:
         if self.host is None:
             raise AutomationOpError(
-                "INTERNAL",
+                INTERNAL,
                 f"{op} requires the full COREX shell; the shell-free harness cannot serve it.",
                 hint="Run this op against a live COREX instance.",
             )

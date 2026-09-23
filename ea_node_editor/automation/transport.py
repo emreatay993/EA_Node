@@ -53,6 +53,8 @@ from ea_node_editor.automation.protocol import (
 DispatchCallback = Callable[[AutomationRequest], AutomationResponse]
 
 LOOPBACK_HOST = "127.0.0.1"
+# Seconds a new connection may stay silent before its hello frame.
+HANDSHAKE_TIMEOUT_S = 10.0
 
 _LOGGER = logging.getLogger(__name__)
 _RECV_CHUNK_BYTES = 64 * 1024
@@ -191,6 +193,9 @@ class AutomationServer:
             _close_quietly(conn)
 
     def _handshake(self, conn: socket.socket, reader: _LineReader, addr: Any) -> bool:
+        # A client must say hello promptly; a silent loopback connection must not hold a
+        # reader thread forever. socket.timeout is an OSError -> the connection is closed.
+        conn.settimeout(HANDSHAKE_TIMEOUT_S)
         try:
             line = reader.readline()
         except FrameError:
@@ -215,6 +220,7 @@ class AutomationServer:
                 details={"expected": PROTOCOL_VERSION, "received": int(hello.protocol)},
             )
             return False
+        conn.settimeout(None)
         _send(conn, AutomationResponse.success(_HELLO_RESPONSE_ID, self.hello.to_dict()))
         _LOGGER.debug("automation client %s connected (%s)", addr, hello.client)
         return True

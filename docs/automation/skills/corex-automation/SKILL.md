@@ -27,8 +27,8 @@ parity, walkthroughs, generated op reference). Runnable examples:
    (default) any failure rolls everything back and raises `APPLY_FAILED`.
    `$ref` works only in id fields, never inside titles or markdown.
 4. **Style and annotate.** `node_set_style` (passive nodes only; aliases like
-   `fill_color_end`), `edge_update` (`color`, `width`, `pattern`, `label`,
-   `path_mode`), `node_add_text` for markdown notes, `comment_upsert`,
+   `fill_color_end`), `edge_update` (`label`, `path_mode`, `display_mode`, and a
+   `style` object whose keys accept aliases like `color`, `width`, `pattern`), `node_add_text` for markdown notes, `comment_upsert`,
    `link_upsert`, `group_wrap` with a title, `subnode_create` for nested scopes.
 5. **Save and show.** `view_set_camera(frame=all)`, `project_save` (pass
    `path` for Save As), then `capture_screenshot` and look at the image.

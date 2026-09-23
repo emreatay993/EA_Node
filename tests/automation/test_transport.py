@@ -13,6 +13,7 @@ from typing import Any
 from unittest.mock import patch
 
 from ea_node_editor.automation import errors, gate, protocol
+from ea_node_editor.automation import transport as transport_module
 from ea_node_editor.automation.transport import LOOPBACK_HOST, AutomationServer
 
 TOKEN = "t0ken-for-tests"
@@ -195,6 +196,16 @@ class HandshakeTests(_ServerTestCase):
         early = self.client(handshake=False)
         early.close()
         self.assertTrue(self.client().request("r1", "x.y")["ok"])
+
+    def test_silent_connection_is_closed_after_the_handshake_timeout(self) -> None:
+        # A loopback peer that never says hello must not park a reader thread forever.
+        with patch.object(transport_module, "HANDSHAKE_TIMEOUT_S", 0.2):
+            silent = self.client(handshake=False)
+            self.assertTrue(silent.closed_by_peer())
+            # Authenticated connections have no idle limit once the hello succeeded.
+            client = self.client()
+            threading.Event().wait(0.4)
+            self.assertTrue(client.request("r1", "x.y")["ok"])
 
 
 class RequestFramingTests(_ServerTestCase):

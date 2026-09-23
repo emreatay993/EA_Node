@@ -27,7 +27,12 @@ def history_action_type(op: OpSpec, label: str = "") -> str:
 
 
 def grouped_history_scope(context: AutomationContext, op: OpSpec, *, label: str = "") -> Any:
-    """Return the context manager that makes a mutating op one undo step."""
+    """Return the context manager that makes a mutating op one undo step.
+
+    The grouped action commits in ``finally``: a handler that raises *after* its first
+    scene call still leaves one undo entry. Handlers therefore validate every input
+    before mutating; only owner anomalies can fail post-mutation.
+    """
     if not op.mutates_graph or context.runtime_history is None:
         return nullcontext()
     workspace = context.active_workspace()

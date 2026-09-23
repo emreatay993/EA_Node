@@ -143,7 +143,7 @@ Navigation: [agent map](agent_maps/feature_routes/automation_api_mcp.md).
 Per-wave independent review:
 
 - Wave 1 (2026-09-22): 14 findings. Fixed: `auto` spawns shared the user's session state (every spawn now gets its own `COREX_SESSION_STATE_DIR`; an owned visible instance is only quit when it is clean, otherwise detached); `node.update` / `link.upsert` mutated before validating (validation hoisted, failed ops leave no undo entry); `auto` attached to other clients' private instances (visible only); stale discovery records after PID reuse (liveness also probes the port); token in dataclass reprs (`repr=False`); client socket timeout leaked into the next send; unknown edge style keys were silently dropped; missing test banners; B3 staged-file save untested; token pop timing (gate imported in `bootstrap.main`). Documented instead of fixed: inline `html` for web panels lives in session staging and is not packed into the `.cxproj`.
-- Final review (Wave 2 + integration): recorded in the verification record below.
+- Final review (Wave 2 + integration, 2026-09-23): no blockers; 12 findings. Fixed: an exception from the startup hook aborted the process (it runs in a Qt timer slot; now logged and COREX continues without automation); `capture.screenshot` persisted `node_shadow=false` to the shared `app_preferences.json` (now applied to the window only); a client-side `TIMEOUT` was marked retryable although COREX may still apply the op (now `retryable=false`, `details.client_side=true`); frozen builds could not import the op and handler modules loaded by name (spec `collect_submodules`); `app.status` answered `APP_BUSY_MODAL` while a dialog was open (now exempt, so agents can see `busy.modal_dialog`); guidance claimed graph edits fail during a run (only `run.start` returns `RUN_ACTIVE`). Also fixed: unsafe `--automation-instance-id` values exit 2; pre-hello connections time out after 10 s; default captures of spawned instances go into their session folder; one MCP session serializes calls (documented); straight-row placement guidance (`y = row_center - height / 2`); doc and test drift. Reported only: some helper duplication across handler modules.
 
 ## Verification record
 
@@ -175,6 +175,12 @@ Per-wave independent review:
     `test_graph_search_close_returns_keyboard_focus_to_canvas` to
     `tests/main_window_shell/shell_basics_and_search.py` without a
     shell-isolation target (out of scope; left unchanged).
+- Final-review fixes (2026-09-23, serial `-n 0`): `tests/automation` without the
+  spawned test 333 passed; `test_e2e_private_instance.py` passed;
+  `test_main_bootstrap` + `test_packaging_configuration` pass except the
+  pwsh-dependent probe; hygiene tests (route index, maps, markdown, source/test
+  index, traceability) 117 passed; `check_agent_maps.py`,
+  `check_markdown_links.py`, `check_traceability.py` pass.
 
 ## First-pass limits (documented for agents)
 
@@ -185,4 +191,5 @@ Per-wave independent review:
 - A failed run refocuses the canvas on the failed node (existing UI behaviour).
 - `graph.apply` rollback cannot undo staged files or the title-driven artifact
   folder rename.
-- Frozen (PyInstaller) profiles exclude the `[mcp]` extra in the first pass.
+- Frozen (PyInstaller) profiles include the in-app server (op and handler
+  modules collected by the spec) but exclude the `[mcp]` extra in the first pass.

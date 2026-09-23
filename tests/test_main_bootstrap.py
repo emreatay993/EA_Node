@@ -854,6 +854,22 @@ class AutomationFlagTests(unittest.TestCase):
         bootstrap_mock.assert_not_called()
         run_mock.assert_not_called()
 
+    def test_extract_automation_flags_rejects_unsafe_instance_ids(self) -> None:
+        for bad in ("a/b", "../x", ".hidden", "x" * 129):
+            with self.subTest(bad=bad), self.assertRaises(bootstrap_module.AutomationFlagError):
+                bootstrap_module.extract_automation_flags(["corex.exe", "--automation-instance-id", bad])
+
+    def test_automation_start_failure_is_logged_and_does_not_raise(self) -> None:
+        # _finish_startup runs inside a QTimer slot; an exception there aborts the process.
+        from ea_node_editor import app as corex_app
+
+        with patch(
+            "ea_node_editor.ui.shell.automation.service.start_automation_if_enabled",
+            side_effect=OSError("port in use"),
+        ), self.assertLogs(corex_app.logger, level="ERROR") as logs:
+            self.assertIsNone(corex_app._start_automation_server(object()))
+        self.assertIn("continuing without automation", "\n".join(logs.output))
+
     def test_console_scripts_include_the_mcp_server(self) -> None:
         pyproject_text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
         self.assertIn('corex-mcp = "ea_node_editor.automation.mcp_server:main"', pyproject_text)

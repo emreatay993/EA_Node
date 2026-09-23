@@ -19,7 +19,7 @@ Use this for the public programmatic control surface of COREX: the loopback NDJS
 - `tests/automation/harness.py` (shell-free context: offscreen `GraphSceneBridge` + `RuntimeGraphHistory` + built-in registry)
 - Focused tests: `tests/automation/test_protocol.py`, `tests/automation/test_catalog.py`, `tests/automation/test_automation_boundaries.py`, `tests/automation/test_transport.py`, `tests/automation/test_discovery.py`, `tests/automation/test_bridge.py`, `tests/automation/test_handlers_nodes.py`, `tests/automation/test_handlers_structure.py`, `tests/automation/test_handlers_annotations.py`, `tests/automation/test_apply.py`, `tests/automation/test_client.py`, `tests/automation/test_launcher.py`, `tests/automation/test_mcp_server.py`, `tests/automation/test_docgen.py`; real-shell suite (GUI + shell isolation target `main_window__automation_shell_handlers`): `tests/automation/test_handlers_shell.py`; spawned end-to-end (slow suite): `tests/automation/test_e2e_private_instance.py`; seams: `tests/test_workspace_navigation_noninteractive.py`, `tests/test_project_document_io_noninteractive.py`, `tests/test_settings_session_state_dir.py`
 - Docs and tooling: `docs/AUTOMATION_API_GUIDE.md`, `examples/automation/` (flowchart, annotated media board, subnode workflow, run and screenshot), `docs/automation/skills/corex-automation/SKILL.md`, `scripts/install_automation_skill.py`
-- `docs/PLAN_COREX_AUTOMATION_API_MCP.md` (task ledger, blockers B1-B9, decisions)
+- `docs/PLAN_COREX_AUTOMATION_API_MCP.md` (task ledger, blockers B1-B12, decisions)
 
 ## Do Not Start Here
 - `ea_node_editor/ui/shell/composition/` for automation wiring; the server starts from `app.py` after the splash and the pinned `ShellServices` shape is untouched.

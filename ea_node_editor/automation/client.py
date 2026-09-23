@@ -213,8 +213,12 @@ class CorexClient:
                 raise AutomationOpError(
                     TIMEOUT,
                     f"No response to {op_name} within {wait_s + RESPONSE_TIMEOUT_MARGIN_S:.1f} s.",
-                    hint=_RESPONSIVE_HINT,
-                    details={**details, "timeout_s": wait_s},
+                    hint=(
+                        f"COREX may still be executing {op_name}; check app.status, graph.get or "
+                        "app.history before resending, or raise timeout_s."
+                    ),
+                    details={**details, "timeout_s": wait_s, "client_side": True},
+                    retryable=False,
                 ) from exc
             except FrameError as exc:
                 raise AutomationOpError(
