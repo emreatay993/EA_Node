@@ -129,6 +129,12 @@ Item {
         if (isInput && defaultPropertyItem
                 && defaultPropertyItem.visible && defaultPropertyItem.enabled) {
             var rects = defaultPropertyItem.embeddedInteractiveRects || [];
+            if (defaultPropertyItem.clip) {
+                rects = SurfaceControlGeometry.clipRectList(rects, {
+                    "x": 0, "y": 0,
+                    "width": defaultPropertyItem.width, "height": defaultPropertyItem.height
+                });
+            }
             var translated = [];
             for (var rectIndex = 0; rectIndex < rects.length; ++rectIndex) {
                 var rect = rects[rectIndex];
@@ -137,6 +143,11 @@ Item {
                     "y": row.y + defaultPropertyItem.y + Number(rect.y || 0),
                     "width": Number(rect.width || 0),
                     "height": Number(rect.height || 0)
+                });
+            }
+            if (defaultPropertyItem.clip && host) {
+                translated = SurfaceControlGeometry.clipRectList(translated, {
+                    "x": 0, "y": 0, "width": host.width, "height": host.height
                 });
             }
             lists.push(translated);

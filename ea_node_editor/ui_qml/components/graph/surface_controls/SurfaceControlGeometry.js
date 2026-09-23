@@ -63,6 +63,29 @@ function rectList(rectLike) {
     return rect ? [rect] : [];
 }
 
+function clipRectList(rects, clipRect) {
+    var bounds = normalizedRect(clipRect);
+    if (!bounds)
+        return [];
+    var clipped = [];
+    for (var index = 0; rects && index < rects.length; index++) {
+        var rect = normalizedRect(rects[index]);
+        if (!rect)
+            continue;
+        var x = Math.max(rect.x, bounds.x);
+        var y = Math.max(rect.y, bounds.y);
+        var intersection = normalizedRect({
+            "x": x,
+            "y": y,
+            "width": Math.min(rect.x + rect.width, bounds.x + bounds.width) - x,
+            "height": Math.min(rect.y + rect.height, bounds.y + bounds.height) - y
+        });
+        if (intersection)
+            clipped.push(intersection);
+    }
+    return clipped;
+}
+
 function collectVisibleItemRects(items, hostItem) {
     var rects = [];
     if (!items || !hostItem)

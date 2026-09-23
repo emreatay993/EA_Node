@@ -632,7 +632,7 @@ TestCase {
         return [{"tag": "without socket", "socket": false}, {"tag": "with socket", "socket": true}]
     }
 
-    function test_headerless_settings_preserve_blank_labels_and_control_interaction(data) {
+    function headerlessSettingsPayload(socket) {
         var payload = nodePayload()
         payload.height = 100
         payload.inline_properties = []
@@ -648,12 +648,12 @@ TestCase {
             "overridden_by_input": false
         }
         var member = {
-            "kind": data.socket ? "port" : "property",
-            "port_key": data.socket ? "enabled" : "",
-            "property_key": data.socket ? "" : "enabled",
+            "kind": socket ? "port" : "property",
+            "port_key": socket ? "enabled" : "",
+            "property_key": socket ? "" : "enabled",
             "y": 56, "height": 26, "visible": true
         }
-        if (data.socket) {
+        if (socket) {
             payload.ports.push({
                 "key": "enabled", "label": "enabled", "direction": "in", "kind": "data",
                 "data_type": "bool", "connected": false, "uses_property_default": true,
@@ -670,6 +670,11 @@ TestCase {
             "expanded": true, "header": {"x": 0, "y": 56, "width": 210, "height": 0},
             "aggregate_anchor": null, "items": [member]
         }]
+        return payload
+    }
+
+    function test_headerless_settings_preserve_blank_labels_and_control_interaction(data) {
+        var payload = headerlessSettingsPayload(data.socket)
         var host = createHost(payload)
         verify(host !== null)
         tryVerify(function() {
@@ -686,11 +691,83 @@ TestCase {
         tryVerify(function() { return host._surfaceClaimsBodyInteractionAt(center.x, center.y) },
             1000, "Headerless controls must still claim their input rectangle")
         verify(center.y > host.localPortPoint("in", 0).y)
+        var colors = [toggle.resolvedTextColor, toggle.resolvedIndicatorFillColor,
+            toggle.resolvedIndicatorBorderColor]
+        host.beginSettingsGroupAnimation()
+        var resized = JSON.parse(JSON.stringify(payload))
+        resized.height += 80
+        resized.surface_metrics.default_height += 80
+        resized.settings_band.height += 80
+        host.nodeData = resized
+        verify(host.settingsGroupAnimationRunning)
+        verify(toggle.enabled, "A visible control must stay enabled while another region resizes")
+        compare(toggle.resolvedTextColor, colors[0])
+        compare(toggle.resolvedIndicatorFillColor, colors[1])
+        compare(toggle.resolvedIndicatorBorderColor, colors[2])
+        wait(0)
+        verify(host.settingsGroupAnimationRunning)
+        center = toggle.mapToItem(host, toggle.width / 2, toggle.height / 2)
+        verify(host._surfaceClaimsBodyInteractionAt(center.x, center.y),
+            "Animated standalone and port controls must keep their input rectangle")
         var spy = createTemporaryObject(propertyCommitSpyComponent, stage, {"target": host})
         mouseClick(toggle, toggle.width / 2, toggle.height / 2)
         compare(spy.count, 1)
         compare(spy.signalArguments[0][1], "enabled")
         compare(spy.signalArguments[0][2], true)
+        tryCompare(host, "settingsGroupAnimationRunning", false)
+        compare(findNamedItems(host, "graphNodeInlineToggleEditor")[0], toggle)
+    }
+
+    function test_expanding_controls_only_claim_revealed_input_rectangles_data() {
+        return [{"tag": "standalone", "socket": false}, {"tag": "socket", "socket": true}]
+    }
+
+    function test_expanding_controls_only_claim_revealed_input_rectangles(data) {
+        var expanded = headerlessSettingsPayload(data.socket)
+        expanded.settings_groups.push({
+            "group_id": "following", "label": "Following", "show_header": false,
+            "expanded": false, "header": {"x": 0, "y": 82, "width": 210, "height": 0},
+            "aggregate_anchor": null, "items": []
+        })
+        var collapsed = JSON.parse(JSON.stringify(expanded))
+        collapsed.height = 74
+        collapsed.surface_metrics.default_height = 74
+        collapsed.surface_metrics.min_height = 74
+        collapsed.settings_band.height = 18
+        collapsed.settings_groups[0].expanded = false
+        collapsed.settings_groups[0].items[0].visible = false
+        collapsed.settings_groups[1].header.y = 56
+        if (data.socket) {
+            collapsed.ports[2].handle_visible = false
+            collapsed.ports[2].default_property = null
+        }
+        var host = createHost(collapsed)
+        wait(0)
+        host.beginSettingsGroupAnimation()
+        host.nodeData = expanded
+        var toggle = findNamedItems(host, "graphNodeInlineToggleEditor")[0]
+        verify(toggle !== undefined)
+        var top
+        var bottom
+        var clipBottom
+        tryVerify(function() {
+            top = toggle.mapToItem(host, toggle.width / 2, 0)
+            bottom = top.y + toggle.height
+            clipBottom = host.settingsGroupContentBottom("controls")
+            return host.settingsGroupAnimationRunning
+                && clipBottom > top.y + 1 && clipBottom < bottom - 1
+        }, 1000, "The control must be partially revealed during expansion")
+        verify(toggle.enabled)
+        compare(toggle.resolvedTextColor, toggle.textColor)
+        compare(toggle.resolvedIndicatorFillColor, toggle.fillColor)
+        compare(toggle.resolvedIndicatorBorderColor, toggle.borderColor)
+        verify(clipBottom < host.height, "The hidden portion lies inside the card")
+        verify(host._surfaceClaimsBodyInteractionAt(top.x, (top.y + clipBottom) / 2),
+            "The revealed part of an enabled control must claim input")
+        verify(!host._surfaceClaimsBodyInteractionAt(top.x, (clipBottom + bottom) / 2),
+            "Clipped controls must leave invisible areas available to the node body")
+        tryCompare(host, "settingsGroupAnimationRunning", false)
+        verify(host._surfaceClaimsBodyInteractionAt(top.x, bottom - 1))
     }
 
     function groupedPortPayload(expanded, value, overridden) {

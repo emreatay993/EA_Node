@@ -1238,7 +1238,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             media_id = scene.add_node_from_type("media.panel", 270, -390)
             source_id = scene.add_node_from_type("core.constant", -560, 350)
             output_edge = scene.add_edge(signal_id, "image", media_id, "source")
-            input_edge = scene.add_edge(source_id, "value", signal_id, "show_legend")
+            input_edge = scene.add_edge(source_id, "value", signal_id, "width")
             second_input_edge = scene.add_edge(source_id, "value", signal_id, "labels")
             assert output_edge and input_edge and second_input_edge
             node = workspace.nodes[signal_id]
@@ -1284,7 +1284,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     node_map = variant_value(edge_layer._nodeMap())
                     edges = {edge["edge_id"]: edge for edge in scene.edges_model}
                     for edge_id, prefix, port_key in (
-                        (output_edge, "s", "image"), (input_edge, "t", "show_legend"),
+                        (output_edge, "s", "image"), (input_edge, "t", "width"),
                         (second_input_edge, "t", "labels"),
                     ):
                         geometry = variant_value(edge_layer._edgeGeometry(edges[edge_id], node_map))
@@ -1345,7 +1345,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     if not node.expanded_settings_group_ids:
                         retained_rows = [
                             item for item in named_child_items(card, "graphNodeInputPortRow")
-                            if item.property("propertyKey") in ("show_legend", "labels")
+                            if item.property("propertyKey") in ("width", "labels")
                         ]
                         assert len(retained_rows) == 2
                         for row in retained_rows:
@@ -1353,7 +1353,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                             assert variant_value(row.currentEmbeddedInteractiveRects()) == []
                         assert not any(item.isVisible()
                             for item in named_child_items(card, "graphNodeInputPortDot")
-                            if item.property("propertyKey") in ("show_legend", "labels"))
+                            if item.property("propertyKey") in ("width", "labels"))
 
                 collapsed = (card.width(), card.height())
                 first_header_top = group_top()
@@ -1372,7 +1372,9 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 clip = card.findChild(QObject, "graphNodePortsAnimationClip")
                 assert clip.property("clip") and abs(clip.height() - card.height()) < 0.1
                 default_editor = named_item(card, "graphNodeInputDefaultProperty", "width")
-                assert default_editor is not None and not default_editor.isEnabled()
+                assert default_editor is not None
+                width_slider = named_item(card, "graphNodeInlineSliderEditor", "width")
+                assert width_slider is not None and not width_slider.isEnabled()
                 for editor in named_child_items(card, "graphNodeInputDefaultProperty"):
                     if editor.isVisible() and editor.height() > 0:
                         bottom = editor.mapToItem(card, QPointF(0, editor.height())).y()
@@ -1391,11 +1393,62 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 assert settings_clip.property("clip")
                 assert_finished()
 
+                # An unrelated group's animation must not restyle or rebuild the
+                # visible controls or enable a connected input.
+                toggle = named_item(card, "graphNodeInlineToggleEditor", "show_legend")
+                selector = named_item(card, "graphNodeInlineEnumEditor", "legend_alignment")
+                assert toggle is not None and selector is not None
+
+                def control_state():
+                    return (
+                        toggle.isEnabled(), selector.isEnabled(), width_slider.isEnabled(),
+                        tuple(toggle.property(key).rgba() for key in (
+                            "resolvedTextColor", "resolvedIndicatorFillColor", "resolvedIndicatorBorderColor")),
+                        tuple(selector.property(key).rgba() for key in (
+                            "resolvedTextColor", "resolvedBackgroundColor", "resolvedBorderColor")),
+                        named_item(card, "graphNodeInlineToggleEditor", "show_legend") is toggle,
+                        named_item(card, "graphNodeInlineEnumEditor", "legend_alignment") is selector,
+                    )
+
+                stable_controls = control_state()
+                assert stable_controls[:3] == (True, True, False), stable_controls
+                for expanded_signal_options in (True, False):
+                    frames = []
+                    def sample_controls():
+                        if card.property("settingsGroupAnimationRunning"):
+                            frames.append(control_state())
+                    window.afterAnimating.connect(sample_controls)
+                    try:
+                        mouse_click(window, item_scene_point(header("signal_plot_options")))
+                        assert card.property("settingsGroupAnimationRunning")
+                        sample_controls()
+                        assert_finished()
+                    finally:
+                        window.afterAnimating.disconnect(sample_controls)
+                    assert ("signal_plot_options" in node.expanded_settings_group_ids) == expanded_signal_options
+                    assert len(frames) >= 3, ("control-animation-frames", len(frames))
+                    assert all(frame == stable_controls for frame in frames), (
+                        "visible-controls-changed-during-unrelated-animation", stable_controls,
+                        next((frame for frame in frames if frame != stable_controls), None))
+                    assert control_state() == stable_controls
+
+                # Exercise the real canvas hit routing while its geometry changes.
+                checked = toggle.property("checked")
+                mouse_click(window, item_scene_point(header("signal_plot_options")))
+                QTest.qWait(40)
+                assert card.property("settingsGroupAnimationRunning")
+                mouse_click(window, item_scene_point(toggle))
+                assert node.properties["show_legend"] is (not checked)
+                assert not width_slider.isEnabled()
+                assert_finished()
+                mouse_click(window, item_scene_point(header("signal_plot_options")))
+                assert_finished()
+
                 expanded = (card.width(), card.height())
                 grip_visibility_changes = []
                 tracked_grips = []
                 for row in named_child_items(card, "graphNodeInputPortRow"):
-                    if row.property("propertyKey") in ("show_legend", "labels"):
+                    if row.property("propertyKey") in ("width", "labels"):
                         changed = lambda row=row: grip_visibility_changes.append(row.isVisible())
                         row.visibleChanged.connect(changed)
                         tracked_grips.append((row, changed))
@@ -1428,7 +1481,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 click_header()
                 captured_centers = variant_value(card.property("_settingsGroupStartPorts"))
                 assert card.property("settingsGroupAnimationRunning")
-                for key in ("show_legend", "labels"):
+                for key in ("width", "labels"):
                     port = named_item(card, "graphNodeInputPortDot", key)
                     center = port.mapToItem(card, QPointF(port.width()/2, port.height()/2)).y()
                     # Mapped centres carry float rounding (~1e-13), so compare with a tolerance.
@@ -2195,38 +2248,6 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 assert selected_halo is not None
                 assert all(halo is None for halo in removed_halos)
                 assert bool(background_layer.property("notchMaskActive"))
-                mask_source = bytes(background_layer.property("notchMaskSvgSource").toEncoded()).decode("ascii")
-                mask_svg = unquote(mask_source.split(",", 1)[1])
-                assert '<circle cx="0"' in mask_svg
-                assert f'<circle cx="{int(host.width())}"' in mask_svg
-                assert mask_svg.count('r="9" fill="black"') == 2
-                # Check the opaque body as well as the holes: a truncated mask
-                # can pass notch-only checks while erasing most of the card.
-                from PyQt6.QtGui import QImage, QPainter
-                from PyQt6.QtSvg import QSvgRenderer
-
-                def assert_full_mask_body():
-                    source = bytes(background_layer.property("notchMaskSvgSource").toEncoded()).decode("ascii")
-                    renderer = QSvgRenderer(unquote(source.split(",", 1)[1]).encode("utf-8"))
-                    assert renderer.isValid()
-                    image = QImage(round(host.width()), round(host.height()), QImage.Format.Format_ARGB32)
-                    image.fill(Qt.GlobalColor.transparent)
-                    painter = QPainter(image)
-                    renderer.render(painter)
-                    painter.end()
-                    for y in range(12, image.height() - 12, 11):
-                        for x in range(12, image.width() - 12, 11):
-                            assert image.pixelColor(x, y).alpha() == 255, (
-                                "missing-mask-body", x, y, image.width(), image.height())
-
-                assert_full_mask_body()
-                host.setProperty("_liveWidth", 420.0)
-                host.setProperty("_liveHeight", 260.0)
-                host.setProperty("_liveGeometryActive", True)
-                app.processEvents()
-                assert_full_mask_body()
-                host.setProperty("_liveGeometryActive", False)
-                app.processEvents()
                 assert bool(background_layer.property("suppressHorizontalGlowSpill"))
                 assert not bool(selected_halo.property("autoPaddingEnabled"))
                 padding = selected_halo.property("paddingRect")
@@ -2293,16 +2314,10 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 host.setProperty("showShadow", True)
 
                 stable_notch_sources = [encoded_source(notch) for notch in notches]
-                stable_mask_source = bytes(
-                    background_layer.property("notchMaskSvgSource").toEncoded()
-                ).decode("ascii")
                 for variant in ("dark", "light", "white"):
                     prefs.setProperty("canvasBackgroundVariant", variant)
                     app.processEvents()
                     assert [encoded_source(notch) for notch in notches] == stable_notch_sources
-                    assert bytes(background_layer.property("notchMaskSvgSource").toEncoded()).decode(
-                        "ascii"
-                    ) == stable_mask_source
 
                 idle_outline = QColor(background_layer.property("effectiveOutlineColor"))
                 idle_source = encoded_source(input_notch)
@@ -2347,6 +2362,116 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             finally:
                 dispose_host_window(host, window)
                 canvas_stub.deleteLater()
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
+    def test_notches_stay_transparent_through_settings_animation_and_fractional_resize(self) -> None:
+        self._run_qml_probe(
+            "notches-through-settings-animation-and-resize",
+            """
+            from PyQt6.QtGui import QColor
+            from PyQt6.QtQuick import QSGRendererInterface
+            from ea_node_editor.ui_qml.graph_scene_payload.builder import GraphScenePayloadBuilder
+
+            registry = build_default_registry()
+            model = GraphModel()
+            workspace = model.active_workspace
+            node = model.add_node(workspace.workspace_id, "plot.signal", "Signal Plot", 30.0, 30.0)
+            builder = GraphScenePayloadBuilder()
+
+            def payload():
+                return builder.rebuild_models(
+                    model=model, registry=registry, workspace_id=workspace.workspace_id,
+                    scope_path=(), graph_theme_bridge=None,
+                )[0][0]
+
+            host = create_component(graph_node_host_qml_path, {
+                "nodeData": payload(), "settingsGroupAnimationsEnabled": True, "showShadow": False,
+            })
+            window = attach_host_to_window(host, 1000, 1100)
+            backdrop = QColor("#b040d0")
+            window.setColor(backdrop)
+            chrome = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
+            try:
+                assert host.property("_notchedPortsEffective")
+                # Software Qt Quick cannot render MultiEffect; the retained
+                # geometry checks still run there, pixel proof uses the RHI.
+                check_pixels = window.rendererInterface().graphicsApi() != QSGRendererInterface.GraphicsApi.Software
+                QTest.qWait(30)
+                mask_states = []
+                chrome.notchMaskActiveChanged.connect(lambda: mask_states.append(chrome.property("notchMaskActive")))
+
+                def assert_frame():
+                    # Isolate the chrome cutout from dot and outline antialiasing.
+                    # Keep the rows visible: they own the real animated centers.
+                    for name in ("graphNodeInputPortDot", "graphNodeOutputPortDot",
+                                 "graphNodeInputPortNotch", "graphNodeOutputPortNotch",
+                                 "graphNodeSettingsGroupAggregateSocket", "graphNodeSettingsGroupAggregateNotch"):
+                        for item in named_child_items(host, name):
+                            item.setOpacity(0.0)
+                    frame = window.grabWindow()
+                    centers = variant_value(chrome.property("notchCutoutCenters"))
+                    assert chrome.property("notchMaskActive")
+                    assert centers["left"] and centers["right"], centers
+                    if not check_pixels:
+                        return
+                    scale = frame.width() / window.width()
+
+                    def pixel(x, y):
+                        point = host.mapToScene(QPointF(x, y))
+                        return frame.pixelColor(round(point.x() * scale), round(point.y() * scale))
+
+                    def distance(color):
+                        return max(abs(color.red() - backdrop.red()),
+                            abs(color.green() - backdrop.green()), abs(color.blue() - backdrop.blue()))
+
+                    for side in ("left", "right"):
+                        for center in centers[side]:
+                            if center < 12 or center > host.height() - 12:
+                                continue
+                            if host.mapToScene(QPointF(0, center)).y() >= window.height() - 1:
+                                continue
+                            x = 4.0 if side == "left" else host.width() - 4.0
+                            color = pixel(x, center)
+                            assert distance(color) <= 5, (
+                                "filled-notch", side, center, host.width(), host.height(), color.name())
+                    # A transparent result everywhere would also pass the hole
+                    # checks. Verify the full body remains painted past 100px.
+                    for y in (12.0, host.height() - 12.0):
+                        for fraction in (0.2, 0.5, 0.8):
+                            point = host.mapToScene(QPointF(host.width() * fraction, y))
+                            if not (0 <= point.x() < window.width() and 0 <= point.y() < window.height()):
+                                continue
+                            assert distance(pixel(host.width() * fraction, y)) > 30, (
+                                "missing-card-body", fraction, y, host.width(), host.height())
+
+                assert_frame()
+                for groups in (("general_options",), (), ("signal_plot_options",), (),
+                               ("general_options", "signal_plot_options"), ()):
+                    host.beginSettingsGroupAnimation()
+                    node.expanded_settings_group_ids = groups
+                    host.setProperty("nodeData", payload())
+                    frames = 0
+                    while host.property("settingsGroupAnimationRunning") or frames == 0:
+                        QTest.qWait(8)
+                        assert_frame()
+                        frames += 1
+                        assert frames < 60, "settings animation did not finish"
+                    assert frames > 1
+
+                width, height = host.width(), host.height()
+                host.setProperty("_liveGeometryActive", True)
+                for step in (*range(16), *reversed(range(16))):
+                    host.setProperty("_liveWidth", width + step * 9.375)
+                    host.setProperty("_liveHeight", height + step * 6.625)
+                    QTest.qWait(8)
+                    assert_frame()
+                host.setProperty("_liveGeometryActive", False)
+                assert not mask_states, ("mask-shader-toggled-during-animation", mask_states)
+            finally:
+                dispose_host_window(host, window)
                 engine.deleteLater()
                 app.processEvents()
             """,

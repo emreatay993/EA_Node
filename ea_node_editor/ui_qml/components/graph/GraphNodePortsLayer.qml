@@ -1246,8 +1246,7 @@ Item {
                 clip: inputPortRow.defaultEditorVisible
                     && Boolean(root.host && root.host.settingsGroupAnimationRunning)
                 visible: inputPortRow.defaultEditorVisible
-                enabled: visible && root.host ? !root.host.surfaceInteractionLocked
-                    && !root.host.settingsGroupAnimationRunning : false
+                enabled: visible && root.host ? !root.host.surfaceInteractionLocked : false
                 host: root.host
                 modelOverride: inputPortRow.defaultEditorRetained
                     ? [inputPortRow.defaultProperty]

@@ -17,8 +17,6 @@ Item {
         ? GraphNodeSurfaceMetrics.settingsBandYOffset(host.nodeData, host.settingsGroupLayoutHeight)
         : 0.0
     readonly property bool interactionLocked: host ? Boolean(host.surfaceInteractionLocked) : true
-    readonly property bool contentInteractionLocked: interactionLocked
-        || Boolean(host && host.settingsGroupAnimationRunning)
     signal expansionRequested(string nodeId, string groupId, bool expanded)
 
     readonly property real _interactiveRectGeometryKey: {
@@ -283,7 +281,7 @@ Item {
                     visible: groupItem.expanded && Boolean(itemData.visible)
 
                     function currentInteractiveRects() {
-                        if (!visible || !propertyLayer.visible || root.contentInteractionLocked)
+                        if (!visible || !propertyLayer.visible || root.interactionLocked)
                             return [];
                         var rects = propertyLayer.embeddedInteractiveRects || [];
                         var translated = [];
@@ -296,6 +294,16 @@ Item {
                                 "height": Number(rect.height || 0)
                             });
                         }
+                        if (groupItem.clip) {
+                            translated = SurfaceControlGeometry.clipRectList(translated, {
+                                "x": 0, "y": 0, "width": groupItem.width, "height": groupItem.height
+                            });
+                        }
+                        if (root.clip) {
+                            translated = SurfaceControlGeometry.clipRectList(translated, {
+                                "x": 0, "y": 0, "width": root.width, "height": root.height
+                            });
+                        }
                         return translated;
                     }
 
@@ -303,7 +311,7 @@ Item {
                         id: propertyLayer
                         objectName: "graphNodeSettingsGroupInlineProperty"
                         anchors.fill: parent
-                        enabled: !root.contentInteractionLocked
+                        enabled: !root.interactionLocked
                         host: root.host
                         modelOverride: settingsItem.ownsPropertyLabel ? [settingsItem.itemData.property] : []
                         contentHeightOverride: settingsItem.height
