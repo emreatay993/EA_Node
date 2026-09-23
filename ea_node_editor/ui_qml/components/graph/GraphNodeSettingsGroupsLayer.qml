@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Shapes
 import "GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
 import "../common/PresentationModelKeys.js" as PresentationModelKeys
 import "surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
@@ -131,8 +132,10 @@ Item {
                     : "Collapsed settings group."
 
                 Rectangle {
+                    objectName: "graphNodeSettingsGroupFeedback"
                     anchors.fill: parent
-                    color: "transparent"
+                    color: headerMouse.containsMouse ? Qt.alpha(root.host ? root.host.selectedOutlineColor : "#60CDFF", 0.07)
+                                                     : "transparent"
                     border.width: headerMouse.activeFocus ? 1 : 0
                     border.color: root.host ? root.host.selectedOutlineColor : "#60CDFF"
                     radius: 3
@@ -165,7 +168,7 @@ Item {
                     opacity: 0.38
                 }
 
-                Rectangle {
+                Shape {
                     id: chevron
                     objectName: "graphNodeSettingsGroupChevron"
                     readonly property bool expandedState: groupItem.expanded
@@ -178,46 +181,26 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 12
                     height: width
-                    radius: width * 0.5
-                    color: expandedState ? decorationColor : "transparent"
-                    border.width: expandedState ? 0 : 1.2
-                    border.color: decorationColor
+                    preferredRendererType: Shape.CurveRenderer
 
-                    Canvas {
+                    ShapePath {
                         objectName: "graphNodeSettingsGroupChevronGlyph"
-                        anchors.centerIn: parent
-                        width: 7
-                        height: 7
-                        antialiasing: true
-                        readonly property bool expandedState: chevron.expandedState
-                        readonly property color strokeColor: expandedState
-                            ? "#FFFFFF"
-                            : chevron.decorationColor
-
-                        onPaint: {
-                            var ctx = getContext("2d");
-                            ctx.clearRect(0, 0, width, height);
-                            ctx.beginPath();
-                            if (expandedState) {
-                                ctx.moveTo(1.0, 2.25);
-                                ctx.lineTo(3.5, 4.75);
-                                ctx.lineTo(6.0, 2.25);
-                            } else {
-                                ctx.moveTo(2.25, 1.0);
-                                ctx.lineTo(4.75, 3.5);
-                                ctx.lineTo(2.25, 6.0);
-                            }
-                            ctx.fillStyle = "transparent";
-                            ctx.strokeStyle = strokeColor;
-                            ctx.lineWidth = 1.5;
-                            ctx.lineCap = "round";
-                            ctx.lineJoin = "round";
-                            ctx.stroke();
+                        strokeColor: headerMouse.containsMouse && !root.interactionLocked
+                            ? (root.host ? root.host.inlineLabelColor : "#d0d5de") : chevron.decorationColor
+                        strokeWidth: 1.4
+                        fillColor: "transparent"
+                        capStyle: ShapePath.RoundCap
+                        joinStyle: ShapePath.RoundJoin
+                        startX: chevron.expandedState ? 3 : 4.5
+                        startY: chevron.expandedState ? 4.5 : 3
+                        PathLine {
+                            x: chevron.expandedState ? 6 : 7.5
+                            y: chevron.expandedState ? 7.5 : 6
                         }
-
-                        onExpandedStateChanged: requestPaint()
-                        onStrokeColorChanged: requestPaint()
-                        Component.onCompleted: requestPaint()
+                        PathLine {
+                            x: chevron.expandedState ? 9 : 4.5
+                            y: chevron.expandedState ? 4.5 : 9
+                        }
                     }
                 }
 

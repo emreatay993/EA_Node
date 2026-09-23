@@ -957,9 +957,13 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert str(collapsed_chevron.property("direction")) == "right"
             assert not bool(collapsed_chevron.property("expandedState"))
             assert abs(float(collapsed_chevron.width()) - 12.0) < 0.01
-            assert QColor(collapsed_chevron.property("color")).alpha() == 0
-            assert QColor(QQmlProperty.read(collapsed_chevron, "border.color")).rgba() == collapsed_decoration.rgba()
-            assert abs(float(QQmlProperty.read(collapsed_chevron, "border.width")) - 1.2) < 0.01
+            collapsed_glyph = collapsed_chevron.findChild(QObject, "graphNodeSettingsGroupChevronGlyph")
+            assert collapsed_glyph is not None
+            assert QColor(collapsed_glyph.property("fillColor")).alpha() == 0
+            assert QColor(collapsed_glyph.property("strokeColor")).rgba() == collapsed_decoration.rgba()
+            assert abs(float(collapsed_glyph.property("strokeWidth")) - 1.4) < 0.01
+            assert abs(float(collapsed_glyph.property("startX")) - 4.5) < 0.01
+            assert abs(float(collapsed_glyph.property("startY")) - 3.0) < 0.01
             assert abs(float(collapsed_loader.height()) - 88.0) < 0.5
             assert len(variant_list(collapsed_layer.property("embeddedInteractiveRects"))) == 1
 
@@ -993,15 +997,14 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             neutral_decoration = QColor(expanded_host.property("inlineDrivenTextColor"))
             assert QColor(group_divider.property("color")).rgba() == neutral_decoration.rgba()
             assert abs(float(group_divider.property("opacity")) - 0.38) < 0.01
-            assert QColor(group_chevron.property("color")).rgba() == neutral_decoration.rgba()
             assert str(group_chevron.property("direction")) == "down"
             assert bool(group_chevron.property("expandedState"))
-            assert abs(float(QQmlProperty.read(group_chevron, "border.width"))) < 0.01
-            group_chevron_glyph = named_child_items(
-                expanded_host,
-                "graphNodeSettingsGroupChevronGlyph",
-            )[0]
-            assert QColor(group_chevron_glyph.property("strokeColor")).name() == "#ffffff"
+            group_chevron_glyph = group_chevron.findChild(QObject, "graphNodeSettingsGroupChevronGlyph")
+            assert group_chevron_glyph is not None
+            assert QColor(group_chevron_glyph.property("strokeColor")).rgba() == neutral_decoration.rgba()
+            assert QColor(group_chevron_glyph.property("fillColor")).alpha() == 0
+            assert abs(float(group_chevron_glyph.property("startX")) - 3.0) < 0.01
+            assert abs(float(group_chevron_glyph.property("startY")) - 4.5) < 0.01
 
             requests = []
             expanded_host.settingsGroupExpansionRequested.connect(

@@ -994,6 +994,102 @@ TestCase {
         tryCompare(focusIndicator, "visible", false)
     }
 
+    function test_slider_track_follows_handle_center_without_style_padding_data() {
+        return [
+            {tag: "minimum", value: 0, captions: true, diameter: 14, mirrored: false},
+            {tag: "quarter", value: 2.5, captions: true, diameter: 14, mirrored: false},
+            {tag: "midpoint", value: 5, captions: false, diameter: 21, mirrored: false},
+            {tag: "maximum", value: 10, captions: false, diameter: 21, mirrored: false},
+            {tag: "mirrored", value: 2.5, captions: true, diameter: 14, mirrored: true}
+        ]
+    }
+
+    function test_slider_track_follows_handle_center_without_style_padding(data) {
+        failOnWarning(/Binding loop detected/)
+        var root = createProbe()
+        var slider = root.probeSlider
+        slider.value = data.value
+        slider.stepSize = 0
+        slider.showRangeCaptions = data.captions
+        slider.knobDiameter = data.diameter
+        slider.LayoutMirroring.enabled = data.mirrored
+        var track = findChild(slider, "graphSurfaceSliderTrack")
+        compare(slider.leftPadding, 0)
+        compare(slider.rightPadding, 0)
+        compare(slider.topPadding, 0)
+        compare(slider.bottomPadding, slider.captionReserve)
+        verify(near(track.y + track.height * 0.5, slider.handle.y + slider.handle.height * 0.5))
+        verify(near(data.mirrored ? track.activeStart : track.activeEnd,
+                    slider.handle.x + slider.handle.width * 0.5 - track.x))
+        slider.width = 211.5
+        slider.height = 43.5
+        verify(near(track.y + track.height * 0.5, slider.handle.y + slider.handle.height * 0.5))
+        verify(near(data.mirrored ? track.activeStart : track.activeEnd,
+                    slider.handle.x + slider.handle.width * 0.5 - track.x))
+    }
+
+    function test_interval_track_joins_separated_handles_at_clamped_endpoints_data() {
+        return [
+            {tag: "lower", start: 0, end: 0},
+            {tag: "middle", start: 5, end: 5},
+            {tag: "upper", start: 10, end: 10},
+            {tag: "increasing", start: 1, end: 8},
+            {tag: "decreasing", start: 8, end: 1}
+        ]
+    }
+
+    function test_interval_track_joins_separated_handles_at_clamped_endpoints(data) {
+        failOnWarning(/Binding loop detected/)
+        var root = createProbe()
+        var slider = root.probeInterval
+        slider.semanticStart = data.start
+        slider.semanticEnd = data.end
+        slider.width = 211.5
+        slider.height = 43.5
+        var track = findChild(slider, "graphSurfaceIntervalTrack")
+        compare(slider.leftPadding, 0)
+        compare(slider.topPadding, 0)
+        compare(slider.bottomPadding, slider.captionReserve)
+        verify(near(track.y + track.height * 0.5, slider.first.handle.y + slider.first.handle.height * 0.5))
+        verify(near(track.y + track.height * 0.5, slider.second.handle.y + slider.second.handle.height * 0.5))
+        verify(near(track.activeStart, slider.first.handle.x + slider.first.handle.width * 0.5))
+        verify(near(track.activeEnd, slider.second.handle.x + slider.second.handle.width * 0.5))
+        verify(slider.first.handle.x >= 0)
+        verify(slider.second.handle.x + slider.second.handle.width <= slider.width)
+        if (data.start === data.end)
+            verify(slider.second.handle.x > slider.first.handle.x)
+    }
+
+    function test_switch_geometry_focus_and_keyboard_remain_style_independent() {
+        failOnWarning(/Binding loop detected/)
+        var root = createProbe()
+        var check = root.probeCheck
+        var track = findChild(check, "graphSurfaceSwitchTrack")
+        var knob = findChild(check, "graphSurfaceSwitchKnob")
+        var focus = findChild(check, "graphSurfaceSwitchFocusIndicator")
+        compare(track.width, 28)
+        compare(track.height, 14)
+        verify(near(track.y + track.height * 0.5, check.height * 0.5))
+        check.switchTrackWidth = 40
+        check.switchTrackHeight = 20
+        check.height = 25.5
+        compare(track.width, 40)
+        compare(track.height, 20)
+        verify(near(track.y + track.height * 0.5, check.height * 0.5))
+        check.forceActiveFocus()
+        tryCompare(focus, "visible", true)
+        keyClick(Qt.Key_Space)
+        compare(check.checked, false)
+        tryCompare(knob, "x", 2)
+        keyClick(Qt.Key_Space)
+        compare(check.checked, true)
+        tryCompare(knob, "x", track.width - knob.width - 2)
+        check.enabled = false
+        tryCompare(focus, "visible", false)
+        keyClick(Qt.Key_Space)
+        compare(check.checked, true)
+    }
+
     function test_interval_slider_preserves_semantic_direction_and_separates_equal_handles() {
         var root = createProbe()
         verify(root !== null)

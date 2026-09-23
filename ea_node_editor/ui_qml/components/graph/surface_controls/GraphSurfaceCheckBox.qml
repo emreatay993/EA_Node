@@ -1,8 +1,8 @@
 import QtQuick 2.15
-import QtQuick.Controls 2.15
+import QtQuick.Templates as T
 import "SurfaceControlGeometry.js" as SurfaceControlGeometry
 
-CheckBox {
+T.CheckBox {
     id: control
     property Item host: null
     property Item rectItem: control
@@ -37,12 +37,23 @@ CheckBox {
 
     signal controlStarted()
 
+    implicitWidth: Math.max(switchTrackWidth, implicitContentWidth)
+    implicitHeight: Math.max(switchTrackHeight, implicitContentHeight)
     spacing: 6
     padding: 0
+    leftPadding: 0
+    rightPadding: 0
+    topPadding: 0
+    bottomPadding: 0
+    leftInset: 0
+    rightInset: 0
+    topInset: 0
+    bottomInset: 0
     font.pixelSize: inlineFontPixelSize
     font.weight: inlineFontWeight
-    hoverEnabled: true
+    hoverEnabled: enabled
     activeFocusOnTab: enabled
+    Accessible.name: text.length ? text : "Boolean value"
 
     onPressedChanged: {
         if (pressed)
@@ -52,22 +63,26 @@ CheckBox {
     // Pill toggle switch: track keeps the checked\u2192accent fill/border
     // semantics exported via resolvedIndicator*Color (pinned by
     // tests/test_graph_surface_input_controls.py), knob slides left/right.
-    indicator: Rectangle {
+    indicator: GraphSurfaceCapsule {
+        objectName: "graphSurfaceSwitchTrack"
         implicitWidth: control.switchTrackWidth
         implicitHeight: control.switchTrackHeight
-        radius: height * 0.5
-        color: control.resolvedIndicatorFillColor
-        border.width: 1
-        border.color: control.resolvedIndicatorBorderColor
-        anchors.verticalCenter: parent.verticalCenter
+        width: control.switchTrackWidth
+        height: control.switchTrackHeight
+        x: control.mirrored ? control.width - control.rightPadding - width : control.leftPadding
+        y: control.topPadding + (control.availableHeight - height) * 0.5
+        fillColor: control.resolvedIndicatorFillColor
+        borderWidth: 1
+        borderColor: control.enabled && (control.hovered || control.pressed)
+            ? control.accentColor : control.resolvedIndicatorBorderColor
 
-        Rectangle {
+        GraphSurfaceCapsule {
+            objectName: "graphSurfaceSwitchKnob"
             width: Math.max(0, parent.height - 4)
             height: width
-            radius: width * 0.5
             anchors.verticalCenter: parent.verticalCenter
-            x: control.checked ? parent.width - width - 2 : 2
-            color: !control.enabled
+            x: control.checked !== control.mirrored ? parent.width - width - 2 : 2
+            fillColor: !control.enabled
                 ? control.disabledTextColor
                 : (control.checked
                 ? control.indicatorCheckColor
@@ -87,8 +102,19 @@ CheckBox {
         color: control.resolvedTextColor
         font.pixelSize: control.font.pixelSize
         font.weight: control.font.weight
-        leftPadding: control.indicator.width + control.spacing
+        leftPadding: !control.mirrored && control.text.length ? control.indicator.width + control.spacing : 0
+        rightPadding: control.mirrored && control.text.length ? control.indicator.width + control.spacing : 0
         verticalAlignment: Text.AlignVCenter
         renderType: control.host ? control.host.nodeTextRenderType : Text.CurveRendering
+    }
+
+    Rectangle {
+        objectName: "graphSurfaceSwitchFocusIndicator"
+        anchors.fill: parent
+        visible: control.enabled && (control.visualFocus || control.activeFocus)
+        color: "transparent"
+        radius: 3
+        border.width: 1
+        border.color: control.accentColor
     }
 }

@@ -1,5 +1,5 @@
 import QtQuick 2.15
-import QtQuick.Controls 2.15
+import QtQuick.Templates as T
 import QtQml 2.15
 import "SurfaceControlGeometry.js" as SurfaceControlGeometry
 import "SurfaceValueFormatter.js" as SurfaceValueFormatter
@@ -7,7 +7,7 @@ import "SurfaceValueFormatter.js" as SurfaceValueFormatter
 // Ordered Interval 1D editor. RangeSlider owns native pointer, keyboard,
 // focus, and accessibility behavior; semantic Start/End ordering stays
 // separate from the physical lower/upper handles.
-RangeSlider {
+T.RangeSlider {
     id: control
     property Item host: null
     property Item rectItem: control
@@ -25,8 +25,8 @@ RangeSlider {
     property bool _bindingBlocked: false
     property color accentColor: host ? host.selectedOutlineColor : "#60CDFF"
     property color trackColor: host ? host.inlineInputBorderColor : "#4a4f5a"
-    property color handleFillColor: host ? host.inlineInputBackgroundColor : "#22242a"
-    property color handleBorderColor: host ? host.inlineInputTextColor : "#f0f2f5"
+    property color handleFillColor: "#fafafa"
+    property color handleBorderColor: "#b6b8bc"
     property color textColor: host ? host.inlineInputTextColor : "#f0f2f5"
     property color disabledColor: host && typeof host.inlineDrivenTextColor !== "undefined"
         ? host.inlineDrivenTextColor
@@ -79,12 +79,20 @@ RangeSlider {
     signal controlStarted()
     signal commitRequested(var intervalValue)
 
+    implicitWidth: 80
     implicitHeight: trackAreaHeight + captionReserve
     padding: 0
+    leftPadding: 0
+    rightPadding: 0
+    topPadding: 0
     bottomPadding: captionReserve
+    leftInset: 0
+    rightInset: 0
+    topInset: 0
+    bottomInset: 0
     hoverEnabled: enabled
     live: true
-    snapMode: stepSize > 0 ? RangeSlider.SnapAlways : RangeSlider.NoSnap
+    snapMode: stepSize > 0 ? T.RangeSlider.SnapAlways : T.RangeSlider.NoSnap
     activeFocusOnTab: enabled
     Accessible.name: "Interval 1D"
     Accessible.description: "Start "
@@ -163,39 +171,22 @@ RangeSlider {
         restoreMode: Binding.RestoreNone
     }
 
-    background: Item {
+    background: GraphSurfaceSliderTrack {
+        objectName: "graphSurfaceIntervalTrack"
         x: control.leftPadding
         y: control.topPadding
         width: control.availableWidth
         height: control.availableHeight
 
-        Rectangle {
-            id: intervalTrack
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.width
-            height: 3
-            radius: height * 0.5
-            color: control.enabled ? control.trackColor : Qt.alpha(control.disabledColor, 0.42)
-        }
-
-        Rectangle {
-            readonly property real lowerPosition: Math.min(control.first.visualPosition, control.second.visualPosition)
-            readonly property real upperPosition: Math.max(control.first.visualPosition, control.second.visualPosition)
-            readonly property real equalWidth: control.equalHandleSeparation * 2.0
-            x: control.equalPhysicalValues
-                ? lowerPosition * parent.width - equalWidth * 0.5
-                : lowerPosition * parent.width
-            width: control.equalPhysicalValues
-                ? equalWidth
-                : Math.max(0, (upperPosition - lowerPosition) * parent.width)
-            anchors.verticalCenter: intervalTrack.verticalCenter
-            height: intervalTrack.height
-            radius: intervalTrack.radius
-            color: control.enabled ? control.accentColor : control.disabledColor
-        }
+        activeStart: Math.min(control.first.handle.x + control.first.handle.width * 0.5,
+                             control.second.handle.x + control.second.handle.width * 0.5) - x
+        activeEnd: Math.max(control.first.handle.x + control.first.handle.width * 0.5,
+                           control.second.handle.x + control.second.handle.width * 0.5) - x
+        trackColor: control.enabled ? control.trackColor : Qt.alpha(control.disabledColor, 0.42)
+        activeColor: control.enabled ? control.accentColor : control.disabledColor
     }
 
-    first.handle: Rectangle {
+    first.handle: GraphSurfaceSliderHandle {
         objectName: "graphSurfaceIntervalFirstHandle"
         x: Math.max(
             control.leftPadding,
@@ -209,13 +200,14 @@ RangeSlider {
         y: control.topPadding + control.availableHeight * 0.5 - height * 0.5
         width: control.knobDiameter
         height: control.knobDiameter
-        radius: width * 0.5
-        color: control.enabled ? control.handleFillColor : Qt.alpha(control.disabledColor, 0.28)
-        border.width: 1
-        border.color: control.enabled ? control.handleBorderColor : control.disabledColor
+        fillColor: control.enabled ? (control.first.pressed ? "#f0f0f0" : control.handleFillColor)
+                                   : Qt.alpha(control.disabledColor, 0.28)
+        borderColor: control.enabled ? (control.first.pressed || control.first.hovered
+                                       ? control.accentColor : control.handleBorderColor) : control.disabledColor
+        depthColor: control.enabled ? "#24000000" : "transparent"
     }
 
-    second.handle: Rectangle {
+    second.handle: GraphSurfaceSliderHandle {
         objectName: "graphSurfaceIntervalSecondHandle"
         x: Math.max(
             control.leftPadding,
@@ -229,10 +221,11 @@ RangeSlider {
         y: control.topPadding + control.availableHeight * 0.5 - height * 0.5
         width: control.knobDiameter
         height: control.knobDiameter
-        radius: width * 0.5
-        color: control.enabled ? control.handleFillColor : Qt.alpha(control.disabledColor, 0.28)
-        border.width: 1
-        border.color: control.enabled ? control.handleBorderColor : control.disabledColor
+        fillColor: control.enabled ? (control.second.pressed ? "#f0f0f0" : control.handleFillColor)
+                                   : Qt.alpha(control.disabledColor, 0.28)
+        borderColor: control.enabled ? (control.second.pressed || control.second.hovered
+                                       ? control.accentColor : control.handleBorderColor) : control.disabledColor
+        depthColor: control.enabled ? "#24000000" : "transparent"
     }
 
     Rectangle {

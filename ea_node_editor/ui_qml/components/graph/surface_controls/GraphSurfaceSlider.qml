@@ -1,20 +1,20 @@
 import QtQuick 2.15
-import QtQuick.Controls 2.15
+import QtQuick.Templates as T
 import "SurfaceControlGeometry.js" as SurfaceControlGeometry
 import "SurfaceValueFormatter.js" as SurfaceValueFormatter
 
 // Inline "slider" property editor: thin rounded track with accent fill and a
 // round knob. Commits on release only (one inlinePropertyCommitted per drag,
 // so one undo entry); keyboard/wheel moves commit immediately.
-Slider {
+T.Slider {
     id: control
     property Item host: null
     property Item rectItem: control
     property int knobDiameter: 14
     property color accentColor: host ? host.selectedOutlineColor : "#60CDFF"
     property color trackColor: host ? host.inlineInputBorderColor : "#4a4f5a"
-    property color knobFillColor: host ? host.inlineInputBackgroundColor : "#22242a"
-    property color knobBorderColor: pressed || hovered ? accentColor : trackColor
+    property color knobFillColor: pressed ? "#f0f0f0" : "#fafafa"
+    property color knobBorderColor: pressed || hovered ? accentColor : "#b6b8bc"
     property color textColor: host ? host.inlineInputTextColor : "#f0f2f5"
     property color disabledColor: host && typeof host.inlineDrivenTextColor !== "undefined"
         ? host.inlineDrivenTextColor
@@ -56,9 +56,17 @@ Slider {
     signal controlStarted()
     signal commitRequested(real value)
 
+    implicitWidth: 80
     implicitHeight: Math.max(16, controlHeight) + captionReserve
     padding: 0
+    leftPadding: 0
+    rightPadding: 0
+    topPadding: 0
     bottomPadding: captionReserve
+    leftInset: 0
+    rightInset: 0
+    topInset: 0
+    bottomInset: 0
     hoverEnabled: enabled
     live: true
     activeFocusOnTab: enabled
@@ -90,39 +98,29 @@ Slider {
         }
     }
 
-    background: Item {
-        implicitWidth: 80
+    background: GraphSurfaceSliderTrack {
+        objectName: "graphSurfaceSliderTrack"
+        x: control.leftPadding
+        y: control.topPadding
+        width: control.availableWidth
         height: control.availableHeight
-
-        Rectangle {
-            id: sliderTrack
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.width
-            height: 3
-            radius: height * 0.5
-            color: control.enabled ? control.trackColor : Qt.alpha(control.disabledColor, 0.42)
-        }
-
-        Rectangle {
-            anchors.verticalCenter: parent.verticalCenter
-            width: control.visualPosition * parent.width
-            height: sliderTrack.height
-            radius: sliderTrack.radius
-            color: control.enabled ? control.accentColor : control.disabledColor
-        }
+        activeStart: control.mirrored ? control.handle.x + control.handle.width * 0.5 - x : 0
+        activeEnd: control.mirrored ? width : control.handle.x + control.handle.width * 0.5 - x
+        trackColor: control.enabled ? control.trackColor : Qt.alpha(control.disabledColor, 0.42)
+        activeColor: control.enabled ? control.accentColor : control.disabledColor
     }
 
-    handle: Rectangle {
+    handle: GraphSurfaceSliderHandle {
+        objectName: "graphSurfaceSliderHandle"
         x: control.leftPadding + control.visualPosition * (control.availableWidth - width)
         y: control.topPadding + control.availableHeight * 0.5 - height * 0.5
         width: control.knobDiameter
         height: control.knobDiameter
-        radius: width * 0.5
-        color: control.enabled ? control.knobFillColor : Qt.alpha(control.disabledColor, 0.28)
-        border.width: 1
-        border.color: control.enabled ? control.knobBorderColor : control.disabledColor
+        fillColor: control.enabled ? control.knobFillColor : Qt.alpha(control.disabledColor, 0.28)
+        borderColor: control.enabled ? control.knobBorderColor : control.disabledColor
+        depthColor: control.enabled ? "#24000000" : "transparent"
 
-        Behavior on border.color {
+        Behavior on borderColor {
             ColorAnimation { duration: 90 }
         }
     }
