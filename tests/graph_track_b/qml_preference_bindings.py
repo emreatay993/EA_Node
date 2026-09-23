@@ -727,7 +727,13 @@ class GraphCanvasQmlPreferenceBindingTests(
         self.assertEqual(dict(self.canvas.property("completedNodeLookup")), {})
         self.assertFalse(bool(elapsed_timer.property("visible")))
 
-        idle_key = str(background_layer.property("cacheKey") or "")
+        def border_signature() -> tuple[str, str]:
+            return (
+                str(background_layer.property("borderPath") or ""),
+                _rendering_suite._color_name(background_layer.property("effectiveOutlineColor"), include_alpha=True),
+            )
+
+        idle_key = border_signature()
         started_at_ms = (time.time() * 1000.0) - 2100.0
         completed_elapsed_ms = 3487.0
 
@@ -753,7 +759,7 @@ class GraphCanvasQmlPreferenceBindingTests(
             _rendering_suite._color_name(node_card.property("outlineColor")),
         )
 
-        running_key = str(background_layer.property("cacheKey") or "")
+        running_key = border_signature()
         self.assertEqual(running_key, idle_key)
 
         canvas_state_bridge.set_completed_node_state(node_id, completed_elapsed_ms)
@@ -810,7 +816,7 @@ class GraphCanvasQmlPreferenceBindingTests(
             timeout_message="Timed out waiting for Always mode to restore completed elapsed footer.",
         )
 
-        completed_key = str(background_layer.property("cacheKey") or "")
+        completed_key = border_signature()
         self.assertEqual(completed_key, running_key)
 
         canvas_state_bridge.clear_terminal_execution_state()
@@ -868,7 +874,10 @@ class GraphCanvasQmlPreferenceBindingTests(
         )
         self.assertFalse(bool(elapsed_timer.property("liveElapsedActive")))
         self.assertFalse(bool(elapsed_timer.property("cachedElapsedActive")))
-        self.assertIn("|error|", str(background_layer.property("cacheKey") or ""))
+        # Failure reaches the retained vector chrome: the border ring is rebuilt
+        # at the error weight, not only recoloured.
+        self.assertGreaterEqual(float(background_layer.property("effectiveBorderWidth")), 2.4)
+        self.assertNotEqual(border_signature()[0], idle_key[0])
 
     def test_graph_typography_qml_contract_graph_typography_inline_edge_root_bindings_and_shared_roles_follow_preference_projection(
         self,

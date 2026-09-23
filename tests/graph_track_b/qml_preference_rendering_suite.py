@@ -1133,7 +1133,13 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertEqual(input_port_fill, _color_name(node_card.property("themeSurfaceColor")))
         self.assertEqual(output_port_fill, _color_name("#67D487"))
 
-        idle_key = str(background_layer.property("cacheKey") or "")
+        def border_signature() -> tuple[str, str]:
+            return (
+                str(background_layer.property("borderPath") or ""),
+                _color_name(background_layer.property("effectiveOutlineColor"), include_alpha=True),
+            )
+
+        idle_key = border_signature()
 
         # Active selection is a fixed blue body and outline, with no aura.
         self.assertFalse(bool(selected_halo.property("visible")))
@@ -1181,7 +1187,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertEqual(_color_name(node_card.property("surfaceColor")), _color_name("#403C2D"))
         self.assertFalse(bool(selected_halo.property("visible")))
 
-        running_key = str(background_layer.property("cacheKey") or "")
+        running_key = border_signature()
         self.assertEqual(running_key, idle_key)
 
         wait_for_condition_or_raise(
@@ -1212,7 +1218,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         )
         self.assertEqual(_color_name(node_card.property("surfaceColor")), _color_name("#403C2D"))
 
-        completed_key = str(background_layer.property("cacheKey") or "")
+        completed_key = border_signature()
         self.assertEqual(completed_key, running_key)
 
         canvas_state_bridge.set_fresh_run_node_state(node_id)
@@ -1231,7 +1237,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             _color_name(background_layer.property("effectiveOutlineColor")),
             _color_name("#81795C"),
         )
-        fresh_key = str(background_layer.property("cacheKey") or "")
+        fresh_key = border_signature()
         self.assertEqual(fresh_key, completed_key)
 
         canvas_state_bridge.set_warning_node_state(node_id)
@@ -1260,7 +1266,10 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertEqual(_color_name(node_card.property("surfaceColor")), _color_name("#5D2F30"))
         self.assertEqual(_color_name(node_card.property("bodyGradientEndColor")), _color_name("#51292A"))
         self.assertTrue(bool(failure_badge.property("visible")))
-        self.assertIn("|error|", str(background_layer.property("cacheKey") or ""))
+        # Failure reaches the retained vector chrome: the border ring is rebuilt
+        # at the error weight, not only recoloured.
+        self.assertGreaterEqual(float(background_layer.property("effectiveBorderWidth")), 2.4)
+        self.assertNotEqual(border_signature()[0], idle_key[0])
         self.assertEqual(_color_name(input_port_dot.property("color")), input_port_fill)
         self.assertEqual(_color_name(output_port_dot.property("color")), output_port_fill)
 
