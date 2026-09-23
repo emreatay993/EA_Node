@@ -113,16 +113,11 @@ Item {
 
     ListModel { id: inputPortModel }
     ListModel { id: outputPortModel }
-    property var _settledNotchCutoutCenters: ({"left": [], "right": []})
-    // A point binding may notify after a payload refresh even when its local
-    // coordinates are unchanged. Publish centers only when their values change,
-    // so translation/paint refreshes cannot rebuild retained chrome geometry.
+    // Payload refreshes re-evaluate the centers even when no port moves. Publish
+    // centers only when their values change, so translation/paint refreshes
+    // cannot rebuild retained chrome geometry.
     readonly property string _notchCutoutSignature: JSON.stringify(root._notchCutoutCenters())
     readonly property var notchCutoutCenters: JSON.parse(root._notchCutoutSignature)
-    onNotchCutoutCentersChanged: {
-        if (!root._portModelsUpdating)
-            root._settledNotchCutoutCenters = root.notchCutoutCenters;
-    }
     property bool _portModelsUpdating: false
     property string _appliedPortPresentationSignature: ""
 
@@ -189,28 +184,45 @@ Item {
         }
     }
 
+    // Derive centers in one pass from the presentation and host layout the rows
+    // use. Reading each row's portPoint re-ran this binding once per moving row,
+    // so every settings-animation tick rebuilt the chrome silhouette per port.
     function _notchCutoutCenters() {
         var centers = {"left": [], "right": []};
-        if (!root.notchedPortsEffective)
+        // Row and socket visibility includes this layer's effective visibility.
+        if (!root.notchedPortsEffective || !root.host || !root.visible)
             return centers;
-        // Reconciliation publishes several rows synchronously. Retain the last
-        // complete silhouette until all rows have their final presentation.
-        if (root._portModelsUpdating)
-            return root._settledNotchCutoutCenters;
-        for (var inputIndex = 0; inputIndex < inputPortsRepeater.count; ++inputIndex) {
-            var inputRow = inputPortsRepeater.itemAt(inputIndex);
-            if (inputRow && inputRow.visible && isFinite(Number(inputRow.portPoint.y)))
-                centers.left.push(Number(inputRow.portPoint.y));
+        var presentation = root._portPresentation;
+        var sides = [{"direction": "in", "side": "left"}, {"direction": "out", "side": "right"}];
+        for (var sideIndex = 0; sideIndex < sides.length; ++sideIndex) {
+            var direction = sides[sideIndex].direction;
+            var keys = presentation.topology[direction];
+            for (var keyIndex = 0; keyIndex < keys.length; ++keyIndex) {
+                var visibleIndex = presentation.visibleRows[direction][keys[keyIndex]];
+                var port = presentation.byKey[keys[keyIndex]];
+                // Mirrors GraphNodePortRow visible, rowIndex, and portPoint.
+                if (visibleIndex === undefined || !port)
+                    continue;
+                if (direction === "in" && port.handle_visible !== undefined && !Boolean(port.handle_visible))
+                    continue;
+                var rowIndex = isFinite(Number(port.layout_row))
+                    ? Number(port.layout_row)
+                    : Math.max(0, visibleIndex);
+                var portY = Number(root.host.localPortPointForPort(direction, rowIndex, port).y);
+                if (isFinite(portY))
+                    centers[sides[sideIndex].side].push(portY);
+            }
         }
-        for (var outputIndex = 0; outputIndex < outputPortsRepeater.count; ++outputIndex) {
-            var outputRow = outputPortsRepeater.itemAt(outputIndex);
-            if (outputRow && outputRow.visible && isFinite(Number(outputRow.portPoint.y)))
-                centers.right.push(Number(outputRow.portPoint.y));
-        }
-        for (var groupIndex = 0; groupIndex < settingsGroupAggregateRepeater.count; ++groupIndex) {
-            var aggregate = settingsGroupAggregateRepeater.itemAt(groupIndex);
-            if (aggregate && aggregate.visible && isFinite(Number(aggregate.notchCenterY)))
-                centers.left.push(Number(aggregate.notchCenterY));
+        // Mirrors the settings-group aggregate delegates' visible and notchCenterY.
+        for (var groupIndex = 0; groupIndex < root.settingsGroupModelKeys.length; ++groupIndex) {
+            var group = root.settingsGroups[groupIndex] || ({});
+            var anchor = group.aggregate_anchor || null;
+            if (!anchor || Boolean(group.expanded))
+                continue;
+            var aggregateY = Number(anchor.y || 0) + root.settingsBandYOffset
+                + Number(root.host.settingsGroupOffsets[String(group.group_id || "")] || 0);
+            if (isFinite(aggregateY))
+                centers.left.push(aggregateY);
         }
         return centers;
     }

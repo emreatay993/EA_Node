@@ -97,6 +97,32 @@ class GraphNodeChromeGeometryTests(unittest.TestCase):
         self.assert_membership(96, 30, 50, 2.4, {"left": [2, 15, 28], "right": [15]})
         self.assert_membership(70, 70, 24, 3, {"left": [5, 20, 65], "right": [8, 54]})
 
+    def test_straight_edge_stacks_touch_overlap_and_stay_separate(self):
+        # Settings-group sockets sit 18 px apart: outer cutouts touch on the edge,
+        # inset border cutouts overlap, and wider rows keep an edge between them.
+        centers = {"left": [30, 48, 66, 84, 121, 147], "right": [30, 48, 110]}
+        for inset in (0, 2):
+            self.assertTrue(self.evaluate(
+                f"edgeWalkSilhouette(normalized(90, 190, 9, {json.dumps(centers)}, 9, {inset})) !== null"))
+        self.assert_membership(90, 190, 9, 2, centers)
+
+    def test_randomized_straight_edge_stacks_match_membership(self):
+        rng = random.Random(2309)
+        for _ in range(8):
+            centers = {}
+            for side in ("left", "right"):
+                y, values = rng.uniform(22, 30), []
+                for _ in range(rng.randrange(1, 5)):
+                    values.append(round(y, 3))
+                    y += rng.choice([18, 21, 22, 26, rng.uniform(4, 30)])
+                centers[side] = values
+            self.assert_membership(70, 190, rng.choice([6, 9, 12]), rng.choice([1, 1.5, 2]), centers)
+
+    def test_corner_and_cross_card_cutouts_use_the_general_pass(self):
+        for args in ("96, 30, 50, {left: [2, 15, 28], right: [15]}, 9, 0",
+                     "14, 70, 6, {left: [35], right: [35]}, 9, 0"):
+            self.assertTrue(self.evaluate(f"edgeWalkSilhouette(normalized({args})) === null"))
+
     def test_opposite_cutouts_can_disconnect_the_body(self):
         geometry = self.geometry(14, 70, 6, 1.5, {"left": [35], "right": [35]})
         self.assertGreaterEqual(geometry["fillPath"].count("M"), 2)

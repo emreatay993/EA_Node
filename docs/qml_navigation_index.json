@@ -8,7 +8,7 @@
     "qml_files": 200,
     "repeater_constructs": 96,
     "loader_constructs": 29,
-    "signal_handlers": 999,
+    "signal_handlers": 998,
     "connections": 52,
     "property_bindings": 7969,
     "local_component_refs": 336
@@ -23430,10 +23430,6 @@
           "name": "_portPresentation"
         },
         {
-          "kind": "var",
-          "name": "_settledNotchCutoutCenters"
-        },
-        {
           "kind": "string",
           "name": "_notchCutoutSignature"
         },
@@ -23852,10 +23848,6 @@
         {
           "kind": "handler",
           "name": "onSettingsGroupsChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onNotchCutoutCentersChanged"
         },
         {
           "kind": "handler",
@@ -24649,12 +24641,6 @@
           "detail": "var"
         },
         {
-          "anchor": "GraphNodePortsLayerPropertySettledNotchCutoutCenters",
-          "kind": "property",
-          "name": "_settledNotchCutoutCenters",
-          "detail": "var"
-        },
-        {
           "anchor": "GraphNodePortsLayerPropertyNotchCutoutSignature",
           "kind": "property",
           "name": "_notchCutoutSignature",
@@ -25169,11 +25155,6 @@
           "anchor": "GraphNodePortsLayerHandlerOnSettingsGroupsChanged",
           "kind": "handler",
           "name": "onSettingsGroupsChanged"
-        },
-        {
-          "anchor": "GraphNodePortsLayerHandlerOnNotchCutoutCentersChanged",
-          "kind": "handler",
-          "name": "onNotchCutoutCentersChanged"
         },
         {
           "anchor": "GraphNodePortsLayerHandlerOnHostChanged",
