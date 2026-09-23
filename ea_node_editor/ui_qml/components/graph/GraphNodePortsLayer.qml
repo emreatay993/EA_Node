@@ -114,7 +114,11 @@ Item {
     ListModel { id: inputPortModel }
     ListModel { id: outputPortModel }
     property var _settledNotchCutoutCenters: ({"left": [], "right": []})
-    readonly property var notchCutoutCenters: root._notchCutoutCenters()
+    // A point binding may notify after a payload refresh even when its local
+    // coordinates are unchanged. Publish centers only when their values change,
+    // so translation/paint refreshes cannot rebuild retained chrome geometry.
+    readonly property string _notchCutoutSignature: JSON.stringify(root._notchCutoutCenters())
+    readonly property var notchCutoutCenters: JSON.parse(root._notchCutoutSignature)
     onNotchCutoutCentersChanged: {
         if (!root._portModelsUpdating)
             root._settledNotchCutoutCenters = root.notchCutoutCenters;

@@ -1259,9 +1259,9 @@ TestCase {
         host.viewportInteractionCacheActive = true
         host.snapshotReuseActive = true
         host.scale = 5
-        compare(background.silhouette, baseline)
+        verify(background.silhouette === baseline)
         host.shadowStrength = 55
-        compare(background.silhouette, baseline)
+        verify(background.silhouette === baseline)
         host._liveWidth = 244
         host._liveHeight = 96
         host._liveGeometryActive = true
@@ -1272,6 +1272,55 @@ TestCase {
         host.showShadow = false
         verify(!shadow.cached && !shadow.visible)
         compare(background.fillPath, baseline.fillPath)
+    }
+
+    function test_vector_chrome_does_not_rebuild_during_translation_or_equal_payload_publication_data() {
+        return [{"tag": "active", "passive": false}, {"tag": "passive", "passive": true}]
+    }
+
+    function test_vector_chrome_does_not_rebuild_during_translation_or_equal_payload_publication(data) {
+        var payload = nodePayload()
+        if (data.passive)
+            payload.runtime_behavior = "passive"
+        var host = createHost(payload)
+        var background = findNamedItems(host, "graphNodeChromeBackgroundLayer")[0]
+        var spy = createTemporaryObject(propertyCommitSpyComponent, testCase,
+            {"target": background, "signalName": "silhouetteChanged"})
+        verify(spy.valid)
+        var baseline = background.silhouette
+        host._liveWidth = host.width
+        host._liveHeight = host.height
+        host._liveX = host.x
+        host._liveY = host.y
+        host._liveGeometryActive = true
+        for (var step = 0; step < 20; ++step) {
+            host._liveX += 0.75
+            host._liveY += 0.5
+            host.worldOffset = step * 3
+            host.scale = 0.5 + step / 4
+            verify(background.silhouette === baseline, "translation/scale rebuilt geometry at " + step)
+        }
+        host._liveGeometryActive = false
+        for (var update = 0; update < 10; ++update) {
+            payload = JSON.parse(JSON.stringify(payload))
+            payload.x += 0.75
+            payload.y += 0.5
+            host.nodeData = payload
+            verify(background.silhouette === baseline, "equal local geometry rebuilt on payload " + update)
+        }
+        if (data.passive) {
+            var oldOutline = String(background.effectiveOutlineColor)
+            payload = JSON.parse(JSON.stringify(payload))
+            payload.visual_style = {"fill_color": "#334455", "border_color": "#ea42c3"}
+            host.nodeData = payload
+            verify(String(background.effectiveOutlineColor) !== oldOutline)
+            verify(background.silhouette === baseline, "paint-only payload rebuilt geometry")
+        }
+        compare(spy.count, 0)
+        host._liveWidth = host.width + 4
+        host._liveGeometryActive = true
+        verify(background.silhouette !== baseline)
+        verify(spy.count > 0)
     }
 
     function test_graph_node_host_shows_resize_handles_only_for_eligible_expanded_nodes() {
