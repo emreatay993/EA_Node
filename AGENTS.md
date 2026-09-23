@@ -103,14 +103,10 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 - In PowerShell, use `rg` only when `Get-Command rg.exe -All` shows a working non-Codex installation first on `PATH` and `rg --version` succeeds. Otherwise use `Get-ChildItem`/`Select-String`.
 - Do not bundle many large file additions into one patch. Historical work-packet manifests/ledgers remain in Git history; use work-packet runners only with an explicitly supplied external packet set and its verification requirements.
 
-## Third-party capability research
+## Third-party capability research and publication
 
-- Begin with authorized online documentation. Inspect an installed product only when the user explicitly authorizes it, keep the inspection read-only, and keep detailed evidence in the private corpus rather than this repository.
-
-## Public repository privacy
-
-- Treat vendor or competitor study material and its provenance as private unless the user explicitly approves publication.
-- Use COREX or neutral functional terminology in tracked files, paths, generated outputs, commit messages, branch names, pull requests, and issues.
-- Never publish study product names, proprietary file formats or namespaces, source identifiers, installed paths or versions, screenshots, hashes, comparative labels, or reverse-engineering notes.
-- Keep private research outside the repository or under an existing ignored local artifact root. Confirm new research paths with `git check-ignore -v` before writing and never force-add them.
-- Before every commit and push, inspect staged filenames, staged content, generated files, and the proposed commit message for private study provenance. Stop if publication status is unclear.
+- Begin with authorized public documentation. Inspect an installed product only when the user explicitly authorizes it and keep the inspection read-only.
+- This repository may be public. Original COREX source, tests, requirements, design decisions, and factual comparisons may name Synera or another product when the reference is relevant and the wording clearly distinguishes public facts, observations, and inferences from COREX behavior.
+- Do not commit credentials, license material, non-public vendor documents, copied proprietary source or binaries, model weights, customer data, or substantial copyrighted content. Keep such material outside the repository or under an existing ignored local artifact root; confirm new research paths with `git check-ignore -v` and never force-add them.
+- Do not treat product names, public file-format names, public namespaces, versions, citations, compatibility notes, or comparative labels as publication blockers by themselves.
+- Before a commit or push that includes third-party research material, inspect the staged content for secrets and non-public or copied proprietary artifacts. Resolve concrete findings; do not stop publication merely because Synera or another vendor is mentioned.

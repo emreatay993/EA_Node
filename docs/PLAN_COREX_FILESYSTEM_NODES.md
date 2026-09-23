@@ -58,7 +58,7 @@ All other ports use Item access. Use snake_case keys and
 
 ## Execution and acceptance
 
-The coordinator owns this table and integration. Fresh GPT 5.6 Sol implementation
+The coordinator owns this table and integration. Fresh GPT-6 Sol implementation
 workers execute sequentially with one active writer. Each task receives an
 independent review before acceptance. Preserve unrelated working-tree edits;
 publication and packaging are outside scope.
