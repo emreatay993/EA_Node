@@ -7,12 +7,15 @@ Lookup aliases: `stress_1200_nodes`, `notched port rendering`, `benchmark report
 
 ## Start Here
 - `ea_node_editor/ui/perf/performance_harness.py`
+- `ea_node_editor/ui/perf/node_visual_quality.py`
+- `scripts/capture_node_visual_quality.py`
 - `ea_node_editor/ui/perf/engineering_viewer_benchmark.py`
 - `scripts/profile_canvas_lag.py`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasFrameScheduler.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHostRenderQuality.qml`
 - `ea_node_editor/ui_qml/components/graph/EdgeLayer.qml` edge churn counters: spatial query cache hits/misses, retained entry skips, and flow-label sync skips. Execution-flash scoped refreshes are removed with control-edge animation.
 - `tests/test_track_h_perf_harness.py`
+- `tests/test_node_visual_quality_tooling.py`
 - `tests/test_graph_canvas_frame_coalescing.py`
 - `tests/graph_surface/passive_host_boundary_suite.py`
 - `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md`
@@ -22,6 +25,8 @@ Lookup aliases: `stress_1200_nodes`, `notched port rendering`, `benchmark report
 - `docs/specs/perf/ENGINEERING_VIEWER_V1_NATIVE_PERF_REPORT.md`
 
 ## Current Measurement Ownership
+
+- `node_visual_quality.py` owns the deterministic production-node visual fixture and the opt-in `--control-interactions` pointer measurements. Scalar sliders, switches, settings expansion/collapse, and actual Sticky Note resizing require committed state or geometry followed by a later `afterRendering` callback. Settings evidence additionally requires observed animation, changing geometry/progress, completion, and nonempty active-frame intervals. Target lookup and screenshot readback are outside timed control intervals; the metric excludes physical monitor presentation. The capture script records native light/dark zoom and DPR evidence through the same production QQuickWidget host, with import-root/style/renderer/fixture metadata. The benchmark host supplies the same shell-context theme bridge contract as production.
 
 - `scripts/profile_canvas_lag.py --selection` delegates to `scripts/canvas_selection_profile.py` for production canvas mouse clicks in a composed shell with isolated preferences and an inert execution client. It measures dispatch and click-to-QML-render completion separately, verifies selection bindings before the accepted render, and records cleared inspector visual counts across collapsed, Smart Groups, Accordion, and Palette modes. The Windows/D3D11 p95 gate is `<100 ms`; `afterRendering` excludes widget composition, GPU completion, and display presentation. See [Inspector Selection Performance](../../specs/perf/INSPECTOR_SELECTION_PERFORMANCE_QA.md).
 - State-side `visible_node_model_update_ms` is the sole visible-publication timing source. Harness-forced exact refresh, Qt event drain, render callback, readback, and post-readback drain are separate non-additive phases.

@@ -17,13 +17,13 @@ This compact index gives agents deterministic aliases for QML components, symbol
 
 | Metric | Count |
 | --- | ---: |
-| QML files | 197 |
+| QML files | 200 |
 | Repeater constructs | 96 |
-| Loader constructs | 30 |
-| Signal handlers | 1006 |
+| Loader constructs | 29 |
+| Signal handlers | 999 |
 | Connections targets | 52 |
-| Property bindings | 7944 |
-| Local component refs | 332 |
+| Property bindings | 7969 |
+| Local component refs | 336 |
 
 ## Component Families
 
@@ -36,7 +36,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `components/graph/overlay` | 7 |
 | `components/graph/passive` | 27 |
 | `components/graph/plot` | 2 |
-| `components/graph/surface_controls` | 16 |
+| `components/graph/surface_controls` | 19 |
 | `components/graph/tabular` | 12 |
 | `components/graph/viewer` | 6 |
 | `components/graph_canvas` | 21 |
@@ -62,7 +62,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `EdgeRetainedLayer.qml` | `ea_node_editor/ui_qml/components/graph/EdgeRetainedLayer.qml` | `Item` | `ListModel`, `Repeater`, `Shape`, `ShapePath`, `PathCubic`, `PathSvg`, `Rectangle` | `Repeater`, `model`, `delegate` |
 | `EdgeScenegraphLayer.qml` | `ea_node_editor/ui_qml/components/graph/EdgeScenegraphLayer.qml` | `Item` | _None_ | _None_ |
 | `GraphInlinePropertiesLayer.qml` | `ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml` | `Item` | `Connections`, `Timer`, `Repeater`, `HoverHandler`, `Common.ManagedToolTip`, `Text`, `Rectangle`, `Loader`, ... +14 more | `Repeater`, `model`, `delegate`, `Loader`, `sourceComponent`, `Component` |
-| `GraphNodeChromeBackground.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeChromeBackground.qml` | `Item` | `RectangularShadow`, `Rectangle`, `MultiEffect`, `NumberAnimation`, `GraphNodeGradientFill`, `Loader`, `Image` | `source`, `Loader`, `sourceComponent` |
+| `GraphNodeChromeBackground.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeChromeBackground.qml` | `Item` | `RectangularShadow`, `Rectangle`, `MultiEffect`, `NumberAnimation`, `LinearGradient`, `GradientStop`, `RadialGradient`, `Shape`, ... +2 more | `source` |
 | `GraphNodeGradientFill.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml` | `Item` | `Rectangle`, `GradientStop`, `Canvas` | _None_ |
 | `GraphNodeHeaderLayer.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeHeaderLayer.qml` | `Item` | `Loader`, `Canvas`, `TextMetrics`, `Image`, `Text`, `HoverHandler`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceInteractiveRegion`, ... +4 more | `Loader`, `sourceComponent`, `source`, `Repeater`, `model`, `delegate` |
 | `GraphNodeHost.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml` | `Item` | `QtObject`, `GraphNodeHostTheme`, `GraphSharedTypography`, `GraphNodeHostLayout`, `GraphNodeHostRenderQuality`, `GraphNodeHostSceneAccess`, `GraphNodeHostInteractionState`, `HoverHandler`, ... +12 more | _None_ |
@@ -73,10 +73,10 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `GraphNodeHostSceneAccess.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeHostSceneAccess.qml` | `QtObject` | _None_ | _None_ |
 | `GraphNodeHostTheme.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeHostTheme.qml` | `QtObject` | _None_ | _None_ |
 | `GraphNodePortContextMenu.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml` | `Shell.ShellContextPopup` | _None_ | _None_ |
-| `GraphNodePortRow.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml` | `Item` | `Image`, `Rectangle`, `MouseArea`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceButton`, `Text`, `SurfaceControls.GraphSurfaceTextField` | `source` |
-| `GraphNodePortsLayer.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml` | `Item` | `ListModel`, `Connections`, `Repeater`, `Image`, `Rectangle`, `Canvas`, `GraphInlinePropertiesLayer`, `Common.ManagedToolTip`, ... +3 more | `Repeater`, `model`, `delegate`, `source`, `Loader`, `sourceComponent` |
+| `GraphNodePortRow.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml` | `Item` | `SurfaceControls.GraphSurfaceCapsule`, `MouseArea`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceButton`, `Rectangle`, `Text`, `SurfaceControls.GraphSurfaceTextField` | _None_ |
+| `GraphNodePortsLayer.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml` | `Item` | `ListModel`, `Connections`, `Repeater`, `SurfaceControls.GraphSurfaceCapsule`, `Rectangle`, `Canvas`, `GraphInlinePropertiesLayer`, `Common.ManagedToolTip`, ... +3 more | `Repeater`, `model`, `delegate`, `Loader`, `sourceComponent` |
 | `GraphNodeResizeHandle.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeResizeHandle.qml` | `Item` | `Canvas`, `MouseArea` | _None_ |
-| `GraphNodeSettingsGroupsLayer.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeSettingsGroupsLayer.qml` | `Item` | `Repeater`, `Rectangle`, `Text`, `Canvas`, `MouseArea`, `GraphInlinePropertiesLayer` | `Repeater`, `model`, `delegate` |
+| `GraphNodeSettingsGroupsLayer.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeSettingsGroupsLayer.qml` | `Item` | `Repeater`, `Rectangle`, `Text`, `Shape`, `ShapePath`, `PathLine`, `MouseArea`, `GraphInlinePropertiesLayer` | `Repeater`, `model`, `delegate` |
 | `GraphNodeSurfaceLoader.qml` | `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceLoader.qml` | `Item` | `Loader`, `Component`, `Rectangle`, `Canvas`, `Image`, `Column`, `Text` | `Loader`, `source`, `sourceComponent`, `Component` |
 | `GraphSharedTypography.qml` | `ea_node_editor/ui_qml/components/graph/GraphSharedTypography.qml` | `QtObject` | _None_ | _None_ |
 | `GraphStandardNodeSurface.qml` | `ea_node_editor/ui_qml/components/graph/GraphStandardNodeSurface.qml` | `Item` | `GraphInlinePropertiesLayer` | _None_ |
@@ -120,18 +120,21 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `GraphPlotSurface.qml` | `ea_node_editor/ui_qml/components/graph/plot/GraphPlotSurface.qml` | `Item` | `Loader` | `Loader`, `source` |
 | `GraphPlotSurfaceBody.qml` | `ea_node_editor/ui_qml/components/graph/plot/GraphPlotSurfaceBody.qml` | `Item` | `Timer`, `Rectangle`, `HoverHandler`, `TapHandler`, `Image`, `Canvas`, `Text` | `source` |
 | `GraphSurfaceButton.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml` | `Button` | `Common.ManagedToolTip`, `Row`, `Image`, `Text` | `source` |
-| `GraphSurfaceCheckBox.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCheckBox.qml` | `CheckBox` | `Rectangle`, `NumberAnimation` | _None_ |
+| `GraphSurfaceCapsule.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml` | `Shape` | `ShapePath`, `PathLine`, `PathAngleArc` | _None_ |
+| `GraphSurfaceCheckBox.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCheckBox.qml` | `T.CheckBox` | `GraphSurfaceCapsule`, `NumberAnimation` | _None_ |
 | `GraphSurfaceColorEditor.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceColorEditor.qml` | `Item` | `RowLayout`, `GraphSurfaceButton`, `GraphSurfaceTextField` | _None_ |
 | `GraphSurfaceComboBox.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceComboBox.qml` | `ComboBox` | `TextMetrics`, `ColorAnimation`, `Rectangle` | `delegate`, `model` |
 | `GraphSurfaceDoubleClickTarget.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceDoubleClickTarget.qml` | `Item` | `MouseArea` | _None_ |
 | `GraphSurfaceInlineTextEditor.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInlineTextEditor.qml` | `Item` | `TextArea` | _None_ |
 | `GraphSurfaceInteractiveRegion.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInteractiveRegion.qml` | `QtObject` | _None_ | _None_ |
 | `GraphSurfaceIntervalFields.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalFields.qml` | `Item` | `Row`, `GraphSurfaceTextField`, `GraphSurfaceButton` | _None_ |
-| `GraphSurfaceIntervalSlider.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml` | `RangeSlider` | `Binding`, `Rectangle`, `Text` | _None_ |
+| `GraphSurfaceIntervalSlider.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml` | `T.RangeSlider` | `Binding`, `GraphSurfaceCapsule`, `Text` | _None_ |
 | `GraphSurfaceListEditor.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceListEditor.qml` | `Item` | `ListModel`, `ListView`, `Loader`, `GraphSurfaceColorEditor`, `GraphSurfaceButton`, `Component`, `GraphSurfaceSearchableComboBox`, `GraphSurfaceComboBox`, ... +2 more | `ListView`, `model`, `delegate`, `Loader`, `sourceComponent`, `Component` |
 | `GraphSurfacePathEditor.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfacePathEditor.qml` | `Item` | `Timer`, `TextMetrics`, `RowLayout`, `GraphSurfaceTextField`, `GraphSurfaceButton` | _None_ |
 | `GraphSurfaceSearchableComboBox.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSearchableComboBox.qml` | `FocusScope` | `TextMetrics`, `HoverHandler`, `Rectangle`, `ColorAnimation`, `TextField`, `Text`, `MouseArea`, `Popup` | `model`, `delegate` |
-| `GraphSurfaceSlider.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSlider.qml` | `Slider` | `Rectangle`, `ColorAnimation`, `Text` | _None_ |
+| `GraphSurfaceSlider.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSlider.qml` | `T.Slider` | `ColorAnimation`, `GraphSurfaceCapsule`, `Text` | _None_ |
+| `GraphSurfaceSliderHandle.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSliderHandle.qml` | `Shape` | `ShapePath`, `PathAngleArc` | _None_ |
+| `GraphSurfaceSliderTrack.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSliderTrack.qml` | `Shape` | `ShapePath`, `PathLine` | _None_ |
 | `GraphSurfaceTextArea.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextArea.qml` | `TextArea` | _None_ | _None_ |
 | `GraphSurfaceTextareaEditor.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextareaEditor.qml` | `Item` | `GraphSurfaceTextArea`, `Connections` | _None_ |
 | `GraphSurfaceTextField.qml` | `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextField.qml` | `TextField` | _None_ | _None_ |
@@ -505,18 +508,18 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Path: `ea_node_editor/ui_qml/components/graph/GraphNodeChromeBackground.qml`
 - Root component: `Item`
 - Agent route aliases: `GraphNodeChromeBackground`, `GraphNodeChromeBackground.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodeChromeBackground.qml`, `ea_node_editor\ui_qml\components\graph\GraphNodeChromeBackground.qml`
-- Imports: `QtQuick 2.15`, `QtQuick.Effects`
-- IDs: `root`, `cardShadow`, `selectedGlowSource`, `selectedHalo`, `cardChrome`, `lockedHatchLoader`, `notchMask`
-- Object names: `graphNodeChromeBackgroundLayer`, `graphNodeShadow`, `graphNodeSelectedGlowSource`, `graphNodeSelectedHalo`, `graphNodeChrome`, `graphNodeBodyGradientFill`, `graphNodeLockedHatchOverlay`, `graphNodeChromeNotchMask`
-- Properties: `host: Item`, `notchCutoutCenters: var`, `notchMaskActive: bool`, `notchMaskSvgSource: url`, `cacheActive: bool`, `cacheKey: string`, `chromeCacheActive: bool`, `shadowCacheActive: bool`, `selectedChromeFreeOutlineOnly: bool`, `suppressHorizontalGlowSpill: bool`, `effectiveBorderWidth: real`, `effectiveOutlineColor: color`, `effectiveBorderState: string`, `effectiveBlur: real`, `horizontalInset: real`, `cornerRadius: real`, `hatchColor: color`, `hatchSpacing: real`
+- Imports: `QtQuick 2.15`, `QtQuick.Effects`, `QtQuick.Shapes`, `"GraphNodeChromeGeometry.js" as ChromeGeometry`
+- IDs: `root`, `cardShadow`, `selectedGlowSource`, `selectedHalo`, `bodyLinearGradient`, `bodyRadialGradient`, `cardChrome`
+- Object names: `graphNodeChromeBackgroundLayer`, `graphNodeShadow`, `graphNodeSelectedGlowSource`, `graphNodeSelectedHalo`, `graphNodeChromeLinearGradient`, `graphNodeChromeRadialGradient`, `graphNodeChrome`, `graphNodeChromeFill`, `graphNodeChromeBorder`, `graphNodeLockedHatchOverlay`
+- Properties: `host: Item`, `notchCutoutCenters: var`, `notchesEnabled: bool`, `shadowCacheActive: bool`, `silhouette: var`, `fillPath: string`, `borderPath: string`, `hatchPath: string`, `gradientDirection: string`, `horizontalGradient: bool`, `reverseGradient: bool`, `firstGradientColor: color`, `lastGradientColor: color`, `selectedChromeFreeOutlineOnly: bool`, `suppressHorizontalGlowSpill: bool`, `effectiveBorderWidth: real`, `effectiveOutlineColor: color`, `effectiveBorderState: string`, ... +2 more
 - Signals: _None_
-- Functions: `_svgNumber`, `_notchMaskSvgSource`
-- Instantiates: `RectangularShadow`, `Rectangle`, `MultiEffect`, `NumberAnimation`, `GraphNodeGradientFill`, `Loader`, `Image`
-- Dynamic constructs: `source` -> `selectedGlowSource`; `Loader`; `sourceComponent` -> `Canvas`; `source` -> `root.notchMaskSvgSource`
-- Signal handlers: `handler` `onPaint`; `handler` `onWidthChanged`; `handler` `onHeightChanged`; `handler` `onCornerRadiusChanged`; `handler` `Component.onCompleted`
+- Functions: _None_
+- Instantiates: `RectangularShadow`, `Rectangle`, `MultiEffect`, `NumberAnimation`, `LinearGradient`, `GradientStop`, `RadialGradient`, `Shape`, `ShapePath`, `PathSvg`
+- Dynamic constructs: `source` -> `selectedGlowSource`
+- Signal handlers: _None_
 - Connections: _None_
-- Property bindings: `binding` `z`; `binding` `visible` -> `root.host`, `root.host._backgroundShadowVisible`; `binding` `anchors.top` -> `parent.top`; `binding` `anchors.bottom` -> `parent.bottom`; `binding` `anchors.left` -> `parent.left`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.leftMargin` -> `cardShadow.horizontalInset`; `binding` `anchors.rightMargin` -> `cardShadow.horizontalInset`; `binding` `offset.x`; `binding` `offset.y` -> `root.host`, `root.host.shadowOffset`; `binding` `blur` -> `cardShadow.effectiveBlur`; `binding` `spread` -> `Math.max`, `Math.min`, `root.host`, `root.host.shadowStrength`; `binding` `radius` -> `root.host`, `root.host.resolvedCornerRadius`; `binding` `color` -> `Qt.rgba`, `root.host`, `root.host.shadowStrength`; `binding` `cached` -> `root.shadowCacheActive`; `binding` `anchors.fill` -> `parent`; `binding` `color` -> `root.host`, `root.host.selectedGlowColor`; `binding` `visible`; ... +41 more
-- Local component refs: `localComponent` `GraphNodeGradientFill`: `ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml`
+- Property bindings: `binding` `z`; `binding` `visible` -> `root.host`, `root.host._backgroundShadowVisible`; `binding` `anchors.top` -> `parent.top`; `binding` `anchors.bottom` -> `parent.bottom`; `binding` `anchors.left` -> `parent.left`; `binding` `anchors.right` -> `parent.right`; `binding` `anchors.leftMargin` -> `cardShadow.horizontalInset`; `binding` `anchors.rightMargin` -> `cardShadow.horizontalInset`; `binding` `offset.x`; `binding` `offset.y` -> `root.host`, `root.host.shadowOffset`; `binding` `blur` -> `cardShadow.effectiveBlur`; `binding` `spread` -> `Math.max`, `Math.min`, `root.host`, `root.host.shadowStrength`; `binding` `radius` -> `root.host`, `root.host.resolvedCornerRadius`; `binding` `color` -> `Qt.rgba`, `root.host`, `root.host.shadowStrength`; `binding` `cached` -> `root.shadowCacheActive`; `binding` `anchors.fill` -> `parent`; `binding` `color` -> `root.host`, `root.host.selectedGlowColor`; `binding` `visible`; ... +30 more
+- Local component refs: _None_
 
 ### `GraphNodeGradientFill.qml`
 
@@ -562,7 +565,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `"GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics`, `"GraphActionPresentation.js" as GraphActionPresentation`
 - IDs: `card`, `webPageBrowserStateSink`, `themeState`, `sharedTypographyState`, `chromeLayout`, `renderQualityState`, `sceneAccess`, `interactionState`, `cardHoverHandler`, `settingsGroupWidthAnimation`, `settingsGroupHeightAnimation`, `chromeBackground`, `elapsedTimerBadge`, `elapsedTimerLabel`, `hostGestureLayer`, `surfaceLayer`, `surfaceLoader`, `headerLayer`, ... +10 more
 - Object names: `graphNodeCard`, `graphNodeElapsedTimerBadge`, `graphNodeElapsedTimer`, `graphNodePortsAnimationClip`, `graphNodePathPointerDropArea`, `graphNodePathPointerDropFeedback`, `graphNodeLockedOverlay`
-- Properties: `nodeData: var`, `nodeId: string`, `hasNodeIdentity: bool`, `worldOffset: real`, `canvasItem: Item`, `frameScheduler: var`, `renderActivationSceneRectPayload: var`, `visibleSceneRectPayload: var`, `contextTargetNodeId: string`, `hoveredPort: var`, `previewPort: var`, `pendingPort: var`, `dragSourcePort: var`, `wireDragInProgress: bool`, `liveDragDx: real`, `liveDragDy: real`, `showShadow: bool`, `shadowStrength: int`, ... +331 more
+- Properties: `nodeData: var`, `nodeId: string`, `hasNodeIdentity: bool`, `worldOffset: real`, `canvasItem: Item`, `frameScheduler: var`, `renderActivationSceneRectPayload: var`, `visibleSceneRectPayload: var`, `contextTargetNodeId: string`, `hoveredPort: var`, `previewPort: var`, `pendingPort: var`, `dragSourcePort: var`, `wireDragInProgress: bool`, `liveDragDx: real`, `liveDragDy: real`, `showShadow: bool`, `shadowStrength: int`, ... +328 more
 - Signals: `nodeClicked`, `nodeOpenRequested`, `nodeContextRequested`, `dragOffsetChanged`, `dragFinished`, `dragCanceled`, `resizePreviewChanged`, `resizeFinished`, `inlineTextFitRequested`, `portClicked`, `portDragStarted`, `portDragMoved`, `portDragFinished`, `portDragCanceled`, `surfaceControlInteractionStarted`, `inlinePropertyCommitted`, `sensitivePropertyReplaceRequested`, `sensitivePropertyClearRequested`, ... +6 more
 - Functions: `browserStatePersistenceEnabled`, `persistWebPageBrowserState`, `settingsGroupContentBottom`, `_emptyPathPointerDropData`, `beginSettingsGroupAnimation`, `cancelSettingsGroupAnimation`, `_finishSettingsGroupAnimation`, `_updatePathPointerDropData`, `_clearPathPointerDropPreview`, `_finishPathPointerDrop`, `localPortPoint`, `localPortPointForPort`, `localPortLayoutPointForPort`, `portScenePos`, `portScenePosForPort`, `portLabelWidth`, `basePortColor`, `portTypeAccentColor`, ... +56 more
 - Instantiates: `QtObject`, `GraphNodeHostTheme`, `GraphSharedTypography`, `GraphNodeHostLayout`, `GraphNodeHostRenderQuality`, `GraphNodeHostSceneAccess`, `GraphNodeHostInteractionState`, `HoverHandler`, `NumberAnimation`, `GraphNodeChromeBackground`, `Rectangle`, `Text`, `GraphNodeHostGestureLayer`, `GraphNodeSurfaceLoader`, `GraphNodeHeaderLayer`, `GraphNodePortsLayer`, `GraphNodeSettingsGroupsLayer`, `DropArea`, ... +2 more
@@ -616,7 +619,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`
 - IDs: `root`
 - Object names: _None_
-- Properties: `host: var`, `chromeTitleVisible: bool`, `chromeFrameVisible: bool`, `useHostChrome: bool`, `useHostShadow: bool`, `titleTop: real`, `titleHeight: real`, `titleLeftMargin: real`, `titleRightMargin: real`, `titleCentered: bool`, `portLabelsSuppressedBySurfaceRule: bool`, `standardExpandedNonPassiveNode: bool`, `standardLeftLabelMetricWidth: real`, `standardRightLabelMetricWidth: real`, `standardPortGutterMetric: real`, `standardCenterGapMetric: real`, `standardPortLabelMinMetricWidth: real`, `standardPortLabelMetricsReady: bool`, ... +25 more
+- Properties: `host: var`, `chromeTitleVisible: bool`, `chromeFrameVisible: bool`, `useHostChrome: bool`, `useHostShadow: bool`, `titleTop: real`, `titleHeight: real`, `titleLeftMargin: real`, `titleRightMargin: real`, `titleCentered: bool`, `portLabelsSuppressedBySurfaceRule: bool`, `standardExpandedNonPassiveNode: bool`, `standardLeftLabelMetricWidth: real`, `standardRightLabelMetricWidth: real`, `standardPortGutterMetric: real`, `standardCenterGapMetric: real`, `standardPortLabelMinMetricWidth: real`, `standardPortLabelMetricsReady: bool`, ... +22 more
 - Signals: _None_
 - Functions: _None_
 - Instantiates: _None_
@@ -706,15 +709,15 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `"../common" as Common`, `"../common/TooltipPolicy.js" as TooltipPolicy`, `"surface_controls" as SurfaceControls`, `"surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry`
 - IDs: `row`, `portDot`, `portMouse`, `removeButton`, `labelContainer`, `labelText`, `labelMouse`, `labelEditor`
 - Object names: `graphNodeDynamicPortRemove_`, `graphNodeDynamicPortRemoveCircle`
-- Properties: `portsLayer: Item`, `modelData: var`, `index: int`, `direction: string`, `defaultPropertyItem: Item`, `isInput: bool`, `host: Item`, `portData: var`, `_publishedPortSignature: string`, `presentationIndex: int`, `rowIndex: int`, `propertyKey: string`, `handleVisible: bool`, `labelOwnedBySettings: bool`, `interactionDirection: string`, `placeholderLockedState: bool`, `inactiveState: bool`, `lockedState: bool`, ... +68 more
+- Properties: `portsLayer: Item`, `modelData: var`, `index: int`, `direction: string`, `defaultPropertyItem: Item`, `isInput: bool`, `host: Item`, `portData: var`, `_publishedPortSignature: string`, `presentationIndex: int`, `rowIndex: int`, `propertyKey: string`, `handleVisible: bool`, `labelOwnedBySettings: bool`, `interactionDirection: string`, `placeholderLockedState: bool`, `inactiveState: bool`, `lockedState: bool`, ... +64 more
 - Signals: _None_
 - Functions: `_syncDefaultProperty`, `currentEmbeddedInteractiveRects`, `refocusLabelEditor`, `paintPadlock`, `drawShackle`, `drawBody`, `updateHoverState`
-- Instantiates: `Image`, `Rectangle`, `MouseArea`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceButton`, `Text`, `SurfaceControls.GraphSurfaceTextField`
-- Dynamic constructs: `source` -> `row.portsLayer.notchSvgSource`
+- Instantiates: `SurfaceControls.GraphSurfaceCapsule`, `MouseArea`, `Common.ManagedToolTip`, `SurfaceControls.GraphSurfaceButton`, `Rectangle`, `Text`, `SurfaceControls.GraphSurfaceTextField`
+- Dynamic constructs: _None_
 - Signal handlers: `handler` `onPortDataChanged`; `handler` `Component.onCompleted`; `handler` `onPressed`; `handler` `onPositionChanged`; `handler` `onReleased`; `handler` `onCanceled`; `handler` `onEntered`; `handler` `onExited`; `handler` `onControlStarted`; `handler` `onClicked`; `handler` `onVisibleChanged`; `handler` `onAccepted`; `handler` `onTextEdited`; `handler` `onActiveFocusChanged`; `handler` `Keys.onEscapePressed`
 - Connections: _None_
-- Property bindings: `binding` `x`; `binding` `y` -> `isInput`; `binding` `width` -> `visible`, `host`, `host.width`; `binding` `height` -> `Math.max`; `binding` `visible` -> `presentationIndex`, `handleVisible`; `binding` `enabled` -> `visible`, `Boolean`, `portData.settings_group_transition_only`; `binding` `visible` -> `row.portsLayer.notchedPortsEffective`; `binding` `width` -> `row.portsLayer.notchDiameter`; `binding` `height` -> `row.portsLayer.notchDiameter`; `binding` `x` -> `row.isInput`, `row.portPoint.x`, `width`; `binding` `y` -> `row.isInput`; `binding` `sourceSize` -> `row.portsLayer.notchSourceSize`; `binding` `mirror` -> `row.isInput`; `binding` `cache`; `binding` `asynchronous`; `binding` `smooth`; `binding` `mipmap`; `binding` `fillMode` -> `Image.Stretch`; ... +106 more
-- Local component refs: `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`; `localComponent` `SurfaceControls.GraphSurfaceButton`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml`; `localComponent` `SurfaceControls.GraphSurfaceTextField`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextField.qml`
+- Property bindings: `binding` `x`; `binding` `y` -> `isInput`; `binding` `width` -> `visible`, `host`, `host.width`; `binding` `height` -> `Math.max`; `binding` `visible` -> `presentationIndex`, `handleVisible`; `binding` `enabled` -> `visible`, `Boolean`, `portData.settings_group_transition_only`; `binding` `x` -> `row.portPoint.x`, `width`; `binding` `y` -> `row.portPoint.y`, `row.y`, `height`; `binding` `width` -> `lockedState`, `lockedDiameter`, `interactiveState`, `activeDiameter`, `restDiameter`; `binding` `height` -> `width`; `binding` `opacity` -> `lockedState`; `binding` `fillColor` -> `placeholderLockedState`; `binding` `borderWidth` -> `placeholderLockedState`; `binding` `borderColor` -> `placeholderLockedState`; `binding` `anchors.centerIn` -> `parent`; `binding` `visible` -> `row.host`, `row.host.usesCardinalNeutralFlowHandles`; `binding` `width` -> `portDot.ringDiameter`; `binding` `height` -> `portDot.ringDiameter`; ... +93 more
+- Local component refs: `localComponent` `SurfaceControls.GraphSurfaceCapsule`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml`; `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`; `localComponent` `SurfaceControls.GraphSurfaceButton`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml`; `localComponent` `SurfaceControls.GraphSurfaceTextField`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextField.qml`
 
 ### `GraphNodePortsLayer.qml`
 
@@ -723,16 +726,16 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Agent route aliases: `GraphNodePortsLayer`, `GraphNodePortsLayer.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodePortsLayer.qml`, `ea_node_editor\ui_qml\components\graph\GraphNodePortsLayer.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `"../common" as Common`, `"../common/TooltipPolicy.js" as TooltipPolicy`, `"../common/PresentationModelKeys.js" as PresentationModelKeys`, `"GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics`, `"surface_controls" as SurfaceControls`, `"surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry`
 - IDs: `root`, `inputPortModel`, `outputPortModel`, `settingsGroupAggregateRepeater`, `settingsGroupAggregate`, `inputPortsRepeater`, `inputPortRow`, `inputLockGlyph`, `defaultPropertyLayer`, `outputPortsRepeater`, `outputPortRow`, `outputLockGlyphLoader`, `outputLockGlyph`, `dynamicPortGroupRepeater`, `dynamicPortAddButton`, `portContextMenu`
-- Object names: `graphNodePortsLayer`, `graphNodeSettingsGroupAggregateNotch`, `graphNodeSettingsGroupAggregateSocket`, `graphNodeInputPortInactiveSlash`, `graphNodeInputPortPadlock`, `graphNodeInputDefaultProperty`, `graphNodeOutputPortPadlock`, `graphNodeDynamicPortAdd_`, `graphNodeDynamicPortAddCircle`
-- Properties: `host: Item`, `editingPortKey: string`, `editingPortDirection: string`, `portLabelEditError: string`, `contextPortData: var`, `contextNodeId: string`, `graphSharedTypography: var`, `tooltipPolicyBridge: var`, `tooltipThemePalette: var`, `portHelpMutedColor: string`, `portHelpDividerColor: string`, `nodeTooltipPlacement: string`, `nodeTooltipAnchorScale: real`, `hostLockedPlaceholder: bool`, `standardRestPortDiameter: real`, `standardActivePortDiameter: real`, `dynamicPortControlCenterInterval: real`, `dynamicPortTargetDiameter: real`, ... +51 more
+- Object names: `graphNodePortsLayer`, `graphNodeSettingsGroupAggregateSocket`, `graphNodeInputPortInactiveSlash`, `graphNodeInputPortPadlock`, `graphNodeInputDefaultProperty`, `graphNodeOutputPortPadlock`, `graphNodeDynamicPortAdd_`, `graphNodeDynamicPortAddCircle`
+- Properties: `host: Item`, `editingPortKey: string`, `editingPortDirection: string`, `portLabelEditError: string`, `contextPortData: var`, `contextNodeId: string`, `graphSharedTypography: var`, `tooltipPolicyBridge: var`, `tooltipThemePalette: var`, `portHelpMutedColor: string`, `portHelpDividerColor: string`, `nodeTooltipPlacement: string`, `nodeTooltipAnchorScale: real`, `hostLockedPlaceholder: bool`, `standardRestPortDiameter: real`, `standardActivePortDiameter: real`, `dynamicPortControlCenterInterval: real`, `dynamicPortTargetDiameter: real`, ... +44 more
 - Signals: `dynamicPortGroupsApplied`
-- Functions: `_publishPortRow`, `_syncPortModel`, `_syncPortModels`, `_notchCutoutCenters`, `onNodeDataChanged`, `onNodes_changed`, `onScene_nodes_changed`, `_copyDynamicPortGroups`, `_payloadHasDynamicPortGroups`, `_scheduleDynamicPortGroupSync`, `_retainDynamicPortGroupsFromSceneDelta`, `_applyScheduledDynamicPortGroupSync`, `_colorChannel`, `_svgOpacity`, `_svgNumber`, `_svgColor`, `_notchSvgSource`, `_portFlowOutlineColor`, ... +51 more
-- Instantiates: `ListModel`, `Connections`, `Repeater`, `Image`, `Rectangle`, `Canvas`, `GraphInlinePropertiesLayer`, `Common.ManagedToolTip`, `Loader`, `Text`, `GraphNodePortContextMenu`
-- Dynamic constructs: `Repeater`; `model` -> `root.settingsGroupModelKeys`; `delegate` -> `Item`; `source` -> `root.notchSvgSource`; `model` -> `inputPortModel`; `delegate` -> `GraphNodePortRow`; `model` -> `outputPortModel`; `Loader`; `sourceComponent` -> `Component`; `model` -> `root.dynamicPortGroups`; `delegate` -> `SurfaceControls.GraphSurfaceButton`
-- Signal handlers: `handler` `onSettingsGroupsChanged`; `handler` `onHostChanged`; `handler` `onContextNodeIdChanged`; `handler` `Component.onCompleted`; `handler` `onItemAdded`; `handler` `onPaint`; `handler` `onVisibleChanged`; `handler` `onLockedStateChanged`; `handler` `onPlaceholderLockedStateChanged`; `handler` `onWidthChanged`; `handler` `onHeightChanged`; `handler` `onContentHeightOverrideChanged`; `handler` `onControlStarted`; `handler` `onClicked`
+- Functions: `_publishPortRow`, `_syncPortModel`, `_syncPortModels`, `_notchCutoutCenters`, `onNodeDataChanged`, `onNodes_changed`, `onScene_nodes_changed`, `_copyDynamicPortGroups`, `_payloadHasDynamicPortGroups`, `_scheduleDynamicPortGroupSync`, `_retainDynamicPortGroupsFromSceneDelta`, `_applyScheduledDynamicPortGroupSync`, `_portFlowOutlineColor`, `_dynamicPortGroupById`, `_dynamicPortGroupForPort`, `_dynamicPortOrdinal`, `_dynamicPortCanRemove`, `_dynamicPortAuthoringAllowed`, ... +46 more
+- Instantiates: `ListModel`, `Connections`, `Repeater`, `SurfaceControls.GraphSurfaceCapsule`, `Rectangle`, `Canvas`, `GraphInlinePropertiesLayer`, `Common.ManagedToolTip`, `Loader`, `Text`, `GraphNodePortContextMenu`
+- Dynamic constructs: `Repeater`; `model` -> `root.settingsGroupModelKeys`; `delegate` -> `Item`; `model` -> `inputPortModel`; `delegate` -> `GraphNodePortRow`; `model` -> `outputPortModel`; `Loader`; `sourceComponent` -> `Component`; `model` -> `root.dynamicPortGroups`; `delegate` -> `SurfaceControls.GraphSurfaceButton`
+- Signal handlers: `handler` `onSettingsGroupsChanged`; `handler` `onNotchCutoutCentersChanged`; `handler` `onHostChanged`; `handler` `onContextNodeIdChanged`; `handler` `Component.onCompleted`; `handler` `onItemAdded`; `handler` `onPaint`; `handler` `onVisibleChanged`; `handler` `onLockedStateChanged`; `handler` `onPlaceholderLockedStateChanged`; `handler` `onWidthChanged`; `handler` `onHeightChanged`; `handler` `onContentHeightOverrideChanged`; `handler` `onControlStarted`; `handler` `onClicked`
 - Connections: `target` `root.host`; `target` `root.host && root.host.canvasItem`
-- Property bindings: `binding` `on_PortPresentationChanged` -> `root._syncPortModels`; `binding` `z`; `binding` `ignoreUnknownSignals`; `binding` `visible` -> `root.host`, `root.host.nodeData`, `root.host.nodeData.collapsed`; `binding` `visible` -> `Boolean`, `anchor`, `groupData.expanded`; `binding` `width` -> `root.width`; `binding` `height` -> `root.height`; `binding` `visible` -> `root.notchedPortsEffective`; `binding` `width` -> `root.notchDiameter`; `binding` `height` -> `root.notchDiameter`; `binding` `x` -> `settingsGroupAggregate.anchor`, `Number`, `settingsGroupAggregate.anchor.x`; `binding` `y` -> `settingsGroupAggregate.anchor`; `binding` `sourceSize` -> `root.notchSourceSize`; `binding` `cache`; `binding` `asynchronous`; `binding` `smooth`; `binding` `mipmap`; `binding` `fillMode` -> `Image.Stretch`; ... +72 more
-- Local component refs: `localComponent` `GraphInlinePropertiesLayer`: `ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml`; `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`; `localComponent` `GraphNodePortContextMenu`: `ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml`; `localComponent` `GraphNodePortRow`: `ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml`; `localComponent` `SurfaceControls.GraphSurfaceButton`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml`
+- Property bindings: `binding` `on_PortPresentationChanged` -> `root._syncPortModels`; `binding` `z`; `binding` `ignoreUnknownSignals`; `binding` `visible` -> `root.host`, `root.host.nodeData`, `root.host.nodeData.collapsed`; `binding` `visible` -> `Boolean`, `anchor`, `groupData.expanded`; `binding` `width` -> `root.width`; `binding` `height` -> `root.height`; `binding` `x` -> `settingsGroupAggregate.anchor`; `binding` `y` -> `settingsGroupAggregate.anchor`; `binding` `width` -> `root.standardRestPortDiameter`; `binding` `height` -> `width`; `binding` `fillColor` -> `connectedCount`; `binding` `borderWidth`; `binding` `borderColor` -> `root.settingsGroupPortColor`; `binding` `modelData`; `binding` `presentationIndex`; `binding` `portsLayer` -> `root`; `binding` `direction`; ... +62 more
+- Local component refs: `localComponent` `SurfaceControls.GraphSurfaceCapsule`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml`; `localComponent` `GraphInlinePropertiesLayer`: `ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml`; `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`; `localComponent` `GraphNodePortContextMenu`: `ea_node_editor/ui_qml/components/graph/GraphNodePortContextMenu.qml`; `localComponent` `GraphNodePortRow`: `ea_node_editor/ui_qml/components/graph/GraphNodePortRow.qml`; `localComponent` `SurfaceControls.GraphSurfaceButton`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml`
 
 ### `GraphNodeResizeHandle.qml`
 
@@ -757,17 +760,17 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Path: `ea_node_editor/ui_qml/components/graph/GraphNodeSettingsGroupsLayer.qml`
 - Root component: `Item`
 - Agent route aliases: `GraphNodeSettingsGroupsLayer`, `GraphNodeSettingsGroupsLayer.qml`, `ea_node_editor/ui_qml/components/graph/GraphNodeSettingsGroupsLayer.qml`, `ea_node_editor\ui_qml\components\graph\GraphNodeSettingsGroupsLayer.qml`
-- Imports: `QtQuick 2.15`, `"GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics`, `"../common/PresentationModelKeys.js" as PresentationModelKeys`, `"surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry`
+- Imports: `QtQuick 2.15`, `QtQuick.Shapes`, `"GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics`, `"../common/PresentationModelKeys.js" as PresentationModelKeys`, `"surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry`
 - IDs: `root`, `groupRepeater`, `groupItem`, `headerRow`, `groupLabel`, `chevron`, `headerMouse`, `itemRepeater`, `settingsItem`, `propertyLayer`
-- Object names: `graphNodeSettingsGroupsLayer`, `graphNodeSettingsGroupHeader`, `graphNodeSettingsGroupLabel`, `graphNodeSettingsGroupDivider`, `graphNodeSettingsGroupChevron`, `graphNodeSettingsGroupChevronGlyph`, `graphNodeSettingsGroupToggleArea`, `graphNodeSettingsGroupInlineProperty`
-- Properties: `host: Item`, `settingsGroups: var`, `_groupModelKeys: var`, `settingsBand: var`, `bandYOffset: real`, `interactionLocked: bool`, `contentInteractionLocked: bool`, `_interactiveRectGeometryKey: real`, `embeddedInteractiveRects: var`, `groupData: var`, `itemModelKeys: var`, `headerData: var`, `expanded: bool`, `animationYOffset: real`, `interactiveGeometryKey: real`, `groupId: string`, `expandedState: bool`, `direction: string`, ... +4 more
+- Object names: `graphNodeSettingsGroupsLayer`, `graphNodeSettingsGroupHeader`, `graphNodeSettingsGroupFeedback`, `graphNodeSettingsGroupLabel`, `graphNodeSettingsGroupDivider`, `graphNodeSettingsGroupChevron`, `graphNodeSettingsGroupChevronGlyph`, `graphNodeSettingsGroupToggleArea`, `graphNodeSettingsGroupInlineProperty`
+- Properties: `host: Item`, `settingsGroups: var`, `_groupModelKeys: var`, `settingsBand: var`, `bandYOffset: real`, `interactionLocked: bool`, `_interactiveRectGeometryKey: real`, `embeddedInteractiveRects: var`, `groupData: var`, `itemModelKeys: var`, `headerData: var`, `expanded: bool`, `animationYOffset: real`, `interactiveGeometryKey: real`, `groupId: string`, `expandedState: bool`, `direction: string`, `decorationColor: color`, ... +2 more
 - Signals: `expansionRequested`
 - Functions: `currentInteractiveRects`, `requestExpansion`
-- Instantiates: `Repeater`, `Rectangle`, `Text`, `Canvas`, `MouseArea`, `GraphInlinePropertiesLayer`
+- Instantiates: `Repeater`, `Rectangle`, `Text`, `Shape`, `ShapePath`, `PathLine`, `MouseArea`, `GraphInlinePropertiesLayer`
 - Dynamic constructs: `Repeater`; `model` -> `root._groupModelKeys`; `delegate` -> `Item`; `model` -> `groupItem.itemModelKeys`
-- Signal handlers: `handler` `onSettingsGroupsChanged`; `handler` `Component.onCompleted`; `handler` `onGroupDataChanged`; `handler` `onPaint`; `handler` `onExpandedStateChanged`; `handler` `onStrokeColorChanged`; `handler` `onPressed`; `handler` `onClicked`; `handler` `Keys.onPressed`
+- Signal handlers: `handler` `onSettingsGroupsChanged`; `handler` `Component.onCompleted`; `handler` `onGroupDataChanged`; `handler` `onPressed`; `handler` `onClicked`; `handler` `Keys.onPressed`
 - Connections: _None_
-- Property bindings: `binding` `visible` -> `settingsGroups.length`; `binding` `z`; `binding` `clip` -> `Boolean`, `host`, `host.settingsGroupAnimationRunning`; `binding` `width` -> `root.width`; `binding` `height` -> `root.host`, `root.host.settingsGroupAnimationRunning`; `binding` `clip` -> `Boolean`, `root.host`, `root.host.settingsGroupAnimationRunning`; `binding` `x` -> `Number`, `groupItem.headerData.x`; `binding` `y` -> `Number`, `groupItem.headerData.y`, `root.bandYOffset`, `groupItem.animationYOffset`; `binding` `height` -> `Math.max`, `Number`, `groupItem.headerData.height`; `binding` `visible` -> `groupItem.groupData.show_header`; `binding` `Accessible.name` -> `String`, `groupItem.groupData.label`, `groupItem.groupData.group_id`; `binding` `Accessible.description` -> `groupItem.expanded`; `binding` `anchors.fill` -> `parent`; `binding` `color`; `binding` `border.width` -> `headerMouse.activeFocus`; `binding` `border.color` -> `root.host`, `root.host.selectedOutlineColor`; `binding` `radius`; `binding` `anchors.left` -> `parent.left`; ... +41 more
+- Property bindings: `binding` `visible` -> `settingsGroups.length`; `binding` `z`; `binding` `clip` -> `Boolean`, `host`, `host.settingsGroupAnimationRunning`; `binding` `width` -> `root.width`; `binding` `height` -> `root.host`, `root.host.settingsGroupAnimationRunning`; `binding` `clip` -> `Boolean`, `root.host`, `root.host.settingsGroupAnimationRunning`; `binding` `x` -> `Number`, `groupItem.headerData.x`; `binding` `y` -> `Number`, `groupItem.headerData.y`, `root.bandYOffset`, `groupItem.animationYOffset`; `binding` `height` -> `Math.max`, `Number`, `groupItem.headerData.height`; `binding` `visible` -> `groupItem.groupData.show_header`; `binding` `Accessible.name` -> `String`, `groupItem.groupData.label`, `groupItem.groupData.group_id`; `binding` `Accessible.description` -> `groupItem.expanded`; `binding` `anchors.fill` -> `parent`; `binding` `color` -> `headerMouse.containsMouse`, `Qt.alpha`, `root.host`, `root.host.selectedOutlineColor`; `binding` `border.width` -> `headerMouse.activeFocus`; `binding` `border.color` -> `root.host`, `root.host.selectedOutlineColor`; `binding` `radius`; `binding` `anchors.left` -> `parent.left`; ... +45 more
 - Local component refs: `localComponent` `GraphInlinePropertiesLayer`: `ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml`
 
 ### `GraphNodeSurfaceLoader.qml`
@@ -1544,23 +1547,41 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Property bindings: `binding` `implicitHeight` -> `controlHeight`; `binding` `implicitWidth` -> `Math.max`; `binding` `padding`; `binding` `font.pixelSize` -> `inlineFontPixelSize`; `binding` `hoverEnabled`; `binding` `focusPolicy` -> `Qt.NoFocus`; `binding` `policyBridge` -> `control.tooltipPolicyBridge`; `binding` `category` -> `control.tooltipCategory`; `binding` `active` -> `control.tooltipVisible`; `binding` `text` -> `control.resolvedTooltipText`; `binding` `textFormat` -> `control.tooltipTextFormat`; `binding` `screenStablePositioning` -> `control.tooltipScreenStablePositioning`; `binding` `anchorScale` -> `control.resolvedTooltipAnchorScale`; `binding` `screenGap` -> `control.tooltipScreenGap`; `binding` `screenStablePlacement` -> `control.tooltipScreenStablePlacement`; `binding` `contentItem` -> `Item`; `binding` `implicitWidth` -> `contentRow.implicitWidth`; `binding` `implicitHeight` -> `contentRow.implicitHeight`; ... +22 more
 - Local component refs: `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`
 
+### `GraphSurfaceCapsule.qml`
+
+- Path: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml`
+- Root component: `Shape`
+- Agent route aliases: `GraphSurfaceCapsule`, `GraphSurfaceCapsule.qml`, `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml`, `ea_node_editor\ui_qml\components\graph\surface_controls\GraphSurfaceCapsule.qml`
+- Imports: `QtQuick`, `QtQuick.Shapes`
+- IDs: `root`
+- Object names: _None_
+- Properties: `fillColor: color`, `borderColor: color`, `borderWidth: real`, `cornerRadius: real`, `resolvedBorderWidth: real`, `inset: real`, `curveRadius: real`
+- Signals: _None_
+- Functions: _None_
+- Instantiates: `ShapePath`, `PathLine`, `PathAngleArc`
+- Dynamic constructs: _None_
+- Signal handlers: _None_
+- Connections: _None_
+- Property bindings: `binding` `preferredRendererType` -> `Shape.CurveRenderer`; `binding` `visible` -> `width`, `height`; `binding` `fillColor` -> `root.fillColor`; `binding` `strokeColor` -> `root.borderColor`; `binding` `strokeWidth` -> `root.resolvedBorderWidth`; `binding` `startX` -> `root.width`; `binding` `startY` -> `root.inset`; `binding` `moveToStart`; `binding` `centerX` -> `root.width`, `root.inset`, `root.curveRadius`; `binding` `centerY` -> `root.inset`, `root.curveRadius`; `binding` `radiusX` -> `root.curveRadius`, `radiusY`; `binding` `startAngle` -> `sweepAngle`; `binding` `centerY` -> `root.height`, `root.inset`, `root.curveRadius`; `binding` `centerX` -> `root.inset`, `root.curveRadius`
+- Local component refs: _None_
+
 ### `GraphSurfaceCheckBox.qml`
 
 - Path: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCheckBox.qml`
-- Root component: `CheckBox`
+- Root component: `T.CheckBox`
 - Agent route aliases: `GraphSurfaceCheckBox`, `GraphSurfaceCheckBox.qml`, `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCheckBox.qml`, `ea_node_editor\ui_qml\components\graph\surface_controls\GraphSurfaceCheckBox.qml`
-- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `"SurfaceControlGeometry.js" as SurfaceControlGeometry`
+- Imports: `QtQuick 2.15`, `QtQuick.Templates as T`, `"SurfaceControlGeometry.js" as SurfaceControlGeometry`
 - IDs: `control`
-- Object names: _None_
+- Object names: `graphSurfaceSwitchTrack`, `graphSurfaceSwitchKnob`, `graphSurfaceSwitchFocusIndicator`
 - Properties: `host: Item`, `rectItem: Item`, `textColor: color`, `fillColor: color`, `borderColor: color`, `accentColor: color`, `indicatorCheckColor: color`, `switchTrackWidth: real`, `switchTrackHeight: real`, `disabledTextColor: color`, `resolvedTextColor: color`, `resolvedIndicatorFillColor: color`, `resolvedIndicatorBorderColor: color`, `typography: var`, `inlineFontPixelSize: int`, `inlineFontWeight: int`, `interactiveRect: var`, `embeddedInteractiveRects: var`
 - Signals: `controlStarted`
 - Functions: _None_
-- Instantiates: `Rectangle`, `NumberAnimation`
+- Instantiates: `GraphSurfaceCapsule`, `NumberAnimation`
 - Dynamic constructs: _None_
 - Signal handlers: `handler` `onPressedChanged`
 - Connections: _None_
-- Property bindings: `binding` `spacing`; `binding` `padding`; `binding` `font.pixelSize` -> `inlineFontPixelSize`; `binding` `font.weight` -> `inlineFontWeight`; `binding` `hoverEnabled`; `binding` `activeFocusOnTab` -> `enabled`; `binding` `indicator` -> `Rectangle`; `binding` `implicitWidth` -> `control.switchTrackWidth`; `binding` `implicitHeight` -> `control.switchTrackHeight`; `binding` `radius` -> `height`; `binding` `color` -> `control.resolvedIndicatorFillColor`; `binding` `border.width`; `binding` `border.color` -> `control.resolvedIndicatorBorderColor`; `binding` `anchors.verticalCenter` -> `parent.verticalCenter`; `binding` `width` -> `Math.max`, `parent.height`; `binding` `height` -> `width`; `binding` `radius` -> `width`; `binding` `x` -> `control.checked`, `parent.width`, `width`; ... +11 more
-- Local component refs: _None_
+- Property bindings: `binding` `implicitWidth` -> `Math.max`, `switchTrackWidth`, `implicitContentWidth`; `binding` `implicitHeight` -> `Math.max`, `switchTrackHeight`, `implicitContentHeight`; `binding` `spacing`; `binding` `padding`; `binding` `leftPadding`; `binding` `rightPadding`; `binding` `topPadding`; `binding` `bottomPadding`; `binding` `leftInset`; `binding` `rightInset`; `binding` `topInset`; `binding` `bottomInset`; `binding` `font.pixelSize` -> `inlineFontPixelSize`; `binding` `font.weight` -> `inlineFontWeight`; `binding` `hoverEnabled` -> `enabled`; `binding` `activeFocusOnTab` -> `enabled`; `binding` `Accessible.name` -> `text.length`, `text`; `binding` `indicator` -> `GraphSurfaceCapsule`; ... +29 more
+- Local component refs: `localComponent` `GraphSurfaceCapsule`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml`
 
 ### `GraphSurfaceColorEditor.qml`
 
@@ -1673,20 +1694,20 @@ This compact index gives agents deterministic aliases for QML components, symbol
 ### `GraphSurfaceIntervalSlider.qml`
 
 - Path: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml`
-- Root component: `RangeSlider`
+- Root component: `T.RangeSlider`
 - Agent route aliases: `GraphSurfaceIntervalSlider`, `GraphSurfaceIntervalSlider.qml`, `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml`, `ea_node_editor\ui_qml\components\graph\surface_controls\GraphSurfaceIntervalSlider.qml`
-- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `QtQml 2.15`, `"SurfaceControlGeometry.js" as SurfaceControlGeometry`, `"SurfaceValueFormatter.js" as SurfaceValueFormatter`
-- IDs: `control`, `intervalTrack`, `leftCaption`, `rightCaption`
-- Object names: `graphSurfaceIntervalFirstHandle`, `graphSurfaceIntervalSecondHandle`, `graphSurfaceIntervalFocusIndicator`, `graphSurfaceIntervalLeftCaption`, `graphSurfaceIntervalRightCaption`
-- Properties: `host: Item`, `rectItem: Item`, `semanticStart: real`, `semanticEnd: real`, `displayValueAvailable: bool`, `intervalDirection: string`, `valueType: string`, `continuousPrecision: int`, `knobDiameter: int`, `trackAreaHeight: int`, `captionGap: int`, `_firstPressCommitArmed: bool`, `_secondPressCommitArmed: bool`, `_bindingBlocked: bool`, `accentColor: color`, `trackColor: color`, `handleFillColor: color`, `handleBorderColor: color`, ... +24 more
+- Imports: `QtQuick 2.15`, `QtQuick.Templates as T`, `QtQml 2.15`, `"SurfaceControlGeometry.js" as SurfaceControlGeometry`, `"SurfaceValueFormatter.js" as SurfaceValueFormatter`
+- IDs: `control`, `leftCaption`, `rightCaption`
+- Object names: `graphSurfaceIntervalTrack`, `graphSurfaceIntervalFirstHandle`, `graphSurfaceIntervalSecondHandle`, `graphSurfaceIntervalFocusIndicator`, `graphSurfaceIntervalLeftCaption`, `graphSurfaceIntervalRightCaption`
+- Properties: `host: Item`, `rectItem: Item`, `semanticStart: real`, `semanticEnd: real`, `displayValueAvailable: bool`, `intervalDirection: string`, `valueType: string`, `continuousPrecision: int`, `knobDiameter: int`, `trackAreaHeight: int`, `captionGap: int`, `_firstPressCommitArmed: bool`, `_secondPressCommitArmed: bool`, `_bindingBlocked: bool`, `accentColor: color`, `trackColor: color`, `handleFillColor: color`, `handleBorderColor: color`, ... +23 more
 - Signals: `controlStarted`, `commitRequested`
 - Functions: `_commitCurrentValues`
-- Instantiates: `Binding`, `Rectangle`, `Text`
+- Instantiates: `Binding`, `GraphSurfaceCapsule`, `Text`
 - Dynamic constructs: _None_
 - Signal handlers: `handler` `first.onPressedChanged`; `handler` `second.onPressedChanged`; `handler` `first.onMoved`; `handler` `second.onMoved`
 - Connections: _None_
-- Property bindings: `binding` `implicitHeight` -> `trackAreaHeight`, `captionReserve`; `binding` `padding`; `binding` `bottomPadding` -> `captionReserve`; `binding` `hoverEnabled` -> `enabled`; `binding` `live`; `binding` `snapMode` -> `stepSize`, `RangeSlider.SnapAlways`, `RangeSlider.NoSnap`; `binding` `activeFocusOnTab` -> `enabled`; `binding` `Accessible.name`; `binding` `Accessible.description`; `binding` `property`; `binding` `value` -> `control.physicalLowerValue`; `binding` `when` -> `control.interactionActive`; `binding` `restoreMode` -> `Binding.RestoreNone`; `binding` `value` -> `control.physicalUpperValue`; `binding` `background` -> `Item`; `binding` `x` -> `control.leftPadding`; `binding` `y` -> `control.topPadding`; `binding` `width` -> `control.availableWidth`; ... +40 more
-- Local component refs: _None_
+- Property bindings: `binding` `implicitWidth`; `binding` `implicitHeight` -> `trackAreaHeight`, `captionReserve`; `binding` `padding`; `binding` `leftPadding`; `binding` `rightPadding`; `binding` `topPadding`; `binding` `bottomPadding` -> `captionReserve`; `binding` `leftInset`; `binding` `rightInset`; `binding` `topInset`; `binding` `bottomInset`; `binding` `hoverEnabled` -> `enabled`; `binding` `live`; `binding` `snapMode` -> `stepSize`, `T.RangeSlider.SnapAlways`, `T.RangeSlider.NoSnap`; `binding` `activeFocusOnTab` -> `enabled`; `binding` `Accessible.name`; `binding` `Accessible.description`; `binding` `property`; ... +42 more
+- Local component refs: `localComponent` `GraphSurfaceCapsule`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml`
 
 ### `GraphSurfaceListEditor.qml`
 
@@ -1745,19 +1766,55 @@ This compact index gives agents deterministic aliases for QML components, symbol
 ### `GraphSurfaceSlider.qml`
 
 - Path: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSlider.qml`
-- Root component: `Slider`
+- Root component: `T.Slider`
 - Agent route aliases: `GraphSurfaceSlider`, `GraphSurfaceSlider.qml`, `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSlider.qml`, `ea_node_editor\ui_qml\components\graph\surface_controls\GraphSurfaceSlider.qml`
-- Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `"SurfaceControlGeometry.js" as SurfaceControlGeometry`, `"SurfaceValueFormatter.js" as SurfaceValueFormatter`
-- IDs: `control`, `sliderTrack`
-- Object names: `graphSurfaceSliderFocusIndicator`, `graphSurfaceSliderMinimumCaption`, `graphSurfaceSliderCurrentCaption`, `graphSurfaceSliderMaximumCaption`
-- Properties: `host: Item`, `rectItem: Item`, `knobDiameter: int`, `accentColor: color`, `trackColor: color`, `knobFillColor: color`, `knobBorderColor: color`, `textColor: color`, `disabledColor: color`, `controlHeight: int`, `showRangeCaptions: bool`, `displayValueAvailable: bool`, `valueType: string`, `continuousPrecision: int`, `captionGap: int`, `_pressCommitArmed: bool`, `_bindingBlocked: bool`, `interactionActive: bool`, ... +9 more
+- Imports: `QtQuick 2.15`, `QtQuick.Templates as T`, `"SurfaceControlGeometry.js" as SurfaceControlGeometry`, `"SurfaceValueFormatter.js" as SurfaceValueFormatter`
+- IDs: `control`
+- Object names: `graphSurfaceSliderTrack`, `graphSurfaceSliderHandle`, `graphSurfaceSliderFocusIndicator`, `graphSurfaceSliderMinimumCaption`, `graphSurfaceSliderCurrentCaption`, `graphSurfaceSliderMaximumCaption`
+- Properties: `host: Item`, `rectItem: Item`, `knobDiameter: int`, `accentColor: color`, `trackColor: color`, `knobFillColor: color`, `knobBorderColor: color`, `textColor: color`, `disabledColor: color`, `disabledKnobFillColor: color`, `disabledKnobBorderColor: color`, `controlHeight: int`, `showRangeCaptions: bool`, `displayValueAvailable: bool`, `valueType: string`, `continuousPrecision: int`, `captionGap: int`, `_pressCommitArmed: bool`, ... +11 more
 - Signals: `controlStarted`, `commitRequested`
 - Functions: _None_
-- Instantiates: `Rectangle`, `ColorAnimation`, `Text`
+- Instantiates: `ColorAnimation`, `GraphSurfaceCapsule`, `Text`
 - Dynamic constructs: _None_
 - Signal handlers: `handler` `onPressedChanged`; `handler` `onMoved`
 - Connections: _None_
-- Property bindings: `binding` `implicitHeight` -> `Math.max`, `controlHeight`, `captionReserve`; `binding` `padding`; `binding` `bottomPadding` -> `captionReserve`; `binding` `hoverEnabled` -> `enabled`; `binding` `live`; `binding` `activeFocusOnTab` -> `enabled`; `binding` `Accessible.name`; `binding` `Accessible.description` -> `minimumCaptionText`; `binding` `background` -> `Item`; `binding` `implicitWidth`; `binding` `height` -> `control.availableHeight`; `binding` `anchors.verticalCenter` -> `parent.verticalCenter`; `binding` `width` -> `parent.width`; `binding` `height`; `binding` `radius` -> `height`; `binding` `color` -> `control.enabled`, `control.trackColor`, `Qt.alpha`, `control.disabledColor`; `binding` `width` -> `control.visualPosition`, `parent.width`; `binding` `height` -> `sliderTrack.height`; ... +33 more
+- Property bindings: `binding` `implicitWidth`; `binding` `implicitHeight` -> `Math.max`, `controlHeight`, `captionReserve`; `binding` `padding`; `binding` `leftPadding`; `binding` `rightPadding`; `binding` `topPadding`; `binding` `bottomPadding` -> `captionReserve`; `binding` `leftInset`; `binding` `rightInset`; `binding` `topInset`; `binding` `bottomInset`; `binding` `hoverEnabled` -> `enabled`; `binding` `live`; `binding` `activeFocusOnTab` -> `enabled`; `binding` `Accessible.name`; `binding` `Accessible.description` -> `minimumCaptionText`; `binding` `background` -> `GraphSurfaceSliderTrack`; `binding` `x` -> `control.leftPadding`; ... +37 more
+- Local component refs: `localComponent` `GraphSurfaceCapsule`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml`
+
+### `GraphSurfaceSliderHandle.qml`
+
+- Path: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSliderHandle.qml`
+- Root component: `Shape`
+- Agent route aliases: `GraphSurfaceSliderHandle`, `GraphSurfaceSliderHandle.qml`, `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSliderHandle.qml`, `ea_node_editor\ui_qml\components\graph\surface_controls\GraphSurfaceSliderHandle.qml`
+- Imports: `QtQuick`, `QtQuick.Shapes`
+- IDs: `root`
+- Object names: _None_
+- Properties: `fillColor: color`, `borderColor: color`, `depthColor: color`, `diskRadius: real`
+- Signals: _None_
+- Functions: _None_
+- Instantiates: `ShapePath`, `PathAngleArc`
+- Dynamic constructs: _None_
+- Signal handlers: _None_
+- Connections: _None_
+- Property bindings: `binding` `preferredRendererType` -> `Shape.CurveRenderer`; `binding` `strokeWidth`; `binding` `strokeColor`; `binding` `fillColor` -> `root.depthColor`; `binding` `centerX` -> `root.width`, `centerY`, `root.height`; `binding` `radiusX` -> `root.diskRadius`, `radiusY`; `binding` `startAngle` -> `sweepAngle`; `binding` `strokeColor` -> `root.borderColor`; `binding` `fillColor` -> `root.fillColor`
+- Local component refs: _None_
+
+### `GraphSurfaceSliderTrack.qml`
+
+- Path: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSliderTrack.qml`
+- Root component: `Shape`
+- Agent route aliases: `GraphSurfaceSliderTrack`, `GraphSurfaceSliderTrack.qml`, `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSliderTrack.qml`, `ea_node_editor\ui_qml\components\graph\surface_controls\GraphSurfaceSliderTrack.qml`
+- Imports: `QtQuick`, `QtQuick.Shapes`
+- IDs: `root`
+- Object names: _None_
+- Properties: `trackColor: color`, `activeColor: color`, `activeStart: real`, `activeEnd: real`, `trackThickness: real`, `trackStart: real`, `trackEnd: real`, `clampedStart: real`, `clampedEnd: real`
+- Signals: _None_
+- Functions: _None_
+- Instantiates: `ShapePath`, `PathLine`
+- Dynamic constructs: _None_
+- Signal handlers: _None_
+- Connections: _None_
+- Property bindings: `binding` `preferredRendererType` -> `Shape.CurveRenderer`; `binding` `strokeColor` -> `root.trackColor`; `binding` `strokeWidth` -> `root.trackThickness`; `binding` `fillColor`; `binding` `capStyle` -> `ShapePath.RoundCap`; `binding` `startX` -> `root.trackStart`, `startY`, `root.height`; `binding` `strokeColor` -> `root.activeColor`; `binding` `startX` -> `root.clampedStart`, `startY`, `root.height`
 - Local component refs: _None_
 
 ### `GraphSurfaceTextArea.qml`

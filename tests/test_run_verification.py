@@ -305,6 +305,16 @@ class RunVerificationTests(unittest.TestCase):
             ),
             "tests/test_viewer_surface_contract.py",
             "tests/test_flow_edge_labels.py",
+            "tests/test_xy_plot_qml.py",
+            "tests/test_xy_probe_qml.py",
+            (
+                "tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::"
+                "test_content_sized_nodes_keep_settings_and_connected_ports_aligned"
+            ),
+            (
+                "tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::"
+                "test_graph_canvas_settings_resize_animates_clipped_content_and_connected_edges"
+            ),
         )
         self.assertEqual(expected_targets, self.manifest.GUI_SERIAL_PYTEST_TARGETS)
         self.assertEqual(expected_targets, self.manifest.gui_serial_pytest_targets())

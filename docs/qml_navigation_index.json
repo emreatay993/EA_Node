@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 197,
+    "qml_files": 200,
     "repeater_constructs": 96,
-    "loader_constructs": 30,
-    "signal_handlers": 1006,
+    "loader_constructs": 29,
+    "signal_handlers": 999,
     "connections": 52,
-    "property_bindings": 7944,
-    "local_component_refs": 332
+    "property_bindings": 7969,
+    "local_component_refs": 336
   },
   "entries": [
     {
@@ -10508,7 +10508,9 @@
       "root_component": "Item",
       "imports": [
         "QtQuick 2.15",
-        "QtQuick.Effects"
+        "QtQuick.Effects",
+        "QtQuick.Shapes",
+        "\"GraphNodeChromeGeometry.js\" as ChromeGeometry"
       ],
       "ids": [
         {
@@ -10524,13 +10526,13 @@
           "name": "selectedHalo"
         },
         {
+          "name": "bodyLinearGradient"
+        },
+        {
+          "name": "bodyRadialGradient"
+        },
+        {
           "name": "cardChrome"
-        },
-        {
-          "name": "lockedHatchLoader"
-        },
-        {
-          "name": "notchMask"
         }
       ],
       "object_names": [
@@ -10547,16 +10549,22 @@
           "name": "graphNodeSelectedHalo"
         },
         {
+          "name": "graphNodeChromeLinearGradient"
+        },
+        {
+          "name": "graphNodeChromeRadialGradient"
+        },
+        {
           "name": "graphNodeChrome"
         },
         {
-          "name": "graphNodeBodyGradientFill"
+          "name": "graphNodeChromeFill"
+        },
+        {
+          "name": "graphNodeChromeBorder"
         },
         {
           "name": "graphNodeLockedHatchOverlay"
-        },
-        {
-          "name": "graphNodeChromeNotchMask"
         }
       ],
       "properties": [
@@ -10570,27 +10578,47 @@
         },
         {
           "kind": "bool",
-          "name": "notchMaskActive"
-        },
-        {
-          "kind": "url",
-          "name": "notchMaskSvgSource"
-        },
-        {
-          "kind": "bool",
-          "name": "cacheActive"
-        },
-        {
-          "kind": "string",
-          "name": "cacheKey"
-        },
-        {
-          "kind": "bool",
-          "name": "chromeCacheActive"
+          "name": "notchesEnabled"
         },
         {
           "kind": "bool",
           "name": "shadowCacheActive"
+        },
+        {
+          "kind": "var",
+          "name": "silhouette"
+        },
+        {
+          "kind": "string",
+          "name": "fillPath"
+        },
+        {
+          "kind": "string",
+          "name": "borderPath"
+        },
+        {
+          "kind": "string",
+          "name": "hatchPath"
+        },
+        {
+          "kind": "string",
+          "name": "gradientDirection"
+        },
+        {
+          "kind": "bool",
+          "name": "horizontalGradient"
+        },
+        {
+          "kind": "bool",
+          "name": "reverseGradient"
+        },
+        {
+          "kind": "color",
+          "name": "firstGradientColor"
+        },
+        {
+          "kind": "color",
+          "name": "lastGradientColor"
         },
         {
           "kind": "bool",
@@ -10619,29 +10647,10 @@
         {
           "kind": "real",
           "name": "horizontalInset"
-        },
-        {
-          "kind": "real",
-          "name": "cornerRadius"
-        },
-        {
-          "kind": "color",
-          "name": "hatchColor"
-        },
-        {
-          "kind": "real",
-          "name": "hatchSpacing"
         }
       ],
       "signals": [],
-      "functions": [
-        {
-          "name": "_svgNumber"
-        },
-        {
-          "name": "_notchMaskSvgSource"
-        }
-      ],
+      "functions": [],
       "instantiated_components": [
         {
           "name": "RectangularShadow"
@@ -10656,13 +10665,22 @@
           "name": "NumberAnimation"
         },
         {
-          "name": "GraphNodeGradientFill"
+          "name": "LinearGradient"
         },
         {
-          "name": "Loader"
+          "name": "GradientStop"
         },
         {
-          "name": "Image"
+          "name": "RadialGradient"
+        },
+        {
+          "name": "Shape"
+        },
+        {
+          "name": "ShapePath"
+        },
+        {
+          "name": "PathSvg"
         }
       ],
       "dynamic_refs": [
@@ -10671,45 +10689,9 @@
           "targets": [
             "selectedGlowSource"
           ]
-        },
-        {
-          "kind": "Loader"
-        },
-        {
-          "kind": "sourceComponent",
-          "targets": [
-            "Canvas"
-          ]
-        },
-        {
-          "kind": "source",
-          "targets": [
-            "root.notchMaskSvgSource"
-          ]
         }
       ],
-      "signal_handlers": [
-        {
-          "kind": "handler",
-          "name": "onPaint"
-        },
-        {
-          "kind": "handler",
-          "name": "onWidthChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onHeightChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onCornerRadiusChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "Component.onCompleted"
-        }
-      ],
+      "signal_handlers": [],
       "connections": [],
       "property_bindings": [
         {
@@ -10906,6 +10888,78 @@
         },
         {
           "kind": "binding",
+          "name": "x1",
+          "targets": [
+            "root.effectiveBorderWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y1",
+          "targets": [
+            "root.effectiveBorderWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x2",
+          "targets": [
+            "root.horizontalGradient",
+            "root.width",
+            "root.effectiveBorderWidth",
+            "x1"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y2",
+          "targets": [
+            "root.horizontalGradient",
+            "y1",
+            "root.height",
+            "root.effectiveBorderWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "centerX",
+          "targets": [
+            "root.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "centerY",
+          "targets": [
+            "root.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "focalX",
+          "targets": [
+            "centerX"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "focalY",
+          "targets": [
+            "centerY"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "centerRadius",
+          "targets": [
+            "Math.max",
+            "root.width",
+            "root.height",
+            "root.effectiveBorderWidth"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "visible",
           "targets": [
             "root.host",
@@ -10915,7 +10969,32 @@
         },
         {
           "kind": "binding",
-          "name": "color",
+          "name": "preferredRendererType",
+          "targets": [
+            "Shape.CurveRenderer"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "fillRule",
+          "targets": [
+            "ShapePath.OddEvenFill"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "strokeWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "fillColor",
+          "targets": [
+            "root.selectedChromeFreeOutlineOnly"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "fillGradient",
           "targets": [
             "root.host",
             "root.host.bodyGradientActive",
@@ -10924,196 +11003,31 @@
         },
         {
           "kind": "binding",
-          "name": "border.width",
-          "targets": [
-            "root.effectiveBorderWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
+          "name": "fillColor",
           "targets": [
             "root.effectiveOutlineColor"
           ]
         },
         {
           "kind": "binding",
-          "name": "layer.enabled",
+          "name": "fillColor"
+        },
+        {
+          "kind": "binding",
+          "name": "strokeColor",
           "targets": [
-            "root.chromeCacheActive"
+            "Qt.rgba"
           ]
         },
         {
           "kind": "binding",
-          "name": "layer.effect",
+          "name": "capStyle",
           "targets": [
-            "MultiEffect"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "maskEnabled",
-          "targets": [
-            "root.notchMaskActive",
-            "notchMask.status",
-            "Image.Ready"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "maskSource",
-          "targets": [
-            "notchMask"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.host",
-            "root.host.bodyGradientActive"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.margins",
-          "targets": [
-            "Math.max",
-            "root.effectiveBorderWidth"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "startColor",
-          "targets": [
-            "root.host",
-            "root.host.bodyGradientStartColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "endColor",
-          "targets": [
-            "root.host",
-            "root.host.bodyGradientEndColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "direction",
-          "targets": [
-            "root.host",
-            "root.host.bodyGradientDirection"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "cornerRadius",
-          "targets": [
-            "root.host"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "active",
-          "targets": [
-            "root.host",
-            "root.host.lockedPlaceholderActive"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "asynchronous"
-        },
-        {
-          "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "active"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "antialiasing"
-        },
-        {
-          "kind": "binding",
-          "name": "opacity"
-        },
-        {
-          "kind": "binding",
-          "name": "renderTarget",
-          "targets": [
-            "Canvas.FramebufferObject"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "renderStrategy",
-          "targets": [
-            "Canvas.Cooperative"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "layer.enabled"
-        },
-        {
-          "kind": "binding",
-          "name": "layer.smooth"
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "root.height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "sourceSize",
-          "targets": [
-            "Qt.size",
-            "Math.max",
-            "Math.ceil",
-            "width",
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "cache"
-        },
-        {
-          "kind": "binding",
-          "name": "smooth"
-        },
-        {
-          "kind": "binding",
-          "name": "mipmap"
-        },
-        {
-          "kind": "binding",
-          "name": "fillMode",
-          "targets": [
-            "Image.Stretch"
+            "ShapePath.FlatCap"
           ]
         }
       ],
-      "local_component_refs": [
-        {
-          "kind": "localComponent",
-          "name": "GraphNodeGradientFill",
-          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml"
-        }
-      ],
+      "local_component_refs": [],
       "symbol_anchors": [
         {
           "anchor": "GraphNodeChromeBackgroundPropertyHost",
@@ -11128,33 +11042,9 @@
           "detail": "var"
         },
         {
-          "anchor": "GraphNodeChromeBackgroundPropertyNotchMaskActive",
+          "anchor": "GraphNodeChromeBackgroundPropertyNotchesEnabled",
           "kind": "property",
-          "name": "notchMaskActive",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundPropertyNotchMaskSvgSource",
-          "kind": "property",
-          "name": "notchMaskSvgSource",
-          "detail": "url"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundPropertyCacheActive",
-          "kind": "property",
-          "name": "cacheActive",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundPropertyCacheKey",
-          "kind": "property",
-          "name": "cacheKey",
-          "detail": "string"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundPropertyChromeCacheActive",
-          "kind": "property",
-          "name": "chromeCacheActive",
+          "name": "notchesEnabled",
           "detail": "bool"
         },
         {
@@ -11162,6 +11052,60 @@
           "kind": "property",
           "name": "shadowCacheActive",
           "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundPropertySilhouette",
+          "kind": "property",
+          "name": "silhouette",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundPropertyFillPath",
+          "kind": "property",
+          "name": "fillPath",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundPropertyBorderPath",
+          "kind": "property",
+          "name": "borderPath",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundPropertyHatchPath",
+          "kind": "property",
+          "name": "hatchPath",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundPropertyGradientDirection",
+          "kind": "property",
+          "name": "gradientDirection",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundPropertyHorizontalGradient",
+          "kind": "property",
+          "name": "horizontalGradient",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundPropertyReverseGradient",
+          "kind": "property",
+          "name": "reverseGradient",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundPropertyFirstGradientColor",
+          "kind": "property",
+          "name": "firstGradientColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphNodeChromeBackgroundPropertyLastGradientColor",
+          "kind": "property",
+          "name": "lastGradientColor",
+          "detail": "color"
         },
         {
           "anchor": "GraphNodeChromeBackgroundPropertySelectedChromeFreeOutlineOnly",
@@ -11204,65 +11148,6 @@
           "kind": "property",
           "name": "horizontalInset",
           "detail": "real"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundPropertyCornerRadius",
-          "kind": "property",
-          "name": "cornerRadius",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundPropertyHatchColor",
-          "kind": "property",
-          "name": "hatchColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundPropertyHatchSpacing",
-          "kind": "property",
-          "name": "hatchSpacing",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundFunctionSvgNumber",
-          "kind": "function",
-          "name": "_svgNumber"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundFunctionNotchMaskSvgSource",
-          "kind": "function",
-          "name": "_notchMaskSvgSource"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundHandlerOnPaint",
-          "kind": "handler",
-          "name": "onPaint"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundHandlerOnWidthChanged",
-          "kind": "handler",
-          "name": "onWidthChanged"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundHandlerOnHeightChanged",
-          "kind": "handler",
-          "name": "onHeightChanged"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundHandlerOnCornerRadiusChanged",
-          "kind": "handler",
-          "name": "onCornerRadiusChanged"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundHandlerComponentOnCompleted",
-          "kind": "handler",
-          "name": "Component.onCompleted"
-        },
-        {
-          "anchor": "GraphNodeChromeBackgroundLocalComponentGraphNodeGradientFill",
-          "kind": "localComponent",
-          "name": "GraphNodeGradientFill",
-          "detail": "ea_node_editor/ui_qml/components/graph/GraphNodeGradientFill.qml"
         }
       ]
     },
@@ -15078,23 +14963,11 @@
         },
         {
           "kind": "bool",
-          "name": "chromeCacheActive"
-        },
-        {
-          "kind": "bool",
           "name": "shadowCacheActive"
         },
         {
           "kind": "bool",
           "name": "surfaceShadowCacheActive"
-        },
-        {
-          "kind": "bool",
-          "name": "chromeShadowCacheActive"
-        },
-        {
-          "kind": "string",
-          "name": "chromeShadowCacheKey"
         },
         {
           "kind": "string",
@@ -18111,12 +17984,6 @@
           "detail": "real"
         },
         {
-          "anchor": "GraphNodeHostPropertyChromeCacheActive",
-          "kind": "property",
-          "name": "chromeCacheActive",
-          "detail": "bool"
-        },
-        {
           "anchor": "GraphNodeHostPropertyShadowCacheActive",
           "kind": "property",
           "name": "shadowCacheActive",
@@ -18127,18 +17994,6 @@
           "kind": "property",
           "name": "surfaceShadowCacheActive",
           "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodeHostPropertyChromeShadowCacheActive",
-          "kind": "property",
-          "name": "chromeShadowCacheActive",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodeHostPropertyChromeShadowCacheKey",
-          "kind": "property",
-          "name": "chromeShadowCacheKey",
-          "detail": "string"
         },
         {
           "anchor": "GraphNodeHostPropertySurfaceShadowCacheKey",
@@ -19721,23 +19576,11 @@
         },
         {
           "kind": "bool",
-          "name": "chromeCacheActive"
-        },
-        {
-          "kind": "bool",
           "name": "shadowCacheActive"
         },
         {
           "kind": "bool",
           "name": "surfaceShadowCacheActive"
-        },
-        {
-          "kind": "bool",
-          "name": "chromeShadowCacheActive"
-        },
-        {
-          "kind": "string",
-          "name": "chromeShadowCacheKey"
         },
         {
           "kind": "string",
@@ -19976,12 +19819,6 @@
           "detail": "int"
         },
         {
-          "anchor": "GraphNodeHostLayoutPropertyChromeCacheActive",
-          "kind": "property",
-          "name": "chromeCacheActive",
-          "detail": "bool"
-        },
-        {
           "anchor": "GraphNodeHostLayoutPropertyShadowCacheActive",
           "kind": "property",
           "name": "shadowCacheActive",
@@ -19992,18 +19829,6 @@
           "kind": "property",
           "name": "surfaceShadowCacheActive",
           "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodeHostLayoutPropertyChromeShadowCacheActive",
-          "kind": "property",
-          "name": "chromeShadowCacheActive",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodeHostLayoutPropertyChromeShadowCacheKey",
-          "kind": "property",
-          "name": "chromeShadowCacheKey",
-          "detail": "string"
         },
         {
           "anchor": "GraphNodeHostLayoutPropertySurfaceShadowCacheKey",
@@ -21681,22 +21506,6 @@
         },
         {
           "kind": "bool",
-          "name": "nodeFacingEdgeOnRight"
-        },
-        {
-          "kind": "color",
-          "name": "notchFillColor"
-        },
-        {
-          "kind": "color",
-          "name": "notchStrokeColor"
-        },
-        {
-          "kind": "real",
-          "name": "notchStrokeWidth"
-        },
-        {
-          "kind": "bool",
           "name": "interactionBlockedState"
         },
         {
@@ -21910,10 +21719,7 @@
       ],
       "instantiated_components": [
         {
-          "name": "Image"
-        },
-        {
-          "name": "Rectangle"
+          "name": "SurfaceControls.GraphSurfaceCapsule"
         },
         {
           "name": "MouseArea"
@@ -21925,20 +21731,16 @@
           "name": "SurfaceControls.GraphSurfaceButton"
         },
         {
+          "name": "Rectangle"
+        },
+        {
           "name": "Text"
         },
         {
           "name": "SurfaceControls.GraphSurfaceTextField"
         }
       ],
-      "dynamic_refs": [
-        {
-          "kind": "source",
-          "targets": [
-            "row.portsLayer.notchSvgSource"
-          ]
-        }
-      ],
+      "dynamic_refs": [],
       "signal_handlers": [
         {
           "kind": "handler",
@@ -22049,84 +21851,6 @@
         },
         {
           "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "row.portsLayer.notchedPortsEffective"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "row.portsLayer.notchDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "row.portsLayer.notchDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "row.isInput",
-            "row.portPoint.x",
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "row.isInput"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "sourceSize",
-          "targets": [
-            "row.portsLayer.notchSourceSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "mirror",
-          "targets": [
-            "row.isInput"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "cache"
-        },
-        {
-          "kind": "binding",
-          "name": "asynchronous"
-        },
-        {
-          "kind": "binding",
-          "name": "smooth"
-        },
-        {
-          "kind": "binding",
-          "name": "mipmap"
-        },
-        {
-          "kind": "binding",
-          "name": "fillMode",
-          "targets": [
-            "Image.Stretch"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "z"
-        },
-        {
-          "kind": "binding",
           "name": "x",
           "targets": [
             "row.portPoint.x",
@@ -22162,15 +21886,6 @@
         },
         {
           "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "placeholderLockedState",
-            "width",
-            "lockedState"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "opacity",
           "targets": [
             "lockedState"
@@ -22178,21 +21893,21 @@
         },
         {
           "kind": "binding",
-          "name": "color",
+          "name": "fillColor",
           "targets": [
             "placeholderLockedState"
           ]
         },
         {
           "kind": "binding",
-          "name": "border.width",
+          "name": "borderWidth",
           "targets": [
             "placeholderLockedState"
           ]
         },
         {
           "kind": "binding",
-          "name": "border.color",
+          "name": "borderColor",
           "targets": [
             "placeholderLockedState"
           ]
@@ -22228,14 +21943,11 @@
         },
         {
           "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "width"
-          ]
+          "name": "z"
         },
         {
           "kind": "binding",
-          "name": "color",
+          "name": "fillColor",
           "targets": [
             "portDot.attentionState",
             "row.host"
@@ -22243,7 +21955,7 @@
         },
         {
           "kind": "binding",
-          "name": "border.width",
+          "name": "borderWidth",
           "targets": [
             "portDot.attentionState",
             "portDot.compatibleTargetState"
@@ -22251,7 +21963,7 @@
         },
         {
           "kind": "binding",
-          "name": "border.color",
+          "name": "borderColor",
           "targets": [
             "portDot.attentionState",
             "row.host"
@@ -22478,6 +22190,13 @@
           "name": "width",
           "targets": [
             "removeButton.actionActive"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "width"
           ]
         },
         {
@@ -22845,6 +22564,11 @@
       "local_component_refs": [
         {
           "kind": "localComponent",
+          "name": "SurfaceControls.GraphSurfaceCapsule",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml"
+        },
+        {
+          "kind": "localComponent",
           "name": "Common.ManagedToolTip",
           "detail": "ea_node_editor/ui_qml/components/common/ManagedToolTip.qml"
         },
@@ -23069,30 +22793,6 @@
           "kind": "property",
           "name": "requestedHelpTooltipText",
           "detail": "string"
-        },
-        {
-          "anchor": "GraphNodePortRowPropertyNodeFacingEdgeOnRight",
-          "kind": "property",
-          "name": "nodeFacingEdgeOnRight",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortRowPropertyNotchFillColor",
-          "kind": "property",
-          "name": "notchFillColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphNodePortRowPropertyNotchStrokeColor",
-          "kind": "property",
-          "name": "notchStrokeColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphNodePortRowPropertyNotchStrokeWidth",
-          "kind": "property",
-          "name": "notchStrokeWidth",
-          "detail": "real"
         },
         {
           "anchor": "GraphNodePortRowPropertyInteractionBlockedState",
@@ -23487,6 +23187,12 @@
           "name": "Keys.onEscapePressed"
         },
         {
+          "anchor": "GraphNodePortRowLocalComponentSurfaceControlsGraphSurfaceCapsule",
+          "kind": "localComponent",
+          "name": "SurfaceControls.GraphSurfaceCapsule",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml"
+        },
+        {
           "anchor": "GraphNodePortRowLocalComponentCommonManagedToolTip",
           "kind": "localComponent",
           "name": "Common.ManagedToolTip",
@@ -23579,9 +23285,6 @@
       "object_names": [
         {
           "name": "graphNodePortsLayer"
-        },
-        {
-          "name": "graphNodeSettingsGroupAggregateNotch"
         },
         {
           "name": "graphNodeSettingsGroupAggregateSocket"
@@ -23695,28 +23398,8 @@
           "name": "notchDiameter"
         },
         {
-          "kind": "size",
-          "name": "notchSourceSize"
-        },
-        {
           "kind": "bool",
           "name": "notchedPortsEffective"
-        },
-        {
-          "kind": "color",
-          "name": "notchOutlineColor"
-        },
-        {
-          "kind": "real",
-          "name": "notchOutlineWidth"
-        },
-        {
-          "kind": "color",
-          "name": "notchColor"
-        },
-        {
-          "kind": "url",
-          "name": "notchSvgSource"
         },
         {
           "kind": "var",
@@ -23745,6 +23428,14 @@
         {
           "kind": "var",
           "name": "_portPresentation"
+        },
+        {
+          "kind": "var",
+          "name": "_settledNotchCutoutCenters"
+        },
+        {
+          "kind": "string",
+          "name": "_notchCutoutSignature"
         },
         {
           "kind": "var",
@@ -23813,22 +23504,6 @@
         {
           "kind": "real",
           "name": "notchCenterY"
-        },
-        {
-          "kind": "bool",
-          "name": "nodeFacingEdgeOnRight"
-        },
-        {
-          "kind": "color",
-          "name": "notchFillColor"
-        },
-        {
-          "kind": "color",
-          "name": "notchStrokeColor"
-        },
-        {
-          "kind": "real",
-          "name": "notchStrokeWidth"
         },
         {
           "kind": "string",
@@ -23924,21 +23599,6 @@
         },
         {
           "name": "_applyScheduledDynamicPortGroupSync"
-        },
-        {
-          "name": "_colorChannel"
-        },
-        {
-          "name": "_svgOpacity"
-        },
-        {
-          "name": "_svgNumber"
-        },
-        {
-          "name": "_svgColor"
-        },
-        {
-          "name": "_notchSvgSource"
         },
         {
           "name": "_portFlowOutlineColor"
@@ -24108,7 +23768,7 @@
           "name": "Repeater"
         },
         {
-          "name": "Image"
+          "name": "SurfaceControls.GraphSurfaceCapsule"
         },
         {
           "name": "Rectangle"
@@ -24146,12 +23806,6 @@
           "kind": "delegate",
           "targets": [
             "Item"
-          ]
-        },
-        {
-          "kind": "source",
-          "targets": [
-            "root.notchSvgSource"
           ]
         },
         {
@@ -24198,6 +23852,10 @@
         {
           "kind": "handler",
           "name": "onSettingsGroupsChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onNotchCutoutCentersChanged"
         },
         {
           "kind": "handler",
@@ -24312,74 +23970,14 @@
         },
         {
           "kind": "binding",
-          "name": "visible",
-          "targets": [
-            "root.notchedPortsEffective"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "root.notchDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "root.notchDiameter"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "x",
-          "targets": [
-            "settingsGroupAggregate.anchor",
-            "Number",
-            "settingsGroupAggregate.anchor.x"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
           "targets": [
             "settingsGroupAggregate.anchor"
           ]
         },
         {
           "kind": "binding",
-          "name": "sourceSize",
-          "targets": [
-            "root.notchSourceSize"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "cache"
-        },
-        {
-          "kind": "binding",
-          "name": "asynchronous"
-        },
-        {
-          "kind": "binding",
-          "name": "smooth"
-        },
-        {
-          "kind": "binding",
-          "name": "mipmap"
-        },
-        {
-          "kind": "binding",
-          "name": "fillMode",
-          "targets": [
-            "Image.Stretch"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
+          "name": "y",
           "targets": [
             "settingsGroupAggregate.anchor"
           ]
@@ -24400,25 +23998,18 @@
         },
         {
           "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
+          "name": "fillColor",
           "targets": [
             "connectedCount"
           ]
         },
         {
           "kind": "binding",
-          "name": "border.width"
+          "name": "borderWidth"
         },
         {
           "kind": "binding",
-          "name": "border.color",
+          "name": "borderColor",
           "targets": [
             "root.settingsGroupPortColor"
           ]
@@ -24798,6 +24389,13 @@
         },
         {
           "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "color",
           "targets": [
             "dynamicPortAddButton.down"
@@ -24838,6 +24436,11 @@
         }
       ],
       "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "SurfaceControls.GraphSurfaceCapsule",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml"
+        },
         {
           "kind": "localComponent",
           "name": "GraphInlinePropertiesLayer",
@@ -24998,40 +24601,10 @@
           "detail": "real"
         },
         {
-          "anchor": "GraphNodePortsLayerPropertyNotchSourceSize",
-          "kind": "property",
-          "name": "notchSourceSize",
-          "detail": "size"
-        },
-        {
           "anchor": "GraphNodePortsLayerPropertyNotchedPortsEffective",
           "kind": "property",
           "name": "notchedPortsEffective",
           "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyNotchOutlineColor",
-          "kind": "property",
-          "name": "notchOutlineColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyNotchOutlineWidth",
-          "kind": "property",
-          "name": "notchOutlineWidth",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyNotchColor",
-          "kind": "property",
-          "name": "notchColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyNotchSvgSource",
-          "kind": "property",
-          "name": "notchSvgSource",
-          "detail": "url"
         },
         {
           "anchor": "GraphNodePortsLayerPropertySettingsGroups",
@@ -25074,6 +24647,18 @@
           "kind": "property",
           "name": "_portPresentation",
           "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertySettledNotchCutoutCenters",
+          "kind": "property",
+          "name": "_settledNotchCutoutCenters",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodePortsLayerPropertyNotchCutoutSignature",
+          "kind": "property",
+          "name": "_notchCutoutSignature",
+          "detail": "string"
         },
         {
           "anchor": "GraphNodePortsLayerPropertyNotchCutoutCenters",
@@ -25175,30 +24760,6 @@
           "anchor": "GraphNodePortsLayerPropertyNotchCenterY",
           "kind": "property",
           "name": "notchCenterY",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyNodeFacingEdgeOnRight",
-          "kind": "property",
-          "name": "nodeFacingEdgeOnRight",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyNotchFillColor",
-          "kind": "property",
-          "name": "notchFillColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyNotchStrokeColor",
-          "kind": "property",
-          "name": "notchStrokeColor",
-          "detail": "color"
-        },
-        {
-          "anchor": "GraphNodePortsLayerPropertyNotchStrokeWidth",
-          "kind": "property",
-          "name": "notchStrokeWidth",
           "detail": "real"
         },
         {
@@ -25343,31 +24904,6 @@
           "anchor": "GraphNodePortsLayerFunctionApplyScheduledDynamicPortGroupSync",
           "kind": "function",
           "name": "_applyScheduledDynamicPortGroupSync"
-        },
-        {
-          "anchor": "GraphNodePortsLayerFunctionColorChannel",
-          "kind": "function",
-          "name": "_colorChannel"
-        },
-        {
-          "anchor": "GraphNodePortsLayerFunctionSvgOpacity",
-          "kind": "function",
-          "name": "_svgOpacity"
-        },
-        {
-          "anchor": "GraphNodePortsLayerFunctionSvgNumber",
-          "kind": "function",
-          "name": "_svgNumber"
-        },
-        {
-          "anchor": "GraphNodePortsLayerFunctionSvgColor",
-          "kind": "function",
-          "name": "_svgColor"
-        },
-        {
-          "anchor": "GraphNodePortsLayerFunctionNotchSvgSource",
-          "kind": "function",
-          "name": "_notchSvgSource"
         },
         {
           "anchor": "GraphNodePortsLayerFunctionPortFlowOutlineColor",
@@ -25635,6 +25171,11 @@
           "name": "onSettingsGroupsChanged"
         },
         {
+          "anchor": "GraphNodePortsLayerHandlerOnNotchCutoutCentersChanged",
+          "kind": "handler",
+          "name": "onNotchCutoutCentersChanged"
+        },
+        {
           "anchor": "GraphNodePortsLayerHandlerOnHostChanged",
           "kind": "handler",
           "name": "onHostChanged"
@@ -25708,6 +25249,12 @@
           "anchor": "GraphNodePortsLayerTargetRootHostRootHostCanvasItem",
           "kind": "target",
           "name": "root.host && root.host.canvasItem"
+        },
+        {
+          "anchor": "GraphNodePortsLayerLocalComponentSurfaceControlsGraphSurfaceCapsule",
+          "kind": "localComponent",
+          "name": "SurfaceControls.GraphSurfaceCapsule",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml"
         },
         {
           "anchor": "GraphNodePortsLayerLocalComponentGraphInlinePropertiesLayer",
@@ -26208,6 +25755,7 @@
       "root_component": "Item",
       "imports": [
         "QtQuick 2.15",
+        "QtQuick.Shapes",
         "\"GraphNodeSurfaceMetrics.js\" as GraphNodeSurfaceMetrics",
         "\"../common/PresentationModelKeys.js\" as PresentationModelKeys",
         "\"surface_controls/SurfaceControlGeometry.js\" as SurfaceControlGeometry"
@@ -26252,6 +25800,9 @@
           "name": "graphNodeSettingsGroupHeader"
         },
         {
+          "name": "graphNodeSettingsGroupFeedback"
+        },
+        {
           "name": "graphNodeSettingsGroupLabel"
         },
         {
@@ -26294,10 +25845,6 @@
         {
           "kind": "bool",
           "name": "interactionLocked"
-        },
-        {
-          "kind": "bool",
-          "name": "contentInteractionLocked"
         },
         {
           "kind": "real",
@@ -26348,10 +25895,6 @@
           "name": "decorationColor"
         },
         {
-          "kind": "color",
-          "name": "strokeColor"
-        },
-        {
           "kind": "var",
           "name": "itemData"
         },
@@ -26384,7 +25927,13 @@
           "name": "Text"
         },
         {
-          "name": "Canvas"
+          "name": "Shape"
+        },
+        {
+          "name": "ShapePath"
+        },
+        {
+          "name": "PathLine"
         },
         {
           "name": "MouseArea"
@@ -26428,18 +25977,6 @@
         {
           "kind": "handler",
           "name": "onGroupDataChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onPaint"
-        },
-        {
-          "kind": "handler",
-          "name": "onExpandedStateChanged"
-        },
-        {
-          "kind": "handler",
-          "name": "onStrokeColorChanged"
         },
         {
           "kind": "handler",
@@ -26559,7 +26096,13 @@
         },
         {
           "kind": "binding",
-          "name": "color"
+          "name": "color",
+          "targets": [
+            "headerMouse.containsMouse",
+            "Qt.alpha",
+            "root.host",
+            "root.host.selectedOutlineColor"
+          ]
         },
         {
           "kind": "binding",
@@ -26692,43 +26235,68 @@
         },
         {
           "kind": "binding",
-          "name": "radius",
+          "name": "preferredRendererType",
           "targets": [
-            "width"
+            "Shape.CurveRenderer"
           ]
         },
         {
           "kind": "binding",
-          "name": "color",
+          "name": "strokeColor",
           "targets": [
-            "expandedState",
-            "decorationColor"
+            "headerMouse.containsMouse",
+            "root.interactionLocked"
           ]
         },
         {
           "kind": "binding",
-          "name": "border.width",
+          "name": "strokeWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "fillColor"
+        },
+        {
+          "kind": "binding",
+          "name": "capStyle",
           "targets": [
-            "expandedState"
+            "ShapePath.RoundCap"
           ]
         },
         {
           "kind": "binding",
-          "name": "border.color",
+          "name": "joinStyle",
           "targets": [
-            "decorationColor"
+            "ShapePath.RoundJoin"
           ]
         },
         {
           "kind": "binding",
-          "name": "anchors.centerIn",
+          "name": "startX",
           "targets": [
-            "parent"
+            "chevron.expandedState"
           ]
         },
         {
           "kind": "binding",
-          "name": "antialiasing"
+          "name": "startY",
+          "targets": [
+            "chevron.expandedState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "chevron.expandedState"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "chevron.expandedState"
+          ]
         },
         {
           "kind": "binding",
@@ -26836,7 +26404,7 @@
           "kind": "binding",
           "name": "enabled",
           "targets": [
-            "root.contentInteractionLocked"
+            "root.interactionLocked"
           ]
         },
         {
@@ -26908,12 +26476,6 @@
           "anchor": "GraphNodeSettingsGroupsLayerPropertyInteractionLocked",
           "kind": "property",
           "name": "interactionLocked",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphNodeSettingsGroupsLayerPropertyContentInteractionLocked",
-          "kind": "property",
-          "name": "contentInteractionLocked",
           "detail": "bool"
         },
         {
@@ -26989,12 +26551,6 @@
           "detail": "color"
         },
         {
-          "anchor": "GraphNodeSettingsGroupsLayerPropertyStrokeColor",
-          "kind": "property",
-          "name": "strokeColor",
-          "detail": "color"
-        },
-        {
           "anchor": "GraphNodeSettingsGroupsLayerPropertyItemData",
           "kind": "property",
           "name": "itemData",
@@ -27035,21 +26591,6 @@
           "anchor": "GraphNodeSettingsGroupsLayerHandlerOnGroupDataChanged",
           "kind": "handler",
           "name": "onGroupDataChanged"
-        },
-        {
-          "anchor": "GraphNodeSettingsGroupsLayerHandlerOnPaint",
-          "kind": "handler",
-          "name": "onPaint"
-        },
-        {
-          "anchor": "GraphNodeSettingsGroupsLayerHandlerOnExpandedStateChanged",
-          "kind": "handler",
-          "name": "onExpandedStateChanged"
-        },
-        {
-          "anchor": "GraphNodeSettingsGroupsLayerHandlerOnStrokeColorChanged",
-          "kind": "handler",
-          "name": "onStrokeColorChanged"
         },
         {
           "anchor": "GraphNodeSettingsGroupsLayerHandlerOnPressed",
@@ -68781,6 +68322,223 @@
       ]
     },
     {
+      "path": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml",
+      "component_name": "GraphSurfaceCapsule",
+      "aliases": [
+        "GraphSurfaceCapsule",
+        "GraphSurfaceCapsule.qml",
+        "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml",
+        "ea_node_editor\\ui_qml\\components\\graph\\surface_controls\\GraphSurfaceCapsule.qml"
+      ],
+      "root_component": "Shape",
+      "imports": [
+        "QtQuick",
+        "QtQuick.Shapes"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        }
+      ],
+      "object_names": [],
+      "properties": [
+        {
+          "kind": "color",
+          "name": "fillColor"
+        },
+        {
+          "kind": "color",
+          "name": "borderColor"
+        },
+        {
+          "kind": "real",
+          "name": "borderWidth"
+        },
+        {
+          "kind": "real",
+          "name": "cornerRadius"
+        },
+        {
+          "kind": "real",
+          "name": "resolvedBorderWidth"
+        },
+        {
+          "kind": "real",
+          "name": "inset"
+        },
+        {
+          "kind": "real",
+          "name": "curveRadius"
+        }
+      ],
+      "signals": [],
+      "functions": [],
+      "instantiated_components": [
+        {
+          "name": "ShapePath"
+        },
+        {
+          "name": "PathLine"
+        },
+        {
+          "name": "PathAngleArc"
+        }
+      ],
+      "dynamic_refs": [],
+      "signal_handlers": [],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "preferredRendererType",
+          "targets": [
+            "Shape.CurveRenderer"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "width",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "fillColor",
+          "targets": [
+            "root.fillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "strokeColor",
+          "targets": [
+            "root.borderColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "strokeWidth",
+          "targets": [
+            "root.resolvedBorderWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "startX",
+          "targets": [
+            "root.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "startY",
+          "targets": [
+            "root.inset"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "moveToStart"
+        },
+        {
+          "kind": "binding",
+          "name": "centerX",
+          "targets": [
+            "root.width",
+            "root.inset",
+            "root.curveRadius"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "centerY",
+          "targets": [
+            "root.inset",
+            "root.curveRadius"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radiusX",
+          "targets": [
+            "root.curveRadius",
+            "radiusY"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "startAngle",
+          "targets": [
+            "sweepAngle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "centerY",
+          "targets": [
+            "root.height",
+            "root.inset",
+            "root.curveRadius"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "centerX",
+          "targets": [
+            "root.inset",
+            "root.curveRadius"
+          ]
+        }
+      ],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "GraphSurfaceCapsulePropertyFillColor",
+          "kind": "property",
+          "name": "fillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSurfaceCapsulePropertyBorderColor",
+          "kind": "property",
+          "name": "borderColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSurfaceCapsulePropertyBorderWidth",
+          "kind": "property",
+          "name": "borderWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSurfaceCapsulePropertyCornerRadius",
+          "kind": "property",
+          "name": "cornerRadius",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSurfaceCapsulePropertyResolvedBorderWidth",
+          "kind": "property",
+          "name": "resolvedBorderWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSurfaceCapsulePropertyInset",
+          "kind": "property",
+          "name": "inset",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSurfaceCapsulePropertyCurveRadius",
+          "kind": "property",
+          "name": "curveRadius",
+          "detail": "real"
+        }
+      ]
+    },
+    {
       "path": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCheckBox.qml",
       "component_name": "GraphSurfaceCheckBox",
       "aliases": [
@@ -68789,10 +68547,10 @@
         "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCheckBox.qml",
         "ea_node_editor\\ui_qml\\components\\graph\\surface_controls\\GraphSurfaceCheckBox.qml"
       ],
-      "root_component": "CheckBox",
+      "root_component": "T.CheckBox",
       "imports": [
         "QtQuick 2.15",
-        "QtQuick.Controls 2.15",
+        "QtQuick.Templates as T",
         "\"SurfaceControlGeometry.js\" as SurfaceControlGeometry"
       ],
       "ids": [
@@ -68800,7 +68558,17 @@
           "name": "control"
         }
       ],
-      "object_names": [],
+      "object_names": [
+        {
+          "name": "graphSurfaceSwitchTrack"
+        },
+        {
+          "name": "graphSurfaceSwitchKnob"
+        },
+        {
+          "name": "graphSurfaceSwitchFocusIndicator"
+        }
+      ],
       "properties": [
         {
           "kind": "Item",
@@ -68883,7 +68651,7 @@
       "functions": [],
       "instantiated_components": [
         {
-          "name": "Rectangle"
+          "name": "GraphSurfaceCapsule"
         },
         {
           "name": "NumberAnimation"
@@ -68900,11 +68668,61 @@
       "property_bindings": [
         {
           "kind": "binding",
+          "name": "implicitWidth",
+          "targets": [
+            "Math.max",
+            "switchTrackWidth",
+            "implicitContentWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight",
+          "targets": [
+            "Math.max",
+            "switchTrackHeight",
+            "implicitContentHeight"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "spacing"
         },
         {
           "kind": "binding",
           "name": "padding"
+        },
+        {
+          "kind": "binding",
+          "name": "leftPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "rightPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "topPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "bottomPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "leftInset"
+        },
+        {
+          "kind": "binding",
+          "name": "rightInset"
+        },
+        {
+          "kind": "binding",
+          "name": "topInset"
+        },
+        {
+          "kind": "binding",
+          "name": "bottomInset"
         },
         {
           "kind": "binding",
@@ -68922,7 +68740,10 @@
         },
         {
           "kind": "binding",
-          "name": "hoverEnabled"
+          "name": "hoverEnabled",
+          "targets": [
+            "enabled"
+          ]
         },
         {
           "kind": "binding",
@@ -68933,9 +68754,17 @@
         },
         {
           "kind": "binding",
+          "name": "Accessible.name",
+          "targets": [
+            "text.length",
+            "text"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "indicator",
           "targets": [
-            "Rectangle"
+            "GraphSurfaceCapsule"
           ]
         },
         {
@@ -68954,34 +68783,56 @@
         },
         {
           "kind": "binding",
-          "name": "radius",
+          "name": "width",
           "targets": [
+            "control.switchTrackWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "control.switchTrackHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "control.mirrored",
+            "control.width",
+            "control.rightPadding",
+            "width",
+            "control.leftPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "control.topPadding",
+            "control.availableHeight",
             "height"
           ]
         },
         {
           "kind": "binding",
-          "name": "color",
+          "name": "fillColor",
           "targets": [
             "control.resolvedIndicatorFillColor"
           ]
         },
         {
           "kind": "binding",
-          "name": "border.width"
+          "name": "borderWidth"
         },
         {
           "kind": "binding",
-          "name": "border.color",
+          "name": "borderColor",
           "targets": [
-            "control.resolvedIndicatorBorderColor"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.verticalCenter",
-          "targets": [
-            "parent.verticalCenter"
+            "control.enabled",
+            "control.hovered",
+            "control.pressed"
           ]
         },
         {
@@ -69001,9 +68852,9 @@
         },
         {
           "kind": "binding",
-          "name": "radius",
+          "name": "anchors.verticalCenter",
           "targets": [
-            "width"
+            "parent.verticalCenter"
           ]
         },
         {
@@ -69011,13 +68862,14 @@
           "name": "x",
           "targets": [
             "control.checked",
+            "control.mirrored",
             "parent.width",
             "width"
           ]
         },
         {
           "kind": "binding",
-          "name": "color",
+          "name": "fillColor",
           "targets": [
             "control.enabled"
           ]
@@ -69072,6 +68924,18 @@
           "kind": "binding",
           "name": "leftPadding",
           "targets": [
+            "control.mirrored",
+            "control.text.length",
+            "control.indicator.width",
+            "control.spacing"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "rightPadding",
+          "targets": [
+            "control.mirrored",
+            "control.text.length",
             "control.indicator.width",
             "control.spacing"
           ]
@@ -69091,9 +68955,42 @@
             "control.host.nodeTextRenderType",
             "Text.CurveRendering"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "control.enabled",
+            "control.visualFocus",
+            "control.activeFocus"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "cornerRadius"
+        },
+        {
+          "kind": "binding",
+          "name": "borderColor",
+          "targets": [
+            "control.accentColor"
+          ]
         }
       ],
-      "local_component_refs": [],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "GraphSurfaceCapsule",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml"
+        }
+      ],
       "symbol_anchors": [
         {
           "anchor": "GraphSurfaceCheckBoxPropertyHost",
@@ -69212,6 +69109,12 @@
           "anchor": "GraphSurfaceCheckBoxHandlerOnPressedChanged",
           "kind": "handler",
           "name": "onPressedChanged"
+        },
+        {
+          "anchor": "GraphSurfaceCheckBoxLocalComponentGraphSurfaceCapsule",
+          "kind": "localComponent",
+          "name": "GraphSurfaceCapsule",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml"
         }
       ]
     },
@@ -71744,10 +71647,10 @@
         "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml",
         "ea_node_editor\\ui_qml\\components\\graph\\surface_controls\\GraphSurfaceIntervalSlider.qml"
       ],
-      "root_component": "RangeSlider",
+      "root_component": "T.RangeSlider",
       "imports": [
         "QtQuick 2.15",
-        "QtQuick.Controls 2.15",
+        "QtQuick.Templates as T",
         "QtQml 2.15",
         "\"SurfaceControlGeometry.js\" as SurfaceControlGeometry",
         "\"SurfaceValueFormatter.js\" as SurfaceValueFormatter"
@@ -71757,9 +71660,6 @@
           "name": "control"
         },
         {
-          "name": "intervalTrack"
-        },
-        {
           "name": "leftCaption"
         },
         {
@@ -71767,6 +71667,9 @@
         }
       ],
       "object_names": [
+        {
+          "name": "graphSurfaceIntervalTrack"
+        },
         {
           "name": "graphSurfaceIntervalFirstHandle"
         },
@@ -71865,6 +71768,14 @@
           "name": "disabledColor"
         },
         {
+          "kind": "color",
+          "name": "disabledHandleFillColor"
+        },
+        {
+          "kind": "color",
+          "name": "disabledHandleBorderColor"
+        },
+        {
           "kind": "var",
           "name": "typography"
         },
@@ -71938,18 +71849,6 @@
         },
         {
           "kind": "real",
-          "name": "lowerPosition"
-        },
-        {
-          "kind": "real",
-          "name": "upperPosition"
-        },
-        {
-          "kind": "real",
-          "name": "equalWidth"
-        },
-        {
-          "kind": "real",
           "name": "desiredCenter"
         }
       ],
@@ -71971,7 +71870,7 @@
           "name": "Binding"
         },
         {
-          "name": "Rectangle"
+          "name": "GraphSurfaceCapsule"
         },
         {
           "name": "Text"
@@ -72000,6 +71899,10 @@
       "property_bindings": [
         {
           "kind": "binding",
+          "name": "implicitWidth"
+        },
+        {
+          "kind": "binding",
           "name": "implicitHeight",
           "targets": [
             "trackAreaHeight",
@@ -72012,10 +71915,38 @@
         },
         {
           "kind": "binding",
+          "name": "leftPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "rightPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "topPadding"
+        },
+        {
+          "kind": "binding",
           "name": "bottomPadding",
           "targets": [
             "captionReserve"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "leftInset"
+        },
+        {
+          "kind": "binding",
+          "name": "rightInset"
+        },
+        {
+          "kind": "binding",
+          "name": "topInset"
+        },
+        {
+          "kind": "binding",
+          "name": "bottomInset"
         },
         {
           "kind": "binding",
@@ -72033,8 +71964,8 @@
           "name": "snapMode",
           "targets": [
             "stepSize",
-            "RangeSlider.SnapAlways",
-            "RangeSlider.NoSnap"
+            "T.RangeSlider.SnapAlways",
+            "T.RangeSlider.NoSnap"
           ]
         },
         {
@@ -72088,7 +72019,7 @@
           "kind": "binding",
           "name": "background",
           "targets": [
-            "Item"
+            "GraphSurfaceSliderTrack"
           ]
         },
         {
@@ -72121,32 +72052,25 @@
         },
         {
           "kind": "binding",
-          "name": "anchors.verticalCenter",
+          "name": "activeStart",
           "targets": [
-            "parent.verticalCenter"
+            "Math.min",
+            "control.first.handle.x",
+            "control.first.handle.width"
           ]
         },
         {
           "kind": "binding",
-          "name": "width",
+          "name": "activeEnd",
           "targets": [
-            "parent.width"
+            "Math.max",
+            "control.first.handle.x",
+            "control.first.handle.width"
           ]
         },
         {
           "kind": "binding",
-          "name": "height"
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
+          "name": "trackColor",
           "targets": [
             "control.enabled",
             "control.trackColor",
@@ -72156,42 +72080,7 @@
         },
         {
           "kind": "binding",
-          "name": "x",
-          "targets": [
-            "control.equalPhysicalValues"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "width",
-          "targets": [
-            "control.equalPhysicalValues"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "anchors.verticalCenter",
-          "targets": [
-            "intervalTrack.verticalCenter"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "intervalTrack.height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "intervalTrack.radius"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
+          "name": "activeColor",
           "targets": [
             "control.enabled",
             "control.accentColor",
@@ -72202,7 +72091,7 @@
           "kind": "binding",
           "name": "first.handle",
           "targets": [
-            "Rectangle"
+            "GraphSurfaceSliderHandle"
           ]
         },
         {
@@ -72237,39 +72126,52 @@
         },
         {
           "kind": "binding",
-          "name": "radius",
+          "name": "fillColor",
           "targets": [
-            "width"
+            "control.enabled",
+            "control.first.pressed",
+            "control.handleFillColor"
           ]
         },
         {
           "kind": "binding",
-          "name": "color",
+          "name": "borderColor",
           "targets": [
             "control.enabled",
-            "control.handleFillColor",
-            "Qt.alpha",
-            "control.disabledColor"
+            "control.first.pressed",
+            "control.first.hovered"
           ]
         },
         {
           "kind": "binding",
-          "name": "border.width"
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
+          "name": "depthColor",
           "targets": [
-            "control.enabled",
-            "control.handleBorderColor",
-            "control.disabledColor"
+            "control.enabled"
           ]
         },
         {
           "kind": "binding",
           "name": "second.handle",
           "targets": [
-            "Rectangle"
+            "GraphSurfaceSliderHandle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "fillColor",
+          "targets": [
+            "control.enabled",
+            "control.second.pressed",
+            "control.handleFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "borderColor",
+          "targets": [
+            "control.enabled",
+            "control.second.pressed",
+            "control.second.hovered"
           ]
         },
         {
@@ -72294,11 +72196,7 @@
         },
         {
           "kind": "binding",
-          "name": "color"
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
+          "name": "cornerRadius",
           "targets": [
             "Math.max",
             "control.knobDiameter"
@@ -72306,7 +72204,11 @@
         },
         {
           "kind": "binding",
-          "name": "border.color",
+          "name": "borderWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "borderColor",
           "targets": [
             "control.accentColor"
           ]
@@ -72405,7 +72307,13 @@
           ]
         }
       ],
-      "local_component_refs": [],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "GraphSurfaceCapsule",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml"
+        }
+      ],
       "symbol_anchors": [
         {
           "anchor": "GraphSurfaceIntervalSliderPropertyHost",
@@ -72528,6 +72436,18 @@
           "detail": "color"
         },
         {
+          "anchor": "GraphSurfaceIntervalSliderPropertyDisabledHandleFillColor",
+          "kind": "property",
+          "name": "disabledHandleFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSurfaceIntervalSliderPropertyDisabledHandleBorderColor",
+          "kind": "property",
+          "name": "disabledHandleBorderColor",
+          "detail": "color"
+        },
+        {
           "anchor": "GraphSurfaceIntervalSliderPropertyTypography",
           "kind": "property",
           "name": "typography",
@@ -72636,24 +72556,6 @@
           "detail": "var"
         },
         {
-          "anchor": "GraphSurfaceIntervalSliderPropertyLowerPosition",
-          "kind": "property",
-          "name": "lowerPosition",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphSurfaceIntervalSliderPropertyUpperPosition",
-          "kind": "property",
-          "name": "upperPosition",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphSurfaceIntervalSliderPropertyEqualWidth",
-          "kind": "property",
-          "name": "equalWidth",
-          "detail": "real"
-        },
-        {
           "anchor": "GraphSurfaceIntervalSliderPropertyDesiredCenter",
           "kind": "property",
           "name": "desiredCenter",
@@ -72693,6 +72595,12 @@
           "anchor": "GraphSurfaceIntervalSliderHandlerSecondOnMoved",
           "kind": "handler",
           "name": "second.onMoved"
+        },
+        {
+          "anchor": "GraphSurfaceIntervalSliderLocalComponentGraphSurfaceCapsule",
+          "kind": "localComponent",
+          "name": "GraphSurfaceCapsule",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml"
         }
       ]
     },
@@ -75316,22 +75224,25 @@
         "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSlider.qml",
         "ea_node_editor\\ui_qml\\components\\graph\\surface_controls\\GraphSurfaceSlider.qml"
       ],
-      "root_component": "Slider",
+      "root_component": "T.Slider",
       "imports": [
         "QtQuick 2.15",
-        "QtQuick.Controls 2.15",
+        "QtQuick.Templates as T",
         "\"SurfaceControlGeometry.js\" as SurfaceControlGeometry",
         "\"SurfaceValueFormatter.js\" as SurfaceValueFormatter"
       ],
       "ids": [
         {
           "name": "control"
-        },
-        {
-          "name": "sliderTrack"
         }
       ],
       "object_names": [
+        {
+          "name": "graphSurfaceSliderTrack"
+        },
+        {
+          "name": "graphSurfaceSliderHandle"
+        },
         {
           "name": "graphSurfaceSliderFocusIndicator"
         },
@@ -75381,6 +75292,14 @@
         {
           "kind": "color",
           "name": "disabledColor"
+        },
+        {
+          "kind": "color",
+          "name": "disabledKnobFillColor"
+        },
+        {
+          "kind": "color",
+          "name": "disabledKnobBorderColor"
         },
         {
           "kind": "int",
@@ -75466,10 +75385,10 @@
       "functions": [],
       "instantiated_components": [
         {
-          "name": "Rectangle"
+          "name": "ColorAnimation"
         },
         {
-          "name": "ColorAnimation"
+          "name": "GraphSurfaceCapsule"
         },
         {
           "name": "Text"
@@ -75490,6 +75409,10 @@
       "property_bindings": [
         {
           "kind": "binding",
+          "name": "implicitWidth"
+        },
+        {
+          "kind": "binding",
           "name": "implicitHeight",
           "targets": [
             "Math.max",
@@ -75503,10 +75426,38 @@
         },
         {
           "kind": "binding",
+          "name": "leftPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "rightPadding"
+        },
+        {
+          "kind": "binding",
+          "name": "topPadding"
+        },
+        {
+          "kind": "binding",
           "name": "bottomPadding",
           "targets": [
             "captionReserve"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "leftInset"
+        },
+        {
+          "kind": "binding",
+          "name": "rightInset"
+        },
+        {
+          "kind": "binding",
+          "name": "topInset"
+        },
+        {
+          "kind": "binding",
+          "name": "bottomInset"
         },
         {
           "kind": "binding",
@@ -75541,12 +75492,29 @@
           "kind": "binding",
           "name": "background",
           "targets": [
-            "Item"
+            "GraphSurfaceSliderTrack"
           ]
         },
         {
           "kind": "binding",
-          "name": "implicitWidth"
+          "name": "x",
+          "targets": [
+            "control.leftPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "control.topPadding"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "control.availableWidth"
+          ]
         },
         {
           "kind": "binding",
@@ -75557,32 +75525,28 @@
         },
         {
           "kind": "binding",
-          "name": "anchors.verticalCenter",
+          "name": "activeStart",
           "targets": [
-            "parent.verticalCenter"
+            "control.mirrored",
+            "control.handle.x",
+            "control.handle.width",
+            "x"
           ]
         },
         {
           "kind": "binding",
-          "name": "width",
+          "name": "activeEnd",
           "targets": [
-            "parent.width"
+            "control.mirrored",
+            "width",
+            "control.handle.x",
+            "control.handle.width",
+            "x"
           ]
         },
         {
           "kind": "binding",
-          "name": "height"
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
+          "name": "trackColor",
           "targets": [
             "control.enabled",
             "control.trackColor",
@@ -75592,29 +75556,7 @@
         },
         {
           "kind": "binding",
-          "name": "width",
-          "targets": [
-            "control.visualPosition",
-            "parent.width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "height",
-          "targets": [
-            "sliderTrack.height"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "sliderTrack.radius"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
+          "name": "activeColor",
           "targets": [
             "control.enabled",
             "control.accentColor",
@@ -75625,7 +75567,7 @@
           "kind": "binding",
           "name": "handle",
           "targets": [
-            "Rectangle"
+            "GraphSurfaceSliderHandle"
           ]
         },
         {
@@ -75663,32 +75605,27 @@
         },
         {
           "kind": "binding",
-          "name": "radius",
-          "targets": [
-            "width"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "color",
+          "name": "fillColor",
           "targets": [
             "control.enabled",
             "control.knobFillColor",
-            "Qt.alpha",
-            "control.disabledColor"
+            "control.disabledKnobFillColor"
           ]
         },
         {
           "kind": "binding",
-          "name": "border.width"
-        },
-        {
-          "kind": "binding",
-          "name": "border.color",
+          "name": "borderColor",
           "targets": [
             "control.enabled",
             "control.knobBorderColor",
-            "control.disabledColor"
+            "control.disabledKnobBorderColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "depthColor",
+          "targets": [
+            "control.enabled"
           ]
         },
         {
@@ -75713,11 +75650,7 @@
         },
         {
           "kind": "binding",
-          "name": "color"
-        },
-        {
-          "kind": "binding",
-          "name": "radius",
+          "name": "cornerRadius",
           "targets": [
             "Math.max",
             "control.knobDiameter"
@@ -75725,7 +75658,11 @@
         },
         {
           "kind": "binding",
-          "name": "border.color",
+          "name": "borderWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "borderColor",
           "targets": [
             "control.accentColor"
           ]
@@ -75847,7 +75784,13 @@
           ]
         }
       ],
-      "local_component_refs": [],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "GraphSurfaceCapsule",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml"
+        }
+      ],
       "symbol_anchors": [
         {
           "anchor": "GraphSurfaceSliderPropertyHost",
@@ -75901,6 +75844,18 @@
           "anchor": "GraphSurfaceSliderPropertyDisabledColor",
           "kind": "property",
           "name": "disabledColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSurfaceSliderPropertyDisabledKnobFillColor",
+          "kind": "property",
+          "name": "disabledKnobFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSurfaceSliderPropertyDisabledKnobBorderColor",
+          "kind": "property",
+          "name": "disabledKnobBorderColor",
           "detail": "color"
         },
         {
@@ -76030,6 +75985,341 @@
           "anchor": "GraphSurfaceSliderHandlerOnMoved",
           "kind": "handler",
           "name": "onMoved"
+        },
+        {
+          "anchor": "GraphSurfaceSliderLocalComponentGraphSurfaceCapsule",
+          "kind": "localComponent",
+          "name": "GraphSurfaceCapsule",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSliderHandle.qml",
+      "component_name": "GraphSurfaceSliderHandle",
+      "aliases": [
+        "GraphSurfaceSliderHandle",
+        "GraphSurfaceSliderHandle.qml",
+        "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSliderHandle.qml",
+        "ea_node_editor\\ui_qml\\components\\graph\\surface_controls\\GraphSurfaceSliderHandle.qml"
+      ],
+      "root_component": "Shape",
+      "imports": [
+        "QtQuick",
+        "QtQuick.Shapes"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        }
+      ],
+      "object_names": [],
+      "properties": [
+        {
+          "kind": "color",
+          "name": "fillColor"
+        },
+        {
+          "kind": "color",
+          "name": "borderColor"
+        },
+        {
+          "kind": "color",
+          "name": "depthColor"
+        },
+        {
+          "kind": "real",
+          "name": "diskRadius"
+        }
+      ],
+      "signals": [],
+      "functions": [],
+      "instantiated_components": [
+        {
+          "name": "ShapePath"
+        },
+        {
+          "name": "PathAngleArc"
+        }
+      ],
+      "dynamic_refs": [],
+      "signal_handlers": [],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "preferredRendererType",
+          "targets": [
+            "Shape.CurveRenderer"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "strokeWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "strokeColor"
+        },
+        {
+          "kind": "binding",
+          "name": "fillColor",
+          "targets": [
+            "root.depthColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "centerX",
+          "targets": [
+            "root.width",
+            "centerY",
+            "root.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radiusX",
+          "targets": [
+            "root.diskRadius",
+            "radiusY"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "startAngle",
+          "targets": [
+            "sweepAngle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "strokeColor",
+          "targets": [
+            "root.borderColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "fillColor",
+          "targets": [
+            "root.fillColor"
+          ]
+        }
+      ],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "GraphSurfaceSliderHandlePropertyFillColor",
+          "kind": "property",
+          "name": "fillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSurfaceSliderHandlePropertyBorderColor",
+          "kind": "property",
+          "name": "borderColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSurfaceSliderHandlePropertyDepthColor",
+          "kind": "property",
+          "name": "depthColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSurfaceSliderHandlePropertyDiskRadius",
+          "kind": "property",
+          "name": "diskRadius",
+          "detail": "real"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSliderTrack.qml",
+      "component_name": "GraphSurfaceSliderTrack",
+      "aliases": [
+        "GraphSurfaceSliderTrack",
+        "GraphSurfaceSliderTrack.qml",
+        "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSliderTrack.qml",
+        "ea_node_editor\\ui_qml\\components\\graph\\surface_controls\\GraphSurfaceSliderTrack.qml"
+      ],
+      "root_component": "Shape",
+      "imports": [
+        "QtQuick",
+        "QtQuick.Shapes"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        }
+      ],
+      "object_names": [],
+      "properties": [
+        {
+          "kind": "color",
+          "name": "trackColor"
+        },
+        {
+          "kind": "color",
+          "name": "activeColor"
+        },
+        {
+          "kind": "real",
+          "name": "activeStart"
+        },
+        {
+          "kind": "real",
+          "name": "activeEnd"
+        },
+        {
+          "kind": "real",
+          "name": "trackThickness"
+        },
+        {
+          "kind": "real",
+          "name": "trackStart"
+        },
+        {
+          "kind": "real",
+          "name": "trackEnd"
+        },
+        {
+          "kind": "real",
+          "name": "clampedStart"
+        },
+        {
+          "kind": "real",
+          "name": "clampedEnd"
+        }
+      ],
+      "signals": [],
+      "functions": [],
+      "instantiated_components": [
+        {
+          "name": "ShapePath"
+        },
+        {
+          "name": "PathLine"
+        }
+      ],
+      "dynamic_refs": [],
+      "signal_handlers": [],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "preferredRendererType",
+          "targets": [
+            "Shape.CurveRenderer"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "strokeColor",
+          "targets": [
+            "root.trackColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "strokeWidth",
+          "targets": [
+            "root.trackThickness"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "fillColor"
+        },
+        {
+          "kind": "binding",
+          "name": "capStyle",
+          "targets": [
+            "ShapePath.RoundCap"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "startX",
+          "targets": [
+            "root.trackStart",
+            "startY",
+            "root.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "strokeColor",
+          "targets": [
+            "root.activeColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "startX",
+          "targets": [
+            "root.clampedStart",
+            "startY",
+            "root.height"
+          ]
+        }
+      ],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "GraphSurfaceSliderTrackPropertyTrackColor",
+          "kind": "property",
+          "name": "trackColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSurfaceSliderTrackPropertyActiveColor",
+          "kind": "property",
+          "name": "activeColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSurfaceSliderTrackPropertyActiveStart",
+          "kind": "property",
+          "name": "activeStart",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSurfaceSliderTrackPropertyActiveEnd",
+          "kind": "property",
+          "name": "activeEnd",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSurfaceSliderTrackPropertyTrackThickness",
+          "kind": "property",
+          "name": "trackThickness",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSurfaceSliderTrackPropertyTrackStart",
+          "kind": "property",
+          "name": "trackStart",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSurfaceSliderTrackPropertyTrackEnd",
+          "kind": "property",
+          "name": "trackEnd",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSurfaceSliderTrackPropertyClampedStart",
+          "kind": "property",
+          "name": "clampedStart",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSurfaceSliderTrackPropertyClampedEnd",
+          "kind": "property",
+          "name": "clampedEnd",
+          "detail": "real"
         }
       ]
     },

@@ -331,6 +331,7 @@ class BenchmarkConfig:
     node_insertion_samples: int = 40
     node_insertion_warmup_samples: int = 3
     mutation_scenarios: tuple[str, ...] = ()
+    control_interactions: bool = False
 
 
 @dataclass(slots=True, frozen=True)
@@ -2325,8 +2326,11 @@ def _file_sha256(path: Path) -> str:
 
 
 def _collect_environment_snapshot() -> dict[str, Any]:
+    from ea_node_editor.ui.perf.node_visual_quality import source_runtime_metadata
+
     uname = platform.uname()
     return {
+        **source_runtime_metadata(),
         "platform": platform.platform(),
         "python_version": platform.python_version(),
         **qtquick_environment_snapshot(),
@@ -3483,6 +3487,38 @@ def _iter_quick_item_tree(root: QQuickItem | None) -> list[QQuickItem]:
     return items
 
 
+class _BenchmarkShellContext(QObject):
+    """Expose the same theme route the production GraphCanvas reads."""
+    def __init__(self, host):
+        super().__init__(host.engine)
+        self._host = host
+
+    @pyqtProperty(QObject, constant=True)
+    def themeBridge(self):
+        return self._host.theme_bridge
+
+    @pyqtProperty(QObject, constant=True)
+    def graphThemeBridge(self):
+        return self._host.graph_theme_bridge
+
+    shellWorkspaceBridge = pyqtProperty(QObject, fget=lambda self: None, constant=True)
+    shellInspectorBridge = pyqtProperty(QObject, fget=lambda self: None, constant=True)
+    addonManagerBridge = pyqtProperty(QObject, fget=lambda self: None, constant=True)
+    helpBridge = pyqtProperty(QObject, fget=lambda self: None, constant=True)
+    contentFullscreenBridge = pyqtProperty(QObject, fget=lambda self: None, constant=True)
+    shellLibraryBridge = pyqtProperty(QObject, fget=lambda self: None, constant=True)
+    viewerSessionBridge = pyqtProperty(QObject, fget=lambda self: None, constant=True)
+
+
+def _resolve_canvas_viewport_size(viewport_size: tuple[int, int] | None = None) -> tuple[int, int]:
+    if viewport_size is None:
+        return _CANVAS_BENCHMARK_WIDTH, _CANVAS_BENCHMARK_HEIGHT
+    width, height = viewport_size
+    if not isinstance(width, int) or not isinstance(height, int) or width < 1 or height < 1:
+        raise ValueError("Canvas viewport dimensions must be positive integers")
+    return width, height
+
+
 class _GraphCanvasBenchmarkHost:
     def __init__(
         self,
@@ -3491,8 +3527,10 @@ class _GraphCanvasBenchmarkHost:
         doc: dict[str, Any],
         workspace_id: str,
         root_context_setup: Callable[["_GraphCanvasBenchmarkHost", Any], None] | None = None,
+        viewport_size: tuple[int, int] | None = None,
     ) -> None:
         self.app = app
+        viewport_width, viewport_height = _resolve_canvas_viewport_size(viewport_size)
         self._setup_phase_timings_ms = {
             phase_key: 0.0 for phase_key in _CANVAS_SETUP_PHASE_KEYS
         }
@@ -3513,7 +3551,7 @@ class _GraphCanvasBenchmarkHost:
             time.perf_counter() - model_attach_started
         ) * 1000.0
         self.view.set_viewport_size(
-            float(_CANVAS_BENCHMARK_WIDTH), float(_CANVAS_BENCHMARK_HEIGHT)
+            float(viewport_width), float(viewport_height)
         )
 
         self.qml_host_kind = select_qml_host_kind_from_environment()
@@ -3522,13 +3560,13 @@ class _GraphCanvasBenchmarkHost:
         if self.qml_host_kind == QML_HOST_QQUICKVIEW_CONTAINER:
             self.view_window = QQuickView()
             self.view_window.setResizeMode(QQuickView.ResizeMode.SizeRootObjectToView)
-            self.view_window.resize(_CANVAS_BENCHMARK_WIDTH, _CANVAS_BENCHMARK_HEIGHT)
+            self.view_window.resize(viewport_width, viewport_height)
             self.engine = self.view_window.engine()
         else:
             self.qml_host_kind = QML_HOST_QQUICKWIDGET
             self.widget = QQuickWidget()
             self.widget.setResizeMode(QQuickWidget.ResizeMode.SizeRootObjectToView)
-            self.widget.resize(_CANVAS_BENCHMARK_WIDTH, _CANVAS_BENCHMARK_HEIGHT)
+            self.widget.resize(viewport_width, viewport_height)
             self.engine = self.widget.engine()
 
         self.engine.addImageProvider(
@@ -3541,6 +3579,8 @@ class _GraphCanvasBenchmarkHost:
         self.graph_theme_bridge = GraphThemeBridge(
             self.engine, theme_id=_CANVAS_GRAPH_THEME_ID
         )
+        self.scene.bind_graph_theme_bridge(self.graph_theme_bridge)
+        self.shell_context = _BenchmarkShellContext(self)
         self.main_window_bridge = _BenchmarkMainWindowBridge()
         self.canvas_state_bridge = GraphCanvasStateBridge(
             session_state=self.main_window_bridge,
@@ -3558,6 +3598,7 @@ class _GraphCanvasBenchmarkHost:
         root_context = self.engine.rootContext()
         root_context.setContextProperty("themeBridge", self.theme_bridge)
         root_context.setContextProperty("graphThemeBridge", self.graph_theme_bridge)
+        root_context.setContextProperty("shellContext", self.shell_context)
         root_context.setContextProperty("canvasStateBridge", self.canvas_state_bridge)
         root_context.setContextProperty(
             "canvasCommandBridge", self.canvas_command_bridge
@@ -3569,8 +3610,8 @@ class _GraphCanvasBenchmarkHost:
         initial_properties = {
             "canvasStateBridge": self.canvas_state_bridge,
             "canvasCommandBridge": self.canvas_command_bridge,
-            "width": float(_CANVAS_BENCHMARK_WIDTH),
-            "height": float(_CANVAS_BENCHMARK_HEIGHT),
+            "width": float(viewport_width),
+            "height": float(viewport_height),
         }
         self._setup_phase_timings_ms["canvas_setup_root_binding_ms"] = (
             time.perf_counter() - root_binding_started
@@ -4367,6 +4408,7 @@ class _GraphCanvasBenchmarkHost:
             self.view.deleteLater()
             self.view = None
         self.engine = None
+        self.shell_context = None
         if getattr(self, "main_window_bridge", None) is not None:
             self.main_window_bridge.deleteLater()
             self.main_window_bridge = None
@@ -6081,6 +6123,15 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             ),
         )
         node_insertion_benchmark: dict[str, Any] = {}
+        control_interaction_benchmark: dict[str, Any] = {}
+        if config.control_interactions:
+            from ea_node_editor.ui.perf.node_visual_quality import benchmark_control_interactions
+
+            control_interaction_benchmark = benchmark_control_interactions(
+                app=app, doc=doc, workspace_id=workspace_id,
+                samples=config.interaction_samples,
+                warmup_samples=config.interaction_warmup_samples,
+            )
         if scenario == _NODE_INSERTIONS_SCENARIO:
             node_insertion_benchmark = benchmark_node_insertions_ms(
                 doc=doc,
@@ -6305,6 +6356,7 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             "synthetic_graph": asdict(config.synthetic_graph),
             "load_iterations": config.load_iterations,
             "interaction_samples": config.interaction_samples,
+            "control_interactions": config.control_interactions,
             "interaction_warmup_samples": config.interaction_warmup_samples,
             "interaction_zoom_min": config.interaction_zoom_min,
             "interaction_zoom_max": config.interaction_zoom_max,
@@ -6326,6 +6378,7 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
         "mutation_phase_instrumentation": mutation_phase_instrumentation,
         "graph_mutation_benchmark": graph_mutation_benchmark,
         "node_insertion_benchmark": node_insertion_benchmark,
+        "control_interaction_benchmark": control_interaction_benchmark,
         "current_baseline_metrics": current_baseline_metrics,
         "process_resources": process_resources,
         "interaction_benchmark": interaction_benchmark,
@@ -6416,6 +6469,7 @@ def _baseline_series_run(
         ),
         "graph_mutation_benchmark": run_report.get("graph_mutation_benchmark", {}),
         "node_insertion_benchmark": run_report.get("node_insertion_benchmark", {}),
+        "control_interaction_benchmark": run_report.get("control_interaction_benchmark", {}),
         "edge_renderer_kind": str(
             run_report.get("interaction_benchmark", {}).get(
                 "edge_renderer_kind",
@@ -6651,6 +6705,7 @@ def _baseline_series_payload(
         ),
         "graph_mutation_benchmark": latest_report.get("graph_mutation_benchmark", {}),
         "node_insertion_benchmark": latest_report.get("node_insertion_benchmark", {}),
+        "control_interaction_benchmark": latest_report.get("control_interaction_benchmark", {}),
         "metric_series": metric_series,
         "variance_thresholds": _BASELINE_VARIANCE_THRESHOLDS,
         "variance_eval": _baseline_variance_eval(
@@ -6836,6 +6891,8 @@ def _run_single_benchmark_subprocess(
         ]
         if config.project_path:
             command.extend(["--project-path", str(config.project_path)])
+        if config.control_interactions:
+            command.append("--control-interactions")
         if config.workspace_id:
             command.extend(["--workspace-id", str(config.workspace_id)])
         stress_fixture_mode = _normalize_stress_fixture_mode(config.stress_fixture)
@@ -8114,6 +8171,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--nodes", type=int, default=1000, help="Synthetic node count.")
     parser.add_argument("--edges", type=int, default=5000, help="Synthetic edge count.")
+    parser.add_argument("--control-interactions", action="store_true",
+                        help="Measure production pointer controls on the visual-quality project fixture.")
     parser.add_argument(
         "--seed", type=int, default=1337, help="Deterministic random seed."
     )
@@ -8296,6 +8355,7 @@ def main(argv: list[str] | None = None) -> int:
         node_insertion_samples=args.node_insertion_samples,
         node_insertion_warmup_samples=args.node_insertion_warmup_samples,
         mutation_scenarios=tuple(args.mutation_scenario),
+        control_interactions=args.control_interactions,
     )
     report_dir: Path = args.report_dir
     report_dir.mkdir(parents=True, exist_ok=True)

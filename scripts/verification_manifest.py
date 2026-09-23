@@ -705,6 +705,17 @@ GUI_SERIAL_PYTEST_TARGETS = (
     ),
     "tests/test_viewer_surface_contract.py",
     "tests/test_flow_edge_labels.py",
+    # These probes require their native window to own desktop activation.
+    "tests/test_xy_plot_qml.py",
+    "tests/test_xy_probe_qml.py",
+    (
+        "tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::"
+        "test_content_sized_nodes_keep_settings_and_connected_ports_aligned"
+    ),
+    (
+        "tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::"
+        "test_graph_canvas_settings_resize_animates_clipped_content_and_connected_edges"
+    ),
 )
 
 VERIFICATION_TEST_PATH_SPECS = (

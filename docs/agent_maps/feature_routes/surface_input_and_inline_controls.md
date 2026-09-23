@@ -51,6 +51,9 @@ preserving controls and exact string/numeric selector values through refreshes.
 - `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceIntervalSlider.qml`
 - `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfacePathEditor.qml`
 - `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSlider.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSliderHandle.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceSliderTrack.qml`
+- `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceCapsule.qml`
 - `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextArea.qml`
 - `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextareaEditor.qml`
 - `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceTextField.qml`
@@ -98,7 +101,8 @@ preserving controls and exact string/numeric selector values through refreshes.
 - Keep inline dropdown popup sizing and pointer-state feedback in `GraphSurfaceComboBox.qml` and `GraphSurfaceSearchableComboBox.qml`; both shared controls own compact popup row height, popup width, scroll limits, delegate padding, hover visuals, and press visuals for current and future surface dropdowns.
 - Standard one-line text, number, path, enum, and color controls publish `textFitWidth`; `GraphInlinePropertiesLayer.qml` combines the widest eligible row with stable label and row chrome for right-handle fit-to-displayed-text. Path measurement follows the current filename/full-path display mode without changing it. Toggle, textarea, rich, and custom surfaces do not participate.
 - Source-storage dropdowns use `SourceStorageModeUtils.js` for the shared `temp://` / `saved://` equals Internal rule. Keep that helper aligned with inspector `path_current_source_mode` projection and floating-toolbar `source_storage` popovers.
-- The boolean inline editor (`GraphSurfaceCheckBox.qml`) renders as a pill toggle switch but keeps its `CheckBox` base, `controlStarted`, and the `resolvedIndicatorFillColor`/`resolvedIndicatorBorderColor` checked→accent semantics pinned by `tests/qml_quick/tst_graph_surface_controls.qml`. `data.boolean_toggle` reuses it inside `GraphBooleanToggleSurface.qml`; its real-host geometry and commit path are pinned by `tests/test_boolean_toggle_surface.py`.
+- The boolean inline editor (`GraphSurfaceCheckBox.qml`) uses a `QtQuick.Templates.CheckBox` with explicit sizing, padding, focus presentation, and retained curve capsules. It preserves `controlStarted` and the `resolvedIndicatorFillColor`/`resolvedIndicatorBorderColor` checked-to-accent semantics pinned by `tests/qml_quick/tst_graph_surface_controls.qml`. `data.boolean_toggle` reuses it inside `GraphBooleanToggleSurface.qml`; its real-host geometry and commit path are pinned by `tests/test_boolean_toggle_surface.py`.
+- Scalar and interval sliders use explicit template geometry and retained `GraphSurfaceSliderTrack.qml` / `GraphSurfaceSliderHandle.qml` curves, with light circular thumbs and actual-handle-center fill endpoints. Fully owning padding avoids inherited FluentWinUI3 offsets. The reusable `GraphSurfaceCapsule.qml` also draws port circles with an inward stroke. Settings headers use open right/down curve chevrons, retain the full header hit target, and provide hover/keyboard-focus feedback without an enclosing circle.
 - Boolean Toggle, Number Slider, Panel, and Select declarations live in the inert
   reserved function source. Keep normalization, warnings, and size-resolver side
   effects in `nodes/builtins/data_control.py`; bootstrap must import that helper

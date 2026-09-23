@@ -351,6 +351,7 @@ docs/specs/requirements/*
 !docs/specs/requirements/TRACEABILITY_MATRIX.md
 !docs/specs/perf/
 docs/specs/perf/*
+!docs/specs/perf/COREX_NODE_VISUAL_QUALITY_QA.md
 !docs/specs/perf/COREX_EXECUTION_RESPONSIVENESS_QA.md
 !docs/specs/perf/INSPECTOR_SELECTION_PERFORMANCE_QA.md
 !docs/specs/perf/SIGNAL_PLOT_SCIENTIFIC_INPUTS_QA.md

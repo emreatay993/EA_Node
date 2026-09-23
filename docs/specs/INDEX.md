@@ -43,6 +43,8 @@ These rows summarize whole-capability status. `PARTIAL` means accepted backend a
 
 ### Implemented Features With Remaining Acceptance Checks
 
+- [COREX Node Visual Quality](perf/COREX_NODE_VISUAL_QUALITY_QA.md) — visual implementation, screenshots and GUI verification complete; publication authorized with documented limits; performance gate not passed.
+
 - [COREX Automation API and MCP Server](../PLAN_COREX_AUTOMATION_API_MCP.md) — `IMPLEMENTED — FIRST PASS; LOCAL DEVELOPER AUTOMATION SURFACE`; opt-in loopback automation API, Python client, and `corex-mcp` server with the [user guide](../AUTOMATION_API_GUIDE.md), [runnable examples](../../examples/automation/README.md), and an agent [skill](../automation/skills/corex-automation/SKILL.md). Not permissioned agent orchestration: `REQ-ARCH-020`, `REQ-EXEC-022`, and `REQ-UI-058` remain planned. Verification and first-pass limits are recorded in the plan ledger.
 - [Python Script Authoring Workspace](../PLAN_PYTHON_SCRIPT_AUTHORING.md) — `IMPLEMENTED AND INDEPENDENTLY REVIEWED`; all task-related failures corrected and serial integration passed; retained baseline canvas and parallel external-runtime verification limits are recorded in the [final outcome](../PLAN_PYTHON_SCRIPT_AUTHORING.md#final-outcome). See the [user guide](../PYTHON_SCRIPT_GUIDE.md).
 - [COREX Plot and Graph Ownership Refactor](../PLAN_COREX_PLOT_GRAPH_OWNERSHIP_REFACTOR.md) — `IMPLEMENTED AND FUNCTIONALLY REVIEWED`; focused verification accepted; broader performance qualification stopped by user with timing uncertainty retained in the [task ledger](../PLANS/COREX_PLOT_GRAPH_OWNERSHIP_TASK_LEDGER.md).
