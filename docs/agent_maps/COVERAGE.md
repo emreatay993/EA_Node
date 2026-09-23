@@ -22,6 +22,9 @@ implementation studies are intentionally excluded.
 
 ## Cross-layer feature routes
 
+The [startup map](subsystems/startup_and_bootstrap.md) records the experimental
+FluentWinUI3 Windows default and its local Qt runtime DLL prerequisite.
+
 Shared Qt dialog styling preserves button content space when the default role changes after layout. The PyQt dialog/theme map owns label visibility and keyboard-acceptance coverage for input and message dialogs.
 
 Unused Model Viewer inputs share the execution-owned computational projection.

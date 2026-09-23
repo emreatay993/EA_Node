@@ -18,6 +18,7 @@ Use this for launch path, app lifetime, splash handoff, and startup authority ch
 
 ## Common Changes
 - Preserve `python -m ea_node_editor.bootstrap` as the source/dev launch route.
+- `bootstrap.configure_qquick_controls_runtime()` currently selects the experimental `FluentWinUI3` Windows default while preserving explicit environment overrides. The local Qt 6.11.1 runtime requires `Qt6QuickControls2FluentWinUI3StyleImpl.dll`, supplied locally from the matching official PySide6 Essentials wheel because PyQt6-Qt6 6.11.1/6.11.2 omit it; this environment repair is not a reproducible packaging/dependency change. Custom COREX controls retain their own visuals.
 - Frozen startup recognizes only the private Mechanical owner-child role before Qt/application imports; source owners continue to use the owner module directly.
 - Keep startup authority in `bootstrap` and `app`, with shell composition in `ui/shell`.
 - Before shared Qt contexts and QApplication are created, `ui_qml/qtquick_backend.py` configures a zero swap interval for the Windows desktop QQuickWidget host, avoiding GUI-thread presentation waits. Other platforms, offscreen runs, and the QQuickView host retain their format policy. Pre-Qt native tabular initialization stays in the existing bootstrap path.

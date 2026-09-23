@@ -169,7 +169,7 @@ class MainBootstrapTests(unittest.TestCase):
             clear=True,
         ):
             bootstrap_module.configure_qquick_controls_runtime()
-            self.assertEqual(os.environ["QT_QUICK_CONTROLS_STYLE"], "Basic")
+            self.assertEqual(os.environ["QT_QUICK_CONTROLS_STYLE"], "FluentWinUI3")
 
         with patch.object(bootstrap_module.sys, "platform", "win32"), patch.dict(
             os.environ,

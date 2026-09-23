@@ -8,7 +8,8 @@ from pathlib import Path
 
 
 _BOOTSTRAP_SENTINEL = "EA_NODE_EDITOR_BOOTSTRAPPED"
-_QT_QUICK_CONTROLS_STYLE = "Basic"
+# Experimental Windows style; Basic remains suitable for custom-control baselines.
+_QT_QUICK_CONTROLS_STYLE = "FluentWinUI3"
 
 # Automation API launch flags (docs/AUTOMATION_API_GUIDE.md). They are promoted to
 # the COREX_AUTOMATION_* environment read once by ea_node_editor.automation.gate,
@@ -163,6 +164,8 @@ def configure_qquick_controls_runtime() -> None:
         return
     if os.environ.get("QT_QUICK_CONTROLS_STYLE"):
         return
+    # Set before loading QML. FluentWinUI3 requires the matching Qt runtime's
+    # Qt6QuickControls2FluentWinUI3StyleImpl.dll (missing in PyQt6-Qt6 6.11.1/6.11.2).
     os.environ["QT_QUICK_CONTROLS_STYLE"] = _QT_QUICK_CONTROLS_STYLE
 
 
