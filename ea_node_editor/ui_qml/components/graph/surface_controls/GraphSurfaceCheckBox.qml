@@ -108,13 +108,12 @@ T.CheckBox {
         renderType: control.host ? control.host.nodeTextRenderType : Text.CurveRendering
     }
 
-    Rectangle {
+    GraphSurfaceCapsule {
         objectName: "graphSurfaceSwitchFocusIndicator"
         anchors.fill: parent
         visible: control.enabled && (control.visualFocus || control.activeFocus)
-        color: "transparent"
-        radius: 3
-        border.width: 1
-        border.color: control.accentColor
+        cornerRadius: 3
+        borderWidth: 1
+        borderColor: control.accentColor
     }
 }

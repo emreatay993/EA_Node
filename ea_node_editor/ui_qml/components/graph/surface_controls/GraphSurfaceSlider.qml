@@ -19,6 +19,8 @@ T.Slider {
     property color disabledColor: host && typeof host.inlineDrivenTextColor !== "undefined"
         ? host.inlineDrivenTextColor
         : "#95a0b8"
+    readonly property color disabledKnobFillColor: Qt.tint(Qt.alpha(knobFillColor, 1), Qt.alpha(disabledColor, 0.35))
+    readonly property color disabledKnobBorderColor: Qt.tint(Qt.alpha(knobBorderColor, 1), Qt.alpha(disabledColor, 0.5))
     property int controlHeight: 20
     property bool showRangeCaptions: false
     property bool displayValueAvailable: true
@@ -116,8 +118,8 @@ T.Slider {
         y: control.topPadding + control.availableHeight * 0.5 - height * 0.5
         width: control.knobDiameter
         height: control.knobDiameter
-        fillColor: control.enabled ? control.knobFillColor : Qt.alpha(control.disabledColor, 0.28)
-        borderColor: control.enabled ? control.knobBorderColor : control.disabledColor
+        fillColor: control.enabled ? control.knobFillColor : control.disabledKnobFillColor
+        borderColor: control.enabled ? control.knobBorderColor : control.disabledKnobBorderColor
         depthColor: control.enabled ? "#24000000" : "transparent"
 
         Behavior on borderColor {
@@ -125,15 +127,14 @@ T.Slider {
         }
     }
 
-    Rectangle {
+    GraphSurfaceCapsule {
         objectName: "graphSurfaceSliderFocusIndicator"
         anchors.fill: parent
         z: 20
         visible: control.enabled && (control.visualFocus || control.activeFocus)
-        color: "transparent"
-        radius: Math.max(4, control.knobDiameter * 0.35)
-        border.width: 1
-        border.color: control.accentColor
+        cornerRadius: Math.max(4, control.knobDiameter * 0.35)
+        borderWidth: 1
+        borderColor: control.accentColor
     }
 
     Text {

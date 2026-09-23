@@ -980,7 +980,7 @@ TestCase {
 
         slider.forceActiveFocus()
         tryCompare(focusIndicator, "visible", true)
-        compare(colorName(focusIndicator.border.color), "#66ccff")
+        compare(colorName(focusIndicator.borderColor), "#66ccff")
         keyClick(Qt.Key_Right)
         tryCompare(root.sliderCommits, "length", 2)
 
@@ -1090,6 +1090,36 @@ TestCase {
         compare(check.checked, true)
     }
 
+    function test_disabled_thumbs_occlude_tracks_and_focus_frames_keep_bounds() {
+        failOnWarning(/Binding loop detected/)
+        var root = createProbe()
+        var controls = [root.probeSlider, root.probeInterval, root.probeCheck]
+        var frameNames = ["graphSurfaceSliderFocusIndicator", "graphSurfaceIntervalFocusIndicator",
+                          "graphSurfaceSwitchFocusIndicator"]
+        for (var index = 0; index < controls.length; ++index) {
+            var control = controls[index]
+            var frame = findChild(control, frameNames[index])
+            control.width += 0.5
+            control.height += 0.5
+            control.forceActiveFocus()
+            tryCompare(frame, "visible", true)
+            compare(frame.x, 0)
+            compare(frame.y, 0)
+            compare(frame.width, control.width)
+            compare(frame.height, control.height)
+            compare(frame.cornerRadius, index === 2 ? 3 : Math.max(4, control.knobDiameter * 0.35))
+            compare(frame.fillColor.a, 0)
+            control.enabled = false
+            tryCompare(frame, "visible", false)
+        }
+        var handles = [root.probeSlider.handle, root.probeInterval.first.handle, root.probeInterval.second.handle]
+        for (var handleIndex = 0; handleIndex < handles.length; ++handleIndex) {
+            compare(handles[handleIndex].fillColor.a, 1, "Disabled thumbs must hide the track beneath them")
+            compare(handles[handleIndex].borderColor.a, 1)
+            verify(colorName(handles[handleIndex].fillColor) !== "#fafafa", "Disabled thumbs retain a muted appearance")
+        }
+    }
+
     function test_interval_slider_preserves_semantic_direction_and_separates_equal_handles() {
         var root = createProbe()
         verify(root !== null)
@@ -1135,7 +1165,7 @@ TestCase {
         var focusIndicator = findChild(interval, "graphSurfaceIntervalFocusIndicator")
         verify(focusIndicator !== null)
         tryCompare(focusIndicator, "visible", true)
-        compare(colorName(focusIndicator.border.color), "#66ccff")
+        compare(colorName(focusIndicator.borderColor), "#66ccff")
         keyClick(Qt.Key_Right)
         tryCompare(root.intervalCommits, "length", 1)
 

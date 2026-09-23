@@ -1,16 +1,17 @@
 import QtQuick
 import QtQuick.Shapes
 
-// Retained circular/pill geometry. The outline stays inside the item's bounds;
+// Retained pill/rounded-frame geometry. The outline stays inside the item's bounds;
 // its curves are rendered at the current scene scale without a texture layer.
 Shape {
     id: root
     property color fillColor: "transparent"
     property color borderColor: "transparent"
     property real borderWidth: 0
+    property real cornerRadius: Math.min(width, height) * 0.5
     readonly property real resolvedBorderWidth: Math.max(0, Math.min(borderWidth, width, height))
     readonly property real inset: resolvedBorderWidth * 0.5
-    readonly property real curveRadius: Math.max(0, Math.min(width, height) * 0.5 - inset)
+    readonly property real curveRadius: Math.max(0, Math.min(cornerRadius, Math.min(width, height) * 0.5) - inset)
 
     preferredRendererType: Shape.CurveRenderer
     visible: width > 0 && height > 0

@@ -31,6 +31,8 @@ T.RangeSlider {
     property color disabledColor: host && typeof host.inlineDrivenTextColor !== "undefined"
         ? host.inlineDrivenTextColor
         : "#95a0b8"
+    readonly property color disabledHandleFillColor: Qt.tint(Qt.alpha(handleFillColor, 1), Qt.alpha(disabledColor, 0.35))
+    readonly property color disabledHandleBorderColor: Qt.tint(Qt.alpha(handleBorderColor, 1), Qt.alpha(disabledColor, 0.5))
     readonly property var typography: host && host.graphSharedTypography ? host.graphSharedTypography : null
     readonly property int captionPixelSize: {
         var numeric = Number(typography ? typography.inlinePropertyPixelSize : NaN);
@@ -201,9 +203,9 @@ T.RangeSlider {
         width: control.knobDiameter
         height: control.knobDiameter
         fillColor: control.enabled ? (control.first.pressed ? "#f0f0f0" : control.handleFillColor)
-                                   : Qt.alpha(control.disabledColor, 0.28)
+                                   : control.disabledHandleFillColor
         borderColor: control.enabled ? (control.first.pressed || control.first.hovered
-                                       ? control.accentColor : control.handleBorderColor) : control.disabledColor
+                                       ? control.accentColor : control.handleBorderColor) : control.disabledHandleBorderColor
         depthColor: control.enabled ? "#24000000" : "transparent"
     }
 
@@ -222,21 +224,20 @@ T.RangeSlider {
         width: control.knobDiameter
         height: control.knobDiameter
         fillColor: control.enabled ? (control.second.pressed ? "#f0f0f0" : control.handleFillColor)
-                                   : Qt.alpha(control.disabledColor, 0.28)
+                                   : control.disabledHandleFillColor
         borderColor: control.enabled ? (control.second.pressed || control.second.hovered
-                                       ? control.accentColor : control.handleBorderColor) : control.disabledColor
+                                       ? control.accentColor : control.handleBorderColor) : control.disabledHandleBorderColor
         depthColor: control.enabled ? "#24000000" : "transparent"
     }
 
-    Rectangle {
+    GraphSurfaceCapsule {
         objectName: "graphSurfaceIntervalFocusIndicator"
         anchors.fill: parent
         z: 20
         visible: control.enabled && (control.visualFocus || control.activeFocus)
-        color: "transparent"
-        radius: Math.max(4, control.knobDiameter * 0.35)
-        border.width: 1
-        border.color: control.accentColor
+        cornerRadius: Math.max(4, control.knobDiameter * 0.35)
+        borderWidth: 1
+        borderColor: control.accentColor
     }
 
     Text {
