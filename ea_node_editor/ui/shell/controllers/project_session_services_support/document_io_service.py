@@ -392,6 +392,27 @@ class ProjectDocumentIOService:
         )
         if callable(reset_runtime_solution_state):
             reset_runtime_solution_state()
+        self.activate_project_solution_session(project, project_path=project_path)
+        self._host.model = GraphModel(project)
+        self._host.workspace_manager = ShellWorkspaceManagerAdapter(
+            WorkspaceManager(self._host.model), self._host.model
+        )
+        self._host.runtime_history.clear_all()
+        self._host.project_path = project_path
+        self._reset_viewer_host_service_for_project_install()
+        self._project_viewer_bridge_loaded(
+            reseed_on_next_reset=reseed_viewer_projection_on_next_reset,
+        )
+        self._host.library_pane_reset_requested.emit()
+        self._host.node_library_changed.emit()
+
+    def activate_project_solution_session(self, project: ProjectData, *, project_path: str) -> None:
+        """Open the runtime solution session (namespace + durable store binding) for ``project``.
+
+        Every project install does this; startup without a restorable session must do it
+        too, otherwise the first Save fails with ``save_solution_stage_failed`` because the
+        solution store has no namespace for the blank project.
+        """
         execution_client = getattr(self._host, "execution_client", None)
         reset_project_session = getattr(
             execution_client,
@@ -412,18 +433,6 @@ class ProjectDocumentIOService:
                 project_path,
                 metadata.get("solution_store"),
             )
-        self._host.model = GraphModel(project)
-        self._host.workspace_manager = ShellWorkspaceManagerAdapter(
-            WorkspaceManager(self._host.model), self._host.model
-        )
-        self._host.runtime_history.clear_all()
-        self._host.project_path = project_path
-        self._reset_viewer_host_service_for_project_install()
-        self._project_viewer_bridge_loaded(
-            reseed_on_next_reset=reseed_viewer_projection_on_next_reset,
-        )
-        self._host.library_pane_reset_requested.emit()
-        self._host.node_library_changed.emit()
 
     def _finalize_loaded_project(
         self,

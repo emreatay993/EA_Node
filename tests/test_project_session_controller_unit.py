@@ -689,6 +689,30 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
             [(repaired_node.node_id, "source", "repaired.png")],
         )
 
+    def test_restore_without_session_or_autosave_activates_the_blank_project_solution_session(
+        self,
+    ) -> None:
+        # Regression: a fresh start (no last session, no autosave) never ran
+        # _install_project, so the runtime had no solution namespace and the first
+        # Save failed with save_solution_stage_failed.
+        host = _ProjectHostStub()
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+        host.session_store.load_session_envelope = mock.Mock(return_value=RecentSessionEnvelope())
+        host.session_store.load_resume_autosave = mock.Mock(return_value=None)
+        host.session_store.has_autosave_snapshot = mock.Mock(return_value=False)
+        host.session_store.load_recoverable_autosave = mock.Mock(return_value=None)
+        project = host.model.project
+
+        controller.restore_session()
+
+        self.assertEqual(host.project_path, "")
+        host.execution_client.reset_project_session.assert_called_once_with(project.project_id, "")
+        host.execution_client.bind_project_solution_store.assert_called_once_with(
+            project.project_id,
+            "",
+            project.metadata.get("solution_store"),
+        )
+
     def test_document_service_solution_bind_seeds_viewer_projection_when_installing_project(
         self,
     ) -> None:

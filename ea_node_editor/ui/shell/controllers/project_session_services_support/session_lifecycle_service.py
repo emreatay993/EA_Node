@@ -176,6 +176,12 @@ class ProjectSessionLifecycleService:
         if not restored:
             self._host.project_path = ""
             self._session_state.last_manual_save_ts = 0.0
+            # Nothing was installed, so the blank startup project never went through
+            # _install_project; open its runtime solution session so Save works.
+            self._require_document_service().activate_project_solution_session(
+                self._host.model.project,
+                project_path="",
+            )
 
         self._require_document_service().ensure_project_metadata_defaults()
         if self._host.project_path:
