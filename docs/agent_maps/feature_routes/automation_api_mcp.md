@@ -3,20 +3,23 @@
 Lookup aliases: `automation api`, `mcp server`, `corex-mcp`, `agent automation`, `CorexClient`, `graph.apply`, `--automation`, `private instance`, `automation handlers`.
 
 ## Purpose
-Use this for the public programmatic control surface of COREX: the loopback NDJSON automation protocol, the declarative op catalog, the GUI-thread bridge and per-domain handlers that call existing owners, the stdlib `CorexClient` + launcher (`auto` / `attach` / `private` modes), and the `corex-mcp` MCP server with embedded agent guidance. It is a local opt-in developer automation surface, not permissioned agent orchestration (`REQ-ARCH-020/EXEC-022/UI-058` stay blocked).
+Use this for the public programmatic control surface of COREX: the loopback NDJSON automation protocol, the declarative op catalog, the GUI-thread bridge and per-domain handlers that call existing owners, the stdlib `CorexClient` + launcher (`auto` / `attach` / `private` modes), and the `corex-mcp` MCP server with embedded agent guidance. It is a local opt-in developer automation surface, not permissioned agent orchestration (`REQ-ARCH-020/EXEC-022/UI-058` stay blocked). User-facing documentation: `docs/AUTOMATION_API_GUIDE.md`.
 
 ## Start Here
 - `ea_node_editor/automation/op_catalog.py` and `ea_node_editor/automation/ops/` (single source of truth for op names, params, results, flags, MCP tool names)
 - `ea_node_editor/automation/protocol.py`, `ea_node_editor/automation/errors.py` (frozen wire contract and error codes)
-- `ea_node_editor/automation/gate.py` (`COREX_AUTOMATION_*` env, token popped from `os.environ`)
+- `ea_node_editor/automation/gate.py` (`COREX_AUTOMATION_*` env read once; `bootstrap.main()` imports it right after the re-exec so the token is popped before any worker or Jupyter subprocess starts)
 - `ea_node_editor/automation/transport.py`, `ea_node_editor/automation/discovery.py` (loopback server, per-user instance files)
 - `ea_node_editor/automation/client.py`, `ea_node_editor/automation/client_api/`, `ea_node_editor/automation/launcher.py`
-- `ea_node_editor/automation/mcp_server.py`, `ea_node_editor/automation/guidance.py`, `ea_node_editor/automation/docgen.py`
-- `ea_node_editor/ui/shell/automation/context.py` (`AutomationContext` facade + summaries), `ea_node_editor/ui/shell/automation/dispatch.py` (validate, grouped undo step, error translation)
+- `ea_node_editor/automation/mcp_server.py` (lazy `LazyCorexClient`: the MCP handshake never waits for COREX; the first tool call attaches or spawns, a lost connection reconnects), `ea_node_editor/automation/guidance.py` (`corex://` resources, instructions, prompts), `ea_node_editor/automation/docgen.py` (generated guide reference)
+- `ea_node_editor/ui/shell/automation/context.py` (`AutomationContext`; `model` / `registry` / `workspace_manager` are live host properties because project open/new and plugin reload replace them), `ea_node_editor/ui/shell/automation/dispatch.py` (validate, grouped undo step, error translation)
 - `ea_node_editor/ui/shell/automation/handlers/` (one module per domain, explicit `HANDLERS` tables), `ea_node_editor/ui/shell/automation/registry.py`
 - `ea_node_editor/ui/shell/automation/bridge.py`, `ea_node_editor/ui/shell/automation/service.py` (GUI-thread queue + lifecycle started from `ea_node_editor/app.py`)
+- `ea_node_editor/bootstrap.py` (`--automation`, `--automation-port`, `--automation-instance-id` promoted to env and stripped from argv)
 - `tests/automation/harness.py` (shell-free context: offscreen `GraphSceneBridge` + `RuntimeGraphHistory` + built-in registry)
-- `docs/PLAN_COREX_AUTOMATION_API_MCP.md` (task ledger, blockers B1-B6, decisions)
+- Focused tests: `tests/automation/test_protocol.py`, `tests/automation/test_catalog.py`, `tests/automation/test_automation_boundaries.py`, `tests/automation/test_transport.py`, `tests/automation/test_discovery.py`, `tests/automation/test_bridge.py`, `tests/automation/test_handlers_nodes.py`, `tests/automation/test_handlers_structure.py`, `tests/automation/test_handlers_annotations.py`, `tests/automation/test_apply.py`, `tests/automation/test_client.py`, `tests/automation/test_launcher.py`, `tests/automation/test_mcp_server.py`, `tests/automation/test_docgen.py`; real-shell suite (GUI + shell isolation target `main_window__automation_shell_handlers`): `tests/automation/test_handlers_shell.py`; spawned end-to-end (slow suite): `tests/automation/test_e2e_private_instance.py`; seams: `tests/test_workspace_navigation_noninteractive.py`, `tests/test_project_document_io_noninteractive.py`, `tests/test_settings_session_state_dir.py`
+- Docs and tooling: `docs/AUTOMATION_API_GUIDE.md`, `examples/automation/` (flowchart, annotated media board, subnode workflow, run and screenshot), `docs/automation/skills/corex-automation/SKILL.md`, `scripts/install_automation_skill.py`
+- `docs/PLAN_COREX_AUTOMATION_API_MCP.md` (task ledger, blockers B1-B9, decisions)
 
 ## Do Not Start Here
 - `ea_node_editor/ui/shell/composition/` for automation wiring; the server starts from `app.py` after the splash and the pinned `ShellServices` shape is untouched.
@@ -25,16 +28,19 @@ Use this for the public programmatic control surface of COREX: the loopback NDJS
 - `ea_node_editor/execution/` for run polling; `run.status` polls `ShellRunState` from a bridge-owned timer (the repo pins the `execution_event` connect count at 1).
 
 ## Common Changes
-- New op: add an `OpSpec` to the domain module under `ops/`, add the handler to the matching `handlers/<domain>.py` `HANDLERS` table, add a `client_api` method, regenerate the guide reference (`docgen`), extend `tests/automation/test_catalog.py` expectations.
-- New error code: append to `errors.ERROR_CODES` with an imperative default hint; document in the guide.
+- New op: add an `OpSpec` to the domain module under `ops/`, add the handler to the matching `handlers/<domain>.py` `HANDLERS` table, add a `client_api` method, regenerate the guide reference with `python -m ea_node_editor.automation.docgen --update-guide` (`tests/automation/test_docgen.py` fails on drift), extend `tests/automation/test_catalog.py` expectations.
+- New error code: append to `errors.ERROR_CODES` with an imperative default hint; regenerate the guide.
 - Dialog-free seams used by handlers: `WorkspaceNavigationController.create_workspace_named` / `rename_workspace_to` / `close_workspace_noninteractive`, `WorkspaceViewNavOps.create_view_named` / `rename_view_to` / `close_view(show_errors=False)`, `ProjectDocumentIOService.save_project_to_path` / `open_project_path_noninteractive` / `new_project_noninteractive` / `document_io_active`.
+- Startup without a restorable session calls `ProjectDocumentIOService.activate_project_solution_session` for the blank project (otherwise the first Save fails with `save_solution_stage_failed`); `_install_project` uses the same method.
 - Capture: `CanvasExportPresenter.capture_canvas_view_pngs` renders offscreen only when node shadows are disabled during the grab (`ShellWorkspacePresenter.set_graphics_node_shadow`); shared numeric helpers live in `ea_node_editor/ui/canvas_view_export.py` (`positive_capture_dimension`).
 - Spawned instances: `COREX_SESSION_STATE_DIR` (settings seam) isolates autosave / last-session / staging; `EA_NODE_EDITOR_BOOTSTRAPPED=1` skips the venv re-exec so the launcher-generated instance id matches discovery.
+- Owner facts handlers depend on: passive flow ports are neutral ports keyed `top|right|bottom|left`; flowchart / annotation / group-backdrop titles live in `properties["title"]`; flowchart shapes draw `properties["body"]`; on the classic shapes (start, end, process, decision, document, connector, input_output, predefined_process, database) the body defaults to the shape name and `node.add` / `node.update` titles also drive an untouched body; `passive.annotation.text` content key is `text`; `media.panel` and `data.panel` are active nodes; `propagate_passive_node_style` propagates along edges, not by type; style schemas accept agent-friendly aliases (`fill_color_end` -> `gradient_color`, edge `color|width|pattern|label_color` -> `stroke_*` / `label_text_color`, text `color` -> `text_color`) and `catalog.style_schema` returns the persisted keys.
 
 ## Focused Verification
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/automation -q -n 0
-.\venv\Scripts\python.exe -m pytest tests/test_architecture_boundaries.py tests/test_dead_code_hygiene.py tests/test_canvas_export_presenter.py -q
+.\venv\Scripts\python.exe -m pytest tests/automation -q -n 0 --ignore=tests/automation/test_e2e_private_instance.py
+.\venv\Scripts\python.exe -m pytest tests/automation/test_e2e_private_instance.py -q -n 0
+.\venv\Scripts\python.exe -m pytest tests/test_architecture_boundaries.py tests/test_dead_code_hygiene.py tests/test_canvas_export_presenter.py tests/test_main_bootstrap.py -q
 ```
 
 ## Breadcrumbs

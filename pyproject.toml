@@ -74,6 +74,9 @@ jupyter = [
     "nbformat>=5.10",
     "nbclient>=0.10",
 ]
+mcp = [
+    "mcp>=1.10,<2",
+]
 all = [
     "ansys-dpf-core>=0.16,<0.17",
     "ansys-mechanical-core>=0.12.6",
@@ -104,6 +107,7 @@ all = [
 ]
 dev = [
     "dash>=3.0",
+    "mcp>=1.10,<2",
     "pytest>=7.4",
     "pytest-xdist>=3.5",
     "ruff>=0.8",
@@ -145,6 +149,7 @@ dev = [
 [project.scripts]
 corex-node-editor = "ea_node_editor.bootstrap:main"
 corex-runtime = "ea_node_editor.bootstrap:headless_main"
+corex-mcp = "ea_node_editor.automation.mcp_server:main"
 
 [tool.setuptools.packages.find]
 include = ["ea_node_editor*", "corex*"]

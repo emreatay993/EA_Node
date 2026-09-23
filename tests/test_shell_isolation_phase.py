@@ -19,6 +19,7 @@ from tests.shell_isolation_runtime import shell_lifecycle_contract
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _EXPECTED_T25_TARGET_IDS = {
+    "main_window__automation_shell_handlers",
     "run_controller__test_gui_remains_responsive_and_stop_cancels_blocked_preparation",
     "run_controller__test_plot_property_updates_retain_inline_rows_across_settings_and_ports",
     "run_controller__test_media_toolbar_history_and_bulk_edits_preserve_real_workflow",
@@ -218,6 +219,7 @@ def _discovered_shell_sources() -> set[str]:
         "tests/test_shell_run_controller.py",
         "tests/test_shell_project_session_controller.py",
         manifest.SHELL_WINDOW_LIFECYCLE_TEST_PATH,
+        manifest.AUTOMATION_SHELL_HANDLERS_TEST_PATH,
     ):
         if _public_test_classes(relative_path) or _test_functions(relative_path):
             discovered.add(relative_path)

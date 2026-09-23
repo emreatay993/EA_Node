@@ -35,6 +35,8 @@ QML_QUICK_ENV = {
 }
 WORKTREE_PYTEST_IGNORE_PATHS = ("venv",)
 SHELL_WINDOW_LIFECYCLE_TEST_PATH = "tests/test_shell_window_lifecycle_isolated.py"
+AUTOMATION_SHELL_HANDLERS_TEST_PATH = "tests/automation/test_handlers_shell.py"
+AUTOMATION_E2E_PRIVATE_INSTANCE_TEST_PATH = "tests/automation/test_e2e_private_instance.py"
 SHELL_LIFECYCLE_TRUTH = "deterministic in-process shell window teardown"
 SHELL_LIFECYCLE_SHARED_WINDOW_SCOPE = "repeated create/show/close cycles inside one isolated child process"
 
@@ -746,6 +748,9 @@ VERIFICATION_TEST_PATH_SPECS = (
     VerificationTestPathSpec("tests/test_pdf_preview_provider.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_annotation_catalog.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec(SHELL_WINDOW_LIFECYCLE_TEST_PATH, (SHELL_SUITE_KEY,)),
+    # Automation API: real ShellWindow handler suite (GUI + shell isolation) and the
+    # spawned private-instance end-to-end test (slow).
+    VerificationTestPathSpec(AUTOMATION_SHELL_HANDLERS_TEST_PATH, (GUI_SUITE_KEY, SHELL_SUITE_KEY)),
     VerificationTestPathSpec("tests/test_shell_theme.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_viewer_control_bridge.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_viewer_host_service.py", (GUI_SUITE_KEY,)),
@@ -754,6 +759,7 @@ VERIFICATION_TEST_PATH_SPECS = (
     VerificationTestPathSpec("tests/test_workflow_settings_dialog.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_tabular_benchmark_workbench.py", (SLOW_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_track_h_perf_harness.py", (SLOW_SUITE_KEY,)),
+    VerificationTestPathSpec(AUTOMATION_E2E_PRIVATE_INSTANCE_TEST_PATH, (SLOW_SUITE_KEY,)),
 )
 
 
@@ -916,6 +922,18 @@ SHELL_ISOLATION_SPEC = ShellIsolationSpec(
 )
 
 SHELL_ISOLATION_OWNERSHIP_SPECS = (
+    ShellIsolationOwnershipSpec(
+        source_path=AUTOMATION_SHELL_HANDLERS_TEST_PATH,
+        coverage_kind="class_targets",
+        covered_names=(
+            "ShellFreeTests",
+            "AppHandlerTests",
+            "WorkspaceViewHandlerTests",
+            "ProjectHandlerTests",
+            "RunHandlerTests",
+            "CaptureHandlerTests",
+        ),
+    ),
     ShellIsolationOwnershipSpec(
         source_path="tests/main_window_shell/group_backdrop_integration.py",
         coverage_kind="method_targets",

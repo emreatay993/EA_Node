@@ -133,6 +133,17 @@ def _build_targets():
             "tests.main_window_shell.passive_property_editors",
             target_id="main_window__passive_property_editors",
         ),
+        ShellIsolationTarget.pytest_nodeid_list(
+            "main_window__automation_shell_handlers",
+            (
+                "tests/automation/test_handlers_shell.py::ShellFreeTests",
+                "tests/automation/test_handlers_shell.py::AppHandlerTests",
+                "tests/automation/test_handlers_shell.py::WorkspaceViewHandlerTests",
+                "tests/automation/test_handlers_shell.py::ProjectHandlerTests",
+                "tests/automation/test_handlers_shell.py::RunHandlerTests",
+                "tests/automation/test_handlers_shell.py::CaptureHandlerTests",
+            ),
+        ),
         ShellIsolationTarget.unittest_module(
             "tests.main_window_shell.passive_style_context_menus",
             target_id="main_window__passive_style_context_menus",

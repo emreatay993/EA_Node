@@ -40,6 +40,7 @@ py -3.11 -m venv venv
 
 - For a fuller setup and orientation guide, see [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 - For QWebEngine / `PyQt6-WebEngine` installation and intranet repair steps, see [docs/QT_WEBENGINE_INSTALLATION.md](docs/QT_WEBENGINE_INSTALLATION.md).
+- To drive COREX from AI agents or scripts (local automation API, Python client, and the `corex-mcp` MCP server for Claude Code, Codex, and Claude Desktop), see [docs/AUTOMATION_API_GUIDE.md](docs/AUTOMATION_API_GUIDE.md).
 - The package-module command above is the source/dev launch path. For packaged Windows builds and installer bundles, use [docs/PACKAGING_WINDOWS.md](docs/PACKAGING_WINDOWS.md).
 - `.[all,dev]` includes the optional `tabular` extra. Use `.[tabular]` by itself when you only need the dependency-gated `Data > Tabular Data Input` node.
 - On Windows, user data lives under `%APPDATA%\COREX_Node_Editor\`; public single-file plugin drop-ins live directly in `%APPDATA%\COREX_Node_Editor\plugins\`, and imported `.cxpkg` packages install as subdirectories beneath that same root.

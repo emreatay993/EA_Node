@@ -788,5 +788,83 @@ class AppBootstrapTests(unittest.TestCase):
         apply_window_icon_mock.assert_called_once_with(host)
 
 
+class AutomationFlagTests(unittest.TestCase):
+    def test_extract_automation_flags_promotes_env_and_strips_argv(self) -> None:
+        remaining, env = bootstrap_module.extract_automation_flags(
+            ["corex.exe", "--automation", "--automation-port", "4321", "--automation-instance-id=abc12", "project.cxproj"]
+        )
+        self.assertEqual(remaining, ["corex.exe", "project.cxproj"])
+        self.assertEqual(
+            env,
+            {
+                "COREX_AUTOMATION_PORT": "4321",
+                "COREX_AUTOMATION_INSTANCE_ID": "abc12",
+                "COREX_AUTOMATION_ENABLED": "1",
+            },
+        )
+
+    def test_extract_automation_flags_is_a_no_op_without_flags(self) -> None:
+        argv = ["corex.exe", "--example-flag", "value"]
+        remaining, env = bootstrap_module.extract_automation_flags(argv)
+        self.assertEqual(remaining, argv)
+        self.assertEqual(env, {})
+
+    def test_extract_automation_flags_rejects_bad_values(self) -> None:
+        for argv in (
+            ["corex.exe", "--automation-port"],
+            ["corex.exe", "--automation-port", "abc"],
+            ["corex.exe", "--automation-port", "70000"],
+            ["corex.exe", "--automation-instance-id", ""],
+        ):
+            with self.subTest(argv=argv), self.assertRaises(bootstrap_module.AutomationFlagError):
+                bootstrap_module.extract_automation_flags(argv)
+
+    def test_main_promotes_automation_flags_before_bootstrap_and_app_import(self) -> None:
+        seen: dict[str, object] = {}
+
+        def _fake_bootstrap_python(module_name: str = "ea_node_editor.bootstrap") -> None:
+            seen["argv_at_bootstrap"] = list(bootstrap_module.sys.argv)
+            seen["env_at_bootstrap"] = {
+                key: bootstrap_module.os.environ.get(key)
+                for key in ("COREX_AUTOMATION_ENABLED", "COREX_AUTOMATION_PORT", "COREX_AUTOMATION_INSTANCE_ID")
+            }
+
+        with patch.object(
+            bootstrap_module.sys, "argv", ["corex.exe", "--automation", "--automation-port", "0", "--automation-instance-id", "id01"]
+        ), patch.dict(bootstrap_module.os.environ, {}, clear=False), patch.object(
+            bootstrap_module, "_bootstrap_python", side_effect=_fake_bootstrap_python
+        ), patch.object(bootstrap_module, "configure_qquick_controls_runtime"), patch(
+            "ea_node_editor.app.run", return_value=0
+        ) as run_mock:
+            bootstrap_module.os.environ.pop("COREX_AUTOMATION_ENABLED", None)
+            self.assertEqual(bootstrap_module.main(), 0)
+
+        run_mock.assert_called_once_with()
+        self.assertEqual(seen["argv_at_bootstrap"], ["corex.exe"])
+        self.assertEqual(
+            seen["env_at_bootstrap"],
+            {"COREX_AUTOMATION_ENABLED": "1", "COREX_AUTOMATION_PORT": "0", "COREX_AUTOMATION_INSTANCE_ID": "id01"},
+        )
+
+    def test_main_reports_malformed_automation_flags_without_starting(self) -> None:
+        with patch.object(bootstrap_module.sys, "argv", ["corex.exe", "--automation-port", "nope"]), patch.object(
+            bootstrap_module, "_bootstrap_python"
+        ) as bootstrap_mock, patch("ea_node_editor.app.run") as run_mock:
+            self.assertEqual(bootstrap_module.main(), 2)
+        bootstrap_mock.assert_not_called()
+        run_mock.assert_not_called()
+
+    def test_console_scripts_include_the_mcp_server(self) -> None:
+        pyproject_text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+        self.assertIn('corex-mcp = "ea_node_editor.automation.mcp_server:main"', pyproject_text)
+
+    def test_finish_startup_hook_calls_automation_service_outside_composition(self) -> None:
+        app_text = (Path(__file__).resolve().parents[1] / "ea_node_editor" / "app.py").read_text(encoding="utf-8")
+        self.assertIn("start_automation_if_enabled(window)", app_text)
+        composition_dir = Path(__file__).resolve().parents[1] / "ea_node_editor" / "ui" / "shell" / "composition"
+        for path in composition_dir.glob("*.py"):
+            self.assertNotIn("automation", path.read_text(encoding="utf-8"), path.name)
+
+
 if __name__ == "__main__":
     unittest.main()

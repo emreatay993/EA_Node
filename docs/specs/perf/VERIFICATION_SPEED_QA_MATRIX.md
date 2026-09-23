@@ -31,7 +31,8 @@ or explicit requests.
   `--ignore=tests/test_script_editor_dock.py`,
   `--ignore=tests/test_shell_run_controller.py`,
   `--ignore=tests/test_shell_project_session_controller.py`,
-  `--ignore=tests/test_shell_window_lifecycle_isolated.py`, and
+  `--ignore=tests/test_shell_window_lifecycle_isolated.py`,
+  `--ignore=tests/automation/test_handlers_shell.py`, and
   `--ignore=tests/test_shell_isolation_phase.py`.
 - The `fast.pytest` xdist phase additionally deselects
   `tests/test_execution_client.py::ProcessExecutionClientTests` and
@@ -64,6 +65,7 @@ or explicit requests.
   - `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest tests.test_shell_run_controller -v`
   - `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest tests.test_shell_project_session_controller -v`
   - `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest tests.test_shell_window_lifecycle_isolated -v`
+  - `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest tests.automation.test_handlers_shell -v`
 - Do not replace the dedicated shell-isolation phase with `unittest discover`,
   shared `ShellWindow()` reuse, or shell coverage folded back into the earlier
   pytest phases.

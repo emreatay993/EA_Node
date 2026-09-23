@@ -305,6 +305,12 @@ def run() -> int:
 
         def _finish_startup() -> None:
             splash.finish(window, min_visible_ms=0)
+            # Automation API (opt-in via --automation): started after the splash hands
+            # off, outside the composition package; the service stops itself on
+            # aboutToQuit/atexit. Disabled gate -> None.
+            from ea_node_editor.ui.shell.automation.service import start_automation_if_enabled
+
+            state["automation"] = start_automation_if_enabled(window)
             if is_autoquit():
                 QTimer.singleShot(500, lambda: (summary(), app.quit()))
 

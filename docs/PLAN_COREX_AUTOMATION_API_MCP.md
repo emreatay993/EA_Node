@@ -49,6 +49,10 @@ Navigation: [agent map](agent_maps/feature_routes/automation_api_mcp.md).
   `test_plugin_registry_contributions_have_direct_owners`
   (`BUILTIN_CONTRACT_CONTRIBUTIONS` is 18, pin says 17; no automation change
   touches `ea_node_editor/nodes`). Both stay out of scope.
+- Environmental: `tests/test_packaging_configuration.py::`
+  `test_windows_package_dependency_probe_executes_exact_python_and_xy_gate`
+  requires `pwsh` (PowerShell 7) on PATH, which this machine lacks; it fails
+  identically on the unmodified tree.
 
 ## Blockers found during validation -> resolutions
 
@@ -61,6 +65,11 @@ Navigation: [agent map](agent_maps/feature_routes/automation_api_mcp.md).
 | B5 | `.claude/`, `.agents/`, `.codex/skills/*` are gitignored | Tracked `docs/automation/skills/corex-automation/SKILL.md` + `scripts/install_automation_skill.py` |
 | B6 | Canvas capture had never been proven offscreen (presenter tests fake the grab) | T00 spike: see below |
 | B7 (new) | Real `capture_canvas_view_pngs` raised `AttributeError`: commit `1ac032e9` retired the mixin that owned `_positive_capture_dimension` / `_positive_capture_integer` but `canvas_export_presenter.py` and `media_panel_action_service.py` still called them | Restored as module functions `positive_capture_dimension` / `positive_capture_integer` in `ea_node_editor/ui/canvas_view_export.py`; both callers rewired; regression tests in `tests/test_canvas_export_presenter.py` |
+| B8 (new) | Every real `--automation` launch died with 0xC0000409 right after the splash: `app.aboutToQuit.connect(service.stop)` raised `TypeError` (a `slots=True` dataclass is not weak-referenceable) inside the `_finish_startup` QTimer slot, which PyQt6 escalates to a fatal abort with no traceback | `AutomationService` is `@dataclass(slots=True, weakref_slot=True)`; regression test connects `service.stop` to a real Qt signal (`tests/automation/test_bridge.py`) |
+| B9 (new, pre-existing product bug) | A start with no restorable session and no autosave (first run, every isolated private instance) never called `_install_project`, so the runtime had no project solution namespace and the first Save failed with `save_solution_stage_failed` | `ProjectDocumentIOService.activate_project_solution_session` extracted from `_install_project` and called by `restore_session` when nothing was restored; regression test in `tests/test_project_session_controller_unit.py` |
+| B10 (new) | `AutomationContext` cached `host.model` / `host.workspace_manager` / `host.registry`, but project open/new and plugin reload replace them, so every op after `project.open` acted on the old project | `model`, `registry`, `workspace_manager` are live properties read from `host`; `stored_*` fields are the shell-free fallback; tests in `test_automation_boundaries.py` and `test_handlers_shell.py` |
+| B11 (new) | Flowchart shapes draw `properties.body` (defaulting to the shape name), so a title set by automation was stored but not visible (found by a real private-instance screenshot) | On the classic shapes (start, end, process, decision, document, connector, input_output, predefined_process, database) `node.add` / `node.update` titles also set an untouched body; explicit or customised bodies win; decorative shapes keep `body` as separate content |
+| B12 (new) | `corex-mcp` connected to COREX before answering the MCP handshake; a private spawn takes 10-20 s, longer than typical client startup timeouts | `LazyCorexClient`: connect on the first tool call, connection failures are ordinary tool errors, a lost connection reconnects |
 
 ### T00 capture spike (2026-09-22, offscreen, real `create_shell_window()`)
 
@@ -117,21 +126,24 @@ Navigation: [agent map](agent_maps/feature_routes/automation_api_mcp.md).
 | Task | Scope | Owner | Status |
 |---|---|---|---|
 | T00 | Contract freeze, skeleton, harness, T00 tests, spike, B7 fix, agent map, plan doc | coordinator | **DONE 2026-09-22** (commit pending) |
-| T01 | Transport, gate, discovery | worker | PENDING |
-| T02 | Bridge (FIFO, guards, watchdog, deferred poller), service, registry | worker | PENDING |
-| T03 | Navigation dialog-free cores | worker | PENDING |
-| T04 | Non-interactive document IO + `COREX_SESSION_STATE_DIR` | worker | PENDING |
-| T05 | Node / catalog / graph-read handlers + client facades | worker | PENDING |
-| T06 | Edge / structure / layout handlers + client facades | worker | PENDING |
-| T07 | Comment / link handlers + client facade | worker | PENDING |
-| T08 | `CorexClient` core + launcher | worker | PENDING |
-| T09 | Workspace / view / project / run / capture / app handlers | worker | PENDING (after T02/T03/T04) |
-| T10 | MCP server + guidance | worker | PENDING (after T02, T08) |
-| T11 | `graph.apply` | worker | PENDING (after T05-T07) |
-| T12 | Guide, docgen, examples, skill + installer | worker | PENDING |
-| T13 | Integration: bootstrap flags, app start hook, pyproject `[mcp]` + `corex-mcp`, shell-isolation target, e2e private-instance test, index regeneration, spec registration, README | coordinator | PENDING |
+| T01 | Transport, gate, discovery | worker | DONE 2026-09-22 (51 tests; adds protocol-version check in hello, `bound_address`, instance-id validation, explicit-id lookup never falls back) |
+| T02 | Bridge (FIFO, guards, watchdog, deferred poller), service, registry | worker | DONE 2026-09-22 (21 tests; stop order is discovery file -> bridge -> server so parked reader threads wake; queued requests whose `timeout_s` elapsed are not executed) |
+| T03 | Navigation dialog-free cores | worker | DONE 2026-09-22 (14 tests; `WorkspaceCloseOutcome`, `create_workspace_named`, `rename_workspace_to`, `close_workspace_noninteractive`, `create_view_named`, `rename_view_to`, `close_view(show_errors=)`) |
+| T04 | Non-interactive document IO + `COREX_SESSION_STATE_DIR` | worker | DONE 2026-09-22 (13 tests; `ProjectOpenResult`, reason code `save_path_required`, `session_state_dir()`) |
+| T05 | Node / catalog / graph-read handlers + client facades | worker | DONE 2026-09-22 (26 tests; passive titles are property-backed, text node content key is `text`, media source port unexposed on create, propagate follows edges) |
+| T06 | Edge / structure / layout handlers + client facades | worker | DONE 2026-09-22 (21 tests; data inputs single-connection, `replace_existing` replaces all edges on the port, edge style aliases) |
+| T07 | Comment / link handlers + client facade | worker | DONE 2026-09-22 (20 tests; comment edits keep stored author/flags unless supplied) |
+| T08 | `CorexClient` core + launcher | worker | DONE 2026-09-22 (33 tests; connect-phase failures are `NOT_FOUND`, `terminate()` only cleans owned instances, `close(quit_owned_instance=False)` detaches) |
+| T09 | Workspace / view / project / run / capture / app handlers | worker | DONE 2026-09-23 (21 real-shell tests; `app.quit` checks PROJECT_DIRTY itself because closeEvent never prompts; `run.start` only refuses an in-flight run, not a queued auto-run; undo labels are not observable after the scene refresh) |
+| T10 | MCP server + guidance | worker | DONE 2026-09-23 (31 tests incl. a real in-memory MCP session; 47 tools, 4 `corex://` resources, 2 prompts; lazy connect added by the coordinator) |
+| T11 | `graph.apply` | worker | DONE 2026-09-23 (19 tests; atomic failure restores snapshot/scope/selection and raises APPLY_FAILED with no undo entry; atomic=false keeps applied ops as one undo step) |
+| T12 | Guide, docgen, examples, skill + installer | worker | DONE 2026-09-23 (`docs/AUTOMATION_API_GUIDE.md` with a docgen-generated reference block guarded by `tests/automation/test_docgen.py`; four examples; skill + installer) |
+| T13 | Integration: bootstrap flags, app start hook, pyproject `[mcp]` + `corex-mcp`, shell-isolation target, e2e private-instance test, index regeneration, spec registration, README | coordinator | DONE 2026-09-23 (see verification record) |
 
-Per-wave independent review is recorded below as it happens.
+Per-wave independent review:
+
+- Wave 1 (2026-09-22): 14 findings. Fixed: `auto` spawns shared the user's session state (every spawn now gets its own `COREX_SESSION_STATE_DIR`; an owned visible instance is only quit when it is clean, otherwise detached); `node.update` / `link.upsert` mutated before validating (validation hoisted, failed ops leave no undo entry); `auto` attached to other clients' private instances (visible only); stale discovery records after PID reuse (liveness also probes the port); token in dataclass reprs (`repr=False`); client socket timeout leaked into the next send; unknown edge style keys were silently dropped; missing test banners; B3 staged-file save untested; token pop timing (gate imported in `bootstrap.main`). Documented instead of fixed: inline `html` for web panels lives in session staging and is not packed into the `.cxproj`.
+- Final review (Wave 2 + integration): recorded in the verification record below.
 
 ## Verification record
 
@@ -141,6 +153,28 @@ Per-wave independent review is recorded below as it happens.
   `scripts/check_agent_maps.py`, `tests/test_agent_route_index.py`,
   `tests/test_architecture_boundaries.py`, `tests/test_dead_code_hygiene.py`
   results recorded in the T00 commit message.
+- Waves 1-2 + T13 (2026-09-23, serial `-n 0`):
+  - `tests/automation` without the spawned test: 331 passed (includes the real
+    `ShellWindow` suite `tests/automation/test_handlers_shell.py`).
+  - `tests/automation/test_e2e_private_instance.py`: passed in ~20 s against a
+    spawned private headless COREX (build with `graph.apply`, style, group,
+    comment, link, subnode, save, new, reopen, non-blank screenshot, quit).
+  - All four `examples/automation/*.py` pass with `--mode private` (the run
+    example completes a real process-isolated run and logs the node output).
+  - Gate set (412 passed): `test_architecture_boundaries`, `test_dead_code_hygiene`,
+    `test_main_bootstrap`, `test_packaging_configuration`, `test_agent_route_index`,
+    `test_agent_maps_hygiene`, `test_markdown_hygiene`, `test_traceability_checker`,
+    `test_source_test_file_index`, `test_run_verification`, capture owners, the
+    navigation and project-session suites; the only failures are the three
+    baseline/environmental ones listed under Baseline.
+  - `scripts/check_agent_maps.py`, `check_markdown_links.py`,
+    `check_traceability.py`: pass.
+  - `tests/test_shell_isolation_phase.py` catalog tests and the new
+    `main_window__automation_shell_handlers` target pass. Two catalog tests
+    fail on a pre-existing gap: commit `03c2b483` added
+    `test_graph_search_close_returns_keyboard_focus_to_canvas` to
+    `tests/main_window_shell/shell_basics_and_search.py` without a
+    shell-isolation target (out of scope; left unchanged).
 
 ## First-pass limits (documented for agents)
 

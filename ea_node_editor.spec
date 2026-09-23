@@ -131,6 +131,9 @@ PYINSTALLER_EXCLUDES = (
     "transformers",
     "ansys.dpf",
     "ansys.grpc.dpf",
+    # The automation MCP server ([mcp] extra) is a developer surface; frozen
+    # profiles ship the in-app automation server but not the MCP SDK.
+    "mcp",
 )
 NON_FULL_RUNTIME_EXCLUDES = ("ansys",)
 NON_FULL_RUNTIME_DATA_EXCLUDE_PREFIXES = ("ansys_",)

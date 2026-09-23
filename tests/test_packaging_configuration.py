@@ -598,6 +598,7 @@ def test_spec_excludes_unowned_ml_vision_and_dpf_stacks_from_pyinstaller_analysi
         "transformers",
         "ansys.dpf",
         "ansys.grpc.dpf",
+        "mcp",
     )
     assert 'NON_FULL_RUNTIME_EXCLUDES = ("ansys",)' in spec_source
     assert assignments["NON_FULL_RUNTIME_DATA_EXCLUDE_PREFIXES"] == ("ansys_",)
@@ -955,3 +956,15 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert 'Resolve-PackagedExecutablePath -Profile $PackageProfile' in sign_release_source
     assert 'Resolve-InstallerRoot -Profile $PackageProfile' in sign_release_source
     assert 'package_profile = $PackageProfile' in sign_release_source
+
+
+def test_mcp_extra_is_optional_dev_only_and_excluded_from_frozen_profiles() -> None:
+    pyproject = _load_pyproject()
+    optional_dependencies = pyproject["project"]["optional-dependencies"]
+    assert optional_dependencies["mcp"] == ["mcp>=1.10,<2"]
+    assert "mcp>=1.10,<2" in set(optional_dependencies["dev"])
+    assert not any(dependency.startswith("mcp") for dependency in pyproject["project"]["dependencies"])
+    assert not any(dependency.startswith("mcp") for dependency in optional_dependencies["all"])
+    assert pyproject["project"]["scripts"]["corex-mcp"] == "ea_node_editor.automation.mcp_server:main"
+    spec_text = (REPO_ROOT / "ea_node_editor.spec").read_text(encoding="utf-8")
+    assert '"mcp",' in spec_text
