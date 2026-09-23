@@ -34,8 +34,9 @@ LIST_NODE_TYPES = OpSpec(
     domain=DOMAIN,
     summary="List available node types with optional text/category/behaviour filters.",
     description=(
-        "Passive families (passive.flowchart.*, passive.annotation.*, media.panel, web.page_viewer, "
-        "io.path_pointer, data.panel) are the building blocks for flowcharts and boards."
+        "Flowcharts and boards are built from the passive families (passive.flowchart.*, "
+        "passive.annotation.*, web.page_viewer, io.path_pointer) plus two active display nodes "
+        "(media.panel, data.panel); node_set_style only accepts passive nodes."
     ),
     params=object_schema(
         {

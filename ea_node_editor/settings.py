@@ -18,6 +18,9 @@ PROJECT_NODE_INPUTS_DIRNAME = "in"
 PROJECT_NODE_OUTPUTS_DIRNAME = "out"
 PROJECT_NODE_TEMP_DIRNAME = "tmp"
 PROJECT_ARTIFACT_SESSION_STAGING_DIRNAME = "project_artifact_staging"
+# Optional per-instance override for autosave / last-session / staging state
+# (automation launchers set it so spawned instances never share user state).
+SESSION_STATE_DIR_ENV_VAR = "COREX_SESSION_STATE_DIR"
 SCHEMA_VERSION = 5
 AUTOSAVE_INTERVAL_MS = 30_000
 APP_PREFERENCES_KIND = "ea-node-editor/app-preferences"
@@ -368,8 +371,17 @@ def user_data_dir() -> Path:
     return data_dir
 
 
+def session_state_dir() -> Path:
+    override = os.environ.get(SESSION_STATE_DIR_ENV_VAR, "").strip()
+    if not override:
+        return user_data_dir()
+    state_dir = Path(override)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    return state_dir
+
+
 def recent_session_path() -> Path:
-    return user_data_dir() / "last_session.json"
+    return session_state_dir() / "last_session.json"
 
 
 def app_preferences_path() -> Path:
@@ -377,7 +389,7 @@ def app_preferences_path() -> Path:
 
 
 def autosave_project_path() -> Path:
-    return user_data_dir() / f"autosave{PROJECT_EXTENSION}"
+    return session_state_dir() / f"autosave{PROJECT_EXTENSION}"
 
 
 def plugins_dir() -> Path:

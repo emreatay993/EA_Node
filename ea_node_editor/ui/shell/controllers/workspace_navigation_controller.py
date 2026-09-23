@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QRectF
@@ -15,6 +16,20 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class WorkspaceCloseOutcome:
+    """Dialog-free result of ``close_workspace_noninteractive``.
+
+    ``reason`` is ``"closed"``, ``"unknown_workspace"``, ``"dirty"`` (unsaved
+    changes and ``discard_unsaved`` was False) or ``"last_workspace"``.
+    """
+
+    closed: bool
+    reason: str
+    retirement_error: str = ""
+    active_workspace_id: str = ""
 
 
 class WorkspaceNavigationController:
@@ -107,6 +122,9 @@ class WorkspaceNavigationController:
     def create_view(self) -> None:
         self._ops.create_view()
 
+    def create_view_named(self, name: str | None) -> str:
+        return self._ops.create_view_named(name)
+
     def switch_view(self, view_id: str) -> None:
         self._ops.switch_view(view_id)
 
@@ -121,10 +139,14 @@ class WorkspaceNavigationController:
             name, ok = QInputDialog.getText(self._dialog_parent(), "New Workspace", "Workspace name:")
         if not ok:
             return
+        self.create_workspace_named(name or None)
+
+    def create_workspace_named(self, name: str | None) -> str:
         workspace_id = self._host.workspace_manager.create_workspace(name=name or None)
         self._host.runtime_history.clear_workspace(workspace_id)
         self.refresh_workspace_tabs()
         self.switch_workspace(workspace_id)
+        return workspace_id
 
     def rename_active_workspace(self) -> None:
         index = self._host.workspace_tabs.currentIndex()
@@ -152,8 +174,19 @@ class WorkspaceNavigationController:
             from PyQt6.QtWidgets import QInputDialog
 
             name, ok = QInputDialog.getText(self._dialog_parent(), "Rename Workspace", "New name:", text=workspace.name)
+        if not ok:
+            return False
+        return self.rename_workspace_to(normalized_workspace_id, name)
+
+    def rename_workspace_to(self, workspace_id: str, name: str) -> bool:
+        normalized_workspace_id = str(workspace_id or "").strip()
+        if not normalized_workspace_id:
+            return False
+        workspace = self._host.model.project.workspaces.get(normalized_workspace_id)
+        if workspace is None:
+            return False
         normalized_name = str(name or "").strip()
-        if not ok or not normalized_name or normalized_name == workspace.name:
+        if not normalized_name or normalized_name == workspace.name:
             return False
         old_name = workspace.name
         self._host.workspace_manager.rename_workspace(normalized_workspace_id, normalized_name)
@@ -208,9 +241,7 @@ class WorkspaceNavigationController:
         # require a real QWidget (or None) parent or they raise TypeError.
         return resolve_dialog_parent(self._host)
 
-    def close_view(self, view_id: str) -> bool:
-        from PyQt6.QtWidgets import QMessageBox
-
+    def close_view(self, view_id: str, *, show_errors: bool = True) -> bool:
         workspace_id = self._host.workspace_manager.active_workspace_id()
         workspace = self._host.model.project.workspaces.get(workspace_id)
         normalized_view_id = str(view_id or "").strip()
@@ -221,7 +252,10 @@ class WorkspaceNavigationController:
         if normalized_view_id not in workspace.views:
             return False
         if len(workspace.views) == 1:
-            QMessageBox.warning(self._dialog_parent(), "View", "Cannot close the last view.")
+            if show_errors:
+                from PyQt6.QtWidgets import QMessageBox
+
+                QMessageBox.warning(self._dialog_parent(), "View", "Cannot close the last view.")
             return False
 
         active_view_closed = workspace.active_view_id == normalized_view_id
@@ -260,6 +294,19 @@ class WorkspaceNavigationController:
 
             name, ok = QInputDialog.getText(self._dialog_parent(), "Rename View", "New name:", text=view.name)
         if not ok:
+            return False
+        return self.rename_view_to(normalized_view_id, name)
+
+    def rename_view_to(self, view_id: str, name: str) -> bool:
+        workspace_id = self._host.workspace_manager.active_workspace_id()
+        workspace = self._host.model.project.workspaces.get(workspace_id)
+        normalized_view_id = str(view_id or "").strip()
+        if workspace is None or not normalized_view_id:
+            return False
+        mutation_service = self._host.model.workspace_view_mutations(workspace_id)
+        mutation_service.active_view_state()
+        view = workspace.views.get(normalized_view_id)
+        if view is None:
             return False
         normalized_name = str(name or "").strip()
         if not normalized_name or normalized_name == view.name:
@@ -310,26 +357,59 @@ class WorkspaceNavigationController:
             )
             if reply != QMessageBox.StandardButton.Yes:
                 return
-        try:
-            self._host.workspace_manager.close_workspace(workspace_id)
-        except ValueError:
+        outcome = self.close_workspace_noninteractive(workspace_id, discard_unsaved=True)
+        if outcome.reason == "last_workspace":
             QMessageBox.warning(self._dialog_parent(), "Workspace", "Cannot close the last workspace.")
             return
-        retirement_error = ""
-        try:
-            self._host.execution_client.retire_workspace(workspace_id)
-        except Exception as exc:  # noqa: BLE001
-            retirement_error = str(exc).strip() or "unknown cleanup error"
-            logger.exception("Workspace runtime retirement failed after close")
-        self._host.runtime_history.clear_workspace(workspace_id)
-        self.refresh_workspace_tabs()
-        self.switch_workspace(self._host.workspace_manager.active_workspace_id())
-        if retirement_error:
+        if outcome.retirement_error:
             QMessageBox.warning(
                 self._dialog_parent(),
                 "Workspace Cleanup",
-                f"The workspace closed, but runtime cleanup failed: {retirement_error}",
+                f"The workspace closed, but runtime cleanup failed: {outcome.retirement_error}",
             )
+
+    def close_workspace_noninteractive(
+        self,
+        workspace_id: str,
+        *,
+        discard_unsaved: bool,
+    ) -> WorkspaceCloseOutcome:
+        normalized_workspace_id = str(workspace_id or "").strip()
+        workspace = None
+        if normalized_workspace_id:
+            workspace = self._host.model.project.workspaces.get(normalized_workspace_id)
+        if workspace is None:
+            return self._close_outcome(False, "unknown_workspace")
+        if workspace.dirty and not discard_unsaved:
+            return self._close_outcome(False, "dirty")
+        try:
+            self._host.workspace_manager.close_workspace(normalized_workspace_id)
+        except ValueError:
+            return self._close_outcome(False, "last_workspace")
+        retirement_error = ""
+        try:
+            self._host.execution_client.retire_workspace(normalized_workspace_id)
+        except Exception as exc:  # noqa: BLE001
+            retirement_error = str(exc).strip() or "unknown cleanup error"
+            logger.exception("Workspace runtime retirement failed after close")
+        self._host.runtime_history.clear_workspace(normalized_workspace_id)
+        self.refresh_workspace_tabs()
+        self.switch_workspace(self._host.workspace_manager.active_workspace_id())
+        return self._close_outcome(True, "closed", retirement_error=retirement_error)
+
+    def _close_outcome(
+        self,
+        closed: bool,
+        reason: str,
+        *,
+        retirement_error: str = "",
+    ) -> WorkspaceCloseOutcome:
+        return WorkspaceCloseOutcome(
+            closed=closed,
+            reason=reason,
+            retirement_error=retirement_error,
+            active_workspace_id=str(self._host.workspace_manager.active_workspace_id() or ""),
+        )
 
     def focus_failed_node(self, workspace_id: str, node_id: str) -> None:
         self._ops.focus_failed_node(workspace_id, node_id)

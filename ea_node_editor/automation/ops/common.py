@@ -24,38 +24,45 @@ COORD = number_schema("Scene coordinate in canvas units")
 SIZE = number_schema("Size in canvas units", minimum=1)
 TITLE = string_schema("Node title shown in the header")
 
+# Keys mirror passive_style_normalization.normalize_passive_node_style_payload; the handler also
+# accepts the alias fill_color_end (-> gradient_color). catalog.style_schema returns the same list.
 NODE_STYLE = object_schema(
     {
         "fill_color": string_schema("#RRGGBB or #RRGGBBAA"),
-        "fill_color_end": string_schema("Gradient end colour (#RRGGBB[AA])"),
-        "gradient_enabled": boolean_schema(),
+        "gradient_enabled": boolean_schema("Requires gradient_color"),
+        "gradient_color": string_schema("Gradient end colour (#RRGGBB[AA]); alias fill_color_end"),
         "gradient_direction": string_schema(enum=("north", "east", "south", "west", "radial")),
         "border_color": string_schema("#RRGGBB[AA]"),
         "border_width": number_schema(minimum=0),
         "corner_radius": number_schema(minimum=0),
         "text_color": string_schema("#RRGGBB[AA]"),
-        "font_size": number_schema(minimum=1),
+        "font_size": number_schema(minimum=1, integer=True),
         "font_weight": string_schema(enum=("normal", "bold")),
-        "opacity": number_schema(minimum=0, maximum=1),
     },
     additional=True,
-    description="Passive node style override (see catalog.style_schema for the authoritative key list)",
+    description="Passive node style override (persisted keys; see catalog.style_schema for enums and aliases)",
 )
 
+# Keys mirror passive_style_normalization.normalize_flow_edge_style_payload plus display_mode; the
+# handler also accepts the aliases color/width/pattern/label_color/label_background.
 EDGE_STYLE = object_schema(
     {
-        "color": string_schema("#RRGGBB[AA]"),
-        "width": number_schema(minimum=0),
-        "pattern": string_schema(enum=("solid", "dashed", "dotted")),
+        "stroke_color": string_schema("#RRGGBB[AA]; alias color"),
+        "stroke_width": number_schema(minimum=0, description="alias width"),
+        "stroke_pattern": string_schema("alias pattern", enum=("solid", "dashed", "dotted")),
         "arrow_head": string_schema(enum=("filled", "open", "none")),
         "path_mode": string_schema(enum=("auto", "pipe", "bezier")),
         "display_mode": string_schema(enum=("default", "faint", "hidden")),
-        "label_color": string_schema("#RRGGBB[AA]"),
+        "label_text_color": string_schema("#RRGGBB[AA]; alias label_color"),
+        "label_background_color": string_schema("#RRGGBB[AA]; alias label_background"),
     },
     additional=True,
-    description="Flow edge style override (see catalog.style_schema)",
+    description="Flow edge style override (persisted keys; see catalog.style_schema for aliases)",
 )
 
+# Keys mirror text_style.TEXT_ANNOTATION_STYLE_KEYS plus format; the handler also accepts the
+# alias color (-> text_color). Ranges are clamped by the owner (font_size 6..144, opacity 0..100,
+# padding 0..64, line_height 0.5..4.0, letter_spacing -10..20); 0 / sentinel values inherit.
 TEXT_STYLE = object_schema(
     {
         "format": string_schema(enum=("markdown", "plain")),
@@ -64,17 +71,19 @@ TEXT_STYLE = object_schema(
         "font_weight": string_schema(enum=("normal", "medium", "demibold", "bold", "black")),
         "italic": boolean_schema(),
         "underline": boolean_schema(),
-        "color": string_schema("#RRGGBB[AA]"),
+        "strikeout": boolean_schema(),
+        "text_color": string_schema("#RRGGBB[AA]; alias color"),
+        "background_color": string_schema("#RRGGBB[AA]"),
         "horizontal_alignment": string_schema(enum=("left", "center", "right", "justify")),
         "vertical_alignment": string_schema(enum=("top", "middle", "bottom")),
         "wrap_mode": string_schema(enum=("word", "anywhere", "none")),
         "line_height": number_schema(minimum=0),
         "letter_spacing": number_schema(),
         "padding": number_schema(minimum=-1),
-        "opacity": number_schema(minimum=-1, maximum=1),
+        "opacity": number_schema(minimum=-1, maximum=100),
     },
     additional=True,
-    description="Rich text slot style (body_* / subtitle_* keys); see catalog.style_schema",
+    description="Rich text slot style (persisted keys; see catalog.style_schema for aliases and ranges)",
 )
 
 PORT_SUMMARY = object_schema(

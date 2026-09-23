@@ -17,6 +17,7 @@ from ea_node_editor.automation.errors import (
     not_found,
 )
 from ea_node_editor.automation.gate import AutomationGate
+from ea_node_editor.graph.effective_ports import EffectivePort, effective_ports, find_port
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.records import EdgeInstance, NodeInstance
 from ea_node_editor.graph.workspace_state import WorkspaceData
@@ -45,14 +46,20 @@ class AutomationContext:
     - ``canvas_export`` -- ``CanvasExportPresenter``: PNG capture
     - ``effects`` -- ``MutationUiEffects``: post-mutation UI refresh hooks
     - ``quick_widget`` -- ``QQuickWidget`` host for window grabs
+
+    ``model``, ``registry`` and ``workspace_manager`` are *live* properties: project
+    open/new replaces ``host.model`` / ``host.workspace_manager`` and a plugin reload
+    replaces ``host.registry``, so they are read from ``host`` on every access. The
+    ``stored_*`` fields are the fallback for the shell-free harness (``host`` is None)
+    and for test doubles whose host lacks the attribute.
     """
 
     host: Any
     scene: Any
     view: Any
-    model: GraphModel
-    registry: NodeRegistry
-    workspace_manager: Any
+    stored_model: GraphModel
+    stored_registry: NodeRegistry
+    stored_workspace_manager: Any
     runtime_history: Any
     nav: Any
     workspace_presenter: Any
@@ -74,9 +81,9 @@ class AutomationContext:
             host=host,
             scene=host.scene,
             view=host.view,
-            model=host.model,
-            registry=host.registry,
-            workspace_manager=host.workspace_manager,
+            stored_model=host.model,
+            stored_registry=host.registry,
+            stored_workspace_manager=host.workspace_manager,
             runtime_history=host.runtime_history,
             nav=host.workspace_navigation_controller,
             workspace_presenter=host.shell_workspace_presenter,
@@ -90,6 +97,27 @@ class AutomationContext:
             quick_widget=host.quick_widget,
             gate=gate,
         )
+
+    # ------------------------------------------------------------ live owners
+
+    def _live_host_attr(self, name: str, fallback: Any) -> Any:
+        host = self.host
+        if host is None:
+            return fallback
+        value = getattr(host, name, None)
+        return fallback if value is None else value
+
+    @property
+    def model(self) -> GraphModel:
+        return self._live_host_attr("model", self.stored_model)
+
+    @property
+    def registry(self) -> NodeRegistry:
+        return self._live_host_attr("registry", self.stored_registry)
+
+    @property
+    def workspace_manager(self) -> Any:
+        return self._live_host_attr("workspace_manager", self.stored_workspace_manager)
 
     # ----------------------------------------------------------------- lookups
 
@@ -197,21 +225,39 @@ class AutomationContext:
             )
         return spec
 
-    def port_spec_or_none(self, node: NodeInstance, port_key: str) -> PortSpec | None:
-        normalized = str(port_key or "").strip()
-        for port in self.spec_for(node).ports:
-            if port.key == normalized:
-                return port
-        return None
+    def effective_ports(self, node: NodeInstance) -> tuple[EffectivePort, ...]:
+        """Effective ports (dynamic groups, subnode-shell pins, hidden optional ports resolved)."""
+        return tuple(
+            effective_ports(
+                node=node,
+                spec=self.spec_for(node),
+                workspace_nodes=self.active_workspace().nodes,
+            )
+        )
 
-    def require_port(self, node: NodeInstance, port_key: str) -> PortSpec:
+    def port_spec_or_none(self, node: NodeInstance, port_key: str) -> EffectivePort | PortSpec | None:
+        normalized = str(port_key or "").strip()
+        if not normalized:
+            return None
+        return find_port(
+            node=node,
+            spec=self.spec_for(node),
+            workspace_nodes=self.active_workspace().nodes,
+            port_key=normalized,
+        )
+
+    def require_port(self, node: NodeInstance, port_key: str) -> EffectivePort | PortSpec:
         port = self.port_spec_or_none(node, port_key)
         if port is None:
             raise AutomationOpError(
                 NOT_FOUND,
                 f"Port '{port_key}' does not exist on node '{node.node_id}' ({node.type_id}).",
                 hint="Call graph.get_node to list the node's effective ports.",
-                details={"node_id": node.node_id, "port": str(port_key), "available": [p.key for p in self.spec_for(node).ports]},
+                details={
+                    "node_id": node.node_id,
+                    "port": str(port_key),
+                    "available": [p.key for p in self.effective_ports(node)],
+                },
             )
         return port
 

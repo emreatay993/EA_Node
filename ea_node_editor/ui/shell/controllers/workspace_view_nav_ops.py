@@ -448,11 +448,8 @@ class WorkspaceViewNavOps:
 
     def create_view(self) -> None:
         workspace_id = self._host.workspace_manager.active_workspace_id()
-        self._controller.save_active_view_state()
         if workspace_id not in self._host.model.project.workspaces:
             return
-        mutation_service = self._host.model.workspace_view_mutations(workspace_id)
-        source_view_id = mutation_service.active_view_state().view_id
         presenter = getattr(self._host, "shell_host_presenter", None)
         prompt_text_value = getattr(presenter, "prompt_text_value", None)
         if callable(prompt_text_value):
@@ -463,7 +460,21 @@ class WorkspaceViewNavOps:
             name, ok = QInputDialog.getText(resolve_dialog_parent(self._host), "New View", "View name:")
         if not ok:
             return
-        normalized_name = str(name).strip()
+        self.create_view_named(str(name).strip() or None)
+
+    def create_view_named(self, name: str | None) -> str:
+        """Create and activate a view in the active workspace; returns its id.
+
+        Returns an empty string when the active workspace is missing.
+        """
+
+        workspace_id = self._host.workspace_manager.active_workspace_id()
+        self._controller.save_active_view_state()
+        if workspace_id not in self._host.model.project.workspaces:
+            return ""
+        mutation_service = self._host.model.workspace_view_mutations(workspace_id)
+        source_view_id = mutation_service.active_view_state().view_id
+        normalized_name = str(name or "").strip()
         view = mutation_service.create_view(
             name=normalized_name or None,
             source_view_id=source_view_id,
@@ -471,6 +482,7 @@ class WorkspaceViewNavOps:
         mutation_service.set_active_view(view.view_id)
         self._controller.restore_active_view_state()
         self._host.workspace_state_changed.emit()
+        return view.view_id
 
     def switch_view(self, view_id: str) -> None:
         workspace_id = self._host.workspace_manager.active_workspace_id()

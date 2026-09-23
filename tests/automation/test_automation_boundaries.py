@@ -167,6 +167,31 @@ class HarnessContractTests(unittest.TestCase):
             harness.call(context, "node.add", {"type_id": 5})
         self.assertEqual(raised.exception.code, "INVALID_PARAMS")
 
+    def test_context_owners_follow_host_replacement(self) -> None:
+        # Project open/new swaps host.model and host.workspace_manager; plugin reload swaps
+        # host.registry. The context must never keep acting on the replaced objects.
+        import dataclasses
+        from types import SimpleNamespace
+
+        from ea_node_editor.graph.model import GraphModel
+        from ea_node_editor.workspace.manager import WorkspaceManager
+        from tests.automation import harness
+
+        context = harness.build_context()
+        host = SimpleNamespace(model=context.stored_model, registry=context.stored_registry, workspace_manager=context.stored_workspace_manager)
+        live = dataclasses.replace(context, host=host)
+        self.assertIs(live.model, context.stored_model)
+        replacement = GraphModel()
+        host.model = replacement
+        host.workspace_manager = WorkspaceManager(replacement)
+        self.assertIs(live.model, replacement)
+        self.assertIs(live.workspace_manager, host.workspace_manager)
+        self.assertEqual(live.workspace_id(), replacement.active_workspace.workspace_id)
+        # A test-double host without the attribute falls back to the stored owner.
+        bare = dataclasses.replace(context, host=SimpleNamespace())
+        self.assertIs(bare.model, context.stored_model)
+        self.assertIs(bare.registry, context.stored_registry)
+
     def test_context_lookup_helpers_raise_frozen_codes(self) -> None:
         from tests.automation import harness
 

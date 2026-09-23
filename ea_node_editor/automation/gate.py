@@ -1,6 +1,6 @@
 # Purpose: Env-driven automation capability gate; reads COREX_AUTOMATION_* once and pops the token from os.environ.
 # Map: feature_routes/automation_api_mcp
-# Tests: tests/automation/test_automation_boundaries.py
+# Tests: tests/automation/test_transport.py
 """Automation gate.
 
 Mirrors ``developer_mode.py``: the environment is read exactly once at import
@@ -23,7 +23,7 @@ from __future__ import annotations
 import os
 import secrets
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 ENV_ENABLED = "COREX_AUTOMATION_ENABLED"
 ENV_PORT = "COREX_AUTOMATION_PORT"
@@ -42,7 +42,7 @@ class AutomationGate:
     enabled: bool
     port: int
     instance_id: str
-    token: str
+    token: str = field(repr=False)  # shared secret: never shown in repr/logs
     mode: str
 
     @property
@@ -77,6 +77,9 @@ def _read_gate_from_environment() -> AutomationGate:
     if mode not in AUTOMATION_MODES:
         mode = MODE_VISIBLE
     instance_id = os.environ.get(ENV_INSTANCE_ID, "").strip()
+    if not enabled:
+        # A disabled gate never starts a server; do not keep the secret around.
+        token = ""
     if enabled and not token:
         token = generate_token()
     if enabled and not instance_id:

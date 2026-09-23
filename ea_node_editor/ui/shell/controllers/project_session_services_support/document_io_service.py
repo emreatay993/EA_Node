@@ -58,6 +58,7 @@ _SAVE_REASON_CODES = frozenset(
         "save_cancelled",
         "save_succeeded",
         "save_in_progress",
+        "save_path_required",
         "save_destination_invalid",
         "save_destination_exists",
         "save_destination_sidecar_exists",
@@ -75,6 +76,16 @@ _SAVE_REASON_CODES = frozenset(
         "save_committed_not_adopted_reopen_failed",
         "save_committed_not_adopted_verification_failed",
         "save_committed_not_adopted_binding_failed",
+    }
+)
+_OPEN_REASON_CODES = frozenset(
+    {
+        "opened",
+        "open_in_progress",
+        "project_dirty",
+        "not_found",
+        "load_failed",
+        "invalid_path",
     }
 )
 
@@ -137,6 +148,21 @@ class ProjectSaveResult:
             raise ValueError("project save result status is inconsistent")
 
 
+@dataclass(frozen=True, slots=True)
+class ProjectOpenResult:
+    ok: bool
+    reason_code: str
+    project_path: str
+    message: str
+
+    def __post_init__(self) -> None:
+        if (
+            self.reason_code not in _OPEN_REASON_CODES
+            or bool(self.ok) != (self.reason_code == "opened")
+        ):
+            raise ValueError("project open result is invalid")
+
+
 @dataclass(slots=True)
 class _SaveCoreOutcome:
     result: ProjectSaveResult
@@ -187,16 +213,19 @@ class ProjectDocumentIOService:
     def _dialog_parent(self) -> object | None:
         return self._dialog_parent_source.dialog_parent()
 
+    def _project_has_unsaved_changes(self) -> bool:
+        return any(
+            bool(workspace.dirty)
+            for workspace in self._host.model.project.workspaces.values()
+        )
+
     def _confirm_project_replacement(
         self,
         *,
         title: str,
         action_text: str,
     ) -> bool:
-        if not any(
-            bool(workspace.dirty)
-            for workspace in self._host.model.project.workspaces.values()
-        ):
+        if not self._project_has_unsaved_changes():
             return True
 
         from PyQt6.QtWidgets import QMessageBox
@@ -1134,7 +1163,12 @@ class ProjectDocumentIOService:
             if document_stage is not None:
                 self._host.serializer.discard_staged_document(document_stage)
 
-    def _finish_save_outcome(self, outcome: _SaveCoreOutcome) -> None:
+    def _finish_save_outcome(
+        self,
+        outcome: _SaveCoreOutcome,
+        *,
+        show_errors: bool = True,
+    ) -> None:
         if outcome.result.status == "saved" and outcome.runtime_document is not None:
             for callback in (
                 self._workspace_session.refresh_workspace_tabs,
@@ -1154,7 +1188,7 @@ class ProjectDocumentIOService:
             except Exception:  # noqa: BLE001 - core save already succeeded.
                 pass
             return
-        if outcome.result.status in {"failed", "committed_not_adopted"}:
+        if show_errors and outcome.result.status in {"failed", "committed_not_adopted"}:
             from PyQt6.QtWidgets import QMessageBox
 
             text = (
@@ -1267,6 +1301,47 @@ class ProjectDocumentIOService:
         self._finish_save_outcome(outcome)
         return outcome.result
 
+    def save_project_to_path(self, path: str | Path | None) -> ProjectSaveResult:
+        """Dialog-free Save / Save As for automation callers.
+
+        Staged files are published exactly as the interactive prompt's
+        "continue" choice would publish them; no prompt or dialog is shown.
+        """
+        if not self._save_guard.acquire(blocking=False):
+            return ProjectSaveResult(
+                "failed",
+                "save_in_progress",
+                "",
+            )
+        try:
+            requested_path = (
+                normalize_project_path_value(path) if path is not None else ""
+            )
+            if requested_path:
+                target = Path(requested_path)
+                same_path = bool(
+                    self._host.project_path
+                    and self._normalized_absolute_path(target)
+                    == self._normalized_absolute_path(self._host.project_path)
+                )
+                outcome = self._run_project_save(
+                    target,
+                    commit_mode=("replace_current" if same_path else "create_new"),
+                )
+            elif self._host.project_path:
+                outcome = self._run_project_save(
+                    Path(self._host.project_path),
+                    commit_mode="replace_current",
+                )
+            else:
+                outcome = _SaveCoreOutcome(
+                    ProjectSaveResult("failed", "save_path_required", "")
+                )
+        finally:
+            self._save_guard.release()
+        self._finish_save_outcome(outcome, show_errors=False)
+        return outcome.result
+
     def new_project(self) -> bool:
         if not self._save_guard.acquire(blocking=False):
             return False
@@ -1283,6 +1358,32 @@ class ProjectDocumentIOService:
                 _save_guard_held=True,
             )
             return True
+        finally:
+            self._save_guard.release()
+
+    def new_project_noninteractive(self, *, discard_unsaved: bool) -> ProjectOpenResult:
+        if not self._save_guard.acquire(blocking=False):
+            return ProjectOpenResult(
+                False,
+                "open_in_progress",
+                "",
+                "Another project save or open is in progress.",
+            )
+        try:
+            if not discard_unsaved and self._project_has_unsaved_changes():
+                return ProjectOpenResult(
+                    False,
+                    "project_dirty",
+                    "",
+                    "The current project has unsaved changes.",
+                )
+            project = ProjectData(project_id="proj_local", name="untitled")
+            self._finalize_unsaved_project(
+                project,
+                create_resume_snapshot=False,
+                _save_guard_held=True,
+            )
+            return ProjectOpenResult(True, "opened", "", "")
         finally:
             self._save_guard.release()
 
@@ -1308,6 +1409,75 @@ class ProjectDocumentIOService:
             return self._open_project_path_unlocked(path, show_errors=show_errors)
         finally:
             self._save_guard.release()
+
+    def open_project_path_noninteractive(
+        self,
+        path: str | Path,
+        *,
+        discard_unsaved: bool,
+    ) -> ProjectOpenResult:
+        """Dialog-free project open for automation callers.
+
+        Mirrors ``_open_project_path_unlocked`` without the unsaved-changes
+        confirmation, the project-files prompt (treated as "continue"), and the
+        migration report dialog (its entries are returned in ``message``).
+        """
+        if not self._save_guard.acquire(blocking=False):
+            return ProjectOpenResult(
+                False,
+                "open_in_progress",
+                "",
+                "Another project save or open is in progress.",
+            )
+        try:
+            normalized_path = normalize_project_path_value(path)
+            if not normalized_path:
+                return ProjectOpenResult(
+                    False,
+                    "invalid_path",
+                    "",
+                    "Project path is empty or invalid.",
+                )
+            resolved_path = Path(normalized_path)
+            if not resolved_path.is_file():
+                return ProjectOpenResult(
+                    False,
+                    "not_found",
+                    str(resolved_path),
+                    f"Project file not found.\n{resolved_path}",
+                )
+            if not discard_unsaved and self._project_has_unsaved_changes():
+                return ProjectOpenResult(
+                    False,
+                    "project_dirty",
+                    str(resolved_path),
+                    "The current project has unsaved changes.",
+                )
+            try:
+                project = self._host.serializer.load(str(resolved_path))
+            except Exception as exc:  # noqa: BLE001
+                return ProjectOpenResult(
+                    False,
+                    "load_failed",
+                    str(resolved_path),
+                    str(exc),
+                )
+            self._finalize_loaded_project(
+                project,
+                project_path=str(resolved_path),
+                _save_guard_held=True,
+            )
+            return ProjectOpenResult(
+                True,
+                "opened",
+                str(resolved_path),
+                "\n".join(self._migration_report_entries(project)),
+            )
+        finally:
+            self._save_guard.release()
+
+    def document_io_active(self) -> bool:
+        return self._save_guard.locked()
 
     def _open_project_path_unlocked(
         self,
@@ -1364,14 +1534,18 @@ class ProjectDocumentIOService:
         )
         self._show_migration_report(project)
         return True
-    def _show_migration_report(self, project: ProjectData) -> None:
-        report = sorted(
+    @staticmethod
+    def _migration_report_entries(project: ProjectData) -> list[str]:
+        return sorted(
             {
                 str(entry or "").strip()
                 for entry in getattr(project, "migration_report", ())
                 if str(entry or "").strip()
             }
         )
+
+    def _show_migration_report(self, project: ProjectData) -> None:
+        report = self._migration_report_entries(project)
         if not report:
             return
         from PyQt6.QtWidgets import QMessageBox
@@ -1398,4 +1572,4 @@ class ProjectDocumentIOService:
         )
 
 
-__all__ = ["ProjectDocumentIOService"]
+__all__ = ["ProjectDocumentIOService", "ProjectOpenResult", "ProjectSaveResult"]

@@ -50,7 +50,7 @@ class FrameError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class HelloRequest:
-    token: str
+    token: str = field(repr=False)
     client: str = CLIENT_NAME
     protocol: int = PROTOCOL_VERSION
 

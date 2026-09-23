@@ -108,8 +108,15 @@ ADD_MEDIA = OpSpec(
 ADD_WEB_PANEL = OpSpec(
     name="node.add_web_panel",
     domain=DOMAIN,
-    summary="Create a web viewer (web.page_viewer) for a URL, or for inline HTML that is staged as a project file.",
-    description="Web content is not rendered in offscreen (private headless) screenshots.",
+    summary="Create a web viewer (web.page_viewer) for a URL, or for inline HTML written to a session scratch file.",
+    description=(
+        "Inline html is written to the project's session staging folder (<staging>/automation/<uuid>.html) "
+        "and opened as a file:// URL. It is NOT packed into the .cxproj on save and is lost with the session "
+        "(a private instance deletes it on close). For durable content pass url pointing at a file you own, "
+        "or copy the file in with project.stage_file and pass its artifact_ref (temp://...) as url; the save "
+        "then packs it into the project (a file:// URL of staged_path is not packed). "
+        "Web content is not rendered in offscreen (private headless) screenshots."
+    ),
     params=object_schema(
         {
             "url": string_schema("http(s):// or file:// location"),
@@ -165,7 +172,8 @@ SET_STYLE = OpSpec(
     summary="Set, merge, clear, or propagate a passive node's visual style (or apply a saved preset).",
     description=(
         "style merges into the current style unless replace=true; clear=true removes the override; "
-        "propagate=true copies the node's style to same-type passive nodes. Non-passive nodes return NOT_PASSIVE."
+        "propagate=true copies the node's style to the passive nodes connected to it by edges (result "
+        "propagated_to lists them). Non-passive nodes return NOT_PASSIVE; keys come from catalog.style_schema."
     ),
     params=object_schema(
         {

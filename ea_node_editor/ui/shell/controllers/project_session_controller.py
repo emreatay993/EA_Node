@@ -1,12 +1,12 @@
 # Purpose: Facade project-session actions and the public staged-artifact API.
 # Map: feature_routes/project_session_files_managed_artifacts.md
-# Tests: tests/test_project_file_staging.py, tests/test_project_session_controller_unit.py
+# Tests: tests/test_project_file_staging.py, tests/test_project_session_controller_unit.py, tests/test_project_document_io_noninteractive.py
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.graph.project_state import ProjectData
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
@@ -18,6 +18,12 @@ from ea_node_editor.ui.shell.controllers.project_session_services import (
     normalize_project_path_value,
     normalized_recent_project_paths_value,
 )
+
+if TYPE_CHECKING:
+    from ea_node_editor.ui.shell.controllers.project_session_services_support.document_io_service import (
+        ProjectOpenResult,
+        ProjectSaveResult,
+    )
 
 
 class ProjectSessionController:
@@ -275,7 +281,33 @@ class ProjectSessionController:
             self._reset_runtime_surfaces_after_project_change()
         return opened
 
+    def save_project_to_path(self, path: str | Path | None) -> ProjectSaveResult:
+        return self._document_service.save_project_to_path(path)
 
+    def open_project_path_noninteractive(
+        self,
+        path: str | Path,
+        *,
+        discard_unsaved: bool,
+    ) -> ProjectOpenResult:
+        result = self._document_service.open_project_path_noninteractive(
+            path,
+            discard_unsaved=discard_unsaved,
+        )
+        if result.ok:
+            self._reset_runtime_surfaces_after_project_change()
+        return result
+
+    def new_project_noninteractive(self, *, discard_unsaved: bool) -> ProjectOpenResult:
+        result = self._document_service.new_project_noninteractive(
+            discard_unsaved=discard_unsaved,
+        )
+        if result.ok:
+            self._reset_runtime_surfaces_after_project_change()
+        return result
+
+    def document_io_active(self) -> bool:
+        return self._document_service.document_io_active()
 
     def restore_session(self) -> None:
         self._session_service.restore_session()
