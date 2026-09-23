@@ -1,17 +1,31 @@
 import QtQuick 2.15
 import QtQuick.Effects
+import QtQuick.Shapes
+import "GraphNodeChromeGeometry.js" as ChromeGeometry
 
 Item {
     id: root
     objectName: "graphNodeChromeBackgroundLayer"
     property Item host: null
     property var notchCutoutCenters: ({"left": [], "right": []})
-    readonly property bool notchMaskActive: !!root.host
-        && root.host._notchedPortsEffective
-    readonly property bool cacheActive: !!root.host && root.host.chromeShadowCacheActive
-    readonly property string cacheKey: root.host ? root.host.chromeShadowCacheKey : ""
-    readonly property bool chromeCacheActive: root.host ? root.host.chromeCacheActive : false
-    readonly property bool shadowCacheActive: root.host ? root.host.shadowCacheActive : false
+    readonly property bool notchesEnabled: !!root.host && root.host._notchedPortsEffective
+    readonly property bool shadowCacheActive: !!root.host && root.host.shadowCacheActive
+    readonly property var silhouette: ChromeGeometry.build(
+        root.width, root.height, root.host ? root.host.resolvedCornerRadius : 0,
+        root.effectiveBorderWidth, root.notchesEnabled ? root.notchCutoutCenters : {}, 9)
+    readonly property string fillPath: root.silhouette.fillPath
+    readonly property string borderPath: root.silhouette.borderPath
+    readonly property string hatchPath: root.host && root.host.lockedPlaceholderActive
+        ? ChromeGeometry.hatch(root.width, root.height, root.host.resolvedCornerRadius,
+            root.notchesEnabled ? root.notchCutoutCenters : {}, 9, 8) : ""
+    readonly property string gradientDirection: root.host
+        ? String(root.host.bodyGradientDirection || "south").toLowerCase() : "south"
+    readonly property bool horizontalGradient: gradientDirection === "east" || gradientDirection === "west"
+    readonly property bool reverseGradient: gradientDirection === "north" || gradientDirection === "west"
+    readonly property color firstGradientColor: !root.host ? "transparent"
+        : (root.reverseGradient ? root.host.bodyGradientEndColor : root.host.bodyGradientStartColor)
+    readonly property color lastGradientColor: !root.host ? "transparent"
+        : (root.reverseGradient ? root.host.bodyGradientStartColor : root.host.bodyGradientEndColor)
     readonly property bool selectedChromeFreeOutlineOnly: !!root.host
         && root.host.isSelected
         && !root.host._useHostChrome
@@ -114,138 +128,60 @@ Item {
         }
     }
 
-    Rectangle {
+    LinearGradient {
+        id: bodyLinearGradient
+        objectName: "graphNodeChromeLinearGradient"
+        x1: root.effectiveBorderWidth
+        y1: root.effectiveBorderWidth
+        x2: root.horizontalGradient ? root.width - root.effectiveBorderWidth : x1
+        y2: root.horizontalGradient ? y1 : root.height - root.effectiveBorderWidth
+        GradientStop { position: 0; color: root.firstGradientColor }
+        GradientStop { position: 1; color: root.lastGradientColor }
+    }
+    RadialGradient {
+        id: bodyRadialGradient
+        objectName: "graphNodeChromeRadialGradient"
+        centerX: root.width / 2
+        centerY: root.height / 2
+        focalX: centerX
+        focalY: centerY
+        centerRadius: Math.max(0, Math.max(root.width, root.height) / 2 - root.effectiveBorderWidth)
+        GradientStop { position: 0; color: root.host ? root.host.bodyGradientStartColor : "transparent" }
+        GradientStop { position: 1; color: root.host ? root.host.bodyGradientEndColor : "transparent" }
+    }
+
+    Shape {
         id: cardChrome
         objectName: "graphNodeChrome"
         anchors.fill: parent
         z: 3
         visible: root.host ? (root.host._useHostChrome || root.selectedChromeFreeOutlineOnly) : false
-        color: root.host && (root.host.bodyGradientActive || root.selectedChromeFreeOutlineOnly)
-            ? "transparent"
-            : (root.host ? root.host.surfaceColor : "transparent")
-        border.width: root.effectiveBorderWidth
-        border.color: root.effectiveOutlineColor
-        radius: root.host ? root.host.resolvedCornerRadius : 0
-        layer.enabled: root.chromeCacheActive
-        layer.effect: MultiEffect {
-            maskEnabled: root.notchMaskActive
-            maskSource: notchMask
-            maskInverted: true
+        preferredRendererType: Shape.CurveRenderer
+
+        ShapePath {
+            objectName: "graphNodeChromeFill"
+            fillRule: ShapePath.OddEvenFill
+            strokeWidth: -1
+            fillColor: root.selectedChromeFreeOutlineOnly ? "transparent"
+                : (root.host ? root.host.surfaceColor : "transparent")
+            fillGradient: root.host && root.host.bodyGradientActive && !root.selectedChromeFreeOutlineOnly
+                ? (root.gradientDirection === "radial" ? bodyRadialGradient : bodyLinearGradient) : null
+            PathSvg { path: root.fillPath }
         }
-
-        GraphNodeGradientFill {
-            objectName: "graphNodeBodyGradientFill"
-            visible: root.host ? root.host.bodyGradientActive : false
-            anchors.fill: parent
-            anchors.margins: Math.max(0, root.effectiveBorderWidth)
-            startColor: root.host ? root.host.bodyGradientStartColor : "transparent"
-            endColor: root.host ? root.host.bodyGradientEndColor : "transparent"
-            direction: root.host ? root.host.bodyGradientDirection : "south"
-            cornerRadius: root.host
-                ? Math.max(0, root.host.resolvedCornerRadius - Math.max(0, root.effectiveBorderWidth))
-                : 0
+        ShapePath {
+            objectName: "graphNodeChromeBorder"
+            fillRule: ShapePath.OddEvenFill
+            strokeWidth: -1
+            fillColor: root.effectiveOutlineColor
+            PathSvg { path: root.borderPath }
         }
-
-        Loader {
-            id: lockedHatchLoader
-            anchors.fill: parent
-            active: root.host ? root.host.lockedPlaceholderActive : false
-            asynchronous: true
-            visible: active
-
-            sourceComponent: Canvas {
-                objectName: "graphNodeLockedHatchOverlay"
-                antialiasing: true
-                opacity: 0.22
-                renderTarget: Canvas.FramebufferObject
-                renderStrategy: Canvas.Cooperative
-                layer.enabled: true
-                layer.smooth: true
-
-                readonly property real cornerRadius: root.host ? Number(root.host.resolvedCornerRadius) : 8
-                readonly property color hatchColor: "#e8a838"
-                readonly property real hatchSpacing: 8.0
-
-                onPaint: {
-                    var ctx = getContext("2d");
-                    ctx.reset();
-                    if (width <= 2 || height <= 2)
-                        return;
-
-                    var r = Math.max(0, Math.min(cornerRadius, Math.min(width, height) / 2));
-                    ctx.beginPath();
-                    ctx.moveTo(r, 0);
-                    ctx.lineTo(width - r, 0);
-                    ctx.quadraticCurveTo(width, 0, width, r);
-                    ctx.lineTo(width, height - r);
-                    ctx.quadraticCurveTo(width, height, width - r, height);
-                    ctx.lineTo(r, height);
-                    ctx.quadraticCurveTo(0, height, 0, height - r);
-                    ctx.lineTo(0, r);
-                    ctx.quadraticCurveTo(0, 0, r, 0);
-                    ctx.closePath();
-                    ctx.clip();
-
-                    ctx.strokeStyle = String(hatchColor);
-                    ctx.lineWidth = 1;
-
-                    ctx.translate(width / 2, height / 2);
-                    ctx.rotate(Math.PI / 4);
-                    ctx.translate(-width / 2, -height / 2);
-
-                    var diag = Math.ceil(Math.sqrt(width * width + height * height)) + 16;
-                    ctx.beginPath();
-                    for (var x = -diag; x <= width + diag; x += hatchSpacing) {
-                        ctx.moveTo(x + 0.5, -diag);
-                        ctx.lineTo(x + 0.5, height + diag);
-                    }
-                    ctx.stroke();
-                }
-
-                onWidthChanged: requestPaint()
-                onHeightChanged: requestPaint()
-                onCornerRadiusChanged: requestPaint()
-                Component.onCompleted: requestPaint()
-            }
-        }
-    }
-
-    // Retain the cutouts in the scene graph so geometry and mask reach the same
-    // frame during resizing. An Image source would reload on every size/center
-    // change, temporarily removing the mask while its SVG was being decoded.
-    Item {
-        id: notchMask
-        objectName: "graphNodeChromeNotchMask"
-        visible: false
-        anchors.fill: parent
-        layer.enabled: root.notchMaskActive
-        layer.smooth: true
-
-        Repeater {
-            model: (root.notchCutoutCenters.left || []).length
-            Rectangle {
-                required property int index
-                x: -9
-                y: Number(root.notchCutoutCenters.left[index]) - 9
-                width: 18
-                height: 18
-                radius: 9
-                color: "white"
-                antialiasing: true
-            }
-        }
-        Repeater {
-            model: (root.notchCutoutCenters.right || []).length
-            Rectangle {
-                required property int index
-                x: notchMask.width - 9
-                y: Number(root.notchCutoutCenters.right[index]) - 9
-                width: 18
-                height: 18
-                radius: 9
-                color: "white"
-                antialiasing: true
-            }
+        ShapePath {
+            objectName: "graphNodeLockedHatchOverlay"
+            fillColor: "transparent"
+            strokeColor: Qt.rgba(232 / 255, 168 / 255, 56 / 255, 0.22)
+            strokeWidth: 1
+            capStyle: ShapePath.FlatCap
+            PathSvg { path: root.hatchPath }
         }
     }
 }

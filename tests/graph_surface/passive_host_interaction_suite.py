@@ -907,14 +907,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 for item in named_child_items(collapsed_host, "graphNodeInputPortDot")
                 if str(item.property("propertyKey")) == "payload"
             ]
-            aggregate_notch = next(
-                item
-                for item in named_child_items(
-                    collapsed_host,
-                    "graphNodeSettingsGroupAggregateNotch",
-                )
-                if str(item.property("groupId")) == "options"
-            )
+            collapsed_chrome = collapsed_host.findChild(QObject, "graphNodeChromeBackgroundLayer")
             collapsed_chevron = named_child_items(
                 collapsed_host,
                 "graphNodeSettingsGroupChevron",
@@ -937,22 +930,18 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 collapsed_host,
                 QPointF(float(aggregate.width()) * 0.5, float(aggregate.height()) * 0.5),
             )
-            notch_center = aggregate_notch.mapToItem(collapsed_host, QPointF(0.0, 9.0))
+            centers = variant_value(collapsed_chrome.property("notchCutoutCenters"))
             assert abs(aggregate_center.x()) < 0.01
-            assert abs(notch_center.x()) < 0.01
-            assert bool(aggregate_notch.property("visible"))
-            assert abs(float(aggregate_notch.width()) - 9.0) < 0.01
-            assert abs(float(aggregate_notch.height()) - 18.0) < 0.01
-            assert aggregate_notch.property("sourceSize").width() == 54
-            assert aggregate_notch.property("sourceSize").height() == 108
+            assert any(abs(float(y) - aggregate_center.y()) < 0.01 for y in centers["left"])
+            assert collapsed_chrome.property("fillPath")
             assert abs(float(aggregate.width()) - 10.0) < 0.01
             neutral_surface = QColor(collapsed_host.property("themeSurfaceColor"))
-            assert QColor(aggregate.property("color")).rgba() == neutral_surface.rgba(), (
-                QColor(aggregate.property("color")).name(),
+            assert QColor(aggregate.property("fillColor")).rgba() == neutral_surface.rgba(), (
+                QColor(aggregate.property("fillColor")).name(),
                 neutral_surface.name(),
             )
-            assert QColor(QQmlProperty.read(aggregate, "border.color")).rgba() == valid_green.rgba()
-            assert abs(float(QQmlProperty.read(aggregate, "border.width")) - 1.6) < 0.01
+            assert QColor(QQmlProperty.read(aggregate, "borderColor")).rgba() == valid_green.rgba()
+            assert abs(float(QQmlProperty.read(aggregate, "borderWidth")) - 1.6) < 0.01
             collapsed_decoration = QColor(collapsed_host.property("inlineDrivenTextColor"))
             assert str(collapsed_chevron.property("direction")) == "right"
             assert not bool(collapsed_chevron.property("expandedState"))
@@ -977,7 +966,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             expanded_loader = expanded_host.findChild(QObject, "graphNodeSurfaceLoader")
             expanded_row = named_item(expanded_host, "graphNodeInputPortRow", "payload")
             expanded_dot = named_item(expanded_host, "graphNodeInputPortDot", "payload")
-            expanded_notch = named_item(expanded_host, "graphNodeInputPortNotch", "payload")
+            expanded_chrome = expanded_host.findChild(QObject, "graphNodeChromeBackgroundLayer")
             port_label = named_item(expanded_host, "graphNodeInputPortLabel", "payload")
             property_labels = named_child_items(expanded_host, "graphNodeInlinePropertyLabel")
             group_divider = named_child_items(expanded_host, "graphNodeSettingsGroupDivider")[0]
@@ -986,9 +975,10 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert expanded_layer is not None
             assert expanded_row is not None and bool(expanded_row.property("visible"))
             assert expanded_dot is not None and bool(expanded_dot.property("visible"))
-            assert expanded_notch is not None and bool(expanded_notch.property("visible"))
-            assert QColor(QQmlProperty.read(expanded_dot, "border.color")).rgba() == valid_green.rgba()
-            assert QColor(QQmlProperty.read(expanded_dot, "border.color")).name() != QColor("#7AA8FF").name()
+            expanded_centers = variant_value(expanded_chrome.property("notchCutoutCenters"))
+            assert expanded_centers["left"] and expanded_chrome.property("fillPath")
+            assert QColor(QQmlProperty.read(expanded_dot, "borderColor")).rgba() == valid_green.rgba()
+            assert QColor(QQmlProperty.read(expanded_dot, "borderColor")).name() != QColor("#7AA8FF").name()
             assert port_label is not None and not bool(port_label.property("visible"))
             assert len(property_labels) == 1
             assert str(property_labels[0].property("text")) == "Record"
@@ -2024,10 +2014,10 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
 
             valid_green = QColor("#67D487").name()
             data_blue = QColor("#7AA8FF").name()
-            assert QColor(QQmlProperty.read(input_dot, "border.color")).name() == valid_green
-            assert QColor(output_dot.property("color")).name() == valid_green
-            assert QColor(QQmlProperty.read(output_dot, "border.color")).name() == valid_green
-            assert QColor(output_dot.property("color")).name() != data_blue
+            assert QColor(QQmlProperty.read(input_dot, "borderColor")).name() == valid_green
+            assert QColor(output_dot.property("fillColor")).name() == valid_green
+            assert QColor(QQmlProperty.read(output_dot, "borderColor")).name() == valid_green
+            assert QColor(output_dot.property("fillColor")).name() != data_blue
 
             passive_payload = node_payload()
             passive_payload["runtime_behavior"] = "passive"
@@ -2035,7 +2025,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             passive_payload["ports"][0].update({"kind": "data", "flow_state": "default"})
             passive_host = create_component(graph_node_host_qml_path, {"nodeData": passive_payload})
             passive_input_dot = named_child_items(passive_host, "graphNodeInputPortDot")[0]
-            assert QColor(passive_input_dot.property("color")).name() == QColor("#5B4A39").name()
+            assert QColor(passive_input_dot.property("fillColor")).name() == QColor("#5B4A39").name()
             """,
         )
 
@@ -2113,11 +2103,9 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
         self._run_qml_probe(
             "standard-host-notched-port-rendering",
             """
-            from urllib.parse import unquote
-
             from PyQt6.QtCore import QPointF
             from PyQt6.QtGui import QColor
-            from tests.qt_wait import wait_for_condition_or_raise
+            from PyQt6.QtQml import QQmlProperty
 
             def create_canvas_stub():
                 component = QQmlComponent(engine)
@@ -2158,99 +2146,39 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             backdrop_color = QColor("#b040d0")
             window.setColor(backdrop_color)
             try:
-                input_notch = named_item(host, "graphNodeInputPortNotch", "payload")
-                output_notch = named_item(host, "graphNodeOutputPortNotch", "result")
                 input_dot = named_item(host, "graphNodeInputPortDot", "payload")
                 output_dot = named_item(host, "graphNodeOutputPortDot", "result")
-                notches = [input_notch, output_notch]
                 shadow = host.findChild(QObject, "graphNodeShadow")
                 background_layer = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
-                notch_mask = host.findChild(QObject, "graphNodeChromeNotchMask")
+                chrome = host.findChild(QObject, "graphNodeChrome")
+                border = host.findChild(QObject, "graphNodeChromeBorder")
                 selected_halo = host.findChild(QObject, "graphNodeSelectedHalo")
-                removed_halos = [
-                    host.findChild(QObject, "graphNodeFailureHalo"),
-                    host.findChild(QObject, "graphNodeFailurePulseHalo"),
-                    host.findChild(QObject, "graphNodeRunningHalo"),
-                    host.findChild(QObject, "graphNodeRunningPulseHalo"),
-                    host.findChild(QObject, "graphNodeCompletedFlashHalo"),
-                    host.findChild(QObject, "graphNodeSelectedRunPreviewHalo"),
-                    host.findChild(QObject, "graphNodeRunFreshHalo"),
-                ]
                 prefs = canvas_stub.property("prefs")
-
                 assert bool(host.property("_notchedPortsEffective"))
-                assert all(notch is not None and bool(notch.property("visible")) for notch in notches)
-                assert all(abs(float(notch.width()) - 9.0) < 0.01 for notch in notches)
-                assert all(abs(float(notch.height()) - 18.0) < 0.01 for notch in notches)
-                assert all(abs(float(notch.opacity()) - 1.0) < 0.01 for notch in notches)
-                assert input_notch.parentItem() is not input_dot
-                assert output_notch.parentItem() is not output_dot
-                assert all(not bool(notch.property("clip")) for notch in notches)
-                assert all(bool(notch.property("cache")) for notch in notches)
-                assert all(not bool(notch.property("asynchronous")) for notch in notches)
-                assert all(bool(notch.property("smooth")) for notch in notches)
-                assert all(not bool(notch.property("mipmap")) for notch in notches)
-                assert not bool(input_notch.property("mirror"))
-                assert bool(output_notch.property("mirror"))
-                for notch in notches:
-                    source_size = notch.property("sourceSize")
-                    assert int(source_size.width()) == 54
-                    assert int(source_size.height()) == 108
-                wait_for_condition_or_raise(
-                    lambda: all(float(notch.property("progress")) >= 0.999 for notch in notches),
-                    timeout_ms=1000,
-                    app=app,
-                    timeout_message="Timed out waiting for cached notch SVG images.",
-                )
-
-                def encoded_source(notch):
-                    return bytes(notch.property("source").toEncoded()).decode("ascii")
-
-                sources = [encoded_source(notch) for notch in notches]
-                assert len(set(sources)) == 1
-                # Zoom must reuse the sharp cached image, not rerasterize it.
-                for zoom in (0.1, 1.0, 3.0):
+                assert background_layer is not None and chrome is not None and border is not None
+                assert not QQmlProperty.read(chrome, "layer.enabled")
+                assert not host.findChild(QObject, "graphNodeChromeNotchMask")
+                assert not named_child_items(host, "graphNodeInputPortNotch")
+                assert not named_child_items(host, "graphNodeOutputPortNotch")
+                fill_path = str(background_layer.property("fillPath"))
+                border_path = str(background_layer.property("borderPath"))
+                assert fill_path and border_path
+                centers = variant_value(background_layer.property("notchCutoutCenters"))
+                input_center = input_dot.mapToItem(host, QPointF(input_dot.width() / 2, input_dot.height() / 2))
+                output_center = output_dot.mapToItem(host, QPointF(output_dot.width() / 2, output_dot.height() / 2))
+                assert abs(input_center.x()) < 0.01
+                assert abs(output_center.x() - host.width()) < 0.01
+                assert any(abs(y - input_center.y()) < 0.01 for y in centers["left"])
+                assert any(abs(y - output_center.y()) < 0.01 for y in centers["right"])
+                for zoom in (0.1, 1.0, 3.0, 5.0):
                     host.setScale(zoom)
                     app.processEvents()
-                    assert [encoded_source(notch) for notch in notches] == sources
-                    for notch in notches:
-                        assert notch.property("sourceSize").width() == 54
-                        assert notch.property("sourceSize").height() == 108
+                    assert background_layer.property("fillPath") == fill_path
+                    assert background_layer.property("borderPath") == border_path
+                    assert host.findChild(QObject, "graphNodeChrome") is chrome
                 host.setScale(1.0)
-                svg = unquote(sources[0].split(",", 1)[1])
-                assert svg.startswith("<svg ")
-                assert svg.count("<path ") == 1
-                assert 'fill="none"' in svg
-                assert 'stroke-linecap="round"' in svg
-                assert all(QColor(notch.property("notchFillColor")).alpha() == 0 for notch in notches)
-                assert not named_child_items(host, "graphNodePortNotchOuterHalfCover")
-                assert not named_child_items(host, "graphNodePortNotchDiameterCover")
-
-                input_center = input_notch.mapToItem(host, QPointF(0.0, 9.0))
-                output_center = output_notch.mapToItem(host, QPointF(9.0, 9.0))
-                assert abs(input_center.x()) < 0.01
-                assert abs(output_center.x() - float(host.width())) < 0.01
-                input_notch_left = input_notch.mapToItem(host, QPointF(0.0, 0.0)).x()
-                input_notch_right = input_notch.mapToItem(
-                    host,
-                    QPointF(float(input_notch.width()), 0.0),
-                ).x()
-                assert input_notch_left >= -0.01
-                assert input_notch_right <= float(host.width()) + 0.01
-                output_notch_left = output_notch.mapToItem(host, QPointF(0.0, 0.0)).x()
-                output_notch_right = output_notch.mapToItem(
-                    host,
-                    QPointF(float(output_notch.width()), 0.0),
-                ).x()
-                assert output_notch_left >= -0.01
-                assert abs(output_notch_right - float(host.width())) < 0.01
-
-                assert shadow is not None
-                assert background_layer is not None
-                assert notch_mask is not None
-                assert selected_halo is not None
-                assert all(halo is None for halo in removed_halos)
-                assert bool(background_layer.property("notchMaskActive"))
+                assert shadow is not None and selected_halo is not None
+                assert bool(background_layer.property("notchesEnabled"))
                 assert bool(background_layer.property("suppressHorizontalGlowSpill"))
                 assert not bool(selected_halo.property("autoPaddingEnabled"))
                 padding = selected_halo.property("paddingRect")
@@ -2259,15 +2187,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 assert abs(float(padding.y()) + 40.0) < 0.01
                 assert abs(float(padding.height()) - 80.0) < 0.01
                 expected_outline = QColor(background_layer.property("effectiveOutlineColor"))
-                expected_width = float(background_layer.property("effectiveBorderWidth"))
-                assert all(
-                    QColor(notch.property("notchStrokeColor")).rgba() == expected_outline.rgba()
-                    for notch in notches
-                )
-                assert all(
-                    abs(float(notch.property("notchStrokeWidth")) - expected_width) < 0.01
-                    for notch in notches
-                )
+                assert QColor(border.property("fillColor")).rgba() == expected_outline.rgba()
                 expected_blur = float(shadow.property("effectiveBlur"))
                 assert abs(float(shadow.property("horizontalInset")) - expected_blur) < 0.01
                 assert abs(float(shadow.x()) - expected_blur) < 0.01
@@ -2276,7 +2196,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 host.setProperty("showShadow", False)
                 app.processEvents()
                 assert not bool(shadow.property("visible"))
-                assert all(bool(notch.property("visible")) for notch in notches)
+                assert background_layer.property("fillPath") == fill_path
 
                 QTest.qWait(30)
                 frame = window.grabWindow()
@@ -2316,57 +2236,99 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     app.processEvents()
                 host.setProperty("showShadow", True)
 
-                stable_notch_sources = [encoded_source(notch) for notch in notches]
                 for variant in ("dark", "light", "white"):
                     prefs.setProperty("canvasBackgroundVariant", variant)
                     app.processEvents()
-                    assert [encoded_source(notch) for notch in notches] == stable_notch_sources
+                    assert background_layer.property("fillPath") == fill_path
+                    assert background_layer.property("borderPath") == border_path
 
                 idle_outline = QColor(background_layer.property("effectiveOutlineColor"))
-                idle_source = encoded_source(input_notch)
                 scene_bridge = canvas_stub.property("sceneBridge")
-                scene_bridge.setProperty(
-                    "selected_node_lookup",
-                    {str(payload["node_id"]): True},
-                )
+                scene_bridge.setProperty("selected_node_lookup", {str(payload["node_id"]): True})
                 app.processEvents()
                 assert bool(host.property("isSelected"))
                 selected_outline = QColor(background_layer.property("effectiveOutlineColor"))
                 assert selected_outline.rgba() != idle_outline.rgba()
-                assert all(
-                    QColor(notch.property("notchStrokeColor")).rgba() == selected_outline.rgba()
-                    for notch in notches
-                )
-                wait_for_condition_or_raise(
-                    lambda: float(input_notch.property("progress")) >= 0.999
-                    and encoded_source(input_notch) != idle_source,
-                    timeout_ms=1000,
-                    app=app,
-                    timeout_message="Timed out waiting for selected-outline notch SVG.",
-                )
-
+                assert QColor(border.property("fillColor")).rgba() == selected_outline.rgba()
+                assert background_layer.property("fillPath") == fill_path
                 host.setProperty("shadowSoftness", 1000)
                 app.processEvents()
                 assert float(shadow.width()) > float(host.property("resolvedCornerRadius")) * 2.0
                 host.setProperty("shadowSoftness", 50)
 
-                enabled_cache_key = str(background_layer.property("cacheKey"))
+                enabled_path = str(background_layer.property("fillPath"))
                 prefs.setProperty("notchedPortsEnabled", False)
                 app.processEvents()
                 assert not bool(host.property("_notchedPortsEffective"))
-                assert all(not bool(notch.property("visible")) for notch in notches)
-                assert not bool(background_layer.property("notchMaskActive"))
+                assert not bool(background_layer.property("notchesEnabled"))
                 assert not bool(background_layer.property("suppressHorizontalGlowSpill"))
                 assert bool(selected_halo.property("autoPaddingEnabled"))
                 assert abs(float(shadow.property("horizontalInset"))) < 0.01
                 assert abs(float(shadow.x())) < 0.01
                 assert abs(float(shadow.width()) - float(host.width())) < 0.01
-                assert str(background_layer.property("cacheKey")) != enabled_cache_key
+                assert str(background_layer.property("fillPath")) != enabled_path
             finally:
                 dispose_host_window(host, window)
                 canvas_stub.deleteLater()
                 engine.deleteLater()
                 app.processEvents()
+            """,
+        )
+
+    def test_vector_chrome_preserves_gradient_directions_and_locked_hatch(self) -> None:
+        self._run_qml_probe(
+            "vector-chrome-gradient-and-hatch",
+            """
+            from PyQt6.QtGui import QColor
+
+            payload = node_payload()
+            payload.update(runtime_behavior="passive", width=300, height=240)
+            payload["surface_metrics"].update(default_height=240, min_height=240)
+            payload["visual_style"] = {
+                "fill_color": "#ff0000", "gradient_color": "#0000ff",
+                "gradient_enabled": True, "gradient_direction": "south",
+            }
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload, "showShadow": False})
+            window = attach_host_to_window(host, 400, 320)
+            background = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
+            fill = host.findChild(QObject, "graphNodeChromeFill")
+            try:
+                assert host.property("bodyGradientActive")
+                original_path = background.property("fillPath")
+                for direction in ("north", "south", "east", "west", "radial"):
+                    payload["visual_style"]["gradient_direction"] = direction
+                    host.setProperty("nodeData", dict(payload))
+                    QTest.qWait(30)
+                    assert background.property("fillPath") == original_path
+                    gradient = host.findChild(QObject, "graphNodeChromeRadialGradient"
+                        if direction == "radial" else "graphNodeChromeLinearGradient")
+                    assert gradient is not None
+                    assert fill.property("fillGradient") is not None
+                    if direction == "radial":
+                        assert abs(gradient.property("centerX") - host.width() / 2) < 0.01
+                        assert abs(gradient.property("centerY") - host.height() / 2) < 0.01
+                        assert abs(gradient.property("centerRadius") -
+                            (max(host.width(), host.height()) / 2 - background.property("effectiveBorderWidth"))) < 0.01
+                    else:
+                        horizontal = direction in ("east", "west")
+                        assert (abs(gradient.property("x2") - gradient.property("x1")) > 1) is horizontal
+                        assert (abs(gradient.property("y2") - gradient.property("y1")) > 1) is not horizontal
+                        expected_first = "#0000ff" if direction in ("north", "west") else "#ff0000"
+                        assert QColor(background.property("firstGradientColor")).name() == expected_first, (
+                            direction, background.property("gradientDirection"),
+                            QColor(background.property("firstGradientColor")).name(),
+                            host.property("bodyGradientStartColor"), host.property("bodyGradientEndColor"))
+                assert not background.property("hatchPath")
+                payload.update(unresolved=True, read_only=True, locked_state={"reason": "Missing add-on"})
+                host.setProperty("nodeData", dict(payload))
+                settle_events(3)
+                assert host.property("lockedPlaceholderActive")
+                assert background.property("hatchPath")
+                hatch = host.findChild(QObject, "graphNodeLockedHatchOverlay")
+                assert hatch is not None and float(hatch.property("strokeWidth")) == 1.0
+                assert not named_child_items(host, "graphNodeChromeNotchMask")
+            finally:
+                dispose_host_window(host, window)
             """,
         )
 
@@ -2399,24 +2361,25 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             chrome = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
             try:
                 assert host.property("_notchedPortsEffective")
-                # Software Qt Quick cannot render MultiEffect; the retained
-                # geometry checks still run there, pixel proof uses the RHI.
+                # Native RHI is the acceptance path; software still checks geometry.
                 check_pixels = window.rendererInterface().graphicsApi() != QSGRendererInterface.GraphicsApi.Software
                 QTest.qWait(30)
-                mask_states = []
-                chrome.notchMaskActiveChanged.connect(lambda: mask_states.append(chrome.property("notchMaskActive")))
+                original_shape = host.findChild(QObject, "graphNodeChrome")
+                notch_states = []
+                chrome.notchesEnabledChanged.connect(lambda: notch_states.append(chrome.property("notchesEnabled")))
 
                 def assert_frame():
                     # Isolate the chrome cutout from dot and outline antialiasing.
                     # Keep the rows visible: they own the real animated centers.
                     for name in ("graphNodeInputPortDot", "graphNodeOutputPortDot",
-                                 "graphNodeInputPortNotch", "graphNodeOutputPortNotch",
-                                 "graphNodeSettingsGroupAggregateSocket", "graphNodeSettingsGroupAggregateNotch"):
+                                 "graphNodeSettingsGroupAggregateSocket"):
                         for item in named_child_items(host, name):
                             item.setOpacity(0.0)
                     frame = window.grabWindow()
                     centers = variant_value(chrome.property("notchCutoutCenters"))
-                    assert chrome.property("notchMaskActive")
+                    assert chrome.property("notchesEnabled")
+                    assert host.findChild(QObject, "graphNodeChrome") is original_shape
+                    assert chrome.property("fillPath")
                     assert centers["left"] and centers["right"], centers
                     if not check_pixels:
                         return
@@ -2472,7 +2435,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     QTest.qWait(8)
                     assert_frame()
                 host.setProperty("_liveGeometryActive", False)
-                assert not mask_states, ("mask-shader-toggled-during-animation", mask_states)
+                assert not notch_states, ("notch-geometry-disabled-during-animation", notch_states)
             finally:
                 dispose_host_window(host, window)
                 engine.deleteLater()
@@ -2488,11 +2451,10 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 host = create_component(graph_node_host_qml_path, {"nodeData": payload})
                 try:
                     assert bool(host.property("_notchedPortsEffective")) is expected
-                    for object_name in (
-                        "graphNodeInputPortNotch",
-                        "graphNodeOutputPortNotch",
-                    ):
-                        assert all(bool(item.property("visible")) is expected for item in named_child_items(host, object_name))
+                    chrome = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
+                    assert bool(chrome.property("notchesEnabled")) is expected
+                    centers = variant_value(chrome.property("notchCutoutCenters"))
+                    assert bool(centers["left"] or centers["right"]) is expected
                 finally:
                     host.deleteLater()
                     app.processEvents()
@@ -3681,7 +3643,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
-    def test_graph_node_host_node_execution_visualization_states_drive_timer_priority_and_cache_keys(self) -> None:
+    def test_graph_node_host_node_execution_visualization_states_drive_timer_priority_and_border_rendering(self) -> None:
         self._run_qml_probe(
             "host-node-execution-visualization",
             """
@@ -3849,7 +3811,11 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
 
             started_at_ms = (time.time() * 1000.0) - 1800.0
             completed_elapsed_ms = 3487.0
-            idle_key = str(background_layer.property("cacheKey") or "")
+            def border_signature():
+                return (str(background_layer.property("borderPath") or ""),
+                    QColor(background_layer.property("effectiveOutlineColor")).rgba())
+
+            idle_key = border_signature()
             canvas_item.set_running("node_surface_host_test", started_at_ms)
             app.processEvents()
             assert bool(host.property("isRunningNode"))
@@ -3862,7 +3828,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert bool(elapsed_timer.property("visible"))
             assert bool(elapsed_timer.property("liveElapsedActive"))
             assert abs(float(elapsed_timer.property("startedAtMs")) - started_at_ms) < 16.0
-            running_key = str(background_layer.property("cacheKey") or "")
+            running_key = border_signature()
             assert running_key == idle_key
 
             QTest.qWait(80)
@@ -3885,7 +3851,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert abs(float(elapsed_timer.property("cachedElapsedMilliseconds")) - completed_elapsed_ms) < 0.01
             assert str(elapsed_timer.property("text") or "") == "3.5s"
             assert float(elapsed_timer.property("opacity")) == float(host.property("completedElapsedFooterOpacity"))
-            completed_key = str(background_layer.property("cacheKey") or "")
+            completed_key = border_signature()
             assert completed_key == running_key
 
             canvas_item.set_warning_completed("node_surface_host_test", completed_elapsed_ms)
@@ -3901,9 +3867,9 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert QColor(background_layer.property("effectiveOutlineColor")).name().lower() == "#d9a93c"
             assert bool(elapsed_timer.property("cachedElapsedActive"))
             assert float(elapsed_timer.property("opacity")) == float(host.property("warningElapsedFooterOpacity"))
-            warning_key = str(background_layer.property("cacheKey") or "")
+            warning_key = border_signature()
             assert warning_key != completed_key
-            assert "|warning|" in warning_key
+            assert float(background_layer.property("effectiveBorderWidth")) >= 2.0
 
             canvas_item.clear_cached_elapsed()
             app.processEvents()
@@ -3919,7 +3885,8 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert QColor(host.property("surfaceColor")).name().lower() == "#5d2f30"
             assert QColor(host.property("bodyGradientEndColor")).name().lower() == "#51292a"
             assert QColor(background_layer.property("effectiveOutlineColor")).name().lower() == "#e36155"
-            assert "|error|" in str(background_layer.property("cacheKey") or "")
+            assert float(background_layer.property("effectiveBorderWidth")) >= 2.4
+            assert border_signature() != warning_key
             """,
         )
 
@@ -4148,7 +4115,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
         )
 
     def test_persistent_node_elapsed_footer_graph_node_host_reuses_canvas_timing_and_clears_on_invalidation(self) -> None:
-        self.test_graph_node_host_node_execution_visualization_states_drive_timer_priority_and_cache_keys()
+        self.test_graph_node_host_node_execution_visualization_states_drive_timer_priority_and_border_rendering()
 
     def test_flowchart_host_shadow_visibility_follows_global_shadow_preference(self) -> None:
         self._run_qml_probe(
@@ -4174,8 +4141,6 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert flowchart_shadow is not None
             assert chrome_item is not None
             assert flowchart_surface is not None
-            assert not bool(background_layer.property("cacheActive"))
-            assert not bool(background_layer.property("chromeCacheActive"))
             assert not bool(background_layer.property("shadowCacheActive"))
             assert not bool(chrome_item.property("visible"))
             assert not bool(shadow_item.property("visible"))
@@ -4187,7 +4152,6 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             host.setProperty("showShadow", False)
             app.processEvents()
 
-            assert not bool(background_layer.property("cacheActive"))
             assert not bool(background_layer.property("shadowCacheActive"))
             assert not bool(shadow_item.property("visible"))
             assert not bool(flowchart_surface.property("shapeShadowVisible"))
@@ -4218,8 +4182,6 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert flowchart_shadow is not None
             assert chrome_item is not None
             assert flowchart_surface is not None
-            assert not bool(background_layer.property("cacheActive"))
-            assert not bool(background_layer.property("chromeCacheActive"))
             assert not bool(background_layer.property("shadowCacheActive"))
             assert not bool(chrome_item.property("visible"))
             assert not bool(shadow_item.property("visible"))
@@ -4254,7 +4216,6 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             app.processEvents()
             disabled_shadow_key = str(flowchart_shadow.property("cacheKey") or "")
             assert disabled_shadow_key != shadow_preference_key
-            assert not bool(background_layer.property("cacheActive"))
             assert not bool(flowchart_shadow.property("cacheActive"))
             """,
         )

@@ -94,31 +94,8 @@ QtObject {
         && root.surfaceOwnsShadow
     readonly property bool shadowVisible: root.backgroundShadowVisible || root.surfaceShadowVisible
     readonly property int nodeTextRenderType: Text.CurveRendering
-    readonly property bool chromeCacheActive: root.useHostChrome
     readonly property bool shadowCacheActive: !!host && host.showShadow && root.useHostShadow && !root.surfaceOwnsShadow
     readonly property bool surfaceShadowCacheActive: !!host && host.showShadow && root.useHostShadow && root.surfaceOwnsShadow
-    readonly property bool chromeShadowCacheActive: root.chromeCacheActive || root.shadowCacheActive
-    readonly property string chromeShadowCacheKey: !host ? "" : [
-        root.chromeCacheActive ? "chrome-active" : "chrome-inactive",
-        root.shadowCacheActive ? "shadow-active" : "shadow-inactive",
-        Number(host.width).toFixed(3),
-        Number(host.height).toFixed(3),
-        Number(host.resolvedCornerRadius).toFixed(3),
-        Number(host.resolvedBorderWidth).toFixed(3),
-        host.isSelected ? "selected" : "idle",
-        String(host.surfaceColor),
-        host.bodyGradientActive ? "body-gradient" : "body-flat",
-        String(host.bodyGradientStartColor),
-        String(host.bodyGradientEndColor),
-        String(host.bodyGradientDirection),
-        String(host.outlineColor),
-        String(host.selectedOutlineColor),
-        root.notchedPortsEffective ? "notched-ports" : "flat-ports",
-        host.showShadow ? "shadow-enabled" : "shadow-disabled",
-        String(Number(host.shadowStrength)),
-        String(Number(host.shadowSoftness)),
-        String(Number(host.shadowOffset))
-    ].join("|")
     readonly property string surfaceShadowCacheKey: !host ? "" : [
         "surface-shadow",
         String(host.surfaceFamily),

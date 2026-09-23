@@ -99,7 +99,8 @@ class PassiveGraphSurfaceHostBoundaryTests(PassiveGraphSurfaceHostTestBase):
         self.assertIn("return interactionState.requestInlineTitleEditAt(localX, localY);", host_text)
         self.assertIn("readonly property color surfaceColor:", theme_text)
         self.assertIn("readonly property bool useHostChrome:", layout_text)
-        self.assertIn("readonly property string chromeShadowCacheKey:", layout_text)
+        self.assertIn("readonly property bool shadowCacheActive:", layout_text)
+        self.assertNotIn("chromeCacheActive", layout_text)
         self.assertIn('readonly property string resolvedQualityTier:', render_quality_text)
         self.assertIn("function localPortPoint(direction, rowIndex) {", scene_access_text)
         self.assertIn(

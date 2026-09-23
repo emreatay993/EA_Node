@@ -907,17 +907,8 @@ Item {
     }
     readonly property real resolvedBorderWidth: themeState.resolvedBorderWidth
     readonly property real resolvedCornerRadius: themeState.resolvedCornerRadius
-    readonly property bool chromeCacheActive: chromeLayout.chromeCacheActive
     readonly property bool shadowCacheActive: chromeLayout.shadowCacheActive
     readonly property bool surfaceShadowCacheActive: chromeLayout.surfaceShadowCacheActive
-    readonly property bool chromeShadowCacheActive: chromeLayout.chromeShadowCacheActive
-    readonly property string chromeShadowCacheKey: [
-        chromeLayout.chromeShadowCacheKey,
-        card.semanticChromeState,
-        String(card.surfaceColor),
-        String(card.outlineColor),
-        String(card.bodyGradientEndColor)
-    ].join("|")
     readonly property string surfaceShadowCacheKey: chromeLayout.surfaceShadowCacheKey
 
     function localPortPoint(direction, rowIndex) {

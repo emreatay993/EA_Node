@@ -44,13 +44,7 @@ Item {
         GraphNodeSurfaceMetrics.DYNAMIC_PORT_REMOVE_TARGET_WIDTH
     readonly property real dynamicPortHoverHandoffOverlap: 2
     readonly property real notchDiameter: 18
-    // Fixed 6x raster for zoom/HiDPI; keep the shared image cache independent of zoom.
-    readonly property size notchSourceSize: Qt.size(54, 108)
     readonly property bool notchedPortsEffective: root.host ? Boolean(root.host._notchedPortsEffective) : false
-    readonly property color notchOutlineColor: root.host ? root.host._effectiveChromeOutlineColor : "transparent"
-    readonly property real notchOutlineWidth: root.host ? root.host._effectiveChromeBorderWidth : 0
-    readonly property color notchColor: "transparent"
-    readonly property url notchSvgSource: root._notchSvgSource()
     readonly property var settingsGroups: root.host ? root.host.settingsGroups : []
     property var settingsGroupModelKeys: []
     onSettingsGroupsChanged: root.settingsGroupModelKeys = PresentationModelKeys.retain(
@@ -119,7 +113,12 @@ Item {
 
     ListModel { id: inputPortModel }
     ListModel { id: outputPortModel }
+    property var _settledNotchCutoutCenters: ({"left": [], "right": []})
     readonly property var notchCutoutCenters: root._notchCutoutCenters()
+    onNotchCutoutCentersChanged: {
+        if (!root._portModelsUpdating)
+            root._settledNotchCutoutCenters = root.notchCutoutCenters;
+    }
     property bool _portModelsUpdating: false
     property string _appliedPortPresentationSignature: ""
 
@@ -188,8 +187,12 @@ Item {
 
     function _notchCutoutCenters() {
         var centers = {"left": [], "right": []};
-        if (!root.notchedPortsEffective || root._portModelsUpdating)
+        if (!root.notchedPortsEffective)
             return centers;
+        // Reconciliation publishes several rows synchronously. Retain the last
+        // complete silhouette until all rows have their final presentation.
+        if (root._portModelsUpdating)
+            return root._settledNotchCutoutCenters;
         for (var inputIndex = 0; inputIndex < inputPortsRepeater.count; ++inputIndex) {
             var inputRow = inputPortsRepeater.itemAt(inputIndex);
             if (inputRow && inputRow.visible && isFinite(Number(inputRow.portPoint.y)))
@@ -420,42 +423,6 @@ Item {
             root._dynamicPortGroupFallbackNodeId = "";
             root._dynamicPortGroupFallbackGroups = null;
         }
-    }
-
-    function _colorChannel(value) {
-        return Math.max(0, Math.min(255, Math.round(Number(value) * 255)));
-    }
-
-    function _svgOpacity(value) {
-        return Math.max(0.0, Math.min(1.0, Number(value))).toFixed(4);
-    }
-
-    function _svgNumber(value) {
-        return Number(value).toFixed(3).replace(/\.?0+$/, "");
-    }
-
-    function _svgColor(value) {
-        return "rgb(" + root._colorChannel(value.r)
-            + "," + root._colorChannel(value.g)
-            + "," + root._colorChannel(value.b) + ")";
-    }
-
-    function _notchSvgSource() {
-        var strokeWidth = Math.max(0.0, Number(root.notchOutlineWidth));
-        var halfStroke = strokeWidth * 0.5;
-        var radius = Math.max(0.0, 9.0 - halfStroke);
-        var bottom = 18.0 - halfStroke;
-        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="18" viewBox="0 0 9 18">';
-        if (strokeWidth > 0.0) {
-            svg += '<path d="M' + root._svgNumber(halfStroke) + ' ' + root._svgNumber(halfStroke)
-                + ' A' + root._svgNumber(radius) + ' ' + root._svgNumber(radius)
-                + ' 0 0 1 ' + root._svgNumber(halfStroke) + ' ' + root._svgNumber(bottom)
-                + '" fill="none" stroke="' + root._svgColor(root.notchOutlineColor)
-                + '" stroke-opacity="' + root._svgOpacity(root.notchOutlineColor.a)
-                + '" stroke-width="' + root._svgNumber(strokeWidth) + '" stroke-linecap="round"/>';
-        }
-        svg += '</svg>';
-        return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
     }
 
     function _portFlowOutlineColor(portData) {
@@ -1105,32 +1072,7 @@ Item {
             width: root.width
             height: root.height
 
-            Image {
-                objectName: "graphNodeSettingsGroupAggregateNotch"
-                property string groupId: settingsGroupAggregate.groupId
-                readonly property bool nodeFacingEdgeOnRight: true
-                readonly property color notchFillColor: root.notchColor
-                readonly property color notchStrokeColor: root.notchOutlineColor
-                readonly property real notchStrokeWidth: root.notchOutlineWidth
-                visible: root.notchedPortsEffective
-                width: root.notchDiameter * 0.5
-                height: root.notchDiameter
-                x: settingsGroupAggregate.anchor ? Number(settingsGroupAggregate.anchor.x || 0) : 0
-                y: settingsGroupAggregate.anchor
-                    ? Number(settingsGroupAggregate.anchor.y || 0)
-                        + root.settingsBandYOffset + settingsGroupAggregate.animationYOffset - height * 0.5
-                    : 0
-                sourceSize: root.notchSourceSize
-                source: root.notchSvgSource
-                cache: true
-                asynchronous: false
-                smooth: true
-                mipmap: false
-                fillMode: Image.Stretch
-                z: -1
-            }
-
-            Rectangle {
+            SurfaceControls.GraphSurfaceCapsule {
                 objectName: "graphNodeSettingsGroupAggregateSocket"
                 property string groupId: settingsGroupAggregate.groupId
                 property int connectedCount: settingsGroupAggregate.connectedCount
@@ -1143,12 +1085,11 @@ Item {
                     : 0
                 width: root.standardRestPortDiameter
                 height: width
-                radius: width * 0.5
-                color: connectedCount > 0
+                fillColor: connectedCount > 0
                     ? root.settingsGroupPortColor
                     : (root.host ? root.host.themeSurfaceColor : "transparent")
-                border.width: 1.6
-                border.color: root.settingsGroupPortColor
+                borderWidth: 1.6
+                borderColor: root.settingsGroupPortColor
             }
         }
     }

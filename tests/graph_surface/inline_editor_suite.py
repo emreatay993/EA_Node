@@ -584,7 +584,9 @@ class PassiveGraphSurfaceInlineEditorTests(PassiveGraphSurfaceHostTestBase):
                 assert not bool(selected_halo.property("visible")), selected_halo.property("visible")
                 assert float(selected_halo.property("opacity")) < 0.01, selected_halo.property("opacity")
                 assert bool(chrome_item.property("visible")), chrome_item.property("visible")
-                assert chrome_item.property("color").alpha() == 0, chrome_item.property("color")
+                chrome_fill = selected_host.findChild(QObject, "graphNodeChromeFill")
+                assert chrome_fill is not None
+                assert chrome_fill.property("fillColor").alpha() == 0
             finally:
                 dispose_host_window(selected_host, selected_window)
             """,

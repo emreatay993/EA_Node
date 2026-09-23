@@ -520,30 +520,30 @@ TestCase {
         }
         var expected = {
             "unlocked_input": {
-                "topology_hash": "220c37cf",
-                "geometry_hash": "64e29a98",
-                "qquickitem_count": 36,
+                "topology_hash": "5866be9b",
+                "geometry_hash": "8da43bfd",
+                "qquickitem_count": 35,
                 "loader_count": 1,
                 "canvas_count": 1
             },
             "unlocked_output": {
-                "topology_hash": "55b1e6c7",
-                "geometry_hash": "bb892984",
-                "qquickitem_count": 21,
+                "topology_hash": "dabaa113",
+                "geometry_hash": "40ae953b",
+                "qquickitem_count": 20,
                 "loader_count": 1,
                 "canvas_count": 0
             },
             "locked_input": {
-                "topology_hash": "ee335365",
-                "geometry_hash": "68a714d3",
-                "qquickitem_count": 25,
+                "topology_hash": "038c372f",
+                "geometry_hash": "5c286d2e",
+                "qquickitem_count": 24,
                 "loader_count": 0,
                 "canvas_count": 1
             },
             "locked_output": {
-                "topology_hash": "2fccbe03",
-                "geometry_hash": "f942da05",
-                "qquickitem_count": 22,
+                "topology_hash": "12359bd3",
+                "geometry_hash": "2d679328",
+                "qquickitem_count": 21,
                 "loader_count": 1,
                 "canvas_count": 1
             }
@@ -588,16 +588,12 @@ TestCase {
             findNamedItems(lockedOutput, "graphNodeOutputPortPadlock")[0].parent.parent,
             findNamedItems(lockedOutput, "graphNodeOutputPortDot")[0]
         )
-        var inputNotch = findNamedItems(unlockedInput, "graphNodeInputPortNotch")[0]
-        var outputNotch = findNamedItems(unlockedOutput, "graphNodeOutputPortNotch")[0]
-        compare(inputNotch.width, 9)
-        compare(inputNotch.height, 18)
-        compare(outputNotch.width, 9)
-        compare(outputNotch.height, 18)
-        verify(!inputNotch.mirror)
-        verify(outputNotch.mirror)
-        verify(inputNotch.cache)
-        verify(outputNotch.cache)
+        var chrome = findNamedItems(unlockedHost, "graphNodeChromeBackgroundLayer")[0]
+        verify(chrome.fillPath.length > 0)
+        verify(chrome.notchCutoutCenters.left.length > 0)
+        verify(chrome.notchCutoutCenters.right.length > 0)
+        compare(findNamedItems(unlockedInput, "graphNodeInputPortNotch").length, 0)
+        compare(findNamedItems(unlockedOutput, "graphNodeOutputPortNotch").length, 0)
     }
 
     function test_port_row_default_editor_stays_visible_when_overridden() {
@@ -750,13 +746,19 @@ TestCase {
         var top
         var bottom
         var clipBottom
-        tryVerify(function() {
+        function partiallyRevealed() {
             top = toggle.mapToItem(host, toggle.width / 2, 0)
             bottom = top.y + toggle.height
             clipBottom = host.settingsGroupContentBottom("controls")
             return host.settingsGroupAnimationRunning
                 && clipBottom > top.y + 1 && clipBottom < bottom - 1
-        }, 1000, "The control must be partially revealed during expansion")
+        }
+        // tryVerify polls every 50ms, which can skip this short intermediate
+        // state in the 180ms expansion. Sample it without relaxing the contract.
+        var revealDeadline = Date.now() + 1000
+        while (!partiallyRevealed() && Date.now() < revealDeadline)
+            wait(5)
+        verify(partiallyRevealed(), "The control must be partially revealed during expansion")
         verify(toggle.enabled)
         compare(toggle.resolvedTextColor, toggle.textColor)
         compare(toggle.resolvedIndicatorFillColor, toggle.fillColor)
@@ -968,7 +970,7 @@ TestCase {
         var outputMouse = findNamedItems(host, "graphNodeOutputPortMouseArea")[0]
         compare(inputDot.interactionDirection, "in")
         compare(outputDot.interactionDirection, "out")
-        compare(String(inputDot.color).toLowerCase(), "#ff543e")
+        compare(String(inputDot.fillColor).toLowerCase(), "#ff543e")
         verify(inputMouse.accessiblePortText.indexOf("Payload") >= 0)
         verify(inputMouse.accessiblePortText.indexOf("Text") >= 0)
         compare(inputMouse.portHelpTooltipText, "")
@@ -1153,8 +1155,8 @@ TestCase {
         verify(activeHost !== null)
         tryVerify(function() { return findNamedItems(activeHost, "graphNodeInputPortDot").length >= 1 })
         var activeDot = findNamedItems(activeHost, "graphNodeInputPortDot")[0]
-        compare(String(activeDot.color).toLowerCase(), "#ff543e")
-        compare(String(activeDot.border.color).toLowerCase(), "#ff543e")
+        compare(String(activeDot.fillColor).toLowerCase(), "#ff543e")
+        compare(String(activeDot.borderColor).toLowerCase(), "#ff543e")
 
         var compileOnlyPayload = nodePayload()
         compileOnlyPayload.x = 350.0
@@ -1164,8 +1166,8 @@ TestCase {
         verify(compileOnlyHost !== null)
         tryVerify(function() { return findNamedItems(compileOnlyHost, "graphNodeInputPortDot").length >= 1 })
         var compileOnlyDot = findNamedItems(compileOnlyHost, "graphNodeInputPortDot")[0]
-        compare(String(compileOnlyDot.color).toLowerCase(), "#ff543e")
-        compare(String(compileOnlyDot.border.color).toLowerCase(), "#ff543e")
+        compare(String(compileOnlyDot.fillColor).toLowerCase(), "#ff543e")
+        compare(String(compileOnlyDot.borderColor).toLowerCase(), "#ff543e")
 
         var passivePayload = nodePayload()
         passivePayload.y = 300.0
@@ -1175,8 +1177,8 @@ TestCase {
         verify(passiveHost !== null)
         tryVerify(function() { return findNamedItems(passiveHost, "graphNodeInputPortDot").length >= 1 })
         var passiveDot = findNamedItems(passiveHost, "graphNodeInputPortDot")[0]
-        compare(String(passiveDot.color).toLowerCase(), "#d94f4f")
-        compare(String(passiveDot.border.color).toLowerCase(), "#ff8c74")
+        compare(String(passiveDot.fillColor).toLowerCase(), "#d94f4f")
+        compare(String(passiveDot.borderColor).toLowerCase(), "#ff8c74")
     }
 
     function test_standard_data_grip_grows_on_real_pointer_hover_and_keeps_halo() {
@@ -1244,44 +1246,32 @@ TestCase {
         tryVerify(function() { return inputDot.opacity > 0.99 && outputDot.opacity > 0.99 })
     }
 
-    function test_graph_node_host_shadow_cache_key_ignores_viewport_activity_but_tracks_geometry_and_shadow_preferences() {
+    function test_vector_chrome_retains_geometry_across_viewport_and_paint_changes() {
         var host = createHost(nodePayload(), {"showShadow": true})
         verify(host !== null)
-        tryVerify(function() {
-            return findNamedItems(host, "graphNodeChromeBackgroundLayer").length === 1
-                && findNamedItems(host, "graphNodeShadow").length === 1
-                && findNamedItems(host, "graphNodeChrome").length === 1
-        })
-        var backgroundLayer = findNamedItems(host, "graphNodeChromeBackgroundLayer")[0]
-        var shadowItem = findNamedItems(host, "graphNodeShadow")[0]
-        var chromeItem = findNamedItems(host, "graphNodeChrome")[0]
-        tryVerify(function() {
-            return backgroundLayer.cacheActive
-                && backgroundLayer.chromeCacheActive
-                && backgroundLayer.shadowCacheActive
-                && chromeItem.visible
-                && shadowItem.cached
-        })
-        var baselineKey = String(backgroundLayer.cacheKey || "")
-        verify(baselineKey.length > 0)
-
+        var background = findNamedItems(host, "graphNodeChromeBackgroundLayer")[0]
+        var shadow = findNamedItems(host, "graphNodeShadow")[0]
+        var chrome = findNamedItems(host, "graphNodeChrome")[0]
+        verify(background.shadowCacheActive && shadow.cached && chrome.visible)
+        verify(!chrome.layer.enabled)
+        var baseline = background.silhouette
+        verify(baseline.fillPath.length > 0)
         host.viewportInteractionCacheActive = true
-        tryCompare(backgroundLayer, "cacheKey", baselineKey)
         host.snapshotReuseActive = true
-        tryCompare(backgroundLayer, "cacheKey", baselineKey)
-
-        host._liveWidth = 244.0
-        host._liveHeight = 96.0
-        host._liveGeometryActive = true
-        tryVerify(function() { return String(backgroundLayer.cacheKey || "") !== baselineKey })
-        var geometryKey = String(backgroundLayer.cacheKey || "")
-
-        host._liveGeometryActive = false
+        host.scale = 5
+        compare(background.silhouette, baseline)
         host.shadowStrength = 55
-        tryVerify(function() {
-            var key = String(backgroundLayer.cacheKey || "")
-            return key !== baselineKey && key !== geometryKey
-        })
+        compare(background.silhouette, baseline)
+        host._liveWidth = 244
+        host._liveHeight = 96
+        host._liveGeometryActive = true
+        tryVerify(function() { return background.fillPath !== baseline.fillPath })
+        compare(findNamedItems(host, "graphNodeChrome")[0], chrome)
+        host._liveGeometryActive = false
+        compare(background.fillPath, baseline.fillPath)
+        host.showShadow = false
+        verify(!shadow.cached && !shadow.visible)
+        compare(background.fillPath, baseline.fillPath)
     }
 
     function test_graph_node_host_shows_resize_handles_only_for_eligible_expanded_nodes() {
@@ -1807,7 +1797,7 @@ TestCase {
         verify(!primarySelectedHalo.visible)
         verify(primarySelectedHalo.opacity < 0.01)
         verify(primaryChrome.visible)
-        verify(primaryChrome.color.a === 0)
+        verify(findChild(primaryChrome, "graphNodeChromeFill").fillColor.a === 0)
         verify(primaryHeader.primaryGroupBackdropTitleSuppressedByInputOverlay)
         verify(primaryDisplay.visible)
         verify(!primaryTitle.visible)

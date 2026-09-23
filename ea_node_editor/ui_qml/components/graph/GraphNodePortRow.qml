@@ -224,32 +224,7 @@ Item {
         drawBody(accentStroke, accentFill, 1.2);
     }
 
-    Image {
-        objectName: row.isInput ? "graphNodeInputPortNotch" : "graphNodeOutputPortNotch"
-        property string propertyKey: row.propertyKey
-        readonly property bool nodeFacingEdgeOnRight: row.isInput
-        readonly property color notchFillColor: row.portsLayer.notchColor
-        readonly property color notchStrokeColor: row.portsLayer.notchOutlineColor
-        readonly property real notchStrokeWidth: row.portsLayer.notchOutlineWidth
-        visible: row.portsLayer.notchedPortsEffective
-        width: row.portsLayer.notchDiameter * 0.5
-        height: row.portsLayer.notchDiameter
-        x: row.isInput ? row.portPoint.x : row.portPoint.x - width
-        y: row.isInput
-            ? row.portPoint.y - row.y - height * 0.5
-            : (row.height - height) * 0.5
-        sourceSize: row.portsLayer.notchSourceSize
-        source: row.portsLayer.notchSvgSource
-        mirror: !row.isInput
-        cache: true
-        asynchronous: false
-        smooth: true
-        mipmap: false
-        fillMode: Image.Stretch
-        z: -1
-    }
-
-    Rectangle {
+    SurfaceControls.GraphSurfaceCapsule {
         id: portDot
         objectName: row.isInput ? "graphNodeInputPortDot" : "graphNodeOutputPortDot"
         property string propertyKey: row.propertyKey
@@ -301,7 +276,6 @@ Item {
         y: row.portPoint.y - row.y - height * 0.5
         width: lockedState ? lockedDiameter : (interactiveState ? activeDiameter : restDiameter)
         height: width
-        radius: placeholderLockedState ? width * 0.5 : (lockedState ? 0 : width * 0.5)
         opacity: lockedState
             ? 1.0
             : (revealState
@@ -309,7 +283,7 @@ Item {
                     ? (inactiveState ? 0.46 : (interactionBlockedState ? 0.72 : 1.0))
                     : 1.0)
                 : 0.0)
-        color: placeholderLockedState
+        fillColor: placeholderLockedState
             ? "#2a2d34"
             : (lockedState
                 ? "transparent"
@@ -324,14 +298,14 @@ Item {
                         : (row.host
                             ? row.host.portFlowFillColor(row.portData)
                             : (connectedState ? portColor : "transparent")))))
-        border.width: placeholderLockedState
+        borderWidth: placeholderLockedState
             ? 1.5
             : (lockedState
                 ? 0
                 : (row.host && row.host.usesCardinalNeutralFlowHandles
                     ? (attentionState ? 1.8 : 1.1)
                     : (interactiveState ? 2 : 1.6)))
-        border.color: placeholderLockedState
+        borderColor: placeholderLockedState
             ? "#5a606c"
             : (lockedState
                 ? "transparent"
@@ -341,7 +315,7 @@ Item {
                         ? (selectedState ? row.host.selectedOutlineColor : portColor)
                         : row.portsLayer._portFlowOutlineColor(row.portData))))
 
-        Rectangle {
+        SurfaceControls.GraphSurfaceCapsule {
             objectName: row.isInput ? "graphNodeInputPortRing" : "graphNodeOutputPortRing"
             property string propertyKey: row.propertyKey
             anchors.centerIn: parent
@@ -350,13 +324,12 @@ Item {
                 && !portDot.lockedState
             width: portDot.ringDiameter
             height: portDot.ringDiameter
-            radius: width * 0.5
             z: -1
-            color: portDot.attentionState && row.host
+            fillColor: portDot.attentionState && row.host
                 ? row.host.portInteractiveRingFillColor
                 : "transparent"
-            border.width: (portDot.attentionState || portDot.compatibleTargetState) ? 1 : 0
-            border.color: portDot.attentionState && row.host
+            borderWidth: (portDot.attentionState || portDot.compatibleTargetState) ? 1 : 0
+            borderColor: portDot.attentionState && row.host
                 ? row.host.portInteractiveRingBorderColor
                 : (portDot.compatibleTargetState && row.host
                     ? row.portsLayer._portFlowOutlineColor(row.portData)
