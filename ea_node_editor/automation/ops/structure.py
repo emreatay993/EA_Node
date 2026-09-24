@@ -1,4 +1,4 @@
-# Purpose: Structure op specs: group backdrops, subnodes (create/ungroup/pins), scope navigation, selection, layout (arrange + straighten).
+# Purpose: Structure op specs: group backdrops, subnodes (create/ungroup/pins), scope navigation, selection, layout (arrange + straighten + tidy).
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_catalog.py
 from __future__ import annotations
@@ -8,6 +8,7 @@ from ea_node_editor.automation.op_model import (
     array_schema,
     boolean_schema,
     id_list_schema,
+    number_schema,
     object_schema,
     string_schema,
 )
@@ -218,6 +219,109 @@ LAYOUT_STRAIGHTEN = OpSpec(
     mcp_tool="layout_straighten",
 )
 
+# Restated from ea_node_editor/graph/transform_tidy_layout.py (TIDY_MODES, TIDY_DIRECTIONS, DEFAULT_TIDY_*_GAP) so the
+# op catalog never imports the graph package; tests/automation/test_catalog.py keeps the two in sync.
+TIDY_MODES = ("auto_layout", "in_place")
+TIDY_DIRECTIONS = ("auto", "left_to_right", "top_to_bottom")
+DEFAULT_TIDY_COLUMN_GAP = 96
+DEFAULT_TIDY_ROW_GAP = 64
+# locked_group: the node is, or sits in, a Group backdrop that Tidy may not move or grow because that Group (or a
+# node inside it) is locked.
+TIDY_NODE_SKIP_REASONS = (*NODE_SKIP_REASONS, "locked_group")
+
+LAYOUT_TIDY = OpSpec(
+    name="layout.tidy",
+    domain=DOMAIN,
+    summary=(
+        "Tidy nodes: auto-layout from the wires (left to right / top to bottom) or clean up in place, "
+        "keeping Group backdrops intact."
+    ),
+    description=(
+        "Omit node_ids to tidy every node in the open scope. auto_layout rebuilds the arrangement from the wires "
+        "(direction auto-detected from the port sides they use, or forced with left_to_right / top_to_bottom): rows "
+        "and columns are centered so right->left and bottom->top wires run straight, loop-back wires stay elbows "
+        "(loop_edge_ids), and the block keeps its current top-left; in_place keeps the arrangement and snaps "
+        "near-aligned rows and columns onto shared center lines with even gaps. Group backdrops stay intact: a "
+        "listed backdrop's members are laid out inside it and the backdrop is refitted, a collapsed Group moves as "
+        "one block, and an unlisted backdrop grows to keep listed members; when the result would still move a node "
+        "into or out of a Group nothing changes and the call fails with NO_EFFECT "
+        "(details.membership_conflict_node_ids). Locked nodes (unless the 'interact with locked objects' preference "
+        "is on), members of a collapsed Group, nodes outside an open comment peek, Groups that hold a locked node "
+        "(with their contents), and nodes whose locked Group would have to grow are left alone and listed in "
+        "skipped_nodes (the last two as locked_group); the new block steps around locked nodes and those Groups, "
+        "and unwired annotations are never re-arranged. Other nodes the new block would overlap are pushed aside "
+        "(pushed_node_ids) while the 'Avoid overlaps when expanding collapsed items' graphics setting is on (the "
+        "default). Read straightened_edge_ids, skipped_edges, and overlapping_node_pairs afterwards; changed=false "
+        "means the nodes were already tidy."
+    ),
+    params=object_schema(
+        {
+            "node_ids": id_list_schema("Nodes to tidy (default: every node in the open scope)", min_items=2),
+            "mode": string_schema(
+                "auto_layout rebuilds the arrangement from the wires; in_place keeps it and straightens rows and columns",
+                enum=TIDY_MODES,
+                default=TIDY_MODES[0],
+            ),
+            "direction": string_schema(
+                "Flow direction for auto_layout; auto detects it from the port sides the wires use (in_place ignores it)",
+                enum=TIDY_DIRECTIONS,
+                default=TIDY_DIRECTIONS[0],
+            ),
+            "column_gap": number_schema(
+                "Gap in px between steps along the flow (in_place: between columns, the median current gap clamped "
+                "to 1x..3x this value)",
+                minimum=24,
+                maximum=400,
+                default=DEFAULT_TIDY_COLUMN_GAP,
+            ),
+            "row_gap": number_schema(
+                "Gap in px between rows across the flow (in_place: between rows, the median current gap clamped to "
+                "1x..3x this value)",
+                minimum=16,
+                maximum=400,
+                default=DEFAULT_TIDY_ROW_GAP,
+            ),
+        },
+    ),
+    result=object_schema(
+        {
+            "moved_node_ids": array_schema(NODE_ID, "Tidied nodes that moved, incl. the hidden members of a moved collapsed Group"),
+            "resized_group_ids": array_schema(NODE_ID, "Group backdrops refitted or grown around their members"),
+            "pushed_node_ids": array_schema(NODE_ID, "Other nodes moved out of the way of the new block"),
+            "skipped_nodes": array_schema(
+                object_schema({"node_id": NODE_ID, "reason": string_schema(enum=TIDY_NODE_SKIP_REASONS)}, additional=True),
+                "Nodes Tidy left alone, with the reason",
+            ),
+            "loop_edge_ids": array_schema(EDGE_ID, "Loop-back wires kept as elbows"),
+            "membership_conflict_node_ids": array_schema(NODE_ID, "Empty on success; a conflict fails with NO_EFFECT"),
+            "straightened_edge_ids": array_schema(EDGE_ID, "Wires between laid-out nodes that now run straight"),
+            "skipped_edges": array_schema(
+                object_schema(
+                    {
+                        "edge_id": EDGE_ID,
+                        "reason": string_schema(enum=("mixed_port_sides", "unresolved_offset", "not_drawn")),
+                        "source_side": string_schema(),
+                        "target_side": string_schema(),
+                        "offset": {"type": "number"},
+                    },
+                    additional=True,
+                ),
+                "Wires between laid-out nodes that are not straight (elbows, loops, remaining offsets)",
+            ),
+            "overlapping_node_pairs": array_schema(
+                array_schema(NODE_ID), "Overlapping pairs of drawn nodes in the scope that involve a tidied or pushed node"
+            ),
+            "direction": string_schema("left_to_right or top_to_bottom as applied; empty for in_place"),
+            "mode": string_schema(enum=TIDY_MODES),
+        },
+        additional=True,
+    ),
+    mutates_graph=True,
+    apply_allowed=True,
+    ref_fields=("node_ids[]",),
+    mcp_tool="layout_tidy",
+)
+
 OPS: tuple[OpSpec, ...] = (
     GROUP_WRAP,
     SUBNODE_CREATE,
@@ -227,14 +331,18 @@ OPS: tuple[OpSpec, ...] = (
     SELECTION_SET,
     LAYOUT_ARRANGE,
     LAYOUT_STRAIGHTEN,
+    LAYOUT_TIDY,
 )
 
 __all__ = [
+    "DEFAULT_TIDY_COLUMN_GAP",
+    "DEFAULT_TIDY_ROW_GAP",
     "DOMAIN",
     "EDGE_SKIP_REASONS",
     "GROUP_WRAP",
     "LAYOUT_ARRANGE",
     "LAYOUT_STRAIGHTEN",
+    "LAYOUT_TIDY",
     "NODE_SKIP_REASONS",
     "OPS",
     "SCOPE_NAVIGATE",
@@ -242,4 +350,7 @@ __all__ = [
     "SUBNODE_ADD_PIN",
     "SUBNODE_CREATE",
     "SUBNODE_UNGROUP",
+    "TIDY_DIRECTIONS",
+    "TIDY_MODES",
+    "TIDY_NODE_SKIP_REASONS",
 ]

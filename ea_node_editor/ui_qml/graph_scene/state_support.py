@@ -1633,6 +1633,23 @@ class GraphSceneBridgeBase(QObject):
     def straighten_selected_connections(self) -> bool:
         return self._command_bridge.straighten_selected_connections()
 
+    def tidy_layout(
+        self,
+        node_ids: list[Any] | None,
+        *,
+        mode: str = "auto_layout",
+        direction: str = "auto",
+        column_gap: float = 96.0,
+        row_gap: float = 64.0,
+    ) -> dict[str, Any] | None:
+        return self._command_bridge.tidy_layout(
+            node_ids,
+            mode=mode,
+            direction=direction,
+            column_gap=column_gap,
+            row_gap=row_gap,
+        )
+
     @pyqtSlot("QVariantList", result=str)
     def wrap_node_ids_in_group_backdrop(self, node_ids: list[Any]) -> str:
         return self._command_bridge.wrap_node_ids_in_group_backdrop(node_ids)

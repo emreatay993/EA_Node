@@ -1,4 +1,4 @@
-# Purpose: Structure automation handlers: Group backdrops, subnodes (create/ungroup/pins), scope navigation, selection, layout (align/distribute/match size, straighten wires).
+# Purpose: Structure automation handlers: Group backdrops, subnodes (create/ungroup/pins), scope navigation, selection, layout (align/distribute/match size, straighten wires, tidy).
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_handlers_structure.py
 from __future__ import annotations
@@ -41,6 +41,9 @@ _HORIZONTAL_SIDES = frozenset({"left", "right"})
 _VERTICAL_SIDES = frozenset({"top", "bottom"})
 _SIZE_EPSILON = 0.01
 PIN_TYPE_BY_DIRECTION: dict[str, str] = {"in": SUBNODE_INPUT_TYPE_ID, "out": SUBNODE_OUTPUT_TYPE_ID}
+# Skip reason for nodes Tidy left alone although they are selectable: a Group backdrop that holds a locked node (the
+# backdrop and its contents), or nodes whose locked owner Group would have to grow.
+LOCKED_GROUP_REASON = "locked_group"
 
 
 # ----------------------------------------------------------------- helpers
@@ -562,6 +565,120 @@ def straighten_layout(context: AutomationContext, params: Mapping[str, Any]) -> 
     }
 
 
+def _tidy_skipped_nodes(
+    context: AutomationContext,
+    skipped: list[dict[str, str]],
+    scene_skipped_ids: Iterable[Any],
+) -> list[dict[str, str]]:
+    """Reason records for the ids the scene's Tidy left alone (its skipped_node_ids), pre-call order first.
+
+    The pre-call report supplies the usual reasons; a hidden member requested together with its collapsed Group
+    moved with that Group, so the scene does not list it and neither does the result.
+    """
+    scene_ids = [node_id for node_id in _unique_ids(scene_skipped_ids) if context.node_or_none(node_id) is not None]
+    reasons = {entry["node_id"]: entry["reason"] for entry in skipped}
+    unknown = [node_id for node_id in scene_ids if node_id not in reasons]
+    if unknown:
+        # Hidden / locked / outside-peek ids keep the usual reasons; selectable ones were held back by a Group rule.
+        _selectable, unknown_skipped, _drawn = _usable_node_ids(context, unknown)
+        reasons.update({entry["node_id"]: entry["reason"] for entry in unknown_skipped})
+    listed = set(scene_ids)
+    ordered = [entry["node_id"] for entry in skipped if entry["node_id"] in listed] + unknown
+    return [{"node_id": node_id, "reason": reasons.get(node_id, LOCKED_GROUP_REASON)} for node_id in ordered]
+
+
+def tidy_layout(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:
+    workspace = context.active_workspace()
+    node_ids: list[str] | None = None
+    if params.get("node_ids") is None:
+        # Whole open scope: the scene tidies every drawn node, so hidden collapsed-Group members are not "skipped".
+        drawn_now = _drawn_node_ids(context)
+        candidates = [
+            node.node_id for node in workspace.nodes.values() if context.in_active_scope(node) and node.node_id in drawn_now
+        ]
+    else:
+        node_ids = _unique_ids(params["node_ids"])
+        _nodes_in_scope(context, node_ids)
+        candidates = node_ids
+    usable, skipped, drawn = _usable_node_ids(context, candidates)
+    outcome = context.scene.tidy_layout(
+        node_ids,
+        mode=str(params["mode"]),
+        direction=str(params["direction"]),
+        column_gap=float(params["column_gap"]),
+        row_gap=float(params["row_gap"]),
+    )
+    if outcome is None and len(usable) < 2:
+        raise AutomationOpError(
+            INVALID_PARAMS,
+            "layout.tidy: fewer than two nodes can be tidied.",
+            hint=(
+                "Pass two or more unlocked, visible nodes (or none for the whole scope); details.skipped_nodes says why "
+                "nodes were left out."
+            ),
+            details={"skipped_nodes": skipped},
+        )
+    if outcome is None:
+        # Enough usable nodes, but no two share a level: Tidy lays out Group members only with other members of
+        # the same Group, and unwired annotations are never re-arranged.
+        raise AutomationOpError(
+            INVALID_PARAMS,
+            "layout.tidy: no two of the given nodes can be laid out together.",
+            hint=(
+                "Nodes inside a Group are tidied only with other members of that Group: add the Group backdrop to "
+                "node_ids so it moves as one block, or pass two or more nodes from the same Group (or from outside "
+                "Groups). Unwired annotations are never re-arranged."
+            ),
+            details={"skipped_nodes": skipped},
+        )
+    conflicts = _unique_ids(outcome["membership_conflict_node_ids"])
+    if conflicts:
+        raise no_effect(
+            "layout.tidy",
+            "it would move nodes into or out of a Group",
+            details={
+                "membership_conflict_node_ids": conflicts,
+                "mode": str(outcome["mode"]),
+                "direction": str(outcome["direction"]),
+            },
+        )
+    arranged = _unique_ids(outcome["arranged_node_ids"])
+    arranged_set = set(arranged)
+    moved = _unique_ids(outcome["moved_node_ids"])
+    pushed = _unique_ids(outcome["pushed_node_ids"])
+    wires = [
+        edge
+        for edge in workspace.edges.values()
+        if edge.source_node_id in arranged_set
+        and edge.target_node_id in arranged_set
+        and edge.source_node_id != edge.target_node_id
+    ]
+    straightened, skipped_edges = _classify_wires(context, wires, drawn=drawn, usable=arranged_set)
+    # Overlaps anywhere in the drawn scope that the tidied or pushed nodes take part in (not only among themselves).
+    involved = arranged_set | set(moved) | set(pushed)
+    overlapping = [
+        pair
+        for pair in _overlapping_node_pairs(context, [node_id for node_id in workspace.nodes if node_id in drawn])
+        if pair[0] in involved or pair[1] in involved
+    ]
+    return {
+        "changed": bool(outcome["changed"]),
+        "mode": str(outcome["mode"]),
+        "direction": str(outcome["direction"]),
+        "arranged_node_ids": arranged,
+        "moved_node_ids": moved,
+        "resized_group_ids": _unique_ids(outcome["resized_group_ids"]),
+        "pushed_node_ids": pushed,
+        "skipped_nodes": _tidy_skipped_nodes(context, skipped, outcome["skipped_node_ids"]),
+        "loop_edge_ids": _unique_ids(outcome["loop_edge_ids"]),
+        "membership_conflict_node_ids": [],
+        "straightened_edge_ids": straightened,
+        "skipped_edges": skipped_edges,
+        "positions": _positions_payload(_position_map(context, [*moved, *pushed])),
+        "overlapping_node_pairs": overlapping,
+    }
+
+
 HANDLERS = {
     'group.wrap': wrap_group,
     'subnode.create': create_subnode,
@@ -571,6 +688,7 @@ HANDLERS = {
     'selection.set': set_selection,
     'layout.arrange': arrange_layout,
     'layout.straighten': straighten_layout,
+    'layout.tidy': tidy_layout,
 }
 
 __all__ = [
@@ -578,6 +696,7 @@ __all__ = [
     "CENTER_ALIGNMENTS",
     "DISTRIBUTIONS",
     "HANDLERS",
+    "LOCKED_GROUP_REASON",
     "MATCH_DIMENSIONS",
     "PIN_TYPE_BY_DIRECTION",
     "STRAIGHT_TOLERANCE_PX",

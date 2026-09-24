@@ -1620,7 +1620,7 @@ QtObject {
     }
 
     function _selectionContextMenuHeight() {
-        var rowCount = 8;
+        var rowCount = 13;
         return 20 + (rowCount * 30) + Math.max(0, rowCount - 1);
     }
 
@@ -1679,7 +1679,7 @@ QtObject {
         if (!root.canvasItem)
             return;
         root.canvasItem.forceActiveFocus();
-        var menuHeight = (root.canvasItem.selectedEdgeIds || []).length > 0 ? 411 : 358;
+        var menuHeight = (root.canvasItem.selectedEdgeIds || []).length > 0 ? 494 : 441;
         var position = root.canvasItem._clampMenuPosition(x, y, 252, menuHeight);
         root._closeContextMenus();
         root._setContextMenuPosition(position.x, position.y);
@@ -1690,7 +1690,7 @@ QtObject {
         if (!root.canvasItem)
             return;
         root.canvasItem.forceActiveFocus();
-        var menuHeight = (root.canvasItem.selectedEdgeIds || []).length > 0 ? 411 : 358;
+        var menuHeight = (root.canvasItem.selectedEdgeIds || []).length > 0 ? 494 : 441;
         var position = root.canvasItem._clampMenuPosition(
             root.canvasItem.sceneToScreenX(root._finiteCoordinate(sceneX)),
             root.canvasItem.sceneToScreenY(root._finiteCoordinate(sceneY)),

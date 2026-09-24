@@ -1,4 +1,4 @@
-# Purpose: CorexClient facade for group.wrap, subnode.*, scope.navigate, selection.set, layout.arrange/straighten plus navigation/selection/layout sugar.
+# Purpose: CorexClient facade for group.wrap, subnode.*, scope.navigate, selection.set, layout.arrange/straighten/tidy plus navigation/selection/layout sugar.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_automation_boundaries.py
 from __future__ import annotations
@@ -17,7 +17,7 @@ def _id_list(values: Iterable[str] | str) -> list[str]:
 
 
 class StructureApi:
-    """Facade for group.wrap, subnode.*, scope.navigate, selection.set, layout.arrange, layout.straighten."""
+    """Facade for group.wrap, subnode.*, scope.navigate, selection.set, layout.arrange, layout.straighten, layout.tidy."""
 
     def __init__(self, client: "CorexClient") -> None:
         self._client = client
@@ -125,6 +125,30 @@ class StructureApi:
         if edge_ids is not None:
             params["edge_ids"] = _id_list(edge_ids)
         return self._client.call("layout.straighten", params)
+
+    # -------------------------------------------------------------- layout.tidy
+
+    def tidy(
+        self,
+        node_ids: Iterable[str] | str | None = None,
+        *,
+        mode: str = "auto_layout",
+        direction: str = "auto",
+        column_gap: float | None = None,
+        row_gap: float | None = None,
+    ) -> dict[str, Any]:
+        """Lay nodes out from their wires (``mode="in_place"`` keeps the arrangement); no ids = the whole open scope.
+
+        ``direction`` is auto|left_to_right|top_to_bottom; omitted gaps use the op defaults.
+        """
+        params: dict[str, Any] = {"mode": str(mode), "direction": str(direction)}
+        if node_ids is not None:
+            params["node_ids"] = _id_list(node_ids)
+        if column_gap is not None:
+            params["column_gap"] = float(column_gap)
+        if row_gap is not None:
+            params["row_gap"] = float(row_gap)
+        return self._client.call("layout.tidy", params)
 
 
 __all__ = ["StructureApi"]

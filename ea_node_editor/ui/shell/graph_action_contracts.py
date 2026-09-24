@@ -24,6 +24,12 @@ class GraphActionId(str, Enum):
     SET_SELECTION_SAME_TYPE_WIDTH = "set_selection_same_type_width"
     SET_SELECTION_SAME_TYPE_HEIGHT = "set_selection_same_type_height"
     STRAIGHTEN_SELECTION_CONNECTIONS = "straighten_selection_connections"
+    TIDY_SELECTION = "tidy_selection"
+    TIDY_SELECTION_LEFT_TO_RIGHT = "tidy_selection_left_to_right"
+    TIDY_SELECTION_TOP_TO_BOTTOM = "tidy_selection_top_to_bottom"
+    TIDY_SELECTION_IN_PLACE = "tidy_selection_in_place"
+    TIDY_GRAPH = "tidy_graph"
+    TIDY_GRAPH_IN_PLACE = "tidy_graph_in_place"
     RUN_SELECTED = "run_selected"
     PREVIEW_SELECTED_RUN = "preview_selected_run"
     CONFIRM_SELECTED_RUN_PREVIEW = "confirm_selected_run_preview"
@@ -199,6 +205,47 @@ GRAPH_ACTION_SPECS: tuple[GraphActionSpec, ...] = (
         "Straighten Connections",
         None,
         ("pyqt_layout_menu", "qml_selection_context_menu", "qml_selection_envelope_toolbar"),
+    ),
+    GraphActionSpec(
+        GraphActionId.TIDY_SELECTION,
+        "Tidy Selection",
+        "Ctrl+Alt+L",
+        (
+            "pyqt_layout_menu",
+            "pyqt_shortcut",
+            "qml_selection_context_menu",
+            "qml_selection_envelope_toolbar",
+        ),
+    ),
+    GraphActionSpec(
+        GraphActionId.TIDY_SELECTION_LEFT_TO_RIGHT,
+        "Tidy Selection Left to Right",
+        None,
+        ("pyqt_layout_menu", "qml_selection_context_menu"),
+    ),
+    GraphActionSpec(
+        GraphActionId.TIDY_SELECTION_TOP_TO_BOTTOM,
+        "Tidy Selection Top to Bottom",
+        None,
+        ("pyqt_layout_menu", "qml_selection_context_menu"),
+    ),
+    GraphActionSpec(
+        GraphActionId.TIDY_SELECTION_IN_PLACE,
+        "Clean Up Selection in Place",
+        None,
+        ("pyqt_layout_menu", "qml_selection_context_menu"),
+    ),
+    GraphActionSpec(
+        GraphActionId.TIDY_GRAPH,
+        "Tidy Whole Graph",
+        "Ctrl+Alt+Shift+L",
+        ("pyqt_layout_menu", "pyqt_shortcut", "qml_canvas_options_menu"),
+    ),
+    GraphActionSpec(
+        GraphActionId.TIDY_GRAPH_IN_PLACE,
+        "Clean Up Whole Graph in Place",
+        None,
+        ("pyqt_layout_menu", "qml_canvas_options_menu"),
     ),
     GraphActionSpec(
         GraphActionId.RUN_SELECTED,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from typing import Callable, Mapping, Sequence
+from typing import Callable, Collection, Mapping, Sequence
 
 from ea_node_editor.graph.workspace_state import WorkspaceData
 from ea_node_editor.graph.records import NodeInstance
@@ -188,29 +188,48 @@ def build_straighten_connection_position_updates(
     constraints: Sequence[PortAlignmentConstraint],
     tolerance: float = 0.01,
 ) -> dict[str, tuple[float, float]]:
-    updates: dict[str, list[float]] = {}
-    for axis in ("x", "y"):
+    offsets = build_port_alignment_offsets(
+        node_ids=set(workspace.nodes),
+        constraints=constraints,
+        tolerance=tolerance,
+    )
+    updates: dict[str, tuple[float, float]] = {}
+    for node_id, (dx, dy) in offsets.items():
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            continue
+        updates[node_id] = (float(node.x) + dx, float(node.y) + dy)
+    return updates
+
+
+def build_port_alignment_offsets(
+    *,
+    node_ids: Collection[str],
+    constraints: Sequence[PortAlignmentConstraint],
+    tolerance: float = 0.01,
+) -> dict[str, tuple[float, float]]:
+    """Return the ``(dx, dy)`` each node must move so constrained port anchors line up.
+
+    Each connected component of constraints is solved per axis and shifted by its median so
+    the nodes move as little as possible; a component whose constraints conflict is left alone.
+    """
+    known_node_ids = node_ids if isinstance(node_ids, (set, frozenset)) else set(node_ids)
+    offsets: dict[str, list[float]] = {}
+    for axis_index, axis in enumerate(("x", "y")):
         axis_offsets = _straighten_axis_offsets(
-            workspace=workspace,
+            known_node_ids=known_node_ids,
             constraints=constraints,
             axis=axis,
             tolerance=tolerance,
         )
         for node_id, delta in axis_offsets.items():
-            node = workspace.nodes.get(node_id)
-            if node is None:
-                continue
-            current = updates.setdefault(node_id, [float(node.x), float(node.y)])
-            if axis == "x":
-                current[0] = float(node.x) + delta
-            else:
-                current[1] = float(node.y) + delta
-    return {node_id: (position[0], position[1]) for node_id, position in updates.items()}
+            offsets.setdefault(node_id, [0.0, 0.0])[axis_index] = delta
+    return {node_id: (delta[0], delta[1]) for node_id, delta in offsets.items()}
 
 
 def _straighten_axis_offsets(
     *,
-    workspace: WorkspaceData,
+    known_node_ids: Collection[str],
     constraints: Sequence[PortAlignmentConstraint],
     axis: str,
     tolerance: float,
@@ -223,7 +242,7 @@ def _straighten_axis_offsets(
         target_id = str(constraint.target_node_id).strip()
         if not source_id or not target_id or source_id == target_id:
             continue
-        if source_id not in workspace.nodes or target_id not in workspace.nodes:
+        if source_id not in known_node_ids or target_id not in known_node_ids:
             continue
         required_delta = float(constraint.source_anchor) - float(constraint.target_anchor)
         if not math.isfinite(required_delta):
@@ -316,25 +335,48 @@ def build_expand_collision_avoidance_position_updates(
     gap: float,
     reach_radius: float | None = None,
 ) -> dict[str, tuple[float, float]]:
+    return build_collision_avoidance_position_updates(
+        fixed_bounds=(fixed_bounds,),
+        movable_bounds=movable_bounds,
+        gap=gap,
+        reach_radius=reach_radius,
+    )
+
+
+def build_collision_avoidance_position_updates(
+    *,
+    fixed_bounds: Sequence[LayoutNodeBounds],
+    movable_bounds: Sequence[LayoutNodeBounds],
+    gap: float,
+    reach_radius: float | None = None,
+) -> dict[str, tuple[float, float]]:
+    """Move each movable box that crowds a fixed or already-placed box to its nearest free spot.
+
+    Boxes are resolved nearest-first; a moved box becomes a blocker for the rest. With ``reach_radius`` only
+    boxes within that distance of a fixed box are considered.
+    """
+    fixed = list(fixed_bounds)
+    if not fixed:
+        return {}
     normalized_gap = max(0.0, float(gap))
-    reach_bounds = fixed_bounds.inflated(float(reach_radius)) if reach_radius is not None else None
+    reach_bounds = [bounds.inflated(float(reach_radius)) for bounds in fixed] if reach_radius is not None else None
     remaining = {
         bounds.node_id: bounds
         for bounds in movable_bounds
         if bounds.node_id and bounds.width > 0.0 and bounds.height > 0.0
     }
-    resolved_bounds = [fixed_bounds]
+    resolved_bounds = list(fixed)
     updates: dict[str, tuple[float, float]] = {}
 
     while remaining:
         colliding = [
             (
-                _bounds_distance(bounds, fixed_bounds),
+                min(_bounds_distance(bounds, fixed_box) for fixed_box in fixed),
                 bounds.node_id,
                 bounds,
             )
             for bounds in remaining.values()
-            if (reach_bounds is None or _rects_intersect(bounds, reach_bounds))
+            if (reach_bounds is None or any(_rects_intersect(bounds, reach) for reach in reach_bounds))
             and _first_intersecting_bounds(bounds, resolved_bounds, normalized_gap) is not None
         ]
         if not colliding:
@@ -362,7 +404,32 @@ def _separate_from_bounds(
         if dx == 0.0 and dy == 0.0:
             return resolved
         resolved = resolved.translated(dx, dy)
-    return resolved
+    if _first_intersecting_bounds(resolved, blockers, gap) is None:
+        return resolved
+    # Squeezed between blockers, the nearest-blocker steps can bounce back and forth; take the smallest single-axis
+    # move from the original spot that clears every blocker instead (if there is one).
+    return _nearest_clear_bounds(bounds, blockers, gap) or resolved
+
+
+def _nearest_clear_bounds(
+    bounds: LayoutNodeBounds,
+    blockers: Sequence[LayoutNodeBounds],
+    gap: float,
+) -> LayoutNodeBounds | None:
+    candidates: list[tuple[float, float, float, LayoutNodeBounds]] = []
+    for blocker in blockers:
+        for dx, dy in (
+            (blocker.left - gap - bounds.right, 0.0),
+            (blocker.right + gap - bounds.left, 0.0),
+            (0.0, blocker.top - gap - bounds.bottom),
+            (0.0, blocker.bottom + gap - bounds.top),
+        ):
+            candidate = bounds.translated(dx, dy)
+            if _first_intersecting_bounds(candidate, blockers, gap) is None:
+                candidates.append((abs(dx) + abs(dy), dx, dy, candidate))
+    if not candidates:
+        return None
+    return min(candidates, key=lambda item: (item[0], item[1], item[2]))[3]
 
 
 def _first_intersecting_bounds(
@@ -437,8 +504,10 @@ __all__ = [
     "LayoutNodeBounds",
     "PortAlignmentConstraint",
     "build_alignment_position_updates",
+    "build_collision_avoidance_position_updates",
     "build_distribution_position_updates",
     "build_expand_collision_avoidance_position_updates",
+    "build_port_alignment_offsets",
     "build_straighten_connection_position_updates",
     "collect_layout_node_bounds",
     "normalize_layout_position_updates",

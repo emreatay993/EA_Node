@@ -277,6 +277,14 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             self.assertEqual(entries[("Project", "Ctrl+N")], "Create a new project.")
             self.assertEqual(entries[("Node Browser", "Ctrl+B")], "Open the node browser.")
             self.assertEqual(
+                entries[("Layout", "Ctrl+Alt+L")],
+                "Tidy the selection into a clean layout from its wires.",
+            )
+            self.assertEqual(
+                entries[("Layout", "Ctrl+Alt+Shift+L")],
+                "Tidy the whole graph in the open scope.",
+            )
+            self.assertEqual(
                 entries[("Selected edge", "Ctrl+Left or Ctrl+Right")],
                 "Center the view on the edge start or end.",
             )
@@ -1747,6 +1755,12 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertGreaterEqual(meta.indexOfMethod("request_distribute_selection_horizontally()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_distribute_selection_vertically()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_straighten_selection_connections()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_tidy_selection()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_tidy_selection_left_to_right()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_tidy_selection_top_to_bottom()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_tidy_selection_in_place()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_tidy_graph()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_tidy_graph_in_place()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_toggle_snap_to_grid()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_open_subnode_scope(QString)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_open_scope_breadcrumb(QString)"), 0)
@@ -2075,6 +2089,83 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.window.clear_graph_hint()
         self.app.processEvents()
         self.assertFalse(self.window.graph_hint_visible)
+
+    def test_edit_layout_menu_lists_tidy_actions_after_straighten(self) -> None:
+        edit_menu = next(menu for menu in self.window.menuBar().findChildren(QMenu) if menu.title() == "&Edit")
+        layout_menu = next(action.menu() for action in edit_menu.actions() if action.text() == "Layout")
+        entries = [None if action.isSeparator() else action for action in layout_menu.actions()]
+        straighten_index = entries.index(self.window.action_straighten_connections)
+
+        self.assertEqual(
+            entries[straighten_index + 1 :],
+            [
+                None,
+                self.window.action_tidy_selection,
+                self.window.action_tidy_selection_left_to_right,
+                self.window.action_tidy_selection_top_to_bottom,
+                self.window.action_tidy_selection_in_place,
+                None,
+                self.window.action_tidy_graph,
+                self.window.action_tidy_graph_in_place,
+            ],
+        )
+        self.assertEqual(self.window.action_tidy_selection.text(), "Tidy Selection")
+        self.assertEqual(self.window.action_tidy_graph_in_place.text(), "Clean Up Whole Graph in Place")
+        self.assertIn("Ctrl+Alt+L", _action_shortcuts(self.window.action_tidy_selection))
+        self.assertIn("Ctrl+Alt+Shift+L", _action_shortcuts(self.window.action_tidy_graph))
+
+    def test_tidy_requests_arrange_wired_flowchart_nodes_in_one_undo_step(self) -> None:
+        workspace_id, _workspace = self._active_workspace()
+        start_id = self.window.scene.add_node_from_type("passive.flowchart.start", x=40.0, y=220.0)
+        process_id = self.window.scene.add_node_from_type("passive.flowchart.process", x=360.0, y=40.0)
+        end_id = self.window.scene.add_node_from_type("passive.flowchart.end", x=700.0, y=300.0)
+        self.window.scene.add_edge(start_id, "right", process_id, "left")
+        self.window.scene.add_edge(process_id, "right", end_id, "left")
+        node_ids = (start_id, process_id, end_id)
+        for index, node_id in enumerate(node_ids):
+            self.window.scene.select_node(node_id, index > 0)
+        self.app.processEvents()
+        self.window.runtime_history.clear_workspace(workspace_id)
+        self.window.clear_graph_hint()
+        before_state = self._workspace_state()
+
+        self.assertTrue(self.window.request_tidy_selection())
+        self.app.processEvents()
+
+        tidied_state = self._workspace_state()
+        self.assertNotEqual(tidied_state, before_state)
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 1)
+        self.assertTrue(self.window.graph_hint_visible)
+        self.assertTrue(
+            self.window.graph_hint_message.startswith("Tidied 3 nodes left to right."),
+            self.window.graph_hint_message,
+        )
+        centre_ys = []
+        for node_id in node_ids:
+            bounds = self.window.scene.node_bounds(node_id)
+            self.assertIsNotNone(bounds)
+            centre_ys.append(bounds.y() + bounds.height() * 0.5)
+        self.assertLessEqual(max(centre_ys) - min(centre_ys), 1.0, centre_ys)
+
+        self.window.action_undo.trigger()
+        self.app.processEvents()
+        self.assertEqual(self._workspace_state(), before_state)
+
+        self.window.scene.clear_selection()
+        self.window.runtime_history.clear_workspace(workspace_id)
+        self.window.clear_graph_hint()
+        self.app.processEvents()
+        self.assertEqual(self.window.scene.selected_node_ids, [])
+
+        self.assertTrue(self.window.request_tidy_graph())
+        self.app.processEvents()
+
+        self.assertEqual(self._workspace_state(), tidied_state)
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 1)
+        self.assertTrue(
+            self.window.graph_hint_message.startswith("Tidied 3 nodes left to right."),
+            self.window.graph_hint_message,
+        )
 
     def test_graph_search_ranking_prefers_title_matches_and_limits_to_ten_results(self) -> None:
         workspace_a_id = self.window.workspace_manager.active_workspace_id()

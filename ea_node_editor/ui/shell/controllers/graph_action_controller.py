@@ -7,6 +7,13 @@ from collections.abc import Mapping
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from ea_node_editor.graph.transform_tidy_layout import (
+    TIDY_DIRECTION_AUTO,
+    TIDY_DIRECTION_LEFT_TO_RIGHT,
+    TIDY_DIRECTION_TOP_TO_BOTTOM,
+    TIDY_MODE_AUTO_LAYOUT,
+    TIDY_MODE_IN_PLACE,
+)
 from ea_node_editor.platform_open import (
     open_path_with_app_chooser,
     open_path_with_default_handler,
@@ -126,6 +133,30 @@ class GraphActionController:
             return edit is not None and edit.distribute_selection_vertically()
         if action_id is GraphActionId.STRAIGHTEN_SELECTION_CONNECTIONS:
             return edit is not None and edit.straighten_selection_connections()
+        if action_id is GraphActionId.TIDY_SELECTION:
+            return edit is not None and edit.tidy_selection()
+        if action_id is GraphActionId.TIDY_SELECTION_LEFT_TO_RIGHT:
+            return edit is not None and edit.tidy_selection(
+                _selection_node_ids(payload),
+                mode=TIDY_MODE_AUTO_LAYOUT,
+                direction=TIDY_DIRECTION_LEFT_TO_RIGHT,
+            )
+        if action_id is GraphActionId.TIDY_SELECTION_TOP_TO_BOTTOM:
+            return edit is not None and edit.tidy_selection(
+                _selection_node_ids(payload),
+                mode=TIDY_MODE_AUTO_LAYOUT,
+                direction=TIDY_DIRECTION_TOP_TO_BOTTOM,
+            )
+        if action_id is GraphActionId.TIDY_SELECTION_IN_PLACE:
+            return edit is not None and edit.tidy_selection(
+                _selection_node_ids(payload),
+                mode=TIDY_MODE_IN_PLACE,
+                direction=TIDY_DIRECTION_AUTO,
+            )
+        if action_id is GraphActionId.TIDY_GRAPH:
+            return edit is not None and edit.tidy_graph()
+        if action_id is GraphActionId.TIDY_GRAPH_IN_PLACE:
+            return edit is not None and edit.tidy_graph(mode=TIDY_MODE_IN_PLACE)
         if action_id is GraphActionId.SET_SELECTION_SAME_TYPE_WIDTH:
             node_ids = _selection_node_ids(payload)
             return (

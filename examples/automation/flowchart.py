@@ -1,4 +1,4 @@
-# Purpose: Automation example: build a 10-node engineering flowchart with one graph.apply batch, style both branches, label edges, tidy (center-align + straighten wires), save, and screenshot.
+# Purpose: Automation example: build a 10-node engineering flowchart with one graph.apply batch, style both branches, label edges, tidy (layout.tidy auto-layout), save, and screenshot.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_docgen.py
 """Engineering flowchart via the COREX automation API.
@@ -134,15 +134,17 @@ def build_batch(corex: CorexClient):
 
 
 def tidy(corex: CorexClient, ids: dict[str, str]) -> None:
-    """Center the main row (shapes have different heights), then straighten every wire in the scope."""
-    main_row = [ids[batch_id] for batch_id, _type_id, _title, _column, row in NODES if row == 0]
-    corex.structure.align(main_row, "center_y")
-    report = corex.structure.straighten()
+    """Auto-layout the whole chart from its wires: rows and columns centered so wires run straight, loops stay elbows."""
+    report = corex.structure.tidy()
     names = {edge_id: batch_id for batch_id, edge_id in ids.items()}
+    loops = {names.get(edge_id, edge_id) for edge_id in report["loop_edge_ids"]}
     skipped = {names.get(entry["edge_id"], entry["edge_id"]): entry["reason"] for entry in report["skipped_edges"]}
-    print(f"layout.straighten: {len(report['straightened_edge_ids'])} straight wires, skipped {skipped}")
-    if set(skipped) != ELBOW_EDGES:
-        raise ExampleFailure(f"expected only {sorted(ELBOW_EDGES)} to stay bent, got {skipped}")
+    print(
+        f"layout.tidy ({report['direction']}): moved {len(report['moved_node_ids'])} nodes, "
+        f"{len(report['straightened_edge_ids'])} straight wires, loops {sorted(loops)}, bent {skipped}"
+    )
+    if loops != ELBOW_EDGES or set(skipped) != ELBOW_EDGES:
+        raise ExampleFailure(f"expected only {sorted(ELBOW_EDGES)} to stay bent, got loops {sorted(loops)} and bent {skipped}")
     if report["overlapping_node_pairs"]:
         raise ExampleFailure(f"tidying stacked nodes: {report['overlapping_node_pairs']}")
 

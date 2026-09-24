@@ -33,6 +33,7 @@ Item {
     readonly property bool canDistributeSelection: root.selectedNodeCount >= 3
     readonly property bool canWrapSelection: root.selectedNodeCount >= 2
     readonly property bool canStraightenConnections: root._hasInternalConnection()
+    readonly property bool canTidySelection: root.selectedNodeCount >= 2
     readonly property real envelopePadding: 10.0
     readonly property color accentColor: root._paletteColor("accent", "#1D8CE0")
     readonly property color panelColor: root._paletteColor("panel_bg", "#20242d")
@@ -349,6 +350,7 @@ Item {
         { "id": "distribute_selection_horizontally", "label": "Distribute Horizontally", "glyph": "H", "enabled": root.canDistributeSelection },
         { "id": "distribute_selection_vertically", "label": "Distribute Vertically", "glyph": "V", "enabled": root.canDistributeSelection },
         { "id": "straighten_selection_connections", "label": "Straighten Connections", "glyph": "S", "enabled": root.canStraightenConnections },
+        { "id": "tidy_selection", "label": "Tidy (Auto-Layout)", "glyph": "A", "enabled": root.canTidySelection },
         { "id": "wrap_selection_in_group_backdrop", "label": "Wrap Selection in Group", "icon": "comment", "glyph": "C", "enabled": root.canWrapSelection }
     ]
 

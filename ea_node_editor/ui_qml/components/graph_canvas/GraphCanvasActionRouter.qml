@@ -78,6 +78,10 @@ QtObject {
         "set_selection_same_type_width": { "actionId": "set_selection_same_type_width", "payload": "selection" },
         "set_selection_same_type_height": { "actionId": "set_selection_same_type_height", "payload": "selection" },
         "straighten_selection_connections": { "actionId": "straighten_selection_connections", "payload": "none" },
+        "tidy_selection": { "actionId": "tidy_selection", "payload": "none" },
+        "tidy_selection_left_to_right": { "actionId": "tidy_selection_left_to_right", "payload": "selection" },
+        "tidy_selection_top_to_bottom": { "actionId": "tidy_selection_top_to_bottom", "payload": "selection" },
+        "tidy_selection_in_place": { "actionId": "tidy_selection_in_place", "payload": "selection" },
         "wrap_selection_in_group_backdrop": { "actionId": "wrap_selection_in_group_backdrop", "payload": "none" }
     })
 

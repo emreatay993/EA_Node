@@ -12,6 +12,7 @@ import ea_node_editor.ui_qml.graph_scene_mutation.group_backdrop_ops as _group_b
 import ea_node_editor.ui_qml.graph_scene_mutation.grouping_and_subnode_ops as _grouping_ops
 import ea_node_editor.ui_qml.graph_scene_mutation.policy as _policy
 import ea_node_editor.ui_qml.graph_scene_mutation.selection_and_scope_ops as _selection_ops
+import ea_node_editor.ui_qml.graph_scene_mutation.tidy_layout_ops as _tidy_ops
 from ea_node_editor.ui_qml.graph_scene_mutation.node_creation_batch import create_nodes_batch
 from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters
 from ea_node_editor.graph.fragment_payloads import (
@@ -885,6 +886,7 @@ GraphSceneMutationHistory.set_selected_same_type_size = (
 GraphSceneMutationHistory.straighten_selected_connections = (
     _alignment_ops.straighten_selected_connections
 )
+GraphSceneMutationHistory.tidy_layout = _tidy_ops.tidy_layout
 GraphSceneMutationHistory.wrap_nodes_in_group_backdrop = (
     _group_backdrop_ops.wrap_nodes_in_group_backdrop
 )

@@ -219,6 +219,27 @@ def create_window_actions(window: ShellWindow) -> None:
         GraphActionId.STRAIGHTEN_SELECTION_CONNECTIONS,
     )
 
+    window.action_tidy_selection = _create_graph_action(window, GraphActionId.TIDY_SELECTION)
+
+    window.action_tidy_selection_left_to_right = _create_graph_action(
+        window,
+        GraphActionId.TIDY_SELECTION_LEFT_TO_RIGHT,
+    )
+
+    window.action_tidy_selection_top_to_bottom = _create_graph_action(
+        window,
+        GraphActionId.TIDY_SELECTION_TOP_TO_BOTTOM,
+    )
+
+    window.action_tidy_selection_in_place = _create_graph_action(
+        window,
+        GraphActionId.TIDY_SELECTION_IN_PLACE,
+    )
+
+    window.action_tidy_graph = _create_graph_action(window, GraphActionId.TIDY_GRAPH)
+
+    window.action_tidy_graph_in_place = _create_graph_action(window, GraphActionId.TIDY_GRAPH_IN_PLACE)
+
     window.action_snap_to_grid = QAction("Snap to Grid", window)
     window.action_snap_to_grid.setCheckable(True)
     window.action_snap_to_grid.setChecked(False)
@@ -391,6 +412,12 @@ def create_window_actions(window: ShellWindow) -> None:
         window.action_distribute_horizontally,
         window.action_distribute_vertically,
         window.action_straighten_connections,
+        window.action_tidy_selection,
+        window.action_tidy_selection_left_to_right,
+        window.action_tidy_selection_top_to_bottom,
+        window.action_tidy_selection_in_place,
+        window.action_tidy_graph,
+        window.action_tidy_graph_in_place,
         window.action_snap_to_grid,
         window.action_interact_with_locked_objects,
         window.action_show_port_labels,
@@ -468,6 +495,14 @@ def build_window_menu_bar(window: ShellWindow) -> None:
     layout_menu.addAction(window.action_distribute_vertically)
     layout_menu.addSeparator()
     layout_menu.addAction(window.action_straighten_connections)
+    layout_menu.addSeparator()
+    layout_menu.addAction(window.action_tidy_selection)
+    layout_menu.addAction(window.action_tidy_selection_left_to_right)
+    layout_menu.addAction(window.action_tidy_selection_top_to_bottom)
+    layout_menu.addAction(window.action_tidy_selection_in_place)
+    layout_menu.addSeparator()
+    layout_menu.addAction(window.action_tidy_graph)
+    layout_menu.addAction(window.action_tidy_graph_in_place)
     edit_menu.addAction(window.action_snap_to_grid)
     edit_menu.addSeparator()
     edit_menu.addAction(window.action_graph_search)

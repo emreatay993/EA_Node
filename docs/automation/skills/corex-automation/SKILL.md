@@ -5,7 +5,7 @@ description: Author COREX flowcharts, boards, and node workflows through the cor
 
 # COREX automation
 
-COREX exposes a local, opt-in automation API: 48 ops, each an MCP tool of the
+COREX exposes a local, opt-in automation API: 49 ops, each an MCP tool of the
 `corex` server and a `CorexClient` call. Full guide:
 `docs/AUTOMATION_API_GUIDE.md` in the COREX repository (setup, concepts, UI
 parity, walkthroughs, generated op reference). Runnable examples:
@@ -30,11 +30,15 @@ parity, walkthroughs, generated op reference). Runnable examples:
    `fill_color_end`), `edge_update` (`label`, `path_mode`, `display_mode`, and a
    `style` object whose keys accept aliases like `color`, `width`, `pattern`), `node_add_text` for markdown notes, `comment_upsert`,
    `link_upsert`, `group_wrap` with a title, `subnode_create` for nested scopes.
-5. **Tidy.** `layout_arrange(action="align_center_y")` puts a row of mixed
-   shapes on one center so side ports meet (`align_center_x` for columns;
-   also `align_*`, `distribute_*`, `match_width` / `match_height`). Then
-   `layout_straighten()` moves nodes so wires run straight; fix the elbows it
-   lists in `skipped_edges` and spread out any `overlapping_node_pairs`.
+5. **Tidy.** `layout_tidy()` lays the open scope (or `node_ids`) out from its
+   wires: rows and columns centered so wires run straight, direction detected
+   (or `direction="left_to_right"` / `"top_to_bottom"`), loops kept as elbows,
+   Group backdrops kept intact; `mode="in_place"` only straightens the rows and
+   columns you already have. For fine control use `layout_arrange`
+   (`align_center_y` rows, `align_center_x` columns, `align_*`, `distribute_*`,
+   `match_width` / `match_height`) and `layout_straighten()`. Check
+   `skipped_edges` for unintended elbows (loops are expected) and spread out
+   any `overlapping_node_pairs`.
 6. **Save and show.** `view_set_camera(frame=all)`, `project_save` (pass
    `path` for Save As), then `capture_screenshot` and look at the image.
 

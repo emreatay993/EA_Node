@@ -1,10 +1,11 @@
 # Purpose: Own workspace edits, clipboard/history, selection aftermath, and mutation UI effects.
 # Map: feature_routes/clipboard_undo_redo_mutation_history
-# Tests: tests/test_workspace_edit_controller.py
+# Tests: tests/test_workspace_edit_controller.py, tests/test_graph_action_contracts.py
 # Landmarks: WorkspaceEditController
 from __future__ import annotations
 
 import copy
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QMimeData
@@ -22,6 +23,10 @@ from ea_node_editor.graph.effective_ports import (
 )
 from ea_node_editor.graph.hierarchy import scope_parent_id
 from ea_node_editor.graph.records import NodeInstance
+from ea_node_editor.graph.transform_tidy_layout import (
+    TIDY_DIRECTION_AUTO,
+    TIDY_MODE_AUTO_LAYOUT,
+)
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_INPUT_TYPE_ID,
     SUBNODE_OUTPUT_TYPE_ID,
@@ -640,6 +645,40 @@ class WorkspaceEditController:
             return False
         self._effects.after_connections_straightened()
         return True
+
+    def tidy_selection(
+        self,
+        node_ids: Sequence[object] | None = None,
+        *,
+        mode: str = TIDY_MODE_AUTO_LAYOUT,
+        direction: str = TIDY_DIRECTION_AUTO,
+    ) -> bool:
+        tidy_node_ids = (
+            list(node_ids)
+            if node_ids is not None
+            else list(self._host.scene.selected_node_ids)
+        )
+        if len(tidy_node_ids) < 2:
+            return False
+        outcome = self._host.scene.tidy_layout(
+            tidy_node_ids, mode=mode, direction=direction
+        )
+        return self._finish_tidy(outcome, whole_graph=False)
+
+    def tidy_graph(self, *, mode: str = TIDY_MODE_AUTO_LAYOUT) -> bool:
+        outcome = self._host.scene.tidy_layout(
+            None, mode=mode, direction=TIDY_DIRECTION_AUTO
+        )
+        return self._finish_tidy(outcome, whole_graph=True)
+
+    def _finish_tidy(
+        self, outcome: Mapping[str, Any] | None, *, whole_graph: bool
+    ) -> bool:
+        if outcome is None:
+            self._effects.after_tidy_unavailable(whole_graph=whole_graph)
+            return False
+        self._effects.after_tidy(outcome, whole_graph=whole_graph)
+        return bool(outcome["changed"])
 
     def clipboard(self):
         from PyQt6.QtWidgets import QApplication

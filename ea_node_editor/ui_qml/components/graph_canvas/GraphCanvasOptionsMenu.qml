@@ -7,6 +7,7 @@ Item {
     id: root
     property Item canvasItem: null
     property var commandBridge: null
+    property var actionRouter: null
     property var themePalette: ({})
     property real anchorX: 0
     property real anchorY: 0
@@ -262,6 +263,12 @@ Item {
         root.closeMenu();
     }
 
+    function triggerGraphAction(actionId) {
+        if (root.actionRouter && root.actionRouter.triggerGraphAction)
+            root.actionRouter.triggerGraphAction(actionId, ({}));
+        root.closeMenu();
+    }
+
     MenuPanel {
         id: mainPanel
         x: root.mainPanelOffsetX
@@ -416,6 +423,20 @@ Item {
                     value: root.shellThemeLabel
                     isOpen: root.activeSubmenu === "shell"
                     onClicked: root.activeSubmenu = root.activeSubmenu === "shell" ? "" : "shell"
+                }
+
+                Divider {}
+
+                SectionHeader { label: "LAYOUT" }
+                ActionRow {
+                    objectName: "canvasOptionsTidyGraphRow"
+                    label: "Tidy whole graph"
+                    onClicked: root.triggerGraphAction("tidy_graph")
+                }
+                ActionRow {
+                    objectName: "canvasOptionsTidyGraphInPlaceRow"
+                    label: "Clean up whole graph in place"
+                    onClicked: root.triggerGraphAction("tidy_graph_in_place")
                 }
 
                 Divider {}

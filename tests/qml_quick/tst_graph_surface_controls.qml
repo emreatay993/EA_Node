@@ -1970,6 +1970,26 @@ TestCase {
         compare(JSON.stringify(router.triggeredActions), JSON.stringify(["align_selection_left"]))
     }
 
+    function test_selection_envelope_side_rail_tidy_dispatches_without_internal_edge() {
+        var root = createSelectionEnvelopeProbe()
+        var overlay = findChild(root, "selectionEnvelopeProbeOverlay")
+        var state = findChild(root, "selectionEnvelopeProbeCanvasStateBridge")
+        var scene = findChild(root, "selectionEnvelopeProbeSceneBridge")
+        var router = findChild(root, "selectionEnvelopeProbeActionRouter")
+        state.graphics_selection_toolbar_mode = "side_rail"
+        scene.selected_node_lookup = {"node-a": true, "node-c": true}
+        var sideRail = findChild(root, "graphSelectionEnvelopeSideRail")
+        var tidy = findChild(root, "graphSelectionEnvelopeAction_tidy_selection")
+        tryCompare(sideRail, "visible", true, 1000)
+        verify(!overlay.canStraightenConnections)
+        verify(overlay.canTidySelection)
+        verify(tidy.enabled)
+        compare(tidy.text, "A")
+        compare(tidy.tooltipText, "Tidy (Auto-Layout)")
+        tidy.clicked()
+        compare(JSON.stringify(router.triggeredActions), JSON.stringify(["tidy_selection"]))
+    }
+
     function test_selection_envelope_hides_edge_only_and_disables_straighten_without_internal_edge() {
         var root = createSelectionEnvelopeProbe()
         var overlay = findChild(root, "selectionEnvelopeProbeOverlay")

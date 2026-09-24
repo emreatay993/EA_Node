@@ -57,6 +57,30 @@ class ShellWindowWorkspaceGraphActionsMixin:
     def request_straighten_selection_connections(self: "ShellWindow") -> bool:
         return bool(self.graph_action_controller.trigger(GraphActionId.STRAIGHTEN_SELECTION_CONNECTIONS.value))
 
+    @pyqtSlot(result=bool)
+    def request_tidy_selection(self: "ShellWindow") -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.TIDY_SELECTION.value))
+
+    @pyqtSlot(result=bool)
+    def request_tidy_selection_left_to_right(self: "ShellWindow") -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.TIDY_SELECTION_LEFT_TO_RIGHT.value))
+
+    @pyqtSlot(result=bool)
+    def request_tidy_selection_top_to_bottom(self: "ShellWindow") -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.TIDY_SELECTION_TOP_TO_BOTTOM.value))
+
+    @pyqtSlot(result=bool)
+    def request_tidy_selection_in_place(self: "ShellWindow") -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.TIDY_SELECTION_IN_PLACE.value))
+
+    @pyqtSlot(result=bool)
+    def request_tidy_graph(self: "ShellWindow") -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.TIDY_GRAPH.value))
+
+    @pyqtSlot(result=bool)
+    def request_tidy_graph_in_place(self: "ShellWindow") -> bool:
+        return bool(self.graph_action_controller.trigger(GraphActionId.TIDY_GRAPH_IN_PLACE.value))
+
     @pyqtSlot()
     def request_connect_selected_nodes(self: "ShellWindow") -> None:
         self.graph_action_controller.trigger(GraphActionId.CONNECT_SELECTED.value)

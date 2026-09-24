@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Callable
 
+from ea_node_editor.graph.transform_tidy_layout import (
+    TIDY_DIRECTION_LEFT_TO_RIGHT,
+    TIDY_MODE_IN_PLACE,
+)
 from ea_node_editor.graph.workspace_state import WorkspaceSnapshot
 
 
@@ -131,6 +136,18 @@ class MutationUiEffects:
     def after_connections_straightened(self) -> None:
         self._selected_node_and_workspace_tabs()
 
+    def after_tidy(self, outcome: Mapping[str, Any], *, whole_graph: bool) -> None:
+        self._show_tidy_hint(outcome, whole_graph=whole_graph)
+        if outcome["changed"]:
+            self._selected_node_and_workspace_tabs()
+
+    def after_tidy_unavailable(self, *, whole_graph: bool) -> None:
+        self.show_graph_hint(
+            "Nothing to tidy in this scope."
+            if whole_graph
+            else "Nothing to tidy: select two or more unlocked nodes that share a Group (or no Group)."
+        )
+
     def after_fragment_pasted(self) -> None:
         self._selected_node_and_workspace_tabs()
 
@@ -174,6 +191,30 @@ class MutationUiEffects:
         self.show_graph_hint(
             f"{created_overlap_pairs} {overlap_word} created. Press {tidy_action} to tidy."
         )
+
+    def _show_tidy_hint(self, outcome: Mapping[str, Any], *, whole_graph: bool) -> None:
+        if outcome["membership_conflict_node_ids"]:
+            self.show_graph_hint("Tidy skipped: it would move nodes into or out of a Group.")
+            return
+        if not outcome["changed"]:
+            if not outcome["arranged_node_ids"]:
+                self.show_graph_hint("Tidy skipped: a locked Group would have to grow to fit the result.")
+                return
+            self.show_graph_hint("Graph is already tidy." if whole_graph else "Selection is already tidy.")
+            return
+        arranged_count = len(outcome["arranged_node_ids"])
+        if outcome["mode"] == TIDY_MODE_IN_PLACE:
+            message = f"Cleaned up {arranged_count} nodes in place."
+        else:
+            flow = "left to right" if outcome["direction"] == TIDY_DIRECTION_LEFT_TO_RIGHT else "top to bottom"
+            message = f"Tidied {arranged_count} nodes {flow}."
+        loop_count = len(outcome["loop_edge_ids"])
+        if loop_count:
+            message += f" {loop_count} loop wire{'s' if loop_count != 1 else ''} kept as elbows."
+        pushed_count = len(outcome["pushed_node_ids"])
+        if pushed_count:
+            message += f" Moved {pushed_count} nearby node{'s' if pushed_count != 1 else ''} out of the way."
+        self.show_graph_hint(message)
 
     def _active_workspace(self) -> Any | None:
         model = getattr(self._host, "model", None)

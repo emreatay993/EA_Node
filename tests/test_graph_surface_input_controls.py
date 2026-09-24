@@ -2887,6 +2887,160 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             """,
         )
 
+    def test_selection_tidy_submenu_routes_selection_payload_and_closes_menus(self) -> None:
+        self._run_qml_probe(
+            "selection-tidy-submenu-routing",
+            """
+            import textwrap
+
+            from PyQt6.QtCore import QObject, QUrl, pyqtSlot
+            from PyQt6.QtQml import QQmlComponent
+
+            class GraphActionBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.actions = []
+
+                @pyqtSlot(str, "QVariantMap", result=bool)
+                def trigger_graph_action(self, action_id, payload):
+                    self.actions.append((str(action_id or ""), dict(payload or {})))
+                    return True
+
+            graph_action_bridge = GraphActionBridgeStub()
+            canvas_component = QQmlComponent(engine)
+            canvas_component.setData(
+                textwrap.dedent(
+                    '''
+                    import QtQuick 2.15
+
+                    Item {
+                        id: root
+                        width: 900
+                        height: 700
+                        property bool edgeContextVisible: false
+                        property bool nodeContextVisible: false
+                        property bool selectionContextVisible: true
+                        property bool canvasOptionsVisible: false
+                        property bool prefs: false
+                        property var executionFacts: null
+                        property var canvasStateBridgeRef: null
+                        property string edgeContextEdgeId: ""
+                        property string nodeContextNodeId: ""
+                        property var selectedEdgeIds: []
+                        property var edgePayload: []
+                        property real contextMenuX: 180
+                        property real contextMenuY: 120
+                        property int closeCalls: 0
+
+                        function selectedNodeIds() { return ["node_a", "node_b", "node_c"]; }
+                        function _sceneNodePayload(nodeId) {
+                            return {
+                                "node_id": String(nodeId || ""),
+                                "type_id": "passive.flowchart.process",
+                                "runtime_behavior": "passive",
+                                "width": 224,
+                                "height": 84
+                            };
+                        }
+                        function _sceneEdgePayload(_edgeId) { return null; }
+                        function _liveEdgePayload(_edgeId) { return null; }
+                        function _nodeCanEnterScope(_nodeId) { return false; }
+                        function _nodeSupportsPassiveStyle(_nodeId) { return false; }
+                        function snapToGridEnabled() { return false; }
+                        function _closeContextMenus() {
+                            closeCalls += 1;
+                            selectionContextVisible = false;
+                        }
+                    }
+                    '''
+                ).encode("utf-8"),
+                QUrl.fromLocalFile(str(repo_root) + "/"),
+            )
+            if canvas_component.status() != QQmlComponent.Status.Ready:
+                errors = "\\n".join(error.toString() for error in canvas_component.errors())
+                raise AssertionError("Failed to load selection-tidy canvas stub:\\n" + errors)
+            canvas_item = canvas_component.create()
+            if canvas_item is None:
+                errors = "\\n".join(error.toString() for error in canvas_component.errors())
+                raise AssertionError("Failed to instantiate selection-tidy canvas stub:\\n" + errors)
+
+            action_router = create_component(
+                components_dir / "graph_canvas" / "GraphCanvasActionRouter.qml",
+                {"canvasItem": canvas_item, "graphActionBridge": graph_action_bridge},
+            )
+            menus = create_component(
+                components_dir / "graph_canvas" / "GraphCanvasContextMenus.qml",
+                {"canvasItem": canvas_item, "canvasActionRouter": action_router},
+            )
+            menus_window = attach_host_to_window(menus, 900, 700)
+            settle_events(4)
+            selection_popup = named_item(menus, "graphCanvasSelectionContextPopup")
+            tidy_popup = named_item(menus, "graphCanvasSelectionTidyContextPopup")
+
+            def visible_actions(popup):
+                return [variant_value(action) for action in variant_list(popup.property("visibleActions"))]
+
+            selection_actions = visible_actions(selection_popup)
+            selection_texts = [str(action.get("text", "")) for action in selection_actions]
+            tidy_index = selection_texts.index("Tidy")
+            assert selection_texts[tidy_index - 1] == "Straighten Connections", selection_texts
+            assert selection_texts[tidy_index + 1] == "Wrap into Group", selection_texts
+            tidy_row = selection_actions[tidy_index]
+            assert tidy_row["actionId"] == "selection_tidy_menu", tidy_row
+            assert tidy_row["shortcutText"] == "\\u203a", tidy_row
+            assert bool(tidy_row["enabled"]) is True, tidy_row
+            assert bool(tidy_popup.property("visible")) is False, "tidy submenu opened before its row"
+
+            selection_popup.actionTriggered.emit("selection_tidy_menu")
+            settle_events(2)
+            assert bool(tidy_popup.property("visible")) is True, "tidy submenu did not open"
+            tidy_actions = visible_actions(tidy_popup)
+            assert [(str(action["actionId"]), str(action["text"])) for action in tidy_actions] == [
+                ("tidy_selection", "Auto-Layout"),
+                ("tidy_selection_left_to_right", "Auto-Layout Left to Right"),
+                ("tidy_selection_top_to_bottom", "Auto-Layout Top to Bottom"),
+                ("tidy_selection_in_place", "Clean Up in Place"),
+            ], tidy_actions
+            assert str(tidy_actions[0].get("shortcutText", "")) == "Ctrl+Alt+L", tidy_actions[0]
+            # The submenu's first row lines up with the Tidy row (rows are 30 px plus a 1 px separator).
+            assert float(tidy_popup.property("y")) == float(selection_popup.property("y")) + tidy_index * 31, (
+                tidy_popup.property("y"),
+                selection_popup.property("y"),
+                tidy_index,
+            )
+            assert float(tidy_popup.property("x")) == (
+                float(selection_popup.property("x")) + float(selection_popup.property("panelWidth")) + 6
+            ), (tidy_popup.property("x"), selection_popup.property("x"))
+            assert graph_action_bridge.actions == [], graph_action_bridge.actions
+
+            tidy_popup.actionTriggered.emit("tidy_selection_in_place")
+            settle_events(2)
+            assert graph_action_bridge.actions == [
+                ("tidy_selection_in_place", {"node_ids": ["node_a", "node_b", "node_c"]})
+            ], graph_action_bridge.actions
+            assert int(canvas_item.property("closeCalls")) == 1, canvas_item.property("closeCalls")
+            assert bool(selection_popup.property("visible")) is False
+            assert bool(tidy_popup.property("visible")) is False
+            assert bool(selection_popup.property("tidySubmenuOpen")) is False
+
+            canvas_item.setProperty("selectionContextVisible", True)
+            settle_events(2)
+            assert bool(tidy_popup.property("visible")) is False, "tidy submenu reopened with the menu"
+            selection_popup.actionTriggered.emit("selection_tidy_menu")
+            settle_events(2)
+            tidy_popup.actionTriggered.emit("tidy_selection")
+            settle_events(2)
+            assert graph_action_bridge.actions[-1] == ("tidy_selection", {}), graph_action_bridge.actions
+            assert int(canvas_item.property("closeCalls")) == 2, canvas_item.property("closeCalls")
+
+            dispose_host_window(menus, menus_window)
+            action_router.deleteLater()
+            canvas_item.deleteLater()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
 
 class GraphSurfaceLockedNodeCanvasRoutingTests(GraphSurfaceInputContractTestBase):
     def test_node_context_menu_routes_editors_and_preserves_locked_node_affordance(self) -> None:

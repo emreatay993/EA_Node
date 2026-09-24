@@ -124,7 +124,7 @@ class McpSessionTests(unittest.TestCase):
     def test_list_tools_matches_catalog_exactly(self) -> None:
         result = _run(self.server, lambda session: session.list_tools())
         expected = [op.mcp_tool for op in op_catalog.mcp_tool_ops()]
-        self.assertEqual(len(expected), 48)
+        self.assertEqual(len(expected), 49)
         self.assertEqual([tool.name for tool in result.tools], expected)
         self.assertEqual(sorted(tool.name for tool in result.tools), sorted(expected))
         by_name = {tool.name: tool for tool in result.tools}
@@ -364,6 +364,19 @@ class GuidanceTests(unittest.TestCase):
         self.assertIn("top|right|bottom|left", text)
         self.assertIn("catalog_list_node_types", text)
         self.assertIn("content key `text`", text)
+
+    def test_guidance_recommends_layout_tidy_before_the_fine_grained_layout_tools(self) -> None:
+        instructions = guidance.server_instructions()
+        self.assertLess(instructions.index("layout_tidy()"), instructions.index("layout_arrange"))
+        tidy_step = guidance.guide_text().split("7. Tidy --", 1)[1].split("\n8. ", 1)[0]
+        for later in ("layout_arrange", "layout_straighten", "skipped_edges"):
+            with self.subTest(needle=later):
+                self.assertLess(tidy_step.index("layout_tidy()"), tidy_step.index(later))
+        self.assertIn("membership_conflict_node_ids", tidy_step)
+        geometry = guidance.node_types_text().split("## Geometry hints", 1)[1]
+        self.assertLess(geometry.index("layout_tidy"), geometry.index("layout_arrange"))
+        self.assertIn("4. Tidy: layout_tidy()", guidance.prompt_text("build_flowchart", {"description": "Mesh a bracket"}))
+        self.assertIn("`layout_tidy` -> `layout.tidy`", guidance.ops_text())
 
     def test_prompt_text_uses_arguments_and_rejects_unknown_names(self) -> None:
         self.assertIn("Mesh a bracket", guidance.prompt_text("build_flowchart", {"description": "Mesh a bracket"}))

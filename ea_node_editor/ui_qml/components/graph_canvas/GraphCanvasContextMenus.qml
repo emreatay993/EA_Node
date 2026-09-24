@@ -51,6 +51,7 @@ Item {
         objectName: "graphCanvasOptionsPopup"
         canvasItem: root.canvasItem
         commandBridge: root.commandBridge
+        actionRouter: root._actionRouter()
         themePalette: root.themePalette
         visible: root.canvasItem ? root.canvasItem.canvasOptionsVisible : false
         anchorX: root._resolvedContextMenuAnchorX()
@@ -709,8 +710,14 @@ Item {
         readonly property bool canDistributeSelection: selectionContextPopup.selectedNodeCount >= 3
         readonly property bool canWrapSelection: selectionContextPopup.selectedNodeCount >= 2
         readonly property bool canStraightenConnections: selectionContextPopup._hasInternalConnection()
+        readonly property bool canTidySelection: selectionContextPopup.selectedNodeCount >= 2
         readonly property bool canSetSameTypeWidth: selectionContextPopup._hasSameTypeBucketForDimension("width")
         readonly property bool canSetSameTypeHeight: selectionContextPopup._hasSameTypeBucketForDimension("height")
+        property bool tidySubmenuOpen: false
+        onVisibleChanged: {
+            if (!visible)
+                tidySubmenuOpen = false;
+        }
         readonly property var _viewBridge: root.canvasItem ? root.canvasItem.canvasViewBridgeRef : null
         readonly property real _viewCenterX: selectionContextPopup._viewBridge ? Number(selectionContextPopup._viewBridge.center_x) : 0.0
         readonly property real _viewCenterY: selectionContextPopup._viewBridge ? Number(selectionContextPopup._viewBridge.center_y) : 0.0
@@ -830,12 +837,61 @@ Item {
             { "actionId": root._selectionActionId("set_selection_same_type_width"), "text": "Set Same Width", "visible": selectionContextPopup.hasMultiNodeSelection, "enabled": selectionContextPopup.canSetSameTypeWidth },
             { "actionId": root._selectionActionId("set_selection_same_type_height"), "text": "Set Same Height", "visible": selectionContextPopup.hasMultiNodeSelection, "enabled": selectionContextPopup.canSetSameTypeHeight },
             { "actionId": root._selectionActionId("straighten_selection_connections"), "text": "Straighten Connections", "visible": selectionContextPopup.hasMultiNodeSelection, "enabled": selectionContextPopup.canStraightenConnections },
+            { "actionId": "selection_tidy_menu", "text": "Tidy", "shortcutText": "\u203a", "visible": selectionContextPopup.hasMultiNodeSelection, "enabled": selectionContextPopup.canTidySelection },
             { "actionId": root._selectionActionId("wrap_selection_in_group_backdrop"), "text": "Wrap into Group", "visible": selectionContextPopup.hasMultiNodeSelection, "enabled": selectionContextPopup.canWrapSelection }
+        ]
+        onActionTriggered: function(actionId) {
+            if (String(actionId || "") === "selection_tidy_menu") {
+                selectionContextPopup.tidySubmenuOpen = !selectionContextPopup.tidySubmenuOpen;
+                return;
+            }
+            var actionRouter = root._actionRouter();
+            if (actionRouter && actionRouter.handleSelectionContextAction)
+                actionRouter.handleSelectionContextAction(actionId)
+        }
+    }
+
+    ShellComponents.ShellContextMenu {
+        id: selectionTidyContextPopup
+        objectName: "graphCanvasSelectionTidyContextPopup"
+        tooltipPolicyBridge: root.canvasItem ? root.canvasItem.canvasStateBridgeRef : null
+        readonly property bool opensLeft: root.canvasItem
+            && selectionContextPopup.x + selectionContextPopup.panelWidth + 6
+                + selectionTidyContextPopup.panelWidth > root.canvasItem.width - 4
+        // The Tidy row sits near the bottom of the selection menu: line the submenu's first row up with it and
+        // keep the submenu inside the canvas.
+        readonly property int parentRowIndex: {
+            var rows = selectionContextPopup.visibleActions || [];
+            for (var index = 0; index < rows.length; ++index) {
+                if (String(rows[index].actionId || "") === "selection_tidy_menu")
+                    return index;
+            }
+            return 0;
+        }
+        visible: selectionContextPopup.visible && selectionContextPopup.tidySubmenuOpen
+        x: selectionTidyContextPopup.opensLeft
+            ? selectionContextPopup.x - selectionTidyContextPopup.panelWidth - 6
+            : selectionContextPopup.x + selectionContextPopup.panelWidth + 6
+        y: {
+            var rowAligned = selectionContextPopup.y
+                + selectionTidyContextPopup.parentRowIndex * (selectionContextPopup.rowHeight + 1);
+            if (!root.canvasItem)
+                return rowAligned;
+            return Math.max(0, Math.min(rowAligned, root.canvasItem.height - 4 - selectionTidyContextPopup.panelHeight));
+        }
+        minimumWidth: 210
+        rowHeight: 30
+        contentPadding: 4
+        actions: [
+            { "actionId": root._selectionActionId("tidy_selection"), "text": "Auto-Layout", "shortcutText": "Ctrl+Alt+L" },
+            { "actionId": root._selectionActionId("tidy_selection_left_to_right"), "text": "Auto-Layout Left to Right" },
+            { "actionId": root._selectionActionId("tidy_selection_top_to_bottom"), "text": "Auto-Layout Top to Bottom" },
+            { "actionId": root._selectionActionId("tidy_selection_in_place"), "text": "Clean Up in Place" }
         ]
         onActionTriggered: function(actionId) {
             var actionRouter = root._actionRouter();
             if (actionRouter && actionRouter.handleSelectionContextAction)
-                actionRouter.handleSelectionContextAction(actionId)
+                actionRouter.handleSelectionContextAction(actionId);
         }
     }
 }

@@ -10,7 +10,7 @@
     "loader_constructs": 29,
     "signal_handlers": 998,
     "connections": 52,
-    "property_bindings": 7969,
+    "property_bindings": 7972,
     "local_component_refs": 336
   },
   "entries": [
@@ -5962,6 +5962,14 @@
         },
         {
           "kind": "var",
+          "name": "_payloadPortXCache"
+        },
+        {
+          "kind": "var",
+          "name": "_payloadPortXCacheBaseMap"
+        },
+        {
+          "kind": "var",
           "name": "_cachedEdgeGeometries"
         },
         {
@@ -6342,6 +6350,12 @@
         },
         {
           "name": "_perimeterPoint"
+        },
+        {
+          "name": "_payloadPortX"
+        },
+        {
+          "name": "_edgeUsesForwardBezierLead"
         },
         {
           "name": "_edgeEndpointState"
@@ -7001,6 +7015,18 @@
           "detail": "var"
         },
         {
+          "anchor": "EdgeLayerPropertyPayloadPortXCache",
+          "kind": "property",
+          "name": "_payloadPortXCache",
+          "detail": "var"
+        },
+        {
+          "anchor": "EdgeLayerPropertyPayloadPortXCacheBaseMap",
+          "kind": "property",
+          "name": "_payloadPortXCacheBaseMap",
+          "detail": "var"
+        },
+        {
           "anchor": "EdgeLayerPropertyCachedEdgeGeometries",
           "kind": "property",
           "name": "_cachedEdgeGeometries",
@@ -7592,6 +7618,16 @@
           "anchor": "EdgeLayerFunctionPerimeterPoint",
           "kind": "function",
           "name": "_perimeterPoint"
+        },
+        {
+          "anchor": "EdgeLayerFunctionPayloadPortX",
+          "kind": "function",
+          "name": "_payloadPortX"
+        },
+        {
+          "anchor": "EdgeLayerFunctionEdgeUsesForwardBezierLead",
+          "kind": "function",
+          "name": "_edgeUsesForwardBezierLead"
         },
         {
           "anchor": "EdgeLayerFunctionEdgeEndpointState",
@@ -39963,6 +39999,10 @@
           "name": "canStraightenConnections"
         },
         {
+          "kind": "bool",
+          "name": "canTidySelection"
+        },
+        {
           "kind": "real",
           "name": "envelopePadding"
         },
@@ -40635,6 +40675,12 @@
           "anchor": "GraphSelectionEnvelopeOverlayPropertyCanStraightenConnections",
           "kind": "property",
           "name": "canStraightenConnections",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSelectionEnvelopeOverlayPropertyCanTidySelection",
+          "kind": "property",
+          "name": "canTidySelection",
           "detail": "bool"
         },
         {
@@ -91759,6 +91805,9 @@
         },
         {
           "name": "selectionContextPopup"
+        },
+        {
+          "name": "selectionTidyContextPopup"
         }
       ],
       "object_names": [
@@ -91782,6 +91831,9 @@
         },
         {
           "name": "graphCanvasSelectionContextPopup"
+        },
+        {
+          "name": "graphCanvasSelectionTidyContextPopup"
         }
       ],
       "properties": [
@@ -91967,11 +92019,19 @@
         },
         {
           "kind": "bool",
+          "name": "canTidySelection"
+        },
+        {
+          "kind": "bool",
           "name": "canSetSameTypeWidth"
         },
         {
           "kind": "bool",
           "name": "canSetSameTypeHeight"
+        },
+        {
+          "kind": "bool",
+          "name": "tidySubmenuOpen"
         },
         {
           "kind": "var",
@@ -91988,6 +92048,10 @@
         {
           "kind": "real",
           "name": "_viewZoom"
+        },
+        {
+          "kind": "int",
+          "name": "parentRowIndex"
         }
       ],
       "signals": [],
@@ -92191,6 +92255,13 @@
         },
         {
           "kind": "binding",
+          "name": "actionRouter",
+          "targets": [
+            "root._actionRouter"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "themePalette",
           "targets": [
             "root.themePalette"
@@ -92378,6 +92449,21 @@
           "name": "y",
           "targets": [
             "selectionContextPopup._resolvedAnchorY"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "selectionContextPopup.visible",
+            "selectionContextPopup.tidySubmenuOpen"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "selectionTidyContextPopup.opensLeft"
           ]
         }
       ],
@@ -92670,6 +92756,12 @@
           "detail": "bool"
         },
         {
+          "anchor": "GraphCanvasContextMenusPropertyCanTidySelection",
+          "kind": "property",
+          "name": "canTidySelection",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphCanvasContextMenusPropertyCanSetSameTypeWidth",
           "kind": "property",
           "name": "canSetSameTypeWidth",
@@ -92679,6 +92771,12 @@
           "anchor": "GraphCanvasContextMenusPropertyCanSetSameTypeHeight",
           "kind": "property",
           "name": "canSetSameTypeHeight",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusPropertyTidySubmenuOpen",
+          "kind": "property",
+          "name": "tidySubmenuOpen",
           "detail": "bool"
         },
         {
@@ -92704,6 +92802,12 @@
           "kind": "property",
           "name": "_viewZoom",
           "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusPropertyParentRowIndex",
+          "kind": "property",
+          "name": "parentRowIndex",
+          "detail": "int"
         },
         {
           "anchor": "GraphCanvasContextMenusFunctionActionRouter",
@@ -99062,6 +99166,12 @@
           "name": "canvasOptionsTooltipDelayRow"
         },
         {
+          "name": "canvasOptionsTidyGraphRow"
+        },
+        {
+          "name": "canvasOptionsTidyGraphInPlaceRow"
+        },
+        {
           "name": "canvasOptionsOpenGraphicsSettingsRow"
         },
         {
@@ -99082,6 +99192,10 @@
         {
           "kind": "var",
           "name": "commandBridge"
+        },
+        {
+          "kind": "var",
+          "name": "actionRouter"
         },
         {
           "kind": "var",
@@ -99424,6 +99538,9 @@
         },
         {
           "name": "openGraphicsSettings"
+        },
+        {
+          "name": "triggerGraphAction"
         }
       ],
       "instantiated_components": [
@@ -100340,6 +100457,12 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphCanvasOptionsMenuPropertyActionRouter",
+          "kind": "property",
+          "name": "actionRouter",
+          "detail": "var"
+        },
+        {
           "anchor": "GraphCanvasOptionsMenuPropertyThemePalette",
           "kind": "property",
           "name": "themePalette",
@@ -100856,6 +100979,11 @@
           "anchor": "GraphCanvasOptionsMenuFunctionOpenGraphicsSettings",
           "kind": "function",
           "name": "openGraphicsSettings"
+        },
+        {
+          "anchor": "GraphCanvasOptionsMenuFunctionTriggerGraphAction",
+          "kind": "function",
+          "name": "triggerGraphAction"
         },
         {
           "anchor": "GraphCanvasOptionsMenuHandlerOnVisibleChanged",

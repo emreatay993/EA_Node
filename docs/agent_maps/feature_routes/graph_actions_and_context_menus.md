@@ -26,6 +26,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 - `ea_node_editor/ui/shell/quick_insert_projection.py`
 - `ea_node_editor/ui/shell/controllers/workspace_drop_connect_controller.py`
 - `ea_node_editor/ui/shell/window_actions.py`
+- `ea_node_editor/ui_qml/graph_scene_mutation/tidy_layout_ops.py` (scene Tidy command; the pure layout is `ea_node_editor/graph/transform_tidy_layout.py`)
 
 ## Related Help Reference
 - `ea_node_editor/ui/dialogs/input_reference_dialog.py` documents user-facing graph action shortcuts and context-menu gestures. Update it when graph shortcuts, menu entries, visibility rules, or dispatch behavior change.
@@ -51,8 +52,14 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 
 ## Selection Envelope Actions
 - Multi-node selection actions are declared in `GraphCanvasActionRouter.selectionContextActionDescriptors`, rendered in `GraphCanvasContextMenus.qml` and `GraphSelectionEnvelopeOverlay.qml`, and dispatched through `handleSelectionContextAction`.
-- Keep action eligibility visible but muted for disabled rows/buttons: align needs 2+ selected node-like items, distribute needs 3+, wrap needs 2+, and straighten needs an internal selected connection.
+- Keep action eligibility visible but muted for disabled rows/buttons: align needs 2+ selected node-like items, distribute needs 3+, wrap needs 2+, tidy needs 2+, and straighten needs an internal selected connection.
 - `Set Same Width` and `Set Same Height` are right-click selection context menu actions only. They are enabled only for passive exact-`type_id` pairs; mixed selections ignore active and compile-only nodes, then resize non-primary passive nodes per bucket with one grouped resize history entry.
+
+## Tidy Layout
+- Six `GraphActionId`s: `tidy_selection` (Ctrl+Alt+L, auto-layout, direction auto-detected from the port sides the wires use), `tidy_selection_left_to_right`, `tidy_selection_top_to_bottom`, `tidy_selection_in_place` (Clean Up in Place), `tidy_graph` (Ctrl+Alt+Shift+L) and `tidy_graph_in_place` (the whole open scope).
+- Surfaces: the selection context menu row `Tidy ›` (`selection_tidy_menu`, a QML-local row, not a graph action ID) toggles the side popup `graphCanvasSelectionTidyContextPopup` with the four selection actions; this reuses the edge "Display Mode" fake-submenu pattern, but the popup lines its first row up with the Tidy row and is clamped inside the canvas. The side-rail button is glyph `A`, `tidy_selection`. Edit › Layout lists all six. The empty-canvas options menu has a LAYOUT section (`canvasOptionsTidyGraphRow`, `canvasOptionsTidyGraphInPlaceRow`) routed through `GraphCanvasActionRouter.triggerGraphAction`. Automation exposes `layout.tidy` / MCP `layout_tidy`.
+- Dispatch: `GraphActionController` → `WorkspaceEditController.tidy_selection` / `tidy_graph` → `GraphSceneBridge.tidy_layout(node_ids | None, mode=, direction=, column_gap=, row_gap=)` → `tidy_layout_ops.tidy_layout`; `MutationUiEffects.after_tidy` shows the hint. QAction and request-slot triggers send no payload, so the controller falls back to the scene selection; the QML router sends `{node_ids}`.
+- Semantics owned by `tidy_layout_ops.py`: one undo step, or none when nothing changes. Selection ids are normalised by the scene selection rules, and hidden collapsed-Group members are excluded. A selected Group backdrop pulls in its contents, but becomes a fixed obstacle if it holds a node the user cannot select. Expanded groups are laid out recursively and refitted; collapsed groups move rigidly with their hidden members. Selected nodes inside an unselected backdrop form their own block (laid out before the top-level block), and that owner chain grows only around members that moved. Each block then steps off what nothing will move for it: inside a Group every other member; at the top level locked content and backdrops holding tidied nodes. Unwired annotations are never re-arranged; inside a laid-out group they are moved clear of the members. Other top-level neighbours are pushed off each tidied rectangle in one pass (`transform_layout_ops.build_collision_avoidance_position_updates`), only when expand collision avoidance is on. Snap-to-grid is ignored. A membership guard rejects the whole command when any node would enter or leave a Group.
 
 ## Selected Run Actions
 - `run_selected`, `preview_selected_run`, `confirm_selected_run_preview`, `clear_selected_run_preview`, and `open_selected_run_settings` are graph action contracts surfaced from node, selection context, selection-envelope, and preview-overlay routes. Run Upstream Chain and stale cache-reuse confirmation are removed.
@@ -79,6 +86,8 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 ## Focused Verification
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py tests/test_transform_layout_ops.py tests/main_window_shell/passive_style_context_menus.py tests/test_group_backdrop_membership.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_transform_tidy_layout.py tests/test_graph_scene_tidy_layout.py -q -n 0
+.\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py tests/test_canvas_import_preferences.py tests/main_window_shell/shell_basics_and_search.py -k tidy -q -n 0
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_host_presenter.py tests/test_passive_style_presets.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py -k SelectionEnvelope --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py -k floating_toolbar_run_action_exposes_selected_run_menu --ignore=venv -q
@@ -93,7 +102,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 - [Graph Canvas Rendering, Input, And Viewport](../subsystems/graph_canvas.md)
 
 ## Update Triggers
-Update when action IDs, selected-run action routing, modifier/Principal/dynamic-port authoring, edge Enable/Ctrl+E, quick-add chaining, menu visibility, selection-envelope eligibility, selected-edge toolbar payloads, Add Link/Add Comment or optimization semantic-link routing, context payloads, controller dispatch, or user-facing shortcut/reference behavior changes.
+Update when action IDs, Tidy layout rules or surfaces, selected-run action routing, modifier/Principal/dynamic-port authoring, edge Enable/Ctrl+E, quick-add chaining, menu visibility, selection-envelope eligibility, selected-edge toolbar payloads, Add Link/Add Comment or optimization semantic-link routing, context payloads, controller dispatch, or user-facing shortcut/reference behavior changes.
 
 ## 2026-05-31 Mutation UI Effects Update
 

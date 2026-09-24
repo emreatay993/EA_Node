@@ -1,4 +1,4 @@
-# Purpose: Shell-free handler tests for edge.* and structure ops (connect/update/delete, group.wrap, subnode.*, scope, selection, layout arrange/straighten) with one-undo-step pins.
+# Purpose: Shell-free handler tests for edge.* and structure ops (connect/update/delete, group.wrap, subnode.*, scope, selection, layout arrange/straighten/tidy) with one-undo-step pins.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_handlers_structure.py
 from __future__ import annotations
@@ -15,6 +15,9 @@ from ea_node_editor.automation.errors import (
     PORT_INCOMPATIBLE,
     WRONG_SCOPE,
 )
+from PyQt6.QtCore import QObject, pyqtSignal
+
+from ea_node_editor.automation.ops.structure import TIDY_NODE_SKIP_REASONS
 from tests.automation.harness import build_context, call, expect_error
 
 START = "passive.flowchart.start"
@@ -610,6 +613,269 @@ class LayoutStraightenTests(_HandlerCase):
         expect_error(self.context, "layout.straighten", {"node_ids": []}, INVALID_PARAMS)
 
 
+class _NoPushPreferences(QObject):
+    graphics_preferences_changed = pyqtSignal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.graphics_expand_collision_avoidance = {"enabled": False}
+
+
+class LayoutTidyTests(_HandlerCase):
+    def _row(self, edge_id: str) -> dict[str, Any]:
+        return next(row for row in self.scene.edges_model if row["edge_id"] == edge_id)
+
+    def _center(self, node_id: str) -> tuple[float, float]:
+        x, y, width, height = self.context.node_bounds(node_id)
+        return x + width * 0.5, y + height * 0.5
+
+    def _position(self, node_id: str) -> tuple[float, float]:
+        node = self.context.require_node(node_id)
+        return float(node.x), float(node.y)
+
+    def _jagged_chain(self) -> tuple[list[str], list[str]]:
+        first = self.add(PROCESS, 0, 0)
+        second = self.add(DECISION, 400, 90)
+        third = self.add(PROCESS, 700, -60)
+        edges = [
+            self.connect(first, "right", second, "left")["edge_id"],
+            self.connect(second, "right", third, "left")["edge_id"],
+        ]
+        return [first, second, third], edges
+
+    def test_tidy_lays_a_jagged_chain_out_left_to_right_in_one_undo_step(self) -> None:
+        nodes, edges = self._jagged_chain()
+        result = self.call_one_undo("layout.tidy", {"node_ids": nodes})
+        self.assertTrue(result["changed"])
+        self.assertEqual((result["mode"], result["direction"]), ("auto_layout", "left_to_right"))
+        self.assertEqual(result["arranged_node_ids"], sorted(nodes))
+        self.assertTrue(result["moved_node_ids"])
+        self.assertTrue(set(result["moved_node_ids"]) <= set(nodes))
+        self.assertEqual(set(result["positions"]), set(result["moved_node_ids"]))
+        self.assertEqual(sorted(result["straightened_edge_ids"]), sorted(edges))
+        empty_keys = (
+            "skipped_edges",
+            "skipped_nodes",
+            "loop_edge_ids",
+            "pushed_node_ids",
+            "membership_conflict_node_ids",
+            "overlapping_node_pairs",
+        )
+        for key in empty_keys:
+            with self.subTest(key=key):
+                self.assertEqual(result[key], [])
+        centers = [self._center(node_id) for node_id in nodes]
+        self.assertAlmostEqual(centers[0][1], centers[1][1], delta=0.01)
+        self.assertAlmostEqual(centers[1][1], centers[2][1], delta=0.01)
+        self.assertLess(centers[0][0], centers[1][0])
+        self.assertLess(centers[1][0], centers[2][0])
+        for edge_id in edges:
+            row = self._row(edge_id)
+            self.assertAlmostEqual(float(row["sy"]), float(row["ty"]), delta=1.0)
+        repeat = self.call_no_undo("layout.tidy", {"node_ids": nodes})
+        self.assertFalse(repeat["changed"])
+        self.assertEqual(repeat["moved_node_ids"], [])
+        self.assertEqual(sorted(repeat["straightened_edge_ids"]), sorted(edges))
+
+    def test_tidy_passes_column_and_row_gaps_through(self) -> None:
+        source = self.add(PROCESS, 0, 0)
+        advance = self.add(PROCESS, 500, 70)
+        branch = self.add(PROCESS, 60, 420)
+        self.connect(source, "right", advance, "left")
+        branch_edge = self.connect(source, "bottom", branch, "top")["edge_id"]
+        result = self.call_one_undo("layout.tidy", {"node_ids": [source, advance, branch], "column_gap": 150, "row_gap": 100})
+        self.assertEqual(result["direction"], "left_to_right")
+        sx, sy, sw, sh = self.context.node_bounds(source)
+        ax, _ay, _aw, _ah = self.context.node_bounds(advance)
+        _bx, by, _bw, _bh = self.context.node_bounds(branch)
+        self.assertAlmostEqual(ax - (sx + sw), 150.0, delta=0.01)
+        self.assertAlmostEqual(by - (sy + sh), 100.0, delta=0.01)
+        self.assertAlmostEqual(self._center(source)[0], self._center(branch)[0], delta=0.01)
+        self.assertIn(branch_edge, result["straightened_edge_ids"])
+
+    def test_tidy_top_to_bottom_stacks_a_vertical_chain_in_one_column(self) -> None:
+        upper = self.add(PROCESS, 0, 0)
+        middle = self.add(DECISION, 90, 260)
+        lower = self.add(PROCESS, -60, 520)
+        edges = [
+            self.connect(upper, "bottom", middle, "top")["edge_id"],
+            self.connect(middle, "bottom", lower, "top")["edge_id"],
+        ]
+        nodes = [upper, middle, lower]
+        result = self.call_one_undo("layout.tidy", {"node_ids": nodes, "direction": "top_to_bottom"})
+        self.assertEqual(result["direction"], "top_to_bottom")
+        centers = [self._center(node_id) for node_id in nodes]
+        self.assertAlmostEqual(centers[0][0], centers[1][0], delta=0.01)
+        self.assertAlmostEqual(centers[1][0], centers[2][0], delta=0.01)
+        self.assertLess(centers[0][1], centers[1][1])
+        self.assertLess(centers[1][1], centers[2][1])
+        self.assertEqual(sorted(result["straightened_edge_ids"]), sorted(edges))
+        for edge_id in edges:
+            row = self._row(edge_id)
+            self.assertAlmostEqual(float(row["sx"]), float(row["tx"]), delta=1.0)
+        # The default direction detects top_to_bottom from the bottom->top wires, so nothing moves again.
+        repeat = self.call_no_undo("layout.tidy", {"node_ids": nodes})
+        self.assertEqual((repeat["direction"], repeat["changed"]), ("top_to_bottom", False))
+
+    def test_tidy_in_place_snaps_a_jittered_grid_onto_shared_centers(self) -> None:
+        rows = (
+            [self.add(PROCESS, 0, 0), self.add(PROCESS, 330, 14), self.add(PROCESS, 650, -9)],
+            [self.add(PROCESS, 12, 220), self.add(PROCESS, 318, 205), self.add(PROCESS, 661, 231)],
+        )
+        nodes = [node_id for row in rows for node_id in row]
+        result = self.call_one_undo("layout.tidy", {"node_ids": nodes, "mode": "in_place"})
+        self.assertEqual((result["mode"], result["direction"]), ("in_place", ""))
+        self.assertTrue(result["changed"])
+        for row in rows:
+            centers = [self._center(node_id) for node_id in row]
+            self.assertEqual(len({round(center_y, 3) for _center_x, center_y in centers}), 1, "a row shares one center line")
+            self.assertEqual([center_x for center_x, _center_y in centers], sorted(center_x for center_x, _center_y in centers))
+        for column in zip(*rows):
+            self.assertEqual(len({round(self._center(node_id)[0], 3) for node_id in column}), 1, "a column shares one center line")
+        self.assertLess(self._center(rows[0][0])[1], self._center(rows[1][0])[1])
+
+    def test_tidy_defaults_to_the_whole_scope_and_reports_locked_nodes(self) -> None:
+        nodes, edges = self._jagged_chain()
+        locked = self.add(PROCESS, 0, 900)
+        call(self.context, "node.update", {"node_id": locked, "locked": True})
+        result = self.call_one_undo("layout.tidy", {})
+        self.assertEqual(result["arranged_node_ids"], sorted(nodes))
+        self.assertEqual(result["skipped_nodes"], [{"node_id": locked, "reason": "locked_node"}])
+        self.assertEqual(self._position(locked), (0.0, 900.0))
+        self.assertEqual(sorted(result["straightened_edge_ids"]), sorted(edges))
+
+    def test_tidy_keeps_group_members_inside_their_refitted_backdrop(self) -> None:
+        inner_a = self.add(PROCESS, 0, 0)
+        inner_b = self.add(PROCESS, 330, 70)
+        outer = self.add(PROCESS, 900, 400)
+        inner_wire = self.connect(inner_a, "right", inner_b, "left")["edge_id"]
+        self.connect(inner_b, "right", outer, "left")
+        group = call(self.context, "group.wrap", {"node_ids": [inner_a, inner_b]})["group_node_id"]
+        result = self.call_one_undo("layout.tidy", {})
+        self.assertEqual(set(result["arranged_node_ids"]), {inner_a, inner_b, outer, group})
+        self.assertIn(group, result["resized_group_ids"])
+        self.assertIn(inner_wire, result["straightened_edge_ids"])
+        self.assertEqual(result["overlapping_node_pairs"], [])
+        row = next(row for row in self.scene.backdrop_nodes_model if row["node_id"] == group)
+        self.assertEqual(sorted(row["member_node_ids"]), sorted([inner_a, inner_b]))
+        gx, gy, gw, gh = self.context.node_bounds(group)
+        for node_id in (inner_a, inner_b):
+            x, y, w, h = self.context.node_bounds(node_id)
+            self.assertTrue(gx <= x and gy <= y and x + w <= gx + gw and y + h <= gy + gh, f"{node_id} left the Group")
+        ox, oy, ow, oh = self.context.node_bounds(outer)
+        self.assertFalse(ox < gx + gw and ox + ow > gx and oy < gy + gh and oy + oh > gy, "outer node overlaps the Group")
+
+    def test_tidy_moves_a_collapsed_group_with_its_hidden_members(self) -> None:
+        feeder = self.add(PROCESS, -400, -500)
+        inner_a = self.add(PROCESS, 0, 0)
+        inner_b = self.add(PROCESS, 320, 40)
+        self.connect(feeder, "right", inner_a, "left")
+        self.connect(inner_a, "right", inner_b, "left")
+        group = call(self.context, "group.wrap", {"node_ids": [inner_a, inner_b]})["group_node_id"]
+        call(self.context, "node.update", {"node_id": group, "collapsed": True})
+        before = {node_id: self._position(node_id) for node_id in (group, inner_a, inner_b)}
+        members_before = next(row for row in self.scene.backdrop_nodes_model if row["node_id"] == group)["member_node_ids"]
+        self.assertEqual(sorted(members_before), sorted([inner_a, inner_b]))
+        result = self.call_one_undo("layout.tidy", {})
+        self.assertEqual(result["skipped_nodes"], [], "hidden members of a tidied collapsed Group are not skipped")
+        self.assertIn(group, result["arranged_node_ids"])
+        self.assertTrue({group, inner_a, inner_b} <= set(result["moved_node_ids"]))
+        after = {node_id: self._position(node_id) for node_id in before}
+        delta = (after[group][0] - before[group][0], after[group][1] - before[group][1])
+        for node_id in (inner_a, inner_b):
+            with self.subTest(node_id=node_id):
+                self.assertAlmostEqual(after[node_id][0] - before[node_id][0], delta[0], delta=0.01)
+                self.assertAlmostEqual(after[node_id][1] - before[node_id][1], delta[1], delta=0.01)
+                self.assertEqual(result["positions"][node_id], {"x": after[node_id][0], "y": after[node_id][1]})
+        row = next(row for row in self.scene.backdrop_nodes_model if row["node_id"] == group)
+        self.assertEqual(sorted(row["member_node_ids"]), sorted([inner_a, inner_b]))
+        # A hidden member listed together with its collapsed Group moves with the Group, so it is not skipped.
+        repeat = self.call_no_undo("layout.tidy", {"node_ids": [feeder, group, inner_a]})
+        self.assertEqual((repeat["changed"], repeat["skipped_nodes"]), (False, []))
+
+    def test_tidy_reports_groups_that_hold_a_locked_node(self) -> None:
+        free = self.add(PROCESS, 0, 0)
+        held = self.add(PROCESS, 330, 60)
+        group = call(self.context, "group.wrap", {"node_ids": [free, held]})["group_node_id"]
+        call(self.context, "node.update", {"node_id": held, "locked": True})
+        first = self.add(PROCESS, 0, 700)
+        second = self.add(PROCESS, 330, 760)
+        self.connect(first, "right", second, "left")
+        fixed = {node_id: self._position(node_id) for node_id in (free, held, group)}
+        result = self.call_one_undo("layout.tidy", {})
+        self.assertEqual(result["arranged_node_ids"], sorted([first, second]))
+        reasons = {entry["node_id"]: entry["reason"] for entry in result["skipped_nodes"]}
+        self.assertEqual(reasons, {held: "locked_node", free: "locked_group", group: "locked_group"})
+        self.assertTrue(set(reasons.values()) <= set(TIDY_NODE_SKIP_REASONS))
+        for node_id, position in fixed.items():
+            self.assertEqual(self._position(node_id), position, f"{node_id} belongs to a fixed Group")
+
+    def test_tidy_refuses_to_move_nodes_into_a_group(self) -> None:
+        # With "avoid overlaps" off nothing is pushed aside, so the member-less backdrop covering the spot
+        # auto-layout gives the target would swallow it: the membership guard rejects the whole tidy.
+        preferences = _NoPushPreferences()
+        self.scene.bind_graphics_preferences_source(preferences)
+        source = self.add(PROCESS, 0, 0)
+        target = self.add(PROCESS, 2600, 40)
+        self.connect(source, "right", target, "left")
+        backdrop = self.add(GROUP, 200, -300)
+        call(self.context, "node.update", {"node_id": backdrop, "width": 2000.0, "height": 800.0})
+        before = {node_id: self._position(node_id) for node_id in (source, target, backdrop)}
+        depth = self.undo_depth()
+        error = expect_error(self.context, "layout.tidy", {"node_ids": [source, target]}, NO_EFFECT)
+        self.assertEqual(error.details["membership_conflict_node_ids"], [target])
+        self.assertEqual(error.details["op"], "layout.tidy")
+        self.assertIn("into or out of a Group", error.message)
+        self.assertEqual(self.undo_depth(), depth)
+        self.assertEqual({node_id: self._position(node_id) for node_id in before}, before)
+
+    def test_tidy_keeps_the_new_block_off_a_locked_backdrop(self) -> None:
+        source = self.add(PROCESS, 0, 0)
+        target = self.add(PROCESS, 2600, 40)
+        self.connect(source, "right", target, "left")
+        # A locked backdrop is never pushed, so the tidied block itself steps around it instead of landing inside.
+        backdrop = self.add(GROUP, 200, -300)
+        call(self.context, "node.update", {"node_id": backdrop, "width": 2000.0, "height": 800.0, "locked": True})
+        backdrop_before = self.context.node_bounds(backdrop)
+        result = self.call_one_undo("layout.tidy", {"node_ids": [source, target]})
+        self.assertEqual(result["membership_conflict_node_ids"], [])
+        self.assertEqual(self.context.node_bounds(backdrop), backdrop_before)
+        bx, by, bw, bh = backdrop_before
+        for node_id in (source, target):
+            x, y, w, h = self.context.node_bounds(node_id)
+            self.assertFalse(x < bx + bw and x + w > bx and y < by + bh and y + h > by, f"{node_id} overlaps the backdrop")
+        self.assertAlmostEqual(self._center(source)[1], self._center(target)[1], delta=0.01)
+
+    def test_tidy_explains_nodes_that_sit_on_different_group_levels(self) -> None:
+        outside = self.add(PROCESS, 0, 0)
+        member = self.add(PROCESS, 600, 300)
+        other_member = self.add(PROCESS, 600, 600)
+        call(self.context, "group.wrap", {"node_ids": [member, other_member]})
+        self.connect(outside, "right", member, "left")
+        depth = self.undo_depth()
+        error = expect_error(self.context, "layout.tidy", {"node_ids": [outside, member]}, INVALID_PARAMS)
+        self.assertEqual(error.message, "layout.tidy: no two of the given nodes can be laid out together.")
+        self.assertIn("Group backdrop", error.hint)
+        self.assertEqual(error.details, {"skipped_nodes": []})
+        self.assertEqual(self.undo_depth(), depth)
+
+    def test_tidy_needs_two_usable_nodes_and_valid_params(self) -> None:
+        first = self.add(PROCESS, 0, 0)
+        locked = self.add(PROCESS, 320, 100)
+        call(self.context, "node.update", {"node_id": locked, "locked": True})
+        depth = self.undo_depth()
+        error = expect_error(self.context, "layout.tidy", {"node_ids": [first, locked]}, INVALID_PARAMS)
+        self.assertEqual(error.message, "layout.tidy: fewer than two nodes can be tidied.")
+        self.assertIn("details.skipped_nodes", error.hint)
+        self.assertEqual(error.details, {"skipped_nodes": [{"node_id": locked, "reason": "locked_node"}]})
+        self.assertEqual(self.undo_depth(), depth)
+        self.assertEqual(self._position(first), (0.0, 0.0))
+        expect_error(self.context, "layout.tidy", {"node_ids": [first]}, INVALID_PARAMS)
+        expect_error(self.context, "layout.tidy", {"node_ids": [first, "node_missing"]}, NOT_FOUND)
+        expect_error(self.context, "layout.tidy", {"mode": "sideways"}, INVALID_PARAMS)
+        expect_error(self.context, "layout.tidy", {"column_gap": 8}, INVALID_PARAMS)
+
+
 class _RecordingClient:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
@@ -666,6 +932,9 @@ class ClientFacadeTests(unittest.TestCase):
         api.match_size(["a", "b"], "width")
         api.straighten()
         api.straighten(["a", "b"], edge_ids="e")
+        api.tidy()
+        api.tidy(["a", "b"], mode="in_place")
+        api.tidy("a", direction="top_to_bottom", column_gap=120, row_gap=48)
         api.ungroup_subnode("shell")
         self.assertEqual(
             client.calls,
@@ -683,6 +952,12 @@ class ClientFacadeTests(unittest.TestCase):
                 ("layout.arrange", {"node_ids": ["a", "b"], "action": "match_width"}),
                 ("layout.straighten", {}),
                 ("layout.straighten", {"node_ids": ["a", "b"], "edge_ids": ["e"]}),
+                ("layout.tidy", {"mode": "auto_layout", "direction": "auto"}),
+                ("layout.tidy", {"mode": "in_place", "direction": "auto", "node_ids": ["a", "b"]}),
+                (
+                    "layout.tidy",
+                    {"mode": "auto_layout", "direction": "top_to_bottom", "node_ids": ["a"], "column_gap": 120.0, "row_gap": 48.0},
+                ),
                 ("subnode.ungroup", {"shell_node_id": "shell"}),
             ],
         )

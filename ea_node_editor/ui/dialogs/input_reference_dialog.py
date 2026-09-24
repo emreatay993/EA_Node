@@ -74,6 +74,8 @@ INPUT_REFERENCE_SECTIONS: tuple[InputReferenceSection, ...] = (
             InputReferenceEntry("Group", "C", "Wrap the current selection in a Group."),
             InputReferenceEntry("Subnodes", "Ctrl+Alt+G", "Group the current selection into a subnode."),
             InputReferenceEntry("Subnodes", "Ctrl+Shift+G", "Ungroup the selected subnode."),
+            InputReferenceEntry("Layout", "Ctrl+Alt+L", "Tidy the selection into a clean layout from its wires."),
+            InputReferenceEntry("Layout", "Ctrl+Alt+Shift+L", "Tidy the whole graph in the open scope."),
             InputReferenceEntry("Viewport", "A", "Frame all graph items."),
             InputReferenceEntry("Viewport", "F", "Frame the current selection."),
             InputReferenceEntry("Viewport", "Shift+F", "Center the current selection."),

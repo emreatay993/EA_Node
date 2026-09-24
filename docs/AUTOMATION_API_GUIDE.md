@@ -20,7 +20,7 @@ It is a **local, opt-in developer automation surface**:
   `--automation` or spawned by the launcher.
 - Loopback only (`127.0.0.1`), one per-instance token, protocol version 1,
   NDJSON frames capped at 8 MiB.
-- One declarative op catalog: 48 ops, each also a typed MCP tool. The same
+- One declarative op catalog: 49 ops, each also a typed MCP tool. The same
   in-app server serves every launch mode.
 - Every mutating op is exactly one undo step; `graph.apply` batches are one
   step too.
@@ -333,13 +333,63 @@ Default shape heights differ (start and end 78, process 84, input/output and
 predefined process 94, document 104, decision and database 128; read
 `catalog.describe_node_type` `default_size`). Nodes placed at the same `y`
 align their top edges, so their side ports sit at different heights and
-horizontal connectors get small jogs. Fix a row with
-`layout.arrange(action=align_center_y)`, or place each node at
-`y = row_center - height / 2` yourself.
+horizontal connectors get small jogs. `layout.tidy` centers every row and
+column at once; to fix a single row use `layout.arrange(action=align_center_y)`,
+or place each node at `y = row_center - height / 2` yourself.
 
 ### Tidying the layout
 
-`layout.arrange` covers the canvas Layout actions for two or more nodes:
+`layout.tidy` is the canvas Tidy command: one call turns a rough flowchart
+into a clean layout with straight wires. Without `node_ids` it tidies every
+node in the open scope; with `node_ids` (two or more) it tidies those nodes
+plus the members of any Group backdrop among them.
+
+- `mode=auto_layout` (default) rebuilds the arrangement from the wires. Nodes
+  go into columns along the flow and rows across it, each centered in its
+  cell, so `right` to `left` and `bottom` to `top` wires run straight; a
+  `bottom` to `top` branch (a decision's second exit) takes the row below.
+  Wires that loop back stay elbows and are listed in `loop_edge_ids`. The
+  block keeps its current top-left corner.
+- `direction=auto` (default) detects the flow from the port sides the wires
+  use; `left_to_right` or `top_to_bottom` force it.
+- `mode=in_place` keeps your arrangement: nodes that are roughly in one row or
+  column snap onto a shared center line, the gaps become even, and the order
+  stays. `direction` does not apply and is reported as `""`.
+- `column_gap` (default 96) and `row_gap` (default 64) set the spacing in
+  canvas pixels along and across the flow. In place, each gap becomes the
+  current median gap, clamped between the value and three times the value.
+- Group backdrops stay intact. A listed backdrop's members are laid out inside
+  it and the backdrop is refitted (`resized_group_ids`); a collapsed Group
+  moves as one block with its hidden members; listed nodes inside an unlisted
+  backdrop are tidied as their own block and that backdrop grows to keep them.
+  If the new layout would still move a node into or out of a Group, nothing
+  changes and the call fails with `NO_EFFECT`
+  (`details.membership_conflict_node_ids`); add the Group backdrop to
+  `node_ids` so it moves as one block, or tidy its members on their own.
+- Locked nodes (unless the "interact with locked objects" preference is on),
+  members of a collapsed Group, and nodes outside an open comment peek are
+  left alone, and so are Groups that hold a locked node (with their contents)
+  and nodes whose locked Group would have to grow. `skipped_nodes` lists them
+  with the reason `locked_node`, `hidden_in_collapsed_group`, `not_selectable`,
+  or `locked_group`. The new block steps around locked nodes and those Groups
+  instead of covering them. Unwired annotations (sticky notes, text) are never
+  re-arranged; one inside a laid-out Group is moved just clear of its members.
+- Nodes inside a Group are tidied only with other members of that Group. If no
+  two of the given nodes share a level, the call fails with `INVALID_PARAMS`
+  ("no two of the given nodes can be laid out together"): add the Group
+  backdrop to `node_ids` or pick nodes from one level.
+- While the Graphics Settings option "Avoid overlaps when expanding collapsed
+  items" is on (the default), other nodes the new block would overlap are
+  pushed aside and listed in `pushed_node_ids`.
+
+The result also reports `changed` (false when everything was already tidy),
+`moved_node_ids`, `positions`, `straightened_edge_ids`, `skipped_edges` (the
+reasons are listed under `layout.straighten` below), and
+`overlapping_node_pairs`. It is one undo step; with fewer than two nodes to
+arrange the call fails with `INVALID_PARAMS`.
+
+For fine control, `layout.arrange` covers the canvas Layout actions for two or
+more nodes:
 
 - `align_left`, `align_right`, `align_top`, `align_bottom` line edges up with
   the outermost node.
@@ -388,11 +438,15 @@ Straightening can stack nodes, so check `overlapping_node_pairs` too.
 A typical tidy pass after building a flowchart:
 
 ```python
-corex.structure.align(row_ids, "center_y")
-report = corex.structure.straighten()
+report = corex.structure.tidy()                   # or tidy(node_ids, mode="in_place")
+print(report["direction"], report["loop_edge_ids"])
 for skipped in report["skipped_edges"]:
     print(skipped["edge_id"], skipped["reason"])
 ```
+
+The fine-grained equivalent for one row is
+`corex.structure.align(row_ids, "center_y")` followed by
+`corex.structure.straighten()`.
 
 ### Error handling
 
@@ -473,7 +527,7 @@ has `call(op, params)`.
 | `corex.graph` | `get(workspace_id=, scope=, include_style=, include_properties=)`, `get_node(node_id)`, `find_nodes(query=, type_id=, title=, title_contains=, scope=, limit=)` |
 | `corex.nodes` | `add(type_id, x, y, title=, width=, height=, parent_node_id=, select=, properties=)`, `add_text(markdown, x, y, format=, style=, ...)`, `add_media(path, x, y, fit_mode=, show_title=, show_frame=, ...)`, `add_web_panel(x, y, url= or html=, display_mode=, ...)`, `update(node_id, title=, x=, y=, width=, height=, properties=, port_labels=, exposed_ports=, collapsed=, locked=)`, `set_style(node_id, style, preset=, replace=, clear=, propagate=)`, `delete(ids)`, `duplicate(ids, offset_x=, offset_y=)`; sugar `add_path_pointer(path, x, y, mode=)`, `add_panel(x, y, ...)`, `set_text_style(node_id, content_key, **style)` |
 | `corex.edges` | `connect(source, source_port, target, target_port, replace_existing=, label=, style=)`, `update(edge_id, label=, style=, path_mode=, enabled=, display_mode=, clear_style=, clear_label=)`, `set_label`, `clear_label`, `set_style`, `clear_style`, `set_path_mode`, `set_display_mode`, `set_enabled`, `delete(ids)` |
-| `corex.structure` | `wrap_group(ids, title=)`, `create_subnode(ids, title=)`, `ungroup_subnode(shell)`, `add_subnode_pin(shell, direction)`, `add_input_pin`, `add_output_pin`, `navigate_scope(target, node_id=)`, `open_subnode(shell)`, `navigate_parent()`, `navigate_root()`, `set_selection(ids, mode=)`, `select`, `add_to_selection`, `clear_selection`, `arrange(ids, action)`, `align(ids, side)` (side also `center_x` / `center_y`), `distribute(ids, orientation)`, `match_size(ids, dimension)`, `straighten(node_ids=None, edge_ids=)` |
+| `corex.structure` | `wrap_group(ids, title=)`, `create_subnode(ids, title=)`, `ungroup_subnode(shell)`, `add_subnode_pin(shell, direction)`, `add_input_pin`, `add_output_pin`, `navigate_scope(target, node_id=)`, `open_subnode(shell)`, `navigate_parent()`, `navigate_root()`, `set_selection(ids, mode=)`, `select`, `add_to_selection`, `clear_selection`, `arrange(ids, action)`, `align(ids, side)` (side also `center_x` / `center_y`), `distribute(ids, orientation)`, `match_size(ids, dimension)`, `straighten(node_ids=None, edge_ids=)`, `tidy(node_ids=None, mode=, direction=, column_gap=, row_gap=)` |
 | `corex.annotations` | `comment_upsert(...)`, `comment(node_id, body)`, `reply(node_id, parent_id, body)`, `resolve(node_id, comment_id)`, `comment_remove`, `link_upsert(...)`, `link_url` / `link_file` / `link_folder` / `link_workspace` / `link_node`, `link_remove` |
 | `corex.workspaces` | `list()`, `create(name, duplicate_of=, activate=)`, `duplicate(workspace_id)`, `update`, `rename`, `activate`, `close(workspace_id, discard_unsaved=)`, `create_view`, `update_view`, `activate_view`, `close_view`, `set_camera(zoom=, center_x=, center_y=, frame=, node_ids=)`, `frame_all()`, `frame_selection()`, `frame_nodes(ids)` |
 | `corex.project` | `open(path, discard_unsaved=)`, `new(discard_unsaved=)`, `save(path=None)`, `save_as(path)`, `stage_file(path or content=, filename=, subdirectory=, node_id=)`, `stage_bytes(filename, content)` |
@@ -513,6 +567,7 @@ performs it. "not exposed" means the first pass deliberately leaves it out
 | Floating toolbar (selection) | Align Left / Right / Top / Bottom | `layout.arrange(action=align_*)` |
 | Floating toolbar (selection) | Distribute Horizontally / Vertically | `layout.arrange(action=distribute_*)` |
 | Floating toolbar (selection) | Straighten Connections | `layout.straighten(node_ids=[...])` |
+| Floating toolbar (selection) | Tidy (Auto-Layout) | `layout.tidy(node_ids=[...])` |
 | Floating toolbar (selection) | Run Selected / Preview Run | `run.start(scope=nodes)`; preview overlay not exposed |
 | Node context menu | Edit Style... | `node.set_style(style=... \| preset=...)` |
 | Node context menu | Reset Style | `node.set_style(clear=true)` |
@@ -544,7 +599,12 @@ performs it. "not exposed" means the first pass deliberately leaves it out
 | Canvas / selection context menu | Group Selection (Ctrl+Alt+G) | `subnode.create` |
 | Canvas / selection context menu | Ungroup Selection (Ctrl+Shift+G) | `subnode.ungroup` |
 | Canvas / selection context menu | Set Same Width / Height | `layout.arrange(action=match_width \| match_height)` |
+| Canvas / selection context menu | Tidy > Auto-Layout (Ctrl+Alt+L) | `layout.tidy(node_ids=[...])` |
+| Canvas / selection context menu | Tidy > Auto-Layout Left to Right / Top to Bottom | `layout.tidy(node_ids=[...], direction=left_to_right \| top_to_bottom)` |
+| Canvas / selection context menu | Tidy > Clean Up in Place | `layout.tidy(node_ids=[...], mode=in_place)` |
 | Canvas / selection context menu | Quick add from the library | `node.add`, `node.add_text`, `node.add_media`, `node.add_web_panel` |
+| Canvas options menu (empty canvas) | Tidy whole graph (Ctrl+Alt+Shift+L) | `layout.tidy()` |
+| Canvas options menu (empty canvas) | Clean up whole graph in place | `layout.tidy(mode=in_place)` |
 | Canvas | Select / marquee | `selection.set(mode=replace \| add \| clear)` |
 | Canvas | Drag / resize nodes | `node.update(x=, y=, width=, height=)` |
 | Canvas | Scope Parent (Alt+Left) / Scope Root (Alt+Home) | `scope.navigate(target=parent \| root)` |
@@ -557,6 +617,8 @@ performs it. "not exposed" means the first pass deliberately leaves it out
 | View | Zoom, pan, Frame All / Frame Selection | `view.set_camera(zoom=, center_x=, center_y=, frame=all \| selection \| nodes)` |
 | View | Export canvas PNG | `capture.screenshot` |
 | Edit menu | Undo / Redo | `app.history(action=undo \| redo)` |
+| Edit menu | Layout > Tidy Selection (Ctrl+Alt+L), Tidy Selection Left to Right / Top to Bottom, Clean Up Selection in Place | `layout.tidy(node_ids=[...], direction=..., mode=...)` |
+| Edit menu | Layout > Tidy Whole Graph (Ctrl+Alt+Shift+L), Clean Up Whole Graph in Place | `layout.tidy()`, `layout.tidy(mode=in_place)` |
 | Edit menu | Interact with Locked Objects | not exposed (session toggle) |
 | File menu | New / Open project | `project.open(new=true)` / `project.open(path=)` |
 | File menu | Save / Save As | `project.save` / `project.save(path=)` |
@@ -591,7 +653,11 @@ running COREX they build in a new workspace tab and do not save.
 3. `node.set_style` paints the yes branch green and Refine mesh orange;
    `edge.update` colours the branch edges (aliases `color`, `width`,
    `label_color`) and labels and dashes the loop edge.
-4. `graph.get` checks 10 nodes and 10 edges, `view.set_camera(frame=all)`,
+4. `layout.tidy` (no ids) lays the chart out left to right from its wires:
+   the main row shares one center line, Refine mesh sits centered below the
+   decision, and the loop back to Mesh is the only elbow (`loop_edge_ids` and
+   `skipped_edges` both name it).
+5. `graph.get` checks 10 nodes and 10 edges, `view.set_camera(frame=all)`,
    `project.save(path=<output>/flowchart.cxproj)`, `capture.screenshot`.
 
 ### 2. Annotated media board ([annotated_media_board.py](../examples/automation/annotated_media_board.py))
@@ -680,6 +746,7 @@ from the same catalog.
 | `selection_set` | `selection.set` | Replace, extend, or clear the canvas selection. |
 | `layout_arrange` | `layout.arrange` | Align, distribute, or match the size of a set of nodes (align left/right/top/bottom/center_x/center_y, distribute horizontal/vertical, match_width/match_height). |
 | `layout_straighten` | `layout.straighten` | Move nodes so the wires between them run straight (the Straighten Connections action). |
+| `layout_tidy` | `layout.tidy` | Tidy nodes: auto-layout from the wires (left to right / top to bottom) or clean up in place, keeping Group backdrops intact. |
 | `comment_upsert` | `comment.upsert` | Add or edit a comment on a node (threaded via parent_id; resolved/pinned flags). |
 | `comment_remove` | `comment.remove` | Remove a comment from a node. |
 | `link_upsert` | `link.upsert` | Add or edit a link on a node: url, file, folder, workspace, or node targets; optional ordering position. |
@@ -1183,6 +1250,24 @@ Omit node_ids and edge_ids to straighten every wire in the open scope; edge_ids 
 | `edge_ids` | `array<string>` | no |  | Wires to straighten; their endpoint nodes join node_ids; min 1 item(s) |
 
 Result keys: `moved_node_ids`, `straightened_edge_ids`, `skipped_edges`, `overlapping_node_pairs`.
+
+#### layout.tidy
+
+MCP tool: `layout_tidy`. Flags: undo step, apply-allowed.
+
+Tidy nodes: auto-layout from the wires (left to right / top to bottom) or clean up in place, keeping Group backdrops intact.
+
+Omit node_ids to tidy every node in the open scope. auto_layout rebuilds the arrangement from the wires (direction auto-detected from the port sides they use, or forced with left_to_right / top_to_bottom): rows and columns are centered so right->left and bottom->top wires run straight, loop-back wires stay elbows (loop_edge_ids), and the block keeps its current top-left; in_place keeps the arrangement and snaps near-aligned rows and columns onto shared center lines with even gaps. Group backdrops stay intact: a listed backdrop's members are laid out inside it and the backdrop is refitted, a collapsed Group moves as one block, and an unlisted backdrop grows to keep listed members; when the result would still move a node into or out of a Group nothing changes and the call fails with NO_EFFECT (details.membership_conflict_node_ids). Locked nodes (unless the 'interact with locked objects' preference is on), members of a collapsed Group, nodes outside an open comment peek, Groups that hold a locked node (with their contents), and nodes whose locked Group would have to grow are left alone and listed in skipped_nodes (the last two as locked_group); the new block steps around locked nodes and those Groups, and unwired annotations are never re-arranged. Other nodes the new block would overlap are pushed aside (pushed_node_ids) while the 'Avoid overlaps when expanding collapsed items' graphics setting is on (the default). Read straightened_edge_ids, skipped_edges, and overlapping_node_pairs afterwards; changed=false means the nodes were already tidy.
+
+| Param | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `node_ids` | `array<string>` | no |  | Nodes to tidy (default: every node in the open scope); min 2 item(s) |
+| `mode` | `string` | no | `"auto_layout"` | auto_layout rebuilds the arrangement from the wires; in_place keeps it and straightens rows and columns; one of: auto_layout, in_place |
+| `direction` | `string` | no | `"auto"` | Flow direction for auto_layout; auto detects it from the port sides the wires use (in_place ignores it); one of: auto, left_to_right, top_to_bottom |
+| `column_gap` | `number` | no | `96` | Gap in px between steps along the flow (in_place: between columns, the median current gap clamped to 1x..3x this value); >= 24 and \<= 400 |
+| `row_gap` | `number` | no | `64` | Gap in px between rows across the flow (in_place: between rows, the median current gap clamped to 1x..3x this value); >= 16 and \<= 400 |
+
+Result keys: `moved_node_ids`, `resized_group_ids`, `pushed_node_ids`, `skipped_nodes`, `loop_edge_ids`, `membership_conflict_node_ids`, `straightened_edge_ids`, `skipped_edges`, `overlapping_node_pairs`, `direction`, `mode`.
 
 ### annotations
 

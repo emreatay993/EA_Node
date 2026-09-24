@@ -146,6 +146,27 @@ class HappyPathTests(_ApplyCase):
         self.assertEqual(sorted(straightened), sorted([result["ids"]["ab"], result["ids"]["bc"]]))
         self.assertEqual(self.undo_depth(), depth + 1)
 
+    def test_layout_tidy_takes_node_refs_in_one_undo_step(self) -> None:
+        depth = self.undo_depth()
+        connect = {"source_port": "right", "target_port": "left"}
+        result = self.apply(
+            [
+                {"id": "a", "op": "node.add", "params": {"type_id": PROCESS, "x": 0.0, "y": 0.0}},
+                {"id": "b", "op": "node.add", "params": {"type_id": "passive.flowchart.decision", "x": 400.0, "y": 90.0}},
+                {"id": "c", "op": "node.add", "params": {"type_id": PROCESS, "x": 700.0, "y": -60.0}},
+                {"id": "ab", "op": "edge.connect", "params": {"source_node_id": "$a", "target_node_id": "$b", **connect}},
+                {"id": "bc", "op": "edge.connect", "params": {"source_node_id": "$b", "target_node_id": "$c", **connect}},
+                {"op": "layout.tidy", "params": {"node_ids": ["$a", "$b", "$c"], "column_gap": 120}},
+            ]
+        )
+        self.assertEqual(result["failed_index"], -1)
+        ids = result["ids"]
+        tidy = result["results"][5]["result"]
+        self.assertEqual((tidy["mode"], tidy["direction"], tidy["changed"]), ("auto_layout", "left_to_right", True))
+        self.assertEqual(tidy["arranged_node_ids"], sorted([ids["a"], ids["b"], ids["c"]]))
+        self.assertEqual(sorted(tidy["straightened_edge_ids"]), sorted([ids["ab"], ids["bc"]]))
+        self.assertEqual(self.undo_depth(), depth + 1, "the batch and its tidy pass are one undo entry")
+
     def test_literal_dollars_outside_ref_fields_are_untouched_and_double_dollar_unescapes(self) -> None:
         result = self.apply(
             [

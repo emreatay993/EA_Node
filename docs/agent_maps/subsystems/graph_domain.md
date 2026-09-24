@@ -33,6 +33,7 @@ Use this for graph data structures, invariants, mutation services, transforms, h
 - `ea_node_editor/graph/hierarchy.py`
 - `ea_node_editor/graph/transforms.py`
 - `ea_node_editor/graph/transform_layout_ops.py`
+- `ea_node_editor/graph/transform_tidy_layout.py` for the pure Tidy layout (layered auto-layout from the wires, in-place clean-up, group refit) over plain `TidyItem` / `TidyWire` data; `tests/test_transform_tidy_layout.py` owns it.
 - `ea_node_editor/graph/transform_fragment_ops.py`
 - `ea_node_editor/graph/transform_grouping_ops.py`
 - `ea_node_editor/graph/group_backdrop_geometry.py`
@@ -77,11 +78,13 @@ Use this for graph data structures, invariants, mutation services, transforms, h
 - `ProjectData.project_document_revision` is runtime-only state for autosave document-epoch gating. Bump it for project metadata, workspace order, active-workspace, and workspace create/duplicate/close changes; combine it with each workspace's document epoch part instead of reusing run-state epochs.
 - `RegistryValidationPassMemo` is scoped to one registry-validation pass. Use it from prune/validation loops to reuse resolved node views, effective-port lookups, and edge tuples; invalidate the edge tuple immediately when a prune pass removes an edge.
 - Keep transform and hierarchy tests focused before running broader UI gates.
+- `transform_tidy_layout.py` stays UI-free: callers pass port sides and anchor offsets as plain data. It lays out one level at a time (groups deepest first, then the top level) in a left-to-right frame; top-to-bottom transposes each level in and out, so keep the two directions one code path. Straightening reuses `transform_layout_ops.build_port_alignment_offsets` (also behind Straighten Connections). Group blocks move as units, so a wire into a nested member is straightened with that member's real port offset. The level is then shifted back to its anchored top-left, so a repeated Tidy is a no-op, and the straightening is discarded when it would create an overlap. In-place clean-up groups rows and columns by overlap with their first item (at least half the smaller size) rather than by centre distance, so mixed-height shapes stay in one row. It measures gaps between cells (median centre ± half the largest size), so straightening cannot make reruns creep. Results are deterministic under shuffled input.
+- `transform_layout_ops.build_collision_avoidance_position_updates` is the several-blocker collision solver (Tidy's neighbour push and obstacle clearing); `build_expand_collision_avoidance_position_updates` is its single-blocker case. When the nearest-blocker steps bounce between blockers, `_separate_from_bounds` falls back to the smallest single-axis move that clears all of them.
 
 ## Focused Verification
 - Forwarding and rewire ownership: `tests/test_type_forwarding.py`, `tests/test_type_forwarding_integration.py`, and `tests/test_rewire_validation.py`.
 ```powershell
-.\venv\Scripts\python.exe -m pytest tests/test_transform_layout_ops.py tests/test_workspace_manager.py tests/test_port_availability.py tests/test_default_port_values.py tests/test_group_backdrop_contracts.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_transform_layout_ops.py tests/test_transform_tidy_layout.py tests/test_workspace_manager.py tests/test_port_availability.py tests/test_default_port_values.py tests/test_group_backdrop_contracts.py --ignore=venv -q
 .\venv\Scripts\python.exe -m unittest tests.graph_track_b.scene_model_graph_model_suite -q
 .\venv\Scripts\python.exe -m pytest tests/test_dataflow_graph_persistence.py tests/test_data_tree_ui.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_type_enforcement.py tests/test_data_type_catalog.py tests/test_registry_validation.py --ignore=venv -q

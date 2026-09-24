@@ -213,6 +213,28 @@ agent guidance. Catalog is now **48 ops, 48 MCP tools, 23 `apply_allowed`**.
   ("Tidying the layout" section + UI-parity rows + generated reference), skill,
   and `examples/automation/flowchart.py` (tidy pass) updated.
 
+## Tidy follow-up (2026-09-24)
+
+Exposes the canvas Tidy command. Catalog is now **49 ops, 49 MCP tools, 24
+`apply_allowed`**.
+
+- New `layout.tidy` / `layout_tidy`: `node_ids` (two or more) or nothing (the
+  whole open scope), `mode` `auto_layout` | `in_place`, `direction` `auto` |
+  `left_to_right` | `top_to_bottom`, `column_gap` / `row_gap`. It wraps the
+  scene owner `tidy_layout` (one undo step) and returns its outcome plus
+  `skipped_nodes`, the `straightened_edge_ids` / `skipped_edges` check of the
+  wires between laid-out nodes, and `overlapping_node_pairs`. Nothing to tidy
+  is `INVALID_PARAMS`; a layout that would change Group membership is
+  `NO_EFFECT` (`details.membership_conflict_node_ids`). New skip reason
+  `locked_group` for nodes held back by a Group that holds a locked node or
+  would have to grow while locked. Apply-allowed with `node_ids[]` refs.
+- The op catalog restates the Tidy enums and default gaps of
+  `graph/transform_tidy_layout.py` instead of importing the graph package;
+  `tests/automation/test_catalog.py` keeps them in sync.
+- Guidance recommends `layout_tidy()` first and `layout_arrange` /
+  `layout_straighten` for fine control; guide, skill, and the flowchart example
+  (`corex.structure.tidy()`, only the loop stays bent) updated.
+
 ## First-pass limits (documented for agents)
 
 - Graph ops act on the active workspace and open scope.

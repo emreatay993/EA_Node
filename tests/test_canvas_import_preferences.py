@@ -1,4 +1,4 @@
-# Purpose: Verify persistent canvas import mode and its native/QML settings controls.
+# Purpose: Verify persistent canvas import mode, its native/QML settings controls, and the gear menu's layout rows.
 # Map: docs/agent_maps/feature_routes/graphics_settings_themes_preferences.md
 # Tests: tests/test_canvas_import_preferences.py
 from __future__ import annotations
@@ -312,6 +312,82 @@ Item {
             host.shell_host_presenter.show_graphics_settings_dialog = lambda: requests.append(True)
             click(footer)
             assert requests == [True]
+    finally:
+        window.close()
+        canvas.setParentItem(None)
+        canvas.deleteLater()
+        app.processEvents()
+
+
+def test_real_gear_layout_rows_route_whole_graph_tidy_actions(app):
+    engine = QQmlEngine()
+    component = QQmlComponent(engine)
+    qml_dir = Path(__file__).resolve().parents[1] / "ea_node_editor/ui_qml/components/graph_canvas"
+    component.setData(b'''
+import QtQuick 2.15
+Item {
+    id: canvas
+    width: 1000
+    height: 1000
+    property var prefs: null
+    property var executionFacts: ({})
+    property var canvasStateBridgeRef: null
+    property var selectedEdgeIds: []
+    property int closeCalls: 0
+    property var routedActions: []
+    function snapToGridEnabled() { return false; }
+    function _normalizeEdgeIds(values) { return values; }
+    function _sceneEdgePayload(edgeId) { return null; }
+    function _closeContextMenus() { closeCalls += 1; }
+    QtObject {
+        id: router
+        function triggerGraphAction(actionId, payload) {
+            canvas.routedActions = canvas.routedActions.concat([{ "actionId": String(actionId), "payload": payload }]);
+            return true;
+        }
+    }
+    GraphCanvasOptionsMenu {
+        objectName: "testCanvasOptionsMenu"
+        canvasItem: canvas
+        actionRouter: router
+        anchorY: 52
+        y: resolvedY
+    }
+}
+''', QUrl.fromLocalFile(str(qml_dir / "TidyLayoutRowsProbe.qml")))
+    assert component.status() == QQmlComponent.Status.Ready, [e.toString() for e in component.errors()]
+    canvas = component.create()
+    assert isinstance(canvas, QQuickItem)
+    window = QQuickWindow()
+    window.resize(1000, 1000)
+    canvas.setParentItem(window.contentItem())
+    window.show()
+    app.processEvents()
+
+    def click(item):
+        point = item.mapToScene(QPointF(item.width() / 2, item.height() / 2))
+        QTest.mouseClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, point.toPoint())
+        app.processEvents()
+
+    try:
+        tidy_row = canvas.findChild(QQuickItem, "canvasOptionsTidyGraphRow")
+        in_place_row = canvas.findChild(QQuickItem, "canvasOptionsTidyGraphInPlaceRow")
+        footer = canvas.findChild(QQuickItem, "canvasOptionsOpenGraphicsSettingsRow")
+        assert tidy_row is not None and in_place_row is not None and footer is not None
+        assert tidy_row.property("label") == "Tidy whole graph"
+        assert in_place_row.property("label") == "Clean up whole graph in place"
+        assert tidy_row.y() < in_place_row.y() < footer.y()
+        menu = canvas.findChild(QObject, "testCanvasOptionsMenu")
+        assert menu.y() + menu.height() <= canvas.height()
+
+        click(tidy_row)
+        click(in_place_row)
+
+        routed = canvas.property("routedActions")
+        routed = routed.toVariant() if hasattr(routed, "toVariant") else routed
+        assert [entry["actionId"] for entry in routed] == ["tidy_graph", "tidy_graph_in_place"]
+        assert [entry["payload"] for entry in routed] == [{}, {}]
+        assert canvas.property("closeCalls") == 2
     finally:
         window.close()
         canvas.setParentItem(None)

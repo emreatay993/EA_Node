@@ -835,6 +835,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             "collision_avoidance_ops.py": package_root / "collision_avoidance_ops.py",
             "grouping_and_subnode_ops.py": package_root / "grouping_and_subnode_ops.py",
             "group_backdrop_ops.py": package_root / "group_backdrop_ops.py",
+            "tidy_layout_ops.py": package_root / "tidy_layout_ops.py",
         }
 
         self.assertTrue(package_root.is_dir())
@@ -846,6 +847,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             "graph_scene_mutation.collision_avoidance_ops",
             "graph_scene_mutation.grouping_and_subnode_ops",
             "graph_scene_mutation.group_backdrop_ops",
+            "graph_scene_mutation.tidy_layout_ops",
         ):
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, facade_text)
@@ -891,6 +893,10 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertEqual(
             module.GraphSceneMutationHistory.duplicate_selected_subgraph.__module__,
             "ea_node_editor.ui_qml.graph_scene_mutation.clipboard_and_fragment_ops",
+        )
+        self.assertEqual(
+            module.GraphSceneMutationHistory.tidy_layout.__module__,
+            "ea_node_editor.ui_qml.graph_scene_mutation.tidy_layout_ops",
         )
 
     def test_graph_canvas_bridges_resolve_split_scene_sources_without_losing_scene_compatibility(self) -> None:

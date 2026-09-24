@@ -10,6 +10,8 @@ from types import SimpleNamespace
 from unittest import mock
 
 from ea_node_editor.ui.shell.controllers.graph_action_controller import GraphActionController
+from ea_node_editor.ui.shell.controllers.mutation_ui_effects import MutationUiEffects
+from ea_node_editor.ui.shell.controllers.workspace_edit_controller import WorkspaceEditController
 from ea_node_editor.ui.shell.graph_action_contracts import (
     GRAPH_ACTION_IDS,
     GRAPH_ACTION_SPECS,
@@ -123,6 +125,12 @@ P03_RETIRED_SHELL_GRAPH_ACTION_FACADE_SLOTS = {
     "request_distribute_selection_horizontally",
     "request_distribute_selection_vertically",
     "request_straighten_selection_connections",
+    "request_tidy_selection",
+    "request_tidy_selection_left_to_right",
+    "request_tidy_selection_top_to_bottom",
+    "request_tidy_selection_in_place",
+    "request_tidy_graph",
+    "request_tidy_graph_in_place",
     "request_connect_selected_nodes",
     "request_duplicate_selected_nodes",
     "request_wrap_selected_nodes_in_group_backdrop",
@@ -223,6 +231,18 @@ class _GraphActionSource:
 
     def straighten_selection_connections(self) -> bool:
         return self._record("straighten_selection_connections")
+
+    def tidy_selection(
+        self,
+        node_ids: tuple[str, ...] | None = None,
+        *,
+        mode: str = "auto_layout",
+        direction: str = "auto",
+    ) -> bool:
+        return self._record("tidy_selection", node_ids, mode, direction)
+
+    def tidy_graph(self, *, mode: str = "auto_layout") -> bool:
+        return self._record("tidy_graph", mode)
 
     def request_delete_selected_graph_items(self, edge_ids: list[object]):  # noqa: ANN201
         return SimpleNamespace(
@@ -333,6 +353,22 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
             )
         )
         self.assertTrue(controller.trigger(GraphActionId.STRAIGHTEN_SELECTION_CONNECTIONS.value))
+        self.assertTrue(controller.trigger(GraphActionId.TIDY_SELECTION.value))
+        self.assertTrue(
+            controller.trigger(
+                GraphActionId.TIDY_SELECTION_LEFT_TO_RIGHT.value,
+                {"node_ids": ["node-1", "node-2"]},
+            )
+        )
+        self.assertTrue(controller.trigger(GraphActionId.TIDY_SELECTION_TOP_TO_BOTTOM.value))
+        self.assertTrue(
+            controller.trigger(
+                GraphActionId.TIDY_SELECTION_IN_PLACE.value,
+                {"node_ids": ["node-3", " ", "node-4"]},
+            )
+        )
+        self.assertTrue(controller.trigger(GraphActionId.TIDY_GRAPH.value))
+        self.assertTrue(controller.trigger(GraphActionId.TIDY_GRAPH_IN_PLACE.value))
         self.assertTrue(controller.trigger(GraphActionId.DELETE_SELECTION.value, {"edge_ids": ["edge-1"]}))
         self.assertTrue(controller.trigger(GraphActionId.OPEN_SUBNODE_SCOPE.value, {"node_id": "node-1"}))
         self.assertTrue(
@@ -354,6 +390,12 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
                 ("set_selection_same_type_width", (("node-1", "node-2"),)),
                 ("set_selection_same_type_height", (("node-3", "node-4"),)),
                 ("straighten_selection_connections", ()),
+                ("tidy_selection", (None, "auto_layout", "auto")),
+                ("tidy_selection", (("node-1", "node-2"), "auto_layout", "left_to_right")),
+                ("tidy_selection", (None, "auto_layout", "top_to_bottom")),
+                ("tidy_selection", (("node-3", "node-4"), "in_place", "auto")),
+                ("tidy_graph", ("auto_layout",)),
+                ("tidy_graph", ("in_place",)),
                 ("request_delete_selected_graph_items", (["edge-1"],)),
             ],
         )
@@ -602,6 +644,12 @@ def _pyqt_graph_actions_from_contract() -> dict[str, GraphActionId]:
         "action_distribute_horizontally": GraphActionId.DISTRIBUTE_SELECTION_HORIZONTALLY,
         "action_distribute_vertically": GraphActionId.DISTRIBUTE_SELECTION_VERTICALLY,
         "action_straighten_connections": GraphActionId.STRAIGHTEN_SELECTION_CONNECTIONS,
+        "action_tidy_selection": GraphActionId.TIDY_SELECTION,
+        "action_tidy_selection_left_to_right": GraphActionId.TIDY_SELECTION_LEFT_TO_RIGHT,
+        "action_tidy_selection_top_to_bottom": GraphActionId.TIDY_SELECTION_TOP_TO_BOTTOM,
+        "action_tidy_selection_in_place": GraphActionId.TIDY_SELECTION_IN_PLACE,
+        "action_tidy_graph": GraphActionId.TIDY_GRAPH,
+        "action_tidy_graph_in_place": GraphActionId.TIDY_GRAPH_IN_PLACE,
         "action_scope_parent": GraphActionId.NAVIGATE_SCOPE_PARENT,
         "action_scope_root": GraphActionId.NAVIGATE_SCOPE_ROOT,
         "action_show_help": GraphActionId.SHOW_NODE_HELP,
@@ -857,6 +905,7 @@ def test_qml_graph_canvas_actions_route_through_graph_action_bridge() -> None:
         "distribute_selection_horizontally",
         "distribute_selection_vertically",
         "straighten_selection_connections",
+        "tidy_selection",
         "wrap_selection_in_group_backdrop",
     ):
         assert f'"{action_id}": {{ "actionId": "{action_id}", "payload": "none" }}' in action_router_source
@@ -866,6 +915,9 @@ def test_qml_graph_canvas_actions_route_through_graph_action_bridge() -> None:
     for action_id in (
         "set_selection_same_type_width",
         "set_selection_same_type_height",
+        "tidy_selection_left_to_right",
+        "tidy_selection_top_to_bottom",
+        "tidy_selection_in_place",
     ):
         assert f'"{action_id}": {{ "actionId": "{action_id}", "payload": "selection" }}' in action_router_source
         assert action_id in context_source
@@ -976,6 +1028,169 @@ def test_active_wire_actions_use_batch_rewire_display_mode_and_endpoint_navigati
     assert "function updateEdgeSelection()" in input_layers_source
     assert "canvasItem.edgeIdsIntersectingScreenRect" in input_layers_source
     assert "canvasItem.setEdgeSelection" in input_layers_source
+
+
+def test_tidy_actions_route_through_selection_submenu_side_rail_and_canvas_options() -> None:
+    context_source = _source(CONTEXT_MENUS_QML)
+    selection_envelope_source = _source(SELECTION_ENVELOPE_OVERLAY_QML)
+    options_source = _source(
+        REPO_ROOT
+        / "ea_node_editor"
+        / "ui_qml"
+        / "components"
+        / "graph_canvas"
+        / "GraphCanvasOptionsMenu.qml"
+    )
+
+    assert '"actionId": "selection_tidy_menu"' in context_source
+    assert 'objectName: "graphCanvasSelectionTidyContextPopup"' in context_source
+    assert "visible: selectionContextPopup.visible && selectionContextPopup.tidySubmenuOpen" in context_source
+    assert "actionRouter: root._actionRouter()" in context_source
+    assert '"id": "tidy_selection"' in selection_envelope_source
+    assert "property var actionRouter: null" in options_source
+    assert 'objectName: "canvasOptionsTidyGraphRow"' in options_source
+    assert 'onClicked: root.triggerGraphAction("tidy_graph")' in options_source
+    assert 'objectName: "canvasOptionsTidyGraphInPlaceRow"' in options_source
+    assert 'onClicked: root.triggerGraphAction("tidy_graph_in_place")' in options_source
+    assert graph_action_spec(GraphActionId.TIDY_SELECTION).shortcut == "Ctrl+Alt+L"
+    assert graph_action_spec(GraphActionId.TIDY_GRAPH).shortcut == "Ctrl+Alt+Shift+L"
+    for action_id in (GraphActionId.TIDY_GRAPH, GraphActionId.TIDY_GRAPH_IN_PLACE):
+        assert "qml_canvas_options_menu" in graph_action_spec(action_id).surfaces
+
+
+class _TidySceneProbe:
+    def __init__(self, outcome: dict[str, object] | None) -> None:
+        self.selected_node_ids = ["node-a", "node-b"]
+        self.outcome = outcome
+        self.calls: list[tuple[list[object] | None, str, str]] = []
+
+    def tidy_layout(self, node_ids, *, mode: str, direction: str):  # noqa: ANN001, ANN201
+        self.calls.append((None if node_ids is None else list(node_ids), mode, direction))
+        return self.outcome
+
+
+class _TidyHostProbe:
+    def __init__(self, outcome: dict[str, object] | None) -> None:
+        self.scene = _TidySceneProbe(outcome)
+        self.hints: list[tuple[str, int]] = []
+        self.selection_notifications: list[str] = []
+        self.selected_node_changed = SimpleNamespace(
+            emit=lambda: self.selection_notifications.append("selected_node_changed")
+        )
+
+    def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
+        self.hints.append((message, timeout_ms))
+
+
+def _tidy_outcome(**overrides: object) -> dict[str, object]:
+    outcome: dict[str, object] = {
+        "changed": True,
+        "mode": "auto_layout",
+        "direction": "left_to_right",
+        "arranged_node_ids": ["node-a", "node-b", "node-c"],
+        "moved_node_ids": ["node-a", "node-b"],
+        "resized_group_ids": [],
+        "pushed_node_ids": [],
+        "skipped_node_ids": [],
+        "loop_edge_ids": [],
+        "membership_conflict_node_ids": [],
+    }
+    outcome.update(overrides)
+    return outcome
+
+
+def _tidy_edit_controller(
+    outcome: dict[str, object] | None,
+) -> tuple[WorkspaceEditController, _TidyHostProbe, list[str]]:
+    host = _TidyHostProbe(outcome)
+    tab_refreshes: list[str] = []
+    effects = MutationUiEffects(host=host, refresh_workspace_tabs=lambda: tab_refreshes.append("tabs"))
+    controller = WorkspaceEditController(
+        host,  # type: ignore[arg-type]
+        selection_context=SimpleNamespace(),  # type: ignore[arg-type]
+        effects=effects,
+    )
+    return controller, host, tab_refreshes
+
+
+def test_tidy_selection_needs_two_nodes_and_reports_the_scene_outcome() -> None:
+    controller, host, tab_refreshes = _tidy_edit_controller(None)
+
+    host.scene.selected_node_ids = ["node-a"]
+    assert controller.tidy_selection() is False
+    assert controller.tidy_selection(["node-a"]) is False
+    assert host.scene.calls == []
+
+    host.scene.selected_node_ids = ["node-a", "node-b"]
+    assert controller.tidy_selection() is False
+    assert host.scene.calls == [(["node-a", "node-b"], "auto_layout", "auto")]
+    assert host.hints == [
+        ("Nothing to tidy: select two or more unlocked nodes that share a Group (or no Group).", 3600)
+    ]
+    assert tab_refreshes == []
+    host.hints.clear()
+
+    host.scene.outcome = _tidy_outcome(mode="in_place", direction="")
+    assert controller.tidy_selection(("node-x", "node-y"), mode="in_place") is True
+    assert host.scene.calls[-1] == (["node-x", "node-y"], "in_place", "auto")
+    assert host.hints == [("Cleaned up 3 nodes in place.", 3600)]
+    assert host.selection_notifications == ["selected_node_changed"]
+    assert tab_refreshes == ["tabs"]
+
+    host.scene.outcome = _tidy_outcome(changed=False, moved_node_ids=[])
+    assert controller.tidy_graph() is False
+    assert host.scene.calls[-1] == (None, "auto_layout", "auto")
+    assert host.hints[-1] == ("Graph is already tidy.", 3600)
+    assert tab_refreshes == ["tabs"]
+
+    host.scene.outcome = None
+    assert controller.tidy_graph(mode="in_place") is False
+    assert host.scene.calls[-1] == (None, "in_place", "auto")
+    assert host.hints[-1] == ("Nothing to tidy in this scope.", 3600)
+    assert len(host.hints) == 3
+
+
+def test_tidy_hint_reports_direction_loops_pushes_and_skips() -> None:
+    host = _TidyHostProbe(None)
+    tab_refreshes: list[str] = []
+    effects = MutationUiEffects(host=host, refresh_workspace_tabs=lambda: tab_refreshes.append("tabs"))
+
+    effects.after_tidy(
+        _tidy_outcome(loop_edge_ids=["edge-loop"], pushed_node_ids=["node-p", "node-q"]),
+        whole_graph=False,
+    )
+    effects.after_tidy(
+        _tidy_outcome(
+            direction="top_to_bottom",
+            loop_edge_ids=["edge-1", "edge-2"],
+            pushed_node_ids=["node-p"],
+        ),
+        whole_graph=True,
+    )
+    effects.after_tidy(
+        _tidy_outcome(
+            changed=False,
+            pushed_node_ids=["node-p"],
+            membership_conflict_node_ids=["node-a"],
+        ),
+        whole_graph=False,
+    )
+    effects.after_tidy(_tidy_outcome(changed=False, loop_edge_ids=["edge-loop"]), whole_graph=False)
+    # Every laid-out block was held back (a locked owner Group would have had to grow): nothing was arranged.
+    effects.after_tidy(
+        _tidy_outcome(changed=False, arranged_node_ids=[], moved_node_ids=[], skipped_node_ids=["node-a"]),
+        whole_graph=False,
+    )
+
+    assert [message for message, _timeout in host.hints] == [
+        "Tidied 3 nodes left to right. 1 loop wire kept as elbows. Moved 2 nearby nodes out of the way.",
+        "Tidied 3 nodes top to bottom. 2 loop wires kept as elbows. Moved 1 nearby node out of the way.",
+        "Tidy skipped: it would move nodes into or out of a Group.",
+        "Selection is already tidy.",
+        "Tidy skipped: a locked Group would have to grow to fit the result.",
+    ]
+    assert tab_refreshes == ["tabs", "tabs"]
+    assert host.selection_notifications == ["selected_node_changed", "selected_node_changed"]
 
 
 def test_pyqt_graph_action_declarations_use_contract_ids() -> None:
