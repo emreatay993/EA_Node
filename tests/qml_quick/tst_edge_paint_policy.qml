@@ -295,4 +295,23 @@ TestCase {
         verify(Math.abs(pipe.x - 10.0) < 0.01)
         verify(Math.abs(pipe.y) < 0.01)
     }
+
+    function test_forward_bezier_lead_mirrors_python_standard_route() {
+        compare(EdgeMath.EDGE_FORWARD_LEAD_MIN, 56.0)
+        compare(EdgeMath.forwardBezierLead(0.0), 56.0)
+        compare(EdgeMath.forwardBezierLead(112.0), 56.0)
+        compare(EdgeMath.forwardBezierLead(300.0), 150.0)
+        compare(EdgeMath.forwardBezierLead(-300.0), 150.0)
+    }
+
+    function test_forward_bezier_lead_delta_is_zero_at_rest_and_signed_when_live() {
+        compare(EdgeMath.forwardBezierLeadDelta(400.0, 0.0), 0.0)
+        compare(EdgeMath.forwardBezierLeadDelta(400.0, NaN), 0.0)
+        compare(EdgeMath.forwardBezierLeadDelta(NaN, 20.0), 0.0)
+        compare(EdgeMath.forwardBezierLeadDelta(400.0, -120.0), -60.0)
+        compare(EdgeMath.forwardBezierLeadDelta(400.0, 120.0), 60.0)
+        // Only the unclamped part of the chord change reaches the handle.
+        compare(EdgeMath.forwardBezierLeadDelta(150.0, -100.0), -19.0)
+        compare(EdgeMath.forwardBezierLeadDelta(-300.0, 100.0), -50.0)
+    }
 }

@@ -239,6 +239,17 @@ Item {
 """,
         )
 
+    def test_live_bezier_lead_mirrors_python_standard_route_constant(self) -> None:
+        from ea_node_editor.ui_qml.graph_geometry.route_pipe import EDGE_FORWARD_LEAD_MIN
+
+        math_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph" / "EdgeMath.js"
+        ).read_text(encoding="utf-8")
+        # EdgeLayer re-derives live bezier handles with this JS mirror of
+        # route_pipe.edge_control_points, so the two leads must stay equal.
+        declaration = f"var EDGE_FORWARD_LEAD_MIN = {EDGE_FORWARD_LEAD_MIN!r};"
+        self.assertTrue(declaration in math_text, f"EdgeMath.js must declare {declaration!r}")
+
     def test_data_tree_wire_contract_threads_previews_and_renderer_metadata(
         self,
     ) -> None:

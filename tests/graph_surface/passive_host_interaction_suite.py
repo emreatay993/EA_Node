@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import textwrap
+
 from tests.graph_surface.environment import *  # noqa: F403
 
 class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
@@ -1561,6 +1563,276 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 QFontDatabase.removeApplicationFont(font_id)
             ''',
         )
+
+    _LIVE_WIRE_HANDLE_HELPERS = '''
+            from ea_node_editor.ui_qml.graph_geometry.route_pipe import EDGE_FORWARD_LEAD_MIN
+
+            def lead_for(dx):
+                # route_pipe.edge_control_points standard branch with no pair lane.
+                return max(EDGE_FORWARD_LEAD_MIN, abs(dx) * 0.5)
+
+            def handles(geometry):
+                return geometry["c1x"] - geometry["sx"], geometry["tx"] - geometry["c2x"]
+
+            def chord(geometry):
+                return geometry["tx"] - geometry["sx"]
+
+            def payload_edge():
+                return next(item for item in scene.edges_model if item["edge_id"] == edge_id)
+
+            def painted_geometry():
+                # The snapshot geometry is what both the Canvas and retained renderers draw.
+                snapshot = variant_value(edge_layer._visibleEdgeSnapshot(edge_id))
+                assert snapshot and snapshot.get("geometry"), ("missing-edge-snapshot", snapshot)
+                geometry = snapshot["geometry"]
+                assert geometry["route"] == "bezier", geometry["route"]
+                return {key: float(geometry[key])
+                        for key in ("sx", "sy", "tx", "ty", "c1x", "c1y", "c2x", "c2y")}
+
+            def assert_retained_paint(geometry):
+                if edge_layer.property("_activeEdgeRendererKind") != "retained_qml":
+                    return False
+                delegate = next((item for item in walk_items(retained_layer)
+                    if isinstance(variant_value(item.property("edgeEntry")), dict)
+                    and variant_value(item.property("edgeEntry")).get("edgeId") == edge_id), None)
+                assert delegate is not None, "missing-retained-edge-delegate"
+                entry = variant_value(delegate.property("edgeEntry"))
+                if entry.get("selectionOverlay"):
+                    return False
+                source_delta = float(delegate.property("sourceDragDx"))
+                target_delta = float(delegate.property("targetDragDx"))
+                drawn = {
+                    "sx": entry["sx"] + source_delta, "c1x": entry["c1x"] + source_delta,
+                    "c2x": entry["c2x"] + target_delta, "tx": entry["tx"] + target_delta,
+                }
+                for key, value in drawn.items():
+                    expected = float(variant_value(edge_layer.sceneToScreenX(geometry[key])))
+                    assert abs(value - expected) < 0.05, ("retained-drawn-geometry", key, value, expected)
+                return True
+
+            def assert_no_reshape_without_motion(sequence):
+                for index in range(1, len(sequence)):
+                    previous, current = sequence[index - 1], sequence[index]
+                    handle_change = abs(handles(current)[0] - handles(previous)[0])
+                    chord_change = abs(chord(current) - chord(previous))
+                    assert handle_change <= 0.5 * chord_change + 0.05, (
+                        "wire-reshaped-without-motion", index, len(sequence), handle_change, chord_change)
+    '''
+
+    def test_settings_animation_rederives_connected_wire_handles_every_frame(self) -> None:
+        body = '''
+            from PyQt6.QtGui import QFont, QFontDatabase
+            from PyQt6.QtCore import pyqtSignal
+
+            font_id = QFontDatabase.addApplicationFont("C:/Windows/Fonts/segoeui.ttf")
+            assert font_id >= 0
+            previous_font = app.font()
+            app.setFont(QFont("Segoe UI", 9))
+
+            class GraphicsSource(QObject):
+                graphics_preferences_changed = pyqtSignal()
+                graphics_lightweight_canvas = False
+                graphics_graph_label_pixel_size = 17
+                graphics_show_port_labels = True
+
+            graphics = GraphicsSource()
+            model = GraphModel()
+            registry = build_default_registry()
+            scene = GraphSceneBridge()
+            scene.bind_graphics_preferences_source(graphics)
+            workspace = model.active_workspace
+            scene.set_workspace(model, registry, workspace.workspace_id)
+            signal_id = scene.add_node_from_type("plot.signal", -420, -390)
+            media_id = scene.add_node_from_type("media.panel", 380, -390)
+            edge_id = scene.add_edge(signal_id, "image", media_id, "source")
+            assert edge_id
+            if WITH_GROUP_BACKDROP:
+                # Any group backdrop publishes the toggle through rebuild_models()
+                # instead of a node geometry delta, as in the reported workspace.
+                backdrop_id = scene.add_node_from_type("passive.annotation.group_backdrop", -480, -470)
+                backdrop = workspace.nodes[backdrop_id]
+                backdrop.custom_width, backdrop.custom_height = 1340.0, 1000.0
+                scene.refresh_workspace_from_model(workspace.workspace_id)
+            view = ViewportBridge()
+            view.set_viewport_size(1600, 1100)
+            canvas = create_component(graph_canvas_qml_path, {
+                "sceneBridge": scene, "viewBridge": view, "width": 1600, "height": 1100,
+                "mainWindowBridge": graphics,
+            })
+            window = attach_host_to_window(canvas, 1600, 1100)
+            try:
+                QTest.qWait(80)
+                scene.clear_selection()
+                app.processEvents()
+                card = next(item for item in named_child_items(canvas, "graphNodeCard")
+                    if variant_value(item.property("nodeData"))["node_id"] == signal_id)
+                edge_layer = canvas.findChild(QObject, "graphCanvasEdgeLayer")
+                retained_layer = canvas.findChild(QObject, "graphCanvasEdgeRetainedLayer")
+                LIVE_WIRE_HANDLE_HELPERS
+
+                def header():
+                    return next(item for item in named_child_items(card, "graphNodeSettingsGroupHeader")
+                        if item.property("groupId") == "general_options")
+
+                def settled_geometry():
+                    geometry = painted_geometry()
+                    payload = payload_edge()
+                    python_lead = lead_for(payload["tx"] - payload["sx"])
+                    assert all(abs(value - python_lead) < 1e-6 for value in handles(geometry)), (
+                        "settled-handle-not-payload", handles(geometry), python_lead)
+                    assert signal_id not in variant_value(canvas.property("liveNodeGeometry"))
+                    assert_retained_paint(geometry)
+                    # Python endpoints sit a constant socket inset inside the rendered ones.
+                    return geometry, (payload["tx"] - payload["sx"]) - chord(geometry)
+
+                def toggle(expect_expanded):
+                    rest, inset = settled_geometry()
+                    samples = []
+                    retained_samples = []
+
+                    def sample():
+                        if card.property("settingsGroupAnimationRunning"):
+                            geometry = painted_geometry()
+                            samples.append(geometry)
+                            retained_samples.append(assert_retained_paint(geometry))
+
+                    window.afterAnimating.connect(sample)
+                    try:
+                        mouse_click(window, item_scene_point(header()))
+                        assert card.property("settingsGroupAnimationRunning")
+                        # The first state after the click: final payload, ports not moved yet.
+                        sample()
+                        for _ in range(60):
+                            if not card.property("settingsGroupAnimationRunning"):
+                                break
+                            QTest.qWait(8)
+                        assert not card.property("settingsGroupAnimationRunning")
+                    finally:
+                        window.afterAnimating.disconnect(sample)
+                    QTest.qWait(40)
+                    expanded = "general_options" in workspace.nodes[signal_id].expanded_settings_group_ids
+                    assert expanded == expect_expanded
+                    final, final_inset = settled_geometry()
+                    assert abs(final_inset - inset) < 1e-6, ("socket-inset-changed", inset, final_inset)
+                    assert abs(chord(final) - chord(rest)) > 40.0, ("width-unchanged", chord(rest), chord(final))
+                    assert len(samples) >= 3, ("animation-frames", len(samples))
+                    sequence = [rest, *samples, final]
+                    for index, geometry in enumerate(sequence):
+                        expected = lead_for(chord(geometry) + inset)
+                        assert all(abs(value - expected) < 0.05 for value in handles(geometry)), (
+                            "live-handle-not-python-lead", index, len(sequence), handles(geometry),
+                            expected, chord(geometry))
+                    assert_no_reshape_without_motion(sequence)
+                    return retained_samples
+
+                retained_frames = toggle(True) + toggle(False)
+                assert any(retained_frames), "settings-animation-never-painted-retained-wire"
+            finally:
+                dispose_host_window(canvas, window)
+                app.setFont(previous_font)
+                QFontDatabase.removeApplicationFont(font_id)
+        '''.replace("LIVE_WIRE_HANDLE_HELPERS", textwrap.indent(
+            textwrap.dedent(self._LIVE_WIRE_HANDLE_HELPERS), " " * 16).strip())
+        for with_group_backdrop in (False, True):
+            with self.subTest(with_group_backdrop=with_group_backdrop):
+                self._run_qml_probe(
+                    "settings-animation-wire-handle-continuity",
+                    body.replace("WITH_GROUP_BACKDROP", repr(with_group_backdrop)),
+                )
+
+    def test_node_drag_rederives_connected_wire_handles_and_drop_keeps_shape(self) -> None:
+        body = '''
+            from PyQt6.QtCore import pyqtSignal
+
+            class GraphicsSource(QObject):
+                graphics_preferences_changed = pyqtSignal()
+                graphics_lightweight_canvas = False
+                graphics_show_port_labels = True
+
+            graphics = GraphicsSource()
+            model = GraphModel()
+            registry = build_default_registry()
+            scene = GraphSceneBridge()
+            scene.bind_graphics_preferences_source(graphics)
+            workspace = model.active_workspace
+            scene.set_workspace(model, registry, workspace.workspace_id)
+            # Grid-aligned positions and offsets keep the drop commit equal to the live offset.
+            source_id = scene.add_node_from_type("plot.signal", -400, -200)
+            target_id = scene.add_node_from_type("media.panel", 400, -200)
+            edge_id = scene.add_edge(source_id, "image", target_id, "source")
+            assert edge_id
+            view = ViewportBridge()
+            view.set_viewport_size(1600, 1000)
+            canvas = create_component(graph_canvas_qml_path, {
+                "sceneBridge": scene, "viewBridge": view, "width": 1600, "height": 1000,
+                "mainWindowBridge": graphics,
+            })
+            window = attach_host_to_window(canvas, 1600, 1000)
+            try:
+                QTest.qWait(80)
+                scene.clear_selection()
+                app.processEvents()
+                edge_layer = canvas.findChild(QObject, "graphCanvasEdgeLayer")
+                retained_layer = canvas.findChild(QObject, "graphCanvasEdgeRetainedLayer")
+                scheduler = canvas.property("frameSchedulerRef")
+                source_card = next(item for item in named_child_items(canvas, "graphNodeCard")
+                    if variant_value(item.property("nodeData"))["node_id"] == source_id)
+                LIVE_WIRE_HANDLE_HELPERS
+
+                rest = painted_geometry()
+                payload = payload_edge()
+                inset = (payload["tx"] - payload["sx"]) - chord(rest)
+                assert all(abs(value - lead_for(payload["tx"] - payload["sx"])) < 1e-6
+                    for value in handles(rest)), ("settled-handle-not-payload", handles(rest))
+                start_x = float(workspace.nodes[source_id].x)
+                start_y = float(workspace.nodes[source_id].y)
+                sequence = [rest]
+                for offset in (60.0, 120.0, 180.0):
+                    source_card.dragOffsetChanged.emit(source_id, offset, 0.0)
+                    scheduler.flushPendingRedraws()
+                    geometry = painted_geometry()
+                    assert abs(geometry["sx"] - (rest["sx"] + offset)) < 0.01, ("drag-endpoint", offset)
+                    assert abs(geometry["tx"] - rest["tx"]) < 0.01
+                    expected = lead_for(chord(geometry) + inset)
+                    assert all(abs(value - expected) < 0.05 for value in handles(geometry)), (
+                        "dragged-handle-not-python-lead", offset, handles(geometry), expected)
+                    assert assert_retained_paint(geometry), "drag-must-paint-through-retained-renderer"
+                    sequence.append(geometry)
+
+                source_card.dragFinished.emit(source_id, start_x + 180.0, start_y, True, "")
+                app.processEvents()
+                assert float(workspace.nodes[source_id].x) == start_x + 180.0
+                dropped = painted_geometry()
+                for key, value in sequence[-1].items():
+                    assert abs(dropped[key] - value) < 0.05, ("drop-reshaped-wire", key, value, dropped[key])
+                payload = payload_edge()
+                assert all(abs(value - lead_for(payload["tx"] - payload["sx"])) < 1e-6
+                    for value in handles(dropped)), ("dropped-handle-not-payload", handles(dropped))
+                assert_no_reshape_without_motion([*sequence, dropped])
+
+                # Dragging both endpoint nodes together is a rigid translation.
+                scene.select_node(source_id, False)
+                scene.select_node(target_id, True)
+                app.processEvents()
+                before = painted_geometry()
+                source_card.dragOffsetChanged.emit(source_id, -80.0, 40.0)
+                scheduler.flushPendingRedraws()
+                moved = painted_geometry()
+                for key, value in before.items():
+                    shift = -80.0 if key.endswith("x") else 40.0
+                    assert abs(moved[key] - (value + shift)) < 0.05, ("rigid-drag", key, value, moved[key])
+                source_x = float(workspace.nodes[source_id].x)
+                source_y = float(workspace.nodes[source_id].y)
+                source_card.dragFinished.emit(source_id, source_x - 80.0, source_y + 40.0, True, "")
+                app.processEvents()
+                committed = painted_geometry()
+                for key, value in moved.items():
+                    assert abs(committed[key] - value) < 0.05, ("rigid-drop-reshaped", key, value, committed[key])
+            finally:
+                dispose_host_window(canvas, window)
+        '''.replace("LIVE_WIRE_HANDLE_HELPERS", textwrap.indent(
+            textwrap.dedent(self._LIVE_WIRE_HANDLE_HELPERS), " " * 16).strip())
+        self._run_qml_probe("node-drag-wire-handle-continuity", body)
 
     def test_signal_plot_title_and_shared_settings_group_animation_are_interactive(self) -> None:
         self._run_qml_probe(

@@ -825,3 +825,20 @@ function pipeControlHandles(pipePoints) {
         "last": points[Math.max(0, points.length - 2)]
     };
 }
+
+// Mirrors ui_qml/graph_geometry/route_pipe.py::edge_control_points (standard branch).
+var EDGE_FORWARD_LEAD_MIN = 56.0;
+
+function forwardBezierLead(dx) {
+    return Math.max(EDGE_FORWARD_LEAD_MIN, Math.abs(Number(dx)) * 0.5);
+}
+
+// Handle-length change when live endpoints move a payload chord by chordShiftX.
+// The payload's additive pair-lane term cancels, so the result is exactly 0 at rest.
+function forwardBezierLeadDelta(payloadDx, chordShiftX) {
+    var dx = Number(payloadDx);
+    var shift = Number(chordShiftX);
+    if (!isFinite(dx) || !isFinite(shift) || shift === 0.0)
+        return 0.0;
+    return forwardBezierLead(dx + shift) - forwardBezierLead(dx);
+}

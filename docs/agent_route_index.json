@@ -1310,7 +1310,8 @@
         "tests/test_type_forwarding_ui.py",
         "tests/test_edge_snapshot_spatial_index.py",
         "tests/test_graph_output_mode_ui.py",
-        "tests/test_data_tree_ui.py"
+        "tests/test_data_tree_ui.py",
+        "tests/test_passive_graph_surface_host.py"
       ],
       "qml_candidates": [
         "ea_node_editor/ui_qml/components/graph/EdgeLayer.qml",
@@ -1406,6 +1407,14 @@
         "index",
         "canvasstatebridgeref",
         "scenebridge",
+        "control",
+        "points",
+        "livenodegeometry",
+        "edgegeometry",
+        "forwardbezierleaddelta",
+        "forward",
+        "lead",
+        "min",
         "output",
         "tree"
       ],
@@ -1416,7 +1425,8 @@
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_graph_output_mode_ui.py tests/test_flow_edge_labels.py tests/test_edge_snapshot_spatial_index.py --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_flow_edge_labels.py tests/test_graph_surface_input_controls.py tests/graph_track_b/scene_model_graph_scene_suite.py -k \"active_data_wire or display_mode or request_rewire_edges or ctrl_drag\" --ignore=venv -q",
         ".\\venv\\Scripts\\python.exe -m pytest tests/test_data_tree_ui.py tests/test_graph_surface_input_controls.py -k \"port_and_edge_authoring or edge\" --ignore=venv -q",
-        ".\\venv\\Scripts\\python.exe -m pytest tests/test_data_type_ui_projection.py -k \"type_warning or availability_annotation\" --ignore=venv -q"
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_data_type_ui_projection.py -k \"type_warning or availability_annotation\" --ignore=venv -q",
+        ".\\venv\\Scripts\\python.exe -m pytest tests/test_flow_edge_labels.py tests/test_passive_graph_surface_host.py -k \"live_bezier_lead or rederives_connected_wire_handles\" --ignore=venv -q"
       ],
       "start_here": [
         "ea_node_editor/ui_qml/edge_routing.py",
@@ -15988,7 +15998,6 @@
         "visibleinputports",
         "visibleoutputports",
         "portpresentation",
-        "settlednotchcutoutcenters",
         "notchcutoutsignature",
         "notchcutoutcenters",
         "portmodelsupdating",
@@ -28997,6 +29006,7 @@
         "tree",
         "edgemath",
         "edgeanchor",
+        "forwardbezierlead",
         "default",
         "port",
         "values",

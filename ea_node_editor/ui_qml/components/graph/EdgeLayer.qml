@@ -99,6 +99,10 @@ Item {
     property real viewportCullMarginPx: 96.0
     property var _cachedBaseNodeMap: null
     property var _cachedNodeMap: null
+    // Payload socket x by node and port for the current payload node map; payloads
+    // never move under a live overlay, so animation ticks reuse these.
+    property var _payloadPortXCache: ({})
+    property var _payloadPortXCacheBaseMap: null
     property var _cachedEdgeGeometries: ({})
     property var _edgeById: ({})
     property var _edgeIds: []
@@ -581,6 +585,8 @@ Item {
                 merged.settingsGroupLayoutHeight = overlay.settingsGroupLayoutHeight;
                 merged.settingsGroupPortOffsets = overlay.settingsGroupPortOffsets;
             }
+            // Edge geometry measures live socket displacement against the payload node.
+            merged.liveOverlayBaseNode = node;
             byId[liveNodeId] = merged;
             hasOverlay = true;
         }
@@ -794,6 +800,31 @@ Item {
         return {"x": root._clampToRange(towardX, bounds.left + insetX, bounds.right - insetX), "y": bounds.bottom};
     }
 
+    function _payloadPortX(payloadNode, portKey) {
+        var baseMap = root._baseNodeMap();
+        if (root._payloadPortXCacheBaseMap !== baseMap) {
+            root._payloadPortXCacheBaseMap = baseMap;
+            root._payloadPortXCache = ({});
+        }
+        var cache = root._payloadPortXCache;
+        var cacheKey = String(payloadNode.node_id) + "\n" + portKey;
+        var x = cache[cacheKey];
+        if (x === undefined) {
+            var point = root._portScenePoint(payloadNode, portKey);
+            x = point ? point.x : NaN;
+            cache[cacheKey] = x;
+        }
+        return x;
+    }
+
+    // Mirrors route_payload.py::_resolve_edge_route: flow edges and backdrop-hidden
+    // endpoints use the side-aware lead; every other bezier uses the forward lead.
+    function _edgeUsesForwardBezierLead(edge) {
+        return String(edge.edge_family || "") !== "flow"
+            && !edge.source_hidden_by_backdrop_id
+            && !edge.target_hidden_by_backdrop_id;
+    }
+
     function _edgeEndpointState(edge, prefix, nodeById, oppositePoint) {
         var pointX = Number(edge && edge[prefix === "source" ? "sx" : "tx"] || 0.0);
         var pointY = Number(edge && edge[prefix === "source" ? "sy" : "ty"] || 0.0);
@@ -819,10 +850,16 @@ Item {
                     offsetX = 0.0;
                 if (!isFinite(offsetY))
                     offsetY = 0.0;
+                // Live overlays (settings animation, resize preview) move sockets away
+                // from where the scene payload placed them, as do drag offsets.
+                var payloadPortX = anchorNode.liveOverlayBaseNode
+                    ? root._payloadPortX(anchorNode.liveOverlayBaseNode, portKey)
+                    : portPoint.x;
                 return {
                     "point": {"x": portPoint.x + offsetX, "y": portPoint.y + offsetY},
                     "bounds": bounds,
-                    "side": side
+                    "side": side,
+                    "leadShiftX": offsetX + (portPoint.x - payloadPortX)
                 };
             }
         }
@@ -999,6 +1036,19 @@ Item {
             c2yWorld += targetState.point.y - tyWorld;
             txWorld = targetState.point.x;
             tyWorld = targetState.point.y;
+        }
+        // Python sized the handles for the payload chord. While sockets are displaced
+        // (settings animation, resize preview, drag), size them for the live chord so
+        // the wire deforms with its endpoints instead of reshaping in place. NaN (an
+        // end that is not a payload socket) keeps the plain translation.
+        var chordShiftX = sourceState && targetState
+            ? Number(targetState.leadShiftX) - Number(sourceState.leadShiftX)
+            : 0.0;
+        if (chordShiftX !== 0.0 && isFinite(chordShiftX)
+                && edge.route !== "pipe" && root._edgeUsesForwardBezierLead(edge)) {
+            var leadDelta = EdgeMath.forwardBezierLeadDelta(Number(edge.tx) - Number(edge.sx), chordShiftX);
+            c1xWorld += leadDelta;
+            c2xWorld -= leadDelta;
         }
 
         var pipePoints = edge.pipe_points || [];

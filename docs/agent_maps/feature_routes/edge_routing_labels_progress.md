@@ -43,6 +43,7 @@ Use this for edge routing, retained edge layers, active-data Item/List/Tree/Empt
 - Edge pan/drag/flash performance gates live in `EdgeSnapshotCache.js`, `EdgeRetainedLayer.qml`, and `EdgeFlowLabelLayer.qml`: viewport spatial queries use a single cell-range cache, dirty hit tests call `ensureSpatialIndex`, retained entries gate unchanged `contentKey`s, and flow-label model sync skips unchanged `edgeData` references.
 - Selection keeps retained wire delegates alive and paints only highlighted wires through the Canvas overlay, preserving shared selection stacking. Drawing-order changes update a separate model role instead of replacing stroke data. Both renderers use pen-width dash units from `EdgePaintPolicy.js`, and retained pipe routes use one continuous path so dash phase survives corners. `tests/test_edge_snapshot_spatial_index.py` verifies rendered dash placement, unrelated pixels, and delegate/update counts across selection changes.
 - `EdgeCanvasLayer.qml` exposes `canvasStateBridgeRef` from `EdgeLayer.sceneBridge`; inline edge typography and flow-label shared roles depend on that bridge projection.
+- Live bezier handles: Python sizes standard forward-bezier handles for the payload chord (`route_pipe.py::edge_control_points`). While sockets are displaced from the payload by a `liveNodeGeometry` overlay (settings-group animation, resize preview) or a drag offset, `EdgeLayer._edgeGeometry` adds `EdgeMath.forwardBezierLeadDelta` so the handles fit the live chord. That keeps the wire from reshaping in place at animation start or on drop. The correction is exactly 0 at rest, so settled geometry is unchanged. Flow and backdrop-hidden (side-aware) edges and pipes stay translate-only. Keep `EdgeMath.EDGE_FORWARD_LEAD_MIN` equal to the Python constant; `tests/test_flow_edge_labels.py` guards it. Retained per-delegate drag deltas are 0 at paint time because each drag flush rebuilds incident snapshots. `tests/graph_surface/passive_host_interaction_suite.py` owns the per-frame settings-animation and drag/drop handle checks.
 
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/qml_preference_rendering_suite.py --ignore=venv -q
@@ -51,6 +52,7 @@ Use this for edge routing, retained edge layers, active-data Item/List/Tree/Empt
 .\venv\Scripts\python.exe -m pytest tests/test_flow_edge_labels.py tests/test_graph_surface_input_controls.py tests/graph_track_b/scene_model_graph_scene_suite.py -k "active_data_wire or display_mode or request_rewire_edges or ctrl_drag" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_tree_ui.py tests/test_graph_surface_input_controls.py -k "port_and_edge_authoring or edge" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_type_ui_projection.py -k "type_warning or availability_annotation" --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_flow_edge_labels.py tests/test_passive_graph_surface_host.py -k "live_bezier_lead or rederives_connected_wire_handles" --ignore=venv -q
 ```
 
 ## Breadcrumbs
