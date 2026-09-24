@@ -219,6 +219,63 @@ def test_decision_branch_drops_into_the_next_row_of_the_same_column() -> None:
     assert _center_y(rects["a"]) == pytest.approx(_center_y(rects["d"]))
 
 
+def _assert_branch_directly_below(rects, parent_id: str, child_id: str, other_ids: tuple[str, ...]) -> None:
+    parent, child = rects[parent_id], rects[child_id]
+    assert _center_x(child) == pytest.approx(_center_x(parent))
+    assert child[1] == pytest.approx(parent[1] + DECISION[1] + ROW_GAP)
+    for other_id in other_ids:
+        other = rects[other_id]
+        in_column = other[0] < parent[0] + parent[2] and other[0] + other[2] > parent[0]
+        between = other[1] < child[1] and other[1] + other[3] > parent[1] + parent[3]
+        assert not (in_column and between), f"{other_id} sits on the {parent_id} -> {child_id} branch wire"
+
+
+def test_branch_keeps_the_cell_below_its_decision_against_a_second_root() -> None:
+    # r feeds e and is pulled into the decision's column; drawn above d, it used to be placed first and take the
+    # cell below d, pushing the "no" branch f a row down so its wire crossed r.
+    items = [
+        _item("a", 0, 200, START),
+        _item("d", 300, 180, DECISION),
+        _item("e", 650, 190),
+        _item("f", 310, 450),
+        _item("r", 320, -100),
+    ]
+    wires = [
+        _wire(items, "ad", "a", "d"),
+        _wire(items, "de", "d", "e"),
+        _wire(items, "df", "d", "f", "bottom", "top"),
+        _wire(items, "re", "r", "e"),
+    ]
+
+    rects = _rects(_layout(items, wires), items)
+
+    _assert_branch_directly_below(rects, "d", "f", ("r", "a", "e"))
+    assert _center_y(rects["e"]) == pytest.approx(_center_y(rects["d"]))
+
+
+def test_branch_keeps_the_cell_below_its_decision_against_an_elbow_neighbour() -> None:
+    # q hangs off p's bottom port (one column on, one row down) and is drawn above d, so it used to claim the cell
+    # below d before d was even placed.
+    items = [
+        _item("p", 0, 100),
+        _item("d", 320, 200, DECISION),
+        _item("q", 330, -80),
+        _item("f", 325, 450),
+        _item("e", 700, 200),
+    ]
+    wires = [
+        _wire(items, "pd", "p", "d"),
+        _wire(items, "pq", "p", "q", "bottom", "left"),
+        _wire(items, "df", "d", "f", "bottom", "top"),
+        _wire(items, "de", "d", "e"),
+    ]
+
+    rects = _rects(_layout(items, wires), items)
+
+    _assert_branch_directly_below(rects, "d", "f", ("q", "p", "e"))
+    assert rects["q"][1] > rects["f"][1]
+
+
 def _flowchart_with_optional_loop(*, with_loop: bool) -> tuple[list[TidyItem], list[TidyWire]]:
     items = [
         _item("s", 0, 30, START),

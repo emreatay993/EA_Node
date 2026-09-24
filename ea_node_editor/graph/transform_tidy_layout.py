@@ -587,43 +587,84 @@ def _layer_rows(
     for wire in wires:
         incoming[wire.target_id].append(wire)
         outgoing[wire.source_id].append(wire)
-
-    def ready_key(item_id: str) -> tuple[int, float, float, str]:
-        x, y, width, height = rects[item_id]
-        return (columns[item_id], y + height * 0.5, x + width * 0.5, item_id)
+    branch_children = {
+        item_id: sorted(
+            (wire for wire in outgoing[item_id] if not wire.advance),
+            key=lambda wire: (rects[wire.target_id][0], rects[wire.target_id][1], wire.wire_id),
+        )
+        for item_id in item_ids
+    }
 
     rows: dict[str, int] = {}
     row_offset = 0
     for component in components:
         component_rows: dict[str, int] = {}
         occupied: set[tuple[int, int]] = set()
+        # The cell straight below a node is kept for its first branch child in the same column, so a later
+        # node cannot take it and push the branch down across that node.
+        reserved_for: dict[tuple[int, int], str] = {}
+        reserved_cell: dict[str, tuple[int, int]] = {}
         max_row = -1
         remaining = {item_id: len(incoming[item_id]) for item_id in component}
-        ready = [ready_key(item_id) for item_id in component if remaining[item_id] == 0]
-        heapq.heapify(ready)
-        while ready:
-            item_id = heapq.heappop(ready)[-1]
+        placed_desired: dict[str, int] = {}
+
+        def desired_row(item_id: str) -> int:
+            cached = placed_desired.get(item_id)
+            if cached is not None:
+                return cached
+            return 0 if max_row < 0 else max_row + 1
+
+        def mark_ready(item_id: str) -> None:
             branch_rows = [component_rows[wire.source_id] + 1 for wire in incoming[item_id] if not wire.advance]
             advance_rows = [
                 component_rows[wire.source_id] + wire.row_bias for wire in incoming[item_id] if wire.advance
             ]
             if branch_rows:
-                desired_row = max(branch_rows)
+                placed_desired[item_id] = max(branch_rows)
             elif advance_rows:
-                desired_row = _lower_median(advance_rows)
-            else:
-                desired_row = 0 if max_row < 0 else max_row + 1
+                placed_desired[item_id] = _lower_median(advance_rows)
+            ready.add(item_id)
+
+        ready: set[str] = set()
+        for item_id in component:
+            if remaining[item_id] == 0:
+                ready.add(item_id)
+        while ready:
+            # Within a column the node wanting the higher row goes first (then the drawn position), so a
+            # decision is placed before whatever would otherwise take the cell below it.
+            item_id = min(
+                ready,
+                key=lambda item_id: (
+                    columns[item_id],
+                    desired_row(item_id),
+                    rects[item_id][1] + rects[item_id][3] * 0.5,
+                    rects[item_id][0] + rects[item_id][2] * 0.5,
+                    item_id,
+                ),
+            )
+            ready.discard(item_id)
             column = columns[item_id]
-            row = desired_row
-            while (column, row) in occupied:
+            row = desired_row(item_id)
+            own_cell = reserved_cell.pop(item_id, None)
+            if own_cell is not None:
+                del reserved_for[own_cell]
+            while (column, row) in occupied or (column, row) in reserved_for:
                 row += 1
             component_rows[item_id] = row
             occupied.add((column, row))
             max_row = max(max_row, row)
+            below = (column, row + 1)
+            if below not in occupied and below not in reserved_for:
+                for wire in branch_children[item_id]:
+                    child_id = wire.target_id
+                    if columns[child_id] == column and child_id not in component_rows and child_id not in reserved_cell:
+                        reserved_for[below] = child_id
+                        reserved_cell[child_id] = below
+                        break
             for wire in outgoing[item_id]:
                 remaining[wire.target_id] -= 1
                 if remaining[wire.target_id] == 0:
-                    heapq.heappush(ready, ready_key(wire.target_id))
+                    mark_ready(wire.target_id)
         for item_id, row in component_rows.items():
             rows[item_id] = row + row_offset
         row_offset += max_row + 1
