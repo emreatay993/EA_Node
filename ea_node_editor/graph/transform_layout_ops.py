@@ -114,13 +114,23 @@ def build_alignment_position_updates(
     alignment: str,
 ) -> dict[str, tuple[float, float]]:
     normalized_alignment = str(alignment).strip().lower()
-    if normalized_alignment not in {"left", "right", "top", "bottom"}:
+    if normalized_alignment not in {"left", "right", "top", "bottom", "center_x", "center_y"}:
         return {}
     if len(layout_nodes) < 2:
         return {}
 
     updates: dict[str, tuple[float, float]] = {}
-    if normalized_alignment == "left":
+    if normalized_alignment == "center_x":
+        # Shared horizontal center of the selection bounds: stacks the nodes into a centered column.
+        target_center_x = (min(node.left for node in layout_nodes) + max(node.right for node in layout_nodes)) * 0.5
+        for node in layout_nodes:
+            updates[node.node_id] = (target_center_x - (node.width * 0.5), node.y)
+    elif normalized_alignment == "center_y":
+        # Shared vertical center of the selection bounds: a row whose side ports line up.
+        target_center_y = (min(node.top for node in layout_nodes) + max(node.bottom for node in layout_nodes)) * 0.5
+        for node in layout_nodes:
+            updates[node.node_id] = (node.x, target_center_y - (node.height * 0.5))
+    elif normalized_alignment == "left":
         target_left = min(node.left for node in layout_nodes)
         for node in layout_nodes:
             updates[node.node_id] = (target_left, node.y)

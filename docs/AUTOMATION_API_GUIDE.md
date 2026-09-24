@@ -20,7 +20,7 @@ It is a **local, opt-in developer automation surface**:
   `--automation` or spawned by the launcher.
 - Loopback only (`127.0.0.1`), one per-instance token, protocol version 1,
   NDJSON frames capped at 8 MiB.
-- One declarative op catalog: 47 ops, each also a typed MCP tool. The same
+- One declarative op catalog: 48 ops, each also a typed MCP tool. The same
   in-app server serves every launch mode.
 - Every mutating op is exactly one undo step; `graph.apply` batches are one
   step too.
@@ -326,15 +326,73 @@ Colours are `#RRGGBB` or `#RRGGBBAA`.
 (pixels at zoom 1). Default flowchart shapes are about 200 x 100; a 320 x 160
 grid (320 horizontally between columns, 160 vertically between rows) leaves
 room for edge labels and the decision diamond. Keep loops on their own row and
-let `layout.arrange` tidy alignment afterwards. `view.set_camera(frame=all)`
-frames everything before a screenshot.
+tidy afterwards (see [Tidying the layout](#tidying-the-layout)).
+`view.set_camera(frame=all)` frames everything before a screenshot.
 
 Default shape heights differ (start and end 78, process 84, input/output and
 predefined process 94, document 104, decision and database 128; read
 `catalog.describe_node_type` `default_size`). Nodes placed at the same `y`
 align their top edges, so their side ports sit at different heights and
-horizontal connectors get small jogs. For straight rows place each node at
-`y = row_center - height / 2`.
+horizontal connectors get small jogs. Fix a row with
+`layout.arrange(action=align_center_y)`, or place each node at
+`y = row_center - height / 2` yourself.
+
+### Tidying the layout
+
+`layout.arrange` covers the canvas Layout actions for two or more nodes:
+
+- `align_left`, `align_right`, `align_top`, `align_bottom` line edges up with
+  the outermost node.
+- `align_center_y` gives every node the vertical center of their combined
+  bounds, so a row of mixed shapes has its side ports at one height.
+  `align_center_x` does the same for a column. These two exist only in the
+  API; the canvas menus do not offer them, and they ignore `snap_to_grid`
+  because snapping the corner would undo the centering.
+- `distribute_horizontal` and `distribute_vertical` need three or more nodes.
+  They equalise the gaps and keep the outer two nodes in place.
+- `match_width` and `match_height` resize passive nodes of the same `type_id`
+  to the first listed node of that type. Other nodes are listed in
+  `ignored_node_ids`; with no same-type passive pair the call fails with
+  `INVALID_PARAMS`.
+
+Every result reports `moved_node_ids`, `resized_node_ids`, `skipped_nodes`,
+and `overlapping_node_pairs`, so you can spread nodes out when an alignment
+stacked them. The layout actions follow the canvas selection rules: locked
+nodes (unless the "interact with locked objects" preference is on), members of
+a collapsed Group, and nodes outside an open comment peek are left alone and
+listed in `skipped_nodes` with the reason `locked_node`,
+`hidden_in_collapsed_group`, or `not_selectable`. With fewer than two usable
+nodes the call fails with `INVALID_PARAMS`.
+
+`layout.straighten` is Straighten Connections. It moves nodes so the wires
+between them run straight. With no ids it covers every wire in the open scope;
+`node_ids` limits it to wires between those nodes, and `edge_ids` adds each
+wire's endpoints. A wire can be straightened when both ends sit on horizontal
+sides (`right` to `left`) or both on vertical sides (`bottom` to `top`). Only
+the listed nodes move. Each connected set of wires is solved per axis and
+re-centred on its median offset, so the set does not drift; a set whose wires
+need contradictory offsets is not moved on that axis. The result lists
+`straightened_edge_ids` and `skipped_edges`. Skip reasons:
+
+- `mixed_port_sides`: an elbow such as `right` to `top`. Reconnect it to
+  opposite sides if it should be straight.
+- `unresolved_offset`: the ends still differ by `offset` pixels. Either the
+  wires of that set need contradictory offsets, or a data-node port is drawn
+  away from the anchor the solver aligns (ports inside settings groups or
+  inline editors). Move one node with `node.update`.
+- `locked_node`, `hidden_in_collapsed_group`, `not_selectable`: an end the
+  canvas would not move (see `node_id`).
+
+Straightening can stack nodes, so check `overlapping_node_pairs` too.
+
+A typical tidy pass after building a flowchart:
+
+```python
+corex.structure.align(row_ids, "center_y")
+report = corex.structure.straighten()
+for skipped in report["skipped_edges"]:
+    print(skipped["edge_id"], skipped["reason"])
+```
 
 ### Error handling
 
@@ -415,7 +473,7 @@ has `call(op, params)`.
 | `corex.graph` | `get(workspace_id=, scope=, include_style=, include_properties=)`, `get_node(node_id)`, `find_nodes(query=, type_id=, title=, title_contains=, scope=, limit=)` |
 | `corex.nodes` | `add(type_id, x, y, title=, width=, height=, parent_node_id=, select=, properties=)`, `add_text(markdown, x, y, format=, style=, ...)`, `add_media(path, x, y, fit_mode=, show_title=, show_frame=, ...)`, `add_web_panel(x, y, url= or html=, display_mode=, ...)`, `update(node_id, title=, x=, y=, width=, height=, properties=, port_labels=, exposed_ports=, collapsed=, locked=)`, `set_style(node_id, style, preset=, replace=, clear=, propagate=)`, `delete(ids)`, `duplicate(ids, offset_x=, offset_y=)`; sugar `add_path_pointer(path, x, y, mode=)`, `add_panel(x, y, ...)`, `set_text_style(node_id, content_key, **style)` |
 | `corex.edges` | `connect(source, source_port, target, target_port, replace_existing=, label=, style=)`, `update(edge_id, label=, style=, path_mode=, enabled=, display_mode=, clear_style=, clear_label=)`, `set_label`, `clear_label`, `set_style`, `clear_style`, `set_path_mode`, `set_display_mode`, `set_enabled`, `delete(ids)` |
-| `corex.structure` | `wrap_group(ids, title=)`, `create_subnode(ids, title=)`, `ungroup_subnode(shell)`, `add_subnode_pin(shell, direction)`, `add_input_pin`, `add_output_pin`, `navigate_scope(target, node_id=)`, `open_subnode(shell)`, `navigate_parent()`, `navigate_root()`, `set_selection(ids, mode=)`, `select`, `add_to_selection`, `clear_selection`, `arrange(ids, action)`, `align(ids, side)`, `distribute(ids, orientation)` |
+| `corex.structure` | `wrap_group(ids, title=)`, `create_subnode(ids, title=)`, `ungroup_subnode(shell)`, `add_subnode_pin(shell, direction)`, `add_input_pin`, `add_output_pin`, `navigate_scope(target, node_id=)`, `open_subnode(shell)`, `navigate_parent()`, `navigate_root()`, `set_selection(ids, mode=)`, `select`, `add_to_selection`, `clear_selection`, `arrange(ids, action)`, `align(ids, side)` (side also `center_x` / `center_y`), `distribute(ids, orientation)`, `match_size(ids, dimension)`, `straighten(node_ids=None, edge_ids=)` |
 | `corex.annotations` | `comment_upsert(...)`, `comment(node_id, body)`, `reply(node_id, parent_id, body)`, `resolve(node_id, comment_id)`, `comment_remove`, `link_upsert(...)`, `link_url` / `link_file` / `link_folder` / `link_workspace` / `link_node`, `link_remove` |
 | `corex.workspaces` | `list()`, `create(name, duplicate_of=, activate=)`, `duplicate(workspace_id)`, `update`, `rename`, `activate`, `close(workspace_id, discard_unsaved=)`, `create_view`, `update_view`, `activate_view`, `close_view`, `set_camera(zoom=, center_x=, center_y=, frame=, node_ids=)`, `frame_all()`, `frame_selection()`, `frame_nodes(ids)` |
 | `corex.project` | `open(path, discard_unsaved=)`, `new(discard_unsaved=)`, `save(path=None)`, `save_as(path)`, `stage_file(path or content=, filename=, subdirectory=, node_id=)`, `stage_bytes(filename, content)` |
@@ -454,7 +512,7 @@ performs it. "not exposed" means the first pass deliberately leaves it out
 | Floating toolbar (selection) | Wrap Selection in Group (C) | `group.wrap` |
 | Floating toolbar (selection) | Align Left / Right / Top / Bottom | `layout.arrange(action=align_*)` |
 | Floating toolbar (selection) | Distribute Horizontally / Vertically | `layout.arrange(action=distribute_*)` |
-| Floating toolbar (selection) | Straighten Connections | not exposed |
+| Floating toolbar (selection) | Straighten Connections | `layout.straighten(node_ids=[...])` |
 | Floating toolbar (selection) | Run Selected / Preview Run | `run.start(scope=nodes)`; preview overlay not exposed |
 | Node context menu | Edit Style... | `node.set_style(style=... \| preset=...)` |
 | Node context menu | Reset Style | `node.set_style(clear=true)` |
@@ -485,7 +543,7 @@ performs it. "not exposed" means the first pass deliberately leaves it out
 | Canvas / selection context menu | Delete Selection | `node.delete` / `edge.delete` |
 | Canvas / selection context menu | Group Selection (Ctrl+Alt+G) | `subnode.create` |
 | Canvas / selection context menu | Ungroup Selection (Ctrl+Shift+G) | `subnode.ungroup` |
-| Canvas / selection context menu | Set Same Width / Height | not exposed; use `node.update(width=, height=)` per node |
+| Canvas / selection context menu | Set Same Width / Height | `layout.arrange(action=match_width \| match_height)` |
 | Canvas / selection context menu | Quick add from the library | `node.add`, `node.add_text`, `node.add_media`, `node.add_web_panel` |
 | Canvas | Select / marquee | `selection.set(mode=replace \| add \| clear)` |
 | Canvas | Drag / resize nodes | `node.update(x=, y=, width=, height=)` |
@@ -620,7 +678,8 @@ from the same catalog.
 | `subnode_add_pin` | `subnode.add_pin` | Add an input or output pin to a subnode shell. |
 | `scope_navigate` | `scope.navigate` | Open a subnode scope (target=node), go up one level (parent), or return to the root scope. |
 | `selection_set` | `selection.set` | Replace, extend, or clear the canvas selection. |
-| `layout_arrange` | `layout.arrange` | Align or distribute a set of nodes (align left/right/top/bottom, distribute horizontal/vertical). |
+| `layout_arrange` | `layout.arrange` | Align, distribute, or match the size of a set of nodes (align left/right/top/bottom/center_x/center_y, distribute horizontal/vertical, match_width/match_height). |
+| `layout_straighten` | `layout.straighten` | Move nodes so the wires between them run straight (the Straighten Connections action). |
 | `comment_upsert` | `comment.upsert` | Add or edit a comment on a node (threaded via parent_id; resolved/pinned flags). |
 | `comment_remove` | `comment.remove` | Remove a comment from a node. |
 | `link_upsert` | `link.upsert` | Add or edit a link on a node: url, file, folder, workspace, or node targets; optional ordering position. |
@@ -1098,15 +1157,32 @@ Result keys: `selected_node_ids`.
 
 MCP tool: `layout_arrange`. Flags: undo step, apply-allowed.
 
-Align or distribute a set of nodes (align left/right/top/bottom, distribute horizontal/vertical).
+Align, distribute, or match the size of a set of nodes (align left/right/top/bottom/center_x/center_y, distribute horizontal/vertical, match_width/match_height).
+
+align_left/right/top/bottom line nodes up with the outermost edge; align_center_y gives every node the vertical center of their combined bounds (a row whose side ports line up), align_center_x the horizontal center (a centered column). distribute_\* needs 3+ nodes and keeps the outer two in place. match_width/match_height resize passive nodes of the same type_id to the first listed node of that type. snap_to_grid applies to align_left/right/top/bottom and distribute_\* only. Locked nodes (unless the 'interact with locked objects' preference is on), members of a collapsed Group, and nodes outside an open comment peek are left alone and listed in skipped_nodes. Results list moved/resized ids and overlapping_node_pairs so you can distribute or nudge afterwards.
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
 | `node_ids` | `array<string>` | yes |  | Two or more nodes; min 2 item(s) |
-| `action` | `string` | yes |  | one of: align_left, align_right, align_top, align_bottom, distribute_horizontal, distribute_vertical |
+| `action` | `string` | yes |  | one of: align_left, align_right, align_top, align_bottom, align_center_x, align_center_y, distribute_horizontal, distribute_vertical, match_width, match_height |
 | `snap_to_grid` | `boolean` | no | `false` |  |
 
-Result keys: `moved_node_ids`.
+Result keys: `moved_node_ids`, `resized_node_ids`, `skipped_nodes`, `overlapping_node_pairs`.
+
+#### layout.straighten
+
+MCP tool: `layout_straighten`. Flags: undo step, apply-allowed.
+
+Move nodes so the wires between them run straight (the Straighten Connections action).
+
+Omit node_ids and edge_ids to straighten every wire in the open scope; edge_ids add their endpoint nodes. A wire can be straightened when both ends sit on horizontal sides (right->left) or both on vertical sides (bottom->top). Only the given nodes move. Each connected set of wires is solved per axis and re-centred on its median offset so it does not drift; a set whose wires need contradictory offsets is not moved on that axis. Read straightened_edge_ids and skipped_edges: mixed_port_sides = an elbow such as right->top; unresolved_offset = the ends still differ by offset px (contradictory wires in the set, or a data-node port drawn away from its layout anchor); locked_node / hidden_in_collapsed_group / not_selectable = an end the scene would not move. Check overlapping_node_pairs in case straightening stacked nodes.
+
+| Param | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `node_ids` | `array<string>` | no |  | Nodes whose wires to straighten (default: every node in the open scope); min 1 item(s) |
+| `edge_ids` | `array<string>` | no |  | Wires to straighten; their endpoint nodes join node_ids; min 1 item(s) |
+
+Result keys: `moved_node_ids`, `straightened_edge_ids`, `skipped_edges`, `overlapping_node_pairs`.
 
 ### annotations
 

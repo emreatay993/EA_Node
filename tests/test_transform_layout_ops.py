@@ -3,7 +3,9 @@ from __future__ import annotations
 from ea_node_editor.graph.workspace_state import WorkspaceData
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.transform_layout_ops import (
+    LayoutNodeBounds,
     PortAlignmentConstraint,
+    build_alignment_position_updates,
     build_straighten_connection_position_updates,
 )
 
@@ -115,3 +117,38 @@ def test_straighten_conflicting_component_is_skipped() -> None:
     )
 
     assert updates == {}
+
+
+def _mixed_size_layout_nodes() -> list[LayoutNodeBounds]:
+    return [
+        LayoutNodeBounds(node_id="process", x=0.0, y=0.0, width=180.0, height=84.0),
+        LayoutNodeBounds(node_id="decision", x=320.0, y=40.0, width=160.0, height=128.0),
+        LayoutNodeBounds(node_id="terminal", x=640.0, y=100.0, width=120.0, height=60.0),
+    ]
+
+
+def test_align_center_y_shares_the_selection_vertical_center() -> None:
+    nodes = _mixed_size_layout_nodes()
+    updates = build_alignment_position_updates(layout_nodes=nodes, alignment="center_y")
+    target_center_y = (0.0 + 168.0) * 0.5  # top of process .. bottom of decision
+    assert set(updates) == {"process", "decision", "terminal"}
+    for node in nodes:
+        final_x, final_y = updates[node.node_id]
+        assert final_x == node.x
+        assert final_y + node.height * 0.5 == target_center_y
+
+
+def test_align_center_x_shares_the_selection_horizontal_center() -> None:
+    nodes = _mixed_size_layout_nodes()
+    updates = build_alignment_position_updates(layout_nodes=nodes, alignment=" Center_X ")
+    target_center_x = (0.0 + 760.0) * 0.5  # left of process .. right of terminal
+    for node in nodes:
+        final_x, final_y = updates[node.node_id]
+        assert final_y == node.y
+        assert final_x + node.width * 0.5 == target_center_x
+
+
+def test_center_alignment_needs_two_nodes_and_a_known_mode() -> None:
+    nodes = _mixed_size_layout_nodes()
+    assert build_alignment_position_updates(layout_nodes=nodes[:1], alignment="center_y") == {}
+    assert build_alignment_position_updates(layout_nodes=nodes, alignment="middle") == {}

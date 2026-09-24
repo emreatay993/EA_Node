@@ -182,6 +182,37 @@ Per-wave independent review:
   index, traceability) 117 passed; `check_agent_maps.py`,
   `check_markdown_links.py`, `check_traceability.py` pass.
 
+## Layout tools follow-up (2026-09-24)
+
+Closes the two "not exposed" UI-parity rows (Straighten Connections, Set Same
+Width / Height) and removes the hand-computed row-centering workaround from the
+agent guidance. Catalog is now **48 ops, 48 MCP tools, 23 `apply_allowed`**.
+
+- `layout.arrange` gains `align_center_x` / `align_center_y` (API-only modes of
+  the pure builder `graph/transform_layout_ops.py::build_alignment_position_updates`;
+  no owner signature changed, no menu entry) and `match_width` /
+  `match_height` (owner `set_selected_same_type_size`; `INVALID_PARAMS` when no
+  passive same-type pair exists). Every result adds `resized_node_ids` and
+  `overlapping_node_pairs`.
+- New `layout.straighten` / `layout_straighten`: node ids, edge ids (endpoints
+  join the set), or nothing (whole open scope); calls
+  `straighten_selected_connections` under a temporary selection and classifies
+  every candidate wire from `scene.edges_model` into `straightened_edge_ids` or
+  `skipped_edges` (`mixed_port_sides`, `unresolved_offset`, `locked_node`,
+  `hidden_in_collapsed_group`, `not_selectable`, `not_drawn`). Apply-allowed
+  with `node_ids[]` / `edge_ids[]` refs.
+- Review fixes (independent review agent): layout actions use only nodes the
+  scene would let the user select and that are drawn (hidden members of a
+  collapsed Group were being dragged out of it by the whole-scope default);
+  skipped nodes are reported (`skipped_nodes`), and match_* no longer resizes
+  locked nodes; center alignment ignores `snap_to_grid`; the not-straight
+  reason is `unresolved_offset` because the solver's `port_scene_pos` anchors
+  differ from drawn anchors for ports inside settings groups / inline editors
+  (existing owner limitation shared with the canvas action, not changed here).
+- Guidance (instructions, guide resource, `build_flowchart` prompt), repo guide
+  ("Tidying the layout" section + UI-parity rows + generated reference), skill,
+  and `examples/automation/flowchart.py` (tidy pass) updated.
+
 ## First-pass limits (documented for agents)
 
 - Graph ops act on the active workspace and open scope.

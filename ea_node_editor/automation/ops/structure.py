@@ -1,4 +1,4 @@
-# Purpose: Structure op specs: group backdrops, subnodes (create/ungroup/pins), scope navigation, selection, layout.
+# Purpose: Structure op specs: group backdrops, subnodes (create/ungroup/pins), scope navigation, selection, layout (arrange + straighten).
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_catalog.py
 from __future__ import annotations
@@ -11,7 +11,7 @@ from ea_node_editor.automation.op_model import (
     object_schema,
     string_schema,
 )
-from ea_node_editor.automation.ops.common import NODE_ID, TITLE
+from ea_node_editor.automation.ops.common import EDGE_ID, NODE_ID, TITLE
 
 DOMAIN = "structure"
 
@@ -114,10 +114,27 @@ SELECTION_SET = OpSpec(
     mcp_tool="selection_set",
 )
 
+NODE_SKIP_REASONS = ("locked_node", "hidden_in_collapsed_group", "not_selectable")
+EDGE_SKIP_REASONS = ("mixed_port_sides", "unresolved_offset", *NODE_SKIP_REASONS, "not_drawn")
+SKIPPED_NODE = object_schema({"node_id": NODE_ID, "reason": string_schema(enum=NODE_SKIP_REASONS)}, additional=True)
+
 LAYOUT_ARRANGE = OpSpec(
     name="layout.arrange",
     domain=DOMAIN,
-    summary="Align or distribute a set of nodes (align left/right/top/bottom, distribute horizontal/vertical).",
+    summary=(
+        "Align, distribute, or match the size of a set of nodes (align left/right/top/bottom/center_x/center_y, "
+        "distribute horizontal/vertical, match_width/match_height)."
+    ),
+    description=(
+        "align_left/right/top/bottom line nodes up with the outermost edge; align_center_y gives every node the "
+        "vertical center of their combined bounds (a row whose side ports line up), align_center_x the horizontal "
+        "center (a centered column). distribute_* needs 3+ nodes and keeps the outer two in place. "
+        "match_width/match_height resize passive nodes of the same type_id to the first listed node of that type. "
+        "snap_to_grid applies to align_left/right/top/bottom and distribute_* only. Locked nodes (unless the "
+        "'interact with locked objects' preference is on), members of a collapsed Group, and nodes outside an open "
+        "comment peek are left alone and listed in skipped_nodes. Results list moved/resized ids and "
+        "overlapping_node_pairs so you can distribute or nudge afterwards."
+    ),
     params=object_schema(
         {
             "node_ids": id_list_schema("Two or more nodes", min_items=2),
@@ -127,19 +144,78 @@ LAYOUT_ARRANGE = OpSpec(
                     "align_right",
                     "align_top",
                     "align_bottom",
+                    "align_center_x",
+                    "align_center_y",
                     "distribute_horizontal",
                     "distribute_vertical",
+                    "match_width",
+                    "match_height",
                 )
             ),
             "snap_to_grid": boolean_schema(default=False),
         },
         required=("node_ids", "action"),
     ),
-    result=object_schema({"moved_node_ids": array_schema(NODE_ID)}, additional=True),
+    result=object_schema(
+        {
+            "moved_node_ids": array_schema(NODE_ID),
+            "resized_node_ids": array_schema(NODE_ID),
+            "skipped_nodes": array_schema(SKIPPED_NODE, "Nodes the action left alone, with the reason"),
+            "overlapping_node_pairs": array_schema(array_schema(NODE_ID), "Pairs of the given nodes whose bounds overlap afterwards"),
+        },
+        additional=True,
+    ),
     mutates_graph=True,
     apply_allowed=True,
     ref_fields=("node_ids[]",),
     mcp_tool="layout_arrange",
+)
+
+LAYOUT_STRAIGHTEN = OpSpec(
+    name="layout.straighten",
+    domain=DOMAIN,
+    summary="Move nodes so the wires between them run straight (the Straighten Connections action).",
+    description=(
+        "Omit node_ids and edge_ids to straighten every wire in the open scope; edge_ids add their endpoint nodes. "
+        "A wire can be straightened when both ends sit on horizontal sides (right->left) or both on vertical sides "
+        "(bottom->top). Only the given nodes move. Each connected set of wires is solved per axis and re-centred on "
+        "its median offset so it does not drift; a set whose wires need contradictory offsets is not moved on that "
+        "axis. Read straightened_edge_ids and skipped_edges: mixed_port_sides = an elbow such as right->top; "
+        "unresolved_offset = the ends still differ by offset px (contradictory wires in the set, or a data-node "
+        "port drawn away from its layout anchor); locked_node / hidden_in_collapsed_group / not_selectable = an "
+        "end the scene would not move. Check overlapping_node_pairs in case straightening stacked nodes."
+    ),
+    params=object_schema(
+        {
+            "node_ids": id_list_schema("Nodes whose wires to straighten (default: every node in the open scope)"),
+            "edge_ids": id_list_schema("Wires to straighten; their endpoint nodes join node_ids"),
+        },
+    ),
+    result=object_schema(
+        {
+            "moved_node_ids": array_schema(NODE_ID),
+            "straightened_edge_ids": array_schema(EDGE_ID),
+            "skipped_edges": array_schema(
+                object_schema(
+                    {
+                        "edge_id": EDGE_ID,
+                        "reason": string_schema(enum=EDGE_SKIP_REASONS),
+                        "source_side": string_schema(),
+                        "target_side": string_schema(),
+                        "node_id": NODE_ID,
+                        "offset": {"type": "number"},
+                    },
+                    additional=True,
+                )
+            ),
+            "overlapping_node_pairs": array_schema(array_schema(NODE_ID)),
+        },
+        additional=True,
+    ),
+    mutates_graph=True,
+    apply_allowed=True,
+    ref_fields=("node_ids[]", "edge_ids[]"),
+    mcp_tool="layout_straighten",
 )
 
 OPS: tuple[OpSpec, ...] = (
@@ -150,12 +226,16 @@ OPS: tuple[OpSpec, ...] = (
     SCOPE_NAVIGATE,
     SELECTION_SET,
     LAYOUT_ARRANGE,
+    LAYOUT_STRAIGHTEN,
 )
 
 __all__ = [
     "DOMAIN",
+    "EDGE_SKIP_REASONS",
     "GROUP_WRAP",
     "LAYOUT_ARRANGE",
+    "LAYOUT_STRAIGHTEN",
+    "NODE_SKIP_REASONS",
     "OPS",
     "SCOPE_NAVIGATE",
     "SELECTION_SET",

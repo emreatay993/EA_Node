@@ -1,4 +1,4 @@
-# Purpose: Structure automation handlers: Group backdrops, subnodes (create/ungroup/pins), scope navigation, selection, align/distribute.
+# Purpose: Structure automation handlers: Group backdrops, subnodes (create/ungroup/pins), scope navigation, selection, layout (align/distribute/match size, straighten wires).
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_handlers_structure.py
 from __future__ import annotations
@@ -8,7 +8,7 @@ from typing import Any
 
 from ea_node_editor.automation.errors import INVALID_PARAMS, AutomationOpError, no_effect
 from ea_node_editor.automation.op_model import Deferred
-from ea_node_editor.graph.records import NodeInstance
+from ea_node_editor.graph.records import EdgeInstance, NodeInstance
 from ea_node_editor.graph.subnode_contract import (
     SUBNODE_INPUT_TYPE_ID,
     SUBNODE_OUTPUT_TYPE_ID,
@@ -22,11 +22,24 @@ ALIGNMENTS: dict[str, str] = {
     "align_right": "right",
     "align_top": "top",
     "align_bottom": "bottom",
+    "align_center_x": "center_x",
+    "align_center_y": "center_y",
 }
 DISTRIBUTIONS: dict[str, str] = {
     "distribute_horizontal": "horizontal",
     "distribute_vertical": "vertical",
 }
+MATCH_DIMENSIONS: dict[str, str] = {
+    "match_width": "width",
+    "match_height": "height",
+}
+# Snapping rounds the top-left corner, which would undo a center alignment, so center modes never snap.
+CENTER_ALIGNMENTS = frozenset({"align_center_x", "align_center_y"})
+# Straightness check on the drawn wire endpoints; live QML port centres may differ from the solver by sub-pixels.
+STRAIGHT_TOLERANCE_PX = 1.0
+_HORIZONTAL_SIDES = frozenset({"left", "right"})
+_VERTICAL_SIDES = frozenset({"top", "bottom"})
+_SIZE_EPSILON = 0.01
 PIN_TYPE_BY_DIRECTION: dict[str, str] = {"in": SUBNODE_INPUT_TYPE_ID, "out": SUBNODE_OUTPUT_TYPE_ID}
 
 
@@ -250,31 +263,302 @@ def set_selection(context: AutomationContext, params: Mapping[str, Any]) -> dict
     return {"selected_node_ids": selected, "mode": mode}
 
 
+def _position_map(context: AutomationContext, node_ids: Iterable[str]) -> dict[str, tuple[float, float]]:
+    workspace = context.active_workspace()
+    return {node_id: (float(workspace.nodes[node_id].x), float(workspace.nodes[node_id].y)) for node_id in node_ids}
+
+
+def _size_map(context: AutomationContext, node_ids: Iterable[str]) -> dict[str, tuple[float, float] | None]:
+    sizes: dict[str, tuple[float, float] | None] = {}
+    for node_id in node_ids:
+        bounds = context.node_bounds(node_id)
+        sizes[node_id] = None if bounds is None else (bounds[2], bounds[3])
+    return sizes
+
+
+def _drawn_node_ids(context: AutomationContext) -> set[str]:
+    """Nodes the canvas draws in the open scope; members of a collapsed Group backdrop are hidden and absent."""
+    scene = context.scene
+    drawn = {str(row.get("node_id", "")) for row in scene.nodes_model}
+    drawn.update(str(row.get("node_id", "")) for row in scene.backdrop_nodes_model)
+    return drawn
+
+
+def _node_skip_reason(context: AutomationContext, node_id: str, drawn: set[str], selectable: set[str]) -> str:
+    """Why a layout action left a node alone ('' when it was usable)."""
+    if node_id not in drawn:
+        return "hidden_in_collapsed_group"
+    if node_id in selectable:
+        return ""
+    node = context.node_or_none(node_id)
+    return "locked_node" if node is not None and node.locked else "not_selectable"
+
+
+def _usable_node_ids(context: AutomationContext, node_ids: list[str]) -> tuple[list[str], list[dict[str, str]], set[str]]:
+    """Split ``node_ids`` into the ones the scene lets the user act on and the skipped rest (with reasons).
+
+    The scene's selection rules decide: locked nodes (unless the "interact with locked objects" preference is on)
+    and nodes outside an open comment peek cannot be selected; hidden members of a collapsed Group are excluded
+    here because moving them would pull them out of the group.
+    """
+    drawn = _drawn_node_ids(context)
+    visible = [node_id for node_id in node_ids if node_id in drawn]
+    with context.with_selection(visible):
+        selected = set(context.selected_node_ids())
+    usable = [node_id for node_id in visible if node_id in selected]
+    usable_set = set(usable)
+    skipped = [
+        {"node_id": node_id, "reason": _node_skip_reason(context, node_id, drawn, usable_set)}
+        for node_id in node_ids
+        if node_id not in usable_set
+    ]
+    return usable, skipped, drawn
+
+
+def _too_few_usable(action: str, node_ids: list[str], skipped: list[dict[str, str]]) -> AutomationOpError:
+    return AutomationOpError(
+        INVALID_PARAMS,
+        f"layout.arrange {action}: fewer than two of the given nodes can be arranged.",
+        hint=(
+            "details.skipped_nodes says why each node was left out: unlock it with node_update(locked=false), "
+            "expand its collapsed Group, or pass other nodes."
+        ),
+        details={
+            "node_ids": node_ids,
+            "skipped_nodes": skipped,
+            "problems": ["node_ids: fewer than 2 nodes can be arranged"],
+        },
+    )
+
+
+def _overlapping_node_pairs(context: AutomationContext, node_ids: Iterable[str]) -> list[list[str]]:
+    """Pairs of the given nodes whose drawn bounds intersect; Group backdrops enclose members by design and are skipped."""
+    rects: list[tuple[str, tuple[float, float, float, float]]] = []
+    for node_id in node_ids:
+        node = context.node_or_none(node_id)
+        spec = context.registry.spec_or_none(node.type_id) if node is not None else None
+        if spec is None or str(spec.surface_family or "").strip() == "group_backdrop":
+            continue
+        bounds = context.node_bounds(node_id)
+        if bounds is None or bounds[2] <= 0.0 or bounds[3] <= 0.0:
+            continue
+        rects.append((node_id, bounds))
+    pairs: list[list[str]] = []
+    for index, (first_id, (ax, ay, aw, ah)) in enumerate(rects):
+        for second_id, (bx, by, bw, bh) in rects[index + 1 :]:
+            if ax < bx + bw and ax + aw > bx and ay < by + bh and ay + ah > by:
+                pairs.append([first_id, second_id])
+    return pairs
+
+
+def _positions_payload(positions: Mapping[str, tuple[float, float]]) -> dict[str, dict[str, float]]:
+    return {node_id: {"x": x, "y": y} for node_id, (x, y) in positions.items()}
+
+
+def _match_size(context: AutomationContext, node_ids: list[str], action: str) -> dict[str, Any]:
+    dimension = MATCH_DIMENSIONS[action]
+    usable, skipped, drawn = _usable_node_ids(context, node_ids)
+    buckets: dict[str, list[str]] = {}
+    for node_id in usable:
+        node = context.require_node(node_id)
+        spec = context.spec_for(node)
+        if str(spec.runtime_behavior or "").strip().lower() == "passive":
+            buckets.setdefault(str(node.type_id), []).append(node_id)
+    eligible = {type_id: ids for type_id, ids in buckets.items() if len(ids) >= 2}
+    eligible_ids = {node_id for ids in eligible.values() for node_id in ids}
+    ignored = [node_id for node_id in usable if node_id not in eligible_ids]
+    if not eligible:
+        raise AutomationOpError(
+            INVALID_PARAMS,
+            f"layout.arrange {action}: no two of the given nodes are passive nodes of the same type.",
+            hint=(
+                f"{action} resizes passive nodes of the same type_id to the first listed node of that type; "
+                "use node_update(width=..., height=...) for other nodes."
+            ),
+            details={
+                "node_ids": node_ids,
+                "ignored_node_ids": ignored,
+                "skipped_nodes": skipped,
+                "problems": ["node_ids: needs two or more passive nodes with the same type_id"],
+            },
+        )
+    sizes_before = _size_map(context, usable)
+    # The UI passes the selection here; ``usable`` is exactly what the scene would let the user select.
+    context.scene.set_selected_same_type_size(list(usable), dimension)
+    sizes_after = _size_map(context, usable)
+    resized = []
+    for node_id in usable:
+        before, after = sizes_before[node_id], sizes_after[node_id]
+        if before is None or after is None:
+            continue
+        if abs(before[0] - after[0]) > _SIZE_EPSILON or abs(before[1] - after[1]) > _SIZE_EPSILON:
+            resized.append(node_id)
+    visible = [node_id for node_id in node_ids if node_id in drawn]
+    return {
+        "moved_node_ids": [],
+        "resized_node_ids": resized,
+        "action": action,
+        "reference_node_ids": {type_id: ids[0] for type_id, ids in eligible.items()},
+        "ignored_node_ids": ignored,
+        "skipped_nodes": skipped,
+        "sizes": {node_id: {"width": size[0], "height": size[1]} for node_id, size in sizes_after.items() if size is not None},
+        "positions": _positions_payload(_position_map(context, node_ids)),
+        "overlapping_node_pairs": _overlapping_node_pairs(context, visible),
+    }
+
+
 def arrange_layout(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:
     node_ids = _unique_ids(params["node_ids"])
     action = str(params["action"]).strip().lower()
-    snap_to_grid = bool(params.get("snap_to_grid", False))
-    nodes = _nodes_in_scope(context, node_ids)
+    snap_to_grid = bool(params.get("snap_to_grid", False)) and action not in CENTER_ALIGNMENTS
+    _nodes_in_scope(context, node_ids)
     if len(node_ids) < 2:
         raise AutomationOpError(
             INVALID_PARAMS,
             "layout.arrange needs at least two distinct nodes.",
             details={"node_ids": node_ids, "problems": ["node_ids: must contain at least 2 distinct ids"]},
         )
-    positions_before = {node.node_id: (float(node.x), float(node.y)) for node in nodes}
+    if action in MATCH_DIMENSIONS:
+        return _match_size(context, node_ids, action)
+    positions_before = _position_map(context, node_ids)
+    usable, skipped, drawn = _usable_node_ids(context, node_ids)
+    if len(usable) < 2:
+        raise _too_few_usable(action, node_ids, skipped)
     scene = context.scene
-    with context.with_selection(node_ids):
+    with context.with_selection(usable):
         if action in ALIGNMENTS:
             scene.align_selected_nodes(ALIGNMENTS[action], snap_to_grid=snap_to_grid)
         else:
             scene.distribute_selected_nodes(DISTRIBUTIONS[action], snap_to_grid=snap_to_grid)
-    workspace = context.active_workspace()
-    positions_after = {node_id: (float(workspace.nodes[node_id].x), float(workspace.nodes[node_id].y)) for node_id in node_ids}
+    positions_after = _position_map(context, node_ids)
     moved = [node_id for node_id in node_ids if positions_after[node_id] != positions_before[node_id]]
     return {
         "moved_node_ids": moved,
+        "resized_node_ids": [],
         "action": action,
-        "positions": {node_id: {"x": x, "y": y} for node_id, (x, y) in positions_after.items()},
+        "skipped_nodes": skipped,
+        "positions": _positions_payload(positions_after),
+        "overlapping_node_pairs": _overlapping_node_pairs(context, [node_id for node_id in node_ids if node_id in drawn]),
+    }
+
+
+def _straighten_targets(context: AutomationContext, params: Mapping[str, Any]) -> tuple[list[str], list[EdgeInstance]]:
+    """Resolve the node set (explicit ids, wire endpoints, or the whole open scope) and its candidate wires."""
+    node_ids = _unique_ids(params.get("node_ids") or ())
+    edge_ids = _unique_ids(params.get("edge_ids") or ())
+    workspace = context.active_workspace()
+    if not node_ids and not edge_ids:
+        node_ids = [node.node_id for node in workspace.nodes.values() if context.in_active_scope(node)]
+    else:
+        _nodes_in_scope(context, node_ids)
+        for edge_id in edge_ids:
+            edge = context.require_edge(edge_id)
+            for endpoint in (edge.source_node_id, edge.target_node_id):
+                context.require_node_in_scope(endpoint)
+                if endpoint not in node_ids:
+                    node_ids.append(endpoint)
+    node_set = set(node_ids)
+    candidates = [
+        edge
+        for edge in workspace.edges.values()
+        if edge.source_node_id in node_set
+        and edge.target_node_id in node_set
+        and edge.source_node_id != edge.target_node_id
+    ]
+    if not candidates:
+        raise AutomationOpError(
+            INVALID_PARAMS,
+            "layout.straighten: no edge connects two of the given nodes.",
+            hint="Pass node_ids that are wired to each other, or edge_ids of the wires to straighten.",
+            details={"node_ids": node_ids, "problems": ["node_ids: no edge connects two of these nodes"]},
+        )
+    wired = {node_id for edge in candidates for node_id in (edge.source_node_id, edge.target_node_id)}
+    return [node_id for node_id in node_ids if node_id in wired], candidates
+
+
+def _wire_side(context: AutomationContext, row: Mapping[str, Any], edge: EdgeInstance, end: str) -> str:
+    """Side a wire end leaves from: the drawn port side, else in->left / out->right (mirrors the owner's fallback)."""
+    for key in (f"{end}_port_side", f"{end}_anchor_side"):
+        side = str(row.get(key) or "").strip().lower()
+        if side in _HORIZONTAL_SIDES or side in _VERTICAL_SIDES:
+            return side
+    node = context.node_or_none(edge.source_node_id if end == "source" else edge.target_node_id)
+    if node is None or context.registry.spec_or_none(node.type_id) is None:
+        return ""
+    port = context.port_spec_or_none(node, edge.source_port_key if end == "source" else edge.target_port_key)
+    direction = str(port.direction or "").strip().lower() if port is not None else ""
+    return {"in": "left", "out": "right"}.get(direction, "")
+
+
+def _classify_wires(
+    context: AutomationContext,
+    candidates: list[EdgeInstance],
+    *,
+    drawn: set[str],
+    usable: set[str],
+) -> tuple[list[str], list[dict[str, Any]]]:
+    rows = {str(row.get("edge_id", "")): row for row in context.scene.edges_model}
+    straightened: list[str] = []
+    skipped: list[dict[str, Any]] = []
+    for edge in candidates:
+        blocked = [node_id for node_id in (edge.source_node_id, edge.target_node_id) if node_id not in usable]
+        if blocked:
+            skipped.append(
+                {
+                    "edge_id": edge.edge_id,
+                    "reason": _node_skip_reason(context, blocked[0], drawn, usable),
+                    "node_id": blocked[0],
+                }
+            )
+            continue
+        row = rows.get(edge.edge_id)
+        if row is None:
+            skipped.append({"edge_id": edge.edge_id, "reason": "not_drawn"})
+            continue
+        source_side = _wire_side(context, row, edge, "source")
+        target_side = _wire_side(context, row, edge, "target")
+        if source_side in _HORIZONTAL_SIDES and target_side in _HORIZONTAL_SIDES:
+            offset = abs(float(row.get("sy", 0.0)) - float(row.get("ty", 0.0)))
+        elif source_side in _VERTICAL_SIDES and target_side in _VERTICAL_SIDES:
+            offset = abs(float(row.get("sx", 0.0)) - float(row.get("tx", 0.0)))
+        else:
+            skipped.append(
+                {"edge_id": edge.edge_id, "reason": "mixed_port_sides", "source_side": source_side, "target_side": target_side}
+            )
+            continue
+        if offset <= STRAIGHT_TOLERANCE_PX:
+            straightened.append(edge.edge_id)
+            continue
+        # Either the wires of this connected set need contradictory offsets, or a port is drawn away from the
+        # anchor the solver aligns (ports inside settings groups / inline editors on some data nodes).
+        skipped.append(
+            {
+                "edge_id": edge.edge_id,
+                "reason": "unresolved_offset",
+                "source_side": source_side,
+                "target_side": target_side,
+                "offset": round(offset, 3),
+            }
+        )
+    return straightened, skipped
+
+
+def straighten_layout(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:
+    node_ids, candidates = _straighten_targets(context, params)
+    positions_before = _position_map(context, node_ids)
+    usable, _skipped_nodes, drawn = _usable_node_ids(context, node_ids)
+    if len(usable) >= 2:
+        with context.with_selection(usable):
+            context.scene.straighten_selected_connections()
+    positions_after = _position_map(context, node_ids)
+    moved = [node_id for node_id in node_ids if positions_after[node_id] != positions_before[node_id]]
+    straightened, skipped = _classify_wires(context, candidates, drawn=drawn, usable=set(usable))
+    return {
+        "moved_node_ids": moved,
+        "straightened_edge_ids": straightened,
+        "skipped_edges": skipped,
+        "positions": _positions_payload({node_id: positions_after[node_id] for node_id in moved}),
+        "overlapping_node_pairs": _overlapping_node_pairs(context, [node_id for node_id in node_ids if node_id in drawn]),
     }
 
 
@@ -286,6 +570,15 @@ HANDLERS = {
     'scope.navigate': navigate_scope,
     'selection.set': set_selection,
     'layout.arrange': arrange_layout,
+    'layout.straighten': straighten_layout,
 }
 
-__all__ = ["ALIGNMENTS", "DISTRIBUTIONS", "HANDLERS", "PIN_TYPE_BY_DIRECTION"]
+__all__ = [
+    "ALIGNMENTS",
+    "CENTER_ALIGNMENTS",
+    "DISTRIBUTIONS",
+    "HANDLERS",
+    "MATCH_DIMENSIONS",
+    "PIN_TYPE_BY_DIRECTION",
+    "STRAIGHT_TOLERANCE_PX",
+]

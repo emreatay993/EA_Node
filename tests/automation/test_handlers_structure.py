@@ -1,4 +1,4 @@
-# Purpose: Shell-free handler tests for edge.* and structure ops (connect/update/delete, group.wrap, subnode.*, scope, selection, layout) with one-undo-step pins.
+# Purpose: Shell-free handler tests for edge.* and structure ops (connect/update/delete, group.wrap, subnode.*, scope, selection, layout arrange/straighten) with one-undo-step pins.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_handlers_structure.py
 from __future__ import annotations
@@ -19,6 +19,8 @@ from tests.automation.harness import build_context, call, expect_error
 
 START = "passive.flowchart.start"
 PROCESS = "passive.flowchart.process"
+DECISION = "passive.flowchart.decision"
+IF_NODE = "core.if"  # data inputs at different heights: one output wired to two of them cannot be straightened
 TRIGGER = "core.trigger"  # cheap active node: one single-connection data input, one data output
 GROUP = "passive.annotation.group_backdrop"
 SHELL = "core.subnode"
@@ -426,6 +428,187 @@ class LayoutArrangeTests(_HandlerCase):
         expect_error(self.context, "layout.arrange", {"node_ids": [node, node], "action": "align_left"}, INVALID_PARAMS)
         expect_error(self.context, "layout.arrange", {"node_ids": [node, "node_missing"], "action": "align_left"}, NOT_FOUND)
 
+    def _center(self, node_id: str) -> tuple[float, float]:
+        x, y, width, height = self.context.node_bounds(node_id)
+        return x + width * 0.5, y + height * 0.5
+
+    def test_align_center_y_lines_up_mixed_height_shapes_and_their_side_ports(self) -> None:
+        process = self.add(PROCESS, 0, 0)
+        decision = self.add(DECISION, 320, 60)
+        edge_id = self.connect(process, "right", decision, "left")["edge_id"]
+        self.assertNotEqual(self.context.node_bounds(process)[3], self.context.node_bounds(decision)[3])
+        result = self.call_one_undo("layout.arrange", {"node_ids": [process, decision], "action": "align_center_y"})
+        self.assertEqual(self._center(process)[1], self._center(decision)[1])
+        self.assertEqual(result["resized_node_ids"], [])
+        self.assertEqual(result["overlapping_node_pairs"], [])
+        row = next(row for row in self.scene.edges_model if row["edge_id"] == edge_id)
+        self.assertAlmostEqual(float(row["sy"]), float(row["ty"]), delta=1.0)
+
+    def test_align_center_x_stacks_a_centered_column(self) -> None:
+        top = self.add(PROCESS, 0, 0)
+        bottom = self.add(DECISION, 90, 200)
+        self.call_one_undo("layout.arrange", {"node_ids": [top, bottom], "action": "align_center_x"})
+        self.assertEqual(self._center(top)[0], self._center(bottom)[0])
+
+    def test_align_reports_overlapping_pairs(self) -> None:
+        first = self.add(PROCESS, 0, 0)
+        second = self.add(PROCESS, 100, 300)
+        result = self.call_one_undo("layout.arrange", {"node_ids": [first, second], "action": "align_top"})
+        self.assertEqual(result["overlapping_node_pairs"], [[first, second]])
+
+    def test_match_width_resizes_same_type_passive_nodes_to_the_first_listed(self) -> None:
+        wide = self.add(PROCESS, 0, 0)
+        narrow = self.add(PROCESS, 400, 0)
+        decision = self.add(DECISION, 800, 0)
+        call(self.context, "node.update", {"node_id": wide, "width": 320.0})
+        result = self.call_one_undo("layout.arrange", {"node_ids": [wide, narrow, decision], "action": "match_width"})
+        self.assertEqual(result["resized_node_ids"], [narrow])
+        self.assertEqual(result["reference_node_ids"], {PROCESS: wide})
+        self.assertEqual(result["ignored_node_ids"], [decision])
+        self.assertEqual(result["sizes"][narrow]["width"], 320.0)
+        self.assertEqual(self.context.node_bounds(narrow)[2], 320.0)
+        repeat = self.call_no_undo("layout.arrange", {"node_ids": [wide, narrow], "action": "match_width"})
+        self.assertEqual(repeat["resized_node_ids"], [])
+
+    def test_center_alignment_ignores_snap_to_grid_so_centers_stay_equal(self) -> None:
+        process = self.add(PROCESS, 3, 7)
+        decision = self.add(DECISION, 331, 61)
+        self.call_one_undo(
+            "layout.arrange", {"node_ids": [process, decision], "action": "align_center_y", "snap_to_grid": True}
+        )
+        self.assertEqual(self._center(process)[1], self._center(decision)[1])
+
+    def test_locked_nodes_are_skipped_and_reported(self) -> None:
+        first = self.add(PROCESS, 0, 0)
+        second = self.add(PROCESS, 300, 40)
+        locked = self.add(PROCESS, 600, 80)
+        call(self.context, "node.update", {"node_id": locked, "locked": True})
+        result = self.call_one_undo("layout.arrange", {"node_ids": [first, second, locked], "action": "align_top"})
+        self.assertEqual(result["skipped_nodes"], [{"node_id": locked, "reason": "locked_node"}])
+        self.assertEqual(float(self.context.require_node(locked).y), 80.0)
+        error = expect_error(self.context, "layout.arrange", {"node_ids": [first, locked], "action": "align_left"}, INVALID_PARAMS)
+        self.assertEqual(error.details["skipped_nodes"], [{"node_id": locked, "reason": "locked_node"}])
+        self.assertIn("locked=false", error.hint)
+        call(self.context, "node.update", {"node_id": first, "width": 300.0})
+        matched = self.call_one_undo("layout.arrange", {"node_ids": [first, second, locked], "action": "match_width"})
+        self.assertEqual(matched["resized_node_ids"], [second])
+        self.assertNotEqual(self.context.node_bounds(locked)[2], 300.0)
+
+    def test_match_height_needs_a_passive_same_type_pair(self) -> None:
+        process = self.add(PROCESS, 0, 0)
+        decision = self.add(DECISION, 400, 0)
+        error = expect_error(
+            self.context, "layout.arrange", {"node_ids": [process, decision], "action": "match_height"}, INVALID_PARAMS
+        )
+        self.assertEqual(error.details["ignored_node_ids"], [process, decision])
+        self.assertIn("node_update", error.hint)
+
+
+class LayoutStraightenTests(_HandlerCase):
+    def _row(self, edge_id: str) -> dict[str, Any]:
+        return next(row for row in self.scene.edges_model if row["edge_id"] == edge_id)
+
+    def _jagged_chain(self) -> tuple[list[str], list[str]]:
+        first = self.add(PROCESS, 0, 0)
+        second = self.add(DECISION, 320, 60)
+        third = self.add(PROCESS, 640, 130)
+        edges = [
+            self.connect(first, "right", second, "left")["edge_id"],
+            self.connect(second, "right", third, "left")["edge_id"],
+        ]
+        return [first, second, third], edges
+
+    def test_straighten_moves_nodes_so_right_to_left_wires_run_level(self) -> None:
+        nodes, edges = self._jagged_chain()
+        for edge_id in edges:
+            row = self._row(edge_id)
+            self.assertGreater(abs(float(row["sy"]) - float(row["ty"])), 1.0)
+        result = self.call_one_undo("layout.straighten", {"node_ids": nodes})
+        self.assertEqual(sorted(result["straightened_edge_ids"]), sorted(edges))
+        self.assertEqual(result["skipped_edges"], [])
+        self.assertTrue(result["moved_node_ids"])
+        self.assertEqual(set(result["positions"]), set(result["moved_node_ids"]))
+        for edge_id in edges:
+            row = self._row(edge_id)
+            self.assertAlmostEqual(float(row["sy"]), float(row["ty"]), delta=1.0)
+        repeat = self.call_no_undo("layout.straighten", {"node_ids": nodes})
+        self.assertEqual(repeat["moved_node_ids"], [])
+        self.assertEqual(sorted(repeat["straightened_edge_ids"]), sorted(edges))
+
+    def test_straighten_by_edge_ids_and_whole_scope_default(self) -> None:
+        nodes, edges = self._jagged_chain()
+        by_edge = self.call_one_undo("layout.straighten", {"edge_ids": [edges[0]]})
+        self.assertEqual(by_edge["straightened_edge_ids"], [edges[0]])
+        self.assertTrue(set(by_edge["moved_node_ids"]) <= set(nodes[:2]))
+        whole = self.call_one_undo("layout.straighten", {})
+        self.assertEqual(sorted(whole["straightened_edge_ids"]), sorted(edges))
+
+    def test_straighten_vertical_wires_align_x(self) -> None:
+        upper = self.add(PROCESS, 0, 0)
+        lower = self.add(DECISION, 90, 240)
+        edge_id = self.connect(upper, "bottom", lower, "top")["edge_id"]
+        result = self.call_one_undo("layout.straighten", {"node_ids": [upper, lower]})
+        self.assertEqual(result["straightened_edge_ids"], [edge_id])
+        row = self._row(edge_id)
+        self.assertAlmostEqual(float(row["sx"]), float(row["tx"]), delta=1.0)
+
+    def test_straighten_reports_elbows_and_conflicts(self) -> None:
+        source = self.add(PROCESS, 0, 0)
+        elbow_target = self.add(PROCESS, 320, 300)
+        elbow = self.connect(source, "bottom", elbow_target, "left")["edge_id"]
+        result = self.call_no_undo("layout.straighten", {"node_ids": [source, elbow_target]})
+        self.assertEqual(result["straightened_edge_ids"], [])
+        self.assertEqual(
+            result["skipped_edges"],
+            [{"edge_id": elbow, "reason": "mixed_port_sides", "source_side": "bottom", "target_side": "left"}],
+        )
+
+        trigger = self.add(TRIGGER, 0, 600)
+        branch = self.add(IF_NODE, 320, 640)
+        conflicting = [
+            self.connect(trigger, "output", branch, "condition")["edge_id"],
+            self.connect(trigger, "output", branch, "true_value")["edge_id"],
+        ]
+        conflict = self.call_no_undo("layout.straighten", {"node_ids": [trigger, branch]})
+        self.assertEqual(conflict["moved_node_ids"], [])
+        self.assertEqual(sorted(entry["edge_id"] for entry in conflict["skipped_edges"]), sorted(conflicting))
+        self.assertEqual({entry["reason"] for entry in conflict["skipped_edges"]}, {"unresolved_offset"})
+        self.assertTrue(all(entry["offset"] > 1.0 for entry in conflict["skipped_edges"]))
+
+    def test_straighten_leaves_collapsed_group_members_in_place(self) -> None:
+        inner_a = self.add(PROCESS, 0, 0)
+        inner_b = self.add(PROCESS, 320, 40)
+        outer = self.add(PROCESS, 320, 900)
+        hidden_wire = self.connect(inner_a, "right", inner_b, "left")["edge_id"]
+        exit_wire = self.connect(inner_b, "bottom", outer, "top")["edge_id"]
+        group = call(self.context, "group.wrap", {"node_ids": [inner_a, inner_b]})["group_node_id"]
+        call(self.context, "node.update", {"node_id": group, "collapsed": True})
+        positions = {node_id: (self.context.require_node(node_id).x, self.context.require_node(node_id).y) for node_id in (inner_a, inner_b)}
+        result = self.call_no_undo("layout.straighten", {})
+        for node_id, position in positions.items():
+            node = self.context.require_node(node_id)
+            self.assertEqual((node.x, node.y), position, "hidden members must not be dragged out of their group")
+        reasons = {entry["edge_id"]: entry["reason"] for entry in result["skipped_edges"]}
+        self.assertEqual(reasons, {hidden_wire: "hidden_in_collapsed_group", exit_wire: "hidden_in_collapsed_group"})
+
+    def test_straighten_reports_locked_ends(self) -> None:
+        first = self.add(PROCESS, 0, 0)
+        locked = self.add(PROCESS, 320, 100)
+        edge_id = self.connect(first, "right", locked, "left")["edge_id"]
+        call(self.context, "node.update", {"node_id": locked, "locked": True})
+        result = self.call_no_undo("layout.straighten", {"edge_ids": [edge_id]})
+        self.assertEqual(result["moved_node_ids"], [])
+        self.assertEqual(result["skipped_edges"], [{"edge_id": edge_id, "reason": "locked_node", "node_id": locked}])
+
+    def test_straighten_rejects_unwired_or_unknown_targets(self) -> None:
+        first = self.add(PROCESS, 0, 0)
+        second = self.add(PROCESS, 300, 0)
+        error = expect_error(self.context, "layout.straighten", {"node_ids": [first, second]}, INVALID_PARAMS)
+        self.assertIn("no edge connects", error.message)
+        expect_error(self.context, "layout.straighten", {"node_ids": ["node_missing"]}, NOT_FOUND)
+        expect_error(self.context, "layout.straighten", {"edge_ids": ["edge_missing"]}, NOT_FOUND)
+        expect_error(self.context, "layout.straighten", {"node_ids": []}, INVALID_PARAMS)
+
 
 class _RecordingClient:
     def __init__(self) -> None:
@@ -479,6 +662,10 @@ class ClientFacadeTests(unittest.TestCase):
         api.clear_selection()
         api.align(["a", "b"], "top")
         api.distribute(["a", "b"], "vertical", snap_to_grid=True)
+        api.align(["a", "b"], "center_y")
+        api.match_size(["a", "b"], "width")
+        api.straighten()
+        api.straighten(["a", "b"], edge_ids="e")
         api.ungroup_subnode("shell")
         self.assertEqual(
             client.calls,
@@ -492,6 +679,10 @@ class ClientFacadeTests(unittest.TestCase):
                 ("selection.set", {"mode": "clear"}),
                 ("layout.arrange", {"node_ids": ["a", "b"], "action": "align_top", "snap_to_grid": False}),
                 ("layout.arrange", {"node_ids": ["a", "b"], "action": "distribute_vertical", "snap_to_grid": True}),
+                ("layout.arrange", {"node_ids": ["a", "b"], "action": "align_center_y", "snap_to_grid": False}),
+                ("layout.arrange", {"node_ids": ["a", "b"], "action": "match_width"}),
+                ("layout.straighten", {}),
+                ("layout.straighten", {"node_ids": ["a", "b"], "edge_ids": ["e"]}),
                 ("subnode.ungroup", {"shell_node_id": "shell"}),
             ],
         )

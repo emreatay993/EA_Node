@@ -1,4 +1,4 @@
-# Purpose: Pin the op catalog shape: 47 ops, unique names/tools, schema validity, ref_fields, validator semantics, JSON snapshot.
+# Purpose: Pin the op catalog shape: 48 ops, unique names/tools, schema validity, ref_fields, validator semantics, JSON snapshot.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_catalog.py
 from __future__ import annotations
@@ -15,7 +15,7 @@ from ea_node_editor.automation.op_model import (
     validate_params,
 )
 
-# Frozen MCP tool surface (plan table: 46 typed tools + graph_apply).
+# Frozen MCP tool surface (plan table: 46 typed tools + graph_apply; layout_straighten added 2026-09-24).
 EXPECTED_MCP_TOOLS = (
     "corex_status", "corex_history", "corex_quit",
     "catalog_list_node_types", "catalog_describe_node_type", "catalog_style_schema",
@@ -24,7 +24,7 @@ EXPECTED_MCP_TOOLS = (
     "node_update", "node_set_style", "node_delete", "node_duplicate",
     "edge_connect", "edge_update", "edge_delete",
     "group_wrap", "subnode_create", "subnode_ungroup", "subnode_add_pin",
-    "scope_navigate", "selection_set", "layout_arrange",
+    "scope_navigate", "selection_set", "layout_arrange", "layout_straighten",
     "comment_upsert", "comment_remove", "link_upsert", "link_remove",
     "workspace_list", "workspace_create", "workspace_update", "workspace_close",
     "view_create", "view_update", "view_close", "view_set_camera",
@@ -54,9 +54,9 @@ def _schema_property_paths(schema: dict) -> set[str]:
 
 
 class CatalogShapeTests(unittest.TestCase):
-    def test_catalog_has_47_ops_with_unique_names_and_tools(self) -> None:
+    def test_catalog_has_48_ops_with_unique_names_and_tools(self) -> None:
         ops = op_catalog.all_ops()
-        self.assertEqual(len(ops), 47)
+        self.assertEqual(len(ops), 48)
         names = [op.name for op in ops]
         self.assertEqual(len(names), len(set(names)))
         tools = [op.mcp_tool for op in ops if op.mcp_tool]
@@ -73,7 +73,7 @@ class CatalogShapeTests(unittest.TestCase):
                 "graph": 3,
                 "node": 8,
                 "edge": 3,
-                "structure": 7,
+                "structure": 8,
                 "annotations": 4,
                 "workspace": 8,
                 "project": 3,
@@ -116,7 +116,7 @@ class CatalogShapeTests(unittest.TestCase):
         text = json.dumps(payload)
         restored = json.loads(text)
         self.assertEqual(restored["protocol"], 1)
-        self.assertEqual(len(restored["ops"]), 47)
+        self.assertEqual(len(restored["ops"]), 48)
         self.assertEqual(restored["mcp_tools"]["graph_apply"], "graph.apply")
         self.assertEqual(restored["mcp_tools"]["corex_status"], "app.status")
 

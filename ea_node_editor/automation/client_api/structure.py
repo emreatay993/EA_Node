@@ -1,4 +1,4 @@
-# Purpose: CorexClient facade for group.wrap, subnode.*, scope.navigate, selection.set, layout.arrange plus navigation/selection sugar.
+# Purpose: CorexClient facade for group.wrap, subnode.*, scope.navigate, selection.set, layout.arrange/straighten plus navigation/selection/layout sugar.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_automation_boundaries.py
 from __future__ import annotations
@@ -17,7 +17,7 @@ def _id_list(values: Iterable[str] | str) -> list[str]:
 
 
 class StructureApi:
-    """Facade for group.wrap, subnode.*, scope.navigate, selection.set, layout.arrange."""
+    """Facade for group.wrap, subnode.*, scope.navigate, selection.set, layout.arrange, layout.straighten."""
 
     def __init__(self, client: "CorexClient") -> None:
         self._client = client
@@ -96,12 +96,35 @@ class StructureApi:
         )
 
     def align(self, node_ids: Iterable[str] | str, side: str, *, snap_to_grid: bool = False) -> dict[str, Any]:
-        """``side`` is left|right|top|bottom."""
+        """``side`` is left|right|top|bottom|center_x|center_y (center_y = a row whose side ports line up)."""
         return self.arrange(node_ids, f"align_{str(side).strip().lower()}", snap_to_grid=snap_to_grid)
 
     def distribute(self, node_ids: Iterable[str] | str, orientation: str, *, snap_to_grid: bool = False) -> dict[str, Any]:
         """``orientation`` is horizontal|vertical."""
         return self.arrange(node_ids, f"distribute_{str(orientation).strip().lower()}", snap_to_grid=snap_to_grid)
+
+    def match_size(self, node_ids: Iterable[str] | str, dimension: str) -> dict[str, Any]:
+        """``dimension`` is width|height; passive nodes of one type take the first listed node's size."""
+        return self._client.call(
+            "layout.arrange",
+            {"node_ids": _id_list(node_ids), "action": f"match_{str(dimension).strip().lower()}"},
+        )
+
+    # -------------------------------------------------------- layout.straighten
+
+    def straighten(
+        self,
+        node_ids: Iterable[str] | str | None = None,
+        *,
+        edge_ids: Iterable[str] | str | None = None,
+    ) -> dict[str, Any]:
+        """Move nodes so their wires run straight; no ids = every wire in the open scope."""
+        params: dict[str, Any] = {}
+        if node_ids is not None:
+            params["node_ids"] = _id_list(node_ids)
+        if edge_ids is not None:
+            params["edge_ids"] = _id_list(edge_ids)
+        return self._client.call("layout.straighten", params)
 
 
 __all__ = ["StructureApi"]

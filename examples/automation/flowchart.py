@@ -1,4 +1,4 @@
-# Purpose: Automation example: build a 10-node engineering flowchart with one graph.apply batch, style both branches, label edges, save, and screenshot.
+# Purpose: Automation example: build a 10-node engineering flowchart with one graph.apply batch, style both branches, label edges, tidy (center-align + straighten wires), save, and screenshot.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_docgen.py
 """Engineering flowchart via the COREX automation API.
@@ -63,6 +63,8 @@ EDGES = (
     ("e_no", "converged", "bottom", "refine", "top", "no"),
     ("e_loop", "refine", "left", "mesh", "bottom", ""),
 )
+# The loop leaves refine's left side and enters mesh from below: an elbow that stays bent by design.
+ELBOW_EDGES = frozenset({"e_loop"})
 
 
 class ExampleFailure(RuntimeError):
@@ -131,6 +133,20 @@ def build_batch(corex: CorexClient):
     return batch
 
 
+def tidy(corex: CorexClient, ids: dict[str, str]) -> None:
+    """Center the main row (shapes have different heights), then straighten every wire in the scope."""
+    main_row = [ids[batch_id] for batch_id, _type_id, _title, _column, row in NODES if row == 0]
+    corex.structure.align(main_row, "center_y")
+    report = corex.structure.straighten()
+    names = {edge_id: batch_id for batch_id, edge_id in ids.items()}
+    skipped = {names.get(entry["edge_id"], entry["edge_id"]): entry["reason"] for entry in report["skipped_edges"]}
+    print(f"layout.straighten: {len(report['straightened_edge_ids'])} straight wires, skipped {skipped}")
+    if set(skipped) != ELBOW_EDGES:
+        raise ExampleFailure(f"expected only {sorted(ELBOW_EDGES)} to stay bent, got {skipped}")
+    if report["overlapping_node_pairs"]:
+        raise ExampleFailure(f"tidying stacked nodes: {report['overlapping_node_pairs']}")
+
+
 def run(corex: CorexClient, output_dir: Path) -> dict[str, str]:
     sandbox = is_sandbox(corex)
     prepare_workspace(corex, sandbox)
@@ -147,6 +163,8 @@ def run(corex: CorexClient, output_dir: Path) -> dict[str, str]:
     corex.edges.update(ids["e_yes"], style={"color": "#2E7D32", "width": 2, "label_color": "#1B5E20"})
     corex.edges.update(ids["e_no"], style={"color": "#EF6C00", "width": 2, "label_color": "#E65100"})
     corex.edges.update(ids["e_loop"], label="re-mesh", style={"color": "#EF6C00", "pattern": "dashed"})
+
+    tidy(corex, ids)
 
     graph = corex.graph.get()
     if len(graph["nodes"]) != len(NODES) or len(graph["edges"]) != len(EDGES):

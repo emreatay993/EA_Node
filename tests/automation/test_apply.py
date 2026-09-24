@@ -127,6 +127,25 @@ class HappyPathTests(_ApplyCase):
         self.assertEqual(ids["link"], shell.links[0].link_id)
         self.assertEqual(self.undo_depth(), depth + 1)
 
+    def test_layout_ops_take_node_and_edge_refs_in_one_undo_step(self) -> None:
+        depth = self.undo_depth()
+        connect = {"source_port": "right", "target_port": "left"}
+        result = self.apply(
+            [
+                {"id": "a", "op": "node.add", "params": {"type_id": PROCESS, "x": 0.0, "y": 0.0}},
+                {"id": "b", "op": "node.add", "params": {"type_id": "passive.flowchart.decision", "x": 320.0, "y": 70.0}},
+                {"id": "c", "op": "node.add", "params": {"type_id": PROCESS, "x": 640.0, "y": 150.0}},
+                {"id": "ab", "op": "edge.connect", "params": {"source_node_id": "$a", "target_node_id": "$b", **connect}},
+                {"id": "bc", "op": "edge.connect", "params": {"source_node_id": "$b", "target_node_id": "$c", **connect}},
+                {"op": "layout.arrange", "params": {"node_ids": ["$a", "$b"], "action": "align_center_y"}},
+                {"id": "tidy", "op": "layout.straighten", "params": {"edge_ids": ["$ab", "$bc"]}},
+            ]
+        )
+        self.assertEqual(result["failed_index"], -1)
+        straightened = result["results"][6]["result"]["straightened_edge_ids"]
+        self.assertEqual(sorted(straightened), sorted([result["ids"]["ab"], result["ids"]["bc"]]))
+        self.assertEqual(self.undo_depth(), depth + 1)
+
     def test_literal_dollars_outside_ref_fields_are_untouched_and_double_dollar_unescapes(self) -> None:
         result = self.apply(
             [
