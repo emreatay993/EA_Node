@@ -41,7 +41,7 @@ LIST_NODE_TYPES = OpSpec(
     params=object_schema(
         {
             "query": string_schema("Case-insensitive match against id, name, keywords, category"),
-            "category": string_schema("Category path prefix, e.g. 'Utilities/Flowchart'"),
+            "category": string_schema("Category path prefix, e.g. 'Flowchart' or 'Utilities/Reporting'"),
             "runtime_behavior": string_schema(enum=("any", "active", "passive"), default="any"),
             "limit": number_schema(minimum=1, maximum=500, default=200, integer=True),
         },

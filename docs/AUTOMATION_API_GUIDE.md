@@ -828,7 +828,7 @@ Flowcharts and boards are built from the passive families (passive.flowchart.\*,
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
 | `query` | `string` | no |  | Case-insensitive match against id, name, keywords, category |
-| `category` | `string` | no |  | Category path prefix, e.g. 'Utilities/Flowchart' |
+| `category` | `string` | no |  | Category path prefix, e.g. 'Flowchart' or 'Utilities/Reporting' |
 | `runtime_behavior` | `string` | no | `"any"` | one of: any, active, passive |
 | `limit` | `integer` | no | `200` | >= 1 and \<= 500 |
 
