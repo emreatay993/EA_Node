@@ -78,8 +78,8 @@ def _viewer_surface_spec() -> NodeTypeSpec:
 
 class GraphSurfaceInputControlsTests(unittest.TestCase):
     def test_python_script_floating_toolbar_surface_fullscreen_action_contract(self) -> None:
-        spec = build_default_registry().get_spec("core.python_script")
-        payload = surface_spec_payload_for_node_type(type_id="core.python_script", spec=spec)
+        spec = build_default_registry().get_spec("code.python_script")
+        payload = surface_spec_payload_for_node_type(type_id="code.python_script", spec=spec)
         surface_source = (_REPO_ROOT / "ea_node_editor/ui_qml/components/graph/GraphStandardNodeSurface.qml").read_text(
             encoding="utf-8"
         )
@@ -94,8 +94,8 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
 
     def test_python_script_decorator_ports_reserve_only_resting_add_dots(self) -> None:
         registry = build_default_registry()
-        properties = registry.default_properties("core.python_script")
-        spec = registry.resolve_spec("core.python_script", properties)
+        properties = registry.default_properties("code.python_script")
+        spec = registry.resolve_spec("code.python_script", properties)
         node = NodeInstance(
             node_id="node_python_script_decorator_metrics",
             type_id=spec.type_id,
@@ -376,7 +376,7 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
 
     def test_standard_node_initial_metrics_reserve_title_icon_ports_and_body_surface(self) -> None:
         registry = build_default_registry()
-        script_spec = registry.get_spec("core.python_script")
+        script_spec = registry.get_spec("code.python_script")
         script_node = NodeInstance(
             node_id="node_python_script_initial_metrics",
             type_id=script_spec.type_id,
@@ -1140,7 +1140,7 @@ class GraphSurfaceCanvasInteractionTests(GraphSurfaceInputContractTestBase):
             view = ViewportBridge()
             view.set_viewport_size(980.0, 680.0)
             state, commands = build_canvas_bridges(scene_bridge=scene, view_bridge=view)
-            node_id = scene.add_node_from_type("core.python_script", -200.0, -150.0)
+            node_id = scene.add_node_from_type("code.python_script", -200.0, -150.0)
             node = model.active_workspace.nodes[node_id]
             canvas = create_component(graph_canvas_qml_path, {
                 "canvasStateBridge": state, "canvasCommandBridge": commands,
@@ -3930,7 +3930,7 @@ class GraphSurfaceDataflowAuthoringTests(GraphSurfaceInputContractTestBase):
 
         for obsolete in (
             "core.stream_gate",
-            "core.python_script",
+            "code.python_script",
             "insert_stream_gate_output",
             "remove_stream_gate_output",
             "_insertStreamGateOutput",

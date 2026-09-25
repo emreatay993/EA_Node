@@ -296,7 +296,7 @@ def scientific_benchmark(
             plot_reason = settled[plot.node_id].get("decision_reason")
             if backend == "runtime" and repetition:
                 assert (
-                    registry.get_spec("core.python_script").solution_reuse_scope
+                    registry.get_spec("code.python_script").solution_reuse_scope
                     == "never"
                 )
                 assert source_reason == "implementation_identity_unavailable", (

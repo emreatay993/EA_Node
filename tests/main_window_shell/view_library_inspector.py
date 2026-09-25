@@ -1787,7 +1787,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
 
 
     def test_script_editor_action_focuses_editor_when_script_node_selected(self) -> None:
-        script_node_id = self.window.scene.add_node_from_type("core.python_script", x=80.0, y=60.0)
+        script_node_id = self.window.scene.add_node_from_type("code.python_script", x=80.0, y=60.0)
         self.window.scene.focus_node(script_node_id)
         self.app.processEvents()
 

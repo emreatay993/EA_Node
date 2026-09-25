@@ -368,7 +368,7 @@ class RunProjectionControllerTests(unittest.TestCase):
         workspace_id = host.model.active_workspace.workspace_id
         script = host.model.add_node(
             workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             0,
             0,
@@ -729,7 +729,7 @@ class RunProjectionControllerTests(unittest.TestCase):
         workspace_id = host.model.active_workspace.workspace_id
         node = host.model.add_node(
             workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             0,
             0,

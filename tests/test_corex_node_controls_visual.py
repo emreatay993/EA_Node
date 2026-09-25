@@ -281,7 +281,7 @@ class COREXNodeControlsVisualTests(PassiveGraphSurfaceHostTestBase):
                 )
                 settled_source = model.add_node(
                     workspace.workspace_id,
-                    "core.python_script",
+                    "code.python_script",
                     "Settled upstream",
                     930.0,
                     170.0,
@@ -318,7 +318,7 @@ class COREXNodeControlsVisualTests(PassiveGraphSurfaceHostTestBase):
                 )
                 unavailable_source = model.add_node(
                     workspace.workspace_id,
-                    "core.python_script",
+                    "code.python_script",
                     "Unavailable upstream",
                     930.0,
                     830.0,

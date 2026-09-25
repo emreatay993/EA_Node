@@ -72,7 +72,7 @@ def add_signal_chain(
         output = "table_data" if kind == "csv" else "array_data"
     else:
         source = mutation.add_node(
-            type_id="core.python_script",
+            type_id="code.python_script",
             title=f"{kind} source",
             x=0,
             y=y,

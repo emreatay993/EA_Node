@@ -46,7 +46,7 @@ class _PayloadGuardHarness(unittest.TestCase):
     def _build_three_nodes(self, scene: GraphSceneBridge) -> tuple[str, str, str]:
         node_a = scene.add_node_from_type("core.constant", 80.0, 60.0)
         node_b = scene.add_node_from_type("core.logger", 320.0, 60.0)
-        node_c = scene.add_node_from_type("core.python_script", 560.0, 60.0)
+        node_c = scene.add_node_from_type("code.python_script", 560.0, 60.0)
         return node_a, node_b, node_c
 
     def _corrupt_location_map(self, scene: GraphSceneBridge, node_a: str, node_b: str) -> None:

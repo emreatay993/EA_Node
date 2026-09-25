@@ -55,7 +55,7 @@ def run(ctx, array, frame, series):
 """
     source = model.add_node(
         workspace.workspace_id,
-        "core.python_script",
+        "code.python_script",
         "Scientific source",
         0,
         0,
@@ -64,7 +64,7 @@ def run(ctx, array, frame, series):
     consumers = [
         model.add_node(
             workspace.workspace_id,
-            "core.python_script",
+            "code.python_script",
             f"Consumer {i}",
             200,
             i * 100,

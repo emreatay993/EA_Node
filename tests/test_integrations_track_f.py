@@ -973,7 +973,7 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
             )
             script = model.add_node(
                 workspace.workspace_id,
-                "core.python_script",
+                "code.python_script",
                 "Python Script",
                 240,
                 0,
@@ -1043,7 +1043,7 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
             )
             script = model.add_node(
                 workspace.workspace_id,
-                "core.python_script",
+                "code.python_script",
                 "Python Script",
                 240,
                 0,
@@ -1093,7 +1093,7 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
             workspace = model.active_workspace
             script = model.add_node(
                 workspace.workspace_id,
-                "core.python_script",
+                "code.python_script",
                 "Python Script",
                 120,
                 0,
@@ -1181,7 +1181,7 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
             workspace = model.active_workspace
             blank_path = model.add_node(
                 workspace.workspace_id,
-                "core.python_script",
+                "code.python_script",
                 "Blank Path",
                 120,
                 0,

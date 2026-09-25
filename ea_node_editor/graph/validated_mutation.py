@@ -634,7 +634,7 @@ class ValidatedGraphMutation:
             self._incident_edge_ids(node.node_id, removed_port_key)
             if removed_port_key is not None else ()
         )
-        if group.property_editor is not None and node.type_id == "core.python_script":
+        if group.property_editor is not None and node.type_id == "code.python_script":
             self.set_node_property(node.node_id, group.property_key, property_value)
             return removed_edge_ids
         for edge_id in removed_edge_ids:
@@ -648,7 +648,7 @@ class ValidatedGraphMutation:
 
     def set_node_property(self, node_id: str, key: str, value: object) -> object:
         node = self.workspace.nodes[node_id]
-        if node.type_id == "core.python_script" and str(key) == "script":
+        if node.type_id == "code.python_script" and str(key) == "script":
             self.apply_python_script(node_id, str(value))
             return str(value)
         self._reject_dynamic_port_property_writes(node, {str(key or "")})
@@ -707,8 +707,8 @@ class ValidatedGraphMutation:
     ) -> PreparedPythonScriptApply:
         """Validate an isolated candidate and describe its impact without writes."""
         node = self.workspace.nodes[node_id]
-        if node.type_id != "core.python_script":
-            raise ValueError("Python Script Apply requires a core.python_script node.")
+        if node.type_id != "code.python_script":
+            raise ValueError("Python Script Apply requires a code.python_script node.")
 
         rename_pairs = self._script_rename_pairs(renamed_keys)
         renames = dict(rename_pairs)
@@ -920,7 +920,7 @@ class ValidatedGraphMutation:
         requested_keys = {
             str(key or "") for key in requested_values if str(key or "")
         }
-        if node.type_id == "core.python_script" and "script" in requested_keys:
+        if node.type_id == "code.python_script" and "script" in requested_keys:
             if requested_keys != {"script"}:
                 raise ValueError(
                     "Python Script source cannot be mixed with other bulk property updates."

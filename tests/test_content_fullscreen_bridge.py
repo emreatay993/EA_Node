@@ -1001,7 +1001,7 @@ class ContentFullscreenBridgeTests(_ContentFullscreenDirectTestCase):
 class ContentFullscreenBridgeContentTests(_ContentFullscreenDirectTestCase):
     def test_content_fullscreen_bridge_opens_python_script_editor_and_retargets_model(self) -> None:
         node_id = self.scene.add_node_from_type(
-            "core.python_script", x=120.0, y=80.0
+            "code.python_script", x=120.0, y=80.0
         )
         workspace_id = self.workspace_id
         workspace = self.model.project.workspaces[workspace_id]
@@ -1026,7 +1026,7 @@ class ContentFullscreenBridgeContentTests(_ContentFullscreenDirectTestCase):
 class ContentFullscreenMountedIntegrationTests(MainWindowShellTestBase):
     def test_collapsed_script_toolbar_keeps_working_surface_actions(self) -> None:
         scene = self.window.scene
-        node_id = scene.add_node_from_type("core.python_script", x=240.0, y=140.0)
+        node_id = scene.add_node_from_type("code.python_script", x=240.0, y=140.0)
         canvas = self._graph_canvas_item()
         workspace = self.window.model.active_workspace
         scene.select_node(node_id, False)
@@ -1095,7 +1095,7 @@ class ContentFullscreenMountedIntegrationTests(MainWindowShellTestBase):
 
     def test_content_fullscreen_script_editor_attaches_syntax_highlighter(self) -> None:
         node_id = self.window.scene.add_node_from_type(
-            "core.python_script", x=240.0, y=140.0
+            "code.python_script", x=240.0, y=140.0
         )
         existing_documents = set(self.window.script_highlighter._highlighters)
 
@@ -1117,7 +1117,7 @@ class ContentFullscreenMountedIntegrationTests(MainWindowShellTestBase):
 
     def test_content_fullscreen_script_editor_tab_and_history_stay_local(self) -> None:
         node_id = self.window.scene.add_node_from_type(
-            "core.python_script", x=240.0, y=140.0
+            "code.python_script", x=240.0, y=140.0
         )
         self.assertTrue(self.window.content_fullscreen_bridge.request_open_node(node_id))
         self.app.processEvents()
@@ -1156,7 +1156,7 @@ class ContentFullscreenBridgeRemainingTests(_ContentFullscreenDirectTestCase):
         self,
     ) -> None:
         node_id = self.scene.add_node_from_type(
-            "core.python_script",
+            "code.python_script",
             x=120.0,
             y=80.0,
         )

@@ -206,14 +206,14 @@ def _build_engineering_project(step_path: Path, registry: Any) -> Any:
         ),
         _ENGINEERING_WIRE_TARGET_A_NODE_ID: node(
             _ENGINEERING_WIRE_TARGET_A_NODE_ID,
-            "core.python_script",
+            "code.python_script",
             "Wire Target A",
             1220.0,
             40.0,
         ),
         _ENGINEERING_WIRE_TARGET_B_NODE_ID: node(
             _ENGINEERING_WIRE_TARGET_B_NODE_ID,
-            "core.python_script",
+            "code.python_script",
             "Wire Target B",
             1220.0,
             300.0,

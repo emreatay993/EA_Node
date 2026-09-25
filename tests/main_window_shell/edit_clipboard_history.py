@@ -227,7 +227,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
     def test_qml_request_delete_selected_graph_items_removes_nodes_and_edges(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         source_id = self.window.scene.add_node_from_type("core.constant", x=40.0, y=40.0)
-        target_id = self.window.scene.add_node_from_type("core.python_script", x=320.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("code.python_script", x=320.0, y=40.0)
         removable_node_id = self.window.scene.add_node_from_type("core.logger", x=520.0, y=40.0)
         edge_id = self.window.scene.add_edge(source_id, "value", target_id, "payload")
         self.window.scene.select_node(removable_node_id, False)
@@ -243,7 +243,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         workspace_id = self.window.workspace_manager.active_workspace_id()
         source_id = self.window.scene.add_node_from_type("core.constant", x=40.0, y=40.0)
         target_id = self.window.scene.add_node_from_type("core.logger", x=280.0, y=40.0)
-        external_id = self.window.scene.add_node_from_type("core.python_script", x=520.0, y=90.0)
+        external_id = self.window.scene.add_node_from_type("code.python_script", x=520.0, y=90.0)
         self.window.scene.add_edge(source_id, "as_text", target_id, "message")
         self.window.scene.add_edge(source_id, "value", external_id, "payload")
         workspace = self.window.model.project.workspaces[workspace_id]
@@ -334,10 +334,10 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
     def test_qml_request_group_and_ungroup_selected_nodes_are_single_undoable_actions(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         source_id = self.window.scene.add_node_from_type("core.constant", x=20.0, y=40.0)
-        grouped_script_id = self.window.scene.add_node_from_type("core.python_script", x=320.0, y=60.0)
+        grouped_script_id = self.window.scene.add_node_from_type("code.python_script", x=320.0, y=60.0)
         grouped_constant_id = self.window.scene.add_node_from_type("core.constant", x=220.0, y=190.0)
         target_id = self.window.scene.add_node_from_type("core.logger", x=640.0, y=90.0)
-        external_script_id = self.window.scene.add_node_from_type("core.python_script", x=700.0, y=230.0)
+        external_script_id = self.window.scene.add_node_from_type("code.python_script", x=700.0, y=230.0)
         self.window.scene.add_edge(source_id, "value", grouped_script_id, "payload")
         self.window.scene.add_edge(grouped_constant_id, "as_text", grouped_script_id, "payload", True)
         self.window.scene.add_edge(grouped_script_id, "result", target_id, "message")
@@ -402,7 +402,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         workspace_id = self.window.workspace_manager.active_workspace_id()
         source_id = self.window.scene.add_node_from_type("core.constant", x=60.0, y=50.0)
         target_id = self.window.scene.add_node_from_type("core.logger", x=360.0, y=190.0)
-        external_id = self.window.scene.add_node_from_type("core.python_script", x=680.0, y=90.0)
+        external_id = self.window.scene.add_node_from_type("code.python_script", x=680.0, y=90.0)
         self.window.scene.add_edge(source_id, "as_text", target_id, "message")
         self.window.scene.add_edge(source_id, "value", external_id, "payload")
         workspace = self.window.model.project.workspaces[workspace_id]
@@ -986,7 +986,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         workspace_id = self.window.workspace_manager.active_workspace_id()
         start_id = self.window.scene.add_node_from_type("core.constant", x=220.0, y=160.0)
         end_id = self.window.scene.add_node_from_type("core.logger", x=220.0, y=360.0)
-        outside_script_id = self.window.scene.add_node_from_type("core.python_script", x=760.0, y=240.0)
+        outside_script_id = self.window.scene.add_node_from_type("code.python_script", x=760.0, y=240.0)
         self.window.scene.add_edge(start_id, "as_text", end_id, "message")
         self.window.scene.add_edge(start_id, "value", outside_script_id, "payload")
         backdrop_id = self.window.scene.wrap_node_ids_in_group_backdrop([start_id, end_id])
@@ -1142,7 +1142,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.app.processEvents()
 
         assert_roundtrip(
-            lambda: self.window.scene.add_node_from_type("core.python_script", x=620.0, y=80.0),
+            lambda: self.window.scene.add_node_from_type("code.python_script", x=620.0, y=80.0),
             "add node",
         )
 
@@ -1187,7 +1187,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
 
         assert_roundtrip(edit_property, "property edit")
 
-        delete_node_id = self.window.scene.add_node_from_type("core.python_script", x=680.0, y=150.0)
+        delete_node_id = self.window.scene.add_node_from_type("code.python_script", x=680.0, y=150.0)
         delete_edge_id = self.window.scene.add_edge(source_id, "value", delete_node_id, "payload")
         self.window.scene.select_node(delete_node_id, False)
         self.app.processEvents()

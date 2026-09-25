@@ -330,7 +330,7 @@ def test_builtin_model_viewer_preserves_solution_and_full_authored_inputs():
     assert new_plan.node_solution_interface_digest(source.node_id) == old_plan.node_solution_interface_digest(source.node_id)
 
 
-@pytest.mark.parametrize("type_id", ["core.python_script", "core.stream_gate"])
+@pytest.mark.parametrize("type_id", ["code.python_script", "core.stream_gate"])
 def test_source_backed_inputs_and_dynamic_outputs_remain_computational(type_id):
     registry = build_builtin_registry()
     assert all(group.execution_policy == "all_ports" for group in registry.get_spec(type_id).dynamic_port_groups)
@@ -338,7 +338,7 @@ def test_source_backed_inputs_and_dynamic_outputs_remain_computational(type_id):
     workspace = model.active_workspace
     node = model.add_node(workspace.workspace_id, type_id, "Node", 0, 0)
     before = workspace.capture_snapshot()
-    if type_id == "core.python_script":
+    if type_id == "code.python_script":
         node.properties["script"] = '@corex.node\n@corex.input("extra", value_type=corex.Any, required=False)\ndef run(ctx, extra):\n    return {}\n'
     else:
         group = registry.get_spec(type_id).dynamic_port_groups[0]
@@ -351,7 +351,7 @@ def test_source_backed_inputs_and_dynamic_outputs_remain_computational(type_id):
 
 
 def test_invalid_script_identity_stays_execute_only(graph):
-    node = graph.model.add_node(graph.workspace.workspace_id, "core.python_script", "Invalid", 0, 0,
+    node = graph.model.add_node(graph.workspace.workspace_id, "code.python_script", "Invalid", 0, 0,
                                 properties={"script": "def invalid("})
     plan = _plan(graph)
     assert node.node_id in plan.node_preflight_errors

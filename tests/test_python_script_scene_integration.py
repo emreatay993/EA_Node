@@ -23,8 +23,8 @@ def test_canvas_port_edits_execute_and_undo_source_wires_and_port_state_together
     scene.set_workspace(model, registry, workspace.workspace_id)
     history = RuntimeGraphHistory()
     scene.bind_runtime_history(history)
-    node_id = scene.add_node_from_type("core.python_script", 0, 0)
-    peer_id = scene.add_node_from_type("core.python_script", 300, 0)
+    node_id = scene.add_node_from_type("code.python_script", 0, 0)
+    peer_id = scene.add_node_from_type("code.python_script", 300, 0)
     assert scene.insert_dynamic_port(node_id, "inputs", 1) == "input1"
     assert scene.insert_dynamic_port(node_id, "outputs", 1) == "output1"
     node = workspace.nodes[node_id]
@@ -58,7 +58,7 @@ def test_scene_bulk_apply_and_decorator_section_toggle_use_production_routes() -
     workspace = model.active_workspace
     mutations = ValidatedGraphMutation(model, workspace.workspace_id, registry)
     node = mutations.add_node(
-        type_id="core.python_script", title="Script", x=0.0, y=0.0
+        type_id="code.python_script", title="Script", x=0.0, y=0.0
     )
     source = """@corex.node
 @corex.output("result", value_type=str)
@@ -91,7 +91,7 @@ def test_decorated_controls_use_the_shared_settings_group_payload() -> None:
     workspace = model.active_workspace
     mutations = ValidatedGraphMutation(model, workspace.workspace_id, registry)
     node = mutations.add_node(
-        type_id="core.python_script", title="Script", x=0.0, y=0.0
+        type_id="code.python_script", title="Script", x=0.0, y=0.0
     )
     source = """@corex.node
 @corex.input("values", value_type=float, structure="tree", section="Data")
@@ -139,7 +139,7 @@ def test_unsectioned_controls_keep_compact_settings_layout_below_main_ports(port
     model = GraphModel()
     workspace = model.active_workspace
     mutations = ValidatedGraphMutation(model, workspace.workspace_id, registry)
-    node = mutations.add_node(type_id="core.python_script", title="Script", x=0.0, y=0.0)
+    node = mutations.add_node(type_id="code.python_script", title="Script", x=0.0, y=0.0)
     source = f'''@corex.node
 @corex.input("payload", value_type=corex.Any)
 @corex.output("result", value_type=corex.Any)
@@ -216,8 +216,8 @@ def test_guided_script_apply_uses_scene_history_and_preserves_wire_identity() ->
     scene.set_workspace(model, registry, workspace.workspace_id)
     history = RuntimeGraphHistory()
     scene.bind_runtime_history(history)
-    node_id = scene.add_node_from_type("core.python_script", 0, 0)
-    peer_id = scene.add_node_from_type("core.python_script", 300, 0)
+    node_id = scene.add_node_from_type("code.python_script", 0, 0)
+    peer_id = scene.add_node_from_type("code.python_script", 300, 0)
     edge_id = scene.add_edge(peer_id, "result", node_id, "payload")
     scene.set_node_port_label(node_id, "payload", "Measured data")
     scene.set_port_modifiers(node_id, "payload", ["graft"])
@@ -253,10 +253,10 @@ def test_stale_scene_script_apply_records_no_history_and_changes_no_source() -> 
     scene.set_workspace(model, registry, workspace.workspace_id)
     history = RuntimeGraphHistory()
     scene.bind_runtime_history(history)
-    node_id = scene.add_node_from_type("core.python_script", 0, 0)
+    node_id = scene.add_node_from_type("code.python_script", 0, 0)
     source = workspace.nodes[node_id].properties["script"] + "\n# draft\n"
     prepared = scene.prepare_python_script(node_id, source, source_revision=2)
-    scene.add_node_from_type("core.python_script", 300, 0)
+    scene.add_node_from_type("code.python_script", 300, 0)
     before = history.capture_workspace(workspace)
     depth = history.undo_depth(workspace.workspace_id)
     with pytest.raises(ValueError, match="stale"):

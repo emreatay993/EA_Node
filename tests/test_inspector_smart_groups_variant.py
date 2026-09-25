@@ -212,7 +212,7 @@ class InspectorSmartGroupsBodyQmlTests(unittest.TestCase):
         host.registry = build_default_registry()
         host.model = GraphModel()
         workspace = host.model.active_workspace
-        source = host.model.add_node(workspace.workspace_id, "core.python_script", "Source", 0., 0.)
+        source = host.model.add_node(workspace.workspace_id, "code.python_script", "Source", 0., 0.)
         node = host.model.add_node(workspace.workspace_id, "plot.signal", "Signal", 200., 0.)
         host.model.add_edge(workspace.workspace_id, source.node_id, "result", node.node_id, "values")
         selected = [node]

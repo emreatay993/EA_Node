@@ -78,9 +78,9 @@ def run(ctx, ornament, amount):
     return {}
 """
     authored = registry.normalize_properties(
-        "core.python_script", {"script": script, "ornament": "b"}
+        "code.python_script", {"script": script, "ornament": "b"}
     )
-    projected = registry.execution_properties("core.python_script", authored)
+    projected = registry.execution_properties("code.python_script", authored)
     assert authored["ornament"] == "b"
     assert "ornament" not in projected
     assert projected["amount"] == 3

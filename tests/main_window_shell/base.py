@@ -626,7 +626,7 @@ class MainWindowShellTestBase(unittest.TestCase):
         self.window.scene.set_node_property(inner_output_id, "data_type", GRAPH_DATA_TYPE_ID)
 
         script_id = self.window.scene.add_node_from_type(
-            "core.python_script", x=220.0, y=160.0
+            "code.python_script", x=220.0, y=160.0
         )
         self.window.scene.add_edge(inner_input_id, "pin", script_id, "payload")
         self.window.scene.add_edge(script_id, "result", inner_output_id, "pin")

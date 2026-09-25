@@ -321,7 +321,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_selection_only_updates_do_not_rebuild_models(self) -> None:
         node_a = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
-        node_b = self.scene.add_node_from_type("core.python_script", 320.0, 40.0)
+        node_b = self.scene.add_node_from_type("code.python_script", 320.0, 40.0)
         node_c = self.scene.add_node_from_type("core.logger", 640.0, 80.0)
 
         baseline_nodes = copy.deepcopy(self.scene.nodes_model)
@@ -386,7 +386,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_connect_move_and_remove_keep_model_and_scene_in_sync(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 320.0, 40.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 320.0, 40.0)
         edge_id = self.scene.connect_nodes(source_id, target_id)
 
         baseline_edges = {item["edge_id"]: copy.deepcopy(item) for item in self.scene.edges_model}
@@ -527,7 +527,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_targeted_payload_routes_forward_all_graphics_facts(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 20.0, 30.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 320.0, 30.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 320.0, 30.0)
         self.preference_bridge.set_payload_graphics_facts(
             show_port_labels=False,
             graph_label_pixel_size=16,
@@ -716,7 +716,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_resize_node_geometry_uses_targeted_delta_without_scene_rebuild(self) -> None:
         source_id = self.scene.add_node_from_type("io.path_pointer", 0.0, 0.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 320.0, 40.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 320.0, 40.0)
         edge_id = self.scene.connect_nodes(source_id, target_id)
         workspace = self.model.project.workspaces[self.workspace_id]
         source_node = workspace.nodes[source_id]
@@ -1215,7 +1215,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_scene_payloads_include_node_and_edge_visual_metadata_contracts(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 320.0, 40.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 320.0, 40.0)
         passive_id = self.scene.add_node_from_type("passive.flowchart.process", 640.0, 80.0)
         edge_id = self.scene.add_edge(source_id, "value", target_id, "payload")
         workspace = self.model.project.workspaces[self.workspace_id]
@@ -1456,7 +1456,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_bulk_edge_enable_rejects_mixed_invalid_batch_atomically(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
-        script_id = self.scene.add_node_from_type("core.python_script", 320.0, 0.0)
+        script_id = self.scene.add_node_from_type("code.python_script", 320.0, 0.0)
         branch_id = self.scene.add_node_from_type("core.if", 640.0, 0.0)
         valid = self.model._add_edge_record(
             self.workspace_id,
@@ -1512,7 +1512,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
         source_id = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 320.0, 40.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 320.0, 40.0)
         passive_id = self.scene.add_node_from_type("passive.flowchart.process", 640.0, 80.0)
         edge_id = self.scene.add_edge(source_id, "value", target_id, "payload")
         history.clear_workspace(self.workspace_id)
@@ -1545,7 +1545,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         workspace = self.model.project.workspaces[self.workspace_id]
         source_a = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
         source_b = self.scene.add_node_from_type("core.constant", 0.0, 100.0)
-        sink = self.scene.add_node_from_type("core.python_script", 320.0, 0.0)
+        sink = self.scene.add_node_from_type("code.python_script", 320.0, 0.0)
         first = self.scene.add_edge(source_a, "value", sink, "payload")
         second = self.scene.add_edge(
             source_b, "value", sink, "payload", append_requested=True
@@ -1636,7 +1636,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         source_a = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
         source_b = self.scene.add_node_from_type("core.constant", 0.0, 100.0)
         source_c = self.scene.add_node_from_type("core.constant", 0.0, 200.0)
-        sink = self.scene.add_node_from_type("core.python_script", 300.0, 0.0)
+        sink = self.scene.add_node_from_type("code.python_script", 300.0, 0.0)
 
         def incoming_edges():
             return sorted(
@@ -1725,7 +1725,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(workspace.nodes[sink].principal_input_port_id, "payload")
 
         gate = self.scene.add_node_from_type("core.stream_gate", 600.0, 0.0)
-        gate_sink = self.scene.add_node_from_type("core.python_script", 900.0, 0.0)
+        gate_sink = self.scene.add_node_from_type("code.python_script", 900.0, 0.0)
         inserted_port = self.scene.insert_dynamic_port(gate, "outputs", 1)
         gate_edge = self.scene.add_edge(gate, inserted_port, gate_sink, "payload")
         history.clear_workspace(self.workspace_id)
@@ -1818,7 +1818,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         source_a = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
         source_b = self.scene.add_node_from_type("core.constant", 0.0, 100.0)
         source_c = self.scene.add_node_from_type("core.constant", 0.0, 200.0)
-        sink = self.scene.add_node_from_type("core.python_script", 300.0, 0.0)
+        sink = self.scene.add_node_from_type("code.python_script", 300.0, 0.0)
         edge_id = self.scene.add_edge(source_a, "value", sink, "payload")
         sibling_id = self.scene.add_edge(
             source_c, "value", sink, "payload", append_requested=True
@@ -1861,8 +1861,8 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         source_a = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
         source_b = self.scene.add_node_from_type("core.constant", 0.0, 100.0)
         source_c = self.scene.add_node_from_type("core.constant", 0.0, 200.0)
-        sink_a = self.scene.add_node_from_type("core.python_script", 300.0, 0.0)
-        sink_b = self.scene.add_node_from_type("core.python_script", 300.0, 120.0)
+        sink_a = self.scene.add_node_from_type("code.python_script", 300.0, 0.0)
+        sink_b = self.scene.add_node_from_type("code.python_script", 300.0, 120.0)
         edge_id = self.scene.add_edge(source_a, "value", sink_a, "payload")
         replaced_id = self.scene.add_edge(source_b, "value", sink_b, "payload")
         history.clear_workspace(self.workspace_id)
@@ -1966,8 +1966,8 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         workspace = self.model.project.workspaces[self.workspace_id]
         source_a = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
         source_b = self.scene.add_node_from_type("core.constant", 0.0, 100.0)
-        sink_a = self.scene.add_node_from_type("core.python_script", 320.0, 0.0)
-        sink_b = self.scene.add_node_from_type("core.python_script", 640.0, 0.0)
+        sink_a = self.scene.add_node_from_type("code.python_script", 320.0, 0.0)
+        sink_b = self.scene.add_node_from_type("code.python_script", 640.0, 0.0)
         first = self.scene.add_edge(source_a, "value", sink_a, "payload")
         second = self.scene.add_edge(
             source_b, "value", sink_a, "payload", append_requested=True
@@ -2029,7 +2029,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         workspace = self.model.project.workspaces[self.workspace_id]
         source_a = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
         source_b = self.scene.add_node_from_type("core.constant", 0.0, 100.0)
-        sink = self.scene.add_node_from_type("core.python_script", 320.0, 0.0)
+        sink = self.scene.add_node_from_type("code.python_script", 320.0, 0.0)
         branch = self.scene.add_node_from_type("core.if", 640.0, 0.0)
         first = self.scene.add_edge(source_a, "value", sink, "payload")
         second = self.scene.add_edge(
@@ -2064,12 +2064,12 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
     def test_rewire_compatibility_snapshot_intersects_the_whole_bundle(self) -> None:
         string_source = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
         number_source = self.scene.add_node_from_type("data.number_slider", 0.0, 120.0)
-        shared_sink = self.scene.add_node_from_type("core.python_script", 320.0, 0.0)
-        other_sink = self.scene.add_node_from_type("core.python_script", 320.0, 160.0)
+        shared_sink = self.scene.add_node_from_type("code.python_script", 320.0, 0.0)
+        other_sink = self.scene.add_node_from_type("code.python_script", 320.0, 160.0)
         string_target = self.scene.add_node_from_type("core.logger", 640.0, 0.0)
         number_target = self.scene.add_node_from_type("core.stream_gate", 640.0, 120.0)
-        common_target = self.scene.add_node_from_type("core.python_script", 640.0, 240.0)
-        duplicate_target = self.scene.add_node_from_type("core.python_script", 640.0, 480.0)
+        common_target = self.scene.add_node_from_type("code.python_script", 640.0, 240.0)
+        duplicate_target = self.scene.add_node_from_type("code.python_script", 640.0, 480.0)
         string_edge = self.scene.add_edge(
             string_source, "as_text", shared_sink, "payload"
         )
@@ -2117,8 +2117,8 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         source_a = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
         source_b = self.scene.add_node_from_type("core.constant", 0.0, 100.0)
         source_c = self.scene.add_node_from_type("core.constant", 0.0, 200.0)
-        sink_a = self.scene.add_node_from_type("core.python_script", 320.0, 0.0)
-        sink_b = self.scene.add_node_from_type("core.python_script", 640.0, 0.0)
+        sink_a = self.scene.add_node_from_type("code.python_script", 320.0, 0.0)
+        sink_b = self.scene.add_node_from_type("code.python_script", 640.0, 0.0)
         first = self.scene.add_edge(source_a, "value", sink_a, "payload")
         second = self.scene.add_edge(
             source_b, "value", sink_a, "payload", append_requested=True
@@ -3000,7 +3000,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
     def test_persistent_node_elapsed_action_types_split_property_and_cosmetic_mutations(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
         logger_id = self.scene.add_node_from_type("core.logger", 320.0, 40.0)
-        edge_target_id = self.scene.add_node_from_type("core.python_script", 640.0, 40.0)
+        edge_target_id = self.scene.add_node_from_type("code.python_script", 640.0, 40.0)
         passive_id = self.scene.add_node_from_type("passive.flowchart.process", 960.0, 40.0)
         edge_id = self.scene.add_edge(source_id, "value", edge_target_id, "payload")
         history = RuntimeGraphHistory()
@@ -3056,12 +3056,12 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_persistent_node_elapsed_action_types_keep_structural_and_layout_labels_distinct(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 320.0, 60.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 320.0, 60.0)
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
         history.clear_workspace(self.workspace_id)
 
-        added_id = self.scene.add_node_from_type("core.python_script", 640.0, 80.0)
+        added_id = self.scene.add_node_from_type("code.python_script", 640.0, 80.0)
         self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_ADD_NODE)
         history.clear_workspace(self.workspace_id)
 
@@ -3099,8 +3099,8 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         source_id = self.scene.add_node_from_type("core.constant", 20.0, 40.0)
         grouped_if_id = self.scene.add_node_from_type("core.if", 320.0, 60.0)
         grouped_constant_id = self.scene.add_node_from_type("core.constant", 220.0, 190.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 640.0, 90.0)
-        external_script_id = self.scene.add_node_from_type("core.python_script", 700.0, 230.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 640.0, 90.0)
+        external_script_id = self.scene.add_node_from_type("code.python_script", 700.0, 230.0)
 
         self.scene.add_edge(source_id, "value", grouped_if_id, "condition")
         self.scene.add_edge(grouped_constant_id, "as_text", grouped_if_id, "true_value")
@@ -3149,7 +3149,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_hiding_connected_port_removes_edges_immediately(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 320.0, 30.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 320.0, 30.0)
         edge_id = self.scene.add_edge(source_id, "as_text", target_id, "payload")
 
         self.scene.set_exposed_port(source_id, "as_text", False)
@@ -3166,7 +3166,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.scene.nodes_changed.connect(lambda: nodes_changed.append("nodes"))
         self.scene.edges_changed.connect(lambda: edges_changed.append("edges"))
 
-        start_id = self.scene.add_node_from_type("core.python_script", 0.0, 0.0)
+        start_id = self.scene.add_node_from_type("code.python_script", 0.0, 0.0)
         constant_id = self.scene.add_node_from_type("core.constant", 220.0, 0.0)
         branch_id = self.scene.add_node_from_type("core.if", 480.0, 0.0)
         invalid_edge = self.model._add_edge_record(
@@ -3214,7 +3214,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
     def test_add_edge_replaces_existing_incoming_connection_for_data_input(self) -> None:
         first_source_id = self.scene.add_node_from_type("core.constant", 0.0, 0.0)
         second_source_id = self.scene.add_node_from_type("core.constant", 0.0, 120.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 320.0, 30.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 320.0, 30.0)
 
         first_edge_id = self.scene.add_edge(first_source_id, "value", target_id, "payload")
         replacement_edge_id = self.scene.add_edge(second_source_id, "value", target_id, "payload")
@@ -3372,7 +3372,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
     def test_scope_navigation_filters_nodes_edges_and_assigns_new_nodes_to_active_scope(self) -> None:
         shell_id = self.scene.add_node_from_type("core.subnode", 200.0, 120.0)
         root_source_id = self.scene.add_node_from_type("core.constant", 20.0, 30.0)
-        root_target_id = self.scene.add_node_from_type("core.python_script", 520.0, 30.0)
+        root_target_id = self.scene.add_node_from_type("code.python_script", 520.0, 30.0)
         pin_in = self.scene.add_node_from_type("core.subnode_input", 30.0, 30.0)
         pin_out = self.scene.add_node_from_type("core.subnode_output", 90.0, 30.0)
         nested_logger = self.scene.add_node_from_type("core.logger", 160.0, 120.0)
@@ -3486,7 +3486,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
     def test_connect_nodes_uses_dynamic_subnode_default_ports(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 20.0, 30.0)
         shell_id = self.scene.add_node_from_type("core.subnode", 260.0, 30.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 520.0, 30.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 520.0, 30.0)
         pin_in = self.scene.add_node_from_type("core.subnode_input", 40.0, 40.0)
         pin_out = self.scene.add_node_from_type("core.subnode_output", 80.0, 40.0)
 
@@ -3511,7 +3511,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_workspace_and_selection_bounds_helpers(self) -> None:
         node_a = self.scene.add_node_from_type("core.constant", 10.0, 20.0)
-        node_b = self.scene.add_node_from_type("core.python_script", 340.0, 160.0)
+        node_b = self.scene.add_node_from_type("code.python_script", 340.0, 160.0)
 
         workspace_bounds = self.scene.workspace_scene_bounds()
         self.assertIsNotNone(workspace_bounds)
@@ -3564,7 +3564,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_rect_selection_uses_drag_direction_for_enclosed_and_crossing_modes(self) -> None:
         enclosed_node = self.scene.add_node_from_type("core.constant", -140.0, -60.0)
-        crossing_node = self.scene.add_node_from_type("core.python_script", 120.0, -60.0)
+        crossing_node = self.scene.add_node_from_type("code.python_script", 120.0, -60.0)
         retained_node = self.scene.add_node_from_type("core.logger", -140.0, 180.0)
 
         enclosed_bounds = self.scene.node_bounds(enclosed_node)
@@ -3608,7 +3608,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(self.scene.minimap_nodes_model, [])
 
         node_a = self.scene.add_node_from_type("core.constant", 30.0, 40.0)
-        node_b = self.scene.add_node_from_type("core.python_script", 390.0, 200.0)
+        node_b = self.scene.add_node_from_type("code.python_script", 390.0, 200.0)
         self.scene.select_node(node_b)
 
         minimap_payload = {item["node_id"]: item for item in self.scene.minimap_nodes_model}
@@ -3638,9 +3638,9 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
         node_a = self.scene.add_node_from_type("core.constant", 20.0, 30.0)
-        node_b = self.scene.add_node_from_type("core.python_script", 360.0, 170.0)
+        node_b = self.scene.add_node_from_type("code.python_script", 360.0, 170.0)
         node_c = self.scene.add_node_from_type("core.constant", 720.0, 260.0)
-        node_d = self.scene.add_node_from_type("core.python_script", 980.0, 280.0)
+        node_d = self.scene.add_node_from_type("code.python_script", 980.0, 280.0)
         moved_edge_id = self.scene.connect_nodes(node_a, node_b)
         unrelated_edge_id = self.scene.connect_nodes(node_c, node_d)
         history.clear_workspace(self.workspace_id)
@@ -3783,7 +3783,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
         node_a = self.scene.add_node_from_type("core.constant", 40.0, 20.0)
-        node_b = self.scene.add_node_from_type("core.python_script", 320.0, 210.0)
+        node_b = self.scene.add_node_from_type("code.python_script", 320.0, 210.0)
         node_c = self.scene.add_node_from_type("core.logger", 640.0, 80.0)
         workspace = self.model.project.workspaces[self.workspace_id]
         self.scene.select_node(node_a, False)
@@ -3854,7 +3854,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
         node_a = self.scene.add_node_from_type("core.constant", 13.0, 17.0)
-        node_b = self.scene.add_node_from_type("core.python_script", 171.0, 83.0)
+        node_b = self.scene.add_node_from_type("code.python_script", 171.0, 83.0)
         workspace = self.model.project.workspaces[self.workspace_id]
         history.clear_workspace(self.workspace_id)
 
@@ -3882,7 +3882,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_straighten_selected_connections_aligns_standard_port_centers(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 20.0, 20.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 360.0, 180.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 360.0, 180.0)
         edge_id = self.scene.add_edge(source_id, "value", target_id, "payload")
         self.scene.select_node(source_id, False)
         self.scene.select_node(target_id, True)
@@ -3910,8 +3910,8 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
     def test_straighten_selected_connections_ignores_external_edges(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 20.0, 20.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 360.0, 180.0)
-        external_id = self.scene.add_node_from_type("core.python_script", 680.0, 420.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 360.0, 180.0)
+        external_id = self.scene.add_node_from_type("code.python_script", 680.0, 420.0)
         internal_edge_id = self.scene.add_edge(source_id, "value", target_id, "payload")
         external_edge_id = self.scene.add_edge(source_id, "as_text", external_id, "payload")
         self.scene.select_node(source_id, False)
@@ -3926,7 +3926,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
         source_id = self.scene.add_node_from_type("core.constant", 20.0, 20.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 360.0, 180.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 360.0, 180.0)
         edge_id = self.scene.add_edge(source_id, "value", target_id, "payload")
         workspace = self.model.project.workspaces[self.workspace_id]
         self.scene.select_node(source_id, False)
@@ -3961,8 +3961,8 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
         source_id = self.scene.add_node_from_type("core.constant", 10.0, 20.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 280.0, 40.0)
-        external_id = self.scene.add_node_from_type("core.python_script", 520.0, 80.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 280.0, 40.0)
+        external_id = self.scene.add_node_from_type("code.python_script", 520.0, 80.0)
         self.scene.add_edge(source_id, "value", target_id, "payload")
         self.scene.add_edge(source_id, "as_text", external_id, "payload")
         self.scene.select_node(source_id, False)
@@ -4025,7 +4025,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
         source_id = self.scene.add_node_from_type("core.constant", 10.0, 20.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 280.0, 40.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 280.0, 40.0)
         self.scene.add_edge(source_id, "value", target_id, "payload")
         workspace = self.model.project.workspaces[self.workspace_id]
         workspace.nodes[source_id].visual_style = {"fill": "#102030"}
@@ -4111,9 +4111,9 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
         shell_id = self.scene.add_node_from_type("core.subnode", 120.0, 80.0)
-        nested_script_id = self.scene.add_node_from_type("core.python_script", 320.0, 120.0)
+        nested_script_id = self.scene.add_node_from_type("code.python_script", 320.0, 120.0)
         nested_constant_id = self.scene.add_node_from_type("core.constant", 80.0, 220.0)
-        deep_script_id = self.scene.add_node_from_type("core.python_script", 520.0, 260.0)
+        deep_script_id = self.scene.add_node_from_type("code.python_script", 520.0, 260.0)
         external_logger_id = self.scene.add_node_from_type("core.logger", 780.0, 140.0)
         workspace = self.model.project.workspaces[self.workspace_id]
         workspace.nodes[nested_script_id].parent_node_id = shell_id
@@ -4184,7 +4184,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         shell_id = self.scene.add_node_from_type("core.subnode", 180.0, 120.0)
         root_source_id = self.scene.add_node_from_type("core.constant", 40.0, 40.0)
         nested_logger_id = self.scene.add_node_from_type("core.logger", 120.0, 80.0)
-        nested_target_id = self.scene.add_node_from_type("core.python_script", 340.0, 100.0)
+        nested_target_id = self.scene.add_node_from_type("code.python_script", 340.0, 100.0)
         workspace = self.model.project.workspaces[self.workspace_id]
         workspace.nodes[nested_logger_id].parent_node_id = shell_id
         workspace.nodes[nested_target_id].parent_node_id = shell_id
@@ -4210,8 +4210,8 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         source_id = self.scene.add_node_from_type("core.constant", 20.0, 40.0)
         grouped_if_id = self.scene.add_node_from_type("core.if", 320.0, 60.0)
         grouped_constant_id = self.scene.add_node_from_type("core.constant", 220.0, 190.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 640.0, 90.0)
-        external_script_id = self.scene.add_node_from_type("core.python_script", 700.0, 230.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 640.0, 90.0)
+        external_script_id = self.scene.add_node_from_type("code.python_script", 700.0, 230.0)
 
         self.scene.add_edge(source_id, "value", grouped_if_id, "condition")
         self.scene.add_edge(grouped_constant_id, "as_text", grouped_if_id, "true_value")
@@ -4272,8 +4272,8 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.scene.bind_runtime_history(history)
         branch_id = self.scene.add_node_from_type("core.stream_gate", 260.0, 80.0)
         constant_id = self.scene.add_node_from_type("core.constant", 120.0, 120.0)
-        top_end_id = self.scene.add_node_from_type("core.python_script", 760.0, 20.0)
-        bottom_end_id = self.scene.add_node_from_type("core.python_script", 760.0, 340.0)
+        top_end_id = self.scene.add_node_from_type("code.python_script", 760.0, 20.0)
+        bottom_end_id = self.scene.add_node_from_type("code.python_script", 760.0, 340.0)
         self.scene.add_edge(constant_id, "value", branch_id, "gate")
         self.scene.add_edge(branch_id, "output_0", top_end_id, "payload")
         self.scene.add_edge(branch_id, "output_1", bottom_end_id, "payload")
@@ -4307,8 +4307,8 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         source_id = self.scene.add_node_from_type("core.constant", 20.0, 40.0)
         grouped_if_id = self.scene.add_node_from_type("core.if", 320.0, 60.0)
         grouped_constant_id = self.scene.add_node_from_type("core.constant", 220.0, 190.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 640.0, 90.0)
-        external_script_id = self.scene.add_node_from_type("core.python_script", 700.0, 230.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 640.0, 90.0)
+        external_script_id = self.scene.add_node_from_type("code.python_script", 700.0, 230.0)
 
         self.scene.add_edge(source_id, "value", grouped_if_id, "condition")
         self.scene.add_edge(grouped_constant_id, "as_text", grouped_if_id, "true_value")

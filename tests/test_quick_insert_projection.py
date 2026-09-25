@@ -315,7 +315,7 @@ class QuickInsertProjectionTests(unittest.TestCase):
             combined_items=self.combined_items, data_types=self.data_types, query="python script",
             source_direction="in", source_kind="data", source_data_type=ENGINEERING_SCENE_DATA_TYPE_ID,
         )
-        self.assertEqual(searched[0]["type_id"], "core.python_script")
+        self.assertEqual(searched[0]["type_id"], "code.python_script")
         self.assertEqual(searched[0]["compatibility_kind"], "runtime_check")
 
     def test_best_tier_and_accepted_union_are_kept_without_mutating_library_rows(self) -> None:

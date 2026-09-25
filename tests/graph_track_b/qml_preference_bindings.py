@@ -1175,7 +1175,7 @@ class GraphCanvasQmlPreferenceBindingTests(
         scene.set_workspace(model, registry, workspace_id)
 
         source_id = scene.add_node_from_type("core.constant", 40.0, 60.0)
-        target_id = scene.add_node_from_type("core.python_script", 460.0, 80.0)
+        target_id = scene.add_node_from_type("code.python_script", 460.0, 80.0)
         edge_id = scene.add_edge(source_id, "value", target_id, "payload")
         scene.set_node_port_label(source_id, "value", "Dispatch Result Token")
         scene.refresh_workspace_from_model(workspace_id)

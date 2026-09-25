@@ -60,7 +60,7 @@ def test_signal_inline_schema_refresh_uses_only_current_accepted_output_and_pres
     workspace = model.active_workspace
     scene = GraphSceneBridge()
     scene.set_workspace(model, registry, workspace.workspace_id)
-    source_id = scene.add_node_from_type("core.python_script", 0., 0.)
+    source_id = scene.add_node_from_type("code.python_script", 0., 0.)
     signal_id = scene.add_node_from_type("plot.signal", 280., 0.)
     model.add_edge(workspace.workspace_id, source_id, "result", signal_id, "values")
     scene.set_node_property(signal_id, "x_column", 0)
@@ -120,9 +120,9 @@ def _chain_scene():
     registry = build_default_registry()
     model = GraphModel()
     workspace = model.active_workspace
-    source = model.add_node(workspace.workspace_id, "core.python_script", "Source", 0.0, 0.0)
-    middle = model.add_node(workspace.workspace_id, "core.python_script", "Middle", 280.0, 0.0)
-    target = model.add_node(workspace.workspace_id, "core.python_script", "Target", 560.0, 0.0)
+    source = model.add_node(workspace.workspace_id, "code.python_script", "Source", 0.0, 0.0)
+    middle = model.add_node(workspace.workspace_id, "code.python_script", "Middle", 280.0, 0.0)
+    target = model.add_node(workspace.workspace_id, "code.python_script", "Target", 560.0, 0.0)
     first_edge = model.add_edge(
         workspace.workspace_id,
         source.node_id,
@@ -487,7 +487,7 @@ def _settings_group_scene(*, expanded_group_ids: tuple[str, ...] = ()):
     registry.freeze()
     model = GraphModel()
     workspace = model.active_workspace
-    source = model.add_node(workspace.workspace_id, "core.python_script", "Source", 0.0, 0.0)
+    source = model.add_node(workspace.workspace_id, "code.python_script", "Source", 0.0, 0.0)
     target = model.add_node(
         workspace.workspace_id,
         "tests.settings_group_projection",
@@ -857,7 +857,7 @@ def test_disabled_edge_does_not_override_and_disconnect_restores_authored_condit
     workspace = model.active_workspace
     mutations = model.validated_mutations(workspace.workspace_id, registry)
     source = mutations.add_node(
-        type_id="core.python_script", title="Source", x=0.0, y=0.0
+        type_id="code.python_script", title="Source", x=0.0, y=0.0
     )
     target = mutations.add_node(
         type_id="tests.declarative_property_projection",
@@ -915,7 +915,7 @@ def test_upstream_interval_display_refresh_never_mutates_authored_serialization(
     model = GraphModel()
     workspace = model.active_workspace
     source = model.add_node(
-        workspace.workspace_id, "core.python_script", "Source", 0.0, 0.0
+        workspace.workspace_id, "code.python_script", "Source", 0.0, 0.0
     )
     target = model.add_node(
         workspace.workspace_id,
@@ -1007,7 +1007,7 @@ def test_direct_ports_payload_fallback_uses_enabled_edge_projection() -> None:
     workspace = model.active_workspace
     source = model.add_node(
         workspace.workspace_id,
-        "core.python_script",
+        "code.python_script",
         "Source",
         -300.0,
         0.0,

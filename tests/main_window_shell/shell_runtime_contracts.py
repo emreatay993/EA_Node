@@ -98,7 +98,7 @@ class MainWindowShellTelemetryTests(SharedMainWindowShellTestBase):
     def test_status_items_can_jump_to_running_and_failed_nodes(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         running_id = self.window.scene.add_node_from_type("core.logger", x=40.0, y=40.0)
-        failed_id = self.window.scene.add_node_from_type("core.python_script", x=320.0, y=120.0)
+        failed_id = self.window.scene.add_node_from_type("code.python_script", x=320.0, y=120.0)
         self.app.processEvents()
 
         self.window.run_projection_controller.mark_node_execution_running(workspace_id, running_id, started_at_epoch_ms=12.5)

@@ -105,8 +105,8 @@ def build_fixture(node_count, *, generation_root=None):
     nodes = {
         "source": NodeInstance("source", "benchmark.source", "Source", 0, 0),
         "sink": NodeInstance("sink", "benchmark.sink", "Sink", 0, 0),
-        "script": NodeInstance("script", "core.python_script", "Script", 0, 0,
-                               properties=registry.normalize_properties("core.python_script", {"script": SCRIPT}),
+        "script": NodeInstance("script", "code.python_script", "Script", 0, 0,
+                               properties=registry.normalize_properties("code.python_script", {"script": SCRIPT}),
                                exposed_ports={"payload": False}, port_labels={"payload": "Input"},
                                port_modifiers={"payload": ("clean", "graft")}, principal_input_port_id="payload"),
         "dynamic": NodeInstance("dynamic", "benchmark.dynamic", "Dynamic", 0, 0,

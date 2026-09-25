@@ -15,7 +15,7 @@ from ea_node_editor.nodes.node_specs import (
 BUILTIN_NODE_ICONS: Mapping[str, str] = {
     "core.constant": "core/data_object.svg",
     "core.logger": "core/article.svg",
-    "core.python_script": "core/code.svg",
+    "code.python_script": "core/code.svg",
     "core.if": "call_split",
     "core.stream_gate": "alt_route",
     "data.boolean_toggle": "check",

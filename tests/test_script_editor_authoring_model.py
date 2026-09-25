@@ -37,7 +37,7 @@ def authoring():
     scene.set_workspace(model, registry, workspace.workspace_id)
     history = RuntimeGraphHistory()
     scene.bind_runtime_history(history)
-    node_id = scene.add_node_from_type("core.python_script", 0, 0)
+    node_id = scene.add_node_from_type("code.python_script", 0, 0)
     scene.set_node_property(node_id, "script", SOURCE)
     editor = ScriptEditorModel()
     context = [model.project, workspace, registry]
@@ -147,7 +147,7 @@ def test_drafts_survive_retarget_and_clear_selection(authoring):
     editor = authoring.editor
     draft = SOURCE + "\n# keep this\n"
     editor.set_script_text(draft)
-    second = authoring.scene.add_node_from_type("core.python_script", 300, 0)
+    second = authoring.scene.add_node_from_type("code.python_script", 300, 0)
     editor.set_node(authoring.workspace.nodes[second])
     editor.set_script_text(editor.script_text + "\n# second\n")
     editor.set_node(None)
@@ -259,7 +259,7 @@ def test_invalid_apply_is_atomic_and_stale_impact_requires_new_apply(authoring):
     editor.set_script_text(editor.script_text + "\n# draft\n")
     impact = editor.prepare_apply()
     assert not impact["error"]
-    authoring.scene.add_node_from_type("core.python_script", 300, 0)
+    authoring.scene.add_node_from_type("code.python_script", 300, 0)
     assert not editor.apply()
     assert "Review the updated" in editor.operation_error
     assert editor.dirty
@@ -268,7 +268,7 @@ def test_invalid_apply_is_atomic_and_stale_impact_requires_new_apply(authoring):
 
 def test_bare_model_retains_request_signal_contract(qapp):
     editor = ScriptEditorModel()
-    editor.set_node(SimpleNamespace(node_id="node", type_id="core.python_script", title="Script",
+    editor.set_node(SimpleNamespace(node_id="node", type_id="code.python_script", title="Script",
                                    properties={"script": SOURCE}))
     editor.set_script_text(SOURCE + "\n# changed\n")
     spy = QSignalSpy(editor.script_apply_requested)

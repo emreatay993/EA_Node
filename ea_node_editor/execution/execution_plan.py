@@ -117,7 +117,7 @@ class ExecutionPlan:
                     node.type_id, node.properties
                 )
             except (TypeError, ValueError) as exc:
-                if node.type_id != "core.python_script":
+                if node.type_id != "code.python_script":
                     raise
                 self.node_preflight_errors[node_id] = (
                     exc

@@ -34,7 +34,7 @@ def script_apply_graph():
 def run(ctx, payload, scale, caption):
     return {"result": payload * scale}
 '''
-    node = mutation.add_node(type_id="core.python_script", title="Script", x=0, y=0,
+    node = mutation.add_node(type_id="code.python_script", title="Script", x=0, y=0,
                              properties={"script": source})
     return registry, workspace, mutation, node, source
 
@@ -43,9 +43,9 @@ def test_guided_script_rename_preparation_and_commit_preserve_authored_state(scr
     registry, workspace, mutation, node, source = script_apply_graph
     source_text = '@corex.node\n@corex.output("value", value_type=float)\ndef run(ctx): return {"value": 1.0}\n'
     sink_text = '@corex.node\n@corex.input("value", value_type=float)\ndef run(ctx, value): return {}\n'
-    upstream = mutation.add_node(type_id="core.python_script", title="Source", x=-200, y=0,
+    upstream = mutation.add_node(type_id="code.python_script", title="Source", x=-200, y=0,
                                 properties={"script": source_text})
-    downstream = mutation.add_node(type_id="core.python_script", title="Sink", x=200, y=0,
+    downstream = mutation.add_node(type_id="code.python_script", title="Sink", x=200, y=0,
                                   properties={"script": sink_text})
     incoming = mutation.add_edge(source_node_id=upstream.node_id, source_port_key="value",
                                  target_node_id=node.node_id, target_port_key="payload",
@@ -117,7 +117,7 @@ def test_guided_script_rename_can_reuse_removed_declaration_without_stealing_its
                             '@corex.slider("caption", default=1.0, minimum=0.0, maximum=8.0, port=True, section="Style")')
     mutation.apply_python_script(node.node_id, source)
     source_text = '@corex.node\n@corex.output("value", value_type=float)\ndef run(ctx): return {"value": 1.0}\n'
-    upstream = mutation.add_node(type_id="core.python_script", title="Source", x=-200, y=0,
+    upstream = mutation.add_node(type_id="code.python_script", title="Source", x=-200, y=0,
                                 properties={"script": source_text})
     source_edge = mutation.add_edge(source_node_id=upstream.node_id, source_port_key="value",
                                     target_node_id=node.node_id, target_port_key="scale", label="Keep")
@@ -156,7 +156,7 @@ def test_guided_script_rename_can_add_new_declaration_using_old_name(script_appl
 
     _registry, workspace, mutation, node, source = script_apply_graph
     source_text = '@corex.node\n@corex.output("value", value_type=float)\ndef run(ctx): return {"value": 1.0}\n'
-    upstream = mutation.add_node(type_id="core.python_script", title="Source", x=-200, y=0,
+    upstream = mutation.add_node(type_id="code.python_script", title="Source", x=-200, y=0,
                                 properties={"script": source_text})
     edge = mutation.add_edge(source_node_id=upstream.node_id, source_port_key="value",
                              target_node_id=node.node_id, target_port_key="scale")
@@ -188,7 +188,7 @@ def test_guided_script_rename_can_add_new_declaration_using_old_name(script_appl
 
 def test_guided_script_rename_still_resets_invalid_values_and_prunes_structure_change(script_apply_graph):
     _registry, workspace, mutation, node, source = script_apply_graph
-    upstream = mutation.add_node(type_id="core.python_script", title="Source", x=-200, y=0)
+    upstream = mutation.add_node(type_id="code.python_script", title="Source", x=-200, y=0)
     incoming = mutation.add_edge(source_node_id=upstream.node_id, source_port_key="result",
                                  target_node_id=node.node_id, target_port_key="payload")
     mutation.set_node_property(node.node_id, "scale", 7.0)
@@ -216,7 +216,7 @@ def test_guided_script_rename_semantic_change_prunes_downstream_forwarding(scrip
     mutation.apply_python_script(node.node_id, source)
     middle = mutation.add_node(type_id="data.panel", title="Middle", x=200, y=0)
     sink_source = '@corex.node\n@corex.input("value", value_type=float)\ndef run(ctx, value): return {}\n'
-    sink = mutation.add_node(type_id="core.python_script", title="Sink", x=400, y=0,
+    sink = mutation.add_node(type_id="code.python_script", title="Sink", x=400, y=0,
                              properties={"script": sink_source})
     first = mutation.add_edge(source_node_id=node.node_id, source_port_key="result",
                               target_node_id=middle.node_id, target_port_key="input")
@@ -252,7 +252,7 @@ def test_script_apply_rejects_stale_preparation_without_any_graph_write(script_a
         mutation.registry = registry.fork()
     elif change == "registry_contract":
         mutation.registry.register_descriptor(
-            replace(registry.get_spec("core.python_script"), type_id="tests.another_script"), lambda: None,
+            replace(registry.get_spec("code.python_script"), type_id="tests.another_script"), lambda: None,
         )
     elif change == "original_source":
         node.properties["script"] += "# external source change\n"
@@ -269,7 +269,7 @@ def test_script_apply_rejects_stale_preparation_without_any_graph_write(script_a
 
 def test_script_apply_reprepares_and_does_not_trust_mutated_preview_data(script_apply_graph):
     _registry, workspace, mutation, node, source = script_apply_graph
-    upstream = mutation.add_node(type_id="core.python_script", title="Source", x=-200, y=0)
+    upstream = mutation.add_node(type_id="code.python_script", title="Source", x=-200, y=0)
     edge = mutation.add_edge(source_node_id=upstream.node_id, source_port_key="result",
                              target_node_id=node.node_id, target_port_key="payload")
     edited = source.replace("payload", "values").replace("scale", "gain")
@@ -317,7 +317,7 @@ def run(ctx, payload: float, scale,):  # signature comment
     # Keep this logic even when an interface change needs a manual body edit.
     return {"result": payload * scale}
 '''
-    node = mutations.add_node(type_id="core.python_script", title="Script", x=0, y=0,
+    node = mutations.add_node(type_id="code.python_script", title="Script", x=0, y=0,
                               properties={"script": source})
     mutations.set_node_property(node.node_id, "scale", 3.0)
     before_spec = registry.resolve_spec(node.type_id, node.properties)
@@ -358,7 +358,7 @@ def run(
     registry = build_builtin_registry()
     model = GraphModel()
     mutation = ValidatedGraphMutation(model, model.active_workspace.workspace_id, registry)
-    node = mutation.add_node(type_id="core.python_script", title="Script", x=0, y=0,
+    node = mutation.add_node(type_id="code.python_script", title="Script", x=0, y=0,
                              properties={"script": source})
     assert mutation.insert_dynamic_port(node.node_id, "inputs", 0) == "input2"
     mutation.remove_dynamic_port(node.node_id, "inputs", "payload")
@@ -373,8 +373,8 @@ def run(
 
 def test_source_backed_group_validation_and_mutations_keep_backing_write_guards() -> None:
     registry = build_builtin_registry().fork()
-    properties = registry.default_properties("core.python_script")
-    spec = registry.resolve_spec("core.python_script", properties)
+    properties = registry.default_properties("code.python_script")
+    spec = registry.resolve_spec("code.python_script", properties)
     group = spec.dynamic_port_groups[0]
     port = spec.ports[0]
     bad_group = replace(group, ports_resolver=lambda _properties: (port, port))
@@ -384,7 +384,7 @@ def test_source_backed_group_validation_and_mutations_keep_backing_write_guards(
     with pytest.raises(TypeError, match="must be callable"):
         validate_node_spec(replace(spec, dynamic_port_groups=(bad_group,)), data_types=registry.data_types)
 
-    base = registry.get_spec("core.python_script")
+    base = registry.get_spec("code.python_script")
     custom = replace(spec, type_id="tests.source_backed", instance_spec_resolver=base.instance_spec_resolver)
     registry.register_descriptor(custom, lambda: None)
     registry.freeze()
@@ -404,7 +404,7 @@ def test_numeric_overflow_is_line_aware_and_apply_is_atomic() -> None:
     workspace = model.active_workspace
     mutations = ValidatedGraphMutation(model, workspace.workspace_id, registry)
     node = mutations.add_node(
-        type_id="core.python_script", title="Script", x=0.0, y=0.0
+        type_id="code.python_script", title="Script", x=0.0, y=0.0
     )
     before = node.clone()
     huge = "9" * 400
@@ -427,10 +427,10 @@ def test_apply_is_atomic_and_reconciles_values_wires_and_structure() -> None:
     workspace = model.active_workspace
     mutations = ValidatedGraphMutation(model, workspace.workspace_id, registry)
     source_node = mutations.add_node(
-        type_id="core.python_script", title="Source", x=0.0, y=0.0
+        type_id="code.python_script", title="Source", x=0.0, y=0.0
     )
     target_node = mutations.add_node(
-        type_id="core.python_script", title="Target", x=300.0, y=0.0
+        type_id="code.python_script", title="Target", x=300.0, y=0.0
     )
     edge = mutations.add_edge(
         source_node_id=source_node.node_id,
@@ -748,7 +748,7 @@ def run(ctx, payload, gain):
     registry = build_builtin_registry(generation_root=tmp_path / "plugin_generations")
     model = GraphModel()
     mutations = model.validated_mutations(model.active_workspace.workspace_id, registry)
-    node = mutations.add_node(type_id="core.python_script", title="Script", x=0, y=0, properties={"script": source})
+    node = mutations.add_node(type_id="code.python_script", title="Script", x=0, y=0, properties={"script": source})
     spec = registry.resolve_spec(node.type_id, node.properties)
     declared_order = tuple(group.group_id for group in spec.settings_groups)
     assert len(declared_order) == 2
@@ -768,7 +768,7 @@ def run(ctx, payload, gain):
 
 def test_script_port_projection_preserves_authored_order_and_detaches_state() -> None:
     node = NodeInstance(
-        node_id="script", type_id="core.python_script", title="Script", x=0, y=0,
+        node_id="script", type_id="code.python_script", title="Script", x=0, y=0,
         exposed_ports={"payload": False, "required": False, "removed": True},
         port_labels={"payload": "Alias", "required": "Old", "removed": "Old"},
         port_modifiers={"payload": ("clean", "graft", "clean"), "required": ("graft",), "result": ()},
@@ -804,8 +804,8 @@ def test_script_semantic_type_change_resets_state_without_forcing_compatible_wir
     mutation = model.validated_mutations(workspace.workspace_id, registry)
     source_text = '@corex.node\n@corex.output("value", value_type=float)\ndef run(ctx): return {"value": 1.0}\n'
     target_text = '@corex.node\n@corex.input("value", value_type=corex.Any)\ndef run(ctx, value): return {}\n'
-    source = mutation.add_node(type_id="core.python_script", title="Source", x=0, y=0, properties={"script": source_text})
-    target = mutation.add_node(type_id="core.python_script", title="Target", x=200, y=0, properties={"script": target_text})
+    source = mutation.add_node(type_id="code.python_script", title="Source", x=0, y=0, properties={"script": source_text})
+    target = mutation.add_node(type_id="code.python_script", title="Target", x=200, y=0, properties={"script": target_text})
     edge = mutation.add_edge(source_node_id=source.node_id, source_port_key="value", target_node_id=target.node_id, target_port_key="value")
     target.port_labels = {"value": "Alias"}
     target.port_modifiers = {"value": ("graft",)}

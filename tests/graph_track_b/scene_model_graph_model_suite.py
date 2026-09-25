@@ -39,7 +39,7 @@ class GraphModelTrackBTests(unittest.TestCase):
         model = GraphModel()
         workspace_id = model.active_workspace.workspace_id
         source = model.add_node(workspace_id, "core.constant", "Source", 0.0, 0.0)
-        target = model.add_node(workspace_id, "core.python_script", "Target", 300.0, 80.0)
+        target = model.add_node(workspace_id, "code.python_script", "Target", 300.0, 80.0)
 
         model.set_node_position(workspace_id, source.node_id, 25.0, 45.0)
         moved = model.project.workspaces[workspace_id].nodes[source.node_id]
@@ -189,7 +189,7 @@ class GraphModelTrackBTests(unittest.TestCase):
         output_pin = _add_node(
             "core.subnode_output", "Output", parent_node_id=outer_shell.node_id
         )
-        sink = _add_node("core.python_script", "Sink")
+        sink = _add_node("code.python_script", "Sink")
         mutations.set_exposed_port(outer_shell.node_id, output_pin.node_id, True)
         inner_output_edge = mutations.add_edge(
             source_node_id=producer.node_id,

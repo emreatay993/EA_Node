@@ -186,8 +186,8 @@ def test_python_script_decorator_apply_prunes_edges_and_sparse_state_with_undo_r
     workspace = model.active_workspace
     scene = GraphSceneBridge()
     scene.set_workspace(model, registry, workspace.workspace_id)
-    source_id = scene.add_node_from_type("core.python_script", 40.0, 40.0)
-    target_id = scene.add_node_from_type("core.python_script", 360.0, 40.0)
+    source_id = scene.add_node_from_type("code.python_script", 40.0, 40.0)
+    target_id = scene.add_node_from_type("code.python_script", 360.0, 40.0)
     edge_id = scene.add_edge(source_id, "result", target_id, "payload")
     assert scene.set_port_modifiers(target_id, "payload", ["graft"])
     assert scene.set_principal_input_port(target_id, "payload")
@@ -231,7 +231,7 @@ def test_python_script_declaration_errors_leave_scene_unchanged() -> None:
     workspace = model.active_workspace
     scene = GraphSceneBridge()
     scene.set_workspace(model, registry, workspace.workspace_id)
-    script_id = scene.add_node_from_type("core.python_script", 40.0, 40.0)
+    script_id = scene.add_node_from_type("code.python_script", 40.0, 40.0)
 
     before = workspace.nodes[script_id].clone()
     with pytest.raises(ValueError, match="line"):

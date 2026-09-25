@@ -280,7 +280,7 @@ class GraphScenePayloadBuilder:
         This entry has no live model, input provider, load normalization or edges.
         Callers own temporary property values and never insert the node in a graph.
         """
-        if node.type_id != "core.python_script":
+        if node.type_id != "code.python_script":
             raise ValueError("The authoring preview only supports Python Script")
         preview_node = copy.deepcopy(node)
         spec, provenance = self._spec_and_provenance(registry, node.type_id, node.properties)

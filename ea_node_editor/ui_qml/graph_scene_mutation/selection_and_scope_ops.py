@@ -1163,7 +1163,7 @@ def set_node_property(self, node_id: str, key: str, value: Any) -> None:
         return
     if property_spec is None or bool(getattr(property_spec, "sensitive", False)):
         return
-    if node.type_id == "core.python_script" and key == "script":
+    if node.type_id == "code.python_script" and key == "script":
         apply_python_script(self, node_id, str(value))
         return
     normalized = registry.normalize_property_value(
@@ -1215,7 +1215,7 @@ def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
     requested_keys = {
         str(key or "") for key in requested_values if str(key or "")
     }
-    if node.type_id == "core.python_script" and "script" in requested_keys:
+    if node.type_id == "code.python_script" and "script" in requested_keys:
         if requested_keys != {"script"}:
             raise ValueError(
                 "Python Script source cannot be mixed with other bulk property updates."

@@ -364,10 +364,10 @@ class GroupBackdropInteractionTests(unittest.TestCase):
         self.view = ViewportBridge()
         self.view.set_viewport_size(1280.0, 960.0)
         source_id = self.scene.add_node_from_type("core.constant", -460.0, -180.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 120.0, -160.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 120.0, -160.0)
         edge_id = self.scene.add_edge(source_id, "value", target_id, "payload")
         hidden_source_id = self.scene.add_node_from_type("core.constant", -460.0, 120.0)
-        hidden_target_id = self.scene.add_node_from_type("core.python_script", 120.0, 140.0)
+        hidden_target_id = self.scene.add_node_from_type("code.python_script", 120.0, 140.0)
         hidden_edge_id = self.scene.add_edge(
             hidden_source_id,
             "value",

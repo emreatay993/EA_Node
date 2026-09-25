@@ -200,7 +200,7 @@ def test_instance_script_opt_in_is_static_and_other_scripts_remain_generic(regis
 def run(ctx, input):
     raise AssertionError("Type inference must not execute this source")
 '''
-    nodes = [_node("plot", "plot.signal"), _node("script", "core.python_script", properties={"script": source})]
+    nodes = [_node("plot", "plot.signal"), _node("script", "code.python_script", properties={"script": source})]
     edges = [_edge("plot", "script", source_port="image")]
     assert _resolve(registry, nodes, edges).source_contract("script", "output").type_ids == (PLOT,)
     nodes[1].properties["script"] = source.replace(', type_from_input="input"', '')

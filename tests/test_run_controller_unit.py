@@ -774,7 +774,7 @@ class RunControllerUnitTests(unittest.TestCase):
         workspace = host.model.active_workspace
         script = host.model.add_node(
             workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             0,
             0,
@@ -876,7 +876,7 @@ class RunControllerUnitTests(unittest.TestCase):
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id
         script = host.model.add_node(
-            workspace_id, "core.python_script", "Script", 0, 0,
+            workspace_id, "code.python_script", "Script", 0, 0,
             properties={"script": _script_result("'applied'")},
         )
         host.script_editor.pending_form_edits = True
@@ -902,7 +902,7 @@ class RunControllerUnitTests(unittest.TestCase):
         workspace_id = host.model.active_workspace.workspace_id
         script = host.model.add_node(
             workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             0,
             0,
@@ -1125,7 +1125,7 @@ class RunControllerUnitTests(unittest.TestCase):
         workspace_id = host.model.active_workspace.workspace_id
         script = host.model.add_node(
             workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             0,
             0,
@@ -1791,7 +1791,7 @@ class RunControllerUnitTests(unittest.TestCase):
         workspace_id = host.model.active_workspace.workspace_id
         script = host.model.add_node(
             workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             0,
             0,
@@ -1850,7 +1850,7 @@ class RunControllerUnitTests(unittest.TestCase):
         workspace_id = host.model.active_workspace.workspace_id
         upstream = host.model.add_node(
             workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Upstream",
             0,
             0,
@@ -1858,7 +1858,7 @@ class RunControllerUnitTests(unittest.TestCase):
         )
         middle = host.model.add_node(
             workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Middle",
             180,
             0,
@@ -1866,7 +1866,7 @@ class RunControllerUnitTests(unittest.TestCase):
         )
         downstream = host.model.add_node(
             workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Downstream",
             360,
             0,
@@ -1874,7 +1874,7 @@ class RunControllerUnitTests(unittest.TestCase):
         )
         unrelated = host.model.add_node(
             workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Unrelated",
             0,
             180,
@@ -2009,7 +2009,7 @@ class RunControllerUnitTests(unittest.TestCase):
         workspace_id = host.model.active_workspace.workspace_id
         script = host.model.add_node(
             workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             160,
             0,
@@ -2043,7 +2043,7 @@ class RunControllerUnitTests(unittest.TestCase):
         workspace_id = host.model.active_workspace.workspace_id
         script = host.model.add_node(
             workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             160,
             0,

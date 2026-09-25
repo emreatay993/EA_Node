@@ -254,7 +254,7 @@ def test_topology_fingerprint_changes_for_enabled_order_target_and_dynamic_ports
     registry = build_default_registry()
     script = model.add_node(
         workspace.workspace_id,
-        "core.python_script",
+        "code.python_script",
         "Script",
         0,
         0,
@@ -427,10 +427,10 @@ def test_invalidation_plan_falls_back_to_compiled_declaration_order_for_cycle() 
     workspace = model.active_workspace
     registry = build_default_registry()
     first = model.add_node(
-        workspace.workspace_id, "core.python_script", "First", 0, 0
+        workspace.workspace_id, "code.python_script", "First", 0, 0
     )
     second = model.add_node(
-        workspace.workspace_id, "core.python_script", "Second", 200, 0
+        workspace.workspace_id, "code.python_script", "Second", 200, 0
     )
     model.add_edge(
         workspace.workspace_id,

@@ -138,7 +138,7 @@ def _python_script_timeout_by_node_id(
     timeouts: dict[str, float] = {}
     for workspace in workspaces:
         for node in getattr(workspace, "nodes", ()) or ():
-            if str(getattr(node, "type_id", "") or "").strip() != "core.python_script":
+            if str(getattr(node, "type_id", "") or "").strip() != "code.python_script":
                 continue
             node_id = str(getattr(node, "node_id", "") or "").strip()
             if not node_id:

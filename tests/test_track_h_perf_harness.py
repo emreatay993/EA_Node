@@ -1047,7 +1047,7 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertEqual(len(workspace.edges), 5000)
         self.assertEqual(
             {node.type_id for node in workspace.nodes.values()},
-            {"core.python_script"},
+            {"code.python_script"},
         )
 
         node_indexes = {node_id: index for index, node_id in enumerate(workspace.nodes)}
@@ -1511,7 +1511,7 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertEqual(fixture["workspace_id"], "ws_perf_h")
         self.assertEqual(fixture["node_count"], 12)
         self.assertEqual(fixture["edge_count"], len(loaded_workspace.edges))
-        self.assertEqual(fixture["node_type_histogram"]["core.python_script"], 12)
+        self.assertEqual(fixture["node_type_histogram"]["code.python_script"], 12)
         self.assertEqual(fixture["active_graphics_api"], "Software")
         self.assertEqual(fixture["qml_host_kind"], "qquickwidget")
         self.assertIn("qml_host_env", fixture["qt_scenegraph_environment"])
@@ -1548,7 +1548,7 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertEqual(fixture["edge_count"], 1199)
         self.assertEqual(
             {node.type_id for node in workspace.nodes.values()},
-            {"core.python_script"},
+            {"code.python_script"},
         )
         self.assertTrue(
             all(
@@ -2049,8 +2049,8 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
                 "model.viewer",
                 "data.boolean_toggle",
                 "core.constant",
-                "core.python_script",
-                "core.python_script",
+                "code.python_script",
+                "code.python_script",
             ],
         )
         self.assertEqual(

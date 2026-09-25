@@ -38,6 +38,8 @@ owns the desktop builder/editor, type guidance, scoped source edits, sections,
 native-field drafts and isolated preview. Graph-owned preparation/Apply retains
 rename identities and history; shared headerless settings rows keep script
 controls below main ports with compact geometry independent of socket exposure.
+The Nodes map owns its `Code` Library category and `code.python_script` ID;
+the Persistence map owns migration of the former `core.python_script` ID on open.
 
 The viewer-session route owns the engineering interactor's native surface boundary, established before host attachment so OpenGL viewers can coexist with the Qt Quick graphics backend.
 

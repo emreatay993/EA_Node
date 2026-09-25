@@ -145,7 +145,7 @@ def test_rewire_batch_prunes_downstream_and_keeps_edge_identity(graph):
 def test_script_apply_prunes_through_boundaries_and_generic_disconnect_recovers(graph):
     _, _, workspace, mutation = graph
     script = '@corex.node\n@corex.output("value", value_type=corex.Image)\ndef run(ctx):\n    return {}\n'
-    source = add(mutation, "core.python_script", properties={"script": script})
+    source = add(mutation, "code.python_script", properties={"script": script})
     shell = add(mutation, "core.subnode")
     pin = add(mutation, "core.subnode_input", parent_node_id=shell.node_id)
     relay = add(mutation, "core.trigger", parent_node_id=shell.node_id)
@@ -251,7 +251,7 @@ def test_mixed_forwarded_values_convert_per_actual_item_and_each_revision_change
     install()
     integer, decimal, trigger = add(mutation, "integer"), add(mutation, "decimal"), add(mutation, "core.trigger")
     script = '@corex.node\n@corex.input("value", value_type=str)\ndef run(ctx, value):\n    return {}\n'
-    sink = add(mutation, "core.python_script", properties={"script": script})
+    sink = add(mutation, "code.python_script", properties={"script": script})
     wire(mutation, integer, trigger)
     wire(mutation, decimal, trigger, append_requested=True)
     wire(mutation, trigger, sink, "output", "value")

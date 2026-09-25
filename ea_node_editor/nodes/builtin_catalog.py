@@ -154,7 +154,7 @@ _TRUSTED_BUILTIN_DESCRIPTORS = (
 _TRUSTED_BUILTIN_TYPE_IDS = frozenset(
     {
         "code.jupyter_notebook",
-        "core.python_script",
+        "code.python_script",
         "core.stream_gate",
         "core.subnode",
         "core.subnode_input",

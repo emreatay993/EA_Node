@@ -60,7 +60,7 @@ def session(qapp):
     graph = GraphModel()
     scene = GraphSceneBridge()
     scene.set_workspace(graph, registry, graph.active_workspace.workspace_id)
-    node_id = scene.add_node_from_type("core.python_script", 0, 0)
+    node_id = scene.add_node_from_type("code.python_script", 0, 0)
     scene.set_node_property(node_id, "script", SOURCE)
     editor = ScriptEditorModel()
     def apply(node_id, source, renamed_keys, revision, prepared):
@@ -155,7 +155,7 @@ def capture(view, name):
 def test_preview_is_detached_and_never_runs_source(session):
     snapshot = copy.deepcopy(session.graph.active_workspace)
     preview = session.editor.preview_bridge
-    assert preview.payload["type_id"] == "core.python_script"
+    assert preview.payload["type_id"] == "code.python_script"
     assert preview.set_value("gain", 2.5)
     assert preview.set_value("caption", "Temporary")
     for group in preview.payload.get("settings_groups", []):
@@ -477,7 +477,7 @@ def test_invalid_native_form_restores_after_node_switch(view, session):
     field = visible_find(view, "scriptField_default")
     field.setProperty("text", "banana")
     QMetaObject.invokeMethod(field, "editingFinished")
-    other = session.scene.add_node_from_type("core.python_script", 0, 0)
+    other = session.scene.add_node_from_type("code.python_script", 0, 0)
     editor.set_node(session.graph.active_workspace.nodes[other])
     assert not editor.has_unapplied_edits
     editor.set_node(session.graph.active_workspace.nodes[session.node_id])

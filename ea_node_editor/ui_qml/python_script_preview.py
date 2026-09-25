@@ -68,11 +68,11 @@ class PythonScriptPreview(QObject):
             self._group_expansion = {}
             self._document_id = editor.current_node_id
         try:
-            spec = editor.registry.resolve_spec("core.python_script", {"script": editor.script_text})
+            spec = editor.registry.resolve_spec("code.python_script", {"script": editor.script_text})
             values = {prop.key: prop.make_default() for prop in spec.properties}
             values["script"] = editor.script_text
             self._node = NodeInstance(
-                node_id="__script_authoring_preview__", type_id="core.python_script",
+                node_id="__script_authoring_preview__", type_id="code.python_script",
                 title=editor.current_node_label, x=0, y=0, properties=values,
                 expanded_settings_group_ids=tuple(
                     group.group_id for group in spec.settings_groups
@@ -102,7 +102,7 @@ class PythonScriptPreview(QObject):
             return False
         try:
             normalized = self.editor.registry.normalize_property_value(
-                "core.python_script", key, value, properties=self._node.properties,
+                "code.python_script", key, value, properties=self._node.properties,
             )
         except (TypeError, ValueError, KeyError) as exc:
             self._error = str(exc)

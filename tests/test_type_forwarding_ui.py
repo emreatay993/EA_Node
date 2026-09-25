@@ -151,7 +151,7 @@ def test_source_display_limit_does_not_truncate_semantic_types():
 def test_disabled_and_property_dependent_sources_refresh_entire_visible_chain():
     model, registry, scene = make_scene()
     script = '@corex.node\n@corex.output("value", value_type=corex.Image)\ndef run(ctx):\n    return {}\n'
-    source = scene.create_node_from_type(type_id="core.python_script", x=0, y=0, parent_node_id=None,
+    source = scene.create_node_from_type(type_id="code.python_script", x=0, y=0, parent_node_id=None,
                                          select_node=False, property_overrides={"script": script})
     panel = scene.add_node_from_type("data.panel", 250, 0)
     trigger = scene.add_node_from_type("core.trigger", 480, 0)

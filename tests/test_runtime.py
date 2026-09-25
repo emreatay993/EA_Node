@@ -1347,7 +1347,7 @@ def test_cycle_safe_invalidation_precedes_ordinary_prepare_rejection(
     model = GraphModel()
     workspace = model.active_workspace
     first = model.add_node(
-        workspace.workspace_id, "core.python_script", "First", 0, 0
+        workspace.workspace_id, "code.python_script", "First", 0, 0
     )
     cycle_node_ids = {first.node_id}
     if cycle_kind == "self":
@@ -1360,7 +1360,7 @@ def test_cycle_safe_invalidation_precedes_ordinary_prepare_rejection(
         )
     else:
         second = model.add_node(
-            workspace.workspace_id, "core.python_script", "Second", 200, 0
+            workspace.workspace_id, "code.python_script", "Second", 200, 0
         )
         model.add_edge(
             workspace.workspace_id,

@@ -149,7 +149,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
 
     def test_qml_connect_selected_supports_additive_selection(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        source_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
+        source_id = self.window.scene.add_node_from_type("code.python_script", x=40.0, y=40.0)
         target_id = self.window.scene.add_node_from_type("core.logger", x=280.0, y=40.0)
         self.window.scene.select_node(source_id)
         self.window.scene.select_node(target_id, True)
@@ -163,7 +163,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
 
     def test_qml_connect_ports_orients_bidirectional_drag_request(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        source_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
+        source_id = self.window.scene.add_node_from_type("code.python_script", x=40.0, y=40.0)
         target_id = self.window.scene.add_node_from_type("core.logger", x=280.0, y=40.0)
         self.app.processEvents()
 
@@ -185,8 +185,8 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         self.assertEqual(edge.target_port_key, "message")
 
     def test_qml_connect_ports_rejects_same_direction(self) -> None:
-        source_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
-        target_id = self.window.scene.add_node_from_type("core.python_script", x=280.0, y=40.0)
+        source_id = self.window.scene.add_node_from_type("code.python_script", x=40.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("code.python_script", x=280.0, y=40.0)
         self.app.processEvents()
 
         created = self.window.request_connect_ports(source_id, "result", target_id, "result")
@@ -194,7 +194,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
 
     def test_qml_connect_ports_accepts_same_node_data_edge_for_runtime_cycle_detection(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
+        node_id = self.window.scene.add_node_from_type("code.python_script", x=40.0, y=40.0)
         self.app.processEvents()
 
         created = self.window.request_connect_ports(node_id, "result", node_id, "payload")
@@ -349,7 +349,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         selected_before = set(self.window.scene.selected_node_lookup)
 
         created = self.window.request_drop_node_from_library(
-            "core.python_script",
+            "code.python_script",
             120.0,
             60.0,
             "port",
@@ -372,7 +372,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
 
     def test_qml_request_drop_node_from_library_port_target_ambiguous_uses_prompt_selection(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        target_id = self.window.scene.add_node_from_type("core.python_script", x=360.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("code.python_script", x=360.0, y=40.0)
         self.app.processEvents()
 
         with patch(
@@ -409,7 +409,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         selected_before = set(self.window.scene.selected_node_lookup)
 
         created = self.window.request_drop_node_from_library(
-            "core.python_script",
+            "code.python_script",
             210.0,
             90.0,
             "edge",
@@ -606,17 +606,17 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         self.assertTrue(self.window.request_open_connection_quick_insert(target_id, "condition", 120.0, 60.0, 300.0, 180.0))
         self.window.set_connection_quick_insert_query("python script")
         rows = self.window.connection_quick_insert_results
-        index = next(index for index, row in enumerate(rows) if row["type_id"] == "core.python_script")
+        index = next(index for index, row in enumerate(rows) if row["type_id"] == "code.python_script")
         self.assertEqual([port["key"] for port in rows[index]["compatible_ports"]], ["result"])
         self.assertTrue(self.window.request_connection_quick_insert_choose(index))
         edge = next(iter(workspace.edges.values()))
-        self.assertEqual(workspace.nodes[edge.source_node_id].type_id, "core.python_script")
+        self.assertEqual(workspace.nodes[edge.source_node_id].type_id, "code.python_script")
         self.assertEqual((edge.source_port_key, edge.target_node_id, edge.target_port_key), ("result", target_id, "condition"))
 
     def test_qml_connection_quick_insert_empty_wire_release_stays_open_and_searchable(self) -> None:
         workspace = self.window.model.active_workspace
         self.assertFalse(self.window.request_open_connection_quick_insert("missing", "result", 0.0, 0.0, 0.0, 0.0))
-        source_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
+        source_id = self.window.scene.add_node_from_type("code.python_script", x=40.0, y=40.0)
         self.app.processEvents()
         QTest.qWait(30)
         canvas = self._graph_canvas_item()

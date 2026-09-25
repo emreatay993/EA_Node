@@ -1058,7 +1058,7 @@ class ExecutionWorkerTests(unittest.TestCase):
         ws = model.active_workspace
         script = model.add_node(
             ws.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             100,
             0,
@@ -1101,7 +1101,7 @@ class ExecutionWorkerTests(unittest.TestCase):
         ws = model.active_workspace
         script = model.add_node(
             ws.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             100,
             0,
@@ -1135,7 +1135,7 @@ class ExecutionWorkerTests(unittest.TestCase):
         ws = model.active_workspace
         script = model.add_node(
             ws.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             100,
             0,
@@ -1179,7 +1179,7 @@ class ExecutionWorkerTests(unittest.TestCase):
         ws = model.active_workspace
         script = model.add_node(
             ws.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             100,
             0,
@@ -1231,7 +1231,7 @@ class ExecutionWorkerTests(unittest.TestCase):
         ws = model.active_workspace
         script = model.add_node(
             ws.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             100,
             0,
@@ -1286,7 +1286,7 @@ def run(ctx):
         ws = model.active_workspace
         script = model.add_node(
             ws.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             100,
             0,
@@ -1318,7 +1318,7 @@ def run(ctx):
         ws = model.active_workspace
         script = model.add_node(
             ws.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             100,
             0,
@@ -1350,7 +1350,7 @@ def run(ctx):
         ws = model.active_workspace
         script = model.add_node(
             ws.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             100,
             0,
@@ -1472,7 +1472,7 @@ def run(ctx):
         ws = model.active_workspace
         script = model.add_node(
             ws.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             80,
             0,
@@ -1536,7 +1536,7 @@ def run(ctx):
         )
         unrelated = model.add_node(
             workspace.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Unrelated",
             200,
             20,
@@ -1674,7 +1674,7 @@ def run(ctx):
             dict(setup_context.workspace_node_types),
             {
                 pool.node_id: OPTIMIZATION_PARAMETER_POOL_TYPE_ID,
-                unrelated.node_id: "core.python_script",
+                unrelated.node_id: "code.python_script",
                 setup.node_id: OPTIMIZATION_PARAMETER_SETUP_TYPE_ID,
             },
         )
@@ -1788,7 +1788,7 @@ def run(ctx):
                 model = GraphModel()
                 workspace = model.active_workspace
                 target_type_id = (
-                    "core.python_script"
+                    "code.python_script"
                     if variant == "wrong_type"
                     else OPTIMIZATION_PARAMETER_POOL_TYPE_ID
                 )
@@ -2679,7 +2679,7 @@ def run(ctx):
         ws = model.active_workspace
         script = model.add_node(
             ws.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             160,
             0,

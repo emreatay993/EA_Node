@@ -148,7 +148,7 @@ def test_default_resolved_repo_owned_any_ports_are_only_intentional_generic_port
         "data.panel.input", "data.panel.output",
         "core.trigger.input", "core.trigger.output",
         "core.stream_gate.stream", "core.stream_gate.output_0", "core.stream_gate.output_1",
-        "core.python_script.payload", "core.python_script.result",
+        "code.python_script.payload", "code.python_script.result",
         "core.subnode_input.pin", "core.subnode_output.pin",
         "media.panel._surface_source",
         "mars.batch_solve.files", "mars.run_job.files", "mars.time_history.files",

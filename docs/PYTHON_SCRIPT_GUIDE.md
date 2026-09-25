@@ -1,6 +1,6 @@
 # Python Script Nodes
 
-`Core > Python Script` lets you add a local Python transform to a workflow.
+`Code > Python Script` lets you add a local Python transform to a workflow.
 Open the node's code toolbar action to use the shared **Interface**, **Python**,
 and **Node preview** workspace. Create ports and controls with **Add**, or edit
 their decorators directly in Python. Click **Apply** to update the node.
@@ -134,7 +134,7 @@ Override may fill it—the application default is shell-only.
 
 ## Start with a pass-through
 
-Insert **Core > Python Script**, open its script editor, replace the draft with
+Insert **Code > Python Script**, open its script editor, replace the draft with
 this, and click **Apply**:
 
 ```python

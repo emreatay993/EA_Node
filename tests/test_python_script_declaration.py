@@ -13,10 +13,10 @@ from ea_node_editor.runtime_contracts import Interval1D
 def _resolve(source: str):
     registry = build_builtin_registry()
     properties = registry.normalize_properties(
-        "core.python_script",
+        "code.python_script",
         {"script": source},
     )
-    return registry, properties, registry.resolve_spec("core.python_script", properties)
+    return registry, properties, registry.resolve_spec("code.python_script", properties)
 
 
 def test_all_python_script_decorators_resolve_to_shared_metadata() -> None:
@@ -158,14 +158,14 @@ def run(ctx, title):
 """
     registry = build_builtin_registry()
     with pytest.raises(PythonScriptDeclarationError, match="must be literals"):
-        registry.normalize_properties("core.python_script", {"script": source})
+        registry.normalize_properties("code.python_script", {"script": source})
 
 
 def test_decorator_discovery_bounds_source_size() -> None:
     registry = build_builtin_registry()
     source = "#" * (256 * 1024 + 1)
     with pytest.raises(PythonScriptDeclarationError, match="too large"):
-        registry.normalize_properties("core.python_script", {"script": source})
+        registry.normalize_properties("code.python_script", {"script": source})
 
 
 @pytest.mark.parametrize(
@@ -195,7 +195,7 @@ def test_invalid_declarations_have_actionable_source_errors(
 ) -> None:
     registry = build_builtin_registry()
     with pytest.raises(PythonScriptDeclarationError, match=message) as caught:
-        registry.normalize_properties("core.python_script", {"script": source})
+        registry.normalize_properties("code.python_script", {"script": source})
     assert "line" in str(caught.value)
     assert "column" in str(caught.value)
 
@@ -208,7 +208,7 @@ def run(ctx):
 """
     registry = build_builtin_registry()
     with pytest.raises(ValueError, match="unknown data-type ID"):
-        registry.normalize_properties("core.python_script", {"script": source})
+        registry.normalize_properties("code.python_script", {"script": source})
 
 
 @pytest.mark.parametrize(
@@ -246,7 +246,7 @@ def run(ctx, value):
         PythonScriptDeclarationError,
         match="Private decorator field .* is reserved for internal built-ins",
     ):
-        registry.normalize_properties("core.python_script", {"script": source})
+        registry.normalize_properties("code.python_script", {"script": source})
 
 
 def test_python_script_rejects_internal_node_readiness_metadata() -> None:
@@ -260,7 +260,7 @@ def run(ctx):
         PythonScriptDeclarationError,
         match="@corex.node does not accept arguments",
     ):
-        registry.normalize_properties("core.python_script", {"script": source})
+        registry.normalize_properties("code.python_script", {"script": source})
 
 
 @pytest.mark.parametrize(
@@ -284,4 +284,4 @@ def run(ctx):
         PythonScriptDeclarationError,
         match="@corex.node does not accept arguments",
     ):
-        registry.normalize_properties("core.python_script", {"script": source})
+        registry.normalize_properties("code.python_script", {"script": source})

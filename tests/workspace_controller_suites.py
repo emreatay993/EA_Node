@@ -567,16 +567,16 @@ class WorkspaceDropConnectControllerInsertionTests(unittest.TestCase):
         controller = _DropConnectControllerStub(GraphModel().active_workspace)
         ops = _drop_connect_owner(host, controller)
 
-        node_id = ops.insert_library_node("core.python_script", 12.0, 34.0)
+        node_id = ops.insert_library_node("code.python_script", 12.0, 34.0)
 
         self.assertEqual(node_id, "node-created")
         [create_call] = host.scene.create_calls
-        self.assertEqual(create_call["type_id"], "core.python_script")
+        self.assertEqual(create_call["type_id"], "code.python_script")
         self.assertEqual(create_call["x"], 12.0)
         self.assertEqual(create_call["y"], 34.0)
         self.assertIsNone(create_call["parent_node_id"])
         self.assertFalse(create_call["select_node"])
-        self.assertEqual(recorded_usage, ["core.python_script"])
+        self.assertEqual(recorded_usage, ["code.python_script"])
 
     def test_failed_library_insert_does_not_record_usage(self) -> None:
         recorded_usage: list[str] = []

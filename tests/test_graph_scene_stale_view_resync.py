@@ -54,7 +54,7 @@ class StaleSceneViewResyncTests(unittest.TestCase):
         scene, model, workspace_id = self._build_scene()
         stale_id = scene.add_node_from_type("core.constant", 80.0, 60.0)
         kept_id = scene.add_node_from_type("core.logger", 320.0, 60.0)
-        anchor_id = scene.add_node_from_type("core.python_script", 560.0, 60.0)
+        anchor_id = scene.add_node_from_type("code.python_script", 560.0, 60.0)
         workspace = model.project.workspaces[workspace_id]
         # Reparent without a scene publication: the root payload keeps showing
         # the node while the root-scope delete gate now rejects it.

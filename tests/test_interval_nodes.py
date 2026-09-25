@@ -308,7 +308,7 @@ def test_deconstruct_interval_invalid_connected_value_reports_runtime_diagnostic
     workspace = model.active_workspace
     source = model.add_node(
         workspace.workspace_id,
-        "core.python_script",
+        "code.python_script",
         "Empty interval",
         0.0,
         0.0,

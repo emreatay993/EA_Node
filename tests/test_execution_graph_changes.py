@@ -217,7 +217,7 @@ def test_cosmetic_change_on_invalid_script_does_not_resolve_or_compile(
 ):
     script = graph.model.add_node(
         graph.workspace.workspace_id,
-        "core.python_script",
+        "code.python_script",
         "Broken",
         0,
         300,

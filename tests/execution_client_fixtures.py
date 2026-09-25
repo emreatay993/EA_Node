@@ -225,7 +225,7 @@ class ProcessClientTestHarness(unittest.TestCase):
         if with_sleep_script:
             script = model.add_node(
                 workspace.workspace_id,
-                "core.python_script",
+                "code.python_script",
                 "Script",
                 100,
                 0,
@@ -267,7 +267,7 @@ class ProcessClientTestHarness(unittest.TestCase):
         workspace = model.active_workspace
         script = model.add_node(
             workspace.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Script",
             100,
             0,

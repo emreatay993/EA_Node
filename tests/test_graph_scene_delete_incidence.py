@@ -17,10 +17,10 @@ class GraphSceneDeleteIncidenceTests(unittest.TestCase):
         self.scene.set_workspace(self.model, self.registry, self.workspace_id)
 
     def test_multi_delete_passes_precomputed_incident_edge_ids_per_node(self) -> None:
-        node_a = self.scene.add_node_from_type("core.python_script", 0.0, 0.0)
-        node_b = self.scene.add_node_from_type("core.python_script", 300.0, 0.0)
-        external_source = self.scene.add_node_from_type("core.python_script", -300.0, 0.0)
-        external_target = self.scene.add_node_from_type("core.python_script", 600.0, 0.0)
+        node_a = self.scene.add_node_from_type("code.python_script", 0.0, 0.0)
+        node_b = self.scene.add_node_from_type("code.python_script", 300.0, 0.0)
+        external_source = self.scene.add_node_from_type("code.python_script", -300.0, 0.0)
+        external_target = self.scene.add_node_from_type("code.python_script", 600.0, 0.0)
 
         edge_ab = self.model._add_edge_record(
             self.workspace_id,

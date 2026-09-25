@@ -2573,7 +2573,7 @@ class RegistryValidationTests(unittest.TestCase):
             type_id="core.constant", title="Source", x=0.0, y=0.0
         )
         script = mutations.add_node(
-            type_id="core.python_script", title="Script", x=220.0, y=0.0
+            type_id="code.python_script", title="Script", x=220.0, y=0.0
         )
         sink = mutations.add_node(type_id="core.logger", title="Sink", x=520.0, y=0.0)
         mutations.set_exposed_port(sink.node_id, "message", True)
@@ -2674,7 +2674,7 @@ class RegistryValidationTests(unittest.TestCase):
             type_id="core.constant", title="Source", x=0.0, y=0.0
         )
         script = mutations.add_node(
-            type_id="core.python_script", title="Script", x=220.0, y=0.0
+            type_id="code.python_script", title="Script", x=220.0, y=0.0
         )
         sink = mutations.add_node(type_id="core.logger", title="Sink", x=520.0, y=0.0)
         mutations.set_exposed_port(sink.node_id, "message", True)
@@ -3241,8 +3241,8 @@ class RegistryValidationTests(unittest.TestCase):
                 if (type_id, port.key) not in static_port_keys
             },
             {
-                ("core.python_script", "payload"),
-                ("core.python_script", "result"),
+                ("code.python_script", "payload"),
+                ("code.python_script", "result"),
                 ("model.viewer", "scene_1"),
                 ("core.stream_gate", "output_0"),
                 ("core.stream_gate", "output_1"),

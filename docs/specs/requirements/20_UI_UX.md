@@ -9,7 +9,7 @@
 
 ## Node Library
 - `REQ-UI-006`: Node library shall support text search and filtering by normalized category path, port direction, and data type; category filters shall be descendant-inclusive for path prefixes, nested category rows shall remain on the existing flat `ListView` surface with `category_key` collapse state, passive node rows shall honor the app-wide `text` / `icon` / `text_icon` library display setting by projecting flowchart passives as shape tiles only in icon mode, and the rendered ` > ` delimiter shall stay display-only so labels such as `Input / Output` remain single unambiguous category segments.
-- `REQ-UI-007`: Double-click or button action shall add the selected node directly to the canvas through ordinary registry and graph validation, including `core.python_script`, without a creation wizard or generated-plugin side effect.
+- `REQ-UI-007`: Double-click or button action shall add the selected node directly to the canvas through ordinary registry and graph validation, including `code.python_script`, without a creation wizard or generated-plugin side effect.
 
 ## Node Inspector
 - `REQ-UI-008`: Selecting a node shall show editable properties and exposed-port toggles.
@@ -21,7 +21,7 @@
 ## RC2 UX Surfaces
 - `REQ-UI-011`: Application QML-shell client styling shall match Stitch references using QML theme tokens and surface hierarchy.
 - `REQ-UI-012`: `ShellWindow` shall expose `show_workflow_settings_dialog()` and persist workflow settings metadata from a modal UI.
-- `REQ-UI-013`: `ShellWindow` shall expose `set_script_editor_panel_visible()` and provide one shared Python script editor surface bound to the selected `core.python_script` node. The editor shall keep a dirty draft until Apply; Apply shall validate and commit the decorator-defined script plus its resolved ports and properties. Explicit Run or Run Selected shall first consume a valid pending Apply for that selected script and shall block dispatch without partial model mutation when validation fails. Node creation shall not open an editor wizard.
+- `REQ-UI-013`: `ShellWindow` shall expose `set_script_editor_panel_visible()` and provide one shared Python script editor surface bound to the selected `code.python_script` node. The editor shall keep a dirty draft until Apply; Apply shall validate and commit the decorator-defined script plus its resolved ports and properties. Explicit Run or Run Selected shall first consume a valid pending Apply for that selected script and shall block dispatch without partial model mutation when validation fails. Node creation shall not open an editor wizard.
 
   The shared authoring workspace shall provide a desktop-style interface builder,
   Python editor and non-executing node preview, with catalog-backed type guidance,

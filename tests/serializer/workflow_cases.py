@@ -213,8 +213,8 @@ class SerializerWorkflowMixin:
         workspace = model.active_workspace
         source_a = model.add_node(workspace.workspace_id, "core.constant", "Source A", 20.0, 20.0)
         source_b = model.add_node(workspace.workspace_id, "core.constant", "Source B", 20.0, 220.0)
-        script_a = model.add_node(workspace.workspace_id, "core.python_script", "Script A", 280.0, 20.0)
-        script_b = model.add_node(workspace.workspace_id, "core.python_script", "Script B", 280.0, 220.0)
+        script_a = model.add_node(workspace.workspace_id, "code.python_script", "Script A", 280.0, 20.0)
+        script_b = model.add_node(workspace.workspace_id, "code.python_script", "Script B", 280.0, 220.0)
         sink_a = model.add_node(workspace.workspace_id, "core.logger", "Sink A", 640.0, 0.0)
         sink_b = model.add_node(workspace.workspace_id, "core.logger", "Sink B", 640.0, 140.0)
         sink_c = model.add_node(workspace.workspace_id, "core.logger", "Sink C", 640.0, 280.0)

@@ -96,7 +96,7 @@ def test_subnode_pin_descriptors_publish_hidden_data_access_metadata() -> None:
 
 def test_python_script_default_source_declares_instance_ports() -> None:
     registry = build_builtin_registry()
-    spec = registry.get_spec("core.python_script")
+    spec = registry.get_spec("code.python_script")
     properties = {prop.key: prop for prop in spec.properties}
 
     assert spec.ports == ()
@@ -109,12 +109,12 @@ def test_python_script_default_source_declares_instance_ports() -> None:
     assert spec.dynamic_port_groups == ()
     assert spec.instance_spec_resolver is not None
 
-    defaults = registry.default_properties("core.python_script")
+    defaults = registry.default_properties("code.python_script")
     assert [port.key for port in resolve_instance_ports(spec, defaults)] == [
         "payload",
         "result",
     ]
-    resolved = registry.resolve_spec("core.python_script", defaults)
+    resolved = registry.resolve_spec("code.python_script", defaults)
     assert resolved.instance_spec_resolver is None
     assert [port.direction for port in resolved.ports] == ["in", "out"]
     payload = {"samples": [1.0, 2.0]}
@@ -129,7 +129,7 @@ def test_python_script_apply_reconciles_decorated_settings_and_ports() -> None:
     workspace = model.active_workspace
     mutations = ValidatedGraphMutation(model, workspace.workspace_id, registry)
     node = mutations.add_node(
-        type_id="core.python_script",
+        type_id="code.python_script",
         title="Script",
         x=0,
         y=0,

@@ -155,7 +155,7 @@ def test_exact_t10_entries_match_golden_and_leave_truthful_descriptor_boundary(
         spec.type_id for spec in registry.all_specs()
     } - set((*_CONVERTED_TYPE_IDS, *_NATIVE_FUNCTION_TYPE_IDS))
     assert {
-        "core.python_script",
+        "code.python_script",
         "core.stream_gate",
         "core.trigger",
         "optimization.parameter_pool",

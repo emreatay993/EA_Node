@@ -165,11 +165,11 @@ class LibraryProjectionRegistryTests(unittest.TestCase):
             ),),
         )
         items = build_registry_library_items(
-            registry_specs=[registry.get_spec("core.python_script"), registry.get_spec("core.stream_gate"), dynamic],
+            registry_specs=[registry.get_spec("code.python_script"), registry.get_spec("core.stream_gate"), dynamic],
             data_types=registry.data_types,
         )
         ports = {item["type_id"]: [port["key"] for port in item["ports"]] for item in items}
-        self.assertEqual(ports["core.python_script"], ["payload", "result"])
+        self.assertEqual(ports["code.python_script"], ["payload", "result"])
         self.assertEqual(ports["core.stream_gate"], ["stream", "gate", "output_0", "output_1"])
         self.assertEqual(ports["tests.dynamic_only"], ["file"])
         self.assertIn(PATH_DATA_TYPE_ID, {item["value"] for item in build_library_data_type_options(combined_items=items)})
@@ -708,6 +708,14 @@ _INPUT_OUTPUT_CATEGORY_PATH = ("Input / Output",)
 
 
 class LibraryProjectionRegistryCoverageTests(unittest.TestCase):
+    def test_python_script_is_in_code_category(self) -> None:
+        registry = build_default_registry()
+        code_results = _library_filter(registry, category_path=("Code",))
+        core_results = _library_filter(registry, category_path=("Core",))
+
+        self.assertIn("code.python_script", {item.type_id for item in code_results})
+        self.assertNotIn("code.python_script", {item.type_id for item in core_results})
+
     def test_flowchart_category_exposes_locked_passive_catalog(self) -> None:
         registry = build_default_registry()
         results = _library_filter(registry, category_path=_FLOWCHART_CATEGORY_PATH)

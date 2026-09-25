@@ -637,7 +637,7 @@ def build_document(*, direct: bool = False) -> dict[str, object]:
             nodes.append(
                 _node(
                     node_id=adapter_id,
-                    type_id="core.python_script",
+                    type_id="code.python_script",
                     title=str(definition["adapter_title"]),
                     x=-390.0,
                     y=y + 16.0,
@@ -779,7 +779,7 @@ def main() -> None:
     registry = build_default_registry()
     missing = [
         type_id
-        for type_id in {"tabular.input", "core.python_script", "media.panel", *(item["plot_type_id"] for item in PLOT_DEFINITIONS)}
+        for type_id in {"tabular.input", "code.python_script", "media.panel", *(item["plot_type_id"] for item in PLOT_DEFINITIONS)}
         if registry.spec_or_none(str(type_id)) is None
     ]
     if missing:

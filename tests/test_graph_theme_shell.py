@@ -109,7 +109,7 @@ class GraphThemeShellTests(SharedMainWindowShellTestBase):
         self.assertNotIn("graph_theme", persisted["graphics"])
 
     def test_graph_scene_payloads_omit_accent_and_follow_shell_theme_edge_palette_changes(self) -> None:
-        standalone_id = self.window.scene.add_node_from_type("core.python_script", 20.0, 20.0)
+        standalone_id = self.window.scene.add_node_from_type("code.python_script", 20.0, 20.0)
         constant_id = self.window.scene.add_node_from_type("core.constant", 220.0, 20.0)
         if_id = self.window.scene.add_node_from_type("core.if", 500.0, 20.0)
         workspace_id, _workspace = self._active_workspace()

@@ -44,7 +44,7 @@ class GroupBackdropClipboardTests(unittest.TestCase):
 
     def test_wrap_group_backdrop_publishes_membership_delta_without_rebuild(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 110.0, 110.0)
-        target_id = self.scene.add_node_from_type("core.python_script", 320.0, 130.0)
+        target_id = self.scene.add_node_from_type("code.python_script", 320.0, 130.0)
         nodes_changed: list[str] = []
         rebuild_calls: list[str] = []
         self.scene.nodes_changed.connect(lambda: nodes_changed.append("nodes"))
@@ -140,8 +140,8 @@ class GroupBackdropClipboardTests(unittest.TestCase):
     def test_collapsed_group_backdrop_copy_includes_recursive_descendants_and_internal_edges(self) -> None:
         inner_source_id = self.scene.add_node_from_type("core.constant", 220.0, 160.0)
         inner_backdrop_id = self._wrap_nodes_in_group_backdrop([inner_source_id], collapsed=False)
-        outer_target_id = self.scene.add_node_from_type("core.python_script", 220.0, 360.0)
-        outside_script_id = self.scene.add_node_from_type("core.python_script", 760.0, 240.0)
+        outer_target_id = self.scene.add_node_from_type("code.python_script", 220.0, 360.0)
+        outside_script_id = self.scene.add_node_from_type("code.python_script", 760.0, 240.0)
         self.scene.add_edge(inner_source_id, "value", outer_target_id, "payload")
         self.scene.add_edge(inner_source_id, "value", outside_script_id, "payload")
         outer_backdrop_id = self._wrap_nodes_in_group_backdrop([inner_backdrop_id, outer_target_id], collapsed=True)
@@ -219,8 +219,8 @@ class GroupBackdropClipboardTests(unittest.TestCase):
     def test_delete_selected_collapsed_group_backdrop_removes_recursive_descendants(self) -> None:
         inner_source_id = self.scene.add_node_from_type("core.constant", 220.0, 160.0)
         inner_backdrop_id = self._wrap_nodes_in_group_backdrop([inner_source_id], collapsed=False)
-        outer_target_id = self.scene.add_node_from_type("core.python_script", 220.0, 360.0)
-        outside_script_id = self.scene.add_node_from_type("core.python_script", 760.0, 240.0)
+        outer_target_id = self.scene.add_node_from_type("code.python_script", 220.0, 360.0)
+        outside_script_id = self.scene.add_node_from_type("code.python_script", 760.0, 240.0)
         self.scene.add_edge(inner_source_id, "value", outer_target_id, "payload")
         self.scene.add_edge(inner_source_id, "value", outside_script_id, "payload")
         outer_backdrop_id = self._wrap_nodes_in_group_backdrop([inner_backdrop_id, outer_target_id], collapsed=True)

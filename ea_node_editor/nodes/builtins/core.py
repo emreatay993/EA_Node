@@ -88,9 +88,9 @@ def _sanitize_user_script_traceback(exc: BaseException) -> str:
 class PythonScriptNodePlugin:
     def spec(self) -> NodeTypeSpec:
         return builtin_node_type_spec(
-            type_id="core.python_script",
+            type_id="code.python_script",
             display_name="Python Script",
-            category_path=("Core",),
+            category_path=("Code",),
             description="Runs custom Python logic in trusted local mode.",
             keywords=("python", "script", "code"),
             ports=(),

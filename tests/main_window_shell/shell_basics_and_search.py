@@ -948,7 +948,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self,
     ) -> None:
         graph_canvas = self._graph_canvas_item()
-        node_id = self.window.scene.add_node_from_type("core.python_script", x=180.0, y=120.0)
+        node_id = self.window.scene.add_node_from_type("code.python_script", x=180.0, y=120.0)
         self.window.scene.set_node_title(
             node_id,
             "Logger With An Extremely Long Title For Typography Growth",
@@ -1961,7 +1961,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]
         node_a = self.window.scene.add_node_from_type("core.constant", x=20.0, y=40.0)
-        node_b = self.window.scene.add_node_from_type("core.python_script", x=320.0, y=180.0)
+        node_b = self.window.scene.add_node_from_type("code.python_script", x=320.0, y=180.0)
         node_c = self.window.scene.add_node_from_type("core.logger", x=640.0, y=80.0)
         self.window.scene.select_node(node_a, False)
         self.window.scene.select_node(node_b, True)
@@ -2062,7 +2062,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         workspace_id = self.window.workspace_manager.active_workspace_id()
         _workspace = self.window.model.project.workspaces[workspace_id]
         node_a = self.window.scene.add_node_from_type("core.constant", x=20.0, y=60.0)
-        node_b = self.window.scene.add_node_from_type("core.python_script", x=340.0, y=60.0)
+        node_b = self.window.scene.add_node_from_type("code.python_script", x=340.0, y=60.0)
         node_c = self.window.scene.add_node_from_type("core.logger", x=680.0, y=60.0)
         self.window.scene.select_node(node_a, False)
         self.window.scene.select_node(node_b, True)
@@ -2208,7 +2208,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
     def test_graph_search_ignores_internal_node_ids_and_empty_or_missing_queries_are_safe_noops(self) -> None:
         node_id = self.window.scene.add_node_from_type("core.constant", x=30.0, y=30.0)
         self.window.scene.set_node_title(node_id, "Plain Title")
-        display_name_id = self.window.scene.add_node_from_type("core.python_script", x=260.0, y=40.0)
+        display_name_id = self.window.scene.add_node_from_type("code.python_script", x=260.0, y=40.0)
         self.window.scene.set_node_title(display_name_id, "Custom Script Title")
         self.app.processEvents()
 
@@ -2239,7 +2239,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         title_node_id = self.window.scene.add_node_from_type("core.constant", x=40.0, y=40.0)
         self.window.scene.set_node_title(title_node_id, "Python Title Result")
 
-        type_node_id = self.window.scene.add_node_from_type("core.python_script", x=240.0, y=40.0)
+        type_node_id = self.window.scene.add_node_from_type("code.python_script", x=240.0, y=40.0)
         self.window.scene.set_node_title(type_node_id, "Zulu Type Result")
 
         content_node_id = self.window.scene.add_node_from_type("core.logger", x=440.0, y=40.0)
@@ -2298,7 +2298,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
     def test_graph_search_content_scope_skips_sensitive_and_structural_string_fields(self) -> None:
         allowed_node_id = self.window.scene.add_node_from_type("core.logger", x=40.0, y=40.0)
         self.window.scene.set_node_title(allowed_node_id, "Allowed Content Result")
-        script_node_id = self.window.scene.add_node_from_type("core.python_script", x=240.0, y=40.0)
+        script_node_id = self.window.scene.add_node_from_type("code.python_script", x=240.0, y=40.0)
         self.window.scene.set_node_title(script_node_id, "Script Content Result")
         path_node_id = self.window.scene.add_node_from_type("io.file_read", x=440.0, y=40.0)
         self.window.scene.set_node_title(path_node_id, "Path Content Result")
@@ -2405,7 +2405,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
     def test_failure_focus_opens_scope_for_nested_node(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         shell_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=110.0)
-        nested_node_id = self.window.scene.add_node_from_type("core.python_script", x=120.0, y=90.0)
+        nested_node_id = self.window.scene.add_node_from_type("code.python_script", x=120.0, y=90.0)
         workspace = self.window.model.project.workspaces[workspace_id]
         workspace.nodes[nested_node_id].parent_node_id = shell_id
         self.window.scene.refresh_workspace_from_model(workspace_id)
@@ -2427,7 +2427,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
     def test_run_failed_event_for_nested_node_opens_scope_and_focuses_inner_node(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         shell_id = self.window.scene.add_node_from_type("core.subnode", x=260.0, y=120.0)
-        nested_node_id = self.window.scene.add_node_from_type("core.python_script", x=120.0, y=90.0)
+        nested_node_id = self.window.scene.add_node_from_type("code.python_script", x=120.0, y=90.0)
         workspace = self.window.model.project.workspaces[workspace_id]
         workspace.nodes[nested_node_id].parent_node_id = shell_id
         self.window.scene.refresh_workspace_from_model(workspace_id)

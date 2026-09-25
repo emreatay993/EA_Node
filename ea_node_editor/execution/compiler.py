@@ -266,7 +266,7 @@ def _registry_validation_context(
         except KeyError:
             continue
         except (TypeError, ValueError):
-            if node.type_id != "core.python_script":
+            if node.type_id != "code.python_script":
                 raise
             continue
         validation_nodes[node_id] = node

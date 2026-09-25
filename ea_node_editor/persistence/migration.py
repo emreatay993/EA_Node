@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -211,6 +211,7 @@ class JsonProjectMigration:
                 f"{version}. Only schema versions {_LEGACY_SCHEMA_VERSION} and {SCHEMA_VERSION} are supported."
             )
         report: list[str] = []
+        self._migrate_python_script_type_ids(doc, report=report)
         if version == _LEGACY_SCHEMA_VERSION:
             self._reject_unresolved_legacy_nodes(doc)
             report.append(f"Migrated project schema {_LEGACY_SCHEMA_VERSION} to {SCHEMA_VERSION}.")
@@ -221,11 +222,25 @@ class JsonProjectMigration:
         self.last_report = tuple(sorted(set(report)))
         return normalized
 
+    def _migrate_python_script_type_ids(
+        self, doc: Mapping[str, Any], *, report: list[str],
+    ) -> None:
+        migrated = False
+        for node_doc in self._iter_project_node_docs(doc):
+            if (
+                isinstance(node_doc, MutableMapping)
+                and self._coerce_str(node_doc.get("type_id")) == "core.python_script"
+            ):
+                node_doc["type_id"] = "code.python_script"
+                migrated = True
+        if migrated:
+            report.append("Migrated Python Script node type to code.python_script.")
+
     def _reject_unresolved_legacy_nodes(self, doc: Mapping[str, Any]) -> None:
         unresolved = sorted(
             {
                 type_id
-                for node_doc in self._iter_legacy_node_docs(doc)
+                for node_doc in self._iter_project_node_docs(doc)
                 if (type_id := self._coerce_str(node_doc.get("type_id")))
                 and type_id not in _RETIRED_NODE_TYPE_IDS
                 and self._registry.spec_or_none(type_id) is None
@@ -236,7 +251,7 @@ class JsonProjectMigration:
                 "Legacy project contains unresolved add-ons: " + ", ".join(unresolved)
             )
 
-    def _iter_legacy_node_docs(self, doc: Mapping[str, Any]):
+    def _iter_project_node_docs(self, doc: Mapping[str, Any]):
         for workspace_doc in self.as_list(doc.get("workspaces", [])):
             if not isinstance(workspace_doc, Mapping):
                 continue

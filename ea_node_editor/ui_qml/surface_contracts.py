@@ -382,7 +382,7 @@ _SURFACE_SPECS_BY_TYPE_ID: dict[str, SurfaceSpec] = {
             preferred_body_height=180.0,
         ),
     ),
-    "core.python_script": SurfaceSpec(
+    "code.python_script": SurfaceSpec(
         family="standard",
         component_key="standard",
         qml_component="GraphStandardNodeSurface.qml",

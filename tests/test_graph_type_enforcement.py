@@ -541,7 +541,7 @@ def test_dynamic_type_preflight_and_subnode_semantic_change_are_atomic() -> None
     mutations = ValidatedGraphMutation(model, workspace.workspace_id, registry)
     source = _add(mutations, "core.constant")
     other_source = _add(mutations, "core.constant", 100.0)
-    other_sink = _add(mutations, "core.python_script", 200.0)
+    other_sink = _add(mutations, "code.python_script", 200.0)
     shell = _add(mutations, "core.subnode", 300.0)
     pin = _add(
         mutations,

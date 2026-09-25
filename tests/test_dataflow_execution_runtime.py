@@ -788,7 +788,7 @@ def test_python_script_decorated_ports_execute_and_settle_declared_outputs() -> 
     registry = _registry()
     mutations = ValidatedGraphMutation(model, workspace.workspace_id, registry)
     script = mutations.add_node(
-        type_id="core.python_script",
+        type_id="code.python_script",
         title="Dynamic Script",
         x=0,
         y=0,
@@ -804,7 +804,7 @@ def run(ctx, missing):
         },
     )
     no_ports = mutations.add_node(
-        type_id="core.python_script",
+        type_id="code.python_script",
         title="No Ports",
         x=180,
         y=0,
@@ -838,7 +838,7 @@ def test_python_script_list_and_tree_access_round_trip_through_output_validation
         x=100.0,
     )
     script = mutations.add_node(
-        type_id="core.python_script",
+        type_id="code.python_script",
         title="Access Script",
         x=240.0,
         y=0.0,

@@ -312,7 +312,7 @@ def _parse(source: str, *, validate_signature: bool = True) -> _Declaration:
         for label, items in section_items.items()
     )
     try:
-        validate_type_forwarding("core.python_script", tuple(ports))
+        validate_type_forwarding("code.python_script", tuple(ports))
     except ValueError as exc:
         raise _fail(function, str(exc)) from exc
     return _Declaration(

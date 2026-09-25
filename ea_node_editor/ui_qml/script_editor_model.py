@@ -390,7 +390,7 @@ class ScriptEditorModel(QObject):
 
     def refresh_node(self, node: Any | None) -> None:
         """Refresh saved values without replacing a same-context draft or its history."""
-        if (node is None or getattr(node, "type_id", "") != "core.python_script"
+        if (node is None or getattr(node, "type_id", "") != "code.python_script"
                 or str(getattr(node, "node_id", "")) != self._current_node_id
                 or not self._context_is_current()
                 or str(node.properties.get("script", "")) != self._base_script):
@@ -402,7 +402,7 @@ class ScriptEditorModel(QObject):
         self.authoring_changed.emit()
 
     def set_node(self, node: Any | None) -> None:
-        is_script = node is not None and getattr(node, "type_id", "") == "core.python_script"
+        is_script = node is not None and getattr(node, "type_id", "") == "code.python_script"
         node_id = str(getattr(node, "node_id", "")) if is_script else ""
         key = self._key_for_node(node_id)
         if key != self._context_key:

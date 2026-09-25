@@ -194,7 +194,7 @@ def test_scientific_and_reference_connections_are_legal(type_id):
     model = GraphModel()
     mutation = model.validated_mutations(model.active_workspace.workspace_id, registry)
     source = mutation.add_node(
-        type_id="core.python_script",
+        type_id="code.python_script",
         title="Source",
         x=0,
         y=0,
@@ -225,7 +225,7 @@ def test_signal_rejects_unrelated_declared_sources(type_id):
     model = GraphModel()
     mutation = model.validated_mutations(model.active_workspace.workspace_id, registry)
     source = mutation.add_node(
-        type_id="core.python_script",
+        type_id="code.python_script",
         title="Source",
         x=0,
         y=0,

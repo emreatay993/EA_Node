@@ -16,9 +16,9 @@ def test_python_script_guide_example_resolves_without_running_source() -> None:
     registry = build_builtin_registry()
 
     properties = registry.normalize_properties(
-        "core.python_script", {"script": source}
+        "code.python_script", {"script": source}
     )
-    spec = registry.resolve_spec("core.python_script", properties)
+    spec = registry.resolve_spec("code.python_script", properties)
 
     assert [port.key for port in spec.ports] == [
         "series",

@@ -506,7 +506,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         )
         target = model.add_node(
             primary_workspace.workspace_id,
-            "core.python_script",
+            "code.python_script",
             "Preserved Target",
             280.0,
             0.0,
@@ -1030,7 +1030,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         model = GraphModel()
         workspace_id = model.active_workspace.workspace_id
         source = model.add_node(workspace_id, "core.constant", "Constant", 0.0, 0.0)
-        target = model.add_node(workspace_id, "core.python_script", "Python Script", 260.0, 0.0)
+        target = model.add_node(workspace_id, "code.python_script", "Python Script", 260.0, 0.0)
         edge = model.add_edge(workspace_id, source.node_id, "value", target.node_id, "payload")
 
         scene = GraphSceneBridge()
@@ -1082,7 +1082,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         model = GraphModel()
         workspace_id = model.active_workspace.workspace_id
         source = model.add_node(workspace_id, "core.constant", "Constant", 0.0, 0.0)
-        target = model.add_node(workspace_id, "core.python_script", "Python Script", 240.0, 0.0)
+        target = model.add_node(workspace_id, "code.python_script", "Python Script", 240.0, 0.0)
         edge = model.add_edge(workspace_id, source.node_id, "value", target.node_id, "result")
 
         scene = GraphSceneBridge()
@@ -1131,7 +1131,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         scene = GraphSceneBridge()
         scene.set_workspace(model, registry, workspace_id)
         source_id = scene.add_node_from_type("core.constant", 0.0, 0.0)
-        node_id = scene.add_node_from_type("core.python_script", 320.0, 40.0)
+        node_id = scene.add_node_from_type("code.python_script", 320.0, 40.0)
         scene.add_edge(source_id, "value", node_id, "payload")
         state_bridge = GraphCanvasStateBridge(scene_bridge=scene)
         scene.bind_runtime_history(RuntimeGraphHistory())
@@ -1192,7 +1192,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         scene.set_workspace(model, registry, workspace_id)
         source_id = scene.add_node_from_type("core.constant", 0.0, 0.0)
         node_id = scene.add_node_from_type("io.process_run", 320.0, 40.0)
-        target_id = scene.add_node_from_type("core.python_script", 640.0, 0.0)
+        target_id = scene.add_node_from_type("code.python_script", 640.0, 0.0)
         incoming_edge_id = scene.add_edge(source_id, "as_text", node_id, "stdin_text")
         outgoing_edge_id = scene.add_edge(node_id, "stdout", target_id, "payload")
         state_bridge = GraphCanvasStateBridge(scene_bridge=scene)
@@ -1337,7 +1337,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         scene = GraphSceneBridge()
         scene.set_workspace(model, registry, workspace_id)
         source_id = scene.add_node_from_type("core.constant", 0.0, 0.0)
-        target_id = scene.add_node_from_type("core.python_script", 320.0, 40.0)
+        target_id = scene.add_node_from_type("code.python_script", 320.0, 40.0)
         edge_id = scene.add_edge(source_id, "value", target_id, "payload")
         state_bridge = GraphCanvasStateBridge(scene_bridge=scene)
         scene.bind_runtime_history(RuntimeGraphHistory())
@@ -1461,7 +1461,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         scene.bind_graphics_preferences_source(preferences)
         scene.set_workspace(model, registry, workspace_id)
         source_id = scene.add_node_from_type("core.constant", 0.0, 0.0)
-        node_id = scene.add_node_from_type("core.python_script", 320.0, 40.0)
+        node_id = scene.add_node_from_type("code.python_script", 320.0, 40.0)
         target_id = scene.add_node_from_type("core.trigger", 640.0, 0.0)
         incoming_edge_id = scene.add_edge(source_id, "value", node_id, "payload")
         outgoing_edge_id = scene.add_edge(node_id, "result", target_id, "input")
@@ -1527,7 +1527,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         scene = GraphSceneBridge()
         scene.set_workspace(model, registry, workspace_id)
         source_id = scene.add_node_from_type("core.constant", 0.0, 0.0)
-        logger_id = scene.add_node_from_type("core.python_script", 320.0, 40.0)
+        logger_id = scene.add_node_from_type("code.python_script", 320.0, 40.0)
         end_id = scene.add_node_from_type("core.trigger", 640.0, 0.0)
         state_bridge = GraphCanvasStateBridge(scene_bridge=scene)
         scene.bind_runtime_history(RuntimeGraphHistory())
@@ -1611,7 +1611,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         scene = GraphSceneBridge()
         scene.set_workspace(model, registry, workspace_id)
         source_id = scene.add_node_from_type("core.constant", 0.0, 0.0)
-        logger_id = scene.add_node_from_type("core.python_script", 320.0, 40.0)
+        logger_id = scene.add_node_from_type("code.python_script", 320.0, 40.0)
         edge_id = scene.add_edge(source_id, "value", logger_id, "payload")
         scene.bind_runtime_history(RuntimeGraphHistory())
         self.assertIn(edge_id, {payload["edge_id"] for payload in scene.edges_model})
@@ -1639,7 +1639,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         scene = GraphSceneBridge()
         scene.set_workspace(model, registry, workspace_id)
         source_id = scene.add_node_from_type("core.constant", 0.0, 0.0)
-        logger_id = scene.add_node_from_type("core.python_script", 320.0, 40.0)
+        logger_id = scene.add_node_from_type("code.python_script", 320.0, 40.0)
         self.assertEqual(len(scene.nodes_model), 2)
         self.assertEqual(scene.edges_model, [])
 
@@ -1667,7 +1667,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         scene = GraphSceneBridge()
         scene.set_workspace(model, registry, workspace_id)
         source_id = scene.add_node_from_type("core.constant", 0.0, 0.0)
-        logger_id = scene.add_node_from_type("core.python_script", 320.0, 40.0)
+        logger_id = scene.add_node_from_type("code.python_script", 320.0, 40.0)
         history = RuntimeGraphHistory()
         scene.bind_runtime_history(history)
         history.clear_workspace(workspace_id)
@@ -1766,7 +1766,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         scene = GraphSceneBridge()
         scene.set_workspace(model, registry, workspace_id)
         source_id = scene.add_node_from_type("core.constant", 0.0, 0.0)
-        target_id = scene.add_node_from_type("core.python_script", 240.0, 80.0)
+        target_id = scene.add_node_from_type("code.python_script", 240.0, 80.0)
         scene.add_edge(source_id, "value", target_id, "payload")
         scene.select_node(source_id, False)
         scene.select_node(target_id, True)

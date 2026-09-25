@@ -24,7 +24,7 @@ _SHELL_TEST_RUNNER = (
 
 class ScriptEditorDockTests(MainWindowShellTestBase):
     def test_canvas_port_edits_preserve_dirty_drafts_and_refresh_clean_editor(self) -> None:
-        node_id = self.window.scene.add_node_from_type("core.python_script", 40.0, 40.0)
+        node_id = self.window.scene.add_node_from_type("code.python_script", 40.0, 40.0)
         self.window.scene.focus_node(node_id)
         self.window.set_script_editor_panel_visible(True)
         self.app.processEvents()
@@ -72,7 +72,7 @@ class ScriptEditorDockTests(MainWindowShellTestBase):
         self.assertEqual(self.window.model.active_workspace.nodes[node_id].properties["script"], source)
 
     def test_script_editor_binds_to_selected_python_script_node(self) -> None:
-        script_node_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
+        script_node_id = self.window.scene.add_node_from_type("code.python_script", x=40.0, y=40.0)
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]
         workspace.nodes[script_node_id].properties["script"] = PYTHON_SCRIPT_DEFAULT_SOURCE
@@ -102,7 +102,7 @@ class ScriptEditorDockTests(MainWindowShellTestBase):
         editor.set_node(
             SimpleNamespace(
                 node_id="node_script",
-                type_id="core.python_script",
+                type_id="code.python_script",
                 title="Script",
                 properties={"script": "result = payload"},
             )
@@ -115,7 +115,7 @@ class ScriptEditorDockTests(MainWindowShellTestBase):
 
     def test_numeric_overflow_draft_stays_dirty_and_leaves_graph_unchanged(self) -> None:
         script_node_id = self.window.scene.add_node_from_type(
-            "core.python_script", x=40.0, y=40.0
+            "code.python_script", x=40.0, y=40.0
         )
         workspace = self.window.model.active_workspace
         applied_source = workspace.nodes[script_node_id].properties["script"]
@@ -142,7 +142,7 @@ def run(ctx, scale):
 
     def test_script_apply_failure_draft_survives_panel_reopen(self) -> None:
         script_node_id = self.window.scene.add_node_from_type(
-            "core.python_script", x=40.0, y=40.0
+            "code.python_script", x=40.0, y=40.0
         )
         workspace = self.window.model.active_workspace
         applied_source = workspace.nodes[script_node_id].properties["script"]
@@ -168,7 +168,7 @@ def run(ctx, scale):
 
     def test_script_draft_survives_same_node_property_refresh(self) -> None:
         script_node_id = self.window.scene.add_node_from_type(
-            "core.python_script",
+            "code.python_script",
             x=40.0,
             y=40.0,
         )
@@ -218,7 +218,7 @@ def run(ctx, scale):
         self.assertEqual(self.window.model.project.metadata["ui"]["script_editor"]["width"], 0.0)
 
     def test_script_editor_exposes_cursor_diagnostics_and_dirty_state(self) -> None:
-        script_node_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
+        script_node_id = self.window.scene.add_node_from_type("code.python_script", x=40.0, y=40.0)
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]
         workspace.nodes[script_node_id].properties["script"] = PYTHON_SCRIPT_DEFAULT_SOURCE
@@ -239,7 +239,7 @@ def run(ctx, scale):
         self.assertIn("Pos 5", self.window.script_editor.cursor_label)
 
     def test_set_script_editor_panel_visible_focuses_editor_for_script_node(self) -> None:
-        script_node_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
+        script_node_id = self.window.scene.add_node_from_type("code.python_script", x=40.0, y=40.0)
         self.window.scene.focus_node(script_node_id)
         self.app.processEvents()
 

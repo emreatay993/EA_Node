@@ -1939,7 +1939,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(resolved["typography"]["graph_label_pixel_size"], 16)
 
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        node_id = self.window.scene.add_node_from_type("core.python_script", x=180.0, y=80.0)
+        node_id = self.window.scene.add_node_from_type("code.python_script", x=180.0, y=80.0)
         self.window._active_run_id = "run_live"
         self.window._active_run_workspace_id = workspace_id
         self.window.run_projection_controller.set_run_ui_state("running", "Running", 1, 0, 0, 0)
