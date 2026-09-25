@@ -22,6 +22,7 @@ from ea_node_editor.automation.errors import (
 )
 from ea_node_editor.automation.op_model import Deferred
 from ea_node_editor.graph.records import NodeInstance
+from ea_node_editor.graph.workspace_state import WorkspaceData
 from ea_node_editor.nodes.builtins.media_panel import MEDIA_PANEL_TYPE_ID
 from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_TEXT_TYPE_ID
 from ea_node_editor.nodes.builtins.web_viewer import (
@@ -317,6 +318,26 @@ def _changed_fields(before: Mapping[str, Any], after: Mapping[str, Any]) -> list
     return changed
 
 
+def _requested_size(params: Mapping[str, Any], before: Mapping[str, Any]) -> tuple[float, float]:
+    return (
+        float(params.get("width", before["width"] or 0.0)),
+        float(params.get("height", before["height"] or 0.0)),
+    )
+
+
+def _node_positions(workspace: WorkspaceData) -> dict[str, tuple[float, float]]:
+    return {node_id: (float(node.x), float(node.y)) for node_id, node in workspace.nodes.items()}
+
+
+def _moved_node_ids(workspace: WorkspaceData, positions: Mapping[str, tuple[float, float]], *, exclude: str) -> list[str]:
+    """Ids other than ``exclude`` that left their ``positions`` entry: the nodes a Group move carried along."""
+    return sorted(
+        node_id
+        for node_id, node in workspace.nodes.items()
+        if node_id != exclude and node_id in positions and (float(node.x), float(node.y)) != positions[node_id]
+    )
+
+
 def _require_effective_port(context: AutomationContext, node: NodeInstance, port_key: Any) -> str:
     key = str(port_key or "").strip()
     available = sorted(exposed_port_map(context, node))
@@ -585,6 +606,12 @@ def update_node(context: AutomationContext, params: Mapping[str, Any]) -> dict[s
     resizes = "width" in params or "height" in params
     if moves or resizes:
         context.require_node_in_scope(node_id)
+    is_group_backdrop = str(spec.surface_family or "").strip() == "group_backdrop"
+    move_contents = bool(params.get("move_contents", True))
+    if not move_contents and not is_group_backdrop:
+        raise _invalid(op, [f"move_contents: only Group backdrops carry contents; {node.type_id} is not one"])
+    if not move_contents and bool(node.collapsed):
+        raise _invalid(op, ["move_contents: a collapsed Group always moves with what it holds; expand it first"])
     explicit_properties = dict(params.get("properties") or {})
     plain_properties: dict[str, Any] = {}
     sensitive_properties: dict[str, Any] = {}
@@ -627,12 +654,22 @@ def update_node(context: AutomationContext, params: Mapping[str, Any]) -> dict[s
     if title is not None:
         # set_node_title writes node.title and, for property-backed families, properties["title"].
         scene.set_node_title(node_id, title)
+    carried_node_ids: list[str] = []
+    frame_only = moves and not move_contents
     if moves:
-        scene.move_node(node_id, float(params.get("x", node.x)), float(params.get("y", node.y)))
-    if resizes:
-        width = float(params.get("width", before["width"] or 0.0))
-        height = float(params.get("height", before["height"] or 0.0))
-        scene.resize_node(node_id, width, height)
+        x = float(params.get("x", node.x))
+        y = float(params.get("y", node.y))
+        if frame_only:
+            # The frame alone, like dragging a Group's corner handle: the nodes inside stay where they are.
+            scene.set_node_geometry(node_id, x, y, *_requested_size(params, before))
+        else:
+            # Moving a Group carries what it holds, like dragging it; report those nodes.
+            positions_before = _node_positions(workspace) if is_group_backdrop else None
+            scene.move_node(node_id, x, y)
+            if positions_before is not None:
+                carried_node_ids = _moved_node_ids(workspace, positions_before, exclude=node_id)
+    if resizes and not frame_only:
+        scene.resize_node(node_id, *_requested_size(params, before))
     for key, value in sensitive_properties.items():
         scene.set_node_secret(node_id, key, str(value))
     if plain_properties:
@@ -667,7 +704,12 @@ def update_node(context: AutomationContext, params: Mapping[str, Any]) -> dict[s
                 "reasons": ["every requested value already matched the node state"],
             },
         )
-    return {"node_id": node_id, "changed": changed, "node": context.node_summary(node)}
+    return {
+        "node_id": node_id,
+        "changed": changed,
+        "node": context.node_summary(node),
+        "carried_node_ids": carried_node_ids,
+    }
 
 
 def set_node_style(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:

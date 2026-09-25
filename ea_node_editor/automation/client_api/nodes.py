@@ -167,6 +167,7 @@ class NodesApi:
         exposed_ports: Mapping[str, bool] | None = None,
         collapsed: bool | None = None,
         locked: bool | None = None,
+        move_contents: bool | None = None,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {"node_id": str(node_id)}
         params.update(
@@ -182,6 +183,7 @@ class NodesApi:
                     "exposed_ports": None if exposed_ports is None else {str(k): bool(v) for k, v in exposed_ports.items()},
                     "collapsed": None if collapsed is None else bool(collapsed),
                     "locked": None if locked is None else bool(locked),
+                    "move_contents": None if move_contents is None else bool(move_contents),
                 }
             )
         )

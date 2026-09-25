@@ -235,6 +235,33 @@ Exposes the canvas Tidy command. Catalog is now **49 ops, 49 MCP tools, 24
   `layout_straighten` for fine control; guide, skill, and the flowchart example
   (`corex.structure.tidy()`, only the loop stays bent) updated.
 
+## Group move follow-up (2026-09-25)
+
+Closes the gap where `node.update(x, y)` on an expanded Group moved only the
+frame, so its members stayed put and dropped out (a canvas drag carries them).
+Catalog size is unchanged (49 ops); `node.update` gains one param and one
+result key.
+
+- The scene owner `move_node` (`graph_scene_mutation/alignment_and_distribution_ops.py`)
+  now moves an expanded Group together with `GroupScope.contents` (every node
+  and Group inside it, nested levels and locked nodes included), the set a
+  canvas drag moves; collapsed Groups keep carrying their listed members. One
+  history record; the canvas only calls `move_node` for member-less Groups, so
+  drags are unchanged.
+- `node.update` returns `carried_node_ids` (also for collapsed Groups, which
+  already carried silently) and takes `move_contents` (default true). Chosen
+  from three rendered options: `move_contents=false` moves or reshapes only an
+  expanded Group's frame through `set_node_geometry`, like its corner handles,
+  so a Group can grow up or left around nodes; `INVALID_PARAMS` on other
+  nodes and on collapsed Groups.
+- UI parity: the Drag / resize row states the Group rule, the Delete Selection
+  row records that canvas Delete on a selected collapsed Group also deletes
+  what it holds while `node.delete` keeps those nodes (behaviour unchanged),
+  and new Edit-menu rows cover Snap to Grid (not exposed) and Graph Search
+  (`graph.find_nodes`).
+- Op specs (`node.update`, `group.wrap`), guidance, skill, and the generated
+  reference updated.
+
 ## First-pass limits (documented for agents)
 
 - Graph ops act on the active workspace and open scope.

@@ -356,6 +356,185 @@ class NodeUpdateAtomicityTests(_NodeHandlerCase):
         self.assertIn("locked Group “Locked” would have to grow", " ".join(error.details["reasons"]))
         self.assertEqual((self.node(member).x, self.node(member).y), member_before)
 
+    def test_move_contents_false_is_rejected_off_an_expanded_group(self) -> None:
+        plain = self.add(PROCESS, title="Mesh")
+        self.assert_rejected_untouched(plain, {"title": "Renamed", "x": 50, "move_contents": False}, INVALID_PARAMS)
+        member = self.add(PROCESS, 0, 300)
+        group = call(self.context, "group.wrap", {"node_ids": [member]})["group_node_id"]
+        self.assertTrue(self.scene.set_node_collapsed(group, True))
+        error = self.assert_rejected_untouched(group, {"x": 900, "move_contents": False}, INVALID_PARAMS)
+        self.assertIn("collapsed Group always moves with what it holds", " ".join(error.details["problems"]))
+
+
+class NodeUpdateGroupMoveTests(_NodeHandlerCase):
+    """Moving a Group backdrop with node.update carries what it holds, like dragging it on the canvas."""
+
+    def position(self, node_id: str) -> tuple[float, float]:
+        node = self.node(node_id)
+        return (float(node.x), float(node.y))
+
+    def wrap(self, node_ids: list[str], title: str = "G") -> str:
+        return call(self.context, "group.wrap", {"node_ids": node_ids, "title": title})["group_node_id"]
+
+    def members(self, group_id: str) -> list[str]:
+        row = next(row for row in self.scene.backdrop_nodes_model if row["node_id"] == group_id)
+        return sorted([*row["member_node_ids"], *row["member_backdrop_ids"]])
+
+    def canvas_drag_node_ids(self, group_id: str) -> list[str]:
+        """What GraphCanvasSceneState.dragNodeIdsForAnchor adds to a Group drag, read from the same backdrop rows."""
+        rows = {row["node_id"]: row for row in self.scene.backdrop_nodes_model}
+        collected: list[str] = []
+
+        def descend(backdrop_id: str) -> None:
+            row = rows.get(backdrop_id)
+            if row is None:
+                return
+            for node_id in [*row["member_node_ids"], *row["member_backdrop_ids"]]:
+                if node_id not in collected:
+                    collected.append(node_id)
+            for nested_id in row["member_backdrop_ids"]:
+                descend(nested_id)
+
+        descend(group_id)
+        return sorted(collected)
+
+    def assert_shifted(self, before: dict[str, tuple[float, float]], dx: float, dy: float) -> None:
+        for node_id, (x, y) in before.items():
+            self.assertEqual(self.position(node_id), (x + dx, y + dy), node_id)
+
+    def test_moving_an_expanded_group_carries_its_members_in_one_undo_step(self) -> None:
+        first = self.add(PROCESS, 0, 0)
+        second = self.add(PROCESS, 320, 40)
+        group = self.wrap([first, second])
+        before = {node_id: self.position(node_id) for node_id in (group, first, second)}
+
+        result = self.call_one_undo("node.update", {"node_id": group, "x": before[group][0] + 600})
+
+        self.assertEqual(result["changed"], ["x"])
+        self.assertEqual(result["carried_node_ids"], sorted([first, second]))
+        self.assert_shifted(before, 600.0, 0.0)
+        self.assertEqual(self.members(group), sorted([first, second]))
+        workspace = self.context.active_workspace()
+        self.assertIsNotNone(self.context.runtime_history.undo_workspace(workspace.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(workspace.workspace_id)
+        self.assert_shifted(before, 0.0, 0.0)
+
+    def test_moving_an_outer_group_carries_nested_groups_and_their_nodes(self) -> None:
+        inner_first = self.add(PROCESS, 0, 0)
+        inner_second = self.add(PROCESS, 320, 0)
+        inner = self.wrap([inner_first, inner_second], "Inner")
+        lone = self.add(PROCESS, 0, 400)
+        outer = self.wrap([inner, lone], "Outer")
+        before = {node_id: self.position(node_id) for node_id in (outer, inner, inner_first, inner_second, lone)}
+
+        result = self.call_one_undo(
+            "node.update", {"node_id": outer, "x": before[outer][0] + 500, "y": before[outer][1] + 100}
+        )
+
+        self.assertEqual(result["carried_node_ids"], sorted([inner, inner_first, inner_second, lone]))
+        self.assert_shifted(before, 500.0, 100.0)
+        self.assertEqual(self.members(outer), sorted([inner, lone]))
+        self.assertEqual(self.members(inner), sorted([inner_first, inner_second]))
+
+    def test_carried_nodes_are_what_a_canvas_drag_moves(self) -> None:
+        hidden_first = self.add(PROCESS, 0, 0)
+        hidden_second = self.add(PROCESS, 320, 0)
+        inner = self.wrap([hidden_first, hidden_second], "Inner")
+        locked = self.add(PROCESS, 0, 400)
+        outer = self.wrap([inner, locked], "Outer")
+        call(self.context, "node.update", {"node_id": locked, "locked": True})
+        call(self.context, "node.update", {"node_id": inner, "collapsed": True})
+        expected = self.canvas_drag_node_ids(outer)
+        self.assertEqual(expected, sorted([inner, hidden_first, hidden_second, locked]))
+        before = {node_id: self.position(node_id) for node_id in (outer, *expected)}
+
+        result = self.call_one_undo("node.update", {"node_id": outer, "x": before[outer][0] + 300})
+
+        self.assertEqual(result["carried_node_ids"], expected)
+        self.assert_shifted(before, 300.0, 0.0)
+
+    def test_move_with_a_new_size_carries_by_default(self) -> None:
+        first = self.add(PROCESS, 0, 0)
+        second = self.add(PROCESS, 320, 0)
+        group = self.wrap([first, second])
+        width = float(self.node(group).custom_width)
+        before = {node_id: self.position(node_id) for node_id in (first, second)}
+
+        result = self.call_one_undo(
+            "node.update", {"node_id": group, "x": self.position(group)[0] + 500, "width": width + 200}
+        )
+
+        self.assertEqual(result["changed"], ["x", "width"])
+        self.assertEqual(result["carried_node_ids"], sorted([first, second]))
+        self.assert_shifted(before, 500.0, 0.0)
+        self.assertEqual(self.members(group), sorted([first, second]))
+
+    def test_move_contents_false_grows_the_frame_left_around_a_neighbour(self) -> None:
+        neighbour = self.add(PROCESS, -330, 30)
+        first = self.add(PROCESS, 0, 0)
+        second = self.add(PROCESS, 320, 0)
+        group = self.wrap([first, second])
+        x, y = self.position(group)
+        width = float(self.node(group).custom_width)
+        before = {node_id: self.position(node_id) for node_id in (neighbour, first, second)}
+
+        result = self.call_one_undo(
+            "node.update", {"node_id": group, "x": x - 450, "width": width + 450, "move_contents": False}
+        )
+
+        self.assertEqual(result["changed"], ["x", "width"])
+        self.assertEqual(result["carried_node_ids"], [])
+        self.assert_shifted(before, 0.0, 0.0)
+        self.assertEqual((self.position(group), float(self.node(group).custom_width)), ((x - 450, y), width + 450))
+        self.assertEqual(self.members(group), sorted([neighbour, first, second]))
+
+    def test_move_contents_false_moves_only_the_frame(self) -> None:
+        member = self.add(PROCESS, 0, 0)
+        group = self.wrap([member])
+        x, y = self.position(group)
+
+        result = self.call_one_undo("node.update", {"node_id": group, "x": x + 40, "move_contents": False})
+
+        self.assertEqual((result["changed"], result["carried_node_ids"]), (["x"], []))
+        self.assertEqual((self.position(group), self.position(member)), ((x + 40, y), (0.0, 0.0)))
+
+    def test_a_node_added_earlier_in_the_same_batch_is_carried(self) -> None:
+        first = self.add(PROCESS, 0, 0)
+        second = self.add(PROCESS, 600, 300)
+        group = self.wrap([first, second])
+        x = self.position(group)[0]
+
+        result = self.call_one_undo(
+            "graph.apply",
+            {
+                "ops": [
+                    {"id": "added", "op": "node.add", "params": {"type_id": PROCESS, "x": 300, "y": 150}},
+                    {"op": "node.update", "params": {"node_id": group, "x": x + 400}},
+                ]
+            },
+        )
+
+        added = result["ids"]["added"]
+        self.assertEqual(result["results"][1]["result"]["carried_node_ids"], sorted([added, first, second]))
+        self.assertEqual(self.position(added), (700.0, 150.0))
+
+    def test_moving_a_collapsed_group_reports_its_hidden_members(self) -> None:
+        first = self.add(PROCESS, 0, 0)
+        second = self.add(PROCESS, 320, 0)
+        group = self.wrap([first, second])
+        self.assertTrue(self.scene.set_node_collapsed(group, True))
+        before = {node_id: self.position(node_id) for node_id in (group, first, second)}
+
+        result = self.call_one_undo("node.update", {"node_id": group, "y": before[group][1] + 250})
+
+        self.assertEqual(result["carried_node_ids"], sorted([first, second]))
+        self.assert_shifted(before, 0.0, 250.0)
+
+    def test_moving_other_nodes_carries_nothing(self) -> None:
+        node_id = self.add(PROCESS, 0, 0)
+        result = self.call_one_undo("node.update", {"node_id": node_id, "x": 120})
+        self.assertEqual(result["carried_node_ids"], [])
+
 
 class FlowchartBodyLabelTests(_NodeHandlerCase):
     """F15: flowchart shape-label types render ``body`` in the shape; it follows the title."""

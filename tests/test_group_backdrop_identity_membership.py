@@ -647,6 +647,28 @@ class CarryTests(_IdentityCase):
         for key, node_id in ids.items():
             self.assertEqual(self.position(node_id), (before[key][0] + 100.0, before[key][1] + 50.0), key)
 
+    def test_move_node_carries_what_an_expanded_group_holds_in_one_undo_step(self) -> None:
+        ids = {"group": self.group(0, 0, 900, 500, "G"), "inner": self.group(40, 120, 400, 300, "Inner")}
+        ids["first"] = self.add(PROCESS, 80, 200)
+        ids["second"] = self.add(PROCESS, 560, 150)
+        outside = self.add(PROCESS, 1200, 150)
+        before = {key: self.position(node_id) for key, node_id in ids.items()}
+        depth = self.undo_depth()
+
+        self.scene.move_node(ids["group"], 100.0, 50.0)
+
+        for key, node_id in ids.items():
+            self.assertEqual(self.position(node_id), (before[key][0] + 100.0, before[key][1] + 50.0), key)
+        self.assertEqual(self.position(outside), (1200.0, 150.0))
+        self.assertEqual(
+            (self.owner(ids["inner"]), self.owner(ids["first"]), self.owner(ids["second"])),
+            (ids["group"], ids["inner"], ids["group"]),
+        )
+        self.assertEqual(self.undo_depth(), depth + 1)
+        self.undo()
+        for key, node_id in ids.items():
+            self.assertEqual(self.position(node_id), before[key], key)
+
     def test_move_nodes_by_delta_moves_each_member_once(self) -> None:
         ids = self._nested_collapsed()
         before = {key: self.position(node_id) for key, node_id in ids.items()}

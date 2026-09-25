@@ -598,7 +598,7 @@ performs it. "not exposed" means the first pass deliberately leaves it out
 | Canvas / selection context menu | Connect Selected (Ctrl+Shift+L) | `edge.connect` |
 | Canvas / selection context menu | Copy / Cut / Paste Selection | not exposed (clipboard); `node.duplicate` copies within the workspace |
 | Canvas / selection context menu | Duplicate Selection (Ctrl+D) | `node.duplicate` |
-| Canvas / selection context menu | Delete Selection | `node.delete` / `edge.delete` |
+| Canvas / selection context menu | Delete Selection | `node.delete` / `edge.delete`; on a selected collapsed Group the canvas also deletes what it holds, while `node.delete` keeps those nodes and shows them again, so list them too to match |
 | Canvas / selection context menu | Group Selection (Ctrl+Alt+G) | `subnode.create` |
 | Canvas / selection context menu | Ungroup Selection (Ctrl+Shift+G) | `subnode.ungroup` |
 | Canvas / selection context menu | Set Same Width / Height | `layout.arrange(action=match_width \| match_height)` |
@@ -609,7 +609,7 @@ performs it. "not exposed" means the first pass deliberately leaves it out
 | Canvas options menu (empty canvas) | Tidy whole graph (Ctrl+Alt+Shift+L) | `layout.tidy()` |
 | Canvas options menu (empty canvas) | Clean up whole graph in place | `layout.tidy(mode=in_place)` |
 | Canvas | Select / marquee | `selection.set(mode=replace \| add \| clear)` |
-| Canvas | Drag / resize nodes | `node.update(x=, y=, width=, height=)` |
+| Canvas | Drag / resize nodes | `node.update(x=, y=, width=, height=)`; moving a Group carries everything inside it like a drag (`carried_node_ids`), and `move_contents=false` moves or reshapes only an expanded Group's frame, like its corner handles |
 | Canvas | Scope Parent (Alt+Left) / Scope Root (Alt+Home) | `scope.navigate(target=parent \| root)` |
 | Canvas | Folder Explorer surface actions | not exposed (filesystem) |
 | Workspace tab | New / Duplicate workspace | `workspace.create(name=, duplicate_of=)` |
@@ -622,6 +622,8 @@ performs it. "not exposed" means the first pass deliberately leaves it out
 | Edit menu | Undo / Redo | `app.history(action=undo \| redo)` |
 | Edit menu | Layout > Tidy Selection (Ctrl+Alt+L), Tidy Selection Left to Right / Top to Bottom, Clean Up Selection in Place | `layout.tidy(node_ids=[...], direction=..., mode=...)` |
 | Edit menu | Layout > Tidy Whole Graph (Ctrl+Alt+Shift+L), Clean Up Whole Graph in Place | `layout.tidy()`, `layout.tidy(mode=in_place)` |
+| Edit menu | Snap to Grid | not exposed (session toggle); `node.update` uses the exact x/y given, and `layout.arrange(snap_to_grid=true)` snaps align and distribute results |
+| Edit menu | Graph Search (Ctrl+K) | `graph.find_nodes`; the search overlay itself is not exposed (transient overlay) |
 | Edit menu | Interact with Locked Objects | not exposed (session toggle) |
 | File menu | New / Open project | `project.open(new=true)` / `project.open(path=)` |
 | File menu | Save / Save As | `project.save` / `project.save(path=)` |
@@ -1013,7 +1015,7 @@ MCP tool: `node_update`. Flags: undo step, apply-allowed.
 
 Update title, position, size, properties, port labels, exposed ports, collapsed, or locked on one node.
 
-Only supplied fields change; the result lists what actually changed (NO_EFFECT when nothing did). Properties driven by a connected/exposed port return PROPERTY_LOCKED_BY_PORT. Expanding makes room: neighbours move aside and parent Groups grow; it fails with NO_EFFECT when a locked Group would have to grow or no room exists.
+Only supplied fields change; the result lists what actually changed (NO_EFFECT when nothing did). Properties driven by a connected/exposed port return PROPERTY_LOCKED_BY_PORT. Expanding makes room: neighbours move aside and parent Groups grow; it fails with NO_EFFECT when a locked Group would have to grow or no room exists. Moving a Group backdrop (x/y) moves everything inside it by the same amount, nested Groups and locked nodes included, like dragging it on the canvas; carried_node_ids lists those nodes, so do not move them yourself. move_contents=false moves or reshapes only an expanded Group's frame (like its corner handles): the nodes stay, so it can grow up or left around nodes. A collapsed Group always carries what it holds.
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
@@ -1028,8 +1030,9 @@ Only supplied fields change; the result lists what actually changed (NO_EFFECT w
 | `exposed_ports` | `object` | no |  | port_key -> bool |
 | `collapsed` | `boolean` | no |  |  |
 | `locked` | `boolean` | no |  |  |
+| `move_contents` | `boolean` | no | `true` | Group backdrops only: false moves/reshapes the expanded frame without the nodes inside |
 
-Result keys: `node_id`, `changed`, `node`.
+Result keys: `node_id`, `changed`, `node`, `carried_node_ids`.
 
 #### node.set_style
 
@@ -1148,7 +1151,7 @@ MCP tool: `group_wrap`. Flags: undo step, apply-allowed.
 
 Wrap nodes in a Group backdrop (passive.annotation.group_backdrop) with an optional title.
 
-An expanded Group owns the nodes inside its area (moving a node in or out changes membership); a collapsed Group keeps exactly the members it had when it was collapsed, nodes placed over its hidden area stay outside it, and expanding it makes room around it. The backdrop is sized around the given nodes; moving it moves them. Hidden nodes cannot be wrapped.
+An expanded Group owns the nodes inside its area (moving a node in or out changes membership); a collapsed Group keeps exactly the members it had when it was collapsed, nodes placed over its hidden area stay outside it, and expanding it makes room around it. The backdrop is sized around the given nodes; moving it (node_update x/y, or a canvas drag) moves them, nested Groups included. Hidden nodes cannot be wrapped.
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |

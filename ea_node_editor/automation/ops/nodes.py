@@ -142,7 +142,10 @@ UPDATE = OpSpec(
         "Only supplied fields change; the result lists what actually changed (NO_EFFECT when nothing did). "
         "Properties driven by a connected/exposed port return PROPERTY_LOCKED_BY_PORT. Expanding makes room: "
         "neighbours move aside and parent Groups grow; it fails with NO_EFFECT when a locked Group would have to grow "
-        "or no room exists."
+        "or no room exists. Moving a Group backdrop (x/y) moves everything inside it by the same amount, nested Groups "
+        "and locked nodes included, like dragging it on the canvas; carried_node_ids lists those nodes, so do not move "
+        "them yourself. move_contents=false moves or reshapes only an expanded Group's frame (like its corner handles): "
+        "the nodes stay, so it can grow up or left around nodes. A collapsed Group always carries what it holds."
     ),
     params=object_schema(
         {
@@ -157,10 +160,22 @@ UPDATE = OpSpec(
             "exposed_ports": object_schema({}, additional=True, description="port_key -> bool"),
             "collapsed": boolean_schema(),
             "locked": boolean_schema(),
+            "move_contents": boolean_schema(
+                "Group backdrops only: false moves/reshapes the expanded frame without the nodes inside",
+                default=True,
+            ),
         },
         required=("node_id",),
     ),
-    result=object_schema({"node_id": NODE_ID, "changed": CHANGED_FIELDS, "node": NODE_SUMMARY}, additional=True),
+    result=object_schema(
+        {
+            "node_id": NODE_ID,
+            "changed": CHANGED_FIELDS,
+            "node": NODE_SUMMARY,
+            "carried_node_ids": array_schema(NODE_ID, "Nodes a Group move carried along (empty otherwise)"),
+        },
+        additional=True,
+    ),
     mutates_graph=True,
     apply_allowed=True,
     ref_fields=("node_id",),

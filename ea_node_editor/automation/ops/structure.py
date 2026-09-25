@@ -23,8 +23,8 @@ GROUP_WRAP = OpSpec(
     description=(
         "An expanded Group owns the nodes inside its area (moving a node in or out changes membership); a collapsed "
         "Group keeps exactly the members it had when it was collapsed, nodes placed over its hidden area stay outside "
-        "it, and expanding it makes room around it. The backdrop is sized around the given nodes; moving it moves "
-        "them. Hidden nodes cannot be wrapped."
+        "it, and expanding it makes room around it. The backdrop is sized around the given nodes; moving it (node_update "
+        "x/y, or a canvas drag) moves them, nested Groups included. Hidden nodes cannot be wrapped."
     ),
     params=object_schema({"node_ids": id_list_schema("Nodes to wrap"), "title": TITLE}, required=("node_ids",)),
     result=object_schema({"group_node_id": NODE_ID, "member_node_ids": array_schema(NODE_ID)}, additional=True),

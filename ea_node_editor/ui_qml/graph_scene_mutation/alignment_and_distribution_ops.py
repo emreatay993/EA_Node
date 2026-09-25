@@ -14,6 +14,10 @@ from ea_node_editor.graph.transforms import (
 from ea_node_editor.ui.shell.runtime_history import ACTION_MOVE_NODE, ACTION_RESIZE_NODE
 from ea_node_editor.ui_qml.graph_geometry.anchors import flowchart_port_side
 from ea_node_editor.ui_qml.graph_geometry.route_endpoints import port_scene_pos
+from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import (
+    collect_group_scope_for_node,
+    is_group_backdrop_spec,
+)
 from ea_node_editor.ui_qml.graph_surface_metrics import (
     node_surface_metrics,
     resolved_node_surface_size,
@@ -92,15 +96,31 @@ def move_node(self, node_id: str, x: float, y: float) -> None:
     final_y = float(y)
     if float(node.x) == final_x and float(node.y) == final_y:
         return
-    # Moving a collapsed Group moves what it holds (nested hidden members included).
-    carried = held_member_position_updates(workspace.nodes, {node_id: (final_x, final_y)})
+    # Moving a Group moves what it holds, like dragging it: an expanded Group everything inside its area (nested
+    # Groups included), a collapsed Group the members it lists (nested hidden members included).
+    position_updates = {node_id: (final_x, final_y)}
+    delta_x = final_x - float(node.x)
+    delta_y = final_y - float(node.y)
+    for content_id in _expanded_group_contents(self, workspace, node):
+        content = workspace.nodes.get(content_id)
+        if content is not None:
+            position_updates.setdefault(content_id, (float(content.x) + delta_x, float(content.y) + delta_y))
+    carried = held_member_position_updates(workspace.nodes, position_updates)
     history_before = self._capture_history_snapshot()
     mutations = self._record_mutations()
-    mutations.set_node_position(node_id, final_x, final_y)
-    for carried_id, (carried_x, carried_y) in carried.items():
-        mutations.set_node_position(carried_id, carried_x, carried_y)
-    self._scene_context.publish_node_position_delta([node_id, *sorted(carried)])
+    for moved_id, (moved_x, moved_y) in {**position_updates, **carried}.items():
+        mutations.set_node_position(moved_id, moved_x, moved_y)
+    self._scene_context.publish_node_position_delta([*position_updates, *sorted(carried)])
     self._record_history(ACTION_MOVE_NODE, history_before)
+
+
+def _expanded_group_contents(self, workspace, node) -> list[str]:  # noqa: ANN001
+    """What a canvas drag of an expanded Group moves along: every node and Group inside it, nested levels included."""
+    registry = self._scene_context.registry
+    spec = registry.spec_or_none(node.type_id) if registry is not None else None
+    if spec is None or not is_group_backdrop_spec(spec) or bool(node.collapsed):
+        return []
+    return collect_group_scope_for_node(self, workspace, node.node_id, workspace.nodes).contents(node.node_id)
 
 
 def _stored_custom_height(self, workspace, node, width: float, drawn_height: float) -> float:  # noqa: ANN001

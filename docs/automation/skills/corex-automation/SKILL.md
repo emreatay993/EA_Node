@@ -30,6 +30,8 @@ parity, walkthroughs, generated op reference). Runnable examples:
    `fill_color_end`), `edge_update` (`label`, `path_mode`, `display_mode`, and a
    `style` object whose keys accept aliases like `color`, `width`, `pattern`), `node_add_text` for markdown notes, `comment_upsert`,
    `link_upsert`, `group_wrap` with a title, `subnode_create` for nested scopes.
+   Moving a Group with `node_update(x=, y=)` moves everything inside it
+   (`carried_node_ids`); `move_contents=false` moves or reshapes only its frame.
 5. **Tidy.** `layout_tidy()` lays the open scope (or `node_ids`) out from its
    wires: rows and columns centered so wires run straight, direction detected
    (or `direction="left_to_right"` / `"top_to_bottom"`), loops kept as elbows,
