@@ -5,7 +5,7 @@ description: Author COREX flowcharts, boards, and node workflows through the cor
 
 # COREX automation
 
-COREX exposes a local, opt-in automation API: 49 ops, each an MCP tool of the
+COREX exposes a local, opt-in automation API: 50 ops, each an MCP tool of the
 `corex` server and a `CorexClient` call. Full guide:
 `docs/AUTOMATION_API_GUIDE.md` in the COREX repository (setup, concepts, UI
 parity, walkthroughs, generated op reference). Runnable examples:
@@ -55,6 +55,9 @@ parity, walkthroughs, generated op reference). Runnable examples:
   process, decision, document, ...) `title` also sets an untouched `body`, so passing
   `title` is enough; on card, callout, message and timestamp set `properties.body`. The
   bare text node (`passive.annotation.text`) stores content under `text`.
+- Long flowchart text: `node_fit_text(node_id, mode=grow|shrink|clip)` grows the shape or
+  shrinks the font to fit, as one undo step, and reports `text_fit.overflowing`. The shape
+  must be drawn: frame an off-screen one with `view_set_camera` first.
 - Every mutating op is one undo step; `corex_history(action=undo)` reverts it.
 - `NO_EFFECT` means nothing changed: read `details.reasons`, do not blindly
   retry.

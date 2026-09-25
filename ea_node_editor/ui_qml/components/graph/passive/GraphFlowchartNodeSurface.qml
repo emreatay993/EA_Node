@@ -341,6 +341,28 @@ GraphShared.GraphSurfaceBase {
             host._liveGeometryActive = false;
     }
 
+    // How the body text fits, as the automation node.fit_text op reports it.
+    function textFitReport() {
+        return {
+            "mode": surface.bodyFitMode,
+            "overflowing": surface.bodyTextOverflowing,
+            "overflow_mark": String(bodyRichText.overflowMark || ""),
+            "font_size": bodyRichText.fontSizeValue,
+            "rendered_font_size": bodyRichText.effectiveFontSize,
+            "aspect_locked": surface.bodyAspectLocked
+        };
+    }
+
+    // Applies a scheduled grow-to-fit now instead of on the next event-loop turn, so an
+    // automation op can keep the resize inside its own undo step.
+    function settleTextFit() {
+        if (surface._growPending || surface.bodyGrowToFit) {
+            growToFitTimer.stop();
+            surface._applyGrowToFit();
+        }
+        return surface.textFitReport();
+    }
+
     function _bodyFallbackSuppressed() {
         var variantKey = surface._variantKey();
         return variantKey === "card"

@@ -1,4 +1,4 @@
-# Purpose: Offscreen ShellWindow tests for the app / workspace / view / project / run / capture automation handlers and their client facades (T09).
+# Purpose: Offscreen ShellWindow tests for the app / workspace / view / project / run / capture automation handlers, flowchart text fit (node.fit_text), and their client facades (T09).
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_handlers_shell.py
 from __future__ import annotations
@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import QApplication
 from ea_node_editor import __version__
 from ea_node_editor.automation.client_api.app import AppApi
 from ea_node_editor.automation.client_api.capture import CaptureApi
+from ea_node_editor.automation.client_api.nodes import NodesApi
 from ea_node_editor.automation.client_api.project import ProjectApi
 from ea_node_editor.automation.client_api.run import RunApi
 from ea_node_editor.automation.client_api.workspaces import WorkspacesApi
@@ -31,7 +32,9 @@ from ea_node_editor.automation.errors import (
     NOT_FOUND,
     PROJECT_DIRTY,
     RUN_ACTIVE,
+    TIMEOUT,
 )
+from ea_node_editor.ui.shell.automation.canvas_surfaces import drawn_flowchart_surface
 from ea_node_editor.ui.shell.automation.context import AutomationContext
 from ea_node_editor.ui.shell.automation.handlers import app as app_handlers
 from ea_node_editor.ui.shell.automation.handlers.capture import png_size
@@ -41,6 +44,11 @@ from tests.main_window_shell.base import _ShellTestExecutionClient
 
 START = "passive.flowchart.start"
 PROCESS = "passive.flowchart.process"
+DECISION = "passive.flowchart.decision"
+CONNECTOR = "passive.flowchart.connector"
+TIMESTAMP = "passive.flowchart.timestamp"
+# Short words stay narrower than any shape's text region in every font, so only the height has to fit.
+FIT_BODY = " ".join(["Ask the team to sign off, log the plan, and tell the lead."] * 4)
 CONSTANT = "core.constant"  # cheap active node: the fake execution client fails its dispatch on the next event-loop turn
 _EXECUTION_CLIENT_TARGET = "ea_node_editor.ui.shell.composition.controllers._create_shell_execution_client"
 
@@ -193,9 +201,25 @@ class ShellFreeTests(unittest.TestCase):
             ("run.control", {"action": "stop"}),
             ("capture.screenshot", {}),
             ("app.quit", {}),
+            ("node.fit_text", {"node_id": "node_1"}),
         ):
             with self.subTest(op=op):
                 expect_error(context, op, params, INTERNAL)
+
+    def test_nodes_facade_fit_text_waits_longer_than_the_server(self) -> None:
+        client = _RecordingClient()
+        api = NodesApi(client)
+        api.fit_text("node_1", "grow")
+        api.fit_text("node_1", timeout_s=2.0)
+        self.assertEqual(
+            [(op, params) for op, params, _ in client.calls],
+            [
+                ("node.fit_text", {"node_id": "node_1", "mode": "grow"}),
+                ("node.fit_text", {"node_id": "node_1", "timeout_s": 2.0}),
+            ],
+        )
+        self.assertGreater(client.calls[0][2]["timeout_s"], 5.0, "the request must outlive the default canvas wait")
+        self.assertGreater(client.calls[1][2]["timeout_s"], 2.0)
 
 
 class AppHandlerTests(_ShellHandlerCase):
@@ -575,6 +599,93 @@ class RunHandlerTests(_ShellHandlerCase):
         )
         self.assertGreater(client.calls[2][2]["timeout_s"], 7.0, "the request timeout must outlive the wait")
         self.assertGreater(client.calls[3][2]["timeout_s"], 2.5)
+
+
+class NodeFitTextHandlerTests(_ShellHandlerCase):
+    def add_shape(self, type_id: str, x: float = 0.0, y: float = 0.0, **params: Any) -> str:
+        properties = {"body": FIT_BODY, **dict(params.pop("properties", {}))}
+        return call(self.context, "node.add", {"type_id": type_id, "x": x, "y": y, "properties": properties, **params})["node_id"]
+
+    def undo_depth(self) -> int:
+        return int(call(self.context, "app.history", {"action": "status"})["undo_depth"])
+
+    def node_row(self, node_id: str) -> dict[str, Any]:
+        return call(self.context, "graph.get_node", {"node_id": node_id})
+
+    def test_grow_applies_the_mode_and_the_growth_as_one_undo_step(self) -> None:
+        # Called right after node.add: the canvas has not drawn the shape yet, so the op waits for it.
+        node_id = self.add_shape(DECISION)
+        before = self.node_row(node_id)["node"]
+        depth = self.undo_depth()
+        grown = call(self.context, "node.fit_text", {"node_id": node_id, "mode": "grow"})
+        self.assertEqual(grown["node_id"], node_id)
+        self.assertIn("properties.body_fit", grown["changed"])
+        self.assertIn("height", grown["changed"])
+        self.assertNotIn("width", grown["changed"], "a free-aspect shape grows in height only")
+        self.assertGreater(grown["node"]["height"], before["height"] + 40.0)
+        self.assertEqual(
+            {key: grown["text_fit"][key] for key in ("mode", "overflowing", "overflow_mark", "aspect_locked")},
+            {"mode": "grow", "overflowing": False, "overflow_mark": "", "aspect_locked": False},
+        )
+        self.assertEqual(grown["text_fit"]["rendered_font_size"], grown["text_fit"]["font_size"])
+        self.assertEqual(self.workspace().nodes[node_id].properties["body_fit"], "grow")
+        self.assertEqual(self.undo_depth(), depth + 1, "mode and growth are one undo step")
+
+        self.assertTrue(call(self.context, "app.history", {"action": "undo"})["applied"])
+        _flush(self.app)
+        restored = self.node_row(node_id)
+        self.assertEqual(restored["properties"]["body_fit"], "clip")
+        self.assertEqual(restored["node"]["height"], before["height"])
+
+    def test_report_on_a_drawn_shape_and_shrink_the_font(self) -> None:
+        node_id = self.add_shape(DECISION, width=236.0, height=200.0, properties={"body": "Ask\nthe\nteam\nto\nsign\noff\nand\nlog"})
+        call(self.context, "view.set_camera", {"frame": "nodes", "node_ids": [node_id]})
+        self.assertTrue(
+            _pump_until(self.app, lambda: drawn_flowchart_surface(self.window.quick_widget, node_id) is not None),
+            "the canvas never drew the shape",
+        )
+        depth = self.undo_depth()
+        report = call(self.context, "node.fit_text", {"node_id": node_id})
+        self.assertEqual(report["changed"], [])
+        self.assertEqual(report["text_fit"]["mode"], "clip")
+        self.assertTrue(report["text_fit"]["overflowing"], "eight lines overflow the diamond at 12 px")
+        self.assertEqual(report["text_fit"]["overflow_mark"], "elide")
+        self.assertEqual(self.undo_depth(), depth, "a report changes nothing")
+
+        shrunk = call(self.context, "node.fit_text", {"node_id": node_id, "mode": "shrink"})
+        self.assertEqual(shrunk["changed"], ["properties.body_fit"])
+        self.assertFalse(shrunk["text_fit"]["overflowing"])
+        self.assertLess(shrunk["text_fit"]["rendered_font_size"], shrunk["text_fit"]["font_size"])
+        self.assertGreaterEqual(shrunk["text_fit"]["rendered_font_size"], 6)
+        self.assertEqual(self.undo_depth(), depth + 1)
+
+    def test_square_shapes_grow_in_both_directions(self) -> None:
+        node_id = self.add_shape(CONNECTOR, 300.0, 0.0)
+        before = self.node_row(node_id)["node"]
+        grown = call(self.context, "node.fit_text", {"node_id": node_id, "mode": "grow"})
+        self.assertTrue(grown["text_fit"]["aspect_locked"])
+        self.assertFalse(grown["text_fit"]["overflowing"])
+        self.assertGreater(grown["node"]["width"], before["width"])
+        self.assertAlmostEqual(
+            grown["node"]["width"] / grown["node"]["height"],
+            before["width"] / before["height"],
+            delta=0.02,
+        )
+
+    def test_rejects_shapes_without_text_fit(self) -> None:
+        note = call(self.context, "node.add_text", {"markdown": "Note", "x": 0, "y": 0})["node_id"]
+        self.expect("node.fit_text", {"node_id": note, "mode": "grow"}, INVALID_PARAMS)
+        self.expect("node.fit_text", {"node_id": self.add_node(TIMESTAMP, 0, 200)}, INVALID_PARAMS)
+        self.expect("node.fit_text", {"node_id": self.add_node(DECISION, 0, 400), "mode": "wrap"}, INVALID_PARAMS)
+        self.expect("node.fit_text", {"node_id": "node_missing"}, NOT_FOUND)
+
+    def test_an_undrawn_shape_times_out_unchanged(self) -> None:
+        node_id = self.add_shape(DECISION, 60000.0, 60000.0)
+        depth = self.undo_depth()
+        error = self.expect("node.fit_text", {"node_id": node_id, "mode": "grow", "timeout_s": 0.3}, TIMEOUT)
+        self.assertIn("view.set_camera", error.hint)
+        self.assertEqual(self.workspace().nodes[node_id].properties["body_fit"], "clip")
+        self.assertEqual(self.undo_depth(), depth)
 
 
 class CaptureHandlerTests(_ShellHandlerCase):

@@ -20,7 +20,7 @@ It is a **local, opt-in developer automation surface**:
   `--automation` or spawned by the launcher.
 - Loopback only (`127.0.0.1`), one per-instance token, protocol version 1,
   NDJSON frames capped at 8 MiB.
-- One declarative op catalog: 49 ops, each also a typed MCP tool. The same
+- One declarative op catalog: 50 ops, each also a typed MCP tool. The same
   in-app server serves every launch mode.
 - Every mutating op is exactly one undo step; `graph.apply` batches are one
   step too.
@@ -296,11 +296,16 @@ for example "passive.flowchart.process is not collapsible". `node.update` and
   Verify labels with a screenshot.
 - Long flowchart bodies follow `properties["body_fit"]` (every shape except
   timestamp): `clip` (default) keeps the size and ends clipped text in an
-  ellipsis, `grow` enlarges the shape to fit as one undoable resize (square
-  shapes such as connector keep their aspect ratio), and `shrink` lowers the
-  font, to 6 px at the smallest, until the text fits. The canvas applies `grow`
-  once the shape is drawn, so frame the node and read its size back after it
-  settles.
+  ellipsis, `grow` enlarges the shape until the text fits (square shapes such
+  as connector keep their aspect ratio), and `shrink` lowers the font, to 6 px
+  at the smallest, until the text fits. Set it with `node.fit_text`
+  (`node_fit_text`, `NodesApi.fit_text`): the canvas measures the text, so the
+  op waits for the shape to be drawn, applies the mode and any growth as one
+  undo step, and returns `text_fit` (`overflowing`, `overflow_mark`,
+  `rendered_font_size`). Omit `mode` to only check. A shape the canvas never
+  draws (off-screen) times out unchanged: frame it with `view.set_camera` first.
+  Setting `body_fit` through `node.update` also works, but the canvas then grows
+  the shape later as a separate undo step.
 - The bare text node (`passive.annotation.text`) stores its content under the
   `text` key with bare style keys (`font_size`, `text_color`, `format`).
   Flowchart shapes and sticky notes use `body` with prefixed slot keys
@@ -745,6 +750,7 @@ from the same catalog.
 | `node_add_web_panel` | `node.add_web_panel` | Create a web viewer (web.page_viewer) for a URL, or for inline HTML written to a session scratch file. |
 | `node_update` | `node.update` | Update title, position, size, properties, port labels, exposed ports, collapsed, or locked on one node. |
 | `node_set_style` | `node.set_style` | Set, merge, clear, or propagate a passive node's visual style (or apply a saved preset). |
+| `node_fit_text` | `node.fit_text` | Set a flowchart shape's text fit (clip, grow, shrink) and report how its body text fits once drawn. |
 | `node_delete` | `node.delete` | Delete one or more nodes (and their edges) from the active workspace. |
 | `node_duplicate` | `node.duplicate` | Duplicate a set of nodes (with internal edges) offset from the originals. |
 | `edge_connect` | `edge.connect` | Connect two ports. Passive flow ports are top\|right\|bottom\|left; data ports use their spec keys. |
@@ -1059,6 +1065,31 @@ style merges into the current style unless replace=true; clear=true removes the 
 | `propagate` | `boolean` | no | `false` |  |
 
 Result keys: `node_id`, `visual_style`, `propagated_to`.
+
+#### node.fit_text
+
+MCP tool: `node_fit_text`. Flags: undo step, deferred.
+
+Set a flowchart shape's text fit (clip, grow, shrink) and report how its body text fits once drawn.
+
+Every flowchart shape except timestamp stores the mode in properties.body_fit. clip keeps the size and ends clipped text in an ellipsis; grow enlarges the shape until the body fits (square shapes such as connector keep their aspect ratio); shrink lowers the font, to 6 px at the smallest, until it fits. The canvas measures the text, so the shape must be drawn: the op waits up to timeout_s for that (frame an off-screen shape with view.set_camera first) and applies the mode and any growth as one undo step. Omit mode to only report the current fit. A still-true overflowing means the text cannot fit this way: shorten it, widen the shape, or pick another mode.
+
+| Param | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `node_id` | `string` | yes |  | Node id (node_...); non-empty |
+| `mode` | `string` | no |  | Text fit mode; omit to only report; one of: clip, grow, shrink |
+| `timeout_s` | `number` | no | `5` | Seconds to wait for the canvas to draw the shape; >= 0 and \<= 120 |
+
+Result keys: `node_id`, `changed`, `node`, `text_fit`.
+
+Example:
+
+```json
+{
+  "node_id": "node_12",
+  "mode": "grow"
+}
+```
 
 #### node.delete
 

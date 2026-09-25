@@ -1,4 +1,4 @@
-# Purpose: Node op specs: add (generic/text/media/web), update, style, delete, duplicate.
+# Purpose: Node op specs: add (generic/text/media/web), update, style, text fit, delete, duplicate.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_catalog.py
 from __future__ import annotations
@@ -218,6 +218,60 @@ SET_STYLE = OpSpec(
     mcp_tool="node_set_style",
 )
 
+TEXT_FIT_MODES = ("clip", "grow", "shrink")
+TEXT_FIT_REPORT = object_schema(
+    {
+        "mode": string_schema("Stored properties.body_fit", enum=TEXT_FIT_MODES),
+        "overflowing": boolean_schema("True while the body text is still clipped"),
+        "overflow_mark": string_schema(
+            "How clipped text is marked: elide (last line ends in an ellipsis), pill (markdown), or empty",
+            enum=("", "elide", "pill"),
+        ),
+        "font_size": number_schema("Style font size in px", integer=True),
+        "rendered_font_size": number_schema("Drawn font size in px (smaller under shrink)", integer=True),
+        "aspect_locked": boolean_schema("Square shapes grow in both directions, keeping their aspect ratio"),
+    },
+    additional=True,
+)
+
+FIT_TEXT = OpSpec(
+    name="node.fit_text",
+    domain=DOMAIN,
+    summary="Set a flowchart shape's text fit (clip, grow, shrink) and report how its body text fits once drawn.",
+    description=(
+        "Every flowchart shape except timestamp stores the mode in properties.body_fit. clip keeps the size and "
+        "ends clipped text in an ellipsis; grow enlarges the shape until the body fits (square shapes such as "
+        "connector keep their aspect ratio); shrink lowers the font, to 6 px at the smallest, until it fits. "
+        "The canvas measures the text, so the shape must be drawn: the op waits up to timeout_s for that (frame an "
+        "off-screen shape with view.set_camera first) and applies the mode and any growth as one undo step. "
+        "Omit mode to only report the current fit. A still-true overflowing means the text cannot fit this way: "
+        "shorten it, widen the shape, or pick another mode."
+    ),
+    params=object_schema(
+        {
+            "node_id": NODE_ID,
+            "mode": string_schema("Text fit mode; omit to only report", enum=TEXT_FIT_MODES),
+            "timeout_s": number_schema("Seconds to wait for the canvas to draw the shape", minimum=0, maximum=120, default=5),
+        },
+        required=("node_id",),
+    ),
+    result=object_schema(
+        {
+            "node_id": NODE_ID,
+            "changed": CHANGED_FIELDS,
+            "node": NODE_SUMMARY,
+            "text_fit": TEXT_FIT_REPORT,
+        },
+        additional=True,
+    ),
+    mutates_graph=True,
+    deferred=True,
+    ref_fields=("node_id",),
+    primary_id_field="node_id",
+    mcp_tool="node_fit_text",
+    examples=({"node_id": "node_12", "mode": "grow"},),
+)
+
 DELETE = OpSpec(
     name="node.delete",
     domain=DOMAIN,
@@ -258,7 +312,7 @@ DUPLICATE = OpSpec(
     mcp_tool="node_duplicate",
 )
 
-OPS: tuple[OpSpec, ...] = (ADD, ADD_TEXT, ADD_MEDIA, ADD_WEB_PANEL, UPDATE, SET_STYLE, DELETE, DUPLICATE)
+OPS: tuple[OpSpec, ...] = (ADD, ADD_TEXT, ADD_MEDIA, ADD_WEB_PANEL, UPDATE, SET_STYLE, FIT_TEXT, DELETE, DUPLICATE)
 
 __all__ = [
     "ADD",
@@ -268,7 +322,10 @@ __all__ = [
     "DELETE",
     "DOMAIN",
     "DUPLICATE",
+    "FIT_TEXT",
     "OPS",
     "SET_STYLE",
+    "TEXT_FIT_MODES",
+    "TEXT_FIT_REPORT",
     "UPDATE",
 ]

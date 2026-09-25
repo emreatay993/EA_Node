@@ -1,4 +1,4 @@
-# Purpose: CorexClient facade for node.* plus sugar: add_path_pointer, add_panel, set_text_style.
+# Purpose: CorexClient facade for node.* (fit_text included) plus sugar: add_path_pointer, add_panel, set_text_style.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_handlers_nodes.py
 from __future__ import annotations
@@ -14,6 +14,9 @@ if TYPE_CHECKING:
 PATH_POINTER_TYPE_ID = "io.path_pointer"
 PANEL_TYPE_ID = "data.panel"
 _TEXT_STYLE_ALIASES = {"color": "text_color"}
+# node.fit_text waits server-side (catalog default 5 s); the request waits that long plus a margin.
+_FIT_TEXT_DEFAULT_WAIT_S = 5.0
+_FIT_TEXT_REQUEST_MARGIN_S = 5.0
 
 
 def _compact(params: Mapping[str, Any]) -> dict[str, Any]:
@@ -212,6 +215,22 @@ class NodesApi:
         if preset is not None:
             params["preset"] = str(preset)
         return self._client.call("node.set_style", params)
+
+    def fit_text(self, node_id: str, mode: str | None = None, *, timeout_s: float | None = None) -> dict[str, Any]:
+        """node.fit_text: set a flowchart shape's text fit (clip | grow | shrink) and read how its body fits.
+
+        Omit ``mode`` to only report. The server waits up to ``timeout_s`` (default 5 s) for the canvas
+        to draw the shape, so the request itself waits a little longer than that.
+        """
+        params = _compact(
+            {
+                "node_id": str(node_id),
+                "mode": None if mode is None else str(mode),
+                "timeout_s": None if timeout_s is None else float(timeout_s),
+            }
+        )
+        wait_s = float(timeout_s if timeout_s is not None else _FIT_TEXT_DEFAULT_WAIT_S)
+        return self._client.call("node.fit_text", params, timeout_s=wait_s + _FIT_TEXT_REQUEST_MARGIN_S)
 
     # ------------------------------------------------------ node.delete/duplicate
 

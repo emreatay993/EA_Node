@@ -1,4 +1,4 @@
-# Purpose: Node automation handlers: add/text/media/web, update, style, delete, duplicate (T05); every mutation goes through GraphSceneBridge and is verified after.
+# Purpose: Node automation handlers: add/text/media/web, update, style, text fit, delete, duplicate (T05); every mutation goes through GraphSceneBridge (text fit through the drawn surface) and is verified after.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_handlers_nodes.py
 from __future__ import annotations
@@ -14,12 +14,14 @@ from ea_node_editor.automation.errors import (
     NO_EFFECT,
     NOT_FOUND,
     PROPERTY_LOCKED_BY_PORT,
+    TIMEOUT,
     WRONG_SCOPE,
     AutomationOpError,
     invalid_params,
     no_effect,
     not_found,
 )
+from ea_node_editor.automation.op_catalog import op_by_name
 from ea_node_editor.automation.op_model import Deferred
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.workspace_state import WorkspaceData
@@ -41,7 +43,9 @@ from ea_node_editor.text_style import (
     rich_text_format_property_key,
     rich_text_style_property_key,
 )
+from ea_node_editor.ui.shell.automation.canvas_surfaces import call_surface, drawn_flowchart_surface
 from ea_node_editor.ui.shell.automation.context import AutomationContext
+from ea_node_editor.ui.shell.automation.dispatch import grouped_history_scope
 from ea_node_editor.ui.shell.automation.handlers.catalog import (
     NODE_STYLE_ALIASES,
     NODE_STYLE_KEYS,
@@ -75,6 +79,9 @@ _MAPPED_STATE_FIELDS = ("properties", "port_labels", "exposed_ports")
 _GRADIENT_DEPENDENT_KEYS = frozenset({"gradient_color", "gradient_direction"})
 _MEDIA_PASSTHROUGH_KEYS = ("fit_mode", "show_title", "show_frame")
 _INLINE_HTML_DIRNAME = "automation"
+# Flowchart text fit (node.fit_text): the property the canvas reads, and how often a wait re-checks.
+_TEXT_FIT_PROPERTY = "body_fit"
+_TEXT_FIT_POLL_INTERVAL_S = 0.05
 
 
 # ------------------------------------------------------------------ helpers
@@ -837,6 +844,74 @@ def duplicate_nodes(context: AutomationContext, params: Mapping[str, Any]) -> di
     }
 
 
+def _text_fit_result(report: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "mode": str(report.get("mode") or ""),
+        "overflowing": bool(report.get("overflowing")),
+        "overflow_mark": str(report.get("overflow_mark") or ""),
+        "font_size": int(report.get("font_size") or 0),
+        "rendered_font_size": int(report.get("rendered_font_size") or 0),
+        "aspect_locked": bool(report.get("aspect_locked")),
+    }
+
+
+def fit_text(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:
+    op = "node.fit_text"
+    context.require_shell(op)
+    node = context.require_node(str(params["node_id"]))
+    node_id = node.node_id
+    spec = instance_spec(context, node) or context.spec_for(node)
+    if not any(prop.key == _TEXT_FIT_PROPERTY for prop in spec.properties):
+        raise _invalid(
+            op,
+            [f"node_id: {node.type_id} has no text fit; flowchart shapes other than timestamp have one"],
+            node_id=node_id,
+        )
+    context.require_node_in_scope(node_id)
+    mode = None if params.get("mode") is None else str(params["mode"])
+    timeout_s = float(params.get("timeout_s", 5.0))
+
+    def apply(surface: Any) -> dict[str, Any]:
+        # The canvas measures the text: settleTextFit() commits a grow now, inside the open undo step.
+        current = context.require_node(node_id)
+        before = _node_state(context, current)
+        if mode is not None and str(current.properties.get(_TEXT_FIT_PROPERTY) or "") != mode:
+            context.scene.set_node_properties(node_id, {_TEXT_FIT_PROPERTY: mode})
+        report = call_surface(surface, "settleTextFit")
+        after = context.require_node(node_id)
+        return {
+            "node_id": node_id,
+            "changed": _changed_fields(before, _node_state(context, after)),
+            "node": context.node_summary(after),
+            "text_fit": _text_fit_result(report),
+        }
+
+    surface = drawn_flowchart_surface(context.quick_widget, node_id)
+    if surface is not None:
+        return apply(surface)
+
+    # Not drawn yet (just added, or the camera just moved): apply once the canvas draws it, as one undo step.
+    fit_op = op_by_name(op)
+
+    def poll() -> dict[str, Any] | None:
+        context.require_node(node_id)
+        drawn = drawn_flowchart_surface(context.quick_widget, node_id)
+        if drawn is None:
+            return None
+        with grouped_history_scope(context, fit_op):
+            return apply(drawn)
+
+    def on_timeout() -> dict[str, Any]:
+        raise AutomationOpError(
+            TIMEOUT,
+            f"The canvas did not draw node '{node_id}' within {timeout_s:g}s, so its text fit was left unchanged.",
+            hint="Frame the node with view.set_camera(frame='nodes', node_ids=[...]) so the canvas draws it, then retry.",
+            details={"node_id": node_id, "timeout_s": timeout_s},
+        )
+
+    return Deferred(poll=poll, timeout_s=timeout_s, on_timeout=on_timeout, poll_interval_s=_TEXT_FIT_POLL_INTERVAL_S, label=op)
+
+
 HANDLERS = {
     'node.add': add_node,
     'node.add_text': add_text_node,
@@ -844,6 +919,7 @@ HANDLERS = {
     'node.add_web_panel': add_web_panel_node,
     'node.update': update_node,
     'node.set_style': set_node_style,
+    'node.fit_text': fit_text,
     'node.delete': delete_nodes,
     'node.duplicate': duplicate_nodes,
 }
