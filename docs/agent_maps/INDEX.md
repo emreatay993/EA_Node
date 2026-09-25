@@ -4,9 +4,9 @@ This atlas is an advisory lookup layer for agents and maintainers, not a require
 
 ## Agent Quick-Start
 
-1. **Lead with exact evidence for narrow tasks** — search a known file, symbol, UI label, error, setting, or test with bounded `rg`; inspect the first useful hits instead of asking the fuzzy router to rediscover them.
-2. **Use navigation for ambiguity** — `./venv/Scripts/python.exe scripts/nav.py find <term>` returns a compact advisory owner/test capsule for broad or cross-layer work. Exact alias/title/component matches are labeled exact; other results explicitly say no owner is yet confirmed. Use `route`, `qml`, or `source` when the index family is already known.
-3. **Verify, then open one map** — confirm the candidate against source before choosing an owner or insertion point. Use `nav.py source <path>` to attach map/test context to a discovered file and `nav.py line <path> <symbol-or-heading>` for its current line. Open only the relevant map when its boundaries or guard rails matter.
+1. **Start with maps for every COREX task** — read this index, the relevant [coverage row](COVERAGE.md), and one subsystem, feature-route, or testing map, even when a file or symbol is already known.
+2. **Search within the mapped area** — look up known files, symbols, UI labels, errors, settings, and tests with bounded `rg`. For ambiguous ownership, `./venv/Scripts/python.exe scripts/nav.py find <term>` returns a compact advisory owner/test capsule; use `route`, `qml`, or `source` when the index family is known.
+3. **Verify against current source and stop** — confirm the owner and focused tests before editing. Use `nav.py source <path>` for added map/test context and `nav.py line <path> <symbol-or-heading>` for a current line. Widen only when evidence is ambiguous or contradicts the map.
 
 Indexes are generated — regenerate with `scripts/generate_agent_route_index.py`, then validate with `scripts/check_agent_maps.py` after any map edit.
 
@@ -18,7 +18,7 @@ Indexes are generated — regenerate with `scripts/generate_agent_route_index.py
 - [Coverage Matrix](COVERAGE.md)
 - [Generated Agent Route Index](../agent_route_index.md)
 
-Before broad exploration, open the coverage matrix and the most relevant subsystem or route page. After changing feature routing, architecture ownership, public contracts, verification ownership, or common insertion points, update the affected map and coverage row in the same change.
+Before source or test exploration, open the coverage matrix and the most relevant subsystem, route, or testing page. After changing feature routing, architecture ownership, public contracts, verification ownership, or common insertion points, update the affected map and coverage row in the same change.
 
 ## Subsystem Maps
 
