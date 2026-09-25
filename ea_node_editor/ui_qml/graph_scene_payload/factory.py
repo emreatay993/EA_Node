@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 import math
+from collections import ChainMap
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from types import MappingProxyType
@@ -932,17 +933,21 @@ class _GraphSceneNodePayloadFactory:
             width=max(1.0, float(width)),
             height=max(1.0, float(height)),
         )
-        expanded_bounds = self._expanded_bounds_for_facts(
-            original_node=node,
-            spec=spec,
-            workspace_nodes=workspace_nodes,
-            enabled_input_port_keys=enabled_input_port_keys,
-            port_connection_counts=port_connection_counts,
-            hide_optional_ports=hide_optional_ports,
-            show_port_labels=show_port_labels,
-            graph_label_pixel_size=graph_label_pixel_size,
-            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
-            fallback=bounds,
+        expanded_bounds = (
+            self.presentation_bounds(
+                node=node,
+                spec=spec,
+                workspace_nodes=workspace_nodes,
+                enabled_input_port_keys=enabled_input_port_keys,
+                port_connection_counts=port_connection_counts,
+                hide_optional_ports=hide_optional_ports,
+                show_port_labels=show_port_labels,
+                graph_label_pixel_size=graph_label_pixel_size,
+                graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+                expanded=True,
+            )
+            if bool(node.collapsed)
+            else bounds
         )
         endpoint_by_port_key = MappingProxyType(
             {
@@ -1005,29 +1010,32 @@ class _GraphSceneNodePayloadFactory:
             }),
         )
 
-    def _expanded_bounds_for_facts(
+    def presentation_bounds(
         self,
         *,
-        original_node,
+        node,
         spec: NodeTypeSpec,
-        workspace_nodes: dict[str, Any],
+        workspace_nodes: Mapping[str, Any],
         enabled_input_port_keys: set[str] | frozenset[str],
         port_connection_counts: Mapping[tuple[str, str], int],
         hide_optional_ports: bool,
         show_port_labels: bool,
         graph_label_pixel_size: int,
         graph_node_icon_pixel_size: int,
-        fallback: LayoutNodeBounds,
+        expanded: bool = False,
     ) -> LayoutNodeBounds:
-        if not bool(original_node.collapsed):
-            return fallback
-        expanded_node = original_node.clone()
-        expanded_node.collapsed = False
-        scoped_nodes = dict(workspace_nodes)
-        expanded_payload_node = self.payload_node(expanded_node, spec)
-        scoped_nodes[str(original_node.node_id)] = expanded_payload_node
+        """The rectangle a payload build draws ``node`` at, or with ``expanded`` would draw it at once expanded.
+
+        Only the presentation layout is measured (settings band and view-filtered ports included; no payload, port
+        anchors or icon), and ``workspace_nodes`` is left untouched.
+        """
+        if expanded and bool(node.collapsed):
+            node = node.clone()
+            node.collapsed = False
+        payload_node = self.payload_node(node, spec)
+        scoped_nodes = ChainMap({str(node.node_id): payload_node}, workspace_nodes)
         visible_ports = self.view_visible_ports(
-            node=expanded_payload_node,
+            node=payload_node,
             spec=spec,
             workspace_nodes=scoped_nodes,
             port_connection_counts=port_connection_counts,
@@ -1035,7 +1043,7 @@ class _GraphSceneNodePayloadFactory:
         )
         final_node, _surface_metrics, width, height, _port_presentation, _inline_properties = (
             self._presentation_layout_and_size(
-                node=expanded_payload_node,
+                node=payload_node,
                 spec=spec,
                 workspace_nodes=scoped_nodes,
                 enabled_input_port_keys=enabled_input_port_keys,
@@ -1047,7 +1055,7 @@ class _GraphSceneNodePayloadFactory:
             )
         )
         return LayoutNodeBounds(
-            node_id=str(original_node.node_id),
+            node_id=str(node.node_id),
             x=float(final_node.x),
             y=float(final_node.y),
             width=max(1.0, float(width)),

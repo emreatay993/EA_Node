@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from ea_node_editor.graph.group_backdrop_geometry import GROUP_BACKDROP_MEMBERSHIP_FIELDS
 from ea_node_editor.graph.hierarchy import normalize_scope_path
 from ea_node_editor.graph.project_state import ProjectData
 from ea_node_editor.graph.workspace_state import ViewState, WorkspaceData
@@ -55,14 +56,6 @@ from ea_node_editor.runtime_contracts import (
 from ea_node_editor.settings import SCHEMA_VERSION
 from ea_node_editor.workspace.ownership import resolve_workspace_ownership, sync_project_workspace_ownership
 
-_GROUP_BACKDROP_RUNTIME_MEMBERSHIP_KEYS = (
-    "owner_backdrop_id",
-    "backdrop_depth",
-    "member_node_ids",
-    "member_backdrop_ids",
-    "contained_node_ids",
-    "contained_backdrop_ids",
-)
 _OBSOLETE_PORT_LOCKING_VIEW_STATE_KEY = "port_locking_view_state"
 _LEGACY_RECOVERY_METADATA_KEYS = (
     "_persistence_envelope",
@@ -208,7 +201,7 @@ class JsonProjectCodec:
     def _normalize_owned_node_mapping(mapping: dict[str, Any]) -> dict[str, Any]:
         from ea_node_editor.common.node_property_migrations import migrate_node_properties
 
-        for key in _GROUP_BACKDROP_RUNTIME_MEMBERSHIP_KEYS:
+        for key in GROUP_BACKDROP_MEMBERSHIP_FIELDS:
             mapping.pop(key, None)
         type_id = str(mapping.get("type_id", "")).strip()
         if isinstance(mapping.get("properties"), Mapping):

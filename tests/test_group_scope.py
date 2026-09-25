@@ -20,6 +20,7 @@ from tests.automation.harness import build_context
 GROUP = "passive.annotation.group_backdrop"
 PROCESS = "passive.flowchart.process"
 LOGGER = "core.logger"
+PLOT = "plot.signal"
 
 
 class _GroupScopeCase(unittest.TestCase):
@@ -88,14 +89,27 @@ class GroupScopeCollectTests(_GroupScopeCase):
         self.scene.set_node_collapsed(logger, True)
         workspace = self.context.active_workspace()
         node = workspace.nodes[logger]
-        spec = self.context.registry.get_spec(LOGGER)
 
-        drawn = node_layout_bounds(self.boundary, workspace, node, spec, expanded=False)
-        expanded = node_layout_bounds(self.boundary, workspace, node, spec, expanded=True)
+        drawn = node_layout_bounds(self.boundary, workspace, node, expanded=False)
+        expanded = node_layout_bounds(self.boundary, workspace, node, expanded=True)
 
         self.assertEqual((drawn.x, drawn.y), (40.0, 60.0))
         self.assertEqual((expanded.x, expanded.y), (40.0, 60.0))
         self.assertLess(drawn.height, expanded.height)
+
+    def test_a_node_without_a_drawn_payload_is_measured_like_a_payload_build(self) -> None:
+        plot = self.add(PLOT, 40.0, 60.0)
+        workspace = self.context.active_workspace()
+        drawn = node_layout_bounds(self.boundary, workspace, workspace.nodes[plot], expanded=False)
+        group = self.group(0.0, 0.0, 600.0, 400.0)
+        self.scene.set_node_collapsed(group, True)
+        self.assertIn(plot, workspace.nodes[group].held_member_ids)  # hidden now, so no cached payload
+
+        measured = node_layout_bounds(self.boundary, workspace, workspace.nodes[plot], expanded=False)
+
+        # The plot's settings band is part of its drawn height; a plain surface measure leaves it out.
+        self.assertEqual(measured, drawn)
+        self.assertGreater(measured.height, 100.0)
 
 
 class GroupScopeGrowthTests(_GroupScopeCase):

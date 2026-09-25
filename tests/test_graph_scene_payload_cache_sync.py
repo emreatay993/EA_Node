@@ -360,6 +360,96 @@ class GraphScenePayloadCacheSyncTests(unittest.TestCase):
             original_payload,
         )
 
+    @staticmethod
+    def _cache_with_a_drawn_group(member_payload: dict) -> _GraphScenePayloadCache:
+        cache = _GraphScenePayloadCache(
+            nodes=[member_payload],
+            backdrop_nodes=[
+                {"node_id": "g1", "x": 0.0, "y": 0.0, "width": 400.0, "height": 300.0, "member_node_ids": ["n1"]}
+            ],
+            minimap_nodes=[{"node_id": "n1"}, {"node_id": "g1"}],
+            edges=[],
+        )
+        cache.rebuild_indexes()
+        return cache
+
+    @staticmethod
+    def _member_payload(title: str, height: float, owner_backdrop_id: str, backdrop_depth: int) -> dict:
+        return {
+            "node_id": "n1",
+            "x": 10.0,
+            "y": 12.0,
+            "width": 120.0,
+            "height": height,
+            "title": title,
+            "owner_backdrop_id": owner_backdrop_id,
+            "backdrop_depth": backdrop_depth,
+            "member_node_ids": [],
+            "member_backdrop_ids": [],
+            "contained_node_ids": [],
+            "contained_backdrop_ids": [],
+        }
+
+    def test_full_node_replacement_keeps_group_membership_while_groups_are_drawn(self) -> None:
+        workspace = SimpleNamespace(nodes={"n1": SimpleNamespace(x=10.0, y=12.0)}, edges={})
+        cache = self._cache_with_a_drawn_group(self._member_payload("old", 40.0, "g1", 1))
+        payload_builder = _FakePayloadBuilder()
+        # A single-node build cannot compute membership: it projects none.
+        payload_builder.node_payload = self._member_payload("updated", 40.0, "", 0)
+
+        sync = ScenePayloadCacheSync(_FakeContext(cache, workspace, payload_builder=payload_builder))
+        replacement = sync.replace_cached_full_node_payloads({"n1"})
+
+        self.assertIsNotNone(replacement)
+        self.assertIs(cache.nodes[0], payload_builder.node_payload)
+        self.assertEqual(cache.nodes[0]["title"], "updated")
+        self.assertEqual((cache.nodes[0]["owner_backdrop_id"], cache.nodes[0]["backdrop_depth"]), ("g1", 1))
+
+    def test_full_node_replacement_gives_up_when_a_node_is_redrawn_at_another_size_while_groups_are_drawn(
+        self,
+    ) -> None:
+        workspace = SimpleNamespace(nodes={"n1": SimpleNamespace(x=10.0, y=12.0)}, edges={})
+        cached_payload = self._member_payload("old", 40.0, "g1", 1)
+        cache = self._cache_with_a_drawn_group(cached_payload)
+        payload_builder = _FakePayloadBuilder()
+        payload_builder.node_payload = self._member_payload("updated", 90.0, "", 0)
+        context = _FakeContext(cache, workspace, payload_builder=payload_builder)
+
+        sync = ScenePayloadCacheSync(context)
+
+        self.assertIsNone(sync.replace_cached_full_node_payloads({"n1"}))
+        self.assertIs(cache.nodes[0], cached_payload)
+        self.assertIn(("payload_cache_group_membership_fallback", 1, "geometry_changed"), context.mutation_counters)
+
+    def test_removal_changes_group_membership_for_groups_members_and_undrawn_nodes(self) -> None:
+        workspace = SimpleNamespace(nodes={}, edges={})
+        cache = _GraphScenePayloadCache(
+            nodes=[{"node_id": "free", "owner_backdrop_id": ""}, {"node_id": "member", "owner_backdrop_id": "g1"}],
+            backdrop_nodes=[{"node_id": "g1", "owner_backdrop_id": ""}],
+            minimap_nodes=[{"node_id": "free"}, {"node_id": "member"}, {"node_id": "g1"}],
+            edges=[],
+        )
+        cache.rebuild_indexes()
+        sync = ScenePayloadCacheSync(_FakeContext(cache, workspace))
+
+        self.assertFalse(sync.removal_changes_group_membership(set()))
+        self.assertFalse(sync.removal_changes_group_membership({"free"}))
+        self.assertTrue(sync.removal_changes_group_membership({"free", "member"}))
+        self.assertTrue(sync.removal_changes_group_membership({"g1"}))
+        self.assertTrue(sync.removal_changes_group_membership({"hidden"}))
+
+        without_groups = _GraphScenePayloadCache(
+            nodes=[{"node_id": "free", "owner_backdrop_id": ""}],
+            minimap_nodes=[{"node_id": "free"}],
+            edges=[],
+        )
+        without_groups.rebuild_indexes()
+        self.assertFalse(
+            ScenePayloadCacheSync(_FakeContext(without_groups, workspace)).removal_changes_group_membership(
+                {"free", "hidden"}
+            )
+        )
+
     def test_node_delta_payload_reuses_replaced_payload_dicts_at_boundary(self) -> None:
         state_bridge = SimpleNamespace(node_delta_payload={})
         cache = _GraphScenePayloadCache(nodes=[], backdrop_nodes=[], minimap_nodes=[], edges=[])

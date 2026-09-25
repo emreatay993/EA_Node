@@ -1,10 +1,12 @@
-# Purpose: Offscreen scene tests for identity membership of collapsed Groups: freeze/clear lists, corner containment, level-by-level make room on expand, locks, guard, strays, Peek, carry, marquee, delete, subnode, fill-in.
+# Purpose: Offscreen scene tests for identity membership of collapsed Groups: freeze/clear lists, corner containment, level-by-level make room on expand, locks, guard, strays, Peek, carry, marquee, delete, subnode, fill-in, removal publication, membership kept by targeted payload updates, and wrapping at the drawn size.
 # Map: feature_routes/group_backdrops_peek_membership
 # Tests: tests/test_group_backdrop_identity_membership.py
 from __future__ import annotations
 
 import copy
 import unittest
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -12,6 +14,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
+from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_scene_mutation.node_creation_batch import NodeCreationRequest
@@ -69,9 +72,36 @@ class _IdentityCase(unittest.TestCase):
     def drawn(self) -> set[str]:
         return {str(row["node_id"]) for row in (*self.scene.nodes_model, *self.scene.backdrop_nodes_model)}
 
+    def row(self, node_id: str) -> dict[str, Any]:
+        return next(row for row in (*self.scene.nodes_model, *self.scene.backdrop_nodes_model) if row["node_id"] == node_id)
+
     def owner(self, node_id: str) -> str:
-        row = next(row for row in (*self.scene.nodes_model, *self.scene.backdrop_nodes_model) if row["node_id"] == node_id)
-        return str(row["owner_backdrop_id"])
+        return str(self.row(node_id)["owner_backdrop_id"])
+
+    @contextmanager
+    def counting_full_rebuilds(self) -> Iterator[list[str]]:
+        rebuilds: list[str] = []
+        scene_context = self.scene._scene_context  # noqa: SLF001
+        original_rebuild_models = scene_context.rebuild_models
+
+        def _counting_rebuild_models() -> None:
+            rebuilds.append("rebuild")
+            original_rebuild_models()
+
+        scene_context.rebuild_models = _counting_rebuild_models
+        try:
+            yield rebuilds
+        finally:
+            scene_context.rebuild_models = original_rebuild_models
+
+    def assert_group_contains_drawn(self, group_id: str, node_id: str) -> None:
+        drawn = self.scene.node_bounds(node_id)
+        x, y, width, height = self.group_rect(group_id)
+        self.assertTrue(
+            x < drawn.x() and drawn.x() + drawn.width() < x + width
+            and y < drawn.y() and drawn.y() + drawn.height() < y + height,
+            (drawn, (x, y, width, height)),
+        )
 
     def undo_depth(self) -> int:
         return self.context.runtime_history.undo_depth(self.context.workspace_id())
@@ -156,8 +186,6 @@ class CollapseFreezeTests(_IdentityCase):
         self.assertEqual(self.owner(meshing), simulation)
 
         self.scene.set_node_title(meshing, "M" * 120)
-        # A rename's targeted payload update drops the cached owner fields (separate bug #4); read a full rebuild.
-        self.scene._scene_context.rebuild_models()  # noqa: SLF001
         pill = self.scene.node_bounds(meshing)
         self.assertGreater(pill.width(), 400.0)
         self.assertEqual(self.owner(meshing), simulation)
@@ -434,6 +462,23 @@ class GrowingNodeRegressionTests(_IdentityCase):
         self.assertEqual(self.undo_depth(), depth)
         self.assertIn("would have to grow", self.scene.take_expand_refusal_reason())
 
+    def test_expanding_a_collapsed_plot_in_a_tight_group_grows_the_group_around_its_settings_band(self) -> None:
+        for open_settings in (False, True):
+            with self.subTest(open_settings=open_settings):
+                self.setUp()
+                plot = self.add(PLOT, 40, 120)
+                if open_settings:
+                    for settings_group in self.context.registry.get_spec(PLOT).settings_groups:
+                        self.assertTrue(self.scene.set_node_settings_group_expanded(plot, settings_group.group_id, True))
+                self.collapse(plot)
+                group = self.scene.wrap_node_ids_in_group_backdrop([plot])
+
+                self.expand(plot)
+
+                # The expanded size includes the settings band that a plain surface measure leaves out.
+                self.assertEqual(self.owner(plot), group)
+                self.assert_group_contains_drawn(group, plot)
+
 
 class PeekTests(_IdentityCase):
     def test_expanding_a_peeked_member_grows_the_expanded_size_and_keeps_the_pill(self) -> None:
@@ -648,9 +693,9 @@ class MarqueeDeleteSubnodeTests(_IdentityCase):
         self.scene.remove_node(outer)
 
         self.assertIsNone(self.node(inner).held_member_ids)
-        self.scene.refresh_workspace_from_model(self.context.workspace_id())
-        self.scene._scene_context.rebuild_models()  # noqa: SLF001
+        self.assertEqual(self.drawn(), {inner, member})
         self.assertEqual(self.owner(member), inner)
+        self.assertEqual(self.owner(inner), "")
 
     def test_grouping_into_a_subnode_moves_a_collapsed_group_with_its_held_members(self) -> None:
         group = self.group(0, 0, 600, 400, "G")
@@ -668,6 +713,182 @@ class MarqueeDeleteSubnodeTests(_IdentityCase):
         for node_id in (group, first, second, other):
             self.assertEqual(self.node(node_id).parent_node_id, shell, node_id)
         self.assertEqual(self.node(group).held_member_ids, tuple(sorted([first, second])))
+
+
+class RemovalPublicationTests(_IdentityCase):
+    """A removal that changes membership or visibility is drawn at once, without waiting for a later rebuild."""
+
+    def test_context_menu_remove_of_a_collapsed_group_draws_what_it_held_and_undo_redo_restore_it(self) -> None:
+        outer = self.group(0, 0, 900, 600, "Outer")
+        inner = self.group(60, 100, 400, 300, "Inner")
+        member = self.add(PROCESS, 100, 200)
+        loose = self.add(PROCESS, 600, 200)
+        self.collapse(outer)
+        # The context-menu Remove Node action runs this interaction (workspace_edit_controller.request_remove_node).
+        interactions = GraphInteractions(self.scene, self.context.registry, self.context.runtime_history)
+
+        self.assertTrue(interactions.remove_node(outer).ok)
+
+        self.assertEqual(self.drawn(), {inner, member, loose})
+        self.assertEqual((self.owner(member), self.owner(inner), self.owner(loose)), (inner, "", ""))
+        self.undo()
+        self.assertEqual(self.drawn(), {outer})
+        self.assertEqual(self.node(inner).held_member_ids, (member,))
+        self.redo()
+        self.assertEqual(self.drawn(), {inner, member, loose})
+        self.assertIsNone(self.node(inner).held_member_ids)
+        self.assertEqual(self.owner(member), inner)
+
+    def test_redoing_the_removal_of_a_collapsed_group_draws_what_it_held(self) -> None:
+        group = self.group(0, 0, 600, 400, "G")
+        first = self.add(PROCESS, 40, 120)
+        second = self.add(PROCESS, 300, 200)
+        self.collapse(group)
+        self.scene.remove_node(group)
+        self.assertEqual(self.drawn(), {first, second})
+        self.undo()
+        self.assertEqual(self.drawn(), {group})
+
+        # Only the Group differs between the snapshots, so redo replays the removal as a topology delta.
+        self.redo()
+
+        self.assertEqual(self.drawn(), {first, second})
+
+    def test_removing_an_expanded_group_rehomes_its_members(self) -> None:
+        parent = self.group(0, 0, 1200, 800, "Parent")
+        group = self.group(100, 120, 600, 400, "G")
+        member = self.add(PROCESS, 160, 240)
+
+        self.scene.remove_node(group)
+
+        self.assertEqual(self.owner(member), parent)
+        self.assertEqual(self.row(parent)["member_node_ids"], [member])
+        self.assertEqual(self.row(parent)["member_backdrop_ids"], [])
+
+    def test_removing_a_member_drops_it_from_its_groups_lists(self) -> None:
+        parent = self.group(0, 0, 1200, 800, "Parent")
+        group = self.group(100, 120, 600, 400, "G")
+        member = self.add(PROCESS, 160, 240)
+        other = self.add(PROCESS, 420, 240)
+
+        self.scene.remove_node(member)
+
+        self.assertEqual(self.row(group)["member_node_ids"], [other])
+        self.assertEqual(self.row(parent)["contained_node_ids"], [other])
+
+    def test_deleting_a_selected_collapsed_group_removes_what_it_holds_and_updates_its_parent(self) -> None:
+        parent = self.group(0, 0, 1200, 800, "Parent")
+        group = self.group(100, 120, 600, 400, "G")
+        inner = self.group(140, 240, 300, 200, "Inner")
+        member = self.add(PROCESS, 180, 320)
+        sibling = self.add(PROCESS, 800, 240)
+        self.collapse(group)
+        self.scene.clear_selection()
+        self.scene.select_node(group, False)
+
+        self.assertTrue(self.scene.delete_selected_graph_items([]))
+
+        self.assertFalse({group, inner, member} & set(self.context.active_workspace().nodes))
+        self.assertEqual(self.drawn(), {parent, sibling})
+        self.assertEqual(self.row(parent)["member_node_ids"], [sibling])
+        self.assertEqual(self.row(parent)["member_backdrop_ids"], [])
+        self.assertEqual(self.row(parent)["contained_node_ids"], [sibling])
+
+    def test_removing_a_node_outside_every_group_keeps_the_targeted_delta(self) -> None:
+        self.group(0, 0, 600, 400, "G")
+        self.add(PROCESS, 40, 120)
+        free = self.add(PROCESS, 900, 120)
+
+        with self.counting_full_rebuilds() as rebuilds:
+            self.scene.remove_node(free)
+
+        self.assertEqual(rebuilds, [])
+        self.assertNotIn(free, self.drawn())
+
+
+class TargetedPayloadMembershipTests(_IdentityCase):
+    """Rename, lock, comment and link rebuild one payload, which keeps the owner and member fields."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.parent = self.group(0, 0, 1200, 800, "Parent")
+        self.inner = self.group(100, 120, 600, 400, "Inner")
+        self.member = self.add(PROCESS, 160, 240)
+
+    def assert_membership_kept(self) -> None:
+        member, inner, parent = self.row(self.member), self.row(self.inner), self.row(self.parent)
+        self.assertEqual((member["owner_backdrop_id"], member["backdrop_depth"]), (self.inner, 2))
+        self.assertEqual((inner["owner_backdrop_id"], inner["backdrop_depth"]), (self.parent, 1))
+        self.assertEqual((inner["member_node_ids"], inner["contained_node_ids"]), ([self.member], [self.member]))
+        self.assertEqual((parent["member_backdrop_ids"], parent["contained_backdrop_ids"]), ([self.inner], [self.inner]))
+        self.assertEqual(parent["contained_node_ids"], [self.member])
+
+    def check_targeted_edit(self, edit: Callable[[str], object]) -> None:
+        for node_id in (self.member, self.inner):
+            with self.subTest(node_id=node_id), self.counting_full_rebuilds() as rebuilds:
+                edit(node_id)
+                self.assertEqual(rebuilds, [])  # still the one-payload update
+                self.assert_membership_kept()
+
+    def test_rename_keeps_owner_and_member_fields(self) -> None:
+        self.check_targeted_edit(lambda node_id: self.scene.set_node_title(node_id, f"Renamed {node_id}"))
+
+    def test_lock_keeps_owner_and_member_fields(self) -> None:
+        self.check_targeted_edit(lambda node_id: self.scene.set_node_locked(node_id, True))
+
+    def test_comment_keeps_owner_and_member_fields(self) -> None:
+        self.check_targeted_edit(lambda node_id: self.scene.upsert_node_comment(node_id, "", "Check the mesh."))
+
+    def test_link_keeps_owner_and_member_fields(self) -> None:
+        self.check_targeted_edit(
+            lambda node_id: self.scene.upsert_node_link(node_id, "", "url", "Docs", "https://example.com/docs")
+        )
+
+    def test_undoing_a_rename_keeps_owner_and_member_fields(self) -> None:
+        self.scene.set_node_title(self.inner, "Renamed")
+
+        self.undo()
+
+        self.assertEqual(self.node(self.inner).title, "Inner")
+        self.assert_membership_kept()
+
+    def test_editing_a_peeked_group_keeps_its_members_selectable(self) -> None:
+        group = self.group(1400, 0, 600, 400, "Peeked")
+        held = self.add(PROCESS, 1440, 120)
+        self.collapse(group)
+        self.assertTrue(self.scene.open_comment_peek(group))
+
+        self.scene.upsert_node_comment(group, "", "Look inside.")
+        self.scene.upsert_node_link(group, "", "url", "Docs", "https://example.com/docs")
+
+        # Peek draws and selects only what the peeked Group's payload lists.
+        self.assertEqual(self.row(group)["member_node_ids"], [held])
+        self.scene.clear_selection()
+        self.scene.select_node(held, False)
+        self.assertEqual(self.context.selected_node_ids(), [held])
+
+
+class WrapDrawnSizeTests(_IdentityCase):
+    """A wrap fits the Group to the nodes as drawn, settings bands included, so the Group owns them."""
+
+    def test_wrapping_a_plot_makes_a_group_that_owns_it(self) -> None:
+        plot = self.add(PLOT, 100, 100)
+
+        group = self.scene.wrap_node_ids_in_group_backdrop([plot])
+
+        self.assertEqual(self.owner(plot), group)
+        self.assert_group_contains_drawn(group, plot)
+
+    def test_wrapping_a_plot_with_its_settings_groups_open_makes_a_group_that_owns_it(self) -> None:
+        plot = self.add(PLOT, 100, 100)
+        for settings_group in self.context.registry.get_spec(PLOT).settings_groups:
+            self.assertTrue(self.scene.set_node_settings_group_expanded(plot, settings_group.group_id, True))
+        self.assertGreater(self.scene.node_bounds(plot).height(), 1000.0)
+
+        group = self.scene.wrap_node_ids_in_group_backdrop([plot])
+
+        self.assertEqual(self.owner(plot), group)
+        self.assert_group_contains_drawn(group, plot)
 
 
 class FillInTests(unittest.TestCase):

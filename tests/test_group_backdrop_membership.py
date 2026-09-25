@@ -552,6 +552,27 @@ class GroupBackdropSceneIntegrationTests(unittest.TestCase):
         self.assertAlmostEqual(float(occupied["width"]), 460.0, places=6)
         self.assertAlmostEqual(float(occupied["height"]), 300.0, places=6)
 
+    def test_wrap_selection_fits_the_drawn_sizes_it_is_given(self) -> None:
+        logger_id = self._add_workspace_node(LOGGER_TYPE_ID, 100.0, 100.0)
+        expected = build_group_backdrop_wrap_bounds(
+            [GroupBackdropCandidate(logger_id, (), False, 100.0, 100.0, 300.0, 500.0)]
+        )
+
+        result = wrap_selection_in_group_backdrop(
+            model=self.model,
+            registry=self.registry,
+            workspace_id=self.workspace_id,
+            selected_node_ids=[logger_id],
+            scope_path=(),
+            node_sizes={logger_id: (300.0, 500.0)},
+        )
+
+        assert result is not None and expected is not None
+        self.assertEqual(
+            (result.x, result.y, result.width, result.height),
+            (expected.x, expected.y, expected.width, expected.height),
+        )
+
     def test_wrap_selection_transaction_rejects_cross_scope_node_sets(self) -> None:
         root_logger_id = self._add_workspace_node(LOGGER_TYPE_ID, 40.0, 40.0)
         shell_id = self._add_workspace_node(SUBNODE_TYPE_ID, 220.0, 120.0)

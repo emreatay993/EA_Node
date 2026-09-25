@@ -114,10 +114,7 @@ def expand_collision_avoidance_updates(
     if grown_to is None and use_current_presentation_bounds:
         grown_to = _current_presentation_bounds(self, node_id)
     if grown_to is None:
-        spec = registry.spec_or_none(node.type_id)
-        if spec is None:
-            return empty
-        grown_to = node_layout_bounds(self, workspace, node, spec, expanded=True)
+        grown_to = node_layout_bounds(self, workspace, node, expanded=True)
     if grown_to is None:
         return empty
     settings = normalize_expand_collision_avoidance_settings(self._scene_context.graphics_expand_collision_avoidance)

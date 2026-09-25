@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters, fallback_graph_boundary_adapters
 from ea_node_editor.graph.group_backdrop_geometry import (
@@ -26,7 +26,14 @@ def wrap_selection_in_group_backdrop(
     selected_node_ids: Sequence[object],
     scope_path: Sequence[object] | None,
     boundary_adapters: GraphBoundaryAdapters | None = None,
+    node_sizes: Mapping[str, tuple[float, float]] | None = None,
 ) -> GroupBackdropWrapResult | None:
+    """Add a Group around the selected nodes of one scope, padded like every wrap.
+
+    ``node_sizes`` holds the size each node is drawn at; the scene passes it, because the boundary adapters do not see
+    everything a drawn node shows (settings bands), and a Group fitted to a smaller size would not contain its node.
+    Nodes it leaves out are measured with the boundary adapters.
+    """
     workspace = model.project.workspaces.get(str(workspace_id).strip())
     if workspace is None:
         return None
@@ -46,7 +53,8 @@ def wrap_selection_in_group_backdrop(
         if node_scope_path(workspace, node_id) != normalized_scope:
             return None
         spec = registry.get_spec(node.type_id)
-        width, height = adapters.node_size(node, spec, workspace.nodes)
+        drawn_size = None if node_sizes is None else node_sizes.get(node_id)
+        width, height = drawn_size if drawn_size is not None else adapters.node_size(node, spec, workspace.nodes)
         selected_candidates.append(
             GroupBackdropCandidate(
                 node_id=node_id,

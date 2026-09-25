@@ -17,7 +17,7 @@ from ea_node_editor.graph.type_forwarding import GraphTypeResolver
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 from ea_node_editor.ui.graph_theme import GraphThemeDefinition
-from ea_node_editor.ui_qml.graph_scene.payload_cache_sync import ScenePayloadCacheSync
+from ea_node_editor.ui_qml.graph_scene.payload_cache_sync import ScenePayloadCacheSync, node_payload_geometry
 from ea_node_editor.ui_qml.graph_scene_payload import GraphScenePayloadBuilder
 
 if TYPE_CHECKING:
@@ -442,6 +442,9 @@ class _GraphSceneContext:
         removed_ids = self._normalized_id_set(list(removed_edge_ids or set()))
         updated_ids = self._normalized_id_set(list(updated_edge_ids or set())) - removed_ids - added_ids
         removed_nodes = self._normalized_id_set(list(removed_node_ids or set()))
+        if self._payload_cache_sync.removal_changes_group_membership(removed_nodes):
+            self.rebuild_models()
+            return True
         dirty_nodes = self._normalized_id_set(list(dirty_node_ids or set())) | removed_nodes
         forwarding_nodes, forwarding_edges, pruned_edges = self._forwarding_payload_delta()
         dirty_nodes |= forwarding_nodes
@@ -987,9 +990,12 @@ class _GraphSceneContext:
 
         timing_enabled = self.mutation_timing_enabled()
         payload_start = time.perf_counter()
+        slot_mismatches_before = cache.slot_identity_mismatch_count
         updated_payloads = self._payload_cache_sync.replace_cached_node_payload(normalized_node_id, node)
         if updated_payloads is None:
-            self.record_mutation_counter("payload_cache_slot_identity_mismatch", reason=publication_path)
+            # A replacement can also give up because Group membership may have changed; only a stale slot is counted.
+            if cache.slot_identity_mismatch_count != slot_mismatches_before:
+                self.record_mutation_counter("payload_cache_slot_identity_mismatch", reason=publication_path)
             self.rebuild_models()
             return True
         if timing_enabled:
@@ -1022,16 +1028,6 @@ class _GraphSceneContext:
                 )
         return True
 
-    @staticmethod
-    def _node_geometry_signature(payload: dict[str, Any]) -> tuple[float, float, float, float]:
-        values: list[float] = []
-        for key in ("x", "y", "width", "height"):
-            try:
-                values.append(round(float(payload.get(key, 0.0)), 6))
-            except (TypeError, ValueError):
-                values.append(0.0)
-        return values[0], values[1], values[2], values[3]
-
     def publish_node_title_payload_delta(
         self,
         node_id: str,
@@ -1059,7 +1055,7 @@ class _GraphSceneContext:
             return True
         collection_name, index = location
         collection = cache.nodes if collection_name == "nodes" else cache.backdrop_nodes
-        previous_geometry = self._node_geometry_signature(collection[index])
+        previous_geometry = node_payload_geometry(collection[index])
 
         timing_enabled = self.mutation_timing_enabled()
         payload_start = time.perf_counter()
@@ -1075,7 +1071,7 @@ class _GraphSceneContext:
             return True
         node_payloads, minimap_payloads = replacements
         current_geometry = (
-            self._node_geometry_signature(node_payloads[0])
+            node_payload_geometry(node_payloads[0])
             if node_payloads
             else previous_geometry
         )

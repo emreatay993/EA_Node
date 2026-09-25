@@ -18,6 +18,7 @@ from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import (
     group_membership_for_scope,
     grow_group_around,
     is_group_backdrop_spec,
+    scene_layout_bounds,
 )
 
 
@@ -37,6 +38,16 @@ def wrap_nodes_in_group_backdrop(self, node_ids: list[Any]) -> str:
     workspace = model.project.workspaces.get(self._scene_context.workspace_id)
     if workspace is None:
         return ""
+    # Fit the Group to the nodes as drawn, or it may not contain the ones whose drawn size the adapters miss.
+    drawn = scene_layout_bounds(
+        self,
+        workspace,
+        [
+            workspace.nodes[node_id]
+            for node_id in dict.fromkeys(str(value).strip() for value in node_ids)
+            if node_id in workspace.nodes
+        ],
+    )
 
     wrapped = None
     held_in_peek = False
@@ -55,6 +66,7 @@ def wrap_nodes_in_group_backdrop(self, node_ids: list[Any]) -> str:
                 selected_node_ids=node_ids,
                 scope_path=self._scene_context.scope_path,
                 boundary_adapters=self._boundary_adapters,
+                node_sizes={node_id: (rect.width, rect.height) for node_id, rect in drawn.items()},
             ),
         )
         if wrapped is not None:

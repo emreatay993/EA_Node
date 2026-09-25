@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Collection, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Any, Sequence
 
 from ea_node_editor.graph.hierarchy import ScopePath
@@ -56,6 +56,11 @@ class GroupBackdropMembership:
     member_backdrop_ids: tuple[str, ...] = ()
     contained_node_ids: tuple[str, ...] = ()
     contained_backdrop_ids: tuple[str, ...] = ()
+
+
+# The membership a scene payload projects for every node (the GroupBackdropMembership fields): derived from geometry and
+# stored lists each time, never stored in a document.
+GROUP_BACKDROP_MEMBERSHIP_FIELDS = tuple(field.name for field in fields(GroupBackdropMembership))
 
 
 @dataclass(slots=True, frozen=True)
@@ -412,6 +417,7 @@ def strictly_contains(owner: GroupBackdropCandidate, candidate: GroupBackdropCan
 
 __all__ = [
     "CORNER_CANDIDATE_SIZE",
+    "GROUP_BACKDROP_MEMBERSHIP_FIELDS",
     "GROUP_BACKDROP_WRAP_MIN_HEIGHT",
     "GROUP_BACKDROP_WRAP_MIN_WIDTH",
     "GROUP_BACKDROP_WRAP_BOTTOM_PADDING",

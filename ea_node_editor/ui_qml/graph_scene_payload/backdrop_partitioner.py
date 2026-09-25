@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 
 from ea_node_editor.graph.group_backdrop_geometry import (
+    GROUP_BACKDROP_MEMBERSHIP_FIELDS,
     GroupBackdropCandidate,
     GroupBackdropMembership,
     build_group_backdrop_occupied_bounds,
@@ -369,6 +370,25 @@ class _GraphSceneBackdropPartitioner:
         node_payload["member_backdrop_ids"] = list(membership.member_backdrop_ids)
         node_payload["contained_node_ids"] = list(membership.contained_node_ids)
         node_payload["contained_backdrop_ids"] = list(membership.contained_backdrop_ids)
+
+    @staticmethod
+    def carry_group_backdrop_membership_payload(
+        node_payload: dict[str, Any],
+        previous_payload: Mapping[str, Any],
+        *,
+        is_group_backdrop: bool,
+    ) -> None:
+        """Copy a cached payload's membership onto a payload rebuilt for that node alone, which cannot compute it.
+
+        Valid only while membership cannot have changed (the caller checks the node is drawn where and as large as
+        before). A Group also keeps its occupied bounds, which follow from its members.
+        """
+        for key in GROUP_BACKDROP_MEMBERSHIP_FIELDS:
+            if key in previous_payload:
+                value = previous_payload[key]
+                node_payload[key] = list(value) if isinstance(value, (list, tuple)) else value
+        if is_group_backdrop and "expanded_occupied_bounds" in previous_payload:
+            node_payload["expanded_occupied_bounds"] = dict(previous_payload["expanded_occupied_bounds"])
 
     def apply_expanded_occupied_bounds_payload(
         self,

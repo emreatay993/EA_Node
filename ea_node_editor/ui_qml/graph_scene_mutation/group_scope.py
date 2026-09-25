@@ -27,62 +27,68 @@ from ea_node_editor.graph.hierarchy import node_scope_path, scope_node_ids
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.transform_layout_ops import LayoutNodeBounds
 from ea_node_editor.graph.workspace_state import WorkspaceData
-from ea_node_editor.ui_qml.graph_surface_metrics import resolved_node_surface_size
 
 if TYPE_CHECKING:
     from ea_node_editor.nodes.node_specs import NodeTypeSpec
 
-_MISSING = object()
 _UPDATE_TOLERANCE = 0.01
+
+
+def scene_layout_bounds(
+    self,
+    workspace: WorkspaceData,
+    nodes: Iterable[NodeInstance],
+    *,
+    workspace_nodes: Mapping[str, NodeInstance] | None = None,
+    expanded: bool = False,
+) -> dict[str, LayoutNodeBounds]:
+    """Each node's rectangle as the canvas draws it, or with ``expanded`` as it would be drawn expanded.
+
+    A drawn node reads its cached payload; any other node (hidden, just added, or measured expanded) is measured the way
+    a payload build sizes it, settings bands included, so Group layout never disagrees with the membership the payloads
+    compute. Nodes without a spec are left out.
+    """
+    bounds: dict[str, LayoutNodeBounds] = {}
+    pending: list[NodeInstance] = []
+    for node in nodes:
+        cached_bounds = None if expanded else _cached_node_layout_bounds(self, node.node_id)
+        if cached_bounds is None:
+            pending.append(node)
+        else:
+            bounds[node.node_id] = cached_bounds
+    context = self._scene_context
+    if pending and context.registry is not None:
+        bounds.update(
+            context._payload_builder.measure_node_layout_bounds(
+                workspace=workspace,
+                registry=context.registry,
+                nodes=pending,
+                workspace_nodes=workspace_nodes,
+                show_port_labels=context.graphics_show_port_labels,
+                graph_label_pixel_size=context.graphics_graph_label_pixel_size,
+                graph_node_icon_pixel_size=context.graphics_node_title_icon_pixel_size,
+                expanded=expanded,
+            )
+        )
+    return bounds
 
 
 def node_layout_bounds(
     self,
     workspace: WorkspaceData,
     node: NodeInstance,
-    spec: "NodeTypeSpec",
     *,
-    workspace_nodes: dict[str, NodeInstance] | None = None,
+    workspace_nodes: Mapping[str, NodeInstance] | None = None,
     expanded: bool,
 ) -> LayoutNodeBounds | None:
-    if not expanded:
-        cached_bounds = _cached_node_layout_bounds(self, node.node_id)
-        if cached_bounds is not None:
-            return cached_bounds
-
-    probe = node.clone()
-    if expanded:
-        probe.collapsed = False
-    scoped_nodes = workspace_nodes
-    if scoped_nodes is None:
-        scoped_nodes = dict(workspace.nodes)
-        original_node = _MISSING
-    else:
-        original_node = scoped_nodes.get(node.node_id, _MISSING)
-    scoped_nodes[node.node_id] = probe
-    try:
-        width, height = resolved_node_surface_size(
-            probe,
-            spec,
-            scoped_nodes,
-            show_port_labels=self._scene_context.graphics_show_port_labels,
-            graph_label_pixel_size=self._scene_context.graphics_graph_label_pixel_size,
-            graph_node_icon_pixel_size=self._scene_context.graphics_node_title_icon_pixel_size,
-        )
-    except Exception:  # noqa: BLE001
-        return None
-    finally:
-        if original_node is _MISSING:
-            scoped_nodes.pop(node.node_id, None)
-        else:
-            scoped_nodes[node.node_id] = original_node
-    return LayoutNodeBounds(
-        node_id=node.node_id,
-        x=float(node.x),
-        y=float(node.y),
-        width=max(1.0, float(width)),
-        height=max(1.0, float(height)),
-    )
+    """One node's :func:`scene_layout_bounds` (``None`` when its type is unknown)."""
+    return scene_layout_bounds(
+        self,
+        workspace,
+        [node],
+        workspace_nodes=workspace_nodes,
+        expanded=expanded,
+    ).get(node.node_id)
 
 
 def _cached_node_layout_bounds(self, node_id: str) -> LayoutNodeBounds | None:
@@ -269,20 +275,30 @@ def collect_group_scope(
     group_backdrop_ids: set[str] = set()
     collapsed_ids: set[str] = set()
     member_lists: dict[str, tuple[str, ...]] = {}
+    scoped: list[tuple[NodeInstance, "NodeTypeSpec"]] = []
     for node_id in scope_ids:
         node = workspace.nodes.get(node_id)
         spec = registry.spec_or_none(node.type_id) if node is not None and registry is not None else None
-        if node is None or spec is None:
-            continue
+        if node is not None and spec is not None:
+            scoped.append((node, spec))
+    drawn_by_id = scene_layout_bounds(self, workspace, [node for node, _spec in scoped], workspace_nodes=workspace_nodes)
+    expanded_by_id = scene_layout_bounds(
+        self,
+        workspace,
+        [node for node, spec in scoped if is_group_backdrop_spec(spec) and bool(node.collapsed)],
+        workspace_nodes=workspace_nodes,
+        expanded=True,
+    )
+    for node, spec in scoped:
+        node_id = node.node_id
         is_backdrop = is_group_backdrop_spec(spec)
-        drawn = node_layout_bounds(self, workspace, node, spec, workspace_nodes=workspace_nodes, expanded=False)
+        drawn = drawn_by_id.get(node_id)
         if drawn is None:
             continue
         held = honoured_held_member_ids(node, is_backdrop=is_backdrop, collapsed_lists_contain=hidden.__contains__)
         rect = drawn
         if is_backdrop and bool(node.collapsed):
-            expanded = node_layout_bounds(self, workspace, node, spec, workspace_nodes=workspace_nodes, expanded=True)
-            expanded_rects[node_id] = expanded or drawn
+            expanded_rects[node_id] = expanded_by_id.get(node_id, drawn)
             collapsed_ids.add(node_id)
             if membership_rect_kind(node, is_backdrop=True, list_honoured=held is not None) == MEMBERSHIP_RECT_EXPANDED:
                 rect = expanded_rects[node_id]
@@ -441,4 +457,5 @@ __all__ = [
     "membership_candidate",
     "node_layout_bounds",
     "rect_strictly_contains",
+    "scene_layout_bounds",
 ]

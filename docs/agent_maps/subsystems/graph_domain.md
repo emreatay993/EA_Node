@@ -25,7 +25,7 @@ Use this for graph data structures, invariants, mutation services, transforms, h
 - `ea_node_editor/graph/validated_mutation.py` for registry-backed node, edge, endpoint reassignment, Python Script Apply, dynamic-port insert/remove/rename, property, parent, exposed-port, and view-filter mutations.
 - `ea_node_editor/graph/record_mutation_ops.py` for record-level graph edits that intentionally use private `GraphModel` record writers.
 - `ea_node_editor/graph/workspace_view_ops.py` for workspace view lifecycle and camera-state mutations.
-- `ea_node_editor/graph/group_backdrop_mutation_ops.py` for group-backdrop wrapping transactions. A Group's stored member list (`NodeInstance.held_member_ids`) is written only through `GraphRecordMutation.set_node_held_member_ids` / `adopt_held_member_ids`, backed by the private `GraphModel._set_node_held_member_ids_record`.
+- `ea_node_editor/graph/group_backdrop_mutation_ops.py` for group-backdrop wrapping transactions; the scene passes the drawn node sizes as `node_sizes` (the boundary adapters leave out settings bands), and nodes it omits are measured with the adapters. A Group's stored member list (`NodeInstance.held_member_ids`) is written only through `GraphRecordMutation.set_node_held_member_ids` / `adopt_held_member_ids`, backed by the private `GraphModel._set_node_held_member_ids_record`.
 - `ea_node_editor/graph/ids.py` for generated graph/project/workspace/view IDs.
 - `ea_node_editor/graph/effective_ports.py`
 - `ea_node_editor/graph/type_forwarding.py` for immutable topology-derived source contracts and all-member compatibility.

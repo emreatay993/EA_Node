@@ -39,6 +39,17 @@ if TYPE_CHECKING:
     from ea_node_editor.ui_qml.graph_scene.context import _GraphSceneContext
 
 
+def node_payload_geometry(payload: dict[str, Any]) -> tuple[float, float, float, float]:
+    """Where and how large a node payload is drawn: ``(x, y, width, height)``."""
+    values: list[float] = []
+    for key in ("x", "y", "width", "height"):
+        try:
+            values.append(round(float(payload.get(key, 0.0)), 6))
+        except (TypeError, ValueError):
+            values.append(0.0)
+    return values[0], values[1], values[2], values[3]
+
+
 class ScenePayloadCacheSync:
     """Cache-mutation collaborator owned by ``_GraphSceneContext``."""
 
@@ -521,6 +532,14 @@ class ScenePayloadCacheSync:
         *,
         changed_fields_by_node_id: dict[str, set[str] | frozenset[str] | tuple[str, ...] | None] | None = None,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
+        """Rebuild the cached payloads of ``node_ids`` one node at a time.
+
+        A single-node build cannot compute Group membership, so while Groups are drawn each rebuilt payload keeps the
+        membership of the payload it replaces. ``None`` means the cache cannot be updated safely and the caller must
+        rebuild the complete scene payload: a location-index slot no longer holds its node, or, while Groups are drawn,
+        a node is now drawn somewhere else or at another size (its membership, other nodes' membership, and the proxy
+        edges of a collapsed Group can change with it).
+        """
         workspace = self._context.workspace_or_none()
         if workspace is None or not node_ids:
             return [], []
@@ -577,6 +596,13 @@ class ScenePayloadCacheSync:
         }
         if set(payload_by_id) != set(node_ids) or set(minimap_payload_by_id) != set(node_ids):
             return None
+        if cache.backdrop_nodes and not self._carry_group_membership(
+            previous_payloads_by_id,
+            payload_by_id,
+            backdrop_ids={str(payload.get("node_id", "") or "").strip() for payload in backdrop_nodes_payload},
+        ):
+            self._context.record_mutation_counter("payload_cache_group_membership_fallback", reason="geometry_changed")
+            return None
 
         updated_nodes: list[dict[str, Any]] = []
         updated_minimap_nodes: list[dict[str, Any]] = []
@@ -598,6 +624,28 @@ class ScenePayloadCacheSync:
             updated_minimap_nodes.append(minimap_replacement)
 
         return updated_nodes, updated_minimap_nodes
+
+    @staticmethod
+    def _carry_group_membership(
+        previous_payloads_by_id: dict[str, dict[str, Any]],
+        payload_by_id: dict[str, dict[str, Any]],
+        *,
+        backdrop_ids: set[str],
+    ) -> bool:
+        """Copy each cached payload's membership onto its rebuilt payload; ``False`` (nothing copied) when a rebuilt
+        node is drawn somewhere else or at another size, so membership may have changed."""
+        if any(
+            node_payload_geometry(previous) != node_payload_geometry(payload_by_id[node_id])
+            for node_id, previous in previous_payloads_by_id.items()
+        ):
+            return False
+        for node_id, previous in previous_payloads_by_id.items():
+            _GraphSceneBackdropPartitioner.carry_group_backdrop_membership_payload(
+                payload_by_id[node_id],
+                previous,
+                is_group_backdrop=node_id in backdrop_ids,
+            )
+        return True
 
     def replace_cached_connection_node_payloads(self, node_ids: set[str]) -> list[dict[str, Any]] | None:
         """Returns ``None`` on a stale location-index slot (see
@@ -661,6 +709,29 @@ class ScenePayloadCacheSync:
             collection[index] = replacement
             updated_payloads.append(replacement)
         return updated_payloads
+
+    def removal_changes_group_membership(self, node_ids: set[str]) -> bool:
+        """Whether removing ``node_ids`` changes what the other cached payloads show, so only a full rebuild is right.
+
+        True while Groups are drawn and a removed node is a drawn Group (its members change owner, and a collapsed
+        Group's hidden members are drawn again), a member of a Group (its owners' member lists shrink), or has no
+        payload (it may be hidden in a collapsed Group, whose lists shrink).
+        """
+        cache = self._context._bridge._payload_cache
+        if not node_ids or not cache.backdrop_nodes:
+            return False
+        if not cache.indexes_valid:
+            cache.rebuild_indexes()
+        for node_id in node_ids:
+            status, location = cache.resolve_node_payload_slot(node_id)
+            if status != "ok" or location is None:
+                return True
+            collection_name, index = location
+            if collection_name == "backdrop_nodes":
+                return True
+            if str(cache.nodes[index].get("owner_backdrop_id", "") or "").strip():
+                return True
+        return False
 
     def remove_cached_node_payloads(self, node_ids: set[str]) -> int:
         if not node_ids:
@@ -883,8 +954,8 @@ class ScenePayloadCacheSync:
         )
 
     def replace_cached_node_payload(self, node_id: str, node: NodeInstance) -> list[dict[str, Any]] | None:
-        """Returns ``None`` on a stale location-index slot (see
-        :meth:`replace_cached_node_position_payloads`)."""
+        """Returns ``None`` when the caller must rebuild the complete scene payload (see
+        :meth:`replace_cached_full_node_payloads`)."""
         del node
         replacement = self.replace_cached_full_node_payloads({node_id})
         if replacement is None:

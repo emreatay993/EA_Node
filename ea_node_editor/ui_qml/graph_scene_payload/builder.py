@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import copy
 from collections import ChainMap
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Mapping
 
@@ -21,6 +21,7 @@ from ea_node_editor.graph.hierarchy import ScopePath
 from ea_node_editor.graph.hierarchy import is_node_in_scope, node_scope_path, scope_edges, scope_node_ids
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.records import NodeInstance
+from ea_node_editor.graph.transform_layout_ops import LayoutNodeBounds
 from ea_node_editor.graph.workspace_state import WorkspaceData
 from ea_node_editor.graph.type_forwarding import GraphTypeResolver
 from ea_node_editor.app_preferences import (
@@ -419,6 +420,54 @@ class GraphScenePayloadBuilder:
                 )
             )
         return nodes_payload, backdrop_nodes_payload, minimap_nodes_payload
+
+    def measure_node_layout_bounds(
+        self,
+        *,
+        workspace: WorkspaceData,
+        registry: NodeRegistry,
+        nodes: Iterable[NodeInstance],
+        workspace_nodes: Mapping[str, NodeInstance] | None = None,
+        show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        graph_node_icon_pixel_size: int | None = None,
+        expanded: bool = False,
+    ) -> dict[str, LayoutNodeBounds]:
+        """Each node's rectangle as a payload build draws it (``expanded``: as it would be drawn expanded), settings
+        bands and view-filtered ports included, without building payloads; nodes without a spec are left out."""
+        nodes = list(nodes)
+        if not nodes:
+            return {}
+        workspace_edges = list(workspace.edges.values())
+        port_connection_counts = _GraphSceneBackdropPartitioner.port_connection_counts(workspace_edges)
+        enabled_input_port_keys_by_node = _GraphSceneBackdropPartitioner.enabled_input_port_keys_by_node(
+            workspace_edges
+        )
+        hide_optional_ports = _GraphSceneBackdropPartitioner.active_view_hide_optional_ports(workspace)
+        graph_label_pixel_size, graph_node_icon_pixel_size = self._presentation_sizes(
+            graph_label_pixel_size,
+            graph_node_icon_pixel_size,
+        )
+        scoped_nodes = workspace.nodes if workspace_nodes is None else workspace_nodes
+        self._node_payload_factory._workspace_edges = workspace.edges
+        bounds: dict[str, LayoutNodeBounds] = {}
+        for node in nodes:
+            spec, _provenance = self._spec_and_provenance(registry, node.type_id, node.properties)
+            if spec is None:
+                continue
+            bounds[str(node.node_id)] = self._node_payload_factory.presentation_bounds(
+                node=node,
+                spec=spec,
+                workspace_nodes=scoped_nodes,
+                enabled_input_port_keys=enabled_input_port_keys_by_node.get(str(node.node_id), frozenset()),
+                port_connection_counts=port_connection_counts,
+                hide_optional_ports=hide_optional_ports,
+                show_port_labels=show_port_labels,
+                graph_label_pixel_size=graph_label_pixel_size,
+                graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+                expanded=expanded,
+            )
+        return bounds
 
     def build_node_connection_payloads_for_ids(
         self,
