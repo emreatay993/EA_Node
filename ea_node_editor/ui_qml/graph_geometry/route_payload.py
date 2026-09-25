@@ -24,8 +24,6 @@ from .anchors import (
 from .route_endpoints import (
     _ResolvedEdgeEndpoint,
     _flow_pipe_route_sides,
-    _flowchart_decision_source_fan_bias,
-    _is_flowchart_surface,
     _presentation_port_anchor,
     _rect_payload,
     _resolve_edge_endpoint,
@@ -386,14 +384,6 @@ def _resolve_edge_payload_context(
     route_source_side, route_target_side = _flow_pipe_route_sides(
         source_endpoint.side, target_endpoint.side
     )
-    if (
-        edge_family == "flow"
-        and _is_flowchart_surface(source_spec)
-        and _is_flowchart_surface(target_spec)
-    ):
-        source_fan += _flowchart_decision_source_fan_bias(
-            source_spec, edge.source_port_key
-        )
 
     source_effective_port = find_port(
         node=source_node,

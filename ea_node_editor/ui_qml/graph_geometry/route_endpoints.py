@@ -88,22 +88,6 @@ def port_scene_pos(
     return QPointF(node.x + local_x, node.y + local_y)
 
 
-def _is_flowchart_surface(spec: NodeTypeSpec) -> bool:
-    return str(spec.surface_family or "").strip() == "flowchart"
-
-
-def _flowchart_decision_source_fan_bias(spec: NodeTypeSpec, source_port_key: str) -> float:
-    if not _is_flowchart_surface(spec):
-        return 0.0
-    if str(spec.surface_variant or "").strip() != "decision":
-        return 0.0
-    if source_port_key == "branch_a":
-        return -12.0
-    if source_port_key == "branch_b":
-        return 12.0
-    return 0.0
-
-
 def _rect_center_x(bounds: QRectF) -> float:
     return float(bounds.left() + bounds.width() * 0.5)
 
