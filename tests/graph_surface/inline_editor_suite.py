@@ -842,6 +842,159 @@ class PassiveGraphSurfaceInlineEditorTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_flowchart_grow_to_fit_previews_while_editing_and_commits_one_resize(self) -> None:
+        self._run_qml_probe(
+            "flowchart-grow-to-fit-inline-edit-host",
+            """
+            long_body = (
+                "Review the incoming request, confirm the approval owner, check the remaining budget, "
+                "route the case to finance, and notify the requester once the decision is recorded."
+            )
+            payload = flowchart_payload("decision", properties={"body": "Approve?", "body_fit": "grow"})
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            window = attach_host_to_window(host, width=640, height=900)
+            try:
+                previews = []
+                finished = []
+                host.resizePreviewChanged.connect(
+                    lambda node_id, x, y, width, height, active: previews.append((float(height), bool(active)))
+                )
+                host.resizeFinished.connect(
+                    lambda node_id, x, y, width, height: finished.append((node_id, float(width), float(height)))
+                )
+
+                def round_trip(node_id, key, value):
+                    # Stand in for the scene: committed properties come back in nodeData.
+                    payload["properties"][str(key)] = variant_value(value)
+                    host.setProperty("nodeData", dict(payload))
+
+                host.inlinePropertyCommitted.connect(round_trip)
+                settle_events(4)
+                assert finished == [], finished
+                base_height = float(host.height())
+
+                body_text = host.findChild(QObject, "graphNodeFlowchartBodyText")
+                body_editor = host.findChild(QObject, "graphNodeFlowchartBodyEditor")
+                body_field = host.findChild(QObject, "graphNodeFlowchartBodyEditorField")
+                mouse_double_click(window, item_scene_point(body_text))
+                settle_events(5)
+                assert bool(body_editor.property("visible"))
+
+                body_field.setProperty("text", long_body)
+                settle_events(4)
+                assert bool(host.property("_liveGeometryActive"))
+                assert float(host.height()) > base_height + 40.0, (base_height, host.height())
+                assert previews and previews[-1][1] is True, previews
+                assert finished == [], "no commit while the editor is open"
+
+                mouse_click(window, host_scene_point(host, 24.0, 6.0))
+                settle_events(6)
+                assert payload["properties"]["body"] == long_body
+                assert len(finished) == 1, finished
+                assert finished[0][0] == "node_surface_host_test"
+                assert abs(finished[0][1] - 236.0) < 0.01
+                assert finished[0][2] > base_height + 40.0
+                assert previews[-1] == (finished[0][2], False), previews[-1]
+                assert not bool(host.property("_liveGeometryActive"))
+
+                payload["height"] = finished[0][2]
+                host.setProperty("nodeData", dict(payload))
+                settle_events(3)
+                previews.clear()
+                mouse_double_click(window, item_scene_point(body_text))
+                settle_events(5)
+                body_field.setProperty("text", long_body + " " + long_body)
+                settle_events(4)
+                assert bool(host.property("_liveGeometryActive"))
+                app.sendEvent(
+                    body_field,
+                    QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
+                )
+                app.sendEvent(
+                    body_field,
+                    QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
+                )
+                settle_events(5)
+                assert len(finished) == 1, "cancel keeps the committed size"
+                assert previews[-1] == (finished[0][2], False), previews[-1]
+                assert not bool(host.property("_liveGeometryActive"))
+                assert abs(float(host.height()) - finished[0][2]) < 0.01
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
+    def test_flowchart_grow_to_fit_persists_resize_through_scene_history_and_undo(self) -> None:
+        self._run_qml_probe(
+            "flowchart-grow-to-fit-scene-history",
+            """
+            from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
+
+            # Short words keep every word narrower than the diamond's text region in any font.
+            long_body = " ".join(["Ask the team to sign off, log the plan, and tell the lead."] * 4)
+            registry = build_default_registry()
+            model = GraphModel()
+            workspace_id = model.active_workspace.workspace_id
+            workspace = model.project.workspaces[workspace_id]
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            node_id = scene.add_node_from_type("passive.flowchart.decision", 120.0, 80.0)
+            scene.set_node_property(node_id, "body", long_body)
+            history = RuntimeGraphHistory()
+            scene.bind_runtime_history(history)
+            history.clear_workspace(workspace_id)
+
+            view = ViewportBridge()
+            view.set_viewport_size(1200.0, 900.0)
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {"sceneBridge": scene, "viewBridge": view, "width": 1200.0, "height": 900.0},
+            )
+            window = attach_host_to_window(canvas, width=1200, height=900)
+            try:
+                settle_events(6)
+
+                def node_row():
+                    return next(item for item in scene.nodes_model if item["node_id"] == node_id)
+
+                def overflow_marks():
+                    return [
+                        str(block.property("overflowMark"))
+                        for block in named_child_items(canvas, "graphNodeFlowchartRichTextBlock")
+                    ]
+
+                before = node_row()
+                assert history.undo_depth(workspace_id) == 0, history.undo_depth(workspace_id)
+                assert overflow_marks() == ["elide"], overflow_marks()
+
+                scene.set_node_property(node_id, "body_fit", "grow")
+                settle_events(8)
+                grown = node_row()
+                assert grown["width"] == before["width"], (before["width"], grown["width"])
+                assert grown["height"] > before["height"] + 40.0, (before["height"], grown["height"])
+                assert abs(float(workspace.nodes[node_id].custom_height) - float(grown["height"])) < 0.01, (
+                    workspace.nodes[node_id].custom_height,
+                    grown["height"],
+                )
+                assert history.undo_depth(workspace_id) == 2, history.undo_depth(workspace_id)
+                assert overflow_marks() == [""], overflow_marks()
+
+                assert history.undo_workspace(workspace_id, workspace) is not None, "undo"
+                scene.refresh_workspace_from_model(workspace_id)
+                settle_events(8)
+                assert node_row()["height"] == before["height"], "undo keeps the pre-grow size"
+                assert history.undo_depth(workspace_id) == 1, history.undo_depth(workspace_id)
+
+                assert history.redo_workspace(workspace_id, workspace) is not None, "redo"
+                scene.refresh_workspace_from_model(workspace_id)
+                settle_events(8)
+                assert node_row()["height"] == grown["height"], (node_row()["height"], grown["height"])
+                assert history.undo_depth(workspace_id) == 2, history.undo_depth(workspace_id)
+            finally:
+                dispose_host_window(canvas, window)
+            """,
+        )
+
     def test_passive_annotation_body_text_double_click_edits_body_and_subtitle_inline(self) -> None:
         self._run_qml_probe(
             "annotation-inline-edit-host",

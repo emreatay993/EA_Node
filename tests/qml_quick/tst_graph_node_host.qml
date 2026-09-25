@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtTest 1.3
 import "../../ea_node_editor/ui_qml/components/graph" as Graph
+import "../../ea_node_editor/ui_qml/components/graph/passive/FlowchartShapeGeometry.js" as FlowchartShapeGeometry
 import "../../ea_node_editor/ui_qml/components/shell" as Shell
 
 TestCase {
@@ -40,6 +41,11 @@ TestCase {
     Component {
         id: propertyCommitSpyComponent
         SignalSpy { signalName: "inlinePropertyCommitted" }
+    }
+
+    Component {
+        id: resizeFinishedSpyComponent
+        SignalSpy { signalName: "resizeFinished" }
     }
 
     Component {
@@ -1702,6 +1708,333 @@ TestCase {
         compare(bodyText.font.pixelSize, 17)
         verify(bodyText.font.bold)
         compare(String(bodyText.color).toLowerCase(), "#204060")
+    }
+
+    function flowchartLongBody() {
+        return "Review the incoming request, confirm the approval owner, check the remaining "
+            + "budget, route the case to finance, and notify the requester once the decision is recorded."
+    }
+
+    function shortLines(count) {
+        var words = ["Ask", "the", "team", "to", "sign", "off", "and", "log", "the", "plan", "then", "tell", "the", "lead"]
+        return words.slice(0, count).join("\n")
+    }
+
+    function flowchartTextFitPayload(variant, fitMode, width, height) {
+        var payload = flowchartPayload(variant)
+        payload.node_id = "node_flowchart_text_fit_" + variant
+        payload.properties = {
+            "title": variant,
+            "body": flowchartLongBody(),
+            "body_fit": fitMode
+        }
+        payload.width = width
+        payload.height = height
+        return payload
+    }
+
+    function copiedPayloadWith(payload, key, value) {
+        var next = JSON.parse(JSON.stringify(payload))
+        next.properties[key] = value
+        return next
+    }
+
+    function visibleNamedItem(rootItem, objectName) {
+        var matches = findNamedItems(rootItem, objectName)
+        for (var index = 0; index < matches.length; ++index) {
+            if (visibleWithin(matches[index], rootItem))
+                return matches[index]
+        }
+        return null
+    }
+
+    function loadedFlowchartSurface(host) {
+        tryVerify(function() {
+            var surfaces = findNamedItems(host, "graphNodeFlowchartSurface")
+            return surfaces.length === 1 && findNamedItems(host, "graphNodeFlowchartRichTextBlock").length === 1
+        })
+        return findNamedItems(host, "graphNodeFlowchartSurface")[0]
+    }
+
+    function test_flowchart_text_regions_follow_each_shapes_inscribed_area() {
+        var pad = FlowchartShapeGeometry.TEXT_REGION_PADDING
+        var margins = {"left": 20, "right": 20, "vertical": 18}
+
+        var diamondBounds = FlowchartShapeGeometry.outlineBounds(236, 128, 1)
+        var diamond = FlowchartShapeGeometry.bodyTextRegion("decision", "inscribed_diamond", 236, 128, 1, margins)
+        fuzzyCompare(diamond.width, diamondBounds.widthValue * 0.5 - 2 * pad, 0.001)
+        fuzzyCompare(diamond.height, diamondBounds.heightValue * 0.5 - 2 * pad, 0.001)
+        fuzzyCompare(diamond.x + diamond.width * 0.5, diamondBounds.centerX, 0.001)
+        fuzzyCompare(diamond.y + diamond.height * 0.5, diamondBounds.centerY, 0.001)
+        var diamondCornerReach = (diamond.width * 0.5) / (diamondBounds.widthValue * 0.5)
+            + (diamond.height * 0.5) / (diamondBounds.heightValue * 0.5)
+        verify(diamondCornerReach < 1.0, "the text corners stay inside the diamond")
+
+        var ellipseBounds = FlowchartShapeGeometry.outlineBounds(300, 300, 1)
+        var ellipse = FlowchartShapeGeometry.bodyTextRegion("connector", "inscribed_ellipse", 300, 300, 1, margins)
+        fuzzyCompare(ellipse.width + 2 * pad, ellipseBounds.widthValue * Math.SQRT1_2, 0.001)
+        fuzzyCompare(ellipse.height + 2 * pad, ellipseBounds.heightValue * Math.SQRT1_2, 0.001)
+        var cornerX = (ellipse.width * 0.5) / (ellipseBounds.widthValue * 0.5)
+        var cornerY = (ellipse.height * 0.5) / (ellipseBounds.heightValue * 0.5)
+        verify(cornerX * cornerX + cornerY * cornerY < 1.0, "the text corners stay inside the ellipse")
+
+        var slantBounds = FlowchartShapeGeometry.outlineBounds(236, 94, 1)
+        var slant = FlowchartShapeGeometry.inputOutputSlant(slantBounds)
+        var inputOutput = FlowchartShapeGeometry.bodyTextRegion("input_output", "between_slants", 236, 94, 1, margins)
+        fuzzyCompare(inputOutput.x, slantBounds.left + slant + pad, 0.001)
+        fuzzyCompare(inputOutput.x + inputOutput.width, slantBounds.right - slant - pad, 0.001)
+        fuzzyCompare(inputOutput.y, margins.vertical, 0.001)
+
+        var documentBounds = FlowchartShapeGeometry.outlineBounds(228, 104, 1)
+        var documentRegion = FlowchartShapeGeometry.bodyTextRegion("document", "above_wave", 228, 104, 1, margins)
+        fuzzyCompare(documentRegion.y, documentBounds.top + pad, 0.001)
+        fuzzyCompare(
+            documentRegion.y + documentRegion.height,
+            FlowchartShapeGeometry.documentWaveCrestY(documentBounds, 1) - pad,
+            0.001
+        )
+        fuzzyCompare(documentRegion.x, margins.left, 0.001)
+
+        var databaseBounds = FlowchartShapeGeometry.outlineBounds(228, 128, 1)
+        var cap = FlowchartShapeGeometry.databaseCapHeight(databaseBounds, 1)
+        var databaseRegion = FlowchartShapeGeometry.bodyTextRegion("database", "between_caps", 228, 128, 1, margins)
+        fuzzyCompare(databaseRegion.y, databaseBounds.top + 2 * cap + pad, 0.001)
+        fuzzyCompare(databaseRegion.y + databaseRegion.height, databaseBounds.bottom - cap - pad, 0.001)
+
+        var calloutBounds = FlowchartShapeGeometry.outlineBounds(260, 120, 1)
+        var callout = FlowchartShapeGeometry.bodyTextRegion("callout", "above_tail", 260, 120, 1, margins)
+        fuzzyCompare(callout.y, calloutBounds.top + pad, 0.001)
+        fuzzyCompare(
+            callout.y + callout.height,
+            calloutBounds.bottom - FlowchartShapeGeometry.calloutTailHeight(calloutBounds, 1) - pad,
+            0.001
+        )
+
+        var process = FlowchartShapeGeometry.bodyTextRegion("process", "center", 224, 84, 1, {"left": 18, "right": 18, "vertical": 16})
+        compare([process.x, process.y, process.width, process.height], [18, 16, 188, 52])
+        var terminator = FlowchartShapeGeometry.bodyTextRegion("start", "between_end_caps", 228, 78, 1, {"left": 30, "right": 30, "vertical": 16})
+        compare([terminator.x, terminator.width], [30, 168], "default terminators keep their contract margins")
+        var tallTerminator = FlowchartShapeGeometry.bodyTextRegion("start", "between_end_caps", 228, 200, 1, {"left": 30, "right": 30, "vertical": 16})
+        verify(tallTerminator.x > 30, "tall terminators pull the text clear of the round caps")
+    }
+
+    function test_flowchart_grow_searches_find_the_smallest_fitting_size() {
+        var tallEnough = function(width, height) { return height >= 300 }
+        var grown = FlowchartShapeGeometry.growHeightToFit(tallEnough, 200, 100)
+        compare(grown.width, 200)
+        compare(grown.height, 300)
+        compare(FlowchartShapeGeometry.growHeightToFit(tallEnough, 200, 320), null)
+        compare(FlowchartShapeGeometry.growHeightToFit(function() { return false }, 200, 100, 900), null)
+
+        var largeEnough = function(width, height) { return width * height >= 200 * 100 }
+        var scaled = FlowchartShapeGeometry.growScaleToFit(largeEnough, 100, 50)
+        verify(scaled.width >= 200 && scaled.width <= 201, JSON.stringify(scaled))
+        verify(Math.abs(scaled.width / scaled.height - 2.0) < 0.03, JSON.stringify(scaled))
+        compare(FlowchartShapeGeometry.growScaleToFit(largeEnough, 300, 300), null)
+    }
+
+    function test_flowchart_body_uses_the_shape_region_and_marks_clipped_text() {
+        mouseMove(stage, 1, 1)
+        var host = createHost(flowchartTextFitPayload("decision", "clip", 236, 128))
+        verify(host !== null)
+        var surface = loadedFlowchartSurface(host)
+        compare(surface.bodyTextPlacement, "inscribed_diamond")
+        var expected = FlowchartShapeGeometry.bodyTextRegion(
+            "decision", "inscribed_diamond", host.width, host.height, surface.bodyStrokeWidth, surface.bodyTextMargins
+        )
+        var bodyBounds = findNamedItems(host, "graphNodeFlowchartBodyBounds")[0]
+        fuzzyCompare(bodyBounds.x, expected.x, 0.001)
+        fuzzyCompare(bodyBounds.y, expected.y, 0.001)
+        fuzzyCompare(bodyBounds.width, expected.width, 0.001)
+        fuzzyCompare(bodyBounds.height, expected.height, 0.001)
+
+        var block = findNamedItems(host, "graphNodeFlowchartRichTextBlock")[0]
+        var rendered = findNamedItems(host, "graphNodeFlowchartBodyText")[0]
+        tryVerify(function() { return block.contentOverflowing })
+        verify(surface.bodyTextOverflowing)
+        compare(block.overflowMark, "elide")
+        compare(rendered.verticalAlignment, Text.AlignTop)
+        compare(rendered.elide, Text.ElideRight)
+        compare(rendered.maximumLineCount, block.overflowLineLimit)
+        verify(rendered.truncated, "clipped plain text ends on an elided whole line")
+        verify(rendered.contentHeight <= bodyBounds.height + 0.5, "elided height " + rendered.contentHeight + " / " + bodyBounds.height + " lines " + rendered.lineCount + " limit " + block.overflowLineLimit)
+        compare(visibleNamedItem(host, "graphNodeFlowchartBodyOverflowIndicator"), null)
+
+        host.nodeData = copiedPayloadWith(host.nodeData, "body_format", "markdown")
+        tryCompare(block, "overflowMark", "pill")
+        verify(visibleNamedItem(host, "graphNodeFlowchartBodyOverflowIndicator") !== null,
+            "Qt cannot elide rich text, so markdown shows the pill")
+        compare(rendered.elide, Text.ElideNone)
+
+        var shortPlain = copiedPayloadWith(host.nodeData, "body", "Approve?")
+        shortPlain.properties.body_format = "plain"
+        host.nodeData = shortPlain
+        tryVerify(function() { return !block.contentOverflowing })
+        compare(block.overflowMark, "")
+        compare(visibleNamedItem(host, "graphNodeFlowchartBodyOverflowIndicator"), null)
+        compare(rendered.verticalAlignment, Text.AlignVCenter)
+        verify(!rendered.truncated, "short text is not truncated")
+    }
+
+    function test_flowchart_shrink_to_fit_scales_the_body_font_into_the_region() {
+        // Eight one-word lines overflow the region at 12 px and fit at 6 px in any font.
+        var payload = flowchartTextFitPayload("decision", "shrink", 236, 200)
+        payload.properties.body = shortLines(8)
+        var host = createHost(payload)
+        verify(host !== null)
+        var surface = loadedFlowchartSurface(host)
+        var block = findNamedItems(host, "graphNodeFlowchartRichTextBlock")[0]
+        var rendered = findNamedItems(host, "graphNodeFlowchartBodyText")[0]
+        var bodyBounds = findNamedItems(host, "graphNodeFlowchartBodyBounds")[0]
+        verify(surface.bodyShrinkToFit)
+        tryVerify(function() { return block.effectiveFontSize < block.fontSizeValue })
+        compare(rendered.font.pixelSize, block.effectiveFontSize)
+        verify(block.effectiveFontSize >= block.fontSizeMinimum)
+        verify(rendered.contentHeight <= bodyBounds.height + 0.5)
+        verify(!block.contentOverflowing)
+        compare(block.overflowMark, "")
+
+        var novel = []
+        for (var index = 0; index < 12; ++index)
+            novel.push(flowchartLongBody())
+        host.nodeData = copiedPayloadWith(host.nodeData, "body", novel.join(" "))
+        tryCompare(block, "effectiveFontSize", block.fontSizeMinimum)
+        tryVerify(function() { return block.contentOverflowing })
+        tryCompare(block, "overflowMark", "elide")
+        verify(rendered.truncated)
+    }
+
+    function test_flowchart_grow_to_fit_commits_a_resize_through_the_host() {
+        var payload = flowchartTextFitPayload("decision", "clip", 236, 128)
+        var host = createHost(payload)
+        verify(host !== null)
+        var surface = loadedFlowchartSurface(host)
+        var spy = createTemporaryObject(resizeFinishedSpyComponent, testCase, {"target": host})
+        verify(spy !== null)
+        wait(0)
+        compare(spy.count, 0, "clip mode never resizes")
+
+        host.nodeData = copiedPayloadWith(host.nodeData, "body_fit", "grow")
+        tryCompare(spy, "count", 1)
+        var args = spy.signalArguments[0]
+        compare(args[0], "node_flowchart_text_fit_decision")
+        compare(args[1], 120.0)
+        compare(args[2], 120.0)
+        compare(args[3], 236.0, "a free-aspect shape keeps its width")
+        verify(args[4] > 128.0)
+        verify(surface._textFitsBody(args[3], args[4]))
+        verify(!surface._textFitsBody(args[3], args[4] - 2.0), "the committed height is the smallest that fits")
+        verify(!host._liveGeometryActive)
+
+        var loadedPayload = flowchartTextFitPayload("decision", "grow", 236, 128)
+        loadedPayload.node_id = "node_flowchart_text_fit_loaded_grow"
+        loadedPayload.x = 420.0
+        var loadedHost = createHost(loadedPayload)
+        var loadedSpy = createTemporaryObject(resizeFinishedSpyComponent, testCase, {"target": loadedHost})
+        loadedFlowchartSurface(loadedHost)
+        tryCompare(loadedSpy, "count", 1)
+        compare(loadedSpy.signalArguments[0][0], "node_flowchart_text_fit_loaded_grow")
+        compare(loadedSpy.signalArguments[0][4], args[4], "a shape loaded in grow mode fits its text too")
+    }
+
+    function test_flowchart_grow_to_fit_keeps_square_shapes_square() {
+        var host = createHost(flowchartTextFitPayload("connector", "clip", 108, 108))
+        verify(host !== null)
+        var surface = loadedFlowchartSurface(host)
+        verify(surface.bodyAspectLocked)
+        var baseRatio = host.width / host.height
+        var spy = createTemporaryObject(resizeFinishedSpyComponent, testCase, {"target": host})
+        host.nodeData = copiedPayloadWith(host.nodeData, "body_fit", "grow")
+        tryCompare(spy, "count", 1)
+        var args = spy.signalArguments[0]
+        verify(args[3] > host.width && args[4] > host.height)
+        verify(
+            Math.abs(args[3] / args[4] - baseRatio) < 0.02,
+            "square shapes grow in both directions: " + args[3] + "x" + args[4] + " from " + host.width + "x" + host.height
+        )
+        verify(surface._textFitsBody(args[3], args[4]))
+    }
+
+    function test_flowchart_grow_to_fit_leaves_read_only_nodes_marked() {
+        var payload = flowchartTextFitPayload("decision", "clip", 236, 128)
+        payload.read_only = true
+        var host = createHost(payload)
+        verify(host !== null)
+        loadedFlowchartSurface(host)
+        var spy = createTemporaryObject(resizeFinishedSpyComponent, testCase, {"target": host})
+        host.nodeData = copiedPayloadWith(host.nodeData, "body_fit", "grow")
+        wait(20)
+        compare(spy.count, 0)
+        var block = findNamedItems(host, "graphNodeFlowchartRichTextBlock")[0]
+        tryCompare(block, "overflowMark", "elide")
+    }
+
+    function test_flowchart_text_fit_toolbar_group_commits_body_fit() {
+        var host = createHost(flowchartTextFitPayload("decision", "clip", 236, 128))
+        verify(host !== null)
+        var surface = loadedFlowchartSurface(host)
+        var ids = surface.surfaceActions.map(function(action) { return action.id })
+        var fitIndex = ids.indexOf("text_fit_group")
+        verify(fitIndex > 0, JSON.stringify(ids))
+        compare(ids[fitIndex - 1], "text_wrap_group")
+        var group = surface.surfaceActions[fitIndex]
+        compare(group.icon, "crop")
+        compare(group.popoverActions.map(function(action) { return action.id }), ["text_fit_clip", "text_fit_grow", "text_fit_shrink"])
+        compare(group.popoverActions.map(function(action) { return action.checked }), [true, false, false])
+
+        var events = []
+        host.inlinePropertyCommitted.connect(function(nodeId, key, value) {
+            events.push([String(nodeId), String(key), value])
+        })
+        verify(surface.dispatchSurfaceAction("text_fit_shrink"))
+        compare(events.length, 1)
+        compare(events[0], ["node_flowchart_text_fit_decision", "body_fit", "shrink"])
+        verify(surface.dispatchSurfaceAction("text_fit_clip"), "choosing the current mode is accepted")
+        compare(events.length, 1, "without committing again")
+        verify(!surface.dispatchSurfaceAction("text_fit_group"))
+    }
+
+    function test_flowchart_grow_to_fit_resize_drag_keeps_the_text_inside() {
+        mouseMove(stage, 1, 1)
+        var payload = flowchartTextFitPayload("process", "grow", 300, 320)
+        payload.properties.body = shortLines(10)
+        payload.x = 40.0
+        payload.y = 20.0
+        var host = createHost(payload)
+        verify(host !== null)
+        var surface = loadedFlowchartSurface(host)
+        var floor = surface.minimumNodeHeightForWidth(300)
+        verify(floor > host._minNodeHeight && floor < 320 - 60, "floor " + floor + " min " + host._minNodeHeight)
+        verify(surface._textFitsBody(300, floor))
+        verify(!surface._textFitsBody(300, floor - 2.0))
+        compare(surface.minimumNodeHeightForWidth(300), floor)
+        var clipPayload = flowchartTextFitPayload("process", "clip", 224, 84)
+        clipPayload.node_id = "node_flowchart_text_fit_clip_process"
+        clipPayload.x = 480.0
+        clipPayload.y = 440.0
+        var clipHost = createHost(clipPayload)
+        compare(loadedFlowchartSurface(clipHost).minimumNodeHeightForWidth(224), 0.0, "only grow-to-fit raises the floor")
+
+        var handle = null
+        var handles = findNamedItems(host, "graphNodeResizeHandle")
+        for (var index = 0; index < handles.length; ++index) {
+            if (handles[index].cornerRole === "bottomRight")
+                handle = handles[index]
+        }
+        verify(handle !== null)
+        mouseMove(host, host.width * 0.5, host.height * 0.5)
+        tryVerify(function() { return handle.visible }, 3000, "handle visible")
+        var dragArea = findNamedItems(handle, "graphNodeResizeDragArea")[0]
+        var pressX = dragArea.width - 1
+        var pressY = dragArea.height - 1
+        mouseMove(dragArea, pressX, pressY)
+        tryVerify(function() { return dragArea.triangleContainsMouse }, 3000, "triangle hover")
+        mousePress(dragArea, pressX, pressY)
+        mouseMove(dragArea, pressX, pressY - 280)
+        tryVerify(function() { return host._liveGeometryActive }, 3000, "live geometry")
+        fuzzyCompare(host._liveHeight, floor, 0.5)
+        mouseRelease(dragArea, pressX, pressY - 280)
+        verify(!host._liveGeometryActive)
     }
 
     function test_graph_node_host_loads_shared_annotation_note_surface() {

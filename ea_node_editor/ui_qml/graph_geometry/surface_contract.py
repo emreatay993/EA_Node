@@ -231,8 +231,23 @@ def _contract_bool(source: Mapping[str, Any], key: str, default: bool = False) -
     return bool(value)
 
 
+# The shape-aware placements (inscribed_*, between_*, above_*, front_page) are resolved
+# against the silhouette in passive/FlowchartShapeGeometry.js.
 _FLOWCHART_BODY_TEXT_PLACEMENTS = frozenset(
-    {"center", "below_shape", "front_face", "above_tail", "cube_front_face"}
+    {
+        "center",
+        "below_shape",
+        "front_face",
+        "cube_front_face",
+        "above_tail",
+        "above_wave",
+        "between_caps",
+        "between_end_caps",
+        "between_slants",
+        "front_page",
+        "inscribed_diamond",
+        "inscribed_ellipse",
+    }
 )
 
 

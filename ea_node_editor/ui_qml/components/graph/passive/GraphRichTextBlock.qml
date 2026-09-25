@@ -34,6 +34,17 @@ GraphShared.GraphSurfaceBase {
     property string editorWrapperObjectName: ""
     property string editorObjectName: "graphBareTextEditor"
     property string editorLayoutProbeObjectName: "graphBareTextEditorLayoutProbe"
+    // Text fitting is opt-in (flowchart bodies): measure the content against the
+    // block, shrink the font to fit, and mark text the block clips.
+    property bool fitMeasurementEnabled: false
+    property bool shrinkToFit: false
+    property bool overflowIndicatorEnabled: false
+    property string overflowIndicatorObjectName: "graphRichTextOverflowIndicator"
+    property int fittedFontSize: 0
+    property bool contentOverflowing: false
+    property bool contentOverflowingVertically: false
+    // Whole lines shown while plain text overflows; the last one is elided.
+    property int overflowLineLimit: 0
     readonly property bool usesPrefixedStyle: stylePropertyPrefix.length > 0
     readonly property bool editorVisible: editingText || editModeAlwaysVisible
     readonly property string textValue: _contentTextValue()
@@ -92,6 +103,46 @@ GraphShared.GraphSurfaceBase {
     readonly property real measuredContentHeight: surface.editorVisible || surface.textCommitPending
         ? Number(editorLayoutProbe.contentHeight || 0)
         : Number(renderedText.contentHeight || 0)
+    // The text the block is about to show: the editor draft until its commit lands.
+    readonly property string measuredText: surface.editorVisible || surface.textCommitPending
+        ? textEditor.text
+        : surface.textValue
+    readonly property bool measuredTextIsPlain: surface.editorVisible || surface.textCommitPending
+        || surface.formatValue !== "markdown"
+    readonly property int effectiveFontSize: surface.shrinkToFit && surface.fittedFontSize > 0
+        ? Math.min(surface.fontSizeValue, surface.fittedFontSize)
+        : surface.fontSizeValue
+    readonly property bool overflowIndicatorVisible: surface.overflowIndicatorEnabled
+        && surface.contentOverflowing
+        && !surface.editorVisible
+        && surface.textValue.length > 0
+    // Clipped plain text ends its last visible line with an ellipsis; Qt cannot
+    // elide rich text, so markdown bodies (and plain text clipped only at the
+    // sides) show the ellipsis pill instead.
+    readonly property bool overflowElisionActive: surface.overflowIndicatorVisible
+        && surface.contentOverflowingVertically
+        && surface.formatValue !== "markdown"
+    readonly property string overflowMark: !surface.overflowIndicatorVisible
+        ? ""
+        : (surface.overflowElisionActive ? "elide" : "pill")
+    readonly property string _fitInputKey: surface.fitMeasurementEnabled
+        ? [
+            surface.measuredText,
+            surface.measuredTextIsPlain,
+            surface.resolvedFontFamily,
+            surface.fontSizeValue,
+            surface.resolvedFontWeight,
+            surface.italicValue,
+            surface.underlineValue,
+            surface.strikeoutValue,
+            surface.letterSpacingValue,
+            surface.lineHeightValue,
+            surface.resolvedTextWrapMode,
+            surface.shrinkToFit,
+            textBounds.width,
+            textBounds.height
+        ].join("\u001f")
+        : ""
     readonly property bool isBoldWeight: fontWeightValue === "bold" || fontWeightValue === "black"
         || fontWeightValue === "demibold"
     readonly property bool bulletListActive: _allTextLinesUseListMode("bullet")
@@ -137,11 +188,77 @@ GraphShared.GraphSurfaceBase {
     Component.onCompleted: {
         if (surface.editModeAlwaysVisible)
             textEditor.text = surface.textValue;
+        surface._recomputeTextFit();
     }
 
     onTextValueChanged: {
         if (surface.editModeAlwaysVisible && !textEditor.activeFocus)
             textEditor.text = surface.textValue;
+    }
+
+    on_FitInputKeyChanged: surface._recomputeTextFit()
+
+    // Lays the shown text out at `width` and `fontPixelSize` without touching the
+    // rendered text; callers use it to fit the text or the node around it.
+    function measureContent(width, fontPixelSize) {
+        fitProbe.width = Math.max(1.0, Number(width) || 1.0);
+        fitProbe.font.pixelSize = Math.max(1, Math.round(Number(fontPixelSize) || surface.fontSizeValue));
+        return {
+            "width": Number(fitProbe.contentWidth || 0),
+            "height": Number(fitProbe.contentHeight || 0)
+        };
+    }
+
+    function _contentFitsBox(fontPixelSize, boxWidth, boxHeight) {
+        var size = surface.measureContent(boxWidth, fontPixelSize);
+        return size.height <= boxHeight + 0.5 && size.width <= boxWidth + 0.5;
+    }
+
+    function _clearTextFit() {
+        surface.fittedFontSize = 0;
+        surface.contentOverflowing = false;
+        surface.contentOverflowingVertically = false;
+        surface.overflowLineLimit = 0;
+    }
+
+    function _recomputeTextFit() {
+        if (!surface.fitMeasurementEnabled || surface.measuredText.length === 0) {
+            surface._clearTextFit();
+            return;
+        }
+        var boxWidth = Math.max(0.0, Number(textBounds.width) || 0.0);
+        var boxHeight = Math.max(0.0, Number(textBounds.height) || 0.0);
+        if (boxWidth < 1.0 || boxHeight < 1.0) {
+            surface._clearTextFit();
+            return;
+        }
+        var size = surface.fontSizeValue;
+        if (surface.shrinkToFit && !surface._contentFitsBox(size, boxWidth, boxHeight)) {
+            // Largest whole pixel size that fits, bounded below by the style minimum.
+            var low = surface.fontSizeMinimum;
+            var high = size;
+            if (surface._contentFitsBox(low, boxWidth, boxHeight)) {
+                while (high - low > 1) {
+                    var middle = Math.floor((low + high) / 2);
+                    if (surface._contentFitsBox(middle, boxWidth, boxHeight))
+                        low = middle;
+                    else
+                        high = middle;
+                }
+            }
+            size = low;
+        }
+        surface.fittedFontSize = surface.shrinkToFit ? size : 0;
+        var measured = surface.measureContent(boxWidth, size);
+        var lineLimit = 0;
+        if (measured.height > boxHeight + 0.5 && surface.measuredTextIsPlain) {
+            // Plain text lays out in even lines, so clip between them instead of mid-line.
+            var lineStep = measured.height / Math.max(1, Number(fitProbe.lineCount) || 1);
+            lineLimit = Math.max(1, Math.floor((boxHeight + 0.5) / Math.max(1.0, lineStep)));
+        }
+        surface.overflowLineLimit = lineLimit;
+        surface.contentOverflowingVertically = measured.height > boxHeight + 0.5;
+        surface.contentOverflowing = surface.contentOverflowingVertically || measured.width > boxWidth + 0.5;
     }
 
     Timer {
@@ -1266,7 +1383,7 @@ GraphShared.GraphSurfaceBase {
             color: surface.textColorValue
             opacity: surface.opacityValue
             font.family: surface.resolvedFontFamily
-            font.pixelSize: surface.fontSizeValue
+            font.pixelSize: surface.effectiveFontSize
             font.weight: surface.resolvedFontWeight
             font.italic: surface.italicValue
             font.underline: surface.underlineValue
@@ -1275,11 +1392,16 @@ GraphShared.GraphSurfaceBase {
             antialiasing: true
             wrapMode: surface.resolvedTextWrapMode
             horizontalAlignment: surface.resolvedHorizontalAlignment
-            verticalAlignment: surface.resolvedVerticalAlignment
+            // Clipped text starts at the top so its beginning stays readable.
+            verticalAlignment: surface.overflowIndicatorEnabled && surface.contentOverflowingVertically
+                ? Text.AlignTop
+                : surface.resolvedVerticalAlignment
             lineHeightMode: Text.ProportionalHeight
             lineHeight: surface.lineHeightValue
-            maximumLineCount: surface.maximumLineCount > 0 ? surface.maximumLineCount : 2147483647
-            elide: surface.elideMode
+            maximumLineCount: surface.overflowIndicatorVisible && surface.overflowLineLimit > 0
+                ? surface.overflowLineLimit
+                : (surface.maximumLineCount > 0 ? surface.maximumLineCount : 2147483647)
+            elide: surface.overflowElisionActive ? Text.ElideRight : surface.elideMode
             renderType: surface.highQualityTextRenderType
             renderTypeQuality: surface.highQualityTextRenderQuality
         }
@@ -1294,7 +1416,7 @@ GraphShared.GraphSurfaceBase {
             text: surface.placeholderValue
             color: host ? Qt.alpha(host.inlineDrivenTextColor, 0.62) : "#8D98A8"
             font.family: surface.resolvedFontFamily
-            font.pixelSize: surface.fontSizeValue
+            font.pixelSize: surface.effectiveFontSize
             font.italic: true
             antialiasing: true
             wrapMode: Text.WordWrap
@@ -1312,7 +1434,7 @@ GraphShared.GraphSurfaceBase {
             text: textEditor.text
             textFormat: Text.PlainText
             font.family: surface.resolvedFontFamily
-            font.pixelSize: surface.fontSizeValue
+            font.pixelSize: surface.effectiveFontSize
             font.weight: surface.resolvedFontWeight
             font.italic: surface.italicValue
             font.underline: surface.underlineValue
@@ -1321,6 +1443,25 @@ GraphShared.GraphSurfaceBase {
             wrapMode: surface.resolvedTextWrapMode
             lineHeightMode: Text.ProportionalHeight
             lineHeight: surface.lineHeightValue
+        }
+
+        Text {
+            id: fitProbe
+            visible: false
+            text: surface.fitMeasurementEnabled ? surface.measuredText : ""
+            textFormat: surface.measuredTextIsPlain ? Text.PlainText : Text.MarkdownText
+            font.family: surface.resolvedFontFamily
+            font.weight: surface.resolvedFontWeight
+            font.italic: surface.italicValue
+            font.underline: surface.underlineValue
+            font.strikeout: surface.strikeoutValue
+            font.letterSpacing: surface.letterSpacingValue
+            wrapMode: surface.resolvedTextWrapMode
+            lineHeightMode: Text.ProportionalHeight
+            lineHeight: surface.lineHeightValue
+            // Same renderer as the shown text: glyph advances, and so line breaks, depend on it.
+            renderType: surface.highQualityTextRenderType
+            renderTypeQuality: surface.highQualityTextRenderQuality
         }
 
         TextArea {
@@ -1338,7 +1479,7 @@ GraphShared.GraphSurfaceBase {
             selectedTextColor: host ? host.surfaceColor : "#1b1d22"
             horizontalAlignment: surface.resolvedHorizontalAlignment
             font.family: surface.resolvedFontFamily
-            font.pixelSize: surface.fontSizeValue
+            font.pixelSize: surface.effectiveFontSize
             font.weight: surface.resolvedFontWeight
             font.italic: surface.italicValue
             font.underline: surface.underlineValue
@@ -1373,6 +1514,36 @@ GraphShared.GraphSurfaceBase {
                 } else if (event.key === Qt.Key_Escape) {
                     surface._cancelTextEdit();
                     event.accepted = true;
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        id: overflowPill
+        objectName: surface.overflowIndicatorObjectName
+        visible: surface.overflowMark === "pill"
+        width: 20
+        height: 9
+        radius: height * 0.5
+        x: textBounds.x + (textBounds.width - width) * 0.5
+        y: textBounds.y + Math.max(0, Math.min(textBounds.height - height, renderedText.contentHeight + 2))
+        color: host ? host.surfaceColor : "#1b1d22"
+        border.width: 1
+        border.color: Qt.alpha(surface.textColorValue, 0.45)
+
+        Row {
+            anchors.centerIn: parent
+            spacing: 2
+
+            Repeater {
+                model: 3
+
+                Rectangle {
+                    width: 2.5
+                    height: 2.5
+                    radius: 1.25
+                    color: surface.textColorValue
                 }
             }
         }

@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from ea_node_editor.nodes.builtins.rich_text_properties import rich_text_extra_slot_property_specs
 from ea_node_editor.nodes.builtins.passive_flow_ports import CARDINAL_PASSIVE_FLOW_PORTS
-from ea_node_editor.nodes.decorators import node_type, plugin_descriptor, prop_bool, prop_str
+from ea_node_editor.nodes.decorators import node_type, plugin_descriptor, prop_bool, prop_enum, prop_str
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 
 PASSIVE_FLOWCHART_CATEGORY = "Flowchart"
+# How body text that outgrows its shape is shown: clipped (with an overflow mark),
+# the shape grown to fit it, or the text shrunk to fit the shape.
+PASSIVE_FLOWCHART_BODY_FIT_MODES = ("clip", "grow", "shrink")
 
 PASSIVE_FLOWCHART_START_TYPE_ID = "passive.flowchart.start"
 PASSIVE_FLOWCHART_END_TYPE_ID = "passive.flowchart.end"
@@ -49,6 +52,15 @@ def _flowchart_title_property(
     ]
     if not live_timestamp:
         properties.extend(rich_text_extra_slot_property_specs("body"))
+        properties.append(
+            prop_enum(
+                "body_fit",
+                PASSIVE_FLOWCHART_BODY_FIT_MODES[0],
+                "Text Fit",
+                values=PASSIVE_FLOWCHART_BODY_FIT_MODES,
+                inspector_editor="enum",
+            )
+        )
     for key, label in extra_body_fields:
         properties.append(prop_str(key, "", label, inspector_editor="textarea"))
         properties.extend(rich_text_extra_slot_property_specs(key))

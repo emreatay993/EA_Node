@@ -5,6 +5,7 @@ import ".." as GraphComponents
 import "../surface_controls" as SurfaceControls
 import "../GraphNodeHostHitTesting.js" as GraphNodeHostHitTesting
 import "../GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
+import "FlowchartShapeGeometry.js" as FlowchartShapeGeometry
 
 GraphShared.GraphSurfaceBase {
     id: surface
@@ -30,20 +31,53 @@ GraphShared.GraphSurfaceBase {
     readonly property real bodyLeftMargin: host ? Number(host.surfaceMetrics.body_left_margin || 18) : 18
     readonly property real bodyRightMargin: host ? Number(host.surfaceMetrics.body_right_margin || 18) : 18
     readonly property string bodyTextPlacement: GraphNodeSurfaceMetrics.flowchartBodyTextPlacement(_variantKey())
-    readonly property real bodyTextBandFraction: 0.28
     readonly property real shapeCanvasHeight: bodyTextPlacement === "below_shape"
-        ? Math.max(0, surface.height * (1.0 - bodyTextBandFraction))
+        ? Math.max(0, surface.height * (1.0 - FlowchartShapeGeometry.BELOW_SHAPE_BAND_FRACTION))
         : surface.height
     readonly property real isometricCubeOffset: Math.min(surface.width * 0.24, surface.height * 0.5)
     readonly property real isometricFrontFaceCenterY: (surface.height + surface.isometricCubeOffset) * 0.5
-    readonly property real isometricCubeStroke: host ? Math.max(1.0, Number(host.resolvedBorderWidth || 1)) : 1.0
-    readonly property real cubeFrontFaceDepth: Math.min(surface.width * 0.2, surface.height * 0.2)
-    readonly property real cubeFrontFaceCenterX: (surface.width - surface.cubeFrontFaceDepth) * 0.5
-    readonly property real cubeFrontFaceCenterY: (surface.height + surface.cubeFrontFaceDepth) * 0.5
-    readonly property real calloutTailHeight: Math.min(
-        surface.height * 0.3,
-        30.0 + 2.0 * (host ? Math.max(1.0, Number(host.resolvedBorderWidth || 1)) : 1.0)
-    )
+    readonly property real bodyStrokeWidth: host ? Number(host.resolvedBorderWidth || 1) : 1
+    readonly property var bodyTextMargins: ({
+        "left": surface.bodyLeftMargin,
+        "right": surface.bodyRightMargin,
+        "vertical": surface.bodyVerticalInset
+    })
+    // The body text rectangle: the contract placement resolved against this silhouette.
+    readonly property var bodyTextRegion: surface._bodyTextRegionFor(surface.width, surface.height)
+    // Double-click still edits the body anywhere in the former margin box.
+    readonly property var bodyEditHitRegion: surface._bodyEditHitRegion()
+    readonly property var bodyFitModes: ["clip", "grow", "shrink"]
+    readonly property string bodyFitMode: surface.isTimestampSurface
+        ? "clip"
+        : surface._normalizedBodyFitMode(surface.propString("body_fit", "clip"))
+    readonly property bool bodyGrowToFit: surface.bodyFitMode === "grow"
+    readonly property bool bodyShrinkToFit: surface.bodyFitMode === "shrink"
+    // Square variants keep their aspect ratio when grow-to-fit enlarges them.
+    readonly property bool bodyAspectLocked: GraphNodeSurfaceMetrics.flowchartVariantSquare(_variantKey())
+    readonly property bool bodyTextOverflowing: !surface.isTimestampSurface && bodyRichText.contentOverflowing
+    readonly property bool bodyStylePreviewActive: Object.keys(bodyRichText.draftStyle || ({})).length > 0
+    property bool _growPending: false
+    property bool _growPreviewActive: false
+    property var _growPreviewBase: null
+    readonly property string _growInputKey: surface.bodyGrowToFit
+        ? [
+            bodyRichText.measuredText,
+            bodyRichText.measuredTextIsPlain,
+            bodyRichText.resolvedFontFamily,
+            bodyRichText.fontSizeValue,
+            bodyRichText.resolvedFontWeight,
+            bodyRichText.italicValue,
+            bodyRichText.underlineValue,
+            bodyRichText.strikeoutValue,
+            bodyRichText.letterSpacingValue,
+            bodyRichText.lineHeightValue,
+            bodyRichText.resolvedTextWrapMode,
+            bodyRichText.paddingValue,
+            bodyRichText.editorVisible,
+            bodyRichText.textCommitPending,
+            surface.bodyStylePreviewActive
+        ].join("\u001f")
+        : ""
     readonly property bool bodyFallbackSuppressed: _bodyFallbackSuppressed()
     readonly property bool isTimestampSurface: _variantKey() === "timestamp"
     readonly property string timestampBodyPlaceholder: "%date{ddd mmm dd yyyy HH:MM:ss}%"
@@ -54,7 +88,9 @@ GraphShared.GraphSurfaceBase {
     readonly property string timestampManualEditorText: _timestampManualEditorText()
     readonly property var surfaceActions: surface.isTimestampSurface
         ? _surfaceActions()
-        : (_activeRichTextBlock() !== null ? _activeRichTextBlock().surfaceActions : bodyRichText.surfaceActions)
+        : surface._withTextFitAction(
+            _activeRichTextBlock() !== null ? _activeRichTextBlock().surfaceActions : bodyRichText.surfaceActions
+        )
 
     function _propertyText(key) {
         var value = nodeProperties[key];
@@ -81,6 +117,228 @@ GraphShared.GraphSurfaceBase {
 
     function _variantKey() {
         return host ? String(host.surfaceVariant || "").trim().toLowerCase() : "";
+    }
+
+    function _bodyTextRegionFor(width, height) {
+        return FlowchartShapeGeometry.bodyTextRegion(
+            surface._variantKey(),
+            surface.bodyTextPlacement,
+            width,
+            height,
+            surface.bodyStrokeWidth,
+            surface.bodyTextMargins
+        );
+    }
+
+    function _bodyEditHitRegion() {
+        var region = surface.bodyTextRegion;
+        var placement = surface.bodyTextPlacement;
+        if (placement === "center" || placement === "below_shape" || placement === "front_face"
+                || placement === "cube_front_face")
+            return region;
+        var box = FlowchartShapeGeometry.bodyTextRegion(
+            surface._variantKey(),
+            "center",
+            surface.width,
+            surface.height,
+            surface.bodyStrokeWidth,
+            surface.bodyTextMargins
+        );
+        var left = Math.min(region.x, box.x);
+        var top = Math.min(region.y, box.y);
+        return {
+            "x": left,
+            "y": top,
+            "width": Math.max(region.x + region.width, box.x + box.width) - left,
+            "height": Math.max(region.y + region.height, box.y + box.height) - top
+        };
+    }
+
+    function _normalizedBodyFitMode(value) {
+        var normalized = String(value || "").trim().toLowerCase();
+        return surface.bodyFitModes.indexOf(normalized) >= 0 ? normalized : "clip";
+    }
+
+    function _textFitAction() {
+        var mode = surface.bodyFitMode;
+        var icons = {"clip": "crop", "grow": "fit-height", "shrink": "text-decrease"};
+        var labels = {
+            "clip": "Clip overflowing text",
+            "grow": "Grow shape to fit text",
+            "shrink": "Shrink text to fit"
+        };
+        var choices = [];
+        for (var index = 0; index < surface.bodyFitModes.length; ++index) {
+            var choice = surface.bodyFitModes[index];
+            choices.push({
+                "id": "text_fit_" + choice,
+                "label": labels[choice],
+                "icon": icons[choice],
+                "kind": "surface",
+                "checked": mode === choice,
+                "close_popover": true
+            });
+        }
+        return {
+            "id": "text_fit_group",
+            "label": "Text fit: " + labels[mode],
+            "icon": icons[mode],
+            "kind": "surface",
+            "checked": mode !== "clip",
+            "popover_layout": "row",
+            "popoverActions": choices
+        };
+    }
+
+    function _withTextFitAction(actions) {
+        var source = actions || [];
+        var result = [];
+        var inserted = false;
+        for (var index = 0; index < source.length; ++index) {
+            result.push(source[index]);
+            if (!inserted && source[index] && source[index].id === "text_wrap_group") {
+                result.push(surface._textFitAction());
+                inserted = true;
+            }
+        }
+        if (!inserted)
+            result.push(surface._textFitAction());
+        return result;
+    }
+
+    function _setBodyFitMode(mode) {
+        var normalized = String(mode || "").trim().toLowerCase();
+        if (surface.isTimestampSurface || surface.bodyFitModes.indexOf(normalized) < 0)
+            return false;
+        if (normalized !== surface.bodyFitMode)
+            surface._commitProperty("body_fit", normalized);
+        return true;
+    }
+
+    // True when the body text, laid out at its current style, fits the region a
+    // node of this size gives it (height only: growing never cures wide words).
+    function _textFitsBody(width, height) {
+        var region = surface._bodyTextRegionFor(width, height);
+        var padding = Math.max(0.0, Number(bodyRichText.paddingValue) || 0.0);
+        var innerWidth = region.width - 2.0 * padding;
+        var innerHeight = region.height - 2.0 * padding;
+        if (!(innerWidth >= 1.0) || !(innerHeight >= 1.0))
+            return false;
+        var measured = bodyRichText.measureContent(innerWidth, bodyRichText.fontSizeValue);
+        return measured.height <= innerHeight + 0.5;
+    }
+
+    function _grownBodySize(width, height) {
+        var fitsAt = function(candidateWidth, candidateHeight) {
+            return surface._textFitsBody(candidateWidth, candidateHeight);
+        };
+        return surface.bodyAspectLocked
+            ? FlowchartShapeGeometry.growScaleToFit(fitsAt, width, height)
+            : FlowchartShapeGeometry.growHeightToFit(fitsAt, width, height);
+    }
+
+    // Resize handles ask this while dragging so grow-to-fit keeps the text inside.
+    function minimumNodeHeightForWidth(width) {
+        if (!surface.bodyGrowToFit || !host || bodyRichText.measuredText.length === 0)
+            return 0.0;
+        var minimum = Math.max(1.0, Number(host._minNodeHeight) || 1.0);
+        var grown = FlowchartShapeGeometry.growHeightToFit(function(candidateWidth, candidateHeight) {
+            return surface._textFitsBody(candidateWidth, candidateHeight);
+        }, width, minimum);
+        return grown ? grown.height : minimum;
+    }
+
+    function _committedGeometry() {
+        if (!host || !host.nodeData || host._liveGeometryActive)
+            return null;
+        var geometry = {
+            "x": Number(host.nodeData.x),
+            "y": Number(host.nodeData.y),
+            "width": Number(host.width),
+            "height": Number(host.height)
+        };
+        if (!isFinite(geometry.x) || !isFinite(geometry.y)
+                || !(geometry.width > 0.0) || !(geometry.height > 0.0))
+            return null;
+        return geometry;
+    }
+
+    function _scheduleGrowToFit() {
+        if (!surface.bodyGrowToFit && !surface._growPreviewActive) {
+            surface._growPending = false;
+            return;
+        }
+        surface._growPending = surface.bodyGrowToFit;
+        growToFitTimer.restart();
+    }
+
+    function _endGrowPreview() {
+        if (!surface._growPreviewActive)
+            return;
+        var base = surface._growPreviewBase;
+        surface._growPreviewActive = false;
+        surface._growPreviewBase = null;
+        if (host && host.nodeData && base) {
+            host._liveWidth = base.width;
+            host._liveHeight = base.height;
+            host.resizePreviewChanged(String(host.nodeData.node_id || ""), base.x, base.y, base.width, base.height, false);
+        }
+        if (host)
+            host._liveGeometryActive = false;
+    }
+
+    // Grow-to-fit: preview while the text or its style is being edited, then
+    // persist through the normal resize commit so the size saves and undoes.
+    function _applyGrowToFit() {
+        surface._growPending = false;
+        if (!host || !host.nodeData)
+            return;
+        var nodeId = String(host.nodeData.node_id || "");
+        if (!nodeId.length)
+            return;
+        if (!surface.bodyGrowToFit || surface.isTimestampSurface
+                || host.surfaceInteractionLocked || host.isCollapsed) {
+            surface._endGrowPreview();
+            return;
+        }
+        if (host._resizeInteractionActive || bodyRichText.textCommitPending)
+            return;
+        var base = surface._growPreviewActive ? surface._growPreviewBase : surface._committedGeometry();
+        if (!base)
+            return;
+        var grown = surface._grownBodySize(base.width, base.height);
+        var targetWidth = grown ? Math.max(base.width, grown.width) : base.width;
+        var targetHeight = grown ? Math.max(base.height, grown.height) : base.height;
+        var changed = Math.abs(targetWidth - base.width) >= 0.5 || Math.abs(targetHeight - base.height) >= 0.5;
+        if (bodyRichText.editorVisible || surface.bodyStylePreviewActive) {
+            if (!changed) {
+                surface._endGrowPreview();
+                return;
+            }
+            if (!surface._growPreviewActive) {
+                surface._growPreviewBase = base;
+                surface._growPreviewActive = true;
+                host._liveGeometryActive = true;
+                host._liveX = base.x;
+                host._liveY = base.y;
+            }
+            host._liveWidth = targetWidth;
+            host._liveHeight = targetHeight;
+            host.resizePreviewChanged(nodeId, base.x, base.y, targetWidth, targetHeight, true);
+            return;
+        }
+        var previewed = surface._growPreviewActive;
+        if (previewed) {
+            surface._growPreviewActive = false;
+            surface._growPreviewBase = null;
+            host._liveWidth = targetWidth;
+            host._liveHeight = targetHeight;
+            host.resizePreviewChanged(nodeId, base.x, base.y, targetWidth, targetHeight, false);
+        }
+        if (changed)
+            host.resizeFinished(nodeId, base.x, base.y, targetWidth, targetHeight);
+        if (previewed)
+            host._liveGeometryActive = false;
     }
 
     function _bodyFallbackSuppressed() {
@@ -421,6 +679,8 @@ GraphShared.GraphSurfaceBase {
             return surface._updateTimestampNow();
         if (normalized === "timestamp_edit_manual")
             return surface._openTimestampManualEditor();
+        if (normalized === "text_fit_clip" || normalized === "text_fit_grow" || normalized === "text_fit_shrink")
+            return surface._setBodyFitMode(normalized.substring("text_fit_".length));
         var richTextBlock = surface._activeRichTextBlock();
         if (richTextBlock !== null)
             return richTextBlock.dispatchSurfaceAction(actionId);
@@ -436,8 +696,14 @@ GraphShared.GraphSurfaceBase {
             if (bodyRightRichText.requestInlineEditAt(localX, localY))
                 return true;
         }
-        if (!surface.isTimestampSurface)
-            return bodyRichText.requestInlineEditAt(localX, localY);
+        if (!surface.isTimestampSurface) {
+            if (bodyRichText.requestInlineEditAt(localX, localY))
+                return true;
+            if (bodyRichText.editorVisible
+                    || !GraphNodeHostHitTesting.pointInRect(localX, localY, bodyEditInteractionRegion.interactiveRect))
+                return false;
+            return surface._beginBodyEdit();
+        }
         if (surface.editingBody)
             return GraphNodeHostHitTesting.pointInRect(localX, localY, bodyEditorInteractionRegion.interactiveRect);
         if (!GraphNodeHostHitTesting.pointInRect(localX, localY, bodyDisplayInteractionRegion.interactiveRect))
@@ -485,6 +751,25 @@ GraphShared.GraphSurfaceBase {
     onVisibleChanged: {
         if (!visible)
             surface.timestampManualEditorOpen = false;
+    }
+
+    on_GrowInputKeyChanged: surface._scheduleGrowToFit()
+    // New, pasted, and reopened grow-to-fit shapes fit their text on load too.
+    Component.onCompleted: surface._scheduleGrowToFit()
+
+    Timer {
+        id: growToFitTimer
+        interval: 0
+        onTriggered: surface._applyGrowToFit()
+    }
+
+    Connections {
+        target: surface.host
+
+        function on_ResizeInteractionActiveChanged() {
+            if (surface.host && !surface.host._resizeInteractionActive)
+                surface._scheduleGrowToFit();
+        }
     }
 
     Timer {
@@ -606,79 +891,28 @@ GraphShared.GraphSurfaceBase {
     }
 
     Item {
-        id: bodyBounds
-        readonly property real centeredWidth: Math.max(0, parent.width - surface.bodyLeftMargin - surface.bodyRightMargin)
-        readonly property real aboveTailHeight: Math.max(
-            0,
-            parent.height - 2 * surface.bodyVerticalInset - surface.calloutTailHeight
-        )
-        readonly property real centeredHeight: Math.max(0, parent.height - 2 * surface.bodyVerticalInset)
-        readonly property real belowShapeBandTop: parent.height * (1.0 - surface.bodyTextBandFraction)
-        readonly property real belowShapeBandHeight: Math.max(
-            0,
-            parent.height * surface.bodyTextBandFraction - surface.bodyVerticalInset
-        )
-        readonly property real frontFaceWidth: Math.max(0, parent.width * 0.4)
-        readonly property real frontFaceHeight: Math.max(
-            16,
-            Math.min(
-                parent.height * 0.32,
-                parent.height - 2 * surface.isometricCubeOffset - 2 * surface.bodyVerticalInset
-            )
-        )
-        readonly property real cubeFrontFaceWidth: Math.max(
-            0,
-            parent.width - surface.cubeFrontFaceDepth - surface.bodyLeftMargin - surface.bodyRightMargin
-        )
-        readonly property real cubeFrontFaceHeight: Math.max(
-            16,
-            Math.min(
-                parent.height * 0.5,
-                parent.height - surface.cubeFrontFaceDepth - 2 * surface.bodyVerticalInset
-            )
-        )
-        readonly property bool tickBelowShape: surface.bodyTextPlacement === "below_shape"
-            && surface._variantKey() === "tick"
-        readonly property real tickHorizontalShift: tickBelowShape ? -parent.width * 0.08 : 0.0
-        readonly property real tickVerticalShift: tickBelowShape ? parent.height * 0.05 : 0.0
+        id: bodyEditTarget
+        visible: false
+        x: surface.bodyEditHitRegion.x
+        y: surface.bodyEditHitRegion.y
+        width: surface.bodyEditHitRegion.width
+        height: surface.bodyEditHitRegion.height
+    }
 
-        x: {
-            if (surface.bodyTextPlacement === "front_face")
-                return parent.width * 0.05 + tickHorizontalShift;
-            if (surface.bodyTextPlacement === "cube_front_face")
-                return Math.max(surface.bodyLeftMargin, surface.cubeFrontFaceCenterX - cubeFrontFaceWidth * 0.5);
-            return surface.bodyLeftMargin + tickHorizontalShift;
-        }
-        width: {
-            if (surface.bodyTextPlacement === "front_face")
-                return frontFaceWidth;
-            if (surface.bodyTextPlacement === "cube_front_face")
-                return cubeFrontFaceWidth;
-            return centeredWidth;
-        }
-        y: {
-            var base;
-            if (surface.bodyTextPlacement === "below_shape")
-                base = belowShapeBandTop;
-            else if (surface.bodyTextPlacement === "front_face")
-                base = Math.max(0, surface.isometricFrontFaceCenterY - frontFaceHeight * 0.5);
-            else if (surface.bodyTextPlacement === "cube_front_face")
-                base = Math.max(surface.bodyVerticalInset, surface.cubeFrontFaceCenterY - cubeFrontFaceHeight * 0.5);
-            else
-                base = surface.bodyVerticalInset;
-            return base + tickVerticalShift;
-        }
-        height: {
-            if (surface.bodyTextPlacement === "below_shape")
-                return belowShapeBandHeight;
-            if (surface.bodyTextPlacement === "front_face")
-                return frontFaceHeight;
-            if (surface.bodyTextPlacement === "cube_front_face")
-                return cubeFrontFaceHeight;
-            if (surface.bodyTextPlacement === "above_tail")
-                return aboveTailHeight;
-            return centeredHeight;
-        }
+    SurfaceControls.GraphSurfaceInteractiveRegion {
+        id: bodyEditInteractionRegion
+        host: surface.host
+        targetItem: bodyEditTarget
+        enabled: !surface.isTimestampSurface && bodyRichText.visible
+    }
+
+    Item {
+        id: bodyBounds
+        objectName: "graphNodeFlowchartBodyBounds"
+        x: surface.bodyTextRegion.x
+        y: surface.bodyTextRegion.y
+        width: surface.bodyTextRegion.width
+        height: surface.bodyTextRegion.height
         clip: true
 
         Text {
@@ -720,6 +954,10 @@ GraphShared.GraphSurfaceBase {
             renderedTextObjectName: "graphNodeFlowchartBodyText"
             editorWrapperObjectName: "graphNodeFlowchartBodyEditor"
             editorObjectName: "graphNodeFlowchartBodyEditorField"
+            fitMeasurementEnabled: !surface.isTimestampSurface
+            shrinkToFit: surface.bodyShrinkToFit
+            overflowIndicatorEnabled: !surface.isTimestampSurface && !surface._growPending
+            overflowIndicatorObjectName: "graphNodeFlowchartBodyOverflowIndicator"
         }
 
         SurfaceControls.GraphSurfaceInteractiveRegion {
@@ -847,6 +1085,10 @@ GraphShared.GraphSurfaceBase {
             renderedTextObjectName: "graphNodeFlowchartBodyTopText"
             editorWrapperObjectName: "graphNodeFlowchartBodyTopEditor"
             editorObjectName: "graphNodeFlowchartBodyTopEditorField"
+            fitMeasurementEnabled: surface.isCubeSurface
+            shrinkToFit: surface.bodyShrinkToFit
+            overflowIndicatorEnabled: surface.isCubeSurface
+            overflowIndicatorObjectName: "graphNodeFlowchartBodyTopOverflowIndicator"
         }
 
         SurfaceControls.GraphSurfaceInteractiveRegion {
@@ -917,6 +1159,10 @@ GraphShared.GraphSurfaceBase {
             renderedTextObjectName: "graphNodeFlowchartBodyRightText"
             editorWrapperObjectName: "graphNodeFlowchartBodyRightEditor"
             editorObjectName: "graphNodeFlowchartBodyRightEditorField"
+            fitMeasurementEnabled: surface.isCubeSurface
+            shrinkToFit: surface.bodyShrinkToFit
+            overflowIndicatorEnabled: surface.isCubeSurface
+            overflowIndicatorObjectName: "graphNodeFlowchartBodyRightOverflowIndicator"
         }
 
         SurfaceControls.GraphSurfaceInteractiveRegion {

@@ -158,6 +158,10 @@ Item {
                 else
                     right = left + minWidth;
             }
+            // Content-sized surfaces (flowchart grow-to-fit) raise the floor for this width.
+            var surfaceItem = root.host.loadedSurfaceItem;
+            if (surfaceItem && typeof surfaceItem.minimumNodeHeightForWidth === "function")
+                minHeight = Math.max(minHeight, Number(surfaceItem.minimumNodeHeightForWidth(right - left)) || 0.0);
             if ((bottom - top) < minHeight) {
                 if (root._topCorner)
                     top = bottom - minHeight;

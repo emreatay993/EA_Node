@@ -63,7 +63,7 @@ var SURFACE_METRIC_CONTRACT = {
         "body_right_margin": 30.0,
         "body_bottom_margin": 16.0,
         "square": false,
-        "body_text_placement": "center"
+        "body_text_placement": "between_end_caps"
       },
       "end": {
         "default_width": 228.0,
@@ -76,7 +76,7 @@ var SURFACE_METRIC_CONTRACT = {
         "body_right_margin": 30.0,
         "body_bottom_margin": 16.0,
         "square": false,
-        "body_text_placement": "center"
+        "body_text_placement": "between_end_caps"
       },
       "process": {
         "default_width": 224.0,
@@ -102,7 +102,7 @@ var SURFACE_METRIC_CONTRACT = {
         "body_right_margin": 46.0,
         "body_bottom_margin": 22.0,
         "square": false,
-        "body_text_placement": "center"
+        "body_text_placement": "inscribed_diamond"
       },
       "document": {
         "default_width": 228.0,
@@ -115,7 +115,7 @@ var SURFACE_METRIC_CONTRACT = {
         "body_right_margin": 20.0,
         "body_bottom_margin": 24.0,
         "square": false,
-        "body_text_placement": "center"
+        "body_text_placement": "above_wave"
       },
       "connector": {
         "default_width": 108.0,
@@ -128,7 +128,7 @@ var SURFACE_METRIC_CONTRACT = {
         "body_right_margin": 20.0,
         "body_bottom_margin": 18.0,
         "square": true,
-        "body_text_placement": "center"
+        "body_text_placement": "inscribed_ellipse"
       },
       "input_output": {
         "default_width": 236.0,
@@ -141,7 +141,7 @@ var SURFACE_METRIC_CONTRACT = {
         "body_right_margin": 28.0,
         "body_bottom_margin": 18.0,
         "square": false,
-        "body_text_placement": "center"
+        "body_text_placement": "between_slants"
       },
       "predefined_process": {
         "default_width": 236.0,
@@ -167,7 +167,7 @@ var SURFACE_METRIC_CONTRACT = {
         "body_right_margin": 24.0,
         "body_bottom_margin": 22.0,
         "square": false,
-        "body_text_placement": "center"
+        "body_text_placement": "between_caps"
       },
       "card": {
         "default_width": 132.0,
@@ -206,7 +206,7 @@ var SURFACE_METRIC_CONTRACT = {
         "body_right_margin": 28.0,
         "body_bottom_margin": 24.0,
         "square": false,
-        "body_text_placement": "center"
+        "body_text_placement": "front_page"
       },
       "tick": {
         "default_width": 160.0,

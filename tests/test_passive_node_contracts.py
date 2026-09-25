@@ -132,13 +132,14 @@ class PassiveNodeContractsTests(unittest.TestCase):
                     "title",
                     "body",
                     *_rich_text_extra_keys("body"),
+                    "body_fit",
                     "body_top",
                     *_rich_text_extra_keys("body_top"),
                     "body_right",
                     *_rich_text_extra_keys("body_right"),
                 ]
                 if type_id == PASSIVE_FLOWCHART_ISOMETRIC_CUBE_TYPE_ID
-                else ["title", "body", *_rich_text_extra_keys("body")]
+                else ["title", "body", *_rich_text_extra_keys("body"), "body_fit"]
             )
             self.assertEqual([prop.key for prop in spec.properties], expected_property_keys)
             self.assertEqual(spec.properties[0].type, "str")

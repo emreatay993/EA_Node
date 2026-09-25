@@ -294,6 +294,13 @@ for example "passive.flowchart.process is not collapsible". `node.update` and
   customised body always wins. Card, callout, message, timestamp and the other
   decorative shapes use `body` as separate content, so set it explicitly there.
   Verify labels with a screenshot.
+- Long flowchart bodies follow `properties["body_fit"]` (every shape except
+  timestamp): `clip` (default) keeps the size and ends clipped text in an
+  ellipsis, `grow` enlarges the shape to fit as one undoable resize (square
+  shapes such as connector keep their aspect ratio), and `shrink` lowers the
+  font, to 6 px at the smallest, until the text fits. The canvas applies `grow`
+  once the shape is drawn, so frame the node and read its size back after it
+  settles.
 - The bare text node (`passive.annotation.text`) stores its content under the
   `text` key with bare style keys (`font_size`, `text_color`, `format`).
   Flowchart shapes and sticky notes use `body` with prefixed slot keys

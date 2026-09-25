@@ -16,6 +16,7 @@ Use this for passive node host loading, surface contracts, metrics, surface sizi
 - `ea_node_editor/ui_qml/components/graph/GraphSurfaceBase.qml` - base Item for passive/viewer surfaces: host plumbing, null-safe `nodeProperties`, the shared propRaw/propValue/propString/propBool/propNumber accessors, and the single chrome-fact derivation (`surfaceShowTitle`/`surfaceShowFrame`/`surfaceContentOnly`). New surfaces root on this; do not re-declare private accessor copies.
 - `ea_node_editor/ui_qml/components/graph/passive/`
 - `ea_node_editor/ui_qml/components/graph/passive/FlowchartShapeCanvas.qml`
+- `ea_node_editor/ui_qml/components/graph/passive/FlowchartShapeGeometry.js` - shared silhouette parameters, shape-aware body text regions, and the grow-to-fit searches
 - `ea_node_editor/ui_qml/components/graph/passive/GraphAnnotationNoteSurface.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphBareTextSurface.qml`
 - `ea_node_editor/ui_qml/components/graph/passive/GraphFlowchartNodeSurface.qml`
@@ -55,6 +56,13 @@ Use this for passive node host loading, surface contracts, metrics, surface sizi
 - `FlowchartShapeCanvas.qml` owns the reusable vector silhouettes for graph surfaces and library previews; keep its pure-QML host, variant, fallback, and timestamp behavior aligned with `tests/qml_quick/tst_graph_node_host.qml`, while `tests/test_flowchart_visual_polish.py` retains source and Python-integration coverage.
 - `tests/qml_quick/tst_graph_node_host.qml` also owns pure-QML annotation host rendering, library flowchart aspect-ratio fitting, and Group backdrop title/chrome checks. Python retains annotation catalogue/metric facts, flowchart geometry and drop-preview integration, and Group catalogue/model/serialization facts.
 
+## Flowchart Body Text Regions And Text Fit
+- Each variant's contract `body_text_placement` (`GraphNodeSurfaceMetricContract.json` and its generated `.js` mirror; `surface_contract.py` only validates the names) is resolved against the silhouette by `FlowchartShapeGeometry.js`, which also owns the shape parameters `FlowchartShapeCanvas.qml` draws with, so text regions and outlines cannot drift. Shape-aware placements: decision `inscribed_diamond` (50% x 50%), connector `inscribed_ellipse` (1/sqrt(2) per axis), input/output `between_slants`, document `above_wave`, database `between_caps`, callout `above_tail`, start/end `between_end_caps`, multi-document `front_page`; edges the outline limits keep `TEXT_REGION_PADDING` (6 px) and the other edges keep the variant's contract margins. `center`, `below_shape`, `front_face`, and `cube_front_face` keep the margin-box geometry. Double-click still edits the body anywhere in the old margin box.
+- `body_fit` (`clip` default, `grow`, `shrink`; every non-timestamp spec in `nodes/builtins/passive_flowchart.py`) is an Inspector enum and the text toolbar's Text fit group (`text_fit_clip|grow|shrink`, icons `crop`, `fit-height`, `text-decrease`). The timestamp variant keeps its own body contract and has no text fit.
+- Grow: `GraphFlowchartNodeSurface.qml` previews growth while the body or its style is being edited (`resizePreviewChanged`, live geometry) and persists it through `resizeFinished` -> `set_node_geometry`, one resize history step after the text commit. It re-checks on surface load, text/style/mode changes, and resize-handle release, never on a bare geometry change, so undoing a growth sticks. Free-aspect shapes grow in height; contract `square` variants scale both axes at their current ratio. While a handle drags, `GraphNodeResizeHandle.qml` asks the surface's `minimumNodeHeightForWidth(width)` so the text stays inside. Read-only, locked, and collapsed nodes never grow.
+- Shrink and the overflow mark live in `GraphRichTextBlock.qml` behind opt-in flags (`fitMeasurementEnabled`, `shrinkToFit`, `overflowIndicatorEnabled`; Bare Text and notes leave them off). A hidden probe with the rendered text's font and renderer measures the shown text (the editor draft while editing); shrink picks the largest whole pixel size down to 6 px that fits. Clipped text anchors to the top: plain text keeps whole lines and elides the last one (`overflowMark` `elide`), while markdown, which Qt cannot elide, and side-only clipping show the ellipsis pill (`graphNodeFlowchartBodyOverflowIndicator`, `overflowMark` `pill`).
+- Tests: region geometry, grow searches, clip/shrink/grow/square/read-only/toolbar/drag-floor host checks in `tests/qml_quick/tst_graph_node_host.qml` (its text-fit cases use explicit line breaks so they pass with or without `QT_QPA_FONTDIR`); editing preview, commit, and Escape plus scene persistence and undo/redo in `tests/graph_surface/inline_editor_suite.py`; contract placements, square variants, and the `body_fit` spec in `tests/test_flowchart_visual_polish.py`.
+
 ## Selected Glow Notes
 - Passive selected outline/glow colour is graph-theme-owned in `GraphNodeHostTheme.qml` (`card_selected_border` -> `selectedOutlineColor` -> `selectedGlowColor`); passive `visual_style.border_color` remains the idle outline override, and selected passive borders thicken above the idle width.
 - Authored `passive.*` objects expose Lock/Unlock from the node floating toolbar. Locked hosts render below normal nodes at z 10, reject pointer selection by default, and expose only Zoom/Unlock when the session-only locked-object interaction mode is enabled.
@@ -72,6 +80,7 @@ Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction Silent
 .\venv\Scripts\python.exe -m pytest tests/test_passive_node_contracts.py tests/test_passive_graph_surface_host.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_viewport_virtualization.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_flowchart_surfaces.py tests/test_flowchart_visual_polish.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/graph_surface/inline_editor_suite.py -k "flowchart" --ignore=venv -q -n 0
 .\venv\Scripts\python.exe -m pytest tests/test_annotation_catalog.py tests/test_group_backdrop_contracts.py --ignore=venv -q -n 0
 .\venv\Scripts\python.exe -m pytest tests/test_panel_surface.py --ignore=venv -q
 ```
@@ -85,4 +94,4 @@ an individual leaf suite, never both in one command.
 - [Surface Input And Inline Controls](surface_input_and_inline_controls.md)
 
 ## Update Triggers
-Update when surface contracts, passive host selection, host viewport visibility, buffered look-ahead loading, flowchart variants, metrics, passive loading tests, or aggregate/leaf test routing changes.
+Update when surface contracts, passive host selection, host viewport visibility, buffered look-ahead loading, flowchart variants, body text placements or text fit, metrics, passive loading tests, or aggregate/leaf test routing changes.

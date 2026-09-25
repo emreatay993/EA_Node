@@ -175,13 +175,21 @@ function _flowchartVariantLayout(variant) {
     return layout && typeof layout === "object" ? layout : {};
 }
 
+var FLOWCHART_BODY_TEXT_PLACEMENTS = [
+    "center", "below_shape", "front_face", "cube_front_face", "above_tail", "above_wave",
+    "between_caps", "between_end_caps", "between_slants", "front_page",
+    "inscribed_diamond", "inscribed_ellipse"
+];
+
 function flowchartBodyTextPlacement(variant) {
     var layout = _flowchartVariantLayout(variant);
     var value = String(layout && layout.body_text_placement || "").trim().toLowerCase();
-    if (value === "below_shape" || value === "front_face" || value === "above_tail"
-        || value === "cube_front_face")
-        return value;
-    return "center";
+    return FLOWCHART_BODY_TEXT_PLACEMENTS.indexOf(value) >= 0 ? value : "center";
+}
+
+// Square variants keep their aspect ratio when grow-to-fit enlarges them.
+function flowchartVariantSquare(variant) {
+    return Boolean(_flowchartVariantLayout(variant).square);
 }
 
 function _annotationVariantLayout(variant) {

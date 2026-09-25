@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Shapes 1.15
+import "FlowchartShapeGeometry.js" as FlowchartShapeGeometry
 
 Item {
     id: root
@@ -84,21 +85,7 @@ Item {
     }
 
     function _bounds() {
-        var inset = Math.max(0.5, root.strokeWidth * 0.5);
-        var left = inset;
-        var top = inset;
-        var right = Math.max(left + 1.0, root.width - inset);
-        var bottom = Math.max(top + 1.0, root.height - inset);
-        return {
-            "left": left,
-            "top": top,
-            "right": right,
-            "bottom": bottom,
-            "widthValue": Math.max(1.0, right - left),
-            "heightValue": Math.max(1.0, bottom - top),
-            "centerX": (left + right) * 0.5,
-            "centerY": (top + bottom) * 0.5
-        };
+        return FlowchartShapeGeometry.outlineBounds(root.width, root.height, root.strokeWidth);
     }
 
     function _moveTo(x, y) {
@@ -174,7 +161,7 @@ Item {
     }
 
     function _traceTerminator(bounds) {
-        var radius = Math.min(bounds.heightValue * 0.5, bounds.widthValue * 0.5);
+        var radius = FlowchartShapeGeometry.terminatorRadius(bounds);
         return [
             _moveTo(bounds.left + radius, bounds.top),
             _lineTo(bounds.right - radius, bounds.top),
@@ -196,9 +183,9 @@ Item {
     }
 
     function _traceDocument(bounds) {
-        var waveDepth = Math.min(bounds.heightValue * 0.11, 10.0 + root.strokeWidth * 1.5);
+        var waveDepth = FlowchartShapeGeometry.documentWaveDepth(bounds, root.strokeWidth);
         var waveBase = bounds.bottom - waveDepth * 0.58;
-        var waveCrest = bounds.bottom - waveDepth * 1.08;
+        var waveCrest = FlowchartShapeGeometry.documentWaveCrestY(bounds, root.strokeWidth);
         var waveTrough = bounds.bottom - waveDepth * 0.12;
         return [
             _moveTo(bounds.left, bounds.top),
@@ -236,7 +223,7 @@ Item {
     }
 
     function _traceInputOutput(bounds) {
-        var slant = Math.min(bounds.widthValue * 0.13, bounds.heightValue * 0.26);
+        var slant = FlowchartShapeGeometry.inputOutputSlant(bounds);
         return [
             _moveTo(bounds.left + slant, bounds.top),
             _lineTo(bounds.right, bounds.top),
@@ -248,7 +235,7 @@ Item {
 
     function _traceDatabaseShell(bounds) {
         var rx = bounds.widthValue * 0.5;
-        var cap = Math.min(bounds.heightValue * 0.13, 14.0 + root.strokeWidth);
+        var cap = FlowchartShapeGeometry.databaseCapHeight(bounds, root.strokeWidth);
         var topCy = bounds.top + cap;
         var bottomCy = bounds.bottom - cap;
         return [
@@ -273,7 +260,7 @@ Item {
 
     function _traceDatabaseDetails(bounds) {
         var rx = bounds.widthValue * 0.5;
-        var cap = Math.min(bounds.heightValue * 0.13, 14.0 + root.strokeWidth);
+        var cap = FlowchartShapeGeometry.databaseCapHeight(bounds, root.strokeWidth);
         var topCy = bounds.top + cap;
         var bottomCy = bounds.bottom - cap;
         return [
@@ -302,8 +289,8 @@ Item {
     }
 
     function _traceCallout(bounds) {
-        var tailWidth = Math.min(bounds.widthValue * 0.18, 24.0 + root.strokeWidth * 2.0);
-        var tailHeight = Math.min(bounds.heightValue * 0.3, 30.0 + root.strokeWidth * 2.0);
+        var tailWidth = FlowchartShapeGeometry.calloutTailWidth(bounds, root.strokeWidth);
+        var tailHeight = FlowchartShapeGeometry.calloutTailHeight(bounds, root.strokeWidth);
         var bodyBottom = bounds.bottom - tailHeight;
         var tailLeft = bounds.left + bounds.widthValue * 0.5;
         var tailTip = bounds.left + bounds.widthValue * 0.5;
@@ -355,8 +342,8 @@ Item {
     }
 
     function _traceMultiDocumentPage(bounds, offsetX, offsetY) {
-        var sx = bounds.widthValue / 88.0;
-        var sy = bounds.heightValue / 60.28;
+        var sx = FlowchartShapeGeometry.multiDocumentScaleX(bounds);
+        var sy = FlowchartShapeGeometry.multiDocumentScaleY(bounds);
         function x(value) {
             return bounds.left + value * sx;
         }

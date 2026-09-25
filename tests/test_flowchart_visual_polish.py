@@ -5,6 +5,8 @@ import unittest
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.builtins.passive_flowchart import PASSIVE_FLOWCHART_BODY_FIT_MODES
+from ea_node_editor.ui_qml.graph_geometry.surface_contract import FLOWCHART_VARIANT_LAYOUTS
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 from tests.graph_surface_pointer_regression import run_qml_probe
@@ -51,6 +53,52 @@ class FlowchartVisualPolishMetricsTests(unittest.TestCase):
             (isometric_cube.default_width, isometric_cube.min_width, isometric_cube.min_height),
             (188.0, 160.0, 160.0),
         )
+
+    def test_shape_aware_variants_publish_inscribed_body_text_placements(self) -> None:
+        placements = {name: layout.body_text_placement for name, layout in FLOWCHART_VARIANT_LAYOUTS.items()}
+
+        self.assertEqual(
+            {
+                name: placements[name]
+                for name in ("decision", "connector", "input_output", "document", "database", "callout")
+            },
+            {
+                "decision": "inscribed_diamond",
+                "connector": "inscribed_ellipse",
+                "input_output": "between_slants",
+                "document": "above_wave",
+                "database": "between_caps",
+                "callout": "above_tail",
+            },
+        )
+        self.assertEqual(
+            (placements["start"], placements["end"], placements["multi_document"]),
+            ("between_end_caps", "between_end_caps", "front_page"),
+        )
+        self.assertEqual(
+            {name for name, placement in placements.items() if placement == "center"},
+            {"process", "predefined_process", "card", "timestamp"},
+        )
+        # Square variants are the aspect-locked ones grow-to-fit enlarges in both directions.
+        self.assertEqual(
+            {name for name, layout in FLOWCHART_VARIANT_LAYOUTS.items() if layout.square},
+            {"connector", "tick", "isometric_cube", "star", "x"},
+        )
+
+    def test_flowchart_shapes_publish_the_body_text_fit_mode(self) -> None:
+        for spec in self.registry.all_specs():
+            if spec.surface_family != "flowchart":
+                continue
+            properties = {prop.key: prop for prop in spec.properties}
+            if spec.surface_variant == "timestamp":
+                self.assertNotIn("body_fit", properties)
+                continue
+            fit = properties["body_fit"]
+            self.assertEqual(fit.type, "enum", spec.type_id)
+            self.assertEqual(fit.enum_values, PASSIVE_FLOWCHART_BODY_FIT_MODES, spec.type_id)
+            self.assertEqual(fit.make_default(), "clip", spec.type_id)
+            self.assertEqual((fit.label, fit.inspector_editor, fit.inspector_visible), ("Text Fit", "enum", True))
+        self.assertEqual(PASSIVE_FLOWCHART_BODY_FIT_MODES, ("clip", "grow", "shrink"))
 
 
 class FlowchartVisualPolishRoutingTests(unittest.TestCase):
