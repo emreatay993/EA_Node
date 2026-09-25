@@ -13,6 +13,7 @@ import ea_node_editor.ui_qml.graph_scene_mutation.grouping_and_subnode_ops as _g
 import ea_node_editor.ui_qml.graph_scene_mutation.policy as _policy
 import ea_node_editor.ui_qml.graph_scene_mutation.selection_and_scope_ops as _selection_ops
 import ea_node_editor.ui_qml.graph_scene_mutation.tidy_layout_ops as _tidy_ops
+from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import scene_layout_bounds
 from ea_node_editor.ui_qml.graph_scene_mutation.node_creation_batch import create_nodes_batch
 from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters
 from ea_node_editor.graph.fragment_payloads import (
@@ -29,7 +30,6 @@ from ea_node_editor.graph.transform_fragment_ops import insert_graph_fragment
 from ea_node_editor.graph.transforms import (
     LayoutNodeBounds,
     build_subtree_fragment_payload_data,
-    collect_layout_node_bounds,
     expand_group_backdrop_fragment_node_ids,
     graph_fragment_bounds,
     normalize_layout_position_updates,
@@ -634,12 +634,13 @@ class GraphSceneMutationHistory:
         selected_node_ids = self._selected_node_ids_in_workspace(workspace)
         if not selected_node_ids:
             return workspace, []
-        return workspace, collect_layout_node_bounds(
-            workspace=workspace,
-            node_ids=selected_node_ids,
-            spec_lookup=registry.get_spec,
-            size_resolver=self._scene_node_size,
+        # Nodes as drawn: the plain surface measure leaves out settings bands and still counts the rows a view hides.
+        drawn = scene_layout_bounds(
+            self,
+            workspace,
+            [workspace.nodes[node_id] for node_id in selected_node_ids if node_id in workspace.nodes],
         )
+        return workspace, [drawn[node_id] for node_id in selected_node_ids if node_id in drawn]
 
     @staticmethod
     def _snap_coordinate(value: float, grid_size: float) -> float:

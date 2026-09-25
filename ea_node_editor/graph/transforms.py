@@ -19,7 +19,6 @@ from ea_node_editor.graph.transform_layout_ops import (
     build_alignment_position_updates,
     build_distribution_position_updates,
     build_straighten_connection_position_updates,
-    collect_layout_node_bounds,
     normalize_layout_position_updates,
     snap_coordinate,
 )
@@ -42,7 +41,6 @@ __all__ = [
     "build_straighten_connection_position_updates",
     "build_subnode_custom_workflow_snapshot_data",
     "build_subtree_fragment_payload_data",
-    "collect_layout_node_bounds",
     "encode_fragment_external_parent_id",
     "expand_group_backdrop_fragment_node_ids",
     "expand_subtree_fragment_node_ids",

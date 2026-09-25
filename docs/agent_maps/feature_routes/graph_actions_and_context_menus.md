@@ -27,6 +27,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 - `ea_node_editor/ui/shell/controllers/workspace_drop_connect_controller.py`
 - `ea_node_editor/ui/shell/window_actions.py`
 - `ea_node_editor/ui_qml/graph_scene_mutation/tidy_layout_ops.py` (scene Tidy command; the pure layout is `ea_node_editor/graph/transform_tidy_layout.py`)
+- `ea_node_editor/ui_qml/graph_scene_mutation/alignment_and_distribution_ops.py` (scene align, distribute, Set Same Width/Height, and straighten; the pure builders are in `ea_node_editor/graph/transform_layout_ops.py`)
 
 ## Related Help Reference
 - `ea_node_editor/ui/dialogs/input_reference_dialog.py` documents user-facing graph action shortcuts and context-menu gestures. Update it when graph shortcuts, menu entries, visibility rules, or dispatch behavior change.
@@ -54,6 +55,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 - Multi-node selection actions are declared in `GraphCanvasActionRouter.selectionContextActionDescriptors`, rendered in `GraphCanvasContextMenus.qml` and `GraphSelectionEnvelopeOverlay.qml`, and dispatched through `handleSelectionContextAction`.
 - Keep action eligibility visible but muted for disabled rows/buttons: align needs 2+ selected node-like items, distribute needs 3+, wrap needs 2+, tidy needs 2+, and straighten needs an internal selected connection.
 - `Set Same Width` and `Set Same Height` are right-click selection context menu actions only. They are enabled only for passive exact-`type_id` pairs; mixed selections ignore active and compile-only nodes, then resize non-primary passive nodes per bucket with one grouped resize history entry.
+- Measurement: align and distribute place nodes by the rectangles the canvas draws, read for the whole selection in one call to `ea_node_editor/ui_qml/graph_scene_mutation/group_scope.py::scene_layout_bounds` (the cached payload, else the payload builder's measure) from `GraphSceneMutationHistory._selected_layout_metrics`. The plain surface measure (`resolved_node_surface_size`) leaves out the settings band (`plot.signal` is drawn 128 px tall but measures 56; with every settings group open the gap passes 1000 px) and counts the rows a view that hides optional ports leaves out. Set Same Width/Height deliberately keeps that plain measure (`_effective_node_size`): it writes custom sizes, which count those hidden rows, and passive nodes have no settings band because settings groups are active-only. `tests/test_graph_scene_layout_measure.py` pins both rules.
 
 ## Tidy Layout
 - Six `GraphActionId`s: `tidy_selection` (Ctrl+Alt+L, auto-layout, direction auto-detected from the port sides the wires use), `tidy_selection_left_to_right`, `tidy_selection_top_to_bottom`, `tidy_selection_in_place` (Clean Up in Place), `tidy_graph` (Ctrl+Alt+Shift+L) and `tidy_graph_in_place` (the whole open scope).
@@ -87,6 +89,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/test_graph_action_contracts.py tests/test_transform_layout_ops.py tests/main_window_shell/passive_style_context_menus.py tests/test_group_backdrop_membership.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_transform_tidy_layout.py tests/test_graph_scene_tidy_layout.py -q -n 0
+.\venv\Scripts\python.exe -m pytest tests/test_graph_scene_layout_measure.py -q -n 0
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py tests/test_canvas_import_preferences.py tests/main_window_shell/shell_basics_and_search.py -k tidy -q -n 0
 .\venv\Scripts\python.exe -m pytest tests/test_graph_canvas_host_presenter.py tests/test_passive_style_presets.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_controls.py -k SelectionEnvelope --ignore=venv -q
@@ -102,7 +105,7 @@ Use this for graph action IDs, layout menu actions, context menu entries, select
 - [Graph Canvas Rendering, Input, And Viewport](../subsystems/graph_canvas.md)
 
 ## Update Triggers
-Update when action IDs, Tidy layout rules or surfaces, selected-run action routing, modifier/Principal/dynamic-port authoring, edge Enable/Ctrl+E, quick-add chaining, menu visibility, selection-envelope eligibility, selected-edge toolbar payloads, Add Link/Add Comment or optimization semantic-link routing, context payloads, controller dispatch, or user-facing shortcut/reference behavior changes.
+Update when action IDs, Tidy layout rules or surfaces, how align/distribute/same-size measure nodes, selected-run action routing, modifier/Principal/dynamic-port authoring, edge Enable/Ctrl+E, quick-add chaining, menu visibility, selection-envelope eligibility, selected-edge toolbar payloads, Add Link/Add Comment or optimization semantic-link routing, context payloads, controller dispatch, or user-facing shortcut/reference behavior changes.
 
 ## 2026-05-31 Mutation UI Effects Update
 

@@ -5,8 +5,6 @@ import math
 from typing import Callable, Collection, Mapping, Sequence
 
 from ea_node_editor.graph.workspace_state import WorkspaceData
-from ea_node_editor.graph.records import NodeInstance
-from ea_node_editor.nodes.node_specs import NodeTypeSpec
 
 _DEFAULT_LAYOUT_GRID_SIZE = 20.0
 
@@ -70,32 +68,6 @@ class PortAlignmentConstraint:
     axis: str
     source_anchor: float
     target_anchor: float
-
-
-def collect_layout_node_bounds(
-    *,
-    workspace: WorkspaceData,
-    node_ids: Sequence[str],
-    spec_lookup: Callable[[str], NodeTypeSpec],
-    size_resolver: Callable[[NodeInstance, NodeTypeSpec, Mapping[str, NodeInstance]], tuple[float, float]],
-) -> list[LayoutNodeBounds]:
-    layout_nodes: list[LayoutNodeBounds] = []
-    for node_id in node_ids:
-        node = workspace.nodes.get(node_id)
-        if node is None:
-            continue
-        spec = spec_lookup(node.type_id)
-        width, height = size_resolver(node, spec, workspace.nodes)
-        layout_nodes.append(
-            LayoutNodeBounds(
-                node_id=node_id,
-                x=float(node.x),
-                y=float(node.y),
-                width=float(width),
-                height=float(height),
-            )
-        )
-    return layout_nodes
 
 
 def snap_coordinate(value: float, grid_size: float, *, default_step: float = _DEFAULT_LAYOUT_GRID_SIZE) -> float:
@@ -564,7 +536,6 @@ __all__ = [
     "build_make_room_position_updates",
     "build_port_alignment_offsets",
     "build_straighten_connection_position_updates",
-    "collect_layout_node_bounds",
     "normalize_layout_position_updates",
     "snap_coordinate",
 ]

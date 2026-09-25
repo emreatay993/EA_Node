@@ -1698,7 +1698,7 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertEqual(offenders, [])
 
     def test_transform_surface_reexports_focused_operation_modules(self) -> None:
-        self.assertEqual(transforms.collect_layout_node_bounds.__module__, "ea_node_editor.graph.transform_layout_ops")
+        self.assertEqual(transforms.build_alignment_position_updates.__module__, "ea_node_editor.graph.transform_layout_ops")
         self.assertEqual(transforms.build_subtree_fragment_payload_data.__module__, "ea_node_editor.graph.transform_fragment_ops")
         self.assertEqual(transforms.plan_subnode_shell_pin_addition.__module__, "ea_node_editor.graph.transform_subnode_ops")
         self.assertEqual(transforms.group_selection_into_subnode.__module__, "ea_node_editor.graph.transform_grouping_ops")

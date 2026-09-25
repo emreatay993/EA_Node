@@ -223,6 +223,8 @@ def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool
 
 
 def _effective_node_size(self, workspace, node, spec) -> tuple[float, float]:  # noqa: ANN001
+    # Not the drawn size: a custom size counts the port rows a view hides, and the passive nodes matched here have
+    # no settings band (settings groups are active-only), so this measure is the frame the written sizes are stored in.
     width, height = resolved_node_surface_size(
         node,
         spec,
