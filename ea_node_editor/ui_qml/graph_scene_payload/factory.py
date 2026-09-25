@@ -641,23 +641,19 @@ class _GraphSceneNodePayloadFactory:
             min_height=max(1.0, float(metrics.min_height) + height_delta),
         )
 
-    def _filtered_layout_node(
+    def _hidden_port_rows(
         self,
         *,
         node,
         spec: NodeTypeSpec,
-        workspace_nodes: dict[str, Any],
+        workspace_nodes: Mapping[str, Any],
         show_port_labels: bool,
         graph_label_pixel_size: int,
         graph_node_icon_pixel_size: int,
-        visible_ports_override: tuple[EffectivePort, ...] | None,
-        row_count_override: int | None = None,
-    ):
-        if visible_ports_override is None or bool(getattr(node, "collapsed", False)):
-            return node
-        if getattr(node, "custom_height", None) is None:
-            return node
-
+        visible_ports_override: tuple[EffectivePort, ...],
+    ) -> tuple[float, float]:
+        """The height the port rows missing from ``visible_ports_override`` add to ``node``'s default height, and the
+        minimum height with only the visible rows."""
         baseline_node = node.clone()
         baseline_node.custom_height = None
         unfiltered_metrics = self._surface_metrics(
@@ -677,22 +673,42 @@ class _GraphSceneNodePayloadFactory:
             graph_node_icon_pixel_size=graph_node_icon_pixel_size,
             visible_ports_override=visible_ports_override,
         )
-        filtered_metrics = self._metrics_with_row_count(
-            filtered_metrics,
-            visible_ports_override=visible_ports_override,
-            row_count_override=(
-                None
-                if _is_standard_surface(spec)
-                else row_count_override
-            ),
-        )
         removed_height = max(0.0, float(unfiltered_metrics.default_height) - float(filtered_metrics.default_height))
+        return removed_height, float(filtered_metrics.min_height)
+
+    def _filtered_layout_node(
+        self,
+        *,
+        node,
+        spec: NodeTypeSpec,
+        workspace_nodes: dict[str, Any],
+        show_port_labels: bool,
+        graph_label_pixel_size: int,
+        graph_node_icon_pixel_size: int,
+        visible_ports_override: tuple[EffectivePort, ...] | None,
+    ):
+        # A custom height is stored counting every port row; a view that hides some draws the node that much shorter
+        # (hidden_port_rows_height converts a drawn height back).
+        if visible_ports_override is None or bool(getattr(node, "collapsed", False)):
+            return node
+        if getattr(node, "custom_height", None) is None:
+            return node
+
+        removed_height, filtered_min_height = self._hidden_port_rows(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace_nodes,
+            show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+            visible_ports_override=visible_ports_override,
+        )
         if removed_height <= 0.0:
             return node
 
         layout_node = node.clone()
         layout_node.custom_height = max(
-            float(filtered_metrics.min_height),
+            filtered_min_height,
             float(node.custom_height) - removed_height,
         )
         return layout_node
@@ -718,7 +734,6 @@ class _GraphSceneNodePayloadFactory:
             graph_label_pixel_size=graph_label_pixel_size,
             graph_node_icon_pixel_size=graph_node_icon_pixel_size,
             visible_ports_override=visible_ports_override,
-            row_count_override=None,
         )
         metrics_node = layout_node
         if (
@@ -1061,6 +1076,48 @@ class _GraphSceneNodePayloadFactory:
             width=max(1.0, float(width)),
             height=max(1.0, float(height)),
         )
+
+    def hidden_port_rows_height(
+        self,
+        *,
+        node,
+        spec: NodeTypeSpec,
+        workspace_nodes: Mapping[str, Any],
+        port_connection_counts: Mapping[tuple[str, str], int],
+        hide_optional_ports: bool,
+        show_port_labels: bool,
+        graph_label_pixel_size: int,
+        graph_node_icon_pixel_size: int,
+    ) -> float:
+        """How much shorter a payload build draws ``node`` expanded than the custom height it stores (0 when the view
+        hides none of its port rows).
+
+        A custom height counts every port row and ``_filtered_layout_node`` takes the rows the view hides off at draw
+        time, so a height measured on the canvas plus this is the height to store. ``workspace_nodes`` is left
+        untouched.
+        """
+        if bool(node.collapsed):
+            node = node.clone()
+            node.collapsed = False
+        payload_node = self.payload_node(node, spec)
+        scoped_nodes = ChainMap({str(node.node_id): payload_node}, workspace_nodes)
+        visible_ports = self.view_visible_ports(
+            node=payload_node,
+            spec=spec,
+            workspace_nodes=scoped_nodes,
+            port_connection_counts=port_connection_counts,
+            hide_optional_ports=hide_optional_ports,
+        )
+        removed_height, _filtered_min_height = self._hidden_port_rows(
+            node=payload_node,
+            spec=spec,
+            workspace_nodes=scoped_nodes,
+            show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+            visible_ports_override=visible_ports,
+        )
+        return removed_height
 
     @classmethod
     def _endpoint_facts(

@@ -103,7 +103,27 @@ def move_node(self, node_id: str, x: float, y: float) -> None:
     self._record_history(ACTION_MOVE_NODE, history_before)
 
 
+def _stored_custom_height(self, workspace, node, width: float, drawn_height: float) -> float:  # noqa: ANN001
+    """``drawn_height`` in the frame ``custom_height`` is stored in, which counts the optional port rows a view hides."""
+    context = self._scene_context
+    if context.registry is None:
+        return drawn_height
+    stored_node = node
+    if node.custom_width != width:
+        stored_node = node.clone()
+        stored_node.custom_width = width
+    return drawn_height + context._payload_builder.hidden_port_rows_height(
+        workspace=workspace,
+        registry=context.registry,
+        node=stored_node,
+        show_port_labels=context.graphics_show_port_labels,
+        graph_label_pixel_size=context.graphics_graph_label_pixel_size,
+        graph_node_icon_pixel_size=context.graphics_node_title_icon_pixel_size,
+    )
+
+
 def resize_node(self, node_id: str, width: float, height: float) -> None:
+    """Resize ``node_id`` in place to the size the canvas should draw it at (see :func:`set_node_geometry`)."""
     model = self._scene_context.model
     if model is None:
         return
@@ -117,13 +137,14 @@ def resize_node(self, node_id: str, width: float, height: float) -> None:
     if not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
         self._resync_scene_after_stale_mutation()
         return
-    min_width, min_height = _minimum_node_size(self, node)
-    final_width = max(min_width, float(width))
-    final_height = max(min_height, float(height))
-    self.set_node_geometry(node_id, float(node.x), float(node.y), final_width, final_height)
+    self.set_node_geometry(node_id, float(node.x), float(node.y), float(width), float(height))
 
 
 def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
+    """Place and size ``node_id`` as the canvas should draw it, the way a resize preview shows it.
+
+    The size is clamped to the drawn minimum, then the height is stored counting the optional port rows the view hides.
+    """
     model = self._scene_context.model
     if model is None:
         return
@@ -139,9 +160,10 @@ def set_node_geometry(self, node_id: str, x: float, y: float, width: float, heig
         return
     final_x = float(x)
     final_y = float(y)
+    # The minimum is read from the drawn payload, so clamp before converting to the stored frame.
     min_width, min_height = _minimum_node_size(self, node)
     final_w = max(min_width, float(width))
-    final_h = max(min_height, float(height))
+    final_h = _stored_custom_height(self, workspace, node, final_w, max(min_height, float(height)))
     if (
         float(node.x) == final_x
         and float(node.y) == final_y

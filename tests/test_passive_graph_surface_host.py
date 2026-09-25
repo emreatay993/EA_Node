@@ -815,6 +815,82 @@ class WebPageGenericSurfaceQmlTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_graph_canvas_resize_in_a_view_hiding_optional_ports_keeps_the_released_size(self) -> None:
+        self._run_qml_probe(
+            "web-page-canvas-resize-hidden-optional-ports",
+            """
+            from PyQt6.QtCore import QPoint
+            from PyQt6.QtTest import QTest
+
+            def node_card_for(canvas_item, node_id):
+                for item in named_child_items(canvas_item, "graphNodeCard"):
+                    node_data = variant_value(item.property("nodeData")) or {}
+                    if str(node_data.get("node_id", "")) == str(node_id):
+                        return item
+                raise AssertionError(f"Missing node card for {node_id!r}")
+
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            node_id = scene.add_node_from_type("web.page_viewer", 120.0, 90.0)
+            assert scene.set_hide_optional_ports(True)
+
+            view = ViewportBridge()
+            view.set_viewport_size(760.0, 720.0)
+            view.set_view_state(1.0, 260.0, 300.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 760.0,
+                    "height": 720.0,
+                },
+            )
+            window = attach_host_to_window(canvas, width=760, height=720)
+            try:
+                settle_events(10)
+                card = node_card_for(canvas, node_id)
+                pressed_height = float(card.height())
+                hover_host_local_point(window, card, 40.0, 40.0)
+                handle = [
+                    item
+                    for item in named_child_items(card, "graphNodeResizeHandle")
+                    if str(item.property("cornerRole")) == "bottomRight"
+                ][0]
+                start = item_scene_point(handle, 0.75, 0.75)
+                end = QPoint(start.x(), start.y() + 120)
+                QTest.mouseMove(window, start)
+                settle_events(3)
+                QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start)
+                QTest.mouseMove(window, end)
+                settle_events(3)
+                released_height = float(card.height())
+                assert abs(released_height - (pressed_height + 120.0)) < 0.75, (pressed_height, released_height)
+                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, end)
+                settle_events(10)
+
+                # The view draws the committed node at the released size; the stored height counts the hidden rows.
+                payload = next(item for item in scene.nodes_model if item["node_id"] == node_id)
+                stored_height = model.active_workspace.nodes[node_id].custom_height
+                assert abs(float(payload["height"]) - released_height) < 0.01, (
+                    released_height,
+                    payload["height"],
+                    stored_height,
+                )
+                assert abs(float(node_card_for(canvas, node_id).height()) - released_height) < 0.75
+                assert stored_height > released_height, (stored_height, released_height)
+            finally:
+                dispose_host_window(canvas, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
     def test_content_fullscreen_overlay_routes_web_page_separately_from_web_editor(self) -> None:
         self._run_qml_probe(
             "web-page-fullscreen-overlay-route",

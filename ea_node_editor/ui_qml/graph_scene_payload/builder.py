@@ -469,6 +469,38 @@ class GraphScenePayloadBuilder:
             )
         return bounds
 
+    def hidden_port_rows_height(
+        self,
+        *,
+        workspace: WorkspaceData,
+        registry: NodeRegistry,
+        node: NodeInstance,
+        show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        graph_node_icon_pixel_size: int | None = None,
+    ) -> float:
+        """How much shorter the workspace's active view draws ``node`` than the custom height it stores: the optional
+        port rows the view hides (0 when it hides none or the type is unknown). Add it to a drawn height to store it."""
+        spec, _provenance = self._spec_and_provenance(registry, node.type_id, node.properties)
+        if spec is None:
+            return 0.0
+        graph_label_pixel_size, graph_node_icon_pixel_size = self._presentation_sizes(
+            graph_label_pixel_size,
+            graph_node_icon_pixel_size,
+        )
+        return self._node_payload_factory.hidden_port_rows_height(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace.nodes,
+            port_connection_counts=_GraphSceneBackdropPartitioner.port_connection_counts(
+                list(workspace.edges.values())
+            ),
+            hide_optional_ports=_GraphSceneBackdropPartitioner.active_view_hide_optional_ports(workspace),
+            show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+        )
+
     def build_node_connection_payloads_for_ids(
         self,
         *,

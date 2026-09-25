@@ -205,6 +205,17 @@ class NodeUpdateTests(_NodeHandlerCase):
         error = expect_error(self.context, "node.update", {"node_id": active, "locked": True}, NO_EFFECT)
         self.assertIn("passive", " ".join(error.details["reasons"]))
 
+    def test_sizes_are_drawn_sizes_in_a_view_that_hides_optional_ports(self) -> None:
+        viewer = self.add(WEB)
+        self.assertTrue(self.scene.set_hide_optional_ports(True))
+        result = self.call_one_undo("node.update", {"node_id": viewer, "height": 400})
+        self.assertEqual(result["changed"], ["height"])
+        self.assertEqual(result["node"]["height"], 400.0)
+        # A width-only update keeps the height the node is drawn at.
+        result = self.call_one_undo("node.update", {"node_id": viewer, "width": 500})
+        self.assertEqual(result["changed"], ["width"])
+        self.assertEqual(self.context.node_bounds(viewer)[2:], (500.0, 400.0))
+
     def test_property_updates_diff_and_reject_unknown_keys(self) -> None:
         node_id = self.add(PROCESS)
         result = self.call_one_undo("node.update", {"node_id": node_id, "properties": {"body": "Do it"}})
