@@ -508,8 +508,11 @@ Item {
             root._clearFlowEdgeLabel();
         } else if (id === "remove_edge") {
             root._dispatchGraphEdgeAction("remove_edge");
-        } else if (id === "edit_flow_edge_style") {
-            root._dispatchGraphEdgeAction("edit_flow_edge_style");
+        } else if (id === "edit_flow_edge_style"
+                   || id === "copy_flow_edge_style"
+                   || id === "paste_flow_edge_style"
+                   || id === "reset_flow_edge_style") {
+            root._dispatchGraphEdgeAction(id);
         }
     }
 

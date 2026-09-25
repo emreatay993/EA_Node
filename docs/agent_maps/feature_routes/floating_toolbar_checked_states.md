@@ -41,6 +41,8 @@ PDF media controls use the toolbar's `pdf_page` popover layout: a Navigate actio
 
 Text annotation copy/paste style buttons are surface actions (`text_copy_style`, `text_paste_style`) owned by `GraphBareTextSurface.qml`; paste applies a local draft immediately and prefers a bulk node-property commit.
 
+Flow-edge Copy/Paste/Reset Style buttons (`copy_flow_edge_style`, `paste_flow_edge_style`, `reset_flow_edge_style`; icons `copy-text-style`, `paste-text-style`, `script-undo`) sit before More settings in `GraphActionPresentation.edgeToolbarActions`. Unlike the text buttons they are graph action contracts: `GraphEdgeFloatingToolbar.qml` dispatches them through `GraphCanvasActionRouter.handleEdgeToolbarAction` to `GraphCanvasHostPresenter`, which owns the app-local flow-edge style clipboard. The edge context menu deliberately omits them. `tst_graph_action_presentation.qml` pins the order and `tests/test_flow_edge_labels.py` proves the button dispatch.
+
 ## Start Here
 - `ea_node_editor/ui_qml/components/graph/GraphActionPresentation.js`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeFloatingToolbar.qml`

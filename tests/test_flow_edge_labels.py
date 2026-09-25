@@ -1906,6 +1906,126 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
         env.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
         _run_isolated_probe("flow-edge-toolbar-inline-label-edit", script, env)
 
+    def test_flow_edge_toolbar_buttons_dispatch_copy_paste_and_reset_style(self) -> None:
+        script = textwrap.dedent(
+            """
+            from pathlib import Path
+            from PyQt6.QtCore import QMetaObject, QObject, QUrl
+            from PyQt6.QtGui import QGuiApplication
+            from PyQt6.QtQml import QQmlComponent, QQmlEngine
+            from PyQt6.QtQuick import QQuickItem, QQuickWindow
+            from ea_node_editor.ui.icon_registry import UiIconRegistryBridge
+
+            app = QGuiApplication.instance() or QGuiApplication([])
+            engine = QQmlEngine()
+            icons = UiIconRegistryBridge()
+            engine.rootContext().setContextProperty("uiIcons", icons)
+            qml = b'''
+            import QtQuick 2.15
+            import "ea_node_editor/ui_qml/components/graph/overlay" as Overlay
+            Item {
+                id: root
+                width: 800
+                height: 600
+                property var dispatched: []
+                QtObject {
+                    id: actionRouter
+                    function edgeContextActionId(key) { return String(key || ""); }
+                    function handleEdgeToolbarAction(actionId, edgeId) {
+                        root.dispatched = root.dispatched.concat([String(actionId) + "@" + String(edgeId)]);
+                        return true;
+                    }
+                }
+                Item {
+                    id: canvas
+                    property int graphLabelPixelSize: 10
+                    property var selectedEdgeIds: ["edge-1"]
+                    property bool edgeContextVisible: false
+                    property bool nodeContextVisible: false
+                    property bool selectionContextVisible: false
+                    function _edgeSupportsFlowStyle(edgeId) { return String(edgeId) === "edge-1"; }
+                    function _sceneEdgePayload(edgeId) {
+                        var style = {"stroke_color": "#61AFEF"};
+                        return {"edge_id": String(edgeId), "edge_family": "flow", "label": "", "visual_style": style, "flow_style": style};
+                    }
+                    function requestEdgeRedraw() {}
+                }
+                Item {
+                    id: edgeLayer
+                    property color flowDefaultLabelTextColor: "#334455"
+                    property color flowDefaultLabelBackgroundColor: "#EEF3F8"
+                    property var shellPalette: {"canvas_bg": "#F7FAFC"}
+                    function _visibleEdgeSnapshot(edgeId) { return {"culled": false, "labelMode": "pill", "geometry": {"route": "bezier", "sx": 120, "sy": 100, "c1x": 160, "c1y": 100, "c2x": 220, "c2y": 100, "tx": 260, "ty": 100}}; }
+                    function _edgeAnchor(geometry, fraction) { return {"x": 190, "y": 100, "dx": 1, "dy": 0, "angle": 0}; }
+                    function sceneToScreenX(value) { return Number(value); }
+                    function sceneToScreenY(value) { return Number(value); }
+                }
+                Overlay.GraphEdgeFloatingToolbar {
+                    id: toolbar
+                    objectName: "toolbarUnderTest"
+                    anchors.fill: parent
+                    canvasItem: canvas
+                    edgeLayer: edgeLayer
+                    canvasActionRouter: actionRouter
+                    themePalette: {"panel_bg": "#20242d", "panel_title_fg": "#f0f4fb", "muted_fg": "#98a2b3", "border": "#4b5568", "canvas_bg": "#F7FAFC"}
+                }
+            }
+            '''
+            component = QQmlComponent(engine)
+            component.setData(qml, QUrl.fromLocalFile(str(Path.cwd() / "toolbar_style_actions_probe.qml")))
+            if component.status() != QQmlComponent.Status.Ready:
+                raise AssertionError("\\n".join(error.toString() for error in component.errors()))
+            root = component.create()
+            if root is None:
+                raise AssertionError("\\n".join(error.toString() for error in component.errors()))
+            window = QQuickWindow()
+            window.setWidth(800)
+            window.setHeight(600)
+            root.setParentItem(window.contentItem())
+            window.show()
+            app.processEvents()
+            toolbar = root.findChild(QQuickItem, "toolbarUnderTest")
+            if toolbar is None or not bool(toolbar.property("toolbarVisible")):
+                raise AssertionError("flow edge toolbar is not visible")
+
+            def named_item(item, name):
+                if item.objectName() == name:
+                    return item
+                for child in item.childItems():
+                    found = named_item(child, name)
+                    if found is not None:
+                        return found
+                return None
+
+            expected_icons = {
+                "copy_flow_edge_style": "copy-text-style",
+                "paste_flow_edge_style": "paste-text-style",
+                "reset_flow_edge_style": "script-undo",
+            }
+            for action_id, icon_name in expected_icons.items():
+                button = named_item(toolbar, "graphEdgeFloatingToolbarAction_" + action_id)
+                if button is None:
+                    raise AssertionError(f"flow edge toolbar has no {action_id} button")
+                if button.property("iconName") != icon_name or not icons.has(icon_name):
+                    raise AssertionError(f"{action_id} button icon {button.property('iconName')!r} is not {icon_name!r}")
+                QMetaObject.invokeMethod(button, "click")
+                app.processEvents()
+            dispatched = root.property("dispatched")
+            if hasattr(dispatched, "toVariant"):
+                dispatched = dispatched.toVariant()
+            expected = [action_id + "@edge-1" for action_id in expected_icons]
+            if list(dispatched) != expected:
+                raise AssertionError(f"toolbar dispatched {list(dispatched)!r}, expected {expected!r}")
+            window.hide()
+            root.deleteLater()
+            window.deleteLater()
+            """
+        )
+        env = os.environ.copy()
+        env["QT_QPA_PLATFORM"] = "offscreen"
+        env.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
+        _run_isolated_probe("flow-edge-toolbar-style-actions", script, env)
+
     def test_graph_typography_inline_edge_flow_edge_labels_follow_shared_roles_in_pill_and_text_modes(
         self,
     ) -> None:

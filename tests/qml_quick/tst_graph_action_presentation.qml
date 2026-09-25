@@ -73,6 +73,7 @@ TestCase {
             "toggle_edge_enabled", "remove_edge", "path_mode", "frame_edge",
             "display_mode", "edge_color", "clear_flow_edge_label",
             "edit_flow_edge_label", "stroke_pattern", "arrow_head",
+            "copy_flow_edge_style", "paste_flow_edge_style", "reset_flow_edge_style",
             "edit_flow_edge_style"
         ].join(","))
         compare(actions[0].label, "Enable connection")

@@ -147,6 +147,9 @@ function edgeToolbarActions(facts) {
             {"id": "edit_flow_edge_label", "label": "Edit label", "icon": "edit"},
             {"id": "stroke_pattern", "label": "Line pattern", "icon": "path-style", "popover": "pattern"},
             {"id": "arrow_head", "label": "Arrow style", "icon": "arrow-right", "popover": "arrow"},
+            {"id": "copy_flow_edge_style", "label": "Copy style", "icon": "copy-text-style"},
+            {"id": "paste_flow_edge_style", "label": "Paste style", "icon": "paste-text-style"},
+            {"id": "reset_flow_edge_style", "label": "Reset style", "icon": "script-undo"},
             {"id": "edit_flow_edge_style", "label": "More settings", "icon": "more"}
         );
     }
