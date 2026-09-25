@@ -106,11 +106,13 @@ _T15_CONVERTED_TYPE_IDS = (
     "utilities.construct_view",
     "utilities.deconstruct_view",
 )
+_POST_BASELINE_CONVERTED_TYPE_IDS = ("engineering.mesh_import",)
 _CONVERTED_TYPE_IDS = (
     *_T10_CONVERTED_TYPE_IDS,
     *_T11_CONVERTED_TYPE_IDS,
     *_T12_CONVERTED_TYPE_IDS,
     *_T15_CONVERTED_TYPE_IDS,
+    *_POST_BASELINE_CONVERTED_TYPE_IDS,
 )
 _NATIVE_FUNCTION_TYPE_IDS = (
     "io.combine_file_paths",

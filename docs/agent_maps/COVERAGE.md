@@ -187,9 +187,9 @@ Settings-section size transitions use shared 180 ms width/height animations with
 - Novice plugin authoring is shared by the nodes-owned static/save backend, native
   PyQt dialog/editor, and shell controller/File actions; reload still routes only
   through the guarded registry replacement coordinator.
-- The reserved built-in bundle owns exactly 76 inert function declarations under
+- The reserved built-in bundle owns exactly 77 inert function declarations under
   `nodes/builtin_functions/`; trusted helpers and data contracts remain under
-  `nodes/builtins/`, and the original migration inventory pins 49 trusted
+  `nodes/builtins/`, and the original migration inventory pins 48 trusted
   exceptions across its 135-row catalog baseline; the current catalog has 143 rows.
 - Public filesystem discovery is nodes-owned in `plugin_loader.py`; shared
   function materialization/fingerprinting lives in `function_bundle.py`, built-in
