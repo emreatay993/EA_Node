@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any, Mapping
 from ea_node_editor.graph.group_backdrop_geometry import (
     GroupBackdropCandidate,
     compute_group_backdrop_membership,
+    hidden_node_ids,
+    honoured_held_member_ids,
 )
 from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters, fallback_graph_boundary_adapters
 from ea_node_editor.graph.hierarchy import ScopePath
@@ -753,6 +755,7 @@ class GraphScenePayloadBuilder:
         presentation_facts_by_node_id: dict[str, _NodePresentationFacts] = {}
         group_backdrop_ids: set[str] = set()
         membership_candidates: list[GroupBackdropCandidate] = []
+        hidden_ids = hidden_node_ids(workspace.nodes)
 
         for node_id in visible_node_ids:
             node = workspace.nodes.get(node_id)
@@ -805,6 +808,11 @@ class GraphScenePayloadBuilder:
                     y=float(presentation_facts.bounds.y),
                     width=float(membership_width),
                     height=float(membership_height),
+                    held_member_ids=honoured_held_member_ids(
+                        node,
+                        is_backdrop=is_group_backdrop,
+                        collapsed_lists_contain=hidden_ids.__contains__,
+                    ),
                 )
             )
 

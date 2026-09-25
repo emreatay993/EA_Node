@@ -206,6 +206,37 @@ class GroupBackdropCatalogTests(unittest.TestCase):
         self.assertEqual(round_trip_node.title, "")
         self.assertEqual(round_trip_node.properties, {"title": ""})
 
+    def test_held_member_ids_are_a_node_field_on_the_document_path(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        collapsed = model.add_node(workspace.workspace_id, GROUP_BACKDROP_TYPE_ID, "Collapsed", 40.0, 60.0)
+        expanded = model.add_node(workspace.workspace_id, GROUP_BACKDROP_TYPE_ID, "Expanded", 600.0, 60.0)
+        member = model.add_node(workspace.workspace_id, STICKY_NOTE_TYPE_ID, "Member", 80.0, 140.0)
+        model.set_node_collapsed(workspace.workspace_id, collapsed.node_id, True)
+        model._set_node_held_member_ids_record(  # noqa: SLF001
+            workspace.workspace_id, collapsed.node_id, [member.node_id, member.node_id, collapsed.node_id, " "]
+        )
+        self.assertEqual(collapsed.held_member_ids, (member.node_id,))
+
+        serializer = JsonProjectSerializer(registry)
+        document = serializer.to_document(model.project)
+        node_docs = {
+            doc["node_id"]: doc
+            for ws in document["workspaces"]
+            if ws["workspace_id"] == workspace.workspace_id
+            for doc in ws["nodes"]
+        }
+        # Authored state on the normal node document path, not one of the stripped runtime membership keys.
+        self.assertEqual(node_docs[collapsed.node_id]["held_member_ids"], [member.node_id])
+        self.assertNotIn("held_member_ids", node_docs[expanded.node_id])
+        self.assertNotIn("held_member_ids", node_docs[member.node_id])
+
+        round_tripped = serializer.from_document(document).workspaces[workspace.workspace_id]
+        self.assertEqual(round_tripped.nodes[collapsed.node_id].held_member_ids, (member.node_id,))
+        self.assertIsNone(round_tripped.nodes[expanded.node_id].held_member_ids)
+        self.assertEqual(NodeInstance(node_id="n", type_id=GROUP_BACKDROP_TYPE_ID, title="", x=0.0, y=0.0).held_member_ids, None)
+
     def test_group_backdrop_ports_connect_to_passive_nodes_while_staying_on_backdrop_model(self) -> None:
         registry = build_default_registry()
         model = GraphModel()

@@ -6,6 +6,7 @@ from ea_node_editor.graph.transform_layout_ops import (
     LayoutNodeBounds,
     PortAlignmentConstraint,
     build_alignment_position_updates,
+    build_make_room_position_updates,
     build_straighten_connection_position_updates,
 )
 
@@ -152,3 +153,84 @@ def test_center_alignment_needs_two_nodes_and_a_known_mode() -> None:
     nodes = _mixed_size_layout_nodes()
     assert build_alignment_position_updates(layout_nodes=nodes[:1], alignment="center_y") == {}
     assert build_alignment_position_updates(layout_nodes=nodes, alignment="middle") == {}
+
+
+_PILL = LayoutNodeBounds(node_id="grower", x=0.0, y=0.0, width=130.0, height=36.0)
+_EXPANDED = LayoutNodeBounds(node_id="grower", x=0.0, y=0.0, width=420.0, height=260.0)
+
+
+def _box(node_id: str, x: float, y: float, width: float = 100.0, height: float = 50.0) -> LayoutNodeBounds:
+    return LayoutNodeBounds(node_id=node_id, x=x, y=y, width=width, height=height)
+
+
+def _make_room(
+    boxes: list[LayoutNodeBounds],
+    grown_from: LayoutNodeBounds = _PILL,
+    grown_to: LayoutNodeBounds = _EXPANDED,
+) -> dict[str, tuple[float, float]]:
+    return build_make_room_position_updates(
+        grown_from=grown_from,
+        grown_to=grown_to,
+        movable_bounds=boxes,
+        gap=32.0,
+        keep_gap_x=96.0,
+        keep_gap_y=64.0,
+    )
+
+
+def test_make_room_shifts_the_row_after_the_grower_right_only_as_needed() -> None:
+    # The first box sat 100 px after the pill: it keeps the capped 96 px gap, and the whole row moves with it.
+    updates = _make_room([_box("first", 230.0, 10.0), _box("second", 520.0, 20.0), _box("far", 900.0, 0.0)])
+    assert updates == {"first": (516.0, 10.0), "second": (806.0, 20.0), "far": (1186.0, 0.0)}
+
+    # A row already clear of the expanded rectangle (plus the kept gap) stays.
+    assert _make_room([_box("clear", 600.0, 0.0)]) == {}
+
+
+def test_make_room_keeps_a_smaller_original_gap_and_never_moves_more_than_the_growth() -> None:
+    updates = _make_room([_box("tight", 150.0, 0.0)])
+    assert updates == {"tight": (440.0, 0.0)}  # 20 px kept after the expanded edge; shift = growth (290)
+
+
+def test_make_room_moves_the_column_below_down() -> None:
+    grown_to = LayoutNodeBounds(node_id="grower", x=0.0, y=0.0, width=130.0, height=260.0)
+    updates = _make_room([_box("below", 0.0, 100.0, 130.0, 50.0), _box("beside", 400.0, 100.0)], grown_to=grown_to)
+    assert updates == {"below": (0.0, 324.0)}  # 64 px kept under the grown edge
+
+
+def test_make_room_moves_a_diagonal_box_right_and_leaves_boxes_outside_both_bands() -> None:
+    updates = _make_room([_box("diagonal", 300.0, 150.0), _box("outside", 500.0, 400.0)])
+    assert set(updates) == {"diagonal"}
+    assert updates["diagonal"][1] == 150.0
+    assert updates["diagonal"][0] > 300.0
+
+
+def test_make_room_mirrors_growth_to_the_left_and_up() -> None:
+    grown_from = LayoutNodeBounds(node_id="grower", x=500.0, y=500.0, width=130.0, height=36.0)
+    grown_to = LayoutNodeBounds(node_id="grower", x=300.0, y=300.0, width=330.0, height=236.0)
+    updates = _make_room(
+        [_box("left", 300.0, 510.0, 100.0, 30.0), _box("above", 520.0, 300.0, 80.0, 40.0)],
+        grown_from=grown_from,
+        grown_to=grown_to,
+    )
+    assert updates == {"left": (104.0, 510.0), "above": (520.0, 196.0)}
+
+
+def test_make_room_tops_a_tight_gap_up_to_the_kept_gap_once_then_stays() -> None:
+    # 20 px after the pill: the first expand keeps those 20 px, the next one tops the gap up to the kept 96 px
+    # (a one-time move of 76 px, never more than the growth), and from then on the row does not move.
+    first_expand = _make_room([_box("tight", 150.0, 0.0)])
+    assert first_expand == {"tight": (440.0, 0.0)}
+    second_expand = _make_room([_box("tight", *first_expand["tight"])])
+    assert second_expand == {"tight": (516.0, 0.0)}
+    assert _make_room([_box("tight", *second_expand["tight"])]) == {}
+
+
+def test_make_room_does_not_drift_on_a_repeated_expand_after_a_collapse() -> None:
+    for gap_before in (96.0, 150.0):
+        row = [_box("first", 130.0 + gap_before, 10.0), _box("second", 500.0 + gap_before, 10.0)]
+        first_expand = _make_room(row)
+        assert first_expand
+        moved = [_box(box.node_id, *first_expand[box.node_id]) for box in row]
+        assert _make_room(moved) == {}, gap_before
+

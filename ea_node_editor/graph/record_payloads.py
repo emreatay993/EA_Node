@@ -95,6 +95,13 @@ def _normalize_string_tuple(value: Any, *, strict: bool = False) -> tuple[str, .
     return tuple(normalized)
 
 
+def _held_member_ids_from_payload(value: Any) -> tuple[str, ...] | None:
+    """Lenient even for strict payloads: a bad list must never reject the node (paste, custom workflows)."""
+    if not isinstance(value, (list, tuple)):
+        return None
+    return tuple(sorted({item.strip() for item in value if isinstance(item, str) and item.strip()}))
+
+
 def node_instance_from_mapping(
     payload: Mapping[str, Any],
     *,
@@ -172,6 +179,7 @@ def node_instance_from_mapping(
         parent_node_id=parent_node_id,
         custom_width=custom_width,
         custom_height=custom_height,
+        held_member_ids=_held_member_ids_from_payload(payload.get("held_member_ids")),
     )
 
 
@@ -183,7 +191,7 @@ def node_instance_to_mapping(
     data_types: DataTypeCatalog | None = None,
     properties_override: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    mapping = {
         node_id_key: node.node_id,
         "type_id": node.type_id,
         "title": node.title,
@@ -211,6 +219,9 @@ def node_instance_to_mapping(
         "custom_width": node.custom_width,
         "custom_height": node.custom_height,
     }
+    if node.held_member_ids is not None:
+        mapping["held_member_ids"] = list(node.held_member_ids)
+    return mapping
 
 
 def edge_instance_from_mapping(

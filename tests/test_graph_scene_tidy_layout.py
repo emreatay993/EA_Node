@@ -8,6 +8,7 @@ from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from ea_node_editor.graph.transform_tidy_layout import DEFAULT_TIDY_COLUMN_GAP
 from tests.automation.harness import build_context, call
 
 START = "passive.flowchart.start"
@@ -248,6 +249,67 @@ class TidyGroupTests(_TidySceneCase):
         repeat = self.tidy_no_undo(None)
         self.assertIsNotNone(repeat)
         self.assertFalse(repeat["changed"])
+
+    def _collapsed_group_between(self, start: str, end: str, x: float, y: float) -> str:
+        first = self.add(PROCESS, x, y)
+        second = self.add(PROCESS, x + 320, y + 40)
+        self.wire(first, "right", second, "left")
+        self.wire(start, "right", first, "left")
+        self.wire(second, "right", end, "left")
+        group = self.scene.wrap_node_ids_in_group_backdrop([first, second])
+        self.scene.set_node_collapsed(group, True)
+        return group
+
+    def assert_pill_gap(self, group: str, next_node: str) -> None:
+        pill_x, _pill_y, pill_width, _pill_height = self.bounds(group)
+        self.assertAlmostEqual(self.position(next_node)[0] - (pill_x + pill_width), DEFAULT_TIDY_COLUMN_GAP, delta=0.5)
+
+    def test_collapsed_group_is_laid_out_at_its_pill_size_at_every_level(self) -> None:
+        # Top level: start -> collapsed Group -> end.
+        start = self.add(START, 0, 40)
+        end = self.add(PROCESS, 1700, 0)
+        top_group = self._collapsed_group_between(start, end, 500, 300)
+        # Inside a Group: the same chain, wrapped in a parent Group.
+        inner_start = self.add(START, 0, 1200)
+        inner_end = self.add(PROCESS, 1700, 1200)
+        nested_group = self._collapsed_group_between(inner_start, inner_end, 500, 1400)
+        parent = self.scene.wrap_node_ids_in_group_backdrop([inner_start, nested_group, inner_end])
+        self.assertEqual(self.backdrop_row(nested_group)["owner_backdrop_id"], parent)
+
+        outcome = self.tidy_one_undo(None)
+
+        self.assertEqual(outcome["membership_conflict_node_ids"], [])
+        self.assert_pill_gap(top_group, end)
+        self.assert_pill_gap(nested_group, inner_end)
+        # The parent is fitted around the laid-out members (pill included), not around the hidden area.
+        parent_x, parent_y, parent_width, parent_height = self.bounds(parent)
+        members = [self.bounds(node_id) for node_id in (inner_start, nested_group, inner_end)]
+        self.assertAlmostEqual(parent_x + parent_width, max(x + w for x, _y, w, _h in members) + 32.0, delta=0.5)
+        self.assertAlmostEqual(parent_x, min(x for x, _y, _w, _h in members) - 32.0, delta=0.5)
+        self.assertEqual(self.backdrop_row(nested_group)["owner_backdrop_id"], parent)
+        self.assertLess(parent_width, 1200.0)
+
+        repeat = self.tidy_no_undo(None)
+        self.assertIsNotNone(repeat)
+        self.assertFalse(repeat["changed"])
+
+    def test_nodes_over_a_hidden_area_are_not_a_membership_conflict(self) -> None:
+        member = self.add(PROCESS, 40, 120)
+        group = self.scene.wrap_node_ids_in_group_backdrop([member])
+        self.scene.set_node_geometry(group, 0.0, 0.0, 900.0, 600.0)
+        self.scene.set_node_collapsed(group, True)
+        first = self.add(PROCESS, 200, 250)
+        second = self.add(PROCESS, 520, 400)
+        self.wire(first, "right", second, "left")
+
+        outcome = self.tidy_one_undo([first, second])
+
+        self.assertEqual(outcome["membership_conflict_node_ids"], [])
+        self.assertEqual(sorted(outcome["arranged_node_ids"]), sorted([first, second]))
+        for node_id in (first, second):
+            row = next(row for row in self.scene.nodes_model if row["node_id"] == node_id)
+            self.assertEqual(row["owner_backdrop_id"], "")
+        self.assertEqual(self.context.active_workspace().nodes[group].held_member_ids, (member,))
 
     def test_partial_group_selection_grows_the_owner_chain(self) -> None:
         first = self.add(PROCESS, 100, 100)

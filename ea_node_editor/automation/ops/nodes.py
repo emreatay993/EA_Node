@@ -140,7 +140,9 @@ UPDATE = OpSpec(
     summary="Update title, position, size, properties, port labels, exposed ports, collapsed, or locked on one node.",
     description=(
         "Only supplied fields change; the result lists what actually changed (NO_EFFECT when nothing did). "
-        "Properties driven by a connected/exposed port return PROPERTY_LOCKED_BY_PORT."
+        "Properties driven by a connected/exposed port return PROPERTY_LOCKED_BY_PORT. Expanding makes room: "
+        "neighbours move aside and parent Groups grow; it fails with NO_EFFECT when a locked Group would have to grow "
+        "or no room exists."
     ),
     params=object_schema(
         {

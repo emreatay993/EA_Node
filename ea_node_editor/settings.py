@@ -140,8 +140,11 @@ EDGE_CROSSING_STYLE_CHOICES = (
     ("gap_break", "Gap break"),
 )
 EXPAND_COLLISION_AVOIDANCE_STRATEGY_CHOICES = (
+    ("make_room", "Make room"),
     ("nearest", "Nearest"),
 )
+# Bumped when a new default strategy must replace saved values that only reflect the old sole choice.
+EXPAND_COLLISION_AVOIDANCE_STRATEGY_REVISION = 2
 EXPAND_COLLISION_AVOIDANCE_SCOPE_CHOICES = (
     ("all_movable", "All movable items"),
 )
@@ -217,6 +220,7 @@ TABULAR_DATA_CACHE_FORMAT = "parquet"
 DEFAULT_EXPAND_COLLISION_AVOIDANCE_SETTINGS = {
     "enabled": True,
     "strategy": DEFAULT_EXPAND_COLLISION_AVOIDANCE_STRATEGY,
+    "strategy_revision": EXPAND_COLLISION_AVOIDANCE_STRATEGY_REVISION,
     "scope": DEFAULT_EXPAND_COLLISION_AVOIDANCE_SCOPE,
     "radius_mode": DEFAULT_EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE,
     "local_radius_preset": DEFAULT_EXPAND_COLLISION_AVOIDANCE_LOCAL_RADIUS_PRESET,

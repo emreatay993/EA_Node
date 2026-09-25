@@ -360,8 +360,11 @@ plus the members of any Group backdrop among them.
   current median gap, clamped between the value and three times the value.
 - Group backdrops stay intact. A listed backdrop's members are laid out inside
   it and the backdrop is refitted (`resized_group_ids`); a collapsed Group
-  moves as one block with its hidden members; listed nodes inside an unlisted
-  backdrop are tidied as their own block and that backdrop grows to keep them.
+  moves as one block with its hidden members and is laid out at its collapsed
+  size at every level; listed nodes inside an unlisted backdrop are tidied as
+  their own block and that backdrop grows to keep them. An expanded Group owns
+  the nodes inside its area, while a collapsed Group keeps exactly the members
+  it had when it was collapsed (nodes over its hidden area stay outside it).
   If the new layout would still move a node into or out of a Group, nothing
   changes and the call fails with `NO_EFFECT`
   (`details.membership_conflict_node_ids`); add the Group backdrop to
@@ -1010,7 +1013,7 @@ MCP tool: `node_update`. Flags: undo step, apply-allowed.
 
 Update title, position, size, properties, port labels, exposed ports, collapsed, or locked on one node.
 
-Only supplied fields change; the result lists what actually changed (NO_EFFECT when nothing did). Properties driven by a connected/exposed port return PROPERTY_LOCKED_BY_PORT.
+Only supplied fields change; the result lists what actually changed (NO_EFFECT when nothing did). Properties driven by a connected/exposed port return PROPERTY_LOCKED_BY_PORT. Expanding makes room: neighbours move aside and parent Groups grow; it fails with NO_EFFECT when a locked Group would have to grow or no room exists.
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
@@ -1145,7 +1148,7 @@ MCP tool: `group_wrap`. Flags: undo step, apply-allowed.
 
 Wrap nodes in a Group backdrop (passive.annotation.group_backdrop) with an optional title.
 
-Membership is geometric: the backdrop is sized around the given nodes; moving it moves them.
+An expanded Group owns the nodes inside its area (moving a node in or out changes membership); a collapsed Group keeps exactly the members it had when it was collapsed, nodes placed over its hidden area stay outside it, and expanding it makes room around it. The backdrop is sized around the given nodes; moving it moves them. Hidden nodes cannot be wrapped.
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
@@ -1257,7 +1260,7 @@ MCP tool: `layout_tidy`. Flags: undo step, apply-allowed.
 
 Tidy nodes: auto-layout from the wires (left to right / top to bottom) or clean up in place, keeping Group backdrops intact.
 
-Omit node_ids to tidy every node in the open scope. auto_layout rebuilds the arrangement from the wires (direction auto-detected from the port sides they use, or forced with left_to_right / top_to_bottom): rows and columns are centered so right->left and bottom->top wires run straight, loop-back wires stay elbows (loop_edge_ids), and the block keeps its current top-left; in_place keeps the arrangement and snaps near-aligned rows and columns onto shared center lines with even gaps. Group backdrops stay intact: a listed backdrop's members are laid out inside it and the backdrop is refitted, a collapsed Group moves as one block, and an unlisted backdrop grows to keep listed members; when the result would still move a node into or out of a Group nothing changes and the call fails with NO_EFFECT (details.membership_conflict_node_ids). Locked nodes (unless the 'interact with locked objects' preference is on), members of a collapsed Group, nodes outside an open comment peek, Groups that hold a locked node (with their contents), and nodes whose locked Group would have to grow are left alone and listed in skipped_nodes (the last two as locked_group); the new block steps around locked nodes and those Groups, and unwired annotations are never re-arranged. Other nodes the new block would overlap are pushed aside (pushed_node_ids) while the 'Avoid overlaps when expanding collapsed items' graphics setting is on (the default). Read straightened_edge_ids, skipped_edges, and overlapping_node_pairs afterwards; changed=false means the nodes were already tidy.
+Omit node_ids to tidy every node in the open scope. auto_layout rebuilds the arrangement from the wires (direction auto-detected from the port sides they use, or forced with left_to_right / top_to_bottom): rows and columns are centered so right->left and bottom->top wires run straight, loop-back wires stay elbows (loop_edge_ids), and the block keeps its current top-left; in_place keeps the arrangement and snaps near-aligned rows and columns onto shared center lines with even gaps. Group backdrops stay intact: a listed backdrop's members are laid out inside it and the backdrop is refitted, a collapsed Group moves as one block with its hidden members and is laid out at its collapsed size at every level, and an unlisted backdrop grows to keep listed members; when the result would still move a node into or out of a Group nothing changes and the call fails with NO_EFFECT (details.membership_conflict_node_ids). Locked nodes (unless the 'interact with locked objects' preference is on), members of a collapsed Group, nodes outside an open comment peek, Groups that hold a locked node (with their contents), and nodes whose locked Group would have to grow are left alone and listed in skipped_nodes (the last two as locked_group); the new block steps around locked nodes and those Groups, and unwired annotations are never re-arranged. Other nodes the new block would overlap are pushed aside (pushed_node_ids) while the 'Avoid overlaps when expanding collapsed items' graphics setting is on (the default). Read straightened_edge_ids, skipped_edges, and overlapping_node_pairs afterwards; changed=false means the nodes were already tidy.
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |

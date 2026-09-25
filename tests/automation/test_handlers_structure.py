@@ -334,6 +334,18 @@ class GroupWrapTests(_HandlerCase):
         self.assertEqual(result["group"]["title"], "Stage 1")
         expect_error(self.context, "group.wrap", {"node_ids": [start, "node_missing"]}, NOT_FOUND)
 
+    def test_wrap_rejects_nodes_hidden_in_a_collapsed_group(self) -> None:
+        hidden = self.add(PROCESS, 0, 0)
+        visible = self.add(PROCESS, 900, 0)
+        collapsed = self.call_one_undo("group.wrap", {"node_ids": [hidden]})["group_node_id"]
+        self.assertTrue(self.context.scene.set_node_collapsed(collapsed, True))
+        before = self.undo_depth()
+
+        error = expect_error(self.context, "group.wrap", {"node_ids": [hidden, visible]}, INVALID_PARAMS)
+
+        self.assertEqual(error.details["skipped_nodes"], [{"node_id": hidden, "reason": "hidden_in_collapsed_group"}])
+        self.assertEqual(self.undo_depth(), before)
+
 
 class SubnodeLifecycleTests(_HandlerCase):
     def test_create_navigate_add_pin_and_ungroup(self) -> None:

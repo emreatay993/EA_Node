@@ -12,6 +12,7 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.app_preferences import (
     effective_graph_node_icon_pixel_size,
+    normalize_expand_collision_avoidance_settings,
     normalize_plot_default_backend_per_type,
     resolve_startup_theme_id,
 )
@@ -849,6 +850,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                     "expand_collision_avoidance": {
                         "enabled": False,
                         "strategy": " NEAREST ",
+                        "strategy_revision": 2,
                         "scope": " ALL_MOVABLE ",
                         "radius_mode": " UNBOUNDED ",
                         "local_radius_preset": " LARGE ",
@@ -919,6 +921,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
             {
                 "enabled": False,
                 "strategy": "nearest",
+                "strategy_revision": 2,
                 "scope": "all_movable",
                 "radius_mode": "unbounded",
                 "local_radius_preset": "large",
@@ -1444,6 +1447,34 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                 "enabled": False,
             },
         )
+
+    def test_saved_nearest_without_a_revision_reads_as_make_room_until_a_choice_is_saved(self) -> None:
+        # "nearest" was the only strategy before "make_room"; a saved "nearest" without a revision is not a choice.
+        legacy = normalize_expand_collision_avoidance_settings({"strategy": "nearest", "gap_preset": "tight"})
+        self.assertEqual(legacy["strategy"], "make_room")
+        self.assertEqual(legacy["strategy_revision"], 2)
+        self.assertEqual(legacy["gap_preset"], "tight")
+        explicit = normalize_expand_collision_avoidance_settings({"strategy": "nearest", "strategy_revision": 2})
+        self.assertEqual(explicit["strategy"], "nearest")
+        self.assertEqual(normalize_expand_collision_avoidance_settings(None)["strategy"], "make_room")
+
+        document = copy.deepcopy(self._controller.load())
+        document["graphics"]["interaction"]["expand_collision_avoidance"] = {"enabled": True, "strategy": "nearest"}
+        self._preferences_path.write_text(json.dumps(document), encoding="utf-8")
+        stored_before = self._preferences_path.read_text(encoding="utf-8")
+
+        loaded = AppPreferencesController(store=self._store).load()
+
+        self.assertEqual(loaded["graphics"]["interaction"]["expand_collision_avoidance"]["strategy"], "make_room")
+        # Read-time only: nothing is written until Graphics Settings are saved.
+        self.assertEqual(self._preferences_path.read_text(encoding="utf-8"), stored_before)
+
+        current = copy.deepcopy(loaded["graphics"])
+        current["interaction"]["expand_collision_avoidance"] = {"strategy": "nearest", "strategy_revision": 2}
+        saved = self._controller.set_graphics_settings(current)
+        self.assertEqual(saved["interaction"]["expand_collision_avoidance"]["strategy"], "nearest")
+        reloaded = AppPreferencesController(store=self._store).load()
+        self.assertEqual(reloaded["graphics"]["interaction"]["expand_collision_avoidance"]["strategy"], "nearest")
 
     def test_plot_preferences_default_partial_payloads_and_controller_updates(self) -> None:
         defaults = self._controller.load()["graphics"]["plot"]

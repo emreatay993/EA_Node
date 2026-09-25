@@ -521,6 +521,15 @@ class GraphSceneScopeSelection:
 
         workspace = self._scene_context.current_workspace()
         visible_node_ids = set(self.visible_node_ids(workspace))
+        # Only drawn nodes: members hidden inside a collapsed Group have no payload row.
+        bridge = self._scene_context._bridge
+        bridge._ensure_payload_cache_current()
+        cache = bridge._payload_cache
+        if not cache.indexes_valid:
+            cache.rebuild_indexes()
+        visible_node_ids = {
+            node_id for node_id in visible_node_ids if cache.resolve_node_payload_slot(node_id)[0] == "ok"
+        }
         # Keep the horizontal drag direction before normalizing the rectangle.
         select_enclosed_only = float(x2) >= float(x1)
         min_x = min(float(x1), float(x2))

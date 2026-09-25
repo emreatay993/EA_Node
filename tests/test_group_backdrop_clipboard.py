@@ -134,6 +134,8 @@ class GroupBackdropClipboardTests(unittest.TestCase):
 
         self.assertTrue(added_id)
         self.assertEqual(rebuild_calls, ["rebuild"])
+        # Dropped over the collapsed Group's hidden area: it is not one of the members the Group held, so it stays drawn.
+        self.assertIn(added_id, {payload["node_id"] for payload in self.scene.nodes_model})
 
     def test_collapsed_group_backdrop_copy_includes_recursive_descendants_and_internal_edges(self) -> None:
         inner_source_id = self.scene.add_node_from_type("core.constant", 220.0, 160.0)
@@ -166,7 +168,7 @@ class GroupBackdropClipboardTests(unittest.TestCase):
             {(inner_source_id, "value", outer_target_id, "payload")},
         )
 
-    def test_duplicate_selected_collapsed_group_backdrop_recomputes_membership_for_duplicates(self) -> None:
+    def test_duplicate_selected_collapsed_group_backdrop_remaps_its_member_ids(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 280.0, 220.0)
         backdrop_id = self._wrap_nodes_in_group_backdrop([source_id], collapsed=True)
         workspace = self.model.project.workspaces[self.workspace_id]
@@ -193,6 +195,8 @@ class GroupBackdropClipboardTests(unittest.TestCase):
         self.assertAlmostEqual(workspace.nodes[duplicate_backdrop_id].y, workspace.nodes[backdrop_id].y + 40.0, places=6)
         self.assertAlmostEqual(workspace.nodes[duplicate_source_id].x, workspace.nodes[source_id].x + 40.0, places=6)
         self.assertAlmostEqual(workspace.nodes[duplicate_source_id].y, workspace.nodes[source_id].y + 40.0, places=6)
+        self.assertEqual(workspace.nodes[duplicate_backdrop_id].held_member_ids, (duplicate_source_id,))
+        self.assertEqual(workspace.nodes[backdrop_id].held_member_ids, (source_id,))
 
         self.scene.set_node_collapsed(duplicate_backdrop_id, False)
         duplicate_backdrop_payload = self._scene_payload(duplicate_backdrop_id)
@@ -220,6 +224,8 @@ class GroupBackdropClipboardTests(unittest.TestCase):
         self.scene.add_edge(inner_source_id, "value", outer_target_id, "payload")
         self.scene.add_edge(inner_source_id, "value", outside_script_id, "payload")
         outer_backdrop_id = self._wrap_nodes_in_group_backdrop([inner_backdrop_id, outer_target_id], collapsed=True)
+        # Dropped over the collapsed Group's hidden area after it collapsed: not a member, so it survives the delete.
+        dropped_id = self.scene.add_node_from_type("core.constant", 240.0, 300.0)
         workspace = self.model.project.workspaces[self.workspace_id]
 
         self.scene.select_node(outer_backdrop_id, False)
@@ -229,6 +235,7 @@ class GroupBackdropClipboardTests(unittest.TestCase):
         for removed_node_id in (outer_backdrop_id, inner_backdrop_id, inner_source_id, outer_target_id):
             self.assertNotIn(removed_node_id, workspace.nodes)
         self.assertIn(outside_script_id, workspace.nodes)
+        self.assertIn(dropped_id, workspace.nodes)
         self.assertEqual(list(workspace.edges), [])
 
 

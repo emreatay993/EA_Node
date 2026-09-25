@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
+from ea_node_editor.graph.group_backdrop_geometry import hidden_node_ids
 from ea_node_editor.graph.hierarchy import validate_parent_node_id
 from ea_node_editor.graph.ids import new_id as _new_id
 from ea_node_editor.graph.node_comments import normalize_node_comment_record
@@ -304,6 +306,7 @@ class GraphModel:
         incident_edge_ids: set[str] | None = None,
     ) -> None:
         workspace = self.project.workspaces[workspace_id]
+        removed_node = workspace.nodes.get(node_id)
         for source_node in workspace.nodes.values():
             if source_node.node_id == node_id:
                 continue
@@ -319,8 +322,18 @@ class GraphModel:
             ]
             if len(next_links) != len(source_node.links):
                 source_node.links = next_links
+            if source_node.held_member_ids is not None and node_id in source_node.held_member_ids:
+                source_node.held_member_ids = tuple(
+                    member_id for member_id in source_node.held_member_ids if member_id != node_id
+                )
         if node_id in workspace.nodes:
             del workspace.nodes[node_id]
+        if removed_node is not None and removed_node.collapsed and removed_node.held_member_ids is not None:
+            # Groups the removed collapsed Group hid own by area again once no collapsed Group lists them.
+            still_hidden = hidden_node_ids(workspace.nodes)
+            for node in workspace.nodes.values():
+                if node.held_member_ids is not None and not node.collapsed and node.node_id not in still_hidden:
+                    node.held_member_ids = None
         if incident_edge_ids is None:
             for edge_id in list(workspace.edges):
                 edge = workspace.edges[edge_id]
@@ -416,6 +429,26 @@ class GraphModel:
         group_ids: tuple[str, ...],
     ) -> None:
         self._set_node_expanded_settings_group_ids_record(workspace_id, node_id, group_ids)
+
+    def _set_node_held_member_ids_record(
+        self,
+        workspace_id: str,
+        node_id: str,
+        member_ids: Iterable[str] | None,
+        *,
+        mark_dirty: bool = True,
+    ) -> None:
+        workspace = self.project.workspaces[workspace_id]
+        workspace.nodes[node_id].held_member_ids = (
+            None
+            if member_ids is None
+            else tuple(sorted({str(member_id).strip() for member_id in member_ids} - {"", node_id}))
+        )
+        if mark_dirty:
+            workspace.mark_dirty()
+        else:
+            # Adopted lists are not an edit, but the history snapshot memo keys on the revision.
+            workspace.bump_mutation_revision()
 
     def _set_node_locked_record(self, workspace_id: str, node_id: str, locked: bool) -> None:
         workspace = self.project.workspaces[workspace_id]

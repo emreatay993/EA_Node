@@ -104,6 +104,19 @@ def _pin_ids(children: Iterable[NodeInstance], pin_type_id: str) -> list[str]:
 def wrap_group(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:
     node_ids = _unique_ids(params["node_ids"])
     _nodes_in_scope(context, node_ids)
+    drawn = _drawn_node_ids(context)
+    hidden = [node_id for node_id in node_ids if node_id not in drawn]
+    if hidden:
+        raise AutomationOpError(
+            INVALID_PARAMS,
+            "group.wrap: nodes hidden inside a collapsed Group cannot be wrapped.",
+            hint="Expand the collapsed Group first (node_update(collapsed=false)), or pass visible nodes.",
+            details={
+                "node_ids": node_ids,
+                "skipped_nodes": [{"node_id": node_id, "reason": "hidden_in_collapsed_group"} for node_id in hidden],
+                "problems": [f"node_ids: {node_id} is hidden in a collapsed Group" for node_id in hidden],
+            },
+        )
     before = context.node_id_set()
     group_id = str(context.scene.wrap_node_ids_in_group_backdrop(list(node_ids)) or "").strip()
     new_ids = context.new_ids_since(before)

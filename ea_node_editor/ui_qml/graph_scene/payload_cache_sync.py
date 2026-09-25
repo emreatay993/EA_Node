@@ -12,9 +12,15 @@ import copy
 from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.graph.group_backdrop_geometry import (
+    CORNER_CANDIDATE_SIZE,
+    MEMBERSHIP_RECT_CORNER,
+    MEMBERSHIP_RECT_EXPANDED,
     GroupBackdropCandidate,
     build_group_backdrop_occupied_bounds,
     compute_group_backdrop_membership,
+    hidden_node_ids,
+    honoured_held_member_ids,
+    membership_rect_kind,
 )
 from ea_node_editor.graph.effective_ports import is_subnode_shell_type
 from ea_node_editor.graph.hierarchy import node_scope_path
@@ -174,12 +180,14 @@ class ScenePayloadCacheSync:
 
             candidates: list[GroupBackdropCandidate] = []
             candidate_by_id: dict[str, GroupBackdropCandidate] = {}
+            hidden_ids = hidden_node_ids(workspace.nodes)
             for is_backdrop, payloads in ((False, all_node_payloads), (True, all_backdrop_payloads)):
                 for payload in payloads:
                     candidate = self._payload_candidate_from_payload(
                         payload,
                         workspace=workspace,
                         is_backdrop=is_backdrop,
+                        hidden_ids=hidden_ids,
                     )
                     if candidate is None or candidate.node_id in candidate_by_id:
                         return None
@@ -272,6 +280,7 @@ class ScenePayloadCacheSync:
         backdrop_candidates = self._cached_backdrop_candidates()
         if backdrop_candidates is None:
             return False
+        hidden_ids = hidden_node_ids(workspace.nodes)
         for node_id in sorted(node_ids):
             status, location = cache.resolve_node_payload_slot(node_id)
             if status != "ok" or location is None:
@@ -292,6 +301,7 @@ class ScenePayloadCacheSync:
                 x=float(node.x),
                 y=float(node.y),
                 is_backdrop=False,
+                hidden_ids=hidden_ids,
             )
             if candidate is None:
                 return False
@@ -381,6 +391,7 @@ class ScenePayloadCacheSync:
             return None
         cache = self._context._bridge._payload_cache
         candidates: list[GroupBackdropCandidate] = []
+        hidden_ids = hidden_node_ids(workspace.nodes)
         for payload in cache.backdrop_nodes:
             node_id = str(payload.get("node_id", "") or "").strip()
             node = workspace.nodes.get(node_id)
@@ -390,6 +401,7 @@ class ScenePayloadCacheSync:
                 payload,
                 workspace=workspace,
                 is_backdrop=True,
+                hidden_ids=hidden_ids,
             )
             if candidate is None:
                 return None
@@ -404,7 +416,13 @@ class ScenePayloadCacheSync:
         is_backdrop: bool,
         x: float | None = None,
         y: float | None = None,
+        hidden_ids: set[str] | None = None,
     ) -> GroupBackdropCandidate | None:
+        """A drawn payload as a candidate; with ``hidden_ids`` it is a membership candidate (honoured list, size rule).
+
+        An older collapsed Group without a list claims by its expanded size, which a payload does not carry: ``None``
+        tells the caller to fall back to a full rebuild.
+        """
         node_id = str(payload.get("node_id", "") or "").strip()
         if not node_id:
             return None
@@ -415,6 +433,19 @@ class ScenePayloadCacheSync:
             candidate_y = float(payload.get("y", 0.0) if y is None else y)
         except (TypeError, ValueError):
             return None
+        held_member_ids = None
+        node = workspace.nodes.get(node_id)
+        if hidden_ids is not None and node is not None:
+            held_member_ids = honoured_held_member_ids(
+                node,
+                is_backdrop=bool(is_backdrop),
+                collapsed_lists_contain=hidden_ids.__contains__,
+            )
+            kind = membership_rect_kind(node, is_backdrop=bool(is_backdrop), list_honoured=held_member_ids is not None)
+            if kind == MEMBERSHIP_RECT_EXPANDED:
+                return None
+            if kind == MEMBERSHIP_RECT_CORNER:
+                width = height = CORNER_CANDIDATE_SIZE
         return GroupBackdropCandidate(
             node_id=node_id,
             scope_path=node_scope_path(workspace, node_id),
@@ -423,6 +454,7 @@ class ScenePayloadCacheSync:
             y=candidate_y,
             width=width,
             height=height,
+            held_member_ids=held_member_ids,
         )
 
     def replace_cached_node_position_payloads(

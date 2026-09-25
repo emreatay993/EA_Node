@@ -4,7 +4,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from ea_node_editor.graph.hierarchy import normalize_parent_node_id, subtree_node_ids
+from ea_node_editor.graph.hierarchy import (
+    normalize_parent_node_id,
+    sanitize_workspace_held_member_ids,
+    subtree_node_ids,
+)
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.workspace_state import WorkspaceData
 from ea_node_editor.graph.records import NodeInstance
@@ -87,17 +91,10 @@ def expand_group_backdrop_fragment_node_ids(
     *,
     workspace: WorkspaceData,
     selected_node_ids: Sequence[object],
-    backdrop_payloads: Sequence[Mapping[str, Any]],
 ) -> list[str]:
+    """The selection plus, for each selected collapsed Group, what it holds (its stored list) and subnode subtrees."""
     normalized_selected: list[str] = []
     selected_lookup: set[str] = set()
-    backdrop_payload_by_id: dict[str, Mapping[str, Any]] = {}
-
-    for payload in backdrop_payloads:
-        node_id = str(payload.get("node_id", "")).strip()
-        if not node_id:
-            continue
-        backdrop_payload_by_id[node_id] = payload
 
     for value in selected_node_ids:
         node_id = str(value).strip()
@@ -106,19 +103,15 @@ def expand_group_backdrop_fragment_node_ids(
         selected_lookup.add(node_id)
         normalized_selected.append(node_id)
 
-        payload = backdrop_payload_by_id.get(node_id)
-        if payload is None or not bool(payload.get("collapsed", False)):
+        node = workspace.nodes[node_id]
+        if not bool(node.collapsed) or node.held_member_ids is None:
             continue
-        for key in ("contained_backdrop_ids", "contained_node_ids"):
-            raw_ids = payload.get(key)
-            if not isinstance(raw_ids, Sequence) or isinstance(raw_ids, (str, bytes)):
+        for held_id in node.held_member_ids:
+            held = workspace.nodes.get(held_id)
+            if held is None or held_id in selected_lookup or held.parent_node_id != node.parent_node_id:
                 continue
-            for raw_id in raw_ids:
-                descendant_id = str(raw_id).strip()
-                if not descendant_id or descendant_id in selected_lookup or descendant_id not in workspace.nodes:
-                    continue
-                selected_lookup.add(descendant_id)
-                normalized_selected.append(descendant_id)
+            selected_lookup.add(held_id)
+            normalized_selected.append(held_id)
 
     return expand_subtree_fragment_node_ids(
         workspace=workspace,
@@ -263,6 +256,7 @@ def _insert_graph_fragment_operation(
 
     node_id_map: dict[str, str] = {}
     inserted_node_ids: list[str] = []
+    fragment_node_by_new_id: dict[str, NodeInstance] = {}
 
     for node_payload in nodes_payload:
         fragment_node = _fragment_node_from_payload(node_payload)
@@ -303,6 +297,7 @@ def _insert_graph_fragment_operation(
         )
         node_id_map[source_node_id] = created.node_id
         inserted_node_ids.append(created.node_id)
+        fragment_node_by_new_id[created.node_id] = fragment_node
 
     if not inserted_node_ids:
         return []
@@ -330,6 +325,11 @@ def _insert_graph_fragment_operation(
             mutations._set_node_parent_record(inserted_node_id, sanitized_parent_by_node.get(inserted_node_id))
         except (KeyError, ValueError):
             mutations._set_node_parent_record(inserted_node_id, None)
+    _remap_fragment_held_member_ids(
+        mutations=mutations,
+        fragment_node_by_new_id=fragment_node_by_new_id,
+        node_id_map=node_id_map,
+    )
 
     for edge_payload in edges_payload:
         fragment_edge = edge_instance_from_mapping(
@@ -375,6 +375,42 @@ def _insert_graph_fragment_operation(
         except ValueError:
             continue
     return inserted_node_ids
+
+
+def _remap_fragment_held_member_ids(
+    *,
+    mutations: GraphRecordMutation,
+    fragment_node_by_new_id: Mapping[str, NodeInstance],
+    node_id_map: Mapping[str, str],
+) -> None:
+    """Stored member lists follow the paste: pasted members only, remapped, sharing the Group's parent.
+
+    Only a pasted collapsed Group, or a pasted Group a pasted collapsed Group lists, keeps a list; a list never refers
+    to a node outside the fragment.
+    """
+    workspace = mutations.workspace
+    remapped: dict[str, tuple[str, ...]] = {}
+    for new_id, fragment_node in fragment_node_by_new_id.items():
+        node = workspace.nodes.get(new_id)
+        if node is None or fragment_node.held_member_ids is None:
+            continue
+        remapped[new_id] = tuple(
+            mapped_id
+            for held_id in fragment_node.held_member_ids
+            if (mapped_id := node_id_map.get(held_id)) is not None
+            and mapped_id in workspace.nodes
+            and workspace.nodes[mapped_id].parent_node_id == node.parent_node_id
+        )
+    listed_by_collapsed = {
+        member_id
+        for new_id, member_ids in remapped.items()
+        if workspace.nodes[new_id].collapsed
+        for member_id in member_ids
+    }
+    for new_id, member_ids in remapped.items():
+        if workspace.nodes[new_id].collapsed or new_id in listed_by_collapsed:
+            mutations.set_node_held_member_ids(new_id, member_ids)
+    sanitize_workspace_held_member_ids(workspace)
 
 
 def _remap_fragment_parent_id(

@@ -460,6 +460,9 @@ class WorkspaceEditController:
 
     def on_node_collapse_changed(self, node_id: str, collapsed: bool) -> None:
         self._host.scene.set_node_collapsed(node_id, collapsed)
+        reason = self._host.scene.take_expand_refusal_reason()
+        if reason:
+            self._effects.show_graph_hint(reason)
         self._effects.after_selected_node_collapse_changed()
 
     def connect_selected_nodes(self) -> None:

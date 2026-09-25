@@ -99,7 +99,7 @@ scene_bridge.command_bridge directly."""
 
     @pyqtSlot(str, bool, result=bool)
     def set_node_collapsed(self, node_id: str, collapsed: bool) -> bool:
-        return bool(
+        changed = bool(
             _invoke(
                 self._scene_command_source,
                 "set_node_collapsed",
@@ -108,6 +108,8 @@ scene_bridge.command_bridge directly."""
                 default=False,
             )
         )
+        self._show_expand_refusal_hint()
+        return changed
 
     @pyqtSlot(str, str, bool, result=bool)
     def set_node_settings_group_expanded(
@@ -116,7 +118,7 @@ scene_bridge.command_bridge directly."""
         group_id: str,
         expanded: bool,
     ) -> bool:
-        return bool(
+        changed = bool(
             _invoke(
                 self._scene_command_source,
                 "set_node_settings_group_expanded",
@@ -126,6 +128,14 @@ scene_bridge.command_bridge directly."""
                 default=False,
             )
         )
+        self._show_expand_refusal_hint()
+        return changed
+
+    def _show_expand_refusal_hint(self) -> None:
+        # A refused expand (a locked Group would have to grow, no room) or a locked node joining a Group.
+        reason = str(_invoke(self._scene_command_source, "take_expand_refusal_reason", default="") or "").strip()
+        if reason and callable(self._show_graph_hint_callback):
+            self._show_graph_hint_callback(reason, 3600)
 
     @pyqtSlot(str, str, str, str, str, str, result=str)
     @pyqtSlot(str, str, str, str, str, str, str, str, result=str)

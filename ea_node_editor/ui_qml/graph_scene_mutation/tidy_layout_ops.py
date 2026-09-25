@@ -4,17 +4,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import Any, Mapping
 
 from ea_node_editor.app_preferences import normalize_expand_collision_avoidance_settings
-from ea_node_editor.graph.group_backdrop_geometry import (
-    GroupBackdropCandidate,
-    GroupBackdropMembership,
-    build_group_backdrop_wrap_bounds,
-    compute_group_backdrop_membership,
-)
 from ea_node_editor.graph.hierarchy import scope_node_ids
-from ea_node_editor.graph.records import EdgeInstance, NodeInstance
+from ea_node_editor.graph.records import EdgeInstance
 from ea_node_editor.graph.transform_layout_ops import (
     LayoutNodeBounds,
     build_collision_avoidance_position_updates,
@@ -39,46 +33,20 @@ from ea_node_editor.ui.shell.runtime_history import ACTION_MOVE_NODE
 from ea_node_editor.ui_qml.graph_geometry.route_endpoints import port_scene_pos
 from ea_node_editor.ui_qml.graph_scene_mutation.alignment_and_distribution_ops import _straighten_port_side
 from ea_node_editor.ui_qml.graph_scene_mutation.collision_avoidance_ops import (
-    _collision_objects_for_scope,
     _gap_for_settings,
-    _is_group_backdrop_spec,
-    _node_layout_bounds,
     _reach_radius_for_settings,
+    level_collision_objects,
 )
-
-if TYPE_CHECKING:
-    from ea_node_editor.nodes.node_specs import NodeTypeSpec
+from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import (
+    GroupScope,
+    collect_group_scope,
+    grow_owner_chain,
+)
 
 _ANNOTATION_TYPE_PREFIX = "passive.annotation."
 _UPDATE_TOLERANCE = 0.01
 _WIRE_SIDES = frozenset({"left", "right", "top", "bottom"})
 _TOP_BLOCK_ID = "\x00tidy_block"
-
-
-@dataclass(slots=True)
-class _TidyScope:
-    """Every node of the open scope at its membership rectangle (Group backdrops at their expanded size)."""
-
-    rects: dict[str, LayoutNodeBounds]
-    specs: dict[str, "NodeTypeSpec"]
-    group_backdrop_ids: set[str]
-    membership: dict[str, GroupBackdropMembership]
-
-    def owner(self, node_id: str) -> str | None:
-        membership = self.membership.get(node_id)
-        return (membership.owner_backdrop_id or None) if membership is not None else None
-
-    def contents(self, backdrop_id: str) -> list[str]:
-        membership = self.membership.get(backdrop_id)
-        if membership is None:
-            return []
-        return [*membership.contained_node_ids, *membership.contained_backdrop_ids]
-
-    def direct_members(self, backdrop_id: str) -> list[str]:
-        membership = self.membership.get(backdrop_id)
-        if membership is None:
-            return []
-        return [*membership.member_node_ids, *membership.member_backdrop_ids]
 
 
 @dataclass(slots=True)
@@ -131,7 +99,7 @@ def tidy_layout(
         return None
 
     workspace_nodes = dict(workspace.nodes)
-    scope = _collect_scope(self, workspace, scope_ids, workspace_nodes)
+    scope = collect_group_scope(self, workspace, scope_ids, workspace_nodes)
     tidy_ids, fixed_obstacle_ids = _expand_tidy_set(self, workspace, scope, selected_ids)
     item_ids = {node_id for node_id in tidy_ids if node_id in drawn_ids}
     partitions = _build_partitions(
@@ -168,6 +136,7 @@ def tidy_layout(
     gap = _gap_for_settings(collision_settings)
     tidy_node_ids = {node_id for partition in partitions.values() for node_id in partition.node_ids}
     final_rects = dict(scope.rects)
+    final_expanded_rects: dict[str, LayoutNodeBounds] = {}  # collapsed owners grown around peeked members
     accepted: list[str | None] = []
     rejected_ids: set[str] = set()
     grown_owner_ids: set[str] = set()
@@ -185,20 +154,27 @@ def tidy_layout(
             tidy_node_ids=tidy_node_ids,
             gap=gap,
         )
-        grown = _grow_owner_chain(self, workspace, tentative, scope, owner_id)
+        tentative_expanded_rects = dict(final_expanded_rects)
+        grown = grow_owner_chain(
+            self,
+            workspace,
+            tentative,
+            scope,
+            owner_id,
+            expanded_rects=tentative_expanded_rects,
+        )
         if grown is None:
             rejected_ids.update(partition.node_ids)
             continue
         final_rects = tentative
+        final_expanded_rects = tentative_expanded_rects
         grown_owner_ids.update(grown)
         accepted.append(owner_id)
 
     accepted_ids = {node_id for owner_id in accepted for node_id in partitions[owner_id].node_ids}
     pushed_ids = (
         _push_neighbours(
-            self,
             workspace,
-            workspace_nodes,
             scope,
             final_rects,
             collision_settings,
@@ -222,7 +198,7 @@ def tidy_layout(
     loop_edge_ids = {wire_id for owner_id in accepted for wire_id in results[owner_id].loop_wire_ids}
     outcome_direction = "" if normalized_mode == TIDY_MODE_IN_PLACE else resolved_direction
 
-    conflicts = _membership_conflicts(scope, final_rects)
+    conflicts = scope.owner_changes(final_rects)
     if conflicts:
         return _outcome(
             changed=False,
@@ -235,6 +211,9 @@ def tidy_layout(
         )
 
     position_updates, geometry_updates = _node_updates(workspace, scope, final_rects)
+    for group_id, rect in final_expanded_rects.items():
+        position_updates.pop(group_id, None)
+        geometry_updates[group_id] = (rect.x, rect.y, rect.width, rect.height)
     moved_ids = {
         node_id
         for node_id in (*position_updates, *geometry_updates)
@@ -295,50 +274,10 @@ def _outcome(
     }
 
 
-def _collect_scope(
-    self,
-    workspace: WorkspaceData,
-    scope_ids: list[str],
-    workspace_nodes: dict[str, NodeInstance],
-) -> _TidyScope:
-    registry = self._scene_context.registry
-    rects: dict[str, LayoutNodeBounds] = {}
-    specs: dict[str, "NodeTypeSpec"] = {}
-    group_backdrop_ids: set[str] = set()
-    for node_id in scope_ids:
-        node = workspace.nodes.get(node_id)
-        spec = registry.spec_or_none(node.type_id) if node is not None and registry is not None else None
-        if node is None or spec is None:
-            continue
-        is_backdrop = _is_group_backdrop_spec(spec)
-        bounds = _node_layout_bounds(
-            self,
-            workspace,
-            node,
-            spec,
-            workspace_nodes=workspace_nodes,
-            expanded=is_backdrop,
-        )
-        if bounds is None:
-            continue
-        rects[node_id] = bounds
-        specs[node_id] = spec
-        if is_backdrop:
-            group_backdrop_ids.add(node_id)
-    membership = (
-        compute_group_backdrop_membership(
-            [_membership_candidate(rect, rect.node_id in group_backdrop_ids) for rect in rects.values()]
-        )
-        if group_backdrop_ids
-        else {}
-    )
-    return _TidyScope(rects=rects, specs=specs, group_backdrop_ids=group_backdrop_ids, membership=membership)
-
-
 def _expand_tidy_set(
     self,
     workspace: WorkspaceData,
-    scope: _TidyScope,
+    scope: GroupScope,
     selected_ids: list[str],
 ) -> tuple[set[str], set[str]]:
     """A selected Group backdrop pulls in its contents; one holding a node the user cannot select stays put."""
@@ -360,7 +299,7 @@ def _expand_tidy_set(
 def _build_partitions(
     self,
     workspace: WorkspaceData,
-    scope: _TidyScope,
+    scope: GroupScope,
     item_ids: set[str],
     rows_by_edge_id: Mapping[str, Mapping[str, Any]],
 ) -> dict[str | None, _TidyPartition]:
@@ -370,23 +309,24 @@ def _build_partitions(
 
     def partition_key(node_id: str) -> str | None:
         owner_id = scope.owner(node_id)
-        while owner_id is not None and owner_id in item_ids:
+        seen = {node_id}
+        while owner_id is not None and owner_id in item_ids and owner_id not in seen:
+            seen.add(owner_id)
             owner_id = scope.owner(owner_id)
         return owner_id
 
     def level_ancestor(node_id: str, level_parent_id: str | None) -> str | None:
         current = node_id
+        seen = {node_id}
         while parent_item(current) != level_parent_id:
             current = parent_item(current)
-            if current is None:
+            if current is None or current in seen:
                 return None
+            seen.add(current)
         return current
 
-    rigid_ids = {
-        node_id
-        for node_id in item_ids
-        if node_id in scope.group_backdrop_ids and bool(workspace.nodes[node_id].collapsed)
-    }
+    # A collapsed Group is one rigid item at its pill (``scope.rects``) carrying what it holds.
+    rigid_ids = item_ids & scope.collapsed_ids
     proxy_item_by_node_id: dict[str, str] = {}
     for rigid_id in sorted(rigid_ids):
         for content_id in scope.contents(rigid_id):
@@ -447,11 +387,6 @@ def _build_partitions(
         if node_id in rigid_ids:
             partition.node_ids.update(content_id for content_id in scope.contents(node_id) if content_id in scope.rects)
 
-    pill_rects: dict[str, LayoutNodeBounds] = {}
-    for rigid_id in rigid_ids:
-        pill = _node_layout_bounds(self, workspace, workspace.nodes[rigid_id], scope.specs[rigid_id], expanded=False)
-        if pill is not None:
-            pill_rects[rigid_id] = pill
     for edge, source_item, target_item in resolved_edges:
         row = rows_by_edge_id.get(edge.edge_id)
         source_side = _wire_side(workspace, scope, row, edge, "source")
@@ -463,12 +398,8 @@ def _build_partitions(
                 target_id=target_item,
                 source_side=source_side,
                 target_side=target_side,
-                source_offset=_wire_offset(
-                    self, workspace, scope, row, edge, "source", source_item, source_side, pill_rects.get(source_item)
-                ),
-                target_offset=_wire_offset(
-                    self, workspace, scope, row, edge, "target", target_item, target_side, pill_rects.get(target_item)
-                ),
+                source_offset=_wire_offset(self, workspace, scope, row, edge, "source", source_item, source_side),
+                target_offset=_wire_offset(self, workspace, scope, row, edge, "target", target_item, target_side),
             )
         )
     return partitions
@@ -476,7 +407,7 @@ def _build_partitions(
 
 def _wire_side(
     workspace: WorkspaceData,
-    scope: _TidyScope,
+    scope: GroupScope,
     row: Mapping[str, Any] | None,
     edge: EdgeInstance,
     end: str,
@@ -503,23 +434,23 @@ def _wire_side(
 def _wire_offset(
     self,
     workspace: WorkspaceData,
-    scope: _TidyScope,
+    scope: GroupScope,
     row: Mapping[str, Any] | None,
     edge: EdgeInstance,
     end: str,
     item_id: str,
     side: str,
-    pill_rect: LayoutNodeBounds | None,
 ) -> tuple[float, float]:
     """Wire anchor relative to its item's top-left: the drawn anchor when the wire is drawn.
 
-    A member hidden in a collapsed Group is drawn to the collapsed pill, whose anchor slides toward the other end;
-    the centre of the pill side the port faces is the anchor a straightened wire keeps, so Tidy stays repeatable.
+    A member hidden in a collapsed Group is drawn to the collapsed pill (the item's rectangle), whose anchor slides
+    toward the other end; the centre of the pill side the port faces is the anchor a straightened wire keeps, so Tidy
+    stays repeatable.
     """
     item_rect = scope.rects[item_id]
     endpoint_id = edge.source_node_id if end == "source" else edge.target_node_id
     if endpoint_id != item_id:
-        pill = pill_rect if pill_rect is not None else item_rect
+        pill = item_rect
         return {
             "left": (0.0, pill.height * 0.5),
             "right": (pill.width, pill.height * 0.5),
@@ -553,21 +484,25 @@ def _wire_offset(
     return (item_rect.width * 0.5, item_rect.height * 0.5)
 
 
-def _partition_order(scope: _TidyScope, owner_id: str | None) -> tuple[int, int, str]:
+def _partition_order(scope: GroupScope, owner_id: str | None) -> tuple[int, int, str]:
     if owner_id is None:
         return (1, 0, "")
     depth = 0
+    seen = {owner_id}
     current = scope.owner(owner_id)
-    while current is not None:
+    while current is not None and current not in seen:
         depth += 1
+        seen.add(current)
         current = scope.owner(current)
     return (0, -depth, owner_id)
 
 
-def _top_level_ancestor(scope: _TidyScope, node_id: str) -> str:
+def _top_level_ancestor(scope: GroupScope, node_id: str) -> str:
     current = node_id
+    seen = {node_id}
     owner_id = scope.owner(current)
-    while owner_id is not None:
+    while owner_id is not None and owner_id not in seen:
+        seen.add(owner_id)
         current = owner_id
         owner_id = scope.owner(current)
     return current
@@ -575,7 +510,7 @@ def _top_level_ancestor(scope: _TidyScope, node_id: str) -> str:
 
 def _apply_partition_result(
     rects: dict[str, LayoutNodeBounds],
-    scope: _TidyScope,
+    scope: GroupScope,
     partition: _TidyPartition,
     result: TidyLayoutResult,
 ) -> None:
@@ -598,7 +533,7 @@ def _apply_partition_result(
 
 def _clear_fixed_obstacles(
     workspace: WorkspaceData,
-    scope: _TidyScope,
+    scope: GroupScope,
     rects: dict[str, LayoutNodeBounds],
     partition: _TidyPartition,
     *,
@@ -653,7 +588,7 @@ def _clear_fixed_obstacles(
             rects[node_id] = rects[node_id].translated(dx, dy)
 
 
-def _holds_fixed_content(workspace: WorkspaceData, scope: _TidyScope, node_id: str, tidy_node_ids: set[str]) -> bool:
+def _holds_fixed_content(workspace: WorkspaceData, scope: GroupScope, node_id: str, tidy_node_ids: set[str]) -> bool:
     """True for what the neighbour push never moves: locked content and backdrops holding tidied nodes."""
     ids = (node_id, *scope.contents(node_id)) if node_id in scope.group_backdrop_ids else (node_id,)
     return any(
@@ -662,63 +597,17 @@ def _holds_fixed_content(workspace: WorkspaceData, scope: _TidyScope, node_id: s
     )
 
 
-def _grow_owner_chain(
-    self,
-    workspace: WorkspaceData,
-    rects: dict[str, LayoutNodeBounds],
-    scope: _TidyScope,
-    owner_id: str | None,
-) -> set[str] | None:
-    """Grow an unselected owner (and its owners) around members that moved or grew.
-
-    Returns the grown ids, or ``None`` when a Group that would have to grow cannot be moved (it is locked).
-    """
-    grown: set[str] = set()
-    current = owner_id
-    while current is not None:
-        changed_rects = [
-            rects[member_id]
-            for member_id in scope.direct_members(current)
-            if member_id in rects and rects[member_id] != scope.rects[member_id]
-        ]
-        box = build_group_backdrop_wrap_bounds(
-            [_membership_candidate(rect, rect.node_id in scope.group_backdrop_ids) for rect in changed_rects]
-        )
-        rect = rects[current]
-        if box is None:
-            break
-        left = min(rect.left, box.x)
-        top = min(rect.top, box.y)
-        right = max(rect.right, box.x + box.width)
-        bottom = max(rect.bottom, box.y + box.height)
-        if (
-            rect.left - left <= _UPDATE_TOLERANCE
-            and rect.top - top <= _UPDATE_TOLERANCE
-            and right - rect.right <= _UPDATE_TOLERANCE
-            and bottom - rect.bottom <= _UPDATE_TOLERANCE
-        ):
-            break
-        if not self._scope_selection.normalized_selected_node_ids(workspace, [current]):
-            return None
-        rects[current] = LayoutNodeBounds(node_id=current, x=left, y=top, width=right - left, height=bottom - top)
-        grown.add(current)
-        current = scope.owner(current)
-    return grown
-
-
 def _push_enabled(settings: Mapping[str, Any]) -> bool:
+    # Tidy's own push ignores the expand strategy (it always moves each neighbour to its nearest free spot).
     return (
         bool(settings.get("enabled", True))
-        and str(settings.get("strategy", "nearest")).strip().lower() == "nearest"
         and str(settings.get("scope", "all_movable")).strip().lower() == "all_movable"
     )
 
 
 def _push_neighbours(
-    self,
     workspace: WorkspaceData,
-    workspace_nodes: dict[str, NodeInstance],
-    scope: _TidyScope,
+    scope: GroupScope,
     rects: dict[str, LayoutNodeBounds],
     settings: Mapping[str, Any],
     *,
@@ -744,14 +633,12 @@ def _push_neighbours(
         return set()
     objects: list[tuple[str, LayoutNodeBounds, tuple[str, ...]]] = [
         (collision_object.object_id, collision_object.bounds, collision_object.move_node_ids)
-        for collision_object in _collision_objects_for_scope(
-            self,
-            workspace=workspace,
-            expanding_node_id=min(fixed_ids),
-            workspace_nodes=workspace_nodes,
-            fixed_node_ids=fixed_ids,
-            membership_by_id=scope.membership,
-            group_backdrop_ids=scope.group_backdrop_ids,
+        for collision_object in level_collision_objects(
+            scope,
+            scope.rects,
+            None,
+            fixed_ids,
+            is_locked=lambda _node_id: False,
         )
     ]
     objects.extend((node_id, rects[node_id], (node_id,)) for node_id in unwired_annotation_ids)
@@ -784,23 +671,9 @@ def _push_neighbours(
     return pushed_ids
 
 
-def _membership_conflicts(scope: _TidyScope, rects: Mapping[str, LayoutNodeBounds]) -> set[str]:
-    """Nodes whose owning Group backdrop would change at the final geometry."""
-    if not scope.group_backdrop_ids:
-        return set()
-    final_membership = compute_group_backdrop_membership(
-        [_membership_candidate(rect, rect.node_id in scope.group_backdrop_ids) for rect in rects.values()]
-    )
-    return {
-        node_id
-        for node_id, membership in final_membership.items()
-        if (membership.owner_backdrop_id or None) != scope.owner(node_id)
-    }
-
-
 def _node_updates(
     workspace: WorkspaceData,
-    scope: _TidyScope,
+    scope: GroupScope,
     rects: Mapping[str, LayoutNodeBounds],
 ) -> tuple[dict[str, tuple[float, float]], dict[str, tuple[float, float, float, float]]]:
     position_updates: dict[str, tuple[float, float]] = {}
@@ -820,18 +693,6 @@ def _node_updates(
         elif abs(rect.x - float(node.x)) >= _UPDATE_TOLERANCE or abs(rect.y - float(node.y)) >= _UPDATE_TOLERANCE:
             position_updates[node_id] = (rect.x, rect.y)
     return position_updates, geometry_updates
-
-
-def _membership_candidate(rect: LayoutNodeBounds, is_backdrop: bool) -> GroupBackdropCandidate:
-    return GroupBackdropCandidate(
-        node_id=rect.node_id,
-        scope_path=(),
-        is_backdrop=is_backdrop,
-        x=rect.x,
-        y=rect.y,
-        width=rect.width,
-        height=rect.height,
-    )
 
 
 def _unique_node_ids(values: list[Any]) -> list[str]:

@@ -4,8 +4,12 @@ from typing import TYPE_CHECKING
 
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.transform_grouping_ops import group_selection_into_subnode, ungroup_subnode
-from ea_node_editor.graph.transforms import plan_subnode_shell_pin_addition
+from ea_node_editor.graph.transforms import (
+    expand_group_backdrop_fragment_node_ids,
+    plan_subnode_shell_pin_addition,
+)
 from ea_node_editor.nodes.builtins.subnode import SUBNODE_PIN_LABEL_PROPERTY, is_subnode_shell_type
+from ea_node_editor.ui_qml.graph_scene_mutation.group_backdrop_ops import hold_new_nodes_in_peeked_group
 from ea_node_editor.ui.shell.runtime_history import (
     ACTION_GROUP_SELECTED_NODES,
     ACTION_UNGROUP_SELECTED_SUBNODE,
@@ -62,7 +66,13 @@ def group_selected_nodes(self) -> bool:
     selection_bounds = self._scope_selection.bounds_for_node_ids(selected_node_ids)
     if selection_bounds is None:
         return False
+    # A collapsed Group moves into the subnode together with what it holds (grouping keeps only open-scope ids).
+    selected_node_ids = expand_group_backdrop_fragment_node_ids(
+        workspace=workspace,
+        selected_node_ids=selected_node_ids,
+    )
     grouped = None
+    held_in_peek = False
     history_group = self._scene_context.grouped_history_action(
         ACTION_GROUP_SELECTED_NODES,
         workspace,
@@ -81,11 +91,17 @@ def group_selected_nodes(self) -> bool:
                 shell_y=selection_bounds.y(),
             ),
         )
+        if grouped is not None:
+            # Created while peeking: the shell joins the peeked Group like any node added during Peek.
+            held_in_peek = hold_new_nodes_in_peeked_group(self, workspace, [grouped.shell_node_id])
     if grouped is None:
         return False
 
     self._scope_selection.set_selected_node_ids([grouped.shell_node_id], workspace=workspace)
     self._scene_context.rebuild_models()
+    if held_in_peek:
+        # Peek draws (and so selects) the shell only once the rebuilt payload lists it.
+        self._scope_selection.set_selected_node_ids([grouped.shell_node_id], workspace=workspace)
     return True
 
 
@@ -102,6 +118,7 @@ def ungroup_selected_subnode(self) -> bool:
     shell_node_id = selected_node_ids[0]
 
     ungrouped = None
+    held_in_peek = False
     history_group = self._scene_context.grouped_history_action(
         ACTION_UNGROUP_SELECTED_SUBNODE,
         workspace,
@@ -116,11 +133,17 @@ def ungroup_selected_subnode(self) -> bool:
                 shell_node_id=shell_node_id,
             ),
         )
+        if ungrouped is not None:
+            # Restored while peeking: the nodes join the peeked Group like any node added during Peek.
+            held_in_peek = hold_new_nodes_in_peeked_group(self, workspace, list(ungrouped.moved_node_ids))
     if ungrouped is None:
         return False
 
     self._scope_selection.set_selected_node_ids(list(ungrouped.moved_node_ids), workspace=workspace)
     self._scene_context.rebuild_models()
+    if held_in_peek:
+        # Peek draws (and so selects) the restored nodes only once the rebuilt payload lists them.
+        self._scope_selection.set_selected_node_ids(list(ungrouped.moved_node_ids), workspace=workspace)
     return True
 
 

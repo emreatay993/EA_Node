@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import getpass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -50,8 +51,20 @@ from ea_node_editor.nodes.builtins.subnode import (
 from ea_node_editor.nodes.builtins.data_control import NUMBER_SLIDER_TYPE_ID, SELECT_TYPE_ID
 from ea_node_editor.nodes.builtins.web_viewer import WEB_PAGE_VIEWER_TYPE_ID
 from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
+from ea_node_editor.graph.group_backdrop_geometry import lists_to_clear, lists_to_freeze
 from ea_node_editor.ui_qml.graph_scene_mutation.collision_avoidance_ops import (
+    ExpandRoomUpdates,
     expand_collision_avoidance_updates,
+    prepare_expand_room,
+)
+from ea_node_editor.ui_qml.graph_scene_mutation.group_backdrop_ops import (
+    GroupStrayGrowth,
+    group_stray_growth,
+    hold_new_nodes_in_peeked_group,
+)
+from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import (
+    group_membership_for_scope,
+    is_group_backdrop_spec,
 )
 from ea_node_editor.ui.shell.runtime_clipboard import (
     normalize_edge_label as _normalize_edge_label,
@@ -290,6 +303,12 @@ def create_node_from_type(self, **kwargs) -> str:
     history_before = self._capture_history_snapshot()
     node_id = _create_node_from_type(self, **kwargs)
     if node_id:
+        workspace = self._scene_context.workspace_or_none()
+        if workspace is not None and hold_new_nodes_in_peeked_group(self, workspace, [node_id]):
+            # Added while peeking: it joined the peeked Group, so Peek can draw (and select) it.
+            self._scene_context.rebuild_models()
+            if kwargs.get("select_node"):
+                self._scope_selection.set_selected_node_ids([node_id], workspace=workspace)
         self._record_history(ACTION_ADD_NODE, history_before)
     return node_id
 
@@ -786,6 +805,7 @@ def focus_node(self, node_id: str) -> QPointF | None:
 
 
 def set_node_collapsed(self, node_id: str, collapsed: bool) -> bool:
+    self._last_expand_refusal = ""
     model = self._scene_context.model
     registry = self._scene_context.registry
     if model is None or registry is None:
@@ -802,25 +822,98 @@ def set_node_collapsed(self, node_id: str, collapsed: bool) -> bool:
     normalized_collapsed = bool(collapsed)
     if bool(node.collapsed) == normalized_collapsed:
         return False
-    collision_updates = {}
-    if bool(node.collapsed) and not normalized_collapsed:
-        collision_updates = expand_collision_avoidance_updates(self, node_id)
+    plan = _collapse_toggle_plan(self, workspace, node_id, spec, normalized_collapsed)
+    if plan.room.refusal:
+        self._last_expand_refusal = plan.room.refusal
+        return False
     history_group = self._scene_context.grouped_history_action(
         ACTION_TOGGLE_COLLAPSED, workspace
     )
     mutations = self._record_mutations()
+    geometries = {**plan.stray.geometries, **plan.room.geometries}
     with history_group:
         mutations.set_node_collapsed(node_id, normalized_collapsed)
-        for moved_node_id, (final_x, final_y) in collision_updates.items():
-            if moved_node_id not in workspace.nodes:
+        for group_id, member_ids in plan.freeze.items():
+            mutations.set_node_held_member_ids(group_id, member_ids)
+        for group_id in sorted(plan.clear):
+            mutations.set_node_held_member_ids(group_id, None)
+        for group_id, (x, y, width, height) in geometries.items():
+            if group_id in workspace.nodes:
+                mutations.set_node_geometry(group_id, x, y, width, height)
+        for moved_node_id, (final_x, final_y) in plan.room.positions.items():
+            if moved_node_id not in workspace.nodes or moved_node_id in geometries:
                 continue
             mutations.set_node_position(moved_node_id, final_x, final_y)
+    self._last_expand_refusal = plan.room.hint
     self._scene_context.publish_node_geometry_delta(
-        {node_id},
-        position_node_ids=set(collision_updates),
+        {node_id, *geometries},
+        position_node_ids=set(plan.room.positions),
         publication_path="node_collapsed_geometry_delta",
     )
     return True
+
+
+@dataclass(slots=True)
+class _CollapseTogglePlan:
+    freeze: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    clear: set[str] = field(default_factory=set)
+    stray: GroupStrayGrowth = field(default_factory=lambda: GroupStrayGrowth(grown_rect=None))
+    room: ExpandRoomUpdates = field(default_factory=lambda: ExpandRoomUpdates(positions={}, geometries={}))
+
+
+def _collapse_toggle_plan(self, workspace, node_id: str, spec, collapsed: bool) -> _CollapseTogglePlan:  # noqa: ANN001
+    """Everything one collapse/expand toggle writes, computed before any mutation.
+
+    Collapsing a Group freezes what it holds (its whole subtree) as its member list, and gives each list-less expanded
+    Group inside it its own. Expanding grows the Groups whose lists it clears around their strays, then makes room
+    level by level; a refusal means nothing may change.
+    """
+    is_group = is_group_backdrop_spec(spec)
+    if collapsed:
+        if not is_group:
+            return _CollapseTogglePlan()
+        membership, _group_ids = group_membership_for_scope(
+            self,
+            workspace,
+            node_id,
+            workspace_nodes=dict(workspace.nodes),
+        )
+        return _CollapseTogglePlan(freeze=lists_to_freeze(node_id, membership, workspace.nodes))
+    preparation = prepare_expand_room(self, node_id)
+    stray = (
+        group_stray_growth(self, workspace, node_id, scope=preparation.scope)
+        if is_group and preparation is not None
+        else GroupStrayGrowth(grown_rect=None)
+    )
+    room = expand_collision_avoidance_updates(
+        self,
+        node_id,
+        grown_rect=stray.grown_rect,
+        preparation=preparation,
+    )
+    if room.refusal:
+        return _CollapseTogglePlan(room=room)
+    return _CollapseTogglePlan(
+        clear=lists_to_clear(workspace.nodes, node_id) if is_group else set(),
+        stray=stray,
+        room=room,
+    )
+
+
+def expand_refusal_reason(self, node_id: str) -> str:
+    """Why expanding ``node_id`` now would be refused ('' when it would not); changes nothing."""
+    model = self._scene_context.model
+    registry = self._scene_context.registry
+    if model is None or registry is None:
+        return ""
+    workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+    node = workspace.nodes.get(node_id) if workspace is not None else None
+    if node is None or not bool(node.collapsed):
+        return ""
+    spec = registry.resolve_spec(node.type_id, node.properties)
+    if not spec.collapsible:
+        return ""
+    return _collapse_toggle_plan(self, workspace, node_id, spec, False).room.refusal
 
 
 def set_node_settings_group_expanded(
@@ -829,6 +922,7 @@ def set_node_settings_group_expanded(
     group_id: str,
     expanded: bool,
 ) -> bool:
+    self._last_expand_refusal = ""
     model = self._scene_context.model
     registry = self._scene_context.registry
     if model is None or registry is None:
@@ -912,11 +1006,19 @@ def set_node_settings_group_expanded(
         if node.custom_height is not None
         else None
     )
-    collision_updates: dict[str, tuple[float, float]] = {}
+    makes_room = normalized_expanded and not bool(node.collapsed)
+    # Captured before any mutation: the grower's scope and drawn rectangle, and a snapshot to undo a refusal
+    # (a grouped history action cannot roll back).
+    preparation = prepare_expand_room(self, normalized_node_id) if makes_room else None
+    # The history snapshot is memoized per revision, so the history group below reuses it.
+    snapshot = (self._capture_history_snapshot() or workspace.capture_snapshot()) if makes_room else None
+    room = ExpandRoomUpdates(positions={}, geometries={})
+    refused = False
     mutations = self._record_mutations()
     history_group = self._scene_context.grouped_history_action(
         ACTION_TOGGLE_SETTINGS_GROUP,
         workspace,
+        commit_if=lambda: not refused,
     )
     with history_group:
         mutations.set_node_expanded_settings_group_ids(
@@ -951,18 +1053,30 @@ def set_node_settings_group_expanded(
                     node.custom_width,
                     final_height,
                 )
-        if normalized_expanded and not bool(node.collapsed):
-            collision_updates = expand_collision_avoidance_updates(
+        if makes_room:
+            room = expand_collision_avoidance_updates(
                 self,
                 normalized_node_id,
                 use_current_presentation_bounds=True,
+                preparation=preparation,
             )
-        for moved_node_id, (final_x, final_y) in collision_updates.items():
-            if moved_node_id in workspace.nodes:
-                mutations.set_node_position(moved_node_id, final_x, final_y)
+        if room.refusal and snapshot is not None:
+            workspace.restore_snapshot(snapshot)
+            refused = True
+        else:
+            for group_id, (x, y, width, height) in room.geometries.items():
+                if group_id in workspace.nodes:
+                    mutations.set_node_geometry(group_id, x, y, width, height)
+            for moved_node_id, (final_x, final_y) in room.positions.items():
+                if moved_node_id in workspace.nodes and moved_node_id not in room.geometries:
+                    mutations.set_node_position(moved_node_id, final_x, final_y)
+    if refused:
+        self._last_expand_refusal = room.refusal
+        return False
+    self._last_expand_refusal = room.hint
     self._scene_context.publish_node_geometry_delta(
-        {normalized_node_id},
-        position_node_ids=set(collision_updates),
+        {normalized_node_id, *room.geometries},
+        position_node_ids=set(room.positions),
         publication_path="node_settings_group_geometry_delta",
     )
     return True

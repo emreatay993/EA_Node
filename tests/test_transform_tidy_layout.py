@@ -15,7 +15,6 @@ from ea_node_editor.graph.transform_layout_ops import (
     LayoutNodeBounds,
     PortAlignmentConstraint,
     build_collision_avoidance_position_updates,
-    build_expand_collision_avoidance_position_updates,
     build_port_alignment_offsets,
 )
 from ea_node_editor.graph.transform_tidy_layout import (
@@ -845,15 +844,24 @@ def test_collision_avoidance_clears_every_fixed_box_even_when_squeezed_between_t
         ), blocker.node_id
 
 
-def test_single_fixed_collision_avoidance_matches_the_expand_variant() -> None:
+def test_collision_avoidance_moves_crowding_boxes_off_a_single_fixed_box() -> None:
     fixed = LayoutNodeBounds("fixed", 0.0, 0.0, 300.0, 200.0)
     movable = [LayoutNodeBounds("a", 250.0, 50.0, 100.0, 60.0), LayoutNodeBounds("b", -60.0, 150.0, 100.0, 60.0)]
 
-    assert build_collision_avoidance_position_updates(
+    updates = build_collision_avoidance_position_updates(
         fixed_bounds=[fixed], movable_bounds=movable, gap=16.0, reach_radius=400.0
-    ) == build_expand_collision_avoidance_position_updates(
-        fixed_bounds=fixed, movable_bounds=movable, gap=16.0, reach_radius=400.0
     )
+
+    assert set(updates) == {"a", "b"}
+    inflated = fixed.inflated(16.0)
+    for box in movable:
+        moved = box.translated(updates[box.node_id][0] - box.x, updates[box.node_id][1] - box.y)
+        assert not (
+            moved.left < inflated.right
+            and moved.right > inflated.left
+            and moved.top < inflated.bottom
+            and moved.bottom > inflated.top
+        ), box.node_id
     assert build_collision_avoidance_position_updates(fixed_bounds=[], movable_bounds=movable, gap=16.0) == {}
 
 

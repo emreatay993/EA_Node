@@ -1055,6 +1055,67 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
         self.assertEqual(payloads[logger.node_id]["backdrop_depth"], 1)
         self.assertEqual(payloads[backdrop.node_id]["member_node_ids"], [logger.node_id])
 
+    def test_held_member_ids_round_trip_and_are_sanitized_on_load(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        workspace_id = workspace.workspace_id
+
+        def add(type_id: str, title: str) -> str:
+            return model.add_node(workspace_id, type_id, title, 0.0, 0.0).node_id
+
+        group_type = "passive.annotation.group_backdrop"
+        collapsed = add(group_type, "Collapsed")
+        member = add("core.logger", "Member")
+        hidden_group = add(group_type, "Hidden inner")
+        hidden_member = add("core.logger", "Hidden member")
+        visible_group = add(group_type, "Visible")
+        shell = add("core.subnode", "Shell")
+        other_scope = add("core.logger", "Other scope")
+        workspace.nodes[other_scope].parent_node_id = shell
+        first_cycle = add(group_type, "Cycle first")
+        second_cycle = add(group_type, "Cycle second")
+        cycle_member = add("core.logger", "Cycle member")
+        older = add(group_type, "Older")
+        for node_id in (collapsed, first_cycle, second_cycle, older):
+            workspace.nodes[node_id].collapsed = True
+
+        serializer = JsonProjectSerializer(registry)
+        document = serializer.to_document(model.project)
+        workspace_doc = next(ws for ws in document["workspaces"] if ws["workspace_id"] == workspace_id)
+        node_docs = {doc["node_id"]: doc for doc in workspace_doc["nodes"]}
+        self.assertNotIn("held_member_ids", node_docs[older])
+        node_docs[collapsed]["held_member_ids"] = [
+            member, hidden_group, hidden_member, "missing", collapsed, other_scope, member, "", 7,
+        ]
+        node_docs[hidden_group]["held_member_ids"] = [hidden_member]
+        node_docs[visible_group]["held_member_ids"] = [member]
+        node_docs[member]["held_member_ids"] = [hidden_member]
+        node_docs[first_cycle]["held_member_ids"] = [second_cycle]
+        node_docs[second_cycle]["held_member_ids"] = [first_cycle, cycle_member]
+
+        loaded = serializer.from_document(document).workspaces[workspace_id]
+
+        self.assertEqual(loaded.nodes[collapsed].held_member_ids, tuple(sorted([member, hidden_group, hidden_member])))
+        self.assertEqual(loaded.nodes[hidden_group].held_member_ids, (hidden_member,))
+        self.assertIsNone(loaded.nodes[visible_group].held_member_ids)
+        self.assertIsNone(loaded.nodes[member].held_member_ids)
+        self.assertEqual(loaded.nodes[second_cycle].held_member_ids, tuple(sorted([first_cycle, cycle_member])))
+        self.assertEqual(loaded.nodes[first_cycle].held_member_ids, ())
+        self.assertIsNone(loaded.nodes[older].held_member_ids)
+
+        round_tripped = serializer.to_document(serializer.from_document(document))
+        round_trip_nodes = {
+            doc["node_id"]: doc
+            for ws in round_tripped["workspaces"]
+            if ws["workspace_id"] == workspace_id
+            for doc in ws["nodes"]
+        }
+        self.assertEqual(round_trip_nodes[collapsed]["held_member_ids"], sorted([member, hidden_group, hidden_member]))
+        self.assertEqual(round_trip_nodes[first_cycle]["held_member_ids"], [])
+        for node_id in (visible_group, member, older):
+            self.assertNotIn("held_member_ids", round_trip_nodes[node_id])
+
     def test_folder_explorer_persistence_keeps_only_semantic_current_path_state(self) -> None:
         registry = build_default_registry()
         model = GraphModel()

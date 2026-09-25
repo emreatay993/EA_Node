@@ -608,9 +608,22 @@ def update_node(context: AutomationContext, params: Mapping[str, Any]) -> dict[s
             "; ".join(ineligible),
             details={"node_id": node_id, "requested": requested, "reasons": ineligible},
         )
+    expands = "collapsed" in params and not bool(params["collapsed"]) and bool(node.collapsed)
+    if expands:
+        # Expanding makes room; when it cannot (a locked Group would have to grow, no room), reject the whole update.
+        refusal = str(context.scene.expand_refusal_reason(node_id) or "")
+        if refusal:
+            raise no_effect(
+                op,
+                refusal,
+                details={"node_id": node_id, "requested": requested, "reasons": [refusal]},
+            )
 
     scene = context.scene
     before = _node_state(context, node)
+    workspace = context.active_workspace()
+    # A move or edit in this same update can still make the expand refuse: then the whole update is rolled back.
+    rollback = workspace.capture_snapshot() if expands else None
     if title is not None:
         # set_node_title writes node.title and, for property-backed families, properties["title"].
         scene.set_node_title(node_id, title)
@@ -629,7 +642,16 @@ def update_node(context: AutomationContext, params: Mapping[str, Any]) -> dict[s
     for key, flag in exposed_port_updates:
         scene.set_exposed_port(node_id, key, flag)
     if "collapsed" in params:
-        scene.set_node_collapsed(node_id, bool(params["collapsed"]))
+        collapsed_changed = scene.set_node_collapsed(node_id, bool(params["collapsed"]))
+        if expands and not collapsed_changed and rollback is not None:
+            refusal = str(scene.take_expand_refusal_reason() or "") or "the expand was refused"
+            workspace.restore_snapshot(rollback)
+            scene.refresh_workspace_from_model(workspace.workspace_id)
+            raise no_effect(
+                op,
+                refusal,
+                details={"node_id": node_id, "requested": requested, "reasons": [refusal]},
+            )
     if "locked" in params:
         scene.set_node_locked(node_id, bool(params["locked"]))
     node = context.require_node(node_id)

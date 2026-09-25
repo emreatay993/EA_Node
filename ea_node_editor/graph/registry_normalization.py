@@ -3,7 +3,7 @@
 # Tests: tests/test_graph_registry_normalization.py
 from __future__ import annotations
 
-from ea_node_editor.graph.hierarchy import sanitize_workspace_parent_links
+from ea_node_editor.graph.hierarchy import sanitize_workspace_held_member_ids, sanitize_workspace_parent_links
 from ea_node_editor.graph.node_port_state import normalize_node_port_state
 from ea_node_editor.graph.invariant_kernel import GraphInvariantKernel, RegistryValidationPassMemo
 from ea_node_editor.graph.project_state import ProjectData
@@ -64,6 +64,8 @@ def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry)
             if parent_links_before.get(node_id) != node.parent_node_id:
                 workspace_changed = True
                 break
+        if sanitize_workspace_held_member_ids(workspace):
+            workspace_changed = True
 
         for resolution in resolved_nodes.values():
             node = resolution.node

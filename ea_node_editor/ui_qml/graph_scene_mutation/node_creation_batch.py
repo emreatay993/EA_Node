@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.graph.validated_mutation import ValidatedGraphMutation
+from ea_node_editor.ui_qml.graph_scene_mutation.group_backdrop_ops import hold_new_nodes_in_peeked_group
 from ea_node_editor.ui_qml.graph_scene_mutation.selection_and_scope_ops import _create_node_from_type
 
 
@@ -57,4 +58,8 @@ def create_nodes_batch(self, requests: tuple[NodeCreationRequest, ...]) -> tuple
                 results.append(NodeCreationResult(error=message))
             else:
                 results.append(NodeCreationResult(node_id=node_id))
+        created_ids = [result.node_id for result in results if result.node_id]
+        if created_ids and hold_new_nodes_in_peeked_group(self, workspace, created_ids):
+            # Imported while peeking: the nodes joined the peeked Group, so Peek can draw them.
+            context.rebuild_models()
     return tuple(results)

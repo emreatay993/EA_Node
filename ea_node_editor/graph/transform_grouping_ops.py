@@ -6,6 +6,7 @@ from typing import Sequence
 from ea_node_editor.graph.effective_ports import find_port, is_subnode_pin_type
 from ea_node_editor.graph.hierarchy import normalize_scope_path, scope_parent_id
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.graph.hierarchy import sanitize_workspace_held_member_ids
 from ea_node_editor.graph.record_mutation_ops import GraphRecordMutation
 from ea_node_editor.graph.records import EdgeInstance
 from ea_node_editor.graph.subnode_contract import (
@@ -216,6 +217,8 @@ def _group_selection_into_subnode_operation(
             input_order=boundary.edge.input_order,
         )
 
+    # Moved nodes left their Groups' scope: drop them from stored lists (and lists that no longer apply).
+    sanitize_workspace_held_member_ids(workspace)
     return GroupSubnodeResult(
         shell_node_id=shell.node_id,
         moved_node_ids=tuple(roots),
@@ -350,6 +353,7 @@ def _ungroup_subnode_operation(
         except (KeyError, ValueError):
             continue
 
+    sanitize_workspace_held_member_ids(workspace)
     return UngroupSubnodeResult(
         removed_shell_node_id=normalized_shell_id,
         moved_node_ids=tuple(node.node_id for node in moved_nodes),

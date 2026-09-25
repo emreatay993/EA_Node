@@ -54,6 +54,7 @@ from ea_node_editor.settings import (
     EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE_CHOICES,
     EXPAND_COLLISION_AVOIDANCE_SCOPE_CHOICES,
     EXPAND_COLLISION_AVOIDANCE_STRATEGY_CHOICES,
+    EXPAND_COLLISION_AVOIDANCE_STRATEGY_REVISION,
     FOLDER_EXPLORER_COLUMN_WIDTH_KEYS,
     FOLDER_EXPLORER_COLUMN_WIDTH_MAX,
     FOLDER_EXPLORER_COLUMN_WIDTH_MIN,
@@ -207,12 +208,20 @@ def normalize_expand_collision_avoidance_settings(payload: Any) -> dict[str, Any
 
     normalized = copy.deepcopy(defaults)
     normalized["enabled"] = _normalize_bool(payload.get("enabled"), defaults["enabled"])
-    normalized["strategy"] = _normalize_choice(
+    strategy = _normalize_choice(
         payload.get("strategy"),
         defaults["strategy"],
         _EXPAND_COLLISION_AVOIDANCE_STRATEGY_VALUES,
         DEFAULT_EXPAND_COLLISION_AVOIDANCE_STRATEGY,
     )
+    if strategy == "nearest" and _normalize_int(
+        payload.get("strategy_revision"), 0, 0, EXPAND_COLLISION_AVOIDANCE_STRATEGY_REVISION
+    ) < EXPAND_COLLISION_AVOIDANCE_STRATEGY_REVISION:
+        # One-time read-time upgrade: "nearest" was the only choice before "make_room", so a saved "nearest" without a
+        # revision is not a decision. Nothing is written until the user saves Graphics Settings.
+        strategy = DEFAULT_EXPAND_COLLISION_AVOIDANCE_STRATEGY
+    normalized["strategy"] = strategy
+    normalized["strategy_revision"] = EXPAND_COLLISION_AVOIDANCE_STRATEGY_REVISION
     normalized["scope"] = _normalize_choice(
         payload.get("scope"),
         defaults["scope"],

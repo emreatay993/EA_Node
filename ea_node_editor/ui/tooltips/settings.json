@@ -1,10 +1,10 @@
 {
   "settings.graphics.expand_collision.enabled": {
-    "text": "Pushes newly expanded items away from nearby content to reduce overlap.",
+    "text": "Moves nearby items aside when a collapsed item, Group or settings group expands, and grows parent Groups to fit. When off, overlaps stay, but items that would end up inside an expanding Group are still moved out and parent Groups still grow.",
     "category": "general"
   },
   "settings.graphics.expand_collision.strategy": {
-    "text": "Chooses how the first items are picked when overlap resolution begins.",
+    "text": "Make room shifts the row after the expanded item (and the column below it) just enough to keep its gap, level by level through parent Groups. Nearest moves each overlapping item to its nearest free spot.",
     "category": "general"
   },
   "settings.graphics.expand_collision.animate": {

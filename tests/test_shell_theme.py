@@ -636,6 +636,7 @@ class ShellThemeTests(SharedMainWindowShellTestBase):
         updated_graphics["interaction"]["expand_collision_avoidance"] = {
             "enabled": False,
             "strategy": "nearest",
+            "strategy_revision": 2,
             "scope": "all_movable",
             "radius_mode": "unbounded",
             "local_radius_preset": "large",

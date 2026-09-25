@@ -56,6 +56,7 @@ class NodeInstance:
     custom_width: float | None = None
     custom_height: float | None = None
     locked: bool = False
+    held_member_ids: tuple[str, ...] | None = None  # Group, while collapsed or hidden: ids it holds by identity
 
     def clone(self) -> "NodeInstance":
         return copy.deepcopy(self)

@@ -1,26 +1,28 @@
+# Purpose: Make room when something grows (a collapsed item, a Group or a settings group expanding): move the other objects of its level aside, grow the parent Group to fit, and repeat level by level up to the top level.
+# Map: feature_routes/group_backdrops_peek_membership
+# Tests: tests/test_group_backdrop_identity_membership.py, tests/test_graph_scene_bridge_bind_regression.py
 from __future__ import annotations
 
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ea_node_editor.app_preferences import normalize_expand_collision_avoidance_settings
-from ea_node_editor.graph.group_backdrop_geometry import (
-    GroupBackdropCandidate,
-    GroupBackdropMembership,
-    build_group_backdrop_occupied_bounds,
-    compute_group_backdrop_membership,
-)
-from ea_node_editor.graph.hierarchy import node_scope_path, scope_node_ids
-from ea_node_editor.graph.workspace_state import WorkspaceData
-from ea_node_editor.graph.records import NodeInstance
+from ea_node_editor.graph.group_backdrop_geometry import lists_to_clear
 from ea_node_editor.graph.transform_layout_ops import (
     LayoutNodeBounds,
-    build_expand_collision_avoidance_position_updates,
+    build_collision_avoidance_position_updates,
+    build_make_room_position_updates,
 )
-from ea_node_editor.ui_qml.graph_surface_metrics import resolved_node_surface_size
-
-if TYPE_CHECKING:
-    from ea_node_editor.nodes.node_specs import NodeTypeSpec
+from ea_node_editor.graph.transform_tidy_layout import DEFAULT_TIDY_COLUMN_GAP, DEFAULT_TIDY_ROW_GAP
+from ea_node_editor.graph.workspace_state import WorkspaceData
+from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import (
+    GroupScope,
+    collect_group_scope_for_node,
+    grow_group_around,
+    node_layout_bounds,
+    rect_strictly_contains,
+)
 
 _LOCAL_RADIUS_BY_PRESET = {
     "small": 420.0,
@@ -32,336 +34,347 @@ _GAP_BY_PRESET = {
     "normal": 32.0,
     "loose": 56.0,
 }
-_MISSING = object()
+_MOVE_TOLERANCE = 0.01
+_REFUSAL_LOCKED_GROUP = "Can't expand: the locked Group “{title}” would have to grow."
+_REFUSAL_NO_ROOM = "Can't expand: there is no room without moving nodes into or out of a Group."
+_JOINED_LOCKED_HINT = "Locked node “{node}” joined Group “{group}”."
+
+
+@dataclass(frozen=True, slots=True)
+class ExpandRoomPreparation:
+    """Captured before any mutation: the grower's scope and its drawn rectangle before it grows."""
+
+    node_id: str
+    scope: GroupScope
+    grown_from: LayoutNodeBounds
+
+
+@dataclass(frozen=True, slots=True)
+class ExpandRoomUpdates:
+    positions: dict[str, tuple[float, float]]
+    geometries: dict[str, tuple[float, float, float, float]]
+    joined_locked_node_ids: tuple[str, ...] = ()
+    refusal: str = ""  # non-empty = apply nothing
+    hint: str = ""  # shown after a successful expand (a locked node joined a Group)
 
 
 @dataclass(slots=True, frozen=True)
-class _CollisionObject:
+class CollisionObject:
+    """One pushable unit of a level: a node, or a Group with everything it contains."""
+
     object_id: str
     bounds: LayoutNodeBounds
     move_node_ids: tuple[str, ...]
+    fixed: bool = False  # holds a locked node: an obstacle, never moved
+
+
+def prepare_expand_room(self, node_id: str) -> ExpandRoomPreparation | None:
+    model = self._scene_context.model
+    if model is None or self._scene_context.registry is None:
+        return None
+    workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+    if workspace is None or node_id not in workspace.nodes:
+        return None
+    scope = collect_group_scope_for_node(self, workspace, node_id, dict(workspace.nodes))
+    grown_from = scope.rects.get(node_id)
+    if grown_from is None:
+        return None
+    return ExpandRoomPreparation(node_id=node_id, scope=scope, grown_from=grown_from)
 
 
 def expand_collision_avoidance_updates(
     self,
     node_id: str,
     *,
+    grown_rect: LayoutNodeBounds | None = None,
     use_current_presentation_bounds: bool = False,
-) -> dict[str, tuple[float, float]]:
-    settings = normalize_expand_collision_avoidance_settings(
-        self._scene_context.graphics_expand_collision_avoidance
-    )
-    if not bool(settings.get("enabled", True)):
-        return {}
-    if str(settings.get("strategy", "nearest")).strip().lower() != "nearest":
-        return {}
-    if str(settings.get("scope", "all_movable")).strip().lower() != "all_movable":
-        return {}
+    preparation: ExpandRoomPreparation | None = None,
+) -> ExpandRoomUpdates:
+    """Positions and Group geometries that make room for ``node_id`` growing (see the Purpose banner).
 
+    ``grown_rect`` is the grower's final rectangle when the caller knows it (an expanding Group grown around its
+    strays); else the current presentation bounds (settings groups: the node is already mutated) or its expanded size.
+    A non-empty ``refusal`` means nothing may change: a locked Group would have to grow, or membership would change.
+    """
+    empty = ExpandRoomUpdates(positions={}, geometries={})
     model = self._scene_context.model
     registry = self._scene_context.registry
     if model is None or registry is None:
-        return {}
+        return empty
     workspace = model.project.workspaces.get(self._scene_context.workspace_id)
     if workspace is None:
-        return {}
+        return empty
     node = workspace.nodes.get(node_id)
     if node is None:
-        return {}
-    spec = registry.spec_or_none(node.type_id)
-    if spec is None:
-        return {}
-
-    workspace_nodes = dict(workspace.nodes)
-    membership_by_id, group_backdrop_ids = _group_backdrop_membership_for_scope(
-        self,
-        workspace,
-        node_id,
-        workspace_nodes=workspace_nodes,
-    )
-    presentation_bounds = (
-        _current_presentation_bounds(self, node_id)
-        if use_current_presentation_bounds
-        else None
-    )
-    fixed_bounds, fixed_node_ids = _expanded_fixed_bounds(
-        self,
-        workspace=workspace,
-        workspace_nodes=workspace_nodes,
-        node=node,
-        spec=spec,
-        membership_by_id=membership_by_id,
-        group_backdrop_ids=group_backdrop_ids,
-        presentation_bounds=presentation_bounds,
-    )
-    if fixed_bounds is None:
-        return {}
-
-    collision_objects = _collision_objects_for_scope(
-        self,
-        workspace=workspace,
-        expanding_node_id=node_id,
-        workspace_nodes=workspace_nodes,
-        fixed_node_ids=fixed_node_ids,
-        membership_by_id=membership_by_id,
-        group_backdrop_ids=group_backdrop_ids,
-    )
-    if not collision_objects:
-        return {}
-
-    gap = _gap_for_settings(settings)
-    reach_radius = _reach_radius_for_settings(settings)
-    object_updates = build_expand_collision_avoidance_position_updates(
-        fixed_bounds=fixed_bounds,
-        movable_bounds=[item.bounds for item in collision_objects],
-        gap=gap,
-        reach_radius=reach_radius,
-    )
-    if not object_updates:
-        return {}
-
-    updates: dict[str, tuple[float, float]] = {}
-    for collision_object in collision_objects:
-        final_position = object_updates.get(collision_object.object_id)
-        if final_position is None:
-            continue
-        dx = float(final_position[0]) - float(collision_object.bounds.x)
-        dy = float(final_position[1]) - float(collision_object.bounds.y)
-        if abs(dx) < 0.01 and abs(dy) < 0.01:
-            continue
-        for move_node_id in collision_object.move_node_ids:
-            if move_node_id == node_id:
-                continue
-            moved_node = workspace.nodes.get(move_node_id)
-            if moved_node is None:
-                continue
-            updates[move_node_id] = (float(moved_node.x) + dx, float(moved_node.y) + dy)
-    return updates
-
-
-def _expanded_fixed_bounds(
-    self,
-    *,
-    workspace: WorkspaceData,
-    workspace_nodes: dict[str, NodeInstance],
-    node: NodeInstance,
-    spec: "NodeTypeSpec",
-    membership_by_id: dict[str, GroupBackdropMembership],
-    group_backdrop_ids: set[str],
-    presentation_bounds: LayoutNodeBounds | None,
-) -> tuple[LayoutNodeBounds | None, set[str]]:
-    expanded_bounds = presentation_bounds or _node_layout_bounds(
-        self,
-        workspace,
-        node,
-        spec,
-        workspace_nodes=workspace_nodes,
-        expanded=True,
-    )
-    if expanded_bounds is None:
-        return None, {node.node_id}
-    if node.node_id not in group_backdrop_ids:
-        return expanded_bounds, {node.node_id}
-
-    membership = membership_by_id.get(node.node_id)
-    if membership is None:
-        return expanded_bounds, {node.node_id}
-    direct_member_ids = [*membership.member_node_ids, *membership.member_backdrop_ids]
-    member_candidates = _comment_candidates_for_node_ids(
-        self,
-        workspace=workspace,
-        workspace_nodes=workspace_nodes,
-        node_ids=direct_member_ids,
-        expanded=False,
-    )
-    occupied = build_group_backdrop_occupied_bounds(
-        _candidate_from_bounds(expanded_bounds, is_backdrop=True, workspace=workspace),
-        member_candidates,
-    )
-    fixed_ids = {
-        node.node_id,
-        *membership.member_node_ids,
-        *membership.member_backdrop_ids,
-        *membership.contained_node_ids,
-        *membership.contained_backdrop_ids,
-    }
-    return (
-        LayoutNodeBounds(
-            node_id=node.node_id,
-            x=float(occupied.x),
-            y=float(occupied.y),
-            width=float(occupied.width),
-            height=float(occupied.height),
-        ),
-        fixed_ids,
-    )
-
-
-def _collision_objects_for_scope(
-    self,
-    *,
-    workspace: WorkspaceData,
-    expanding_node_id: str,
-    workspace_nodes: dict[str, NodeInstance],
-    fixed_node_ids: set[str],
-    membership_by_id: dict[str, GroupBackdropMembership],
-    group_backdrop_ids: set[str],
-) -> list[_CollisionObject]:
-    registry = self._scene_context.registry
-    if registry is None:
-        return []
-    scope_path = node_scope_path(workspace, expanding_node_id)
-    objects: list[_CollisionObject] = []
-    moved_node_ids: set[str] = set()
-    for candidate_id in scope_node_ids(workspace, scope_path):
-        if candidate_id in fixed_node_ids:
-            continue
-        membership = membership_by_id.get(candidate_id)
-        if membership is not None and membership.owner_backdrop_id:
-            continue
-        node = workspace.nodes.get(candidate_id)
-        if node is None:
-            continue
+        return empty
+    preparation = preparation or prepare_expand_room(self, node_id)
+    if preparation is None:
+        return empty
+    grown_to = grown_rect
+    if grown_to is None and use_current_presentation_bounds:
+        grown_to = _current_presentation_bounds(self, node_id)
+    if grown_to is None:
         spec = registry.spec_or_none(node.type_id)
         if spec is None:
-            continue
-        if candidate_id in group_backdrop_ids:
-            object_membership = membership_by_id.get(candidate_id)
-            move_ids = _comment_move_ids(candidate_id, object_membership)
-            if expanding_node_id in move_ids or fixed_node_ids.intersection(move_ids):
+            return empty
+        grown_to = node_layout_bounds(self, workspace, node, spec, expanded=True)
+    if grown_to is None:
+        return empty
+    settings = normalize_expand_collision_avoidance_settings(self._scene_context.graphics_expand_collision_avoidance)
+    return _make_room_level_by_level(
+        workspace,
+        preparation.scope,
+        node_id=node_id,
+        grown_from=preparation.grown_from,
+        grown_to=grown_to,
+        settings=settings,
+        interact_with_locked=bool(self._scope_selection.interact_with_locked_objects),
+    )
+
+
+def _make_room_level_by_level(
+    workspace: WorkspaceData,
+    scope: GroupScope,
+    *,
+    node_id: str,
+    grown_from: LayoutNodeBounds,
+    grown_to: LayoutNodeBounds,
+    settings: Mapping[str, Any],
+    interact_with_locked: bool,
+) -> ExpandRoomUpdates:
+    push_enabled = bool(settings.get("enabled", True)) and (
+        str(settings.get("scope", "all_movable")).strip().lower() == "all_movable"
+    )
+    nearest = str(settings.get("strategy", "make_room")).strip().lower() == "nearest"
+    gap = _gap_for_settings(settings)
+
+    def is_locked(candidate_id: str) -> bool:
+        candidate = workspace.nodes.get(candidate_id)
+        return candidate is not None and bool(candidate.locked) and not interact_with_locked
+
+    rects = dict(scope.rects)
+    rects[node_id] = grown_to
+    frozen = {node_id, *scope.contents(node_id)}
+    moved_objects: dict[str, CollisionObject] = {}
+    geometries: dict[str, tuple[float, float, float, float]] = {}
+    joined_locked: dict[str, str] = {}  # locked object -> the Group it joins
+    grower, grower_from, grower_to = node_id, grown_from, grown_to
+    visited_growers = {node_id}
+    while True:
+        owner_id = scope.owner(grower)
+        if owner_id in visited_growers:
+            break  # corrupted lists formed an owner cycle
+        objects = level_collision_objects(scope, rects, owner_id, frozen, is_locked=is_locked)
+        final = {item.object_id: item.bounds for item in objects}
+        movable = [item for item in objects if not item.fixed]
+        obstacles = [item.bounds for item in objects if item.fixed]
+        if push_enabled and movable:
+            if nearest:
+                reach = _reach_radius_for_settings(settings) if owner_id is None else None
+                _place(final, build_collision_avoidance_position_updates(
+                    fixed_bounds=[grower_to, *obstacles],
+                    movable_bounds=[item.bounds for item in movable],
+                    gap=gap,
+                    reach_radius=reach,
+                ))
+            else:
+                _make_room_pushes(final, movable, obstacles, grower_from, grower_to, gap)
+        if grower in scope.group_backdrop_ids:
+            # Whatever would end up inside a growing Group joins it: move it out (even with the push off); a locked
+            # object stays and joins.
+            intruders = [
+                final[item.object_id]
+                for item in movable
+                if rect_strictly_contains(grower_to, scope.membership_rect(item.object_id, final[item.object_id]))
+            ]
+            if intruders:
+                _place(final, build_collision_avoidance_position_updates(
+                    fixed_bounds=[grower_to, *obstacles],
+                    movable_bounds=intruders,
+                    gap=gap,
+                ))
+            joined_locked.update(
+                (item.object_id, grower)
+                for item in objects
+                if item.fixed and rect_strictly_contains(grower_to, scope.membership_rect(item.object_id, item.bounds))
+            )
+        changed = [grower]
+        for item in movable:
+            new_bounds = final[item.object_id]
+            dx = new_bounds.x - item.bounds.x
+            dy = new_bounds.y - item.bounds.y
+            if abs(dx) < _MOVE_TOLERANCE and abs(dy) < _MOVE_TOLERANCE:
                 continue
-            bounds = _comment_occupied_bounds_for_node(
-                self,
-                workspace=workspace,
-                workspace_nodes=workspace_nodes,
-                node=node,
-                membership=object_membership,
-                expanded=False,
+            for move_id in item.move_node_ids:
+                if move_id in rects:
+                    rects[move_id] = rects[move_id].translated(dx, dy)
+            moved_objects[item.object_id] = item
+            changed.append(item.object_id)
+        if owner_id is None:
+            break
+        if owner_id in scope.expanded_rects:
+            # The grower is held by a collapsed Group (Peek, automation): grow its expanded size right and down only, so
+            # its pill (at its top-left) never moves; a member left or above stays a held stray.
+            owner_to = grow_group_around(
+                scope,
+                rects,
+                owner_id,
+                changed,
+                base_rect=scope.expanded_rects[owner_id],
+                keep_top_left=True,
             )
-        else:
-            move_ids = (candidate_id,)
-            bounds = _node_layout_bounds(
-                self,
-                workspace,
-                node,
-                spec,
-                workspace_nodes=workspace_nodes,
-                expanded=False,
-            )
-        if bounds is None or moved_node_ids.intersection(move_ids):
+            if owner_to is not None:
+                if is_locked(owner_id):
+                    return _refused(_REFUSAL_LOCKED_GROUP.format(title=_title(workspace, owner_id)))
+                geometries[owner_id] = (owner_to.x, owner_to.y, owner_to.width, owner_to.height)
+            break
+        owner_to = grow_group_around(scope, rects, owner_id, changed)
+        if owner_to is None:
+            break
+        if is_locked(owner_id):
+            return _refused(_REFUSAL_LOCKED_GROUP.format(title=_title(workspace, owner_id)))
+        geometries[owner_id] = (owner_to.x, owner_to.y, owner_to.width, owner_to.height)
+        visited_growers.add(owner_id)
+        grower, grower_from, grower_to = owner_id, rects[owner_id], owner_to
+        rects[owner_id] = owner_to
+        frozen.update((owner_id, *scope.contents(owner_id)))
+
+    expanding_group = node_id in scope.collapsed_ids
+    final_membership = scope.membership_at(
+        rects,
+        list_overrides={group_id: None for group_id in lists_to_clear(workspace.nodes, node_id)} if expanding_group else None,
+        collapsed_overrides={node_id: False} if expanding_group else None,
+    )
+    # Allowed owner changes: a joined locked object moves into the Group it joins, and a node the expanding Group held
+    # becomes a geometric member of that Group or of a Group inside it. Anything else would move a node into or out of
+    # another Group.
+    held = set(scope.member_lists.get(node_id, ())) if expanding_group else set()
+    for changed_id, membership in final_membership.items():
+        new_owner = membership.owner_backdrop_id or None
+        if new_owner == scope.owner(changed_id):
             continue
-        moved_node_ids.update(move_ids)
-        objects.append(_CollisionObject(object_id=candidate_id, bounds=bounds, move_node_ids=move_ids))
+        if joined_locked.get(changed_id) == new_owner:
+            continue
+        if changed_id in held and (new_owner == node_id or new_owner in held):
+            continue
+        return _refused(_REFUSAL_NO_ROOM)
+
+    positions: dict[str, tuple[float, float]] = {}
+    for item in moved_objects.values():
+        for move_id in item.move_node_ids:
+            node = workspace.nodes.get(move_id)
+            if node is None or move_id in geometries:
+                continue
+            dx = rects[item.object_id].x - item.bounds.x
+            dy = rects[item.object_id].y - item.bounds.y
+            positions[move_id] = (float(node.x) + dx, float(node.y) + dy)
+    joined_ids = tuple(sorted(joined_locked))
+    return ExpandRoomUpdates(
+        positions=positions,
+        geometries=geometries,
+        joined_locked_node_ids=joined_ids,
+        hint=(
+            _JOINED_LOCKED_HINT.format(
+                node=_title(workspace, joined_ids[0]),
+                group=_title(workspace, joined_locked[joined_ids[0]]),
+            )
+            if joined_ids
+            else ""
+        ),
+    )
+
+
+def _make_room_pushes(
+    final: dict[str, LayoutNodeBounds],
+    movable: list[CollisionObject],
+    obstacles: list[LayoutNodeBounds],
+    grower_from: LayoutNodeBounds,
+    grower_to: LayoutNodeBounds,
+    gap: float,
+) -> None:
+    shifted = build_make_room_position_updates(
+        grown_from=grower_from,
+        grown_to=grower_to,
+        movable_bounds=[item.bounds for item in movable],
+        gap=gap,
+        keep_gap_x=DEFAULT_TIDY_COLUMN_GAP,
+        keep_gap_y=DEFAULT_TIDY_ROW_GAP,
+    )
+    _place(final, shifted)
+    # Pass 1: a shifted box never lands on a locked obstacle.
+    hitting = [final[object_id] for object_id in sorted(shifted) if _near_any(final[object_id], obstacles, gap)]
+    if hitting:
+        _place(final, build_collision_avoidance_position_updates(
+            fixed_bounds=[grower_to, *obstacles],
+            movable_bounds=hitting,
+            gap=gap,
+        ))
+    # Pass 2: what the shift left in place and still crowds the grower, an obstacle or a shifted box moves to its
+    # nearest free spot; the shifted boxes are blockers (they already moved).
+    unshifted = [final[item.object_id] for item in movable if item.object_id not in shifted]
+    if unshifted:
+        _place(final, build_collision_avoidance_position_updates(
+            fixed_bounds=[grower_to, *obstacles, *(final[object_id] for object_id in sorted(shifted))],
+            movable_bounds=unshifted,
+            gap=gap,
+        ))
+
+
+def level_collision_objects(
+    scope: GroupScope,
+    rects: Mapping[str, LayoutNodeBounds],
+    owner_id: str | None,
+    frozen_ids: Collection[str],
+    *,
+    is_locked: Callable[[str], bool],
+) -> list[CollisionObject]:
+    """The top-most objects owned by ``owner_id`` (``None`` = top level), each at its drawn rectangle.
+
+    A Group carries everything it contains (a collapsed Group is its pill and carries what it holds). Objects in, or
+    holding something in, ``frozen_ids`` are skipped; objects holding a locked node are fixed.
+    """
+    frozen = set(frozen_ids)
+    objects: list[CollisionObject] = []
+    for object_id in sorted(scope.rects):
+        if object_id in frozen or scope.owner(object_id) != owner_id or object_id not in rects:
+            continue
+        move_ids = (object_id, *scope.contents(object_id)) if object_id in scope.group_backdrop_ids else (object_id,)
+        if frozen.intersection(move_ids):
+            continue
+        objects.append(
+            CollisionObject(
+                object_id=object_id,
+                bounds=rects[object_id],
+                move_node_ids=move_ids,
+                fixed=any(is_locked(move_id) for move_id in move_ids),
+            )
+        )
     return objects
 
 
-def _comment_move_ids(
-    backdrop_id: str,
-    membership: GroupBackdropMembership | None,
-) -> tuple[str, ...]:
-    if membership is None:
-        return (backdrop_id,)
-    return (
-        backdrop_id,
-        *membership.contained_backdrop_ids,
-        *membership.contained_node_ids,
+def _place(final: dict[str, LayoutNodeBounds], updates: Mapping[str, tuple[float, float]]) -> None:
+    for object_id, (x, y) in updates.items():
+        bounds = final[object_id]
+        final[object_id] = LayoutNodeBounds(node_id=object_id, x=float(x), y=float(y), width=bounds.width, height=bounds.height)
+
+
+def _near_any(bounds: LayoutNodeBounds, blockers: list[LayoutNodeBounds], gap: float) -> bool:
+    return any(
+        bounds.left < blocker.right + gap
+        and bounds.right > blocker.left - gap
+        and bounds.top < blocker.bottom + gap
+        and bounds.bottom > blocker.top - gap
+        for blocker in blockers
     )
 
 
-def _comment_occupied_bounds_for_node(
-    self,
-    *,
-    workspace: WorkspaceData,
-    workspace_nodes: dict[str, NodeInstance],
-    node: NodeInstance,
-    membership: GroupBackdropMembership | None,
-    expanded: bool,
-) -> LayoutNodeBounds | None:
-    registry = self._scene_context.registry
-    if registry is None:
-        return None
-    spec = registry.spec_or_none(node.type_id)
-    if spec is None:
-        return None
-    backdrop_bounds = _node_layout_bounds(
-        self,
-        workspace,
-        node,
-        spec,
-        workspace_nodes=workspace_nodes,
-        expanded=expanded,
-    )
-    if backdrop_bounds is None:
-        return None
-    direct_member_ids = [] if membership is None else [*membership.member_node_ids, *membership.member_backdrop_ids]
-    member_candidates = _comment_candidates_for_node_ids(
-        self,
-        workspace=workspace,
-        workspace_nodes=workspace_nodes,
-        node_ids=direct_member_ids,
-        expanded=False,
-    )
-    occupied = build_group_backdrop_occupied_bounds(
-        _candidate_from_bounds(backdrop_bounds, is_backdrop=True, workspace=workspace),
-        member_candidates,
-    )
-    return LayoutNodeBounds(
-        node_id=node.node_id,
-        x=float(occupied.x),
-        y=float(occupied.y),
-        width=float(occupied.width),
-        height=float(occupied.height),
-    )
+def _refused(reason: str) -> ExpandRoomUpdates:
+    return ExpandRoomUpdates(positions={}, geometries={}, refusal=reason)
 
 
-def _group_backdrop_membership_for_scope(
-    self,
-    workspace: WorkspaceData,
-    node_id: str,
-    *,
-    workspace_nodes: dict[str, NodeInstance],
-) -> tuple[dict[str, GroupBackdropMembership], set[str]]:
-    registry = self._scene_context.registry
-    if registry is None:
-        return {}, set()
-    scope_path = node_scope_path(workspace, node_id)
-    scoped_node_ids = scope_node_ids(workspace, scope_path)
-    specs_by_node_id: dict[str, "NodeTypeSpec"] = {}
-    group_backdrop_ids: set[str] = set()
-    for candidate_id in scoped_node_ids:
-        node = workspace.nodes.get(candidate_id)
-        if node is None:
-            continue
-        spec = registry.spec_or_none(node.type_id)
-        if spec is None:
-            continue
-        specs_by_node_id[candidate_id] = spec
-        if _is_group_backdrop_spec(spec):
-            group_backdrop_ids.add(candidate_id)
-    if not group_backdrop_ids:
-        return {}, set()
-
-    candidates: list[GroupBackdropCandidate] = []
-    for candidate_id in scoped_node_ids:
-        node = workspace.nodes.get(candidate_id)
-        if node is None:
-            continue
-        spec = specs_by_node_id.get(candidate_id)
-        if spec is None:
-            continue
-        is_backdrop = _is_group_backdrop_spec(spec)
-        bounds = _node_layout_bounds(
-            self,
-            workspace,
-            node,
-            spec,
-            workspace_nodes=workspace_nodes,
-            expanded=is_backdrop,
-        )
-        if bounds is None:
-            continue
-        candidates.append(_candidate_from_bounds(bounds, is_backdrop=is_backdrop, workspace=workspace))
-    return compute_group_backdrop_membership(candidates), group_backdrop_ids
+def _title(workspace: WorkspaceData, node_id: str) -> str:
+    node = workspace.nodes.get(node_id)
+    return (str(node.title).strip() if node is not None else "") or "Group"
 
 
 def _current_presentation_bounds(self, node_id: str) -> LayoutNodeBounds | None:
@@ -404,149 +417,12 @@ def _current_presentation_bounds(self, node_id: str) -> LayoutNodeBounds | None:
         return None
 
 
-def _comment_candidates_for_node_ids(
-    self,
-    *,
-    workspace: WorkspaceData,
-    workspace_nodes: dict[str, NodeInstance],
-    node_ids: list[str],
-    expanded: bool,
-) -> list[GroupBackdropCandidate]:
-    registry = self._scene_context.registry
-    if registry is None:
-        return []
-    candidates: list[GroupBackdropCandidate] = []
-    for node_id in node_ids:
-        node = workspace.nodes.get(node_id)
-        if node is None:
-            continue
-        spec = registry.spec_or_none(node.type_id)
-        if spec is None:
-            continue
-        bounds = _node_layout_bounds(
-            self,
-            workspace,
-            node,
-            spec,
-            workspace_nodes=workspace_nodes,
-            expanded=expanded,
-        )
-        if bounds is None:
-            continue
-        candidates.append(
-            _candidate_from_bounds(
-                bounds,
-                is_backdrop=_is_group_backdrop_spec(spec),
-                workspace=workspace,
-            )
-        )
-    return candidates
-
-
-def _node_layout_bounds(
-    self,
-    workspace: WorkspaceData,
-    node: NodeInstance,
-    spec: "NodeTypeSpec",
-    *,
-    workspace_nodes: dict[str, NodeInstance] | None = None,
-    expanded: bool,
-) -> LayoutNodeBounds | None:
-    if not expanded:
-        cached_bounds = _cached_node_layout_bounds(self, node.node_id)
-        if cached_bounds is not None:
-            return cached_bounds
-
-    probe = node.clone()
-    if expanded:
-        probe.collapsed = False
-    scoped_nodes = workspace_nodes
-    if scoped_nodes is None:
-        scoped_nodes = dict(workspace.nodes)
-        original_node = _MISSING
-    else:
-        original_node = scoped_nodes.get(node.node_id, _MISSING)
-    scoped_nodes[node.node_id] = probe
-    try:
-        width, height = resolved_node_surface_size(
-            probe,
-            spec,
-            scoped_nodes,
-            show_port_labels=self._scene_context.graphics_show_port_labels,
-            graph_label_pixel_size=self._scene_context.graphics_graph_label_pixel_size,
-            graph_node_icon_pixel_size=self._scene_context.graphics_node_title_icon_pixel_size,
-        )
-    except Exception:  # noqa: BLE001
-        return None
-    finally:
-        if original_node is _MISSING:
-            scoped_nodes.pop(node.node_id, None)
-        else:
-            scoped_nodes[node.node_id] = original_node
-    return LayoutNodeBounds(
-        node_id=node.node_id,
-        x=float(node.x),
-        y=float(node.y),
-        width=max(1.0, float(width)),
-        height=max(1.0, float(height)),
-    )
-
-
-def _cached_node_layout_bounds(self, node_id: str) -> LayoutNodeBounds | None:
-    cache = self._scene_context._bridge._payload_cache
-    if cache.dirty or not self._scene_context._payload_cache_sync.payload_cache_matches_active_view():
-        return None
-    if not cache.indexes_valid:
-        cache.rebuild_indexes()
-    status, location = cache.resolve_node_payload_slot(str(node_id or "").strip())
-    if status != "ok" or location is None:
-        return None
-    collection_name, index = location
-    collection = cache.nodes if collection_name == "nodes" else cache.backdrop_nodes
-    payload = collection[index]
-    try:
-        x = float(payload.get("x", 0.0))
-        y = float(payload.get("y", 0.0))
-        width = max(1.0, float(payload.get("width", 0.0)))
-        height = max(1.0, float(payload.get("height", 0.0)))
-    except (TypeError, ValueError):
-        return None
-    return LayoutNodeBounds(
-        node_id=str(node_id),
-        x=x,
-        y=y,
-        width=width,
-        height=height,
-    )
-
-
-def _candidate_from_bounds(
-    bounds: LayoutNodeBounds,
-    *,
-    is_backdrop: bool,
-    workspace: WorkspaceData,
-) -> GroupBackdropCandidate:
-    return GroupBackdropCandidate(
-        node_id=bounds.node_id,
-        scope_path=node_scope_path(workspace, bounds.node_id),
-        is_backdrop=is_backdrop,
-        x=float(bounds.x),
-        y=float(bounds.y),
-        width=float(bounds.width),
-        height=float(bounds.height),
-    )
-
-
-def _is_group_backdrop_spec(spec: "NodeTypeSpec") -> bool:
-    return str(spec.surface_family or "").strip() == "group_backdrop"
-
-
-def _gap_for_settings(settings: dict[str, Any]) -> float:
+def _gap_for_settings(settings: Mapping[str, Any]) -> float:
     preset = str(settings.get("gap_preset", "normal")).strip().lower()
     return _GAP_BY_PRESET.get(preset, _GAP_BY_PRESET["normal"])
 
 
-def _reach_radius_for_settings(settings: dict[str, Any]) -> float | None:
+def _reach_radius_for_settings(settings: Mapping[str, Any]) -> float | None:
     radius_mode = str(settings.get("radius_mode", "local")).strip().lower()
     if radius_mode == "unbounded":
         return None
@@ -554,4 +430,11 @@ def _reach_radius_for_settings(settings: dict[str, Any]) -> float | None:
     return _LOCAL_RADIUS_BY_PRESET.get(preset, _LOCAL_RADIUS_BY_PRESET["medium"])
 
 
-__all__ = ["expand_collision_avoidance_updates"]
+__all__ = [
+    "CollisionObject",
+    "ExpandRoomPreparation",
+    "ExpandRoomUpdates",
+    "expand_collision_avoidance_updates",
+    "level_collision_objects",
+    "prepare_expand_room",
+]

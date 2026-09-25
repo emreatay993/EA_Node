@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from ea_node_editor.graph.model import GraphModel
@@ -110,6 +111,19 @@ class GraphRecordMutation:
 
     def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
         self.model._set_node_collapsed_record(self.workspace_id, node_id, collapsed)
+
+    def set_node_held_member_ids(self, node_id: str, member_ids: Iterable[str] | None) -> None:
+        self.model._set_node_held_member_ids_record(self.workspace_id, node_id, member_ids)
+
+    def adopt_held_member_ids(self, member_ids_by_node_id: Mapping[str, Iterable[str] | None]) -> None:
+        """Fill in derived lists (older documents/fragments) without an edit: no dirty flag, no history."""
+        for node_id, member_ids in member_ids_by_node_id.items():
+            self.model._set_node_held_member_ids_record(
+                self.workspace_id,
+                node_id,
+                member_ids,
+                mark_dirty=False,
+            )
 
     def set_node_expanded_settings_group_ids(self, node_id: str, group_ids: tuple[str, ...]) -> None:
         self.model._set_node_expanded_settings_group_ids_record(self.workspace_id, node_id, group_ids)

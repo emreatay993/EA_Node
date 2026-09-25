@@ -27,6 +27,7 @@ from ea_node_editor.settings import (
     EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE_CHOICES,
     EXPAND_COLLISION_AVOIDANCE_SCOPE_CHOICES,
     EXPAND_COLLISION_AVOIDANCE_STRATEGY_CHOICES,
+    EXPAND_COLLISION_AVOIDANCE_STRATEGY_REVISION,
     FLOATING_TOOLBAR_SIZE_CHOICES,
     FLOATING_TOOLBAR_STYLE_CHOICES,
     GRAPH_LABEL_PIXEL_SIZE_MAX,
@@ -1103,6 +1104,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                             self.expand_collision_strategy_combo.currentData()
                             or DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]["strategy"]
                         ),
+                        "strategy_revision": EXPAND_COLLISION_AVOIDANCE_STRATEGY_REVISION,
                         "scope": str(
                             self.expand_collision_scope_combo.currentData()
                             or DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]["scope"]

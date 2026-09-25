@@ -328,19 +328,74 @@ def normalize_layout_position_updates(
     return final_positions
 
 
-def build_expand_collision_avoidance_position_updates(
+def build_make_room_position_updates(
     *,
-    fixed_bounds: LayoutNodeBounds,
+    grown_from: LayoutNodeBounds,
+    grown_to: LayoutNodeBounds,
     movable_bounds: Sequence[LayoutNodeBounds],
     gap: float,
-    reach_radius: float | None = None,
+    keep_gap_x: float,
+    keep_gap_y: float,
 ) -> dict[str, tuple[float, float]]:
-    return build_collision_avoidance_position_updates(
-        fixed_bounds=(fixed_bounds,),
-        movable_bounds=movable_bounds,
-        gap=gap,
-        reach_radius=reach_radius,
-    )
+    """Shift the row after a grown box right (and the column below it down; mirrored left/up) just enough.
+
+    Every box of a row or column moves by the same amount, so rows stay straight. The first box keeps its original
+    gap to the grower, capped at ``max(gap, keep_gap_x)`` horizontally / ``max(gap, keep_gap_y)`` vertically, and no
+    box moves further than the growth on that side (repeated expand/collapse of a laid-out row does not drift).
+    Boxes outside the grower's row and column bands stay.
+    """
+    normalized_gap = max(0.0, float(gap))
+    cap_x = max(normalized_gap, float(keep_gap_x))
+    cap_y = max(normalized_gap, float(keep_gap_y))
+
+    def in_rows(bounds: LayoutNodeBounds) -> bool:
+        return bounds.top < grown_to.bottom + normalized_gap and bounds.bottom > grown_to.top - normalized_gap
+
+    def in_columns(bounds: LayoutNodeBounds) -> bool:
+        return bounds.left < grown_to.right + normalized_gap and bounds.right > grown_to.left - normalized_gap
+
+    boxes = [bounds for bounds in movable_bounds if bounds.node_id]
+    claimed: set[str] = set()
+
+    def claim(predicate: Callable[[LayoutNodeBounds], bool]) -> list[LayoutNodeBounds]:
+        members = [bounds for bounds in boxes if bounds.node_id not in claimed and predicate(bounds)]
+        claimed.update(bounds.node_id for bounds in members)
+        return members
+
+    row_after = claim(lambda bounds: bounds.left >= grown_from.right - 0.5 and in_rows(bounds))
+    column_below = claim(lambda bounds: bounds.top >= grown_from.bottom - 0.5 and in_columns(bounds))
+    row_before = claim(lambda bounds: bounds.right <= grown_from.left + 0.5 and in_rows(bounds))
+    column_above = claim(lambda bounds: bounds.bottom <= grown_from.top + 0.5 and in_columns(bounds))
+
+    updates: dict[str, tuple[float, float]] = {}
+
+    def shift(members: list[LayoutNodeBounds], dx: float, dy: float) -> None:
+        if dx == 0.0 and dy == 0.0:
+            return
+        for bounds in members:
+            updates[bounds.node_id] = (bounds.x + dx, bounds.y + dy)
+
+    if row_after:
+        first = min(bounds.left for bounds in row_after)
+        keep = min(first - grown_from.right, cap_x)
+        shift(row_after, _clamp(grown_to.right + keep - first, 0.0, grown_to.right - grown_from.right), 0.0)
+    if column_below:
+        first = min(bounds.top for bounds in column_below)
+        keep = min(first - grown_from.bottom, cap_y)
+        shift(column_below, 0.0, _clamp(grown_to.bottom + keep - first, 0.0, grown_to.bottom - grown_from.bottom))
+    if row_before:
+        last = max(bounds.right for bounds in row_before)
+        keep = min(grown_from.left - last, cap_x)
+        shift(row_before, -_clamp(last - (grown_to.left - keep), 0.0, grown_from.left - grown_to.left), 0.0)
+    if column_above:
+        last = max(bounds.bottom for bounds in column_above)
+        keep = min(grown_from.top - last, cap_y)
+        shift(column_above, 0.0, -_clamp(last - (grown_to.top - keep), 0.0, grown_from.top - grown_to.top))
+    return updates
+
+
+def _clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(float(value), max(low, high)))
 
 
 def build_collision_avoidance_position_updates(
@@ -506,7 +561,7 @@ __all__ = [
     "build_alignment_position_updates",
     "build_collision_avoidance_position_updates",
     "build_distribution_position_updates",
-    "build_expand_collision_avoidance_position_updates",
+    "build_make_room_position_updates",
     "build_port_alignment_offsets",
     "build_straighten_connection_position_updates",
     "collect_layout_node_bounds",

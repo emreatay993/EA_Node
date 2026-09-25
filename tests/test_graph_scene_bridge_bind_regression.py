@@ -835,6 +835,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             "collision_avoidance_ops.py": package_root / "collision_avoidance_ops.py",
             "grouping_and_subnode_ops.py": package_root / "grouping_and_subnode_ops.py",
             "group_backdrop_ops.py": package_root / "group_backdrop_ops.py",
+            "group_scope.py": package_root / "group_scope.py",
             "tidy_layout_ops.py": package_root / "tidy_layout_ops.py",
         }
 
@@ -1897,6 +1898,36 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertAlmostEqual(float(workspace.nodes[blocker_id].x), blocker_after_expand[0], places=6)
         self.assertAlmostEqual(float(workspace.nodes[blocker_id].y), blocker_after_expand[1], places=6)
 
+    def test_expand_moves_a_node_dropped_over_the_collapsed_area_out_and_keeps_it_outside(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        scene = GraphSceneBridge()
+        scene.set_workspace(model, registry, workspace_id)
+        history = RuntimeGraphHistory()
+        scene.bind_runtime_history(history)
+
+        backdrop_id = scene.add_node_from_type(GROUP_BACKDROP_TYPE_ID, 100.0, 100.0)
+        scene.set_node_geometry(backdrop_id, 100.0, 100.0, 420.0, 260.0)
+        inner_id = scene.add_node_from_type(LOGGER_TYPE_ID, 160.0, 160.0)
+        scene.set_node_collapsed(backdrop_id, True)
+        dropped_id = scene.add_node_from_type(LOGGER_TYPE_ID, 300.0, 170.0)
+        workspace = model.project.workspaces[workspace_id]
+        self.assertEqual(workspace.nodes[backdrop_id].held_member_ids, (inner_id,))
+        history.clear_workspace(workspace_id)
+
+        scene.set_node_collapsed(backdrop_id, False)
+
+        self.assertEqual(history.undo_depth(workspace_id), 1)
+        dropped = workspace.nodes[dropped_id]
+        self.assertFalse(
+            100.0 <= dropped.x and dropped.x + 210.0 <= 520.0 and 100.0 <= dropped.y and dropped.y + 174.0 <= 360.0,
+            (dropped.x, dropped.y),
+        )
+        payloads = {item["node_id"]: item for item in scene.nodes_model}
+        self.assertEqual(payloads[dropped_id]["owner_backdrop_id"], "")
+        self.assertEqual(payloads[inner_id]["owner_backdrop_id"], backdrop_id)
+
     def test_expand_collision_avoidance_respects_disabled_preference(self) -> None:
         registry = build_default_registry()
         model = GraphModel()
@@ -1923,6 +1954,8 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             {
                 "enabled": True,
                 "strategy": "nearest",
+                # An explicit choice: without the revision a saved "nearest" is read as the new default, Make room.
+                "strategy_revision": 2,
                 "scope": "all_movable",
                 "radius_mode": "local",
                 "local_radius_preset": "small",
@@ -1934,6 +1967,8 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             {
                 "enabled": True,
                 "strategy": "nearest",
+                # An explicit choice: without the revision a saved "nearest" is read as the new default, Make room.
+                "strategy_revision": 2,
                 "scope": "all_movable",
                 "radius_mode": "unbounded",
                 "local_radius_preset": "small",

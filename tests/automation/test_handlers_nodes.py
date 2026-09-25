@@ -35,6 +35,7 @@ MEDIA = "media.panel"
 WEB = "web.page_viewer"
 CARD = "passive.flowchart.card"  # flowchart family, but body is separate content (default '')
 STICKY = "passive.annotation.sticky_note"
+GROUP = "passive.annotation.group_backdrop"
 
 
 class _RecordingClient:
@@ -313,6 +314,36 @@ class NodeUpdateAtomicityTests(_NodeHandlerCase):
         # Requesting the state a node already has is not an eligibility problem.
         result = self.call_one_undo("node.update", {"node_id": active, "title": "K2", "locked": False})
         self.assertEqual(result["changed"], ["title"])
+
+    def test_refused_expand_rejects_the_whole_update(self) -> None:
+        # Expanding the collapsed Group would have to grow its locked parent: nothing may change.
+        parent = self.add(GROUP, 0, 0, title="Parent")
+        self.scene.set_node_geometry(parent, 0.0, 0.0, 560.0, 400.0)
+        inner = self.add(GROUP, 40, 120, title="Inner")
+        self.scene.set_node_geometry(inner, 40.0, 120.0, 500.0, 300.0)
+        self.add(PROCESS, 80, 200)
+        self.assertTrue(self.scene.set_node_collapsed(inner, True))
+        self.assertTrue(self.scene.set_node_locked(parent, True))
+
+        error = self.assert_rejected_untouched(inner, {"title": "Renamed", "collapsed": False}, NO_EFFECT)
+
+        self.assertIn("locked Group “Parent” would have to grow", " ".join(error.details["reasons"]))
+
+    def test_expand_refused_after_the_same_updates_move_rolls_the_move_back(self) -> None:
+        # Where it sits the Group can expand; the move lands its pill in a locked Group its expand would have to grow.
+        group = self.add(GROUP, 0, 0, title="G")
+        self.scene.set_node_geometry(group, 0.0, 0.0, 400.0, 300.0)
+        member = self.add(PROCESS, 40, 120)
+        self.assertTrue(self.scene.set_node_collapsed(group, True))
+        locked = self.add(GROUP, 1000, 0, title="Locked")
+        self.scene.set_node_geometry(locked, 1000.0, 0.0, 300.0, 200.0)
+        self.assertTrue(self.scene.set_node_locked(locked, True))
+        member_before = (self.node(member).x, self.node(member).y)
+
+        error = self.assert_rejected_untouched(group, {"x": 1020.0, "y": 40.0, "collapsed": False}, NO_EFFECT)
+
+        self.assertIn("locked Group “Locked” would have to grow", " ".join(error.details["reasons"]))
+        self.assertEqual((self.node(member).x, self.node(member).y), member_before)
 
 
 class FlowchartBodyLabelTests(_NodeHandlerCase):

@@ -1126,6 +1126,7 @@ class GraphSceneBridgeBase(QObject):
         self._selected_node_ids = []
         self._selected_node_lookup = {}
         self._payload_cache.mark_dirty()
+        self._authoring_boundary.fill_missing_held_member_ids(workspace)
         self._remember_scene_payload_graphics_preferences()
         self._scene_context.emit_workspace_changed()
         self._scene_context.emit_scope_changed()
@@ -1345,6 +1346,14 @@ class GraphSceneBridgeBase(QObject):
     @pyqtSlot(str, bool, result=bool)
     def set_node_collapsed(self, node_id: str, collapsed: bool) -> bool:
         return self._command_bridge.set_node_collapsed(node_id, collapsed)
+
+    def take_expand_refusal_reason(self) -> str:
+        """Why the last collapse/settings-group toggle was refused, or a successful expand's notice ('' = none)."""
+        return self._command_bridge.take_expand_refusal_reason()
+
+    def expand_refusal_reason(self, node_id: str) -> str:
+        """Dry run: why expanding ``node_id`` now would be refused ('' when it would not)."""
+        return self._command_bridge.expand_refusal_reason(node_id)
 
     @pyqtSlot(str, str, bool, result=bool)
     def set_node_settings_group_expanded(

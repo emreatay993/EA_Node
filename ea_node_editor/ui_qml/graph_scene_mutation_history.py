@@ -19,6 +19,7 @@ from ea_node_editor.graph.fragment_payloads import (
     fragment_node_from_payload,
     graph_fragment_payload_is_valid,
 )
+from ea_node_editor.graph.group_backdrop_geometry import held_member_position_updates
 from ea_node_editor.graph.hierarchy import root_node_ids_for_fragment, subtree_node_ids
 from ea_node_editor.graph.node_links import node_link_targets_node
 from ea_node_editor.graph.record_mutation_ops import GraphRecordMutation
@@ -174,6 +175,13 @@ class GraphSceneMutationHistory:
         self._scene_context = scene_context
         self._scope_selection = scope_selection
         self._boundary_adapters = boundary_adapters
+        # Why the last collapse/settings-group toggle was refused, or the notice of a successful one (a locked node
+        # joined a Group); cleared at the start of every toggle.
+        self._last_expand_refusal = ""
+
+    def take_expand_refusal_reason(self) -> str:
+        reason, self._last_expand_refusal = self._last_expand_refusal, ""
+        return reason
 
     def set_node_property(self, node_id: str, key: str, value: Any) -> None:
         return _selection_ops.set_node_property(self, node_id, key, value)
@@ -603,7 +611,6 @@ class GraphSceneMutationHistory:
         return expand_group_backdrop_fragment_node_ids(
             workspace=workspace,
             selected_node_ids=selected_node_ids,
-            backdrop_payloads=self._scene_context.backdrop_nodes_payload,
         )
 
     def _removable_node_ids_for_fragment(self, workspace: WorkspaceData) -> list[str]:
@@ -675,6 +682,10 @@ class GraphSceneMutationHistory:
         )
         if not final_positions:
             return False
+        # Moving a collapsed Group moves what it holds.
+        final_positions.update(
+            held_member_position_updates(workspace.nodes, final_positions)
+        )
 
         history_group = self._scene_context.grouped_history_action(
             ACTION_MOVE_NODE, workspace
@@ -763,6 +774,12 @@ class GraphSceneMutationHistory:
                 ),
             )
             inserted_node_ids = list(inserted_result or [])
+            if inserted_node_ids:
+                # Older fragments carry collapsed Groups without member lists; paste never captures bystanders.
+                self.fill_missing_held_member_ids(workspace, inserted_node_ids)
+                _group_backdrop_ops.hold_new_nodes_in_peeked_group(
+                    self, workspace, inserted_node_ids
+                )
         return inserted_node_ids
 
     def _capture_history_snapshot(self) -> WorkspaceSnapshot | None:
@@ -798,6 +815,7 @@ GraphSceneMutationHistory.remove_node = _selection_ops.remove_node
 GraphSceneMutationHistory.remove_workspace_node = _selection_ops.remove_workspace_node
 GraphSceneMutationHistory.focus_node = _selection_ops.focus_node
 GraphSceneMutationHistory.set_node_collapsed = _selection_ops.set_node_collapsed
+GraphSceneMutationHistory.expand_refusal_reason = _selection_ops.expand_refusal_reason
 GraphSceneMutationHistory.set_node_settings_group_expanded = (
     _selection_ops.set_node_settings_group_expanded
 )
@@ -892,6 +910,9 @@ GraphSceneMutationHistory.wrap_nodes_in_group_backdrop = (
 )
 GraphSceneMutationHistory.wrap_selected_nodes_in_group_backdrop = (
     _group_backdrop_ops.wrap_selected_nodes_in_group_backdrop
+)
+GraphSceneMutationHistory.fill_missing_held_member_ids = (
+    _group_backdrop_ops.fill_missing_held_member_ids
 )
 GraphSceneMutationHistory.group_selected_nodes = _grouping_ops.group_selected_nodes
 GraphSceneMutationHistory.ungroup_selected_subnode = (

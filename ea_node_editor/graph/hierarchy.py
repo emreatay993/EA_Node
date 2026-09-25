@@ -5,6 +5,7 @@ from collections.abc import Iterable, Mapping, Sequence
 
 from ea_node_editor.graph.records import EdgeInstance, NodeInstance
 from ea_node_editor.graph.workspace_state import WorkspaceData
+from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_GROUP_BACKDROP_TYPE_ID
 
 ScopePath = tuple[str, ...]
 
@@ -288,6 +289,108 @@ def sanitize_workspace_parent_links(workspace: WorkspaceData) -> None:
             node.parent_node_id = None
 
 
+def sanitize_workspace_held_member_ids(workspace: WorkspaceData) -> bool:
+    """Make stored Group member lists consistent in place; returns whether anything changed.
+
+    Lists keep existing same-parent ids only, Group->Group list cycles are broken (the Group with the longest list
+    keeps it), and a list survives only on a Group that is collapsed or listed by a collapsed Group (hidden).
+    """
+    nodes = workspace.nodes
+    changed = False
+
+    def assign(node: NodeInstance, member_ids: tuple[str, ...] | None) -> None:
+        nonlocal changed
+        if node.held_member_ids != member_ids:
+            node.held_member_ids = member_ids
+            changed = True
+
+    for node in nodes.values():
+        if node.held_member_ids is None:
+            continue
+        if node.type_id != PASSIVE_ANNOTATION_GROUP_BACKDROP_TYPE_ID:
+            assign(node, None)
+            continue
+        assign(
+            node,
+            tuple(
+                sorted(
+                    {
+                        member_id
+                        for member_id in node.held_member_ids
+                        if member_id != node.node_id
+                        and member_id in nodes
+                        and nodes[member_id].parent_node_id == node.parent_node_id
+                    }
+                )
+            ),
+        )
+
+    listed_groups = {
+        node_id: [member_id for member_id in node.held_member_ids if nodes[member_id].held_member_ids is not None]
+        for node_id, node in nodes.items()
+        if node.held_member_ids is not None
+    }
+    for component in _strongly_connected_components(listed_groups):
+        if len(component) < 2:
+            continue
+        keeper = min(component, key=lambda node_id: (-len(nodes[node_id].held_member_ids or ()), node_id))
+        for node_id in component:
+            if node_id != keeper:
+                assign(nodes[node_id], ())
+
+    hidden = {
+        member_id
+        for node in nodes.values()
+        if node.collapsed and node.held_member_ids is not None
+        for member_id in node.held_member_ids
+    }
+    for node in nodes.values():
+        if node.held_member_ids is not None and not node.collapsed and node.node_id not in hidden:
+            assign(node, None)
+    return changed
+
+
+def _strongly_connected_components(edges: Mapping[str, Sequence[str]]) -> list[list[str]]:
+    """Iterative Kosaraju over ``edges`` (targets outside the mapping are ignored)."""
+    order: list[str] = []
+    visited: set[str] = set()
+    for root in sorted(edges):
+        if root in visited:
+            continue
+        visited.add(root)
+        stack = [(root, iter(edges[root]))]
+        while stack:
+            current, children = stack[-1]
+            child = next((item for item in children if item in edges and item not in visited), None)
+            if child is None:
+                stack.pop()
+                order.append(current)
+                continue
+            visited.add(child)
+            stack.append((child, iter(edges[child])))
+    reverse: dict[str, list[str]] = {node_id: [] for node_id in edges}
+    for source, targets in edges.items():
+        for target in targets:
+            if target in reverse:
+                reverse[target].append(source)
+    components: list[list[str]] = []
+    assigned: set[str] = set()
+    for root in reversed(order):
+        if root in assigned:
+            continue
+        component = [root]
+        assigned.add(root)
+        pending = [root]
+        while pending:
+            for source in reverse[pending.pop()]:
+                if source not in assigned:
+                    assigned.add(source)
+                    component.append(source)
+                    pending.append(source)
+        components.append(sorted(component))
+    return components
+
+
 __all__ = [
     "ScopePath",
     "ancestor_chain",
@@ -303,6 +406,7 @@ __all__ = [
     "parent_link_would_cycle",
     "parent_to_children_map",
     "root_node_ids_for_fragment",
+    "sanitize_workspace_held_member_ids",
     "sanitize_workspace_parent_links",
     "scope_breadcrumb_payload",
     "scope_edges",

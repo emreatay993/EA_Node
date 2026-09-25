@@ -60,6 +60,7 @@ from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
     standard_node_title_pixel_size,
 )
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+from ea_node_editor.ui_qml.graph_scene_mutation.collision_avoidance_ops import ExpandRoomUpdates
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 from tests.graph_track_b.theme_support import (
     GRAPH_STITCH_DARK_EDGE_TOKENS_V1,
@@ -918,7 +919,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         with patch(
             "ea_node_editor.ui_qml.graph_scene_mutation.selection_and_scope_ops."
             "expand_collision_avoidance_updates",
-            return_value={neighbor_id: neighbor_after},
+            return_value=ExpandRoomUpdates(positions={neighbor_id: neighbor_after}, geometries={}),
         ):
             self.assertTrue(
                 self.scene.command_bridge.set_node_settings_group_expanded(

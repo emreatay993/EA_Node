@@ -44,7 +44,7 @@ _Rect = tuple[float, float, float, float]  # x, y, width, height
 @dataclass(frozen=True, slots=True)
 class TidyItem:
     item_id: str
-    x: float  # current top-left + size (rigid groups: EXPANDED size)
+    x: float  # current top-left + size (collapsed groups: pill size)
     y: float
     width: float
     height: float

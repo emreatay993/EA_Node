@@ -13,7 +13,7 @@ Recent UI/UX architecture highlights:
 - Graphics preferences now persist in `app_preferences.json` separately from project `.cxproj` files and `last_session.json`
 - Passive visual node families now ship in the main graph model for flowcharting, annotation, and local image/PDF presentation
 - Dependency-gated `Tabular Data Input` now ships under `Data`, opening table and dense-array sources through lazy refs with bounded inline/fullscreen previews and direct generic plot-node auto-mapping
-- Dedicated `Group` passive grouping nodes render on an under-edge layer, appear under `Utilities > Canvas`, wrap the current selection with shortcut `C`, derive nested membership from geometry, and keep collapse/clipboard behavior distinct from note-style annotation cards
+- Dedicated `Group` passive grouping nodes render on an under-edge layer, appear under `Utilities > Canvas`, wrap the current selection with shortcut `C`, derive expanded-Group membership from geometry (collapsed Groups keep the members they held), and keep collapse/clipboard behavior distinct from note-style annotation cards
 - Passive `flow` edges support labels and per-edge style overrides while remaining excluded from runtime compilation and worker execution
 - Passive node and flow-edge style overrides can be edited from context menus and saved as project-local presets in `.cxproj` metadata
 - `Help > Keyboard and Mouse Reference` lists the current shortcuts, mouse gestures, hidden-port decluttering gestures, context-menu gestures, and focused editor controls users can invoke across the shell and graph canvas, with Context and Action filters for lookup

@@ -18,11 +18,14 @@ from ea_node_editor.ui.shell.tooltip_policy import default_tooltip_category_pref
 _EXPAND_COLLISION_TOOLTIP_CASES = (
     (
         "expand_collision_enabled_check",
-        "Pushes newly expanded items away from nearby content to reduce overlap.",
+        "Moves nearby items aside when a collapsed item, Group or settings group expands, and grows parent Groups "
+        "to fit. When off, overlaps stay, but items that would end up inside an expanding Group are still moved out "
+        "and parent Groups still grow.",
     ),
     (
         "expand_collision_strategy_combo",
-        "Chooses how the first items are picked when overlap resolution begins.",
+        "Make room shifts the row after the expanded item (and the column below it) just enough to keep its gap, "
+        "level by level through parent Groups. Nearest moves each overlapping item to its nearest free spot.",
     ),
     (
         "expand_collision_animate_check",
@@ -233,7 +236,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 dialog.expand_collision_strategy_combo.objectName(),
                 "graphicsSettingsExpandCollisionAvoidanceStrategyCombo",
             )
-            self.assertEqual(dialog.expand_collision_strategy_combo.currentData(), "nearest")
+            self.assertEqual(dialog.expand_collision_strategy_combo.currentData(), "make_room")
             self.assertEqual(dialog.expand_collision_scope_combo.currentData(), "all_movable")
             self.assertEqual(dialog.expand_collision_radius_mode_combo.currentData(), "local")
             self.assertEqual(dialog.expand_collision_local_radius_preset_combo.currentData(), "medium")
@@ -308,7 +311,8 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             expected["interaction"]["snap_to_grid"] = True
             expected["interaction"]["expand_collision_avoidance"] = {
                 "enabled": False,
-                "strategy": "nearest",
+                "strategy": "make_room",
+                "strategy_revision": 2,
                 "scope": "all_movable",
                 "radius_mode": "unbounded",
                 "local_radius_preset": "large",
@@ -393,7 +397,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertNotIn("graph_theme", dialog.values())
             self.assertFalse(dialog.values()["canvas"]["keep_expanded_node_width"])
             self.assertTrue(dialog.expand_collision_enabled_check.isChecked())
-            self.assertEqual(dialog.expand_collision_strategy_combo.currentData(), "nearest")
+            self.assertEqual(dialog.expand_collision_strategy_combo.currentData(), "make_room")
             self.assertEqual(dialog.expand_collision_scope_combo.currentData(), "all_movable")
             self.assertEqual(dialog.expand_collision_radius_mode_combo.currentData(), "local")
             self.assertEqual(dialog.expand_collision_local_radius_preset_combo.currentData(), "medium")

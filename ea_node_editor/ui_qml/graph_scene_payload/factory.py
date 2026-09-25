@@ -12,6 +12,12 @@ from typing import TYPE_CHECKING, Any
 
 
 from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters
+from ea_node_editor.graph.group_backdrop_geometry import (
+    CORNER_CANDIDATE_SIZE,
+    MEMBERSHIP_RECT_CORNER,
+    MEMBERSHIP_RECT_EXPANDED,
+    membership_rect_kind,
+)
 from ea_node_editor.graph.effective_ports import (
     EffectivePort,
     effective_ports,
@@ -959,6 +965,17 @@ class _GraphSceneNodePayloadFactory:
         )
         icon = title_icon_presentation_for_node_payload(spec, provenance=provenance)
         is_group_backdrop = self.is_group_backdrop_spec(spec)
+        membership_kind = membership_rect_kind(
+            node,
+            is_backdrop=is_group_backdrop,
+            list_honoured=getattr(node, "held_member_ids", None) is not None,
+        )
+        if membership_kind == MEMBERSHIP_RECT_EXPANDED:
+            membership_width, membership_height = float(expanded_bounds.width), float(expanded_bounds.height)
+        elif membership_kind == MEMBERSHIP_RECT_CORNER:
+            membership_width = membership_height = CORNER_CANDIDATE_SIZE
+        else:
+            membership_width, membership_height = float(width), float(height)
         return _NodePresentationFacts(
             original_node=node,
             payload_node=payload_node,
@@ -973,8 +990,8 @@ class _GraphSceneNodePayloadFactory:
             bounds=bounds,
             expanded_bounds=expanded_bounds,
             minimap_bounds=bounds,
-            membership_width=(float(expanded_bounds.width) if is_group_backdrop else float(width)),
-            membership_height=(float(expanded_bounds.height) if is_group_backdrop else float(height)),
+            membership_width=membership_width,
+            membership_height=membership_height,
             port_presentation=port_presentation,
             inline_properties=inline_properties,
             endpoint_by_port_key=endpoint_by_port_key,
@@ -1623,6 +1640,15 @@ class _GraphSceneNodePayloadFactory:
                 visible_ports_override=visible_ports_override,
             )
             return width, height
+        if (
+            membership_rect_kind(
+                node,
+                is_backdrop=True,
+                list_honoured=getattr(node, "held_member_ids", None) is not None,
+            )
+            == MEMBERSHIP_RECT_CORNER
+        ):
+            return CORNER_CANDIDATE_SIZE, CORNER_CANDIDATE_SIZE
         surface_metrics = self._surface_metrics(
             node=node,
             spec=spec,
@@ -1631,8 +1657,8 @@ class _GraphSceneNodePayloadFactory:
             graph_label_pixel_size=graph_label_pixel_size,
             graph_node_icon_pixel_size=graph_node_icon_pixel_size,
         )
-        # Backdrop membership keeps the expanded surface envelope so collapsed
-        # backdrops still own and serialize their descendants.
+        # An expanded Group, and an older collapsed Group without a member list, claim members by their expanded
+        # surface envelope; a collapsed Group with a list is measured by its top-left corner (see above).
         width = node.custom_width if node.custom_width is not None else surface_metrics.default_width
         height = node.custom_height if node.custom_height is not None else surface_metrics.default_height
         return max(float(surface_metrics.min_width), float(width)), float(height)

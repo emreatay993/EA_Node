@@ -392,6 +392,7 @@ class GraphCanvasQmlPreferenceBindingTests(
             updated = {
                 "enabled": False,
                 "strategy": "nearest",
+                "strategy_revision": 2,
                 "scope": "all_movable",
                 "radius_mode": "unbounded",
                 "local_radius_preset": "large",

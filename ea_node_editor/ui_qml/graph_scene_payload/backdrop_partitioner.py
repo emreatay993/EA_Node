@@ -13,6 +13,8 @@ from ea_node_editor.graph.group_backdrop_geometry import (
     GroupBackdropMembership,
     build_group_backdrop_occupied_bounds,
     compute_group_backdrop_membership,
+    hidden_node_ids,
+    honoured_held_member_ids,
 )
 from ea_node_editor.graph.hierarchy import ScopePath
 from ea_node_editor.graph.hierarchy import node_scope_path, scope_edges, scope_node_ids
@@ -105,6 +107,7 @@ class _GraphSceneBackdropPartitioner:
         minimap_payload_by_id: dict[str, dict[str, float | str]] = {}
         group_backdrop_ids: set[str] = set()
         membership_candidates: list[GroupBackdropCandidate] = []
+        hidden_ids = hidden_node_ids(workspace.nodes)
 
         for node_id in visible_node_ids:
             node = workspace.nodes[node_id]
@@ -183,6 +186,11 @@ class _GraphSceneBackdropPartitioner:
                     y=float(presentation_facts.bounds.y),
                     width=float(membership_width),
                     height=float(membership_height),
+                    held_member_ids=honoured_held_member_ids(
+                        node,
+                        is_backdrop=is_group_backdrop,
+                        collapsed_lists_contain=hidden_ids.__contains__,
+                    ),
                 )
             )
             minimap_payload_by_id[node_id] = self._node_payload_factory.build_minimap_node_payload(
@@ -333,7 +341,9 @@ class _GraphSceneBackdropPartitioner:
         for node_id in visible_node_ids:
             proxy_backdrop_id = ""
             owner_backdrop_id = owner_backdrop_by_node_id.get(node_id, "")
-            while owner_backdrop_id:
+            seen = {node_id}
+            while owner_backdrop_id and owner_backdrop_id not in seen:
+                seen.add(owner_backdrop_id)
                 if owner_backdrop_id in collapsed_backdrop_ids:
                     proxy_backdrop_id = owner_backdrop_id
                 owner_backdrop_id = owner_backdrop_by_node_id.get(owner_backdrop_id, "")

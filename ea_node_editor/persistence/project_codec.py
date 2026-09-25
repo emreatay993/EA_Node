@@ -15,7 +15,10 @@ from ea_node_editor.graph.record_payloads import (
     node_instance_from_mapping,
     node_instance_to_mapping,
 )
-from ea_node_editor.graph.hierarchy import sanitize_workspace_parent_links
+from ea_node_editor.graph.hierarchy import (
+    sanitize_workspace_held_member_ids,
+    sanitize_workspace_parent_links,
+)
 from ea_node_editor.graph.registry_normalization import normalize_project_for_registry
 from ea_node_editor.nodes.builtins.web_viewer import (
     WEB_PAGE_VIEWER_TYPE_ID,
@@ -773,6 +776,7 @@ class JsonProjectCodec:
                 )
                 edge_decode_ms += _elapsed_ms(edge_started)
             sanitize_workspace_parent_links(workspace)
+            sanitize_workspace_held_member_ids(workspace)
             project.workspaces[workspace.workspace_id] = workspace
             workspace_decode_ms += _elapsed_ms(workspace_started)
 

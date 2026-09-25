@@ -1,19 +1,23 @@
 # Group Backdrops, Peek, And Membership
 
 ## Purpose
-Use this for Group geometry, membership, collapse/peek behavior, collision avoidance, and Group workflows.
+Use this for Group geometry, membership (area for expanded Groups, stored member lists for collapsed and hidden Groups), collapse/peek behavior, the make-room expand cascade and collision avoidance, and Group workflows.
 
 ## Start Here
-- `ea_node_editor/graph/group_backdrop_geometry.py`
+- `ea_node_editor/graph/group_backdrop_geometry.py` for the pure rules: `compute_group_backdrop_membership` (area owner for expanded Groups, identity owner for Groups with an honoured list), `honoured_held_member_ids`, `membership_rect_kind` and `CORNER_CANDIDATE_SIZE` (collapsed-body corner containment), `hidden_node_ids`, `lists_to_freeze`, `lists_to_clear`, `held_member_position_updates`, `strictly_contains`, and wrap bounds.
 - `ea_node_editor/graph/group_backdrop_mutation_ops.py`
+- `ea_node_editor/graph/hierarchy.py` for `sanitize_workspace_held_member_ids`, which keeps stored member lists consistent on load (`ea_node_editor/persistence/project_codec.py`, `ea_node_editor/graph/registry_normalization.py`), paste (`ea_node_editor/graph/transform_fragment_ops.py`), and grouping into or ungrouping a subnode (`ea_node_editor/graph/transform_grouping_ops.py`), so no list keeps an id from another scope.
 - `ea_node_editor/ui_qml/graph_scene_payload/`
-- `ea_node_editor/ui_qml/graph_scene_mutation/group_backdrop_ops.py`
-- `ea_node_editor/ui_qml/graph_scene_mutation/collision_avoidance_ops.py`
+- `ea_node_editor/ui_qml/graph_scene_mutation/group_scope.py` for scene Group geometry in mutations: `GroupScope` / `collect_group_scope` (drawn rectangles with collapsed Groups as pills, expanded rectangles, honoured lists, membership, simulated `owner_changes`), `grow_group_around`, `grow_owner_chain`, `node_layout_bounds`, and `group_membership_for_scope`.
+- `ea_node_editor/ui_qml/graph_scene_mutation/group_backdrop_ops.py` for wrap, `group_stray_growth`, `fill_missing_held_member_ids`, and `hold_new_nodes_in_peeked_group`.
+- `ea_node_editor/ui_qml/graph_scene_mutation/collision_avoidance_ops.py` for the level-by-level make-room cascade: `prepare_expand_room`, `expand_collision_avoidance_updates` (returns `ExpandRoomUpdates`), and `level_collision_objects`.
+- `ea_node_editor/ui_qml/graph_scene_mutation/selection_and_scope_ops.py` for `set_node_collapsed`, `set_node_settings_group_expanded`, and the dry-run `expand_refusal_reason`.
 - `ea_node_editor/ui_qml/components/graph/passive/GraphGroupBackdropSurface.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeDelegate.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHostGestureLayer.qml`
 - `tests/main_window_shell/group_backdrop_integration.py`
+- `tests/test_group_backdrop_identity_membership.py` and `tests/test_group_scope.py`
 
 ## Input Layer Notes
 - Groups render as a visual layer under edges plus a transparent input overlay above edges. Keep edge click, context, and hover-cursor routing explicit in the input overlay path so edges inside a Group remain selectable while empty Group areas still drag/select the Group.
@@ -23,10 +27,19 @@ Use this for Group geometry, membership, collapse/peek behavior, collision avoid
 - Group live-resize edge redraw is conditional: unconnected Groups keep the no-redraw fast path, while Groups with connected visible ports request edge redraw so endpoint anchors follow the resized backdrop.
 - Live drag offsets for Groups must update both rendered hosts for the same backdrop id: the under-edge visual host and the above-edge input overlay host. If only one host is offset, the non-moving host leaves title text behind until drag release.
 - `GraphCanvas.edgeAtScreen(...)` is the non-mutating edge hover/hit probe; `GraphCanvas.handleEdgePressAtScreen(...)` is the mutating press delegation path.
-- Group-backdrop wrap transactions are graph-owned in `group_backdrop_mutation_ops.py`; scene helpers should call that operation directly and keep membership fields derived in payload projection.
+- Group-backdrop wrap transactions are graph-owned in `group_backdrop_mutation_ops.py`; scene helpers should call that operation directly and keep membership fields (`owner_backdrop_id`, `member_*`, `contained_*`) derived in payload projection. The only stored membership is `NodeInstance.held_member_ids` on collapsed Groups and on Groups hidden inside one (see Identity Membership And Make Room).
 - The display name is `Group`, registered as `passive.annotation.group_backdrop` under `Utilities > Canvas`. Its hidden title defaults to empty; an untitled selected Group shows `Double click to edit title`, and double-click opens the shared title editor. It has no body/rich-text content, Inspector-editable properties, or shadow.
-- `tests/qml_quick/tst_graph_node_host.qml` owns the four pure-QML Group host checks: chrome/shadow suppression, untitled edit prompt, icon-independent collapsed title, and long-title width. `tests/test_group_backdrop_contracts.py` retains the seven catalogue, model, metric, serialization, and scene-projection checks.
+- `tests/qml_quick/tst_graph_node_host.qml` owns the four pure-QML Group host checks: chrome/shadow suppression, untitled edit prompt, icon-independent collapsed title, and long-title width. `tests/test_group_backdrop_contracts.py` retains the eight catalogue, model, metric, serialization, scene-projection, and `held_member_ids` document-path checks.
 - The focused mounted-shell integration checks share the existing `main_window__shell_basics_and_search__workspace_actions` child. They retain the real Library add/drop route, shortcut noncollision, Peek menu eligibility, current `Group` fallback, direct/nested/outside peek visibility, editing, explicit exit, and click-away dismissal without reviving the obsolete 12-test shard.
+
+## Identity Membership And Make Room
+- Owner rule (`compute_group_backdrop_membership`): a Group with an honoured `held_member_ids` list owns exactly its listed same-scope candidates (the innermost listing Group holds a node) and claims nothing by area; every other Group owns by area, as the smallest strictly containing Group at the same holder level. `honoured_held_member_ids` honours a collapsed Group's list, and an expanded Group's list only while a collapsed Group lists it (hidden). Nodes placed over a hidden area stay drawn and are not members.
+- Rectangle kinds (`membership_rect_kind`): a collapsed Group with a list takes part in its parent's membership as a `CORNER_CANDIDATE_SIZE` square at its top-left, so a longer title, a rename, or a bigger font never ejects it; a collapsed Group without a list (older file or fragment) keeps the area rule at its expanded size until it is filled in; everything else uses its drawn size. The payload builders in `ea_node_editor/ui_qml/graph_scene_payload/` and `GroupScope.candidates` build their candidates through these helpers.
+- Stored lists: `held_member_ids` is authored node state (never one of the stripped runtime membership keys) written only through `GraphRecordMutation.set_node_held_member_ids` / `adopt_held_member_ids`; adopting bumps the workspace revision without marking it dirty. Collapsing freezes the Group's contained subtree for it and for every expanded Group inside it (`lists_to_freeze`; collapsed ones keep theirs); expanding clears its own list unless it is still hidden, plus the lists of listed Groups that end up neither collapsed nor hidden (`lists_to_clear`). Node removal prunes the id from every list, and removing a collapsed Group drops the lists of Groups that no collapsed Group lists any more.
+- Fill-in and Peek: `GraphSceneBridge.set_workspace` (`ea_node_editor/ui_qml/graph_scene/state_support.py`) and fragment insertion call `fill_missing_held_member_ids` for collapsed Groups without a list (today's area rule, once; a paste fills only pasted Groups and keeps only pasted ids; no history entry and no dirty flag). Nodes created (singly or in a batch), pasted, wrapped, grouped into a subnode shell, or restored by an ungroup while peeking into a collapsed Group join it and every Group whose list holds it (`hold_new_nodes_in_peeked_group`), so they stay hidden when Peek closes; those commands rebuild before re-applying their selection, because Peek selects only what its rebuilt payload lists.
+- Make room: every expand (`set_node_collapsed` for any collapsible node, `set_node_settings_group_expanded`, and `reveal_parent_chain` in `ea_node_editor/ui/shell/controllers/workspace_view_nav_ops.py`) computes `expand_collision_avoidance_updates` from a `prepare_expand_room` capture taken before any mutation. At each level the other objects of the grower's owner move aside, a Group as one block with its contents and an object holding a locked node as a fixed obstacle: the default "Make room" strategy uses `build_make_room_position_updates` from `ea_node_editor/graph/transform_layout_ops.py`, then two nearest-free-spot solver passes (shifted boxes that land on a locked obstacle, then unshifted boxes that still crowd the grower, an obstacle, or a shifted box), and "Nearest" uses the several-blocker solver with the reach radius at the top level only. Non-members whose membership rectangle (`GroupScope.membership_rect`: a listed collapsed Group's corner square) lies strictly inside a growing Group are moved out even with the push off; a locked one stays and joins with a hint. The owner then grows only on the sides a changed member crosses (`grow_group_around`) and the step repeats one level up, to the top level; a grower held by a collapsed Group (Peek, automation) grows that Group's expanded size right and down only (`grow_group_around(..., keep_top_left=True)`; Tidy's `grow_owner_chain` likewise), so its pill never moves and held nodes pushed above or left of it become strays. Before a Group expands, `group_stray_growth` grows every Group whose list the expand clears around its held members lying outside it, innermost first. Flag, lists, pushes, and growths are one undo step.
+- Refusals: a locked Group that would have to grow, or any owner change (`GroupScope.owner_changes`) other than a held member landing in the grower or in a Group it holds, or a locked intruder joining, refuses the whole toggle and writes nothing; the settings-group path restores its pre-toggle snapshot and records no history entry. `GraphSceneMutationHistory.take_expand_refusal_reason` hands the reason (or the joined-locked hint) to the QML toggle handlers in `ea_node_editor/ui_qml/graph_canvas_command/scene_mutation_ops.py` and to the Inspector toggle in `ea_node_editor/ui/shell/controllers/workspace_edit_controller.py`; `expand_refusal_reason` is the side-effect-free dry run used by automation `node.update`.
+- Moves and selection: moving a collapsed Group moves what it holds (`held_member_position_updates` in `move_node`, `move_nodes_by_delta`, and `GraphSceneMutationHistory._apply_layout_updates`). Marquee selection skips hidden members, copy/duplicate and grouping into a subnode expand a collapsed Group through its stored list (`expand_group_backdrop_fragment_node_ids`), and automation `group.wrap` rejects hidden ids.
 
 ## Focused Verification
 ```powershell
@@ -35,15 +48,18 @@ $env:QT_QUICK_CONTROLS_STYLE = "Basic"
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_node_host.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction SilentlyContinue
 .\venv\Scripts\python.exe -m pytest tests/test_group_backdrop_contracts.py tests/test_group_backdrop_membership.py tests/test_group_backdrop_interactions.py tests/test_graph_action_contracts.py --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_group_backdrop_identity_membership.py tests/test_group_scope.py tests/test_group_backdrop_collapse.py tests/test_group_backdrop_clipboard.py --ignore=venv -q -n 0
 .\venv\Scripts\python.exe -m pytest tests/test_shell_isolation_phase.py -k "main_window__shell_basics_and_search__workspace_actions" --ignore=venv -q -n 0
 ```
 
 ## Breadcrumbs
 - [Graph Domain, Mutation, Transforms, And Hierarchy](../subsystems/graph_domain.md)
 - [Graph Scene Payload And Projection](graph_scene_payload_and_projection.md)
+- [Graph Actions And Context Menus](graph_actions_and_context_menus.md) for Tidy, which lays collapsed Groups out at pill size.
+- [Graphics Settings, Themes, And Preferences](graphics_settings_themes_preferences.md) for the "Make room" / "Nearest" expand strategy.
 
 ## Update Triggers
-Update when Group geometry, membership rules, peek/collapse UI, collision avoidance, or Group input-layer routing changes.
+Update when Group geometry, membership rules, stored member lists, peek/collapse UI, the make-room cascade or collision avoidance, or Group input-layer routing changes.
 
 ## 2026-07-11 Performance Ownership
 

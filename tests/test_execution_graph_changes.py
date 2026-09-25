@@ -85,6 +85,7 @@ def graph():
         ("collapsed", True),
         ("expanded_settings_group_ids", ("settings",)),
         ("locked", True),
+        ("held_member_ids", ("node_member",)),
         ("title", "Renamed"),
         ("visual_style", {"color": "blue"}),
         ("port_labels", {"input": "New label"}),

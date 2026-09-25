@@ -20,7 +20,12 @@ GROUP_WRAP = OpSpec(
     name="group.wrap",
     domain=DOMAIN,
     summary="Wrap nodes in a Group backdrop (passive.annotation.group_backdrop) with an optional title.",
-    description="Membership is geometric: the backdrop is sized around the given nodes; moving it moves them.",
+    description=(
+        "An expanded Group owns the nodes inside its area (moving a node in or out changes membership); a collapsed "
+        "Group keeps exactly the members it had when it was collapsed, nodes placed over its hidden area stay outside "
+        "it, and expanding it makes room around it. The backdrop is sized around the given nodes; moving it moves "
+        "them. Hidden nodes cannot be wrapped."
+    ),
     params=object_schema({"node_ids": id_list_schema("Nodes to wrap"), "title": TITLE}, required=("node_ids",)),
     result=object_schema({"group_node_id": NODE_ID, "member_node_ids": array_schema(NODE_ID)}, additional=True),
     mutates_graph=True,
@@ -243,7 +248,8 @@ LAYOUT_TIDY = OpSpec(
         "(loop_edge_ids), and the block keeps its current top-left; in_place keeps the arrangement and snaps "
         "near-aligned rows and columns onto shared center lines with even gaps. Group backdrops stay intact: a "
         "listed backdrop's members are laid out inside it and the backdrop is refitted, a collapsed Group moves as "
-        "one block, and an unlisted backdrop grows to keep listed members; when the result would still move a node "
+        "one block with its hidden members and is laid out at its collapsed size at every level, and an unlisted "
+        "backdrop grows to keep listed members; when the result would still move a node "
         "into or out of a Group nothing changes and the call fails with NO_EFFECT "
         "(details.membership_conflict_node_ids). Locked nodes (unless the 'interact with locked objects' preference "
         "is on), members of a collapsed Group, nodes outside an open comment peek, Groups that hold a locked node "

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ea_node_editor.graph.effective_ports import port_direction
+from ea_node_editor.graph.group_backdrop_geometry import held_member_position_updates
 from ea_node_editor.graph.hierarchy import is_node_in_scope
 from ea_node_editor.graph.transforms import (
     PortAlignmentConstraint,
@@ -91,9 +92,14 @@ def move_node(self, node_id: str, x: float, y: float) -> None:
     final_y = float(y)
     if float(node.x) == final_x and float(node.y) == final_y:
         return
+    # Moving a collapsed Group moves what it holds (nested hidden members included).
+    carried = held_member_position_updates(workspace.nodes, {node_id: (final_x, final_y)})
     history_before = self._capture_history_snapshot()
-    self._record_mutations().set_node_position(node_id, final_x, final_y)
-    self._scene_context.publish_node_position_delta([node_id])
+    mutations = self._record_mutations()
+    mutations.set_node_position(node_id, final_x, final_y)
+    for carried_id, (carried_x, carried_y) in carried.items():
+        mutations.set_node_position(carried_id, carried_x, carried_y)
+    self._scene_context.publish_node_position_delta([node_id, *sorted(carried)])
     self._record_history(ACTION_MOVE_NODE, history_before)
 
 
@@ -185,6 +191,19 @@ def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool
     if abs(delta_x) < 0.01 and abs(delta_y) < 0.01:
         return False
 
+    position_updates: dict[str, tuple[float, float]] = {}
+    for node_id in unique_node_ids:
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            continue
+        final_x = float(node.x) + delta_x
+        final_y = float(node.y) + delta_y
+        if float(node.x) == final_x and float(node.y) == final_y:
+            continue
+        position_updates[node_id] = (final_x, final_y)
+    # Moving a collapsed Group moves what it holds; members the caller moves itself are not moved twice.
+    carried = held_member_position_updates(workspace.nodes, position_updates)
+
     moved_any = False
     history_group = self._scene_context.grouped_history_action(
         ACTION_MOVE_NODE,
@@ -193,20 +212,13 @@ def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool
     )
     mutations = self._record_mutations()
     with history_group:
-        for node_id in unique_node_ids:
-            node = workspace.nodes.get(node_id)
-            if node is None:
-                continue
-            final_x = float(node.x) + delta_x
-            final_y = float(node.y) + delta_y
-            if float(node.x) == final_x and float(node.y) == final_y:
-                continue
+        for node_id, (final_x, final_y) in {**position_updates, **carried}.items():
             mutations.set_node_position(node_id, final_x, final_y)
             moved_any = True
 
     if not moved_any:
         return False
-    self._scene_context.publish_node_position_delta(unique_node_ids)
+    self._scene_context.publish_node_position_delta([*unique_node_ids, *sorted(carried)])
     return True
 
 
