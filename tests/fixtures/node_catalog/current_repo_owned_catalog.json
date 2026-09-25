@@ -4775,7 +4775,13 @@
       "is_async": false,
       "runtime_behavior": "active",
       "solution_reuse_scope": "session",
-      "solution_provenance_inputs": [],
+      "solution_provenance_inputs": [
+        {
+          "property_key": "path",
+          "kind": "file",
+          "policy_revision": 1
+        }
+      ],
       "surface_family": "standard",
       "surface_variant": "",
       "render_quality": {
