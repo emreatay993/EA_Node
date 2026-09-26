@@ -2,18 +2,6 @@
 // Map: docs/agent_maps/feature_routes/tooltips_and_tiers.md
 // Tests: tests/test_tooltip_copy_registry.py
 
-var COPY_FILES = [
-    "../../../ui/tooltips/actions.json",
-    "../../../ui/tooltips/nodes.json",
-    "../../../ui/tooltips/settings.json",
-    "../../../ui/tooltips/graph.json",
-    "../../../ui/tooltips/inspector.json",
-    "../../../ui/tooltips/shell.json",
-    "../../../ui/tooltips/fullscreen.json",
-    "../../../ui/tooltips/viewer.json",
-    "../../../ui/tooltips/tabular.json"
-];
-
 function text(bridge, key, fallback) {
     var defaultText = fallback === undefined ? "" : String(fallback);
     try {
@@ -34,8 +22,4 @@ function category(bridge, key, fallback) {
         return defaultCategory;
     }
     return defaultCategory;
-}
-
-function files() {
-    return COPY_FILES.slice(0);
 }
