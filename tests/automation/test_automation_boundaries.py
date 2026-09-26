@@ -134,13 +134,23 @@ class HandlerBoundaryTests(unittest.TestCase):
         class _Fake:
             HANDLERS = {"node.add": lambda context, params: {}}
 
+        # ``importlib.import_module`` is process-global, and build_handler_table() reaches the op
+        # catalog's lazy ``ops`` imports through op_names() whenever the all_ops() cache is still
+        # cold. Fake only the handler modules so the result does not depend on test order.
+        real_import_module = registry_module.importlib.import_module
+
+        def _import_module(name: str, package: str | None = None) -> object:
+            if name.startswith("ea_node_editor.ui.shell.automation.handlers."):
+                return _Fake
+            return real_import_module(name, package)
+
         with patch.object(registry_module, "HANDLER_MODULES", ("nodes", "nodes")), patch.object(
-            registry_module.importlib, "import_module", return_value=_Fake
+            registry_module.importlib, "import_module", side_effect=_import_module
         ):
             with self.assertRaises(ValueError):
                 registry_module.build_handler_table()
         with patch.object(registry_module, "HANDLER_MODULES", ("nodes",)), patch.object(
-            registry_module.importlib, "import_module", return_value=_Fake
+            registry_module.importlib, "import_module", side_effect=_import_module
         ):
             with self.assertRaises(RuntimeError):
                 registry_module.build_handler_table()
