@@ -349,6 +349,80 @@ class FlowEdgeStyleDialogTests(unittest.TestCase):
         finally:
             dialog.close()
 
+    def test_dialog_edits_arrow_ends_and_label_layout(self) -> None:
+        dialog = FlowEdgeStyleDialog(
+            initial_style={
+                "arrow_tail": "open",
+                "arrow_head": "none",
+                "label_position": 0.375,
+                "label_orientation": "follow_path",
+            }
+        )
+        try:
+            self.assertEqual(dialog.arrow_tail_combo.currentData(), "open")
+            self.assertEqual(dialog.arrow_head_combo.currentData(), "none")
+            self.assertEqual(
+                [dialog.arrow_tail_combo.itemData(index) for index in range(dialog.arrow_tail_combo.count())],
+                ["", "filled", "open", "none"],
+            )
+            self.assertEqual(dialog.findChild(QLineEdit, "label_position_value").text(), "37.5")
+            self.assertEqual(dialog.label_orientation_combo.currentData(), "follow_path")
+
+            dialog.arrow_tail_combo.setCurrentIndex(dialog.arrow_tail_combo.findData("filled"))
+            dialog.arrow_head_combo.setCurrentIndex(dialog.arrow_head_combo.findData("filled"))
+            dialog.findChild(QLineEdit, "label_position_value").setText("80")
+            dialog.label_orientation_combo.setCurrentIndex(dialog.label_orientation_combo.findData(""))
+            self.assertEqual(
+                dialog.edge_style(),
+                {"arrow_head": "filled", "arrow_tail": "filled", "label_position": 0.8},
+            )
+            # Blank means automatic placement.
+            dialog.findChild(QLineEdit, "label_position_value").setText("")
+            self.assertNotIn("label_position", dialog.edge_style())
+        finally:
+            dialog.close()
+
+    def test_applying_an_edge_preset_keeps_the_edges_label_position(self) -> None:
+        dialog = FlowEdgeStyleDialog(
+            initial_style={"stroke_color": "#102030", "label_position": 0.2},
+            user_presets=[
+                {
+                    "preset_id": "edge_preset_deadbeef",
+                    "name": "Project Edge",
+                    "style": {"stroke_color": "#203040", "label_position": 0.9},
+                }
+            ],
+        )
+        try:
+            # Presets store appearance only; a saved label position never enters them.
+            self.assertEqual(dialog.user_presets()[0]["style"], {"stroke_color": "#203040"})
+            dialog.preset_combo.setCurrentIndex(dialog.preset_combo.findText("Project: Project Edge"))
+            dialog.apply_preset_button.click()
+            self.assertEqual(dialog.edge_style(), {"stroke_color": "#203040", "label_position": 0.2})
+            # The per-edge placement does not stop the style matching its preset.
+            self.assertEqual(dialog.preset_combo.currentText(), "Project: Project Edge")
+            with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Placed", True)):
+                dialog.save_preset_button.click()
+            self.assertEqual(dialog.user_presets()[-1]["style"], {"stroke_color": "#203040"})
+        finally:
+            dialog.close()
+
+    def test_label_position_outside_zero_to_hundred_blocks_accept(self) -> None:
+        dialog = FlowEdgeStyleDialog(initial_style={})
+        try:
+            dialog.findChild(QLineEdit, "label_position_value").setText("150")
+            with patch.object(QMessageBox, "warning", return_value=QMessageBox.StandardButton.Ok) as warning:
+                dialog.apply_button.click()
+            warning.assert_called_once()
+            self.assertNotEqual(dialog.result(), dialog.DialogCode.Accepted)
+            self.assertFalse(dialog.validation_message.isHidden())
+            dialog.findChild(QLineEdit, "label_position_value").setText("50")
+            dialog.apply_button.click()
+            self.assertEqual(dialog.result(), dialog.DialogCode.Accepted)
+            self.assertEqual(dialog.edge_style(), {"label_position": 0.5})
+        finally:
+            dialog.close()
+
     def test_invalid_flow_edge_values_block_accept_until_fixed(self) -> None:
         dialog = FlowEdgeStyleDialog(initial_style={})
         try:

@@ -291,6 +291,70 @@ class EdgeUpdateTests(_HandlerCase):
         self.assertEqual(result["changed"], ["path_mode"])
         self.assertNotIn("path_mode", self.context.require_edge(self.edge_id).visual_style)
 
+    def test_arrow_and_label_layout_keys_accept_aliases_and_normalise(self) -> None:
+        result = self.call_one_undo(
+            "edge.update",
+            {
+                "edge_id": self.edge_id,
+                "style": {
+                    "start_arrow": "OPEN",
+                    "end_arrow": "none",
+                    "label_fraction": 1.5,
+                    "label_rotation": "follow-path",
+                },
+            },
+        )
+        self.assertEqual(result["changed"], ["style"])
+        self.assertEqual(
+            self.context.require_edge(self.edge_id).visual_style,
+            {"arrow_tail": "open", "arrow_head": "none", "label_position": 1.0, "label_orientation": "follow_path"},
+        )
+        persisted = self.call_one_undo(
+            "edge.update",
+            {"edge_id": self.edge_id, "style": {"label_position": 0.25, "label_orientation": "horizontal"}},
+        )
+        self.assertEqual(persisted["changed"], ["style"])
+        style = self.context.require_edge(self.edge_id).visual_style
+        self.assertEqual(style["label_position"], 0.25)
+        self.assertNotIn("label_orientation", style)
+
+    def test_reverse_swaps_endpoints_in_place_as_one_undo_step(self) -> None:
+        call(
+            self.context,
+            "edge.update",
+            {"edge_id": self.edge_id, "label": "go\nnow", "style": {"label_position": 0.25, "arrow_tail": "open"}},
+        )
+        before_ids = self.edge_ids()
+        result = self.call_one_undo("edge.update", {"edge_id": self.edge_id, "reverse": True})
+        self.assertEqual(result["changed"], ["style", "direction"])
+        self.assertEqual(self.edge_ids(), before_ids)
+        edge = self.context.require_edge(self.edge_id)
+        self.assertEqual(
+            (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key),
+            (self.step, "left", self.start, "right"),
+        )
+        self.assertEqual(edge.label, "go\nnow")
+        # The label fraction is measured from the new source, so it mirrors to stay in place.
+        self.assertEqual(edge.visual_style, {"label_position": 0.75, "arrow_tail": "open"})
+        self.assertEqual(result["edge"]["source_node_id"], self.step)
+
+    def test_reverse_rejects_directed_ports_without_applying_other_fields(self) -> None:
+        first = self.add(TRIGGER, 0, 200)
+        second = self.add(TRIGGER, 300, 200)
+        data_edge = self.connect(first, "output", second, "input")["edge_id"]
+        before = self.undo_depth()
+        error = expect_error(
+            self.context,
+            "edge.update",
+            {"edge_id": data_edge, "reverse": True, "enabled": False},
+            PORT_INCOMPATIBLE,
+        )
+        self.assertEqual(error.details["reason"], "not_reversible")
+        edge = self.context.require_edge(data_edge)
+        self.assertEqual((edge.source_node_id, edge.target_node_id), (first, second))
+        self.assertTrue(edge.enabled)
+        self.assertEqual(self.undo_depth(), before)
+
     def test_display_mode_via_param_and_style_key(self) -> None:
         hidden = self.call_one_undo("edge.update", {"edge_id": self.edge_id, "display_mode": "hidden"})
         self.assertEqual(hidden["changed"], ["display_mode"])
@@ -904,6 +968,7 @@ class ClientFacadeTests(unittest.TestCase):
         api.connect("a", "right", "b", "left", label="yes", style={"color": "#ff0000"})
         api.update("e", enabled=False, clear_label=True)
         api.set_display_mode("e", "faint")
+        api.reverse("e")
         api.delete("e")
         api.delete(["e1", "e2"])
         self.assertEqual(
@@ -923,6 +988,7 @@ class ClientFacadeTests(unittest.TestCase):
                 ),
                 ("edge.update", {"edge_id": "e", "enabled": False, "clear_label": True}),
                 ("edge.update", {"edge_id": "e", "display_mode": "faint"}),
+                ("edge.update", {"edge_id": "e", "reverse": True}),
                 ("edge.delete", {"edge_ids": ["e"]}),
                 ("edge.delete", {"edge_ids": ["e1", "e2"]}),
             ],

@@ -17,8 +17,14 @@ PASSIVE_NODE_STYLE_FONT_WEIGHTS = ("normal", "bold")
 PASSIVE_NODE_STYLE_GRADIENT_DIRECTIONS = ("north", "east", "south", "west", "radial")
 DEFAULT_PASSIVE_NODE_STYLE_GRADIENT_DIRECTION = "south"
 FLOW_EDGE_STYLE_PATTERNS = ("solid", "dashed", "dotted")
-FLOW_EDGE_ARROW_HEADS = ("filled", "open", "none")
+# Arrowheads shared by `arrow_head` (target end, default filled) and `arrow_tail` (source end, default none).
+FLOW_EDGE_ARROW_KINDS = ("filled", "open", "none")
 FLOW_EDGE_PATH_MODES = ("auto", "pipe", "bezier")
+FLOW_EDGE_LABEL_ORIENTATIONS = ("horizontal", "follow_path")
+# Per-edge placement, not appearance: presets and the style clipboard never carry these keys,
+# and style reset/paste keep the edge's own values.
+FLOW_EDGE_LAYOUT_KEYS = frozenset({"label_position"})
+_FLOW_EDGE_LABEL_POSITION_DIGITS = 4
 RETIRED_PASSIVE_NODE_STYLE_KEYS = frozenset(
     {
         "accent_color",
@@ -131,15 +137,62 @@ def normalize_flow_edge_style_payload(value: Any) -> dict[str, Any]:
     if stroke_pattern in FLOW_EDGE_STYLE_PATTERNS:
         normalized["stroke_pattern"] = stroke_pattern
 
-    arrow_head = str(value.get("arrow_head", "")).strip().lower()
-    if arrow_head in FLOW_EDGE_ARROW_HEADS:
-        normalized["arrow_head"] = arrow_head
+    for key in ("arrow_head", "arrow_tail"):
+        arrow_kind = normalize_flow_edge_arrow_kind(value.get(key))
+        if arrow_kind:
+            normalized[key] = arrow_kind
 
     path_mode = str(value.get("path_mode", "")).strip().lower()
     if path_mode in FLOW_EDGE_PATH_MODES and path_mode != "auto":
         normalized["path_mode"] = path_mode
 
+    label_position = normalize_flow_edge_label_position(value.get("label_position"))
+    if label_position is not None:
+        normalized["label_position"] = label_position
+
+    label_orientation = normalize_flow_edge_label_orientation(value.get("label_orientation"))
+    if label_orientation != "horizontal":
+        normalized["label_orientation"] = label_orientation
+
     return normalized
+
+
+def normalize_flow_edge_preset_style_payload(value: Any) -> dict[str, Any]:
+    """Reusable flow-edge appearance: the normalized style without per-edge layout keys."""
+    normalized = normalize_flow_edge_style_payload(value)
+    for key in FLOW_EDGE_LAYOUT_KEYS:
+        normalized.pop(key, None)
+    return normalized
+
+
+def flow_edge_layout_style(value: Any) -> dict[str, Any]:
+    """The per-edge layout keys of a flow-edge style, normalized."""
+    normalized = normalize_flow_edge_style_payload(value)
+    return {key: normalized[key] for key in FLOW_EDGE_LAYOUT_KEYS if key in normalized}
+
+
+def normalize_flow_edge_arrow_kind(value: Any) -> str:
+    normalized = str(value or "").strip().lower() if isinstance(value, str) else ""
+    return normalized if normalized in FLOW_EDGE_ARROW_KINDS else ""
+
+
+def normalize_flow_edge_label_position(value: Any) -> float | None:
+    """Label centre as a 0..1 fraction of the path length (source to target); None means auto."""
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
+        return None
+    return round(min(1.0, max(0.0, numeric)), _FLOW_EDGE_LABEL_POSITION_DIGITS)
+
+
+def normalize_flow_edge_label_orientation(value: Any) -> str:
+    normalized = str(value or "").strip().lower() if isinstance(value, str) else ""
+    normalized = normalized.replace("-", "_").replace(" ", "_")
+    return normalized if normalized in FLOW_EDGE_LABEL_ORIENTATIONS else "horizontal"
 
 
 def _normalized_user_preset_id(value: Any, *, kind: PresetKind, used_ids: set[str]) -> str:
@@ -166,7 +219,7 @@ def _normalized_preset_name(value: Any, *, kind: PresetKind, index: int) -> str:
 
 
 def _style_normalizer(kind: PresetKind):
-    return _normalize_project_node_preset_style if kind == "node" else normalize_flow_edge_style_payload
+    return _normalize_project_node_preset_style if kind == "node" else normalize_flow_edge_preset_style_payload
 
 
 def _normalize_project_node_preset_style(value: Any) -> dict[str, Any]:
@@ -282,13 +335,20 @@ def _normalized_positive_int(value: Any) -> int | None:
 
 __all__ = [
     "DEFAULT_PASSIVE_NODE_STYLE_GRADIENT_DIRECTION",
-    "FLOW_EDGE_ARROW_HEADS",
+    "FLOW_EDGE_ARROW_KINDS",
+    "FLOW_EDGE_LABEL_ORIENTATIONS",
+    "FLOW_EDGE_LAYOUT_KEYS",
     "FLOW_EDGE_PATH_MODES",
     "FLOW_EDGE_STYLE_PATTERNS",
     "PASSIVE_NODE_STYLE_GRADIENT_DIRECTIONS",
     "PASSIVE_NODE_STYLE_FONT_WEIGHTS",
     "PresetKind",
     "RETIRED_PASSIVE_NODE_STYLE_KEYS",
+    "flow_edge_layout_style",
+    "normalize_flow_edge_arrow_kind",
+    "normalize_flow_edge_label_orientation",
+    "normalize_flow_edge_label_position",
+    "normalize_flow_edge_preset_style_payload",
     "normalize_flow_edge_style_payload",
     "normalize_passive_node_style_payload",
     "normalize_passive_style_presets",

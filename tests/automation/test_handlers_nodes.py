@@ -735,10 +735,18 @@ class CatalogHandlerTests(_NodeHandlerCase):
                 "color": "stroke_color",
                 "width": "stroke_width",
                 "pattern": "stroke_pattern",
+                "end_arrow": "arrow_head",
+                "start_arrow": "arrow_tail",
                 "label_color": "label_text_color",
                 "label_background": "label_background_color",
+                "label_fraction": "label_position",
+                "label_rotation": "label_orientation",
             },
         )
+        for arrow_key in ("arrow_head", "arrow_tail"):
+            self.assertEqual(schema["edge_style"]["enums"][arrow_key], ["filled", "open", "none"])
+        self.assertEqual(schema["edge_style"]["enums"]["label_orientation"], ["horizontal", "follow_path"])
+        self.assertIn("label_position", schema["edge_style"]["keys"])
         self.assertTrue(set(schema["edge_style"]["aliases"].values()) <= set(schema["edge_style"]["keys"]))
         self.assertIn("format", schema["text_style"]["keys"])
         self.assertIn("text_color", schema["text_style"]["keys"])

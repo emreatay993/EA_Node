@@ -516,6 +516,17 @@ scene_bridge.command_bridge directly."""
             )
         )
 
+    @pyqtSlot("QVariantList", result=bool)
+    def reverse_edges(self, edge_ids: list[Any]) -> bool:
+        return bool(
+            _invoke(
+                self._scene_command_source,
+                "reverse_edges",
+                list(edge_ids or []),
+                default=False,
+            )
+        )
+
     @pyqtSlot(str, str, "QVariantList", result=bool)
     def set_port_modifiers(
         self,

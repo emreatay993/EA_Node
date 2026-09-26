@@ -309,6 +309,7 @@ class GraphActionController:
             GraphActionId.RESET_FLOW_EDGE_STYLE,
             GraphActionId.COPY_FLOW_EDGE_STYLE,
             GraphActionId.PASTE_FLOW_EDGE_STYLE,
+            GraphActionId.REVERSE_FLOW_EDGE,
             GraphActionId.REMOVE_EDGE,
         }:
             edge_id = _required_str(payload, "edge_id")
@@ -322,6 +323,8 @@ class GraphActionController:
                 return host_presenter.request_copy_flow_edge_style(edge_id)
             if action_id is GraphActionId.PASTE_FLOW_EDGE_STYLE:
                 return host_presenter.request_paste_flow_edge_style(edge_id)
+            if action_id is GraphActionId.REVERSE_FLOW_EDGE:
+                return host_presenter.request_reverse_flow_edge(edge_id)
             if action_id is GraphActionId.REMOVE_EDGE:
                 return host_presenter.request_remove_edge(edge_id)
 

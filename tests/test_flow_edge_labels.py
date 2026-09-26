@@ -15,6 +15,7 @@ from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import in_port, node_type, out_port
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
+from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -370,6 +371,32 @@ Item {
             },
         )
 
+    def test_flow_edge_payload_projects_arrow_ends_label_layout_and_reversibility(self) -> None:
+        source_id = self.scene.add_node_from_type("passive.flowchart.process", 0.0, 0.0)
+        target_id = self.scene.add_node_from_type("passive.flowchart.process", 400.0, 0.0)
+        edge_id = self.scene.add_edge(source_id, "right", target_id, "left")
+        self.workspace.edges[edge_id].visual_style = {
+            "arrow_tail": "OPEN",
+            "arrow_head": "diamond",
+            "label_position": "0.123456",
+            "label_orientation": "follow-path",
+        }
+        directed_source_id = self.scene.add_node_from_type("tests.flow_edge_label_node", 0.0, 300.0)
+        directed_target_id = self.scene.add_node_from_type("tests.flow_edge_label_node", 400.0, 300.0)
+        directed_edge_id = self.scene.add_edge(directed_source_id, "flow_out", directed_target_id, "flow_in")
+
+        self.scene.refresh_workspace_from_model(self.workspace.workspace_id)
+        payloads = {item["edge_id"]: item for item in self.scene.edges_model}
+
+        # Unknown arrow kinds drop out (the renderer then falls back to a filled end arrow).
+        self.assertEqual(
+            payloads[edge_id]["flow_style"],
+            {"arrow_tail": "open", "label_position": 0.1235, "label_orientation": "follow_path"},
+        )
+        # Flowchart ports are neutral, so their flow edges can be reversed; directed flow ports cannot.
+        self.assertTrue(payloads[edge_id]["reversible"])
+        self.assertFalse(payloads[directed_edge_id]["reversible"])
+
     def test_active_data_wire_classification_normalizes_display_mode_without_changing_passive_or_flow_edges(
         self,
     ) -> None:
@@ -461,6 +488,108 @@ Item {
                 or abs(start["y"] - end["y"]) < 0.001,
                 msg=f"segment {index - 1}->{index} is not orthogonal: {start} -> {end}",
             )
+
+
+class FlowEdgeReverseTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.registry = _build_registry()
+        self.model = GraphModel()
+        self.workspace = self.model.active_workspace
+        self.workspace_id = self.workspace.workspace_id
+        self.scene = GraphSceneBridge()
+        self.scene.set_workspace(self.model, self.registry, self.workspace_id)
+        self.history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(self.history)
+
+    def _flowchart_pair(self, y: float = 0.0) -> tuple[str, str]:
+        return (
+            self.scene.add_node_from_type("passive.flowchart.process", 0.0, y),
+            self.scene.add_node_from_type("passive.flowchart.process", 400.0, y),
+        )
+
+    def _endpoints(self, edge_id: str) -> tuple[str, str, str, str]:
+        edge = self.workspace.edges[edge_id]
+        return (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key)
+
+    def test_reverse_swaps_endpoints_in_place_as_one_undo_step(self) -> None:
+        source_id, target_id = self._flowchart_pair()
+        edge_id = self.scene.add_edge(source_id, "right", target_id, "left")
+        self.scene.set_edge_label(edge_id, "Yes\nretry")
+        self.scene.set_edge_visual_style(
+            edge_id, {"label_position": 0.3, "arrow_tail": "open", "stroke_color": "#335577"}
+        )
+        self.history.clear_workspace(self.workspace_id)
+        edge_ids_before = list(self.workspace.edges)
+
+        self.assertTrue(self.scene.reverse_edges([edge_id]))
+
+        self.assertEqual(list(self.workspace.edges), edge_ids_before)
+        self.assertEqual(self._endpoints(edge_id), (target_id, "left", source_id, "right"))
+        edge = self.workspace.edges[edge_id]
+        self.assertEqual(edge.label, "Yes\nretry")
+        # The label fraction is measured from the source, so it mirrors to keep the label in place.
+        self.assertEqual(
+            edge.visual_style, {"label_position": 0.7, "arrow_tail": "open", "stroke_color": "#335577"}
+        )
+        payload = {item["edge_id"]: item for item in self.scene.edges_model}[edge_id]
+        self.assertEqual((payload["source_node_id"], payload["target_node_id"]), (target_id, source_id))
+        self.assertEqual(payload["flow_style"]["label_position"], 0.7)
+        self.assertEqual(self.history.undo_depth(self.workspace_id), 1)
+
+        self.assertIsNotNone(self.history.undo_workspace(self.workspace_id, self.workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertEqual(self._endpoints(edge_id), (source_id, "right", target_id, "left"))
+        self.assertEqual(self.workspace.edges[edge_id].visual_style["label_position"], 0.3)
+
+    def test_reverse_rejects_directed_ports_duplicates_and_unknown_edges(self) -> None:
+        directed_source = self.scene.add_node_from_type("tests.flow_edge_label_node", 0.0, 300.0)
+        directed_target = self.scene.add_node_from_type("tests.flow_edge_label_node", 400.0, 300.0)
+        directed_edge = self.scene.add_edge(directed_source, "flow_out", directed_target, "flow_in")
+        source_id, target_id = self._flowchart_pair()
+        forward = self.scene.add_edge(source_id, "right", target_id, "left")
+        backward = self.scene.add_edge(target_id, "left", source_id, "right")
+        self.history.clear_workspace(self.workspace_id)
+
+        self.assertFalse(self.scene.reverse_edges([directed_edge]))
+        self.assertEqual(
+            self._endpoints(directed_edge), (directed_source, "flow_out", directed_target, "flow_in")
+        )
+        # Reversing one of two opposite connections would duplicate the other.
+        self.assertFalse(self.scene.reverse_edges([forward]))
+        self.assertEqual(self._endpoints(forward), (source_id, "right", target_id, "left"))
+        self.assertFalse(self.scene.reverse_edges(["edge_missing"]))
+        self.assertFalse(self.scene.reverse_edges([]))
+        self.assertEqual(self.history.undo_depth(self.workspace_id), 0)
+        # Both at once swap into each other's place, which is still a valid pair.
+        self.assertTrue(self.scene.reverse_edges([forward, backward]))
+        self.assertEqual(self._endpoints(forward), (target_id, "left", source_id, "right"))
+        self.assertEqual(self._endpoints(backward), (source_id, "right", target_id, "left"))
+        self.assertEqual(self.history.undo_depth(self.workspace_id), 1)
+
+    def test_graph_owned_reverse_validates_the_whole_batch_before_writing(self) -> None:
+        from ea_node_editor.graph.validated_mutation import ValidatedGraphMutation
+
+        source_id, target_id = self._flowchart_pair()
+        flow_edge = self.scene.add_edge(source_id, "right", target_id, "left")
+        directed_source = self.scene.add_node_from_type("tests.flow_edge_label_node", 0.0, 300.0)
+        directed_target = self.scene.add_node_from_type("tests.flow_edge_label_node", 400.0, 300.0)
+        directed_edge = self.scene.add_edge(directed_source, "flow_out", directed_target, "flow_in")
+        mutation = ValidatedGraphMutation(self.model, self.workspace_id, self.registry)
+
+        with self.assertRaises(ValueError):
+            mutation.reverse_edges([flow_edge, directed_edge])
+        self.assertEqual(self._endpoints(flow_edge), (source_id, "right", target_id, "left"))
+        with self.assertRaises(KeyError):
+            mutation.reverse_edges(["edge_missing"])
+
+        other_id = self.scene.add_node_from_type("passive.flowchart.process", 0.0, 200.0)
+        inbound = self.scene.add_edge(other_id, "right", source_id, "right")
+        self.assertEqual(mutation.reverse_edges([flow_edge, flow_edge]), (flow_edge,))
+        self.assertEqual(self._endpoints(flow_edge), (target_id, "left", source_id, "right"))
+        # The reversed edge joins its new target port after the connections already there.
+        self.assertGreater(
+            self.workspace.edges[flow_edge].input_order, self.workspace.edges[inbound].input_order
+        )
 
 
 class TrackBQmlPreferencePacketBoundaryTests(unittest.TestCase):
@@ -1575,15 +1704,175 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_flow_edge_arrows_scale_trim_and_mark_both_ends(self) -> None:
+        self._run_qml_probe(
+            "flow-edge-arrow-ends",
+            """
+            from PyQt6.QtQuick import QQuickWindow
+
+            window = QQuickWindow()
+            window.resize(1280, 720)
+            canvas.setParentItem(window.contentItem())
+            window.show()
+            app.processEvents()
+
+            def paint():
+                diagnostics = {}
+                for _attempt in range(30):
+                    diagnostics = to_variant(edge_layer.property("activeEdgePaintDiagnosticsByEdgeId")) or {}
+                    value = to_variant(diagnostics.get(edge_id))
+                    if value is not None:
+                        return value if isinstance(value, dict) else dict(value)
+                    settle_canvas_redraw()
+                    QTest.qWait(5)
+                raise AssertionError(diagnostics)
+
+            def restyle(style):
+                scene.set_edge_visual_style(edge_id, style)
+                settle_canvas_redraw()
+                QTest.qWait(5)
+                app.processEvents()
+                return paint()
+
+            both = restyle({"stroke_width": 4, "arrow_tail": "filled", "arrow_head": "open"})
+            assert both["arrowTail"] == "filled" and both["arrowHead"] == "open", both
+            # Heads grow with the style width: 3 * 4 + 2 scene units long at either end.
+            assert abs(float(both["arrowTailExtent"]) - 14.0) < 1e-6, both
+            assert abs(float(both["arrowHeadExtent"]) - 14.0) < 1e-6, both
+            # The stroke stops inside the filled start head and at the open end head's apex.
+            assert 2.0 < float(both["lineTrimStart"]) < 14.0, both
+            assert abs(float(both["lineTrimEnd"]) - 2.0) < 1e-6, both
+
+            thin = restyle({"stroke_width": 1})
+            assert thin["arrowTail"] == "none" and thin["arrowHead"] == "filled", thin
+            assert float(thin["lineTrimStart"]) == 0.0, thin
+            assert abs(float(thin["arrowHeadExtent"]) - 8.0) < 1e-6, thin
+            thick = restyle({"stroke_width": 8})
+            assert abs(float(thick["arrowHeadExtent"]) - 26.0) < 1e-6, thick
+
+            bare = restyle({"arrow_head": "none"})
+            assert bare["arrowHead"] == "none" and float(bare["lineTrimEnd"]) == 0.0, bare
+            window.hide()
+            """,
+        )
+
+    def test_graph_canvas_flow_edge_label_drags_along_the_path_as_one_commit(self) -> None:
+        self._run_qml_probe(
+            "flow-edge-label-drag",
+            """
+            from PyQt6.QtCore import QPoint, Qt
+            from PyQt6.QtQuick import QQuickWindow
+            from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
+
+            history = RuntimeGraphHistory()
+            scene.bind_runtime_history(history)
+            workspace_id = model.active_workspace.workspace_id
+            # Level endpoints give a straight path, so the pointer's x maps linearly onto the fraction.
+            scene.move_node(target_id, 480.0, 30.0)
+            window = QQuickWindow()
+            window.resize(1280, 720)
+            canvas.setParentItem(window.contentItem())
+            window.show()
+            for _ in range(3):
+                settle_canvas_redraw()
+            history.clear_workspace(workspace_id)
+
+            label = named_child_items(edge_layer, "graphEdgeFlowLabelItem")[0]
+            start = QPoint(int(round(label.property("anchorScreenX"))), int(round(label.property("anchorScreenY"))))
+            assert edge_layer.flowLabelEdgeAtScreen(start.x(), start.y()) == edge_id
+            assert edge_layer.flowLabelEdgeAtScreen(start.x(), start.y() + 60) == ""
+            geometry = to_variant(edge_layer._visibleEdgeSnapshot(edge_id))["geometry"]
+            source_x = edge_layer.sceneToScreenX(geometry["sx"])
+            target_x = edge_layer.sceneToScreenX(geometry["tx"])
+            assert abs(edge_layer.sceneToScreenY(geometry["sy"]) - edge_layer.sceneToScreenY(geometry["ty"])) < 0.5
+
+            # Drag toward 25 % of the path, a little below it: the label projects onto the path.
+            goal = QPoint(int(round(source_x + (target_x - source_x) * 0.25)), start.y() + 18)
+            QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start)
+            for step in range(1, 7):
+                QTest.mouseMove(window, QPoint(
+                    int(round(start.x() + (goal.x() - start.x()) * step / 6.0)),
+                    int(round(start.y() + (goal.y() - start.y()) * step / 6.0)),
+                ))
+                settle_canvas_redraw()
+            assert edge_layer.property("labelDragEdgeId") == edge_id
+            preview = float(edge_layer.property("labelDragFraction"))
+            assert abs(preview - 0.25) < 0.02, preview
+            assert abs(float(label.property("anchorScreenX")) - goal.x()) < 3.0
+            assert abs(float(label.property("anchorScreenY")) - start.y()) < 1.0
+            assert history.undo_depth(workspace_id) == 0, "nothing commits mid-drag"
+
+            QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, goal)
+            for _ in range(3):
+                settle_canvas_redraw()
+            edge_record = model.project.workspaces[workspace_id].edges[edge_id]
+            assert abs(float(edge_record.visual_style["label_position"]) - preview) < 1e-3, edge_record.visual_style
+            assert edge_record.visual_style["stroke_color"] == "#335577", edge_record.visual_style
+            assert history.undo_depth(workspace_id) == 1
+            assert edge_layer.property("labelDragEdgeId") == ""
+            anchor = to_variant(edge_layer._visibleEdgeSnapshot(edge_id))["labelAnchorScene"]
+            assert abs(edge_layer.sceneToScreenX(anchor["x"]) - goal.x()) < 3.0
+            assert list(to_variant(canvas.property("selectedEdgeIds"))) == [edge_id]
+
+            # Double-clicking the label opens its inline editor.
+            toolbar = canvas.findChild(QObject, "graphEdgeFloatingToolbar")
+            label_point = QPoint(int(round(label.property("anchorScreenX"))), int(round(label.property("anchorScreenY"))))
+            QTest.mouseDClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, label_point)
+            settle_canvas_redraw()
+            assert toolbar.property("editingEdgeId") == edge_id
+            window.hide()
+            """,
+        )
+
+    def test_graph_canvas_flow_edge_labels_wrap_lines_and_turn_with_the_path(self) -> None:
+        self._run_qml_probe(
+            "flow-edge-label-lines-rotation",
+            """
+            # Long enough that the label's line gap is not clipped at the path ends.
+            scene.move_node(target_id, 700.0, 420.0)
+            view.centerOn(400.0, 250.0)
+            scene.set_edge_label(edge_id, "Approved by QA\\nand released\\nto production")
+            scene.set_edge_visual_style(edge_id, {"path_mode": "bezier", "label_orientation": "follow_path"})
+            for _ in range(2):
+                settle_canvas_redraw()
+            label = named_child_items(edge_layer, "graphEdgeFlowLabelItem")[0]
+            text = label.findChild(QObject, "graphEdgeFlowLabelText")
+            assert text.property("text") == "Approved by QA\\nand released\\nto production"
+            assert int(text.property("lineCount")) == 3, text.property("lineCount")
+            snapshot = to_variant(edge_layer._visibleEdgeSnapshot(edge_id))
+            anchor = snapshot["labelAnchorScene"]
+            # The source sits up-left of the target, so the mid-path tangent points down-right.
+            rotation = float(label.property("rotation"))
+            assert 0.0 < rotation < 90.0, rotation
+            assert abs(rotation - float(anchor["rotation"])) < 1e-6
+            # The line gap under a path-aligned label spans its width along the path.
+            breaks = [item for item in snapshot["crossingBreaks"]
+                      if abs(float(item["centerX"]) - float(anchor["x"])) < 16.0
+                      and abs(float(item["centerY"]) - float(anchor["y"])) < 16.0]
+            assert len(breaks) == 1, snapshot["crossingBreaks"]
+            gap = float(breaks[0]["endDistance"]) - float(breaks[0]["startDistance"])
+            assert abs(gap - (float(label.property("width")) + 6.0)) < 2.0, (gap, label.property("width"))
+
+            scene.set_edge_visual_style(edge_id, {"path_mode": "bezier"})
+            settle_canvas_redraw()
+            assert float(label.property("rotation")) == 0.0
+            scene.set_edge_label(edge_id, "a label that is much wider than the pill allows so it wraps onto more lines")
+            settle_canvas_redraw()
+            assert int(text.property("lineCount")) >= 2, text.property("lineCount")
+            assert float(text.property("width")) <= 220.5, text.property("width")
+            """,
+        )
+
     def test_graph_canvas_flow_edge_toolbar_edits_labels_inline(self) -> None:
         script = textwrap.dedent(
             """
             import sys
             from pathlib import Path
-            from PyQt6.QtCore import QObject, QUrl
+            from PyQt6.QtCore import QObject, Qt, QUrl
             from PyQt6.QtGui import QGuiApplication
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
             from PyQt6.QtQuick import QQuickWindow
+            from PyQt6.QtTest import QTest
             from ea_node_editor.ui.icon_registry import UiIconRegistryBridge
 
             app = QGuiApplication.instance() or QGuiApplication([])
@@ -1601,9 +1890,14 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 property string committedStrokeColor: ""
                 property string committedStrokePattern: ""
                 property string committedArrowHead: ""
+                property string committedArrowTail: ""
                 property string committedPathMode: ""
+                property string committedLabelLayout: ""
                 property string currentStrokePattern: "solid"
                 property string currentArrowHead: "filled"
+                property string currentArrowTail: ""
+                property string currentLabelOrientation: ""
+                property var currentLabelPosition: undefined
                 property string currentPathMode: "auto"
                 property string currentLabelBackgroundColor: "#DDEEFF"
                 property bool commandBridgeEnabled: true
@@ -1617,6 +1911,10 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 function pathModeButtonActiveForTest() { return toolbar._buttonActive({"id": "path_mode"}); }
                 function patternButtonActiveForTest() { return toolbar._buttonActive({"id": "stroke_pattern"}); }
                 function arrowButtonActiveForTest() { return toolbar._buttonActive({"id": "arrow_head"}); }
+                function applyArrowTailChoice() { return toolbar._setFlowEdgeVisualStyle({"arrow_tail": "filled"}); }
+                function openLabelLayoutPopupForTest() { toolbar._handleToolbarAction({"id": "flow_edge_label_layout", "popover": "label_layout"}, popupAnchor); }
+                function labelLayoutButtonActiveForTest() { return toolbar._buttonActive({"id": "flow_edge_label_layout"}); }
+                function applyFollowPathChoice() { return toolbar._setFlowEdgeVisualStyle({"label_orientation": "follow_path"}); }
                 function clearEdgeSelectionForTest() { canvas.selectedEdgeIds = []; }
                 function restoreEdgeSelectionForTest() { canvas.selectedEdgeIds = ["edge-1"]; }
                 function selectStandardEdgeForTest() { canvas.selectedEdgeIds = ["edge-2"]; }
@@ -1630,11 +1928,17 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                         root.committedStrokeColor = String(style.stroke_color || "");
                         root.committedStrokePattern = String(style.stroke_pattern || "");
                         root.committedArrowHead = String(style.arrow_head || "");
+                        root.committedArrowTail = String(style.arrow_tail || "");
                         root.committedPathMode = String(style.path_mode || "auto");
+                        root.committedLabelLayout = String(style.label_orientation || "") + "@" + String(style.label_position === undefined ? "" : style.label_position);
                         if (style.stroke_pattern !== undefined)
                             root.currentStrokePattern = String(style.stroke_pattern || "solid");
                         if (style.arrow_head !== undefined)
                             root.currentArrowHead = String(style.arrow_head || "filled");
+                        if (style.arrow_tail !== undefined)
+                            root.currentArrowTail = String(style.arrow_tail || "");
+                        if (style.label_orientation !== undefined)
+                            root.currentLabelOrientation = String(style.label_orientation || "");
                         root.currentPathMode = String(style.path_mode || "auto");
                     }
                 }
@@ -1652,6 +1956,12 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                         var style = {"stroke_color": "#61AFEF", "stroke_pattern": root.currentStrokePattern, "arrow_head": root.currentArrowHead, "label_text_color": "#123456"};
                         if (root.currentPathMode !== "auto")
                             style.path_mode = root.currentPathMode;
+                        if (root.currentArrowTail.length)
+                            style.arrow_tail = root.currentArrowTail;
+                        if (root.currentLabelOrientation.length)
+                            style.label_orientation = root.currentLabelOrientation;
+                        if (root.currentLabelPosition !== undefined)
+                            style.label_position = root.currentLabelPosition;
                         if (String(edgeId) === "edge-2")
                             return {"edge_id": String(edgeId), "edge_family": "standard", "label": "", "visual_style": style};
                         if (root.currentLabelBackgroundColor.length)
@@ -1735,12 +2045,12 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 raise AssertionError("toolbar path mode did not start as auto")
             if toolbar.property("toolbarPatternGlyphKind") != "solid":
                 raise AssertionError("toolbar pattern glyph did not start as solid")
-            if toolbar.property("toolbarArrowGlyphKind") != "filled":
-                raise AssertionError("toolbar arrow glyph did not start as filled")
+            if toolbar.property("toolbarArrowEndKind") != "filled" or toolbar.property("toolbarArrowStartKind") != "none":
+                raise AssertionError("toolbar arrow glyph did not start as a filled end arrow only")
             if toolbar.property("toolbarPatternIconName") != "edge-path-solid":
                 raise AssertionError("toolbar pattern icon did not start with the solid asset")
-            if toolbar.property("toolbarArrowIconName") != "edge-arrow-filled":
-                raise AssertionError("toolbar arrow icon did not start with the filled asset")
+            if toolbar.property("toolbarLabelOrientation") != "horizontal" or bool(toolbar.property("toolbarLabelPositioned")):
+                raise AssertionError("toolbar label placement did not start horizontal and automatic")
             if editor.property("text") != "Go":
                 raise AssertionError(f"unexpected editor text {editor.property('text')!r}")
             def color_name(value):
@@ -1873,12 +2183,73 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             if int(root.edgeRedrawRequestsForTest()) <= redraw_before_arrow:
                 raise AssertionError("arrow style update did not request an edge redraw")
             app.processEvents()
-            if toolbar.property("toolbarArrowGlyphKind") != "open":
+            if toolbar.property("toolbarArrowEndKind") != "open":
                 raise AssertionError("toolbar arrow glyph did not follow selected open style")
-            if toolbar.property("toolbarArrowIconName") != "edge-arrow-open":
-                raise AssertionError("toolbar arrow icon did not follow selected open asset")
             if bool(root.arrowButtonActiveForTest()):
                 raise AssertionError("non-default arrow style should not leave the toolbar button active")
+            if not bool(root.applyArrowTailChoice()):
+                raise AssertionError("start arrow update failed")
+            if root.property("committedArrowTail") != "filled":
+                raise AssertionError(f"unexpected start arrow payload {root.property('committedArrowTail')!r}")
+            app.processEvents()
+            if toolbar.property("toolbarArrowStartKind") != "filled" or toolbar.property("toolbarArrowEndKind") != "open":
+                raise AssertionError("toolbar arrow glyph did not show both ends")
+            arrow_glyph = None
+            def find_named(item, name):
+                if item.objectName() == name:
+                    return item
+                for child in item.childItems():
+                    found = find_named(child, name)
+                    if found is not None:
+                        return found
+                return None
+            arrow_glyph = find_named(toolbar, "graphEdgeToolbarArrowGlyph")
+            if arrow_glyph is None or arrow_glyph.property("startKind") != "filled" or arrow_glyph.property("endKind") != "open":
+                raise AssertionError("toolbar arrow glyph canvas did not draw both ends")
+            root.openLabelLayoutPopupForTest()
+            app.processEvents()
+            label_layout_popup = toolbar.findChild(QObject, "graphEdgeLabelLayoutPopup")
+            if label_layout_popup is None or not bool(label_layout_popup.property("opened")):
+                raise AssertionError("label placement popup did not open")
+            if not bool(root.labelLayoutButtonActiveForTest()) or bool(root.arrowButtonActiveForTest()):
+                raise AssertionError("only the open label placement popup should mark its button active")
+            if not bool(root.applyFollowPathChoice()):
+                raise AssertionError("label orientation update failed")
+            if not str(root.property("committedLabelLayout")).startswith("follow_path@"):
+                raise AssertionError(f"unexpected label layout payload {root.property('committedLabelLayout')!r}")
+            app.processEvents()
+            if toolbar.property("toolbarLabelOrientation") != "follow_path":
+                raise AssertionError("toolbar label orientation did not follow the path choice")
+            root.setProperty("currentLabelPosition", 0.25)
+            app.processEvents()
+            if not bool(toolbar.property("toolbarLabelPositioned")):
+                raise AssertionError("a dragged label position should enable Auto position")
+            toolbar._closeStylePopups(None)
+            app.processEvents()
+            if not bool(toolbar.beginLabelEdit("edge-1")):
+                raise AssertionError("beginLabelEdit for multi-line editing failed")
+            app.processEvents()
+            window.requestActivate()
+            editor.setProperty("text", "Loop")
+            editor.setProperty("cursorPosition", 4)
+            app.processEvents()
+            single_line_height = float(editor_frame.property("height"))
+            QTest.keyClick(window, Qt.Key.Key_Return, Qt.KeyboardModifier.ShiftModifier)
+            app.processEvents()
+            if toolbar.property("editingEdgeId") != "edge-1":
+                raise AssertionError("Shift+Enter should keep editing instead of committing")
+            if editor.property("text") != "Loop\\n":
+                raise AssertionError(f"Shift+Enter did not start a new line: {editor.property('text')!r}")
+            editor.insert(5, "branch")
+            app.processEvents()
+            if float(editor_frame.property("height")) <= single_line_height + 5.0:
+                raise AssertionError(f"editor frame did not grow for the second line: {editor_frame.property('height')!r}")
+            QTest.keyClick(window, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier)
+            app.processEvents()
+            if root.property("committedLabel") != "edge-1:Loop\\nbranch":
+                raise AssertionError(f"Enter did not commit the multi-line label: {root.property('committedLabel')!r}")
+            if toolbar.property("editingEdgeId") != "":
+                raise AssertionError("Enter should finish editing")
             root.selectStandardEdgeForTest()
             app.processEvents()
             if not bool(toolbar.property("toolbarVisible")):
@@ -1906,7 +2277,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
         env.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
         _run_isolated_probe("flow-edge-toolbar-inline-label-edit", script, env)
 
-    def test_flow_edge_toolbar_buttons_dispatch_copy_paste_and_reset_style(self) -> None:
+    def test_flow_edge_toolbar_buttons_dispatch_reverse_and_style_clipboard_actions(self) -> None:
         script = textwrap.dedent(
             """
             from pathlib import Path
@@ -1946,7 +2317,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     function _edgeSupportsFlowStyle(edgeId) { return String(edgeId) === "edge-1"; }
                     function _sceneEdgePayload(edgeId) {
                         var style = {"stroke_color": "#61AFEF"};
-                        return {"edge_id": String(edgeId), "edge_family": "flow", "label": "", "visual_style": style, "flow_style": style};
+                        return {"edge_id": String(edgeId), "edge_family": "flow", "label": "", "visual_style": style, "flow_style": style, "reversible": true};
                     }
                     function requestEdgeRedraw() {}
                 }
@@ -1998,6 +2369,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 return None
 
             expected_icons = {
+                "reverse_flow_edge": "edge-reverse",
                 "copy_flow_edge_style": "copy-text-style",
                 "paste_flow_edge_style": "paste-text-style",
                 "reset_flow_edge_style": "script-undo",

@@ -37,6 +37,7 @@ QtObject {
         "reset_flow_edge_style": { "actionId": "reset_flow_edge_style", "payload": "edge" },
         "copy_flow_edge_style": { "actionId": "copy_flow_edge_style", "payload": "edge" },
         "paste_flow_edge_style": { "actionId": "paste_flow_edge_style", "payload": "edge" },
+        "reverse_flow_edge": { "actionId": "reverse_flow_edge", "payload": "edge" },
         "remove_edge": { "actionId": "remove_edge", "payload": "edge", "clearEdgeSelection": true }
     })
 

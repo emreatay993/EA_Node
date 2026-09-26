@@ -18,9 +18,10 @@ from PyQt6.QtWidgets import (
 )
 
 from ea_node_editor.passive_style_normalization import (
-    FLOW_EDGE_ARROW_HEADS,
+    FLOW_EDGE_ARROW_KINDS,
     FLOW_EDGE_PATH_MODES,
     FLOW_EDGE_STYLE_PATTERNS,
+    flow_edge_layout_style,
     normalize_flow_edge_style_payload,
 )
 from ea_node_editor.ui.dialogs.passive_style_controls import (
@@ -28,6 +29,8 @@ from ea_node_editor.ui.dialogs.passive_style_controls import (
     set_dialog_role,
 )
 from ea_node_editor.ui.passive_style_presets import PassiveStylePresetCatalog
+
+_ARROW_KIND_LABELS = {"filled": "Filled Arrow", "open": "Open Arrow", "none": "None"}
 
 
 class FlowEdgeStyleDialog(QDialog):
@@ -64,12 +67,19 @@ class FlowEdgeStyleDialog(QDialog):
         stroke_pattern = str(self.stroke_pattern_combo.currentData() or "").strip()
         if stroke_pattern:
             payload["stroke_pattern"] = stroke_pattern
-        arrow_head = str(self.arrow_head_combo.currentData() or "").strip()
-        if arrow_head:
-            payload["arrow_head"] = arrow_head
+        for key, combo in (("arrow_tail", self.arrow_tail_combo), ("arrow_head", self.arrow_head_combo)):
+            arrow_kind = str(combo.currentData() or "").strip()
+            if arrow_kind:
+                payload[key] = arrow_kind
         path_mode = str(self.path_mode_combo.currentData() or "").strip()
         if path_mode:
             payload["path_mode"] = path_mode
+        label_position = self.label_position_field.text().strip()
+        if label_position and _is_valid_percent(label_position):
+            payload["label_position"] = float(label_position) / 100.0
+        label_orientation = str(self.label_orientation_combo.currentData() or "").strip()
+        if label_orientation:
+            payload["label_orientation"] = label_orientation
         return normalize_flow_edge_style_payload(payload)
 
     def user_presets(self) -> list[dict[str, Any]]:
@@ -188,13 +198,10 @@ class FlowEdgeStyleDialog(QDialog):
         self.stroke_pattern_combo.currentIndexChanged.connect(self._sync_preset_selection_for_current_style)
         form.addRow("Stroke Pattern", self.stroke_pattern_combo)
 
-        self.arrow_head_combo = QComboBox(self)
-        self.arrow_head_combo.setObjectName("arrow_head_combo")
-        self.arrow_head_combo.addItem("Inherit", "")
-        for value in FLOW_EDGE_ARROW_HEADS:
-            self.arrow_head_combo.addItem(value.title(), value)
-        self.arrow_head_combo.currentIndexChanged.connect(self._sync_preset_selection_for_current_style)
-        form.addRow("Arrow Head", self.arrow_head_combo)
+        self.arrow_tail_combo = self._arrow_kind_combo("arrow_tail_combo")
+        form.addRow("Start Arrow", self.arrow_tail_combo)
+        self.arrow_head_combo = self._arrow_kind_combo("arrow_head_combo")
+        form.addRow("End Arrow", self.arrow_head_combo)
 
         self.path_mode_combo = QComboBox(self)
         self.path_mode_combo.setObjectName("path_mode_combo")
@@ -205,6 +212,25 @@ class FlowEdgeStyleDialog(QDialog):
             self.path_mode_combo.addItem(value.title(), value)
         self.path_mode_combo.currentIndexChanged.connect(self._sync_preset_selection_for_current_style)
         form.addRow("Path Mode", self.path_mode_combo)
+
+        self.label_position_field = QLineEdit(self)
+        self.label_position_field.setObjectName("label_position_value")
+        self.label_position_field.setPlaceholderText("auto")
+        self.label_position_field.setToolTip(
+            "Label centre along the path, from the start (0) to the end (100). Leave blank for automatic placement."
+        )
+        self.label_position_field.setValidator(
+            QRegularExpressionValidator(QRegularExpression(r"(?:\d{1,3}(?:\.\d+)?)?"), self)
+        )
+        self.label_position_field.textChanged.connect(self._sync_validation_message)
+        form.addRow("Label Position (%)", self.label_position_field)
+
+        self.label_orientation_combo = QComboBox(self)
+        self.label_orientation_combo.setObjectName("label_orientation_combo")
+        self.label_orientation_combo.addItem("Horizontal", "")
+        self.label_orientation_combo.addItem("Along Path", "follow_path")
+        self.label_orientation_combo.currentIndexChanged.connect(self._sync_preset_selection_for_current_style)
+        form.addRow("Label Orientation", self.label_orientation_combo)
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
@@ -220,6 +246,15 @@ class FlowEdgeStyleDialog(QDialog):
 
         root.addLayout(buttons)
 
+    def _arrow_kind_combo(self, object_name: str) -> QComboBox:
+        combo = QComboBox(self)
+        combo.setObjectName(object_name)
+        combo.addItem("Inherit", "")
+        for value in FLOW_EDGE_ARROW_KINDS:
+            combo.addItem(_ARROW_KIND_LABELS[value], value)
+        combo.currentIndexChanged.connect(self._sync_preset_selection_for_current_style)
+        return combo
+
     def _load_style(self, initial_style: Any | None) -> None:
         self._loading_style = True
         normalized = normalize_flow_edge_style_payload(initial_style)
@@ -229,8 +264,15 @@ class FlowEdgeStyleDialog(QDialog):
             _format_number(normalized["stroke_width"]) if "stroke_width" in normalized else ""
         )
         self.stroke_pattern_combo.setCurrentIndex(max(0, self.stroke_pattern_combo.findData(normalized.get("stroke_pattern", ""))))
+        self.arrow_tail_combo.setCurrentIndex(max(0, self.arrow_tail_combo.findData(normalized.get("arrow_tail", ""))))
         self.arrow_head_combo.setCurrentIndex(max(0, self.arrow_head_combo.findData(normalized.get("arrow_head", ""))))
         self.path_mode_combo.setCurrentIndex(max(0, self.path_mode_combo.findData(normalized.get("path_mode", ""))))
+        self.label_position_field.setText(
+            _format_number(round(normalized["label_position"] * 100.0, 2)) if "label_position" in normalized else ""
+        )
+        self.label_orientation_combo.setCurrentIndex(
+            max(0, self.label_orientation_combo.findData(normalized.get("label_orientation", "")))
+        )
         self._loading_style = False
         self._sync_validation_message()
         self._sync_preset_selection_for_current_style()
@@ -253,12 +295,18 @@ class FlowEdgeStyleDialog(QDialog):
             set_dialog_role(self.stroke_width_field, "error")
             invalid = True
 
+        if _is_valid_percent(self.label_position_field.text()):
+            set_dialog_role(self.label_position_field, None)
+        else:
+            set_dialog_role(self.label_position_field, "error")
+            invalid = True
+
         self.validation_message.setVisible(invalid)
         if invalid:
             QMessageBox.warning(
                 self,
                 "Invalid Flow Edge Style",
-                "Flow edge styles must use valid hex colors and positive numeric values.",
+                "Flow edge styles must use valid hex colors, positive numeric values, and a label position from 0 to 100.",
             )
             return False
         return True
@@ -266,7 +314,8 @@ class FlowEdgeStyleDialog(QDialog):
     def _sync_validation_message(self) -> None:
         invalid_colors = any(field.text().strip() and not field.is_valid() for field in self._color_fields.values())
         invalid_width = not _is_valid_decimal(self.stroke_width_field.text())
-        self.validation_message.setVisible(invalid_colors or invalid_width)
+        invalid_label_position = not _is_valid_percent(self.label_position_field.text())
+        self.validation_message.setVisible(invalid_colors or invalid_width or invalid_label_position)
 
     def _selected_preset_id(self) -> str:
         return str(self.preset_combo.currentData(self._PRESET_ID_ROLE) or "").strip()
@@ -310,7 +359,8 @@ class FlowEdgeStyleDialog(QDialog):
         preset = self._preset_catalog.get(self._selected_preset_id())
         if preset is None:
             return
-        self._load_style(preset.get("style"))
+        # Presets carry appearance only; the edge keeps its own label placement.
+        self._load_style({**dict(preset.get("style") or {}), **flow_edge_layout_style(self.edge_style())})
 
     def _save_current_style_as_preset(self) -> None:
         style = self._validated_style_payload()
@@ -386,6 +436,17 @@ class FlowEdgeStyleDialog(QDialog):
 def _format_number(value: object) -> str:
     numeric = float(value)
     return str(int(numeric)) if numeric.is_integer() else str(numeric)
+
+
+def _is_valid_percent(value: str) -> bool:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return True
+    try:
+        numeric = float(normalized)
+    except ValueError:
+        return False
+    return 0.0 <= numeric <= 100.0
 
 
 def _is_valid_decimal(value: str) -> bool:

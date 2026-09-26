@@ -124,6 +124,8 @@ class _GraphCanvasSceneCommandSource(Protocol):
 
     def set_edges_display_mode(self, edge_ids: list[Any], mode: str) -> bool: ...
 
+    def reverse_edges(self, edge_ids: list[Any]) -> bool: ...
+
     def set_port_modifiers(
         self,
         node_id: str,

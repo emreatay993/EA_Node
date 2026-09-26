@@ -5,11 +5,15 @@ from collections.abc import Mapping
 from typing import Any
 
 from ea_node_editor.graph.records import EdgeInstance
+from ea_node_editor.passive_style_normalization import (
+    FLOW_EDGE_STYLE_PATTERNS,
+    normalize_flow_edge_arrow_kind,
+    normalize_flow_edge_label_orientation,
+    normalize_flow_edge_label_position,
+)
 
 EDGE_PAIR_LANE_SPACING = 24.0
 EDGE_PORT_FAN_SPACING = 10.0
-_FLOW_EDGE_STROKE_PATTERNS = {"solid", "dashed", "dotted"}
-_FLOW_EDGE_ARROW_HEADS = {"filled", "open", "none"}
 EDGE_PATH_MODES = {"auto", "pipe", "bezier"}
 
 
@@ -72,20 +76,32 @@ def normalize_flow_edge_visual_style_payload(visual_style: Any) -> dict[str, Any
         normalized["stroke_width"] = stroke_width
 
     stroke_pattern = _normalized_style_string(visual_style.get("stroke_pattern") or visual_style.get("stroke")).lower()
-    if stroke_pattern in _FLOW_EDGE_STROKE_PATTERNS:
+    if stroke_pattern in FLOW_EDGE_STYLE_PATTERNS:
         normalized["stroke_pattern"] = stroke_pattern
 
-    arrow_head = _normalized_style_string(visual_style.get("arrow_head")).lower()
+    arrow_head = normalize_flow_edge_arrow_kind(visual_style.get("arrow_head"))
     if not arrow_head:
         arrow_payload = visual_style.get("arrow")
         if isinstance(arrow_payload, Mapping):
-            arrow_head = _normalized_style_string(arrow_payload.get("kind")).lower()
-    if arrow_head in _FLOW_EDGE_ARROW_HEADS:
+            arrow_head = normalize_flow_edge_arrow_kind(arrow_payload.get("kind"))
+    if arrow_head:
         normalized["arrow_head"] = arrow_head
+
+    arrow_tail = normalize_flow_edge_arrow_kind(visual_style.get("arrow_tail"))
+    if arrow_tail:
+        normalized["arrow_tail"] = arrow_tail
 
     path_mode = normalize_edge_path_mode(visual_style.get("path_mode"))
     if path_mode != "auto":
         normalized["path_mode"] = path_mode
+
+    label_position = normalize_flow_edge_label_position(visual_style.get("label_position"))
+    if label_position is not None:
+        normalized["label_position"] = label_position
+
+    label_orientation = normalize_flow_edge_label_orientation(visual_style.get("label_orientation"))
+    if label_orientation != "horizontal":
+        normalized["label_orientation"] = label_orientation
 
     label_text_color = _normalized_style_string(visual_style.get("label_text_color"))
     if label_text_color:

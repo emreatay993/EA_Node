@@ -64,9 +64,13 @@ Item {
         root._visualStyle(root.activeEdgePayload).display_mode
     )
     readonly property string toolbarPatternGlyphKind: root._currentStrokePattern()
-    readonly property string toolbarArrowGlyphKind: root._currentArrowHead()
+    readonly property string toolbarArrowStartKind: root._currentArrowKind("start")
+    readonly property string toolbarArrowEndKind: root._currentArrowKind("end")
     readonly property string toolbarPatternIconName: root._strokePatternIconName(root.toolbarPatternGlyphKind)
-    readonly property string toolbarArrowIconName: root._arrowHeadIconName(root.toolbarArrowGlyphKind)
+    readonly property string toolbarLabelOrientation: GraphActionPresentation.normalizeEdgeLabelOrientation(
+        root.activeFlowStyle.label_orientation
+    )
+    readonly property bool toolbarLabelPositioned: root._hasLabelPosition(root.activeFlowStyle)
     readonly property color accentColor: String(root.activeFlowStyle.stroke_color || root.activeFlowStyle.color || root._paletteColor("accent", "#6BA6FF"))
     readonly property color chromeFillColor: root._paletteColor("toolbar_bg", root._paletteColor("panel_bg", "#20242d"))
     readonly property color chromeBorderColor: root._paletteColor("border", "#4b5568")
@@ -81,8 +85,8 @@ Item {
     readonly property real labelEditorVerticalPadding: root.labelEditorPillVisible ? 6.0 : 0.0
     readonly property real labelEditorMaximumTextWidth: root.labelEditorPillVisible ? 220.0 : 120.0
     readonly property real labelEditorMinimumTextWidth: 18.0
-    readonly property real labelEditorTextWidth: Math.max(root.labelEditorMinimumTextWidth, Math.ceil(labelEditorMetrics.advanceWidth))
-    readonly property real labelEditorTextHeight: Math.ceil(labelEditorMetrics.height)
+    readonly property real labelEditorTextWidth: Math.max(root.labelEditorMinimumTextWidth, Math.ceil(labelEditorMeasure.implicitWidth))
+    readonly property real labelEditorTextHeight: Math.ceil(labelEditor.contentHeight)
     readonly property real labelEditorFrameWidth: Math.min(
         root.labelEditorMaximumTextWidth + root.labelEditorHorizontalPadding * 2.0,
         root.labelEditorTextWidth + root.labelEditorHorizontalPadding * 2.0
@@ -116,7 +120,8 @@ Item {
         "activeDataWire": root.activeDataWire,
         "flowEdgeActive": root.flowEdgeActive,
         "displayMode": root.toolbarDisplayMode,
-        "hasLabel": root.activeLabelText.length > 0
+        "hasLabel": root.activeLabelText.length > 0,
+        "reversible": Boolean(root.activeEdgePayload && root.activeEdgePayload.reversible)
     })
     readonly property var colorChoices: [
         "#8E8E8E", "#E06C75", "#E5C07B", "#98C379",
@@ -129,11 +134,9 @@ Item {
     ]
     readonly property var pathModeChoices: GraphActionPresentation.edgePathChoices()
     readonly property var displayModeChoices: GraphActionPresentation.edgeDisplayChoices()
-    readonly property var arrowChoices: [
-        { "label": "Filled", "value": "filled" },
-        { "label": "Open", "value": "open" },
-        { "label": "None", "value": "none" }
-    ]
+    readonly property var arrowChoices: GraphActionPresentation.edgeArrowKindChoices()
+    readonly property var arrowEnds: GraphActionPresentation.edgeArrowEnds()
+    readonly property var labelOrientationChoices: GraphActionPresentation.edgeLabelOrientationChoices()
     readonly property int stylePopupClosePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
     visible: root.toolbarVisible || root.labelEditorActive
@@ -245,6 +248,11 @@ Item {
     function _edgeAnchorScene(snapshot) {
         if (!snapshot || Boolean(snapshot.culled) || !snapshot.geometry)
             return null;
+        if (root.edgeLayer
+                && root.edgeLayer.labelDragEdgeId
+                && root.edgeLayer.labelDragEdgeId === String(snapshot.edgeId || "")
+                && root.edgeLayer.labelDragAnchorScene)
+            return root.edgeLayer.labelDragAnchorScene;
         if (snapshot.labelAnchorScene)
             return snapshot.labelAnchorScene;
         if (root.edgeLayer && root.edgeLayer._edgeAnchor)
@@ -412,20 +420,17 @@ Item {
         return "edge-path-solid";
     }
 
-    function _currentArrowHead() {
-        var value = String(root.activeFlowStyle.arrow_head || "").toLowerCase();
-        if (!value && root.activeFlowStyle.arrow)
-            value = String(root.activeFlowStyle.arrow.kind || "").toLowerCase();
-        return value === "open" || value === "none" ? value : "filled";
+    function _currentArrowKind(end) {
+        var style = root.activeFlowStyle;
+        var value = String(end === "start" ? (style.arrow_tail || "") : (style.arrow_head || "")).toLowerCase();
+        if (!value && end !== "start" && style.arrow)
+            value = String(style.arrow.kind || "").toLowerCase();
+        return GraphActionPresentation.normalizeEdgeArrowKind(value, end);
     }
 
-    function _arrowHeadIconName(arrowHead) {
-        var value = String(arrowHead || "filled").toLowerCase();
-        if (value === "open")
-            return "edge-arrow-open";
-        if (value === "none")
-            return "edge-arrow-none";
-        return "edge-arrow-filled";
+    function _hasLabelPosition(style) {
+        var value = style ? style.label_position : undefined;
+        return value !== undefined && value !== null && value !== "" && isFinite(Number(value));
     }
 
     function _buttonActive(action) {
@@ -438,6 +443,8 @@ Item {
             return patternPopup.opened;
         if (id === "arrow_head")
             return arrowPopup.opened;
+        if (id === "flow_edge_label_layout")
+            return labelLayoutPopup.opened;
         return false;
     }
 
@@ -466,6 +473,8 @@ Item {
             patternPopup.close();
         if (arrowPopup !== exceptPopup && arrowPopup.opened)
             arrowPopup.close();
+        if (labelLayoutPopup !== exceptPopup && labelLayoutPopup.opened)
+            labelLayoutPopup.close();
     }
 
     function _stylePopupClosesOutsidePopup() {
@@ -496,6 +505,10 @@ Item {
             root._openPopup(arrowPopup, button);
             return;
         }
+        if (popover === "label_layout") {
+            root._openPopup(labelLayoutPopup, button);
+            return;
+        }
         root._closeStylePopups(null);
         if (id === "frame_edge") {
             root._frameActiveEdge();
@@ -511,7 +524,8 @@ Item {
         } else if (id === "edit_flow_edge_style"
                    || id === "copy_flow_edge_style"
                    || id === "paste_flow_edge_style"
-                   || id === "reset_flow_edge_style") {
+                   || id === "reset_flow_edge_style"
+                   || id === "reverse_flow_edge") {
             root._dispatchGraphEdgeAction(id);
         }
     }
@@ -551,16 +565,38 @@ Item {
         return true;
     }
 
+    function insertLabelLineBreak() {
+        if (!root.labelEditorActive)
+            return false;
+        if (labelEditor.selectionEnd > labelEditor.selectionStart)
+            labelEditor.remove(labelEditor.selectionStart, labelEditor.selectionEnd);
+        labelEditor.insert(labelEditor.cursorPosition, "\n");
+        return true;
+    }
+
+    function _handleLabelEditorReturn(event) {
+        // Shift+Enter starts a new label line; Enter commits.
+        if (event.modifiers & Qt.ShiftModifier)
+            root.insertLabelLineBreak();
+        else
+            root.commitLabelEdit();
+        event.accepted = true;
+    }
+
     GraphComponents.GraphSharedTypography {
         id: labelEditorTypography
         objectName: "graphEdgeLabelEditorSharedTypography"
         graphLabelPixelSize: root.effectiveGraphLabelPixelSize
     }
 
-    TextMetrics {
-        id: labelEditorMetrics
+    Text {
+        // Natural width of the widest label line; the editor wraps past the label maximum.
+        id: labelEditorMeasure
+        visible: false
         font: labelEditor.font
         text: labelEditor.text.length ? labelEditor.text : "M"
+        textFormat: Text.PlainText
+        wrapMode: Text.NoWrap
     }
 
     Rectangle {
@@ -592,7 +628,6 @@ Item {
                     readonly property string actionId: String(modelData.id || "")
                     readonly property bool styleGlyphAction: actionId === "stroke_pattern" || actionId === "arrow_head"
                     readonly property string currentPatternGlyphKind: actionId === "stroke_pattern" ? root._currentStrokePattern() : ""
-                    readonly property string currentArrowGlyphKind: actionId === "arrow_head" ? root._currentArrowHead() : ""
                     objectName: "graphEdgeFloatingToolbarAction_" + String(modelData.id || "")
                     text: styleGlyphAction ? "" : String(modelData.label || "")
                     iconName: styleGlyphAction ? "" : String(modelData.icon || "")
@@ -639,18 +674,15 @@ Item {
                         sourceSize.height: 24
                     }
 
-                    Image {
+                    EdgeArrowGlyph {
                         objectName: "graphEdgeToolbarArrowGlyph"
                         visible: actionButton.actionId === "arrow_head"
                         anchors.centerIn: parent
-                        source: root._iconSource(root.toolbarArrowIconName, 24, String(actionButton.resolvedForegroundColor))
-                        width: 24
-                        height: 24
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true
-                        mipmap: true
-                        sourceSize.width: 24
-                        sourceSize.height: 24
+                        width: 30
+                        height: 22
+                        startKind: root.toolbarArrowStartKind
+                        endKind: root.toolbarArrowEndKind
+                        color: actionButton.resolvedForegroundColor
                     }
                 }
             }
@@ -680,7 +712,7 @@ Item {
             border.color: "transparent"
         }
 
-        TextInput {
+        TextEdit {
             id: labelEditor
             objectName: "graphEdgeLabelInlineEditor"
             anchors.fill: parent
@@ -690,6 +722,8 @@ Item {
             anchors.bottomMargin: root.labelEditorVerticalPadding
             clip: true
             selectByMouse: true
+            textFormat: TextEdit.PlainText
+            wrapMode: TextEdit.Wrap
             color: root.labelEditorTextColor
             selectedTextColor: root._paletteColor("selection_fg", "#ffffff")
             selectionColor: root._paletteColor("selection_bg", root.labelEditorSelectionColor)
@@ -699,16 +733,14 @@ Item {
             font.weight: root.labelEditorPillVisible
                 ? labelEditorTypography.edgePillFontWeight
                 : labelEditorTypography.edgeLabelFontWeight
-            horizontalAlignment: TextInput.AlignHCenter
-            verticalAlignment: TextInput.AlignVCenter
+            horizontalAlignment: TextEdit.AlignHCenter
+            verticalAlignment: TextEdit.AlignVCenter
             renderType: Text.NativeRendering
             Keys.onReturnPressed: function(event) {
-                root.commitLabelEdit();
-                event.accepted = true;
+                root._handleLabelEditorReturn(event);
             }
             Keys.onEnterPressed: function(event) {
-                root.commitLabelEdit();
-                event.accepted = true;
+                root._handleLabelEditorReturn(event);
             }
             Keys.onEscapePressed: function(event) {
                 root.cancelLabelEdit();
@@ -959,57 +991,162 @@ Item {
             border.width: 1
             border.color: Qt.alpha(root.chromeBorderColor, 0.74)
         }
+        contentItem: Column {
+            spacing: 4
+            Repeater {
+                model: root.arrowEnds
+                Row {
+                    id: arrowEndRow
+                    readonly property var endSpec: modelData
+                    spacing: 4
+
+                    Text {
+                        width: 36
+                        height: 30
+                        text: String(arrowEndRow.endSpec.label || "")
+                        color: root.mutedForegroundColor
+                        font.pixelSize: 11
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    Repeater {
+                        model: root.arrowChoices
+                        Button {
+                            id: arrowChoiceButton
+                            readonly property string arrowKind: String(modelData.value || "none")
+                            readonly property string arrowEnd: String(arrowEndRow.endSpec.end || "end")
+                            readonly property bool choiceSelected: root._currentArrowKind(arrowEnd) === arrowKind
+                            objectName: "graphEdgeArrowChoice_" + arrowEnd + "_" + arrowKind
+                            text: String(arrowEndRow.endSpec.label || "") + ": " + String(modelData.label || "")
+                            width: 40
+                            height: 30
+                            padding: 0
+                            Common.ManagedToolTip {
+                                policyBridge: root.canvasItem && root.canvasItem.canvasStateBridgeRef
+                                    ? root.canvasItem.canvasStateBridgeRef
+                                    : null
+                                category: "general"
+                                active: arrowChoiceButton.hovered
+                                text: arrowChoiceButton.text
+                            }
+                            onClicked: {
+                                // Stays open so both ends can be set in one visit.
+                                var update = {};
+                                update[String(arrowEndRow.endSpec.styleKey || "arrow_head")] = arrowChoiceButton.arrowKind;
+                                root._setFlowEdgeVisualStyle(update);
+                            }
+                            contentItem: Item {
+                                implicitWidth: 40
+                                implicitHeight: 30
+
+                                EdgeArrowGlyph {
+                                    anchors.centerIn: parent
+                                    width: 32
+                                    height: 22
+                                    startKind: arrowChoiceButton.arrowEnd === "start" ? arrowChoiceButton.arrowKind : "none"
+                                    endKind: arrowChoiceButton.arrowEnd === "end" ? arrowChoiceButton.arrowKind : "none"
+                                    color: arrowChoiceButton.choiceSelected ? root.accentColor : root.foregroundColor
+                                }
+                            }
+                            background: Rectangle {
+                                radius: 5
+                                color: arrowChoiceButton.choiceSelected
+                                    ? Qt.alpha(root.accentColor, 0.16)
+                                    : (arrowChoiceButton.hovered ? Qt.alpha(root.foregroundColor, 0.10) : "transparent")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Popup {
+        id: labelLayoutPopup
+        objectName: "graphEdgeLabelLayoutPopup"
+        parent: root
+        modal: false
+        focus: true
+        padding: 6
+        closePolicy: root.stylePopupClosePolicy
+        background: Rectangle {
+            radius: 7
+            color: root.chromeFillColor
+            border.width: 1
+            border.color: Qt.alpha(root.chromeBorderColor, 0.74)
+        }
         contentItem: Row {
             spacing: 8
             Repeater {
-                model: root.arrowChoices
+                model: root.labelOrientationChoices
                 Button {
-                    id: arrowChoiceButton
-                    objectName: "graphEdgeArrowChoice_" + String(modelData.value || "")
+                    id: labelOrientationChoiceButton
+                    readonly property string orientation: String(modelData.value || "horizontal")
+                    readonly property bool choiceSelected: root.toolbarLabelOrientation === orientation
+                    objectName: "graphEdgeLabelOrientationChoice_" + orientation
                     text: String(modelData.label || "")
-                    width: 52
-                    height: 38
+                    width: 82
+                    height: 34
                     padding: 0
-                    Common.ManagedToolTip {
-                        policyBridge: root.canvasItem && root.canvasItem.canvasStateBridgeRef
-                            ? root.canvasItem.canvasStateBridgeRef
-                            : null
-                        category: "general"
-                        active: arrowChoiceButton.hovered
-                        text: arrowChoiceButton.text
-                    }
                     onClicked: {
-                        if (root._setFlowEdgeVisualStyle({ "arrow_head": String(modelData.value || "filled") }))
-                            arrowPopup.close();
+                        root._setFlowEdgeVisualStyle({
+                            "label_orientation": labelOrientationChoiceButton.orientation === "follow_path" ? "follow_path" : ""
+                        });
                     }
-                    contentItem: Item {
-                        readonly property string arrowKind: String(modelData.value || "filled")
-                        objectName: "graphEdgeArrowIcon_" + String(modelData.value || "")
-                        implicitWidth: 56
-                        implicitHeight: 24
-
-                        Image {
-                            anchors.centerIn: parent
-                            source: root._iconSource(
-                                root._arrowHeadIconName(parent.arrowKind),
-                                26,
-                                String(root._currentArrowHead() === parent.arrowKind ? root.accentColor : root.foregroundColor)
-                            )
-                            width: 26
-                            height: 26
-                            fillMode: Image.PreserveAspectFit
-                            smooth: true
-                            mipmap: true
-                            sourceSize.width: 26
-                            sourceSize.height: 26
-                        }
+                    contentItem: Text {
+                        text: labelOrientationChoiceButton.text
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        color: labelOrientationChoiceButton.choiceSelected ? root.accentColor : root.foregroundColor
+                        font.pixelSize: 12
+                        font.bold: labelOrientationChoiceButton.choiceSelected
                     }
                     background: Rectangle {
                         radius: 5
-                        color: root._currentArrowHead() === String(modelData.value || "")
+                        color: labelOrientationChoiceButton.choiceSelected
                             ? Qt.alpha(root.accentColor, 0.16)
-                            : (arrowChoiceButton.hovered ? Qt.alpha(root.foregroundColor, 0.10) : "transparent")
+                            : (labelOrientationChoiceButton.hovered ? Qt.alpha(root.foregroundColor, 0.10) : "transparent")
                     }
+                }
+            }
+
+            Rectangle {
+                width: 1
+                height: 22
+                anchors.verticalCenter: parent.verticalCenter
+                color: Qt.alpha(root.chromeBorderColor, 0.74)
+            }
+
+            Button {
+                id: labelAutoPositionButton
+                objectName: "graphEdgeLabelAutoPositionButton"
+                text: "Auto position"
+                enabled: root.toolbarLabelPositioned
+                width: 96
+                height: 34
+                padding: 0
+                Common.ManagedToolTip {
+                    policyBridge: root.canvasItem && root.canvasItem.canvasStateBridgeRef
+                        ? root.canvasItem.canvasStateBridgeRef
+                        : null
+                    category: "general"
+                    active: labelAutoPositionButton.hovered
+                    text: "Return a dragged label to its automatic place"
+                }
+                onClicked: root._setFlowEdgeVisualStyle({ "label_position": "" })
+                contentItem: Text {
+                    text: labelAutoPositionButton.text
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    color: labelAutoPositionButton.enabled ? root.foregroundColor : root.mutedForegroundColor
+                    opacity: labelAutoPositionButton.enabled ? 1.0 : 0.55
+                    font.pixelSize: 12
+                }
+                background: Rectangle {
+                    radius: 5
+                    color: labelAutoPositionButton.hovered && labelAutoPositionButton.enabled
+                        ? Qt.alpha(root.foregroundColor, 0.10)
+                        : "transparent"
                 }
             }
         }

@@ -12,7 +12,8 @@ from ea_node_editor.graph.effective_ports import effective_ports, is_subnode_pin
 from ea_node_editor.graph.records import NodeInstance
 from ea_node_editor.nodes.node_specs import NodeTypeSpec, PropertySpec
 from ea_node_editor.passive_style_normalization import (
-    FLOW_EDGE_ARROW_HEADS,
+    FLOW_EDGE_ARROW_KINDS,
+    FLOW_EDGE_LABEL_ORIENTATIONS,
     FLOW_EDGE_PATH_MODES,
     FLOW_EDGE_STYLE_PATTERNS,
     PASSIVE_NODE_STYLE_FONT_WEIGHTS,
@@ -51,9 +52,12 @@ EDGE_STYLE_KEYS: tuple[str, ...] = (
     "stroke_width",
     "stroke_pattern",
     "arrow_head",
+    "arrow_tail",
     "path_mode",
     "label_text_color",
     "label_background_color",
+    "label_position",
+    "label_orientation",
     "display_mode",
 )
 # Agent-facing edge style aliases (ops/common.EDGE_STYLE spellings) -> persisted flow-edge keys.
@@ -63,13 +67,19 @@ EDGE_STYLE_ALIASES: dict[str, str] = {
     "color": "stroke_color",
     "width": "stroke_width",
     "pattern": "stroke_pattern",
+    "end_arrow": "arrow_head",
+    "start_arrow": "arrow_tail",
     "label_color": "label_text_color",
     "label_background": "label_background_color",
+    "label_fraction": "label_position",
+    "label_rotation": "label_orientation",
 }
 EDGE_STYLE_ENUMS: dict[str, tuple[str, ...]] = {
     "stroke_pattern": tuple(FLOW_EDGE_STYLE_PATTERNS),
-    "arrow_head": tuple(FLOW_EDGE_ARROW_HEADS),
+    "arrow_head": tuple(FLOW_EDGE_ARROW_KINDS),
+    "arrow_tail": tuple(FLOW_EDGE_ARROW_KINDS),
     "path_mode": tuple(FLOW_EDGE_PATH_MODES),
+    "label_orientation": tuple(FLOW_EDGE_LABEL_ORIENTATIONS),
     "display_mode": ("default", "faint", "hidden"),
 }
 TEXT_STYLE_KEYS: tuple[str, ...] = ("format", *TEXT_ANNOTATION_STYLE_KEYS)

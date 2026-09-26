@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 202,
-    "repeater_constructs": 99,
+    "qml_files": 203,
+    "repeater_constructs": 101,
     "loader_constructs": 29,
-    "signal_handlers": 1002,
+    "signal_handlers": 1012,
     "connections": 54,
-    "property_bindings": 8036,
-    "local_component_refs": 338
+    "property_bindings": 8077,
+    "local_component_refs": 339
   },
   "entries": [
     {
@@ -3975,6 +3975,7 @@
       "root_component": "Item",
       "imports": [
         "QtQuick 2.15",
+        "\"EdgeArrowPaint.js\" as EdgeArrowPaint",
         "\"EdgeMath.js\" as EdgeMath",
         "\"EdgePaintPolicy.js\" as EdgePaintPolicy",
         "\"EdgeViewportMath.js\" as EdgeViewportMath"
@@ -3993,7 +3994,7 @@
           "name": "edgeLabelGapTypography"
         },
         {
-          "name": "labelGapMetrics"
+          "name": "labelGapMeasure"
         }
       ],
       "object_names": [
@@ -4075,6 +4076,10 @@
         {
           "kind": "real",
           "name": "viewportTransformCompensationY"
+        },
+        {
+          "kind": "real",
+          "name": "maximumTextWidth"
         }
       ],
       "signals": [],
@@ -4128,7 +4133,13 @@
           "name": "drawDisabledMarker"
         },
         {
-          "name": "drawFlowArrowHead"
+          "name": "flowMarkerMinLength"
+        },
+        {
+          "name": "traceFlowEdgeBody"
+        },
+        {
+          "name": "drawFlowArrowMarkers"
         },
         {
           "name": "decorationEnabled"
@@ -4158,7 +4169,7 @@
           "name": "_flowLabelMeasuredSize"
         },
         {
-          "name": "_distanceAlongMetricsNearestPoint"
+          "name": "_labelAnchorForSnapshot"
         },
         {
           "name": "_labelBreakRangeForModel"
@@ -4187,7 +4198,7 @@
           "name": "GraphSharedTypography"
         },
         {
-          "name": "TextMetrics"
+          "name": "Text"
         }
       ],
       "dynamic_refs": [],
@@ -4264,7 +4275,41 @@
         },
         {
           "kind": "binding",
+          "name": "visible"
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.min",
+            "maximumTextWidth",
+            "implicitWidth"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "wrapMode",
+          "targets": [
+            "Text.Wrap"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "maximumLineCount",
+          "targets": [
+            "EdgePaintPolicy.FLOW_LABEL_MAX_LINES"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "elide",
+          "targets": [
+            "Text.ElideRight"
+          ]
         }
       ],
       "local_component_refs": [
@@ -4378,6 +4423,12 @@
           "detail": "real"
         },
         {
+          "anchor": "EdgeCanvasLayerPropertyMaximumTextWidth",
+          "kind": "property",
+          "name": "maximumTextWidth",
+          "detail": "real"
+        },
+        {
           "anchor": "EdgeCanvasLayerFunctionRecordPaint",
           "kind": "function",
           "name": "_recordPaint"
@@ -4458,9 +4509,19 @@
           "name": "drawDisabledMarker"
         },
         {
-          "anchor": "EdgeCanvasLayerFunctionDrawFlowArrowHead",
+          "anchor": "EdgeCanvasLayerFunctionFlowMarkerMinLength",
           "kind": "function",
-          "name": "drawFlowArrowHead"
+          "name": "flowMarkerMinLength"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionTraceFlowEdgeBody",
+          "kind": "function",
+          "name": "traceFlowEdgeBody"
+        },
+        {
+          "anchor": "EdgeCanvasLayerFunctionDrawFlowArrowMarkers",
+          "kind": "function",
+          "name": "drawFlowArrowMarkers"
         },
         {
           "anchor": "EdgeCanvasLayerFunctionDecorationEnabled",
@@ -4508,9 +4569,9 @@
           "name": "_flowLabelMeasuredSize"
         },
         {
-          "anchor": "EdgeCanvasLayerFunctionDistanceAlongMetricsNearestPoint",
+          "anchor": "EdgeCanvasLayerFunctionLabelAnchorForSnapshot",
           "kind": "function",
-          "name": "_distanceAlongMetricsNearestPoint"
+          "name": "_labelAnchorForSnapshot"
         },
         {
           "anchor": "EdgeCanvasLayerFunctionLabelBreakRangeForModel",
@@ -4568,6 +4629,7 @@
       "imports": [
         "QtQuick 2.15",
         "QtQml 2.15",
+        "\"EdgeMath.js\" as EdgeMath",
         "\"EdgePaintPolicy.js\" as EdgePaintPolicy"
       ],
       "ids": [
@@ -4579,6 +4641,9 @@
         },
         {
           "name": "flowLabelModel"
+        },
+        {
+          "name": "flowLabelRepeater"
         },
         {
           "name": "labelTextItem"
@@ -4687,6 +4752,10 @@
           "name": "geometry"
         },
         {
+          "kind": "bool",
+          "name": "labelDragPreviewActive"
+        },
+        {
           "kind": "var",
           "name": "labelAnchorScene"
         },
@@ -4774,6 +4843,9 @@
         },
         {
           "name": "flowLabelAnchorScene"
+        },
+        {
+          "name": "labelEdgeIdAtScreen"
         },
         {
           "name": "flowLabelAnchor"
@@ -4894,6 +4966,15 @@
         },
         {
           "kind": "binding",
+          "name": "rotation",
+          "targets": [
+            "labelAnchorScene",
+            "Number",
+            "labelAnchorScene.rotation"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "transformOrigin",
           "targets": [
             "Item.Center"
@@ -4991,7 +5072,14 @@
           "kind": "binding",
           "name": "wrapMode",
           "targets": [
-            "Text.NoWrap"
+            "Text.Wrap"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "maximumLineCount",
+          "targets": [
+            "EdgePaintPolicy.FLOW_LABEL_MAX_LINES"
           ]
         },
         {
@@ -4999,6 +5087,13 @@
           "name": "elide",
           "targets": [
             "Text.ElideRight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "horizontalAlignment",
+          "targets": [
+            "Text.AlignHCenter"
           ]
         },
         {
@@ -5144,6 +5239,12 @@
           "detail": "var"
         },
         {
+          "anchor": "EdgeFlowLabelLayerPropertyLabelDragPreviewActive",
+          "kind": "property",
+          "name": "labelDragPreviewActive",
+          "detail": "bool"
+        },
+        {
           "anchor": "EdgeFlowLabelLayerPropertyLabelAnchorScene",
           "kind": "property",
           "name": "labelAnchorScene",
@@ -5280,6 +5381,11 @@
           "name": "flowLabelAnchorScene"
         },
         {
+          "anchor": "EdgeFlowLabelLayerFunctionLabelEdgeIdAtScreen",
+          "kind": "function",
+          "name": "labelEdgeIdAtScreen"
+        },
+        {
           "anchor": "EdgeFlowLabelLayerFunctionFlowLabelAnchor",
           "kind": "function",
           "name": "flowLabelAnchor"
@@ -5361,12 +5467,36 @@
           "name": "hoveredEdgeId"
         },
         {
+          "kind": "string",
+          "name": "hoveredLabelEdgeId"
+        },
+        {
           "kind": "real",
           "name": "hoverX"
         },
         {
           "kind": "real",
           "name": "hoverY"
+        },
+        {
+          "kind": "string",
+          "name": "labelPressEdgeId"
+        },
+        {
+          "kind": "real",
+          "name": "labelPressX"
+        },
+        {
+          "kind": "real",
+          "name": "labelPressY"
+        },
+        {
+          "kind": "bool",
+          "name": "labelDragActive"
+        },
+        {
+          "kind": "real",
+          "name": "labelDragThresholdPx"
         },
         {
           "kind": "string",
@@ -5382,9 +5512,22 @@
         },
         {
           "name": "edgeContextRequested"
+        },
+        {
+          "name": "flowLabelDragFinished"
         }
       ],
-      "functions": [],
+      "functions": [
+        {
+          "name": "_labelEdgeAt"
+        },
+        {
+          "name": "_edgeAt"
+        },
+        {
+          "name": "_resetLabelDrag"
+        }
+      ],
       "instantiated_components": [
         {
           "name": "MouseArea"
@@ -5410,6 +5553,14 @@
         {
           "kind": "handler",
           "name": "onPressed"
+        },
+        {
+          "kind": "handler",
+          "name": "onReleased"
+        },
+        {
+          "kind": "handler",
+          "name": "onCanceled"
         },
         {
           "kind": "handler",
@@ -5448,6 +5599,13 @@
         {
           "kind": "binding",
           "name": "propagateComposedEvents"
+        },
+        {
+          "kind": "binding",
+          "name": "cursorShape",
+          "targets": [
+            "root.labelDragActive"
+          ]
         },
         {
           "kind": "binding",
@@ -5494,7 +5652,8 @@
           "kind": "binding",
           "name": "active",
           "targets": [
-            "root.hoveredEdgeId.length"
+            "root.hoveredEdgeId.length",
+            "root.labelDragActive"
           ]
         },
         {
@@ -5562,6 +5721,12 @@
           "detail": "string"
         },
         {
+          "anchor": "EdgeHitTestOverlayPropertyHoveredLabelEdgeId",
+          "kind": "property",
+          "name": "hoveredLabelEdgeId",
+          "detail": "string"
+        },
+        {
           "anchor": "EdgeHitTestOverlayPropertyHoverX",
           "kind": "property",
           "name": "hoverX",
@@ -5571,6 +5736,36 @@
           "anchor": "EdgeHitTestOverlayPropertyHoverY",
           "kind": "property",
           "name": "hoverY",
+          "detail": "real"
+        },
+        {
+          "anchor": "EdgeHitTestOverlayPropertyLabelPressEdgeId",
+          "kind": "property",
+          "name": "labelPressEdgeId",
+          "detail": "string"
+        },
+        {
+          "anchor": "EdgeHitTestOverlayPropertyLabelPressX",
+          "kind": "property",
+          "name": "labelPressX",
+          "detail": "real"
+        },
+        {
+          "anchor": "EdgeHitTestOverlayPropertyLabelPressY",
+          "kind": "property",
+          "name": "labelPressY",
+          "detail": "real"
+        },
+        {
+          "anchor": "EdgeHitTestOverlayPropertyLabelDragActive",
+          "kind": "property",
+          "name": "labelDragActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "EdgeHitTestOverlayPropertyLabelDragThresholdPx",
+          "kind": "property",
+          "name": "labelDragThresholdPx",
           "detail": "real"
         },
         {
@@ -5595,6 +5790,26 @@
           "name": "edgeContextRequested"
         },
         {
+          "anchor": "EdgeHitTestOverlaySignalFlowLabelDragFinished",
+          "kind": "signal",
+          "name": "flowLabelDragFinished"
+        },
+        {
+          "anchor": "EdgeHitTestOverlayFunctionLabelEdgeAt",
+          "kind": "function",
+          "name": "_labelEdgeAt"
+        },
+        {
+          "anchor": "EdgeHitTestOverlayFunctionEdgeAt",
+          "kind": "function",
+          "name": "_edgeAt"
+        },
+        {
+          "anchor": "EdgeHitTestOverlayFunctionResetLabelDrag",
+          "kind": "function",
+          "name": "_resetLabelDrag"
+        },
+        {
           "anchor": "EdgeHitTestOverlayHandlerOnWireSelectionModeHeldChanged",
           "kind": "handler",
           "name": "onWireSelectionModeHeldChanged"
@@ -5613,6 +5828,16 @@
           "anchor": "EdgeHitTestOverlayHandlerOnPressed",
           "kind": "handler",
           "name": "onPressed"
+        },
+        {
+          "anchor": "EdgeHitTestOverlayHandlerOnReleased",
+          "kind": "handler",
+          "name": "onReleased"
+        },
+        {
+          "anchor": "EdgeHitTestOverlayHandlerOnCanceled",
+          "kind": "handler",
+          "name": "onCanceled"
         },
         {
           "anchor": "EdgeHitTestOverlayHandlerOnDoubleClicked",
@@ -6199,6 +6424,34 @@
         {
           "kind": "real",
           "name": "edgeCrossingSampleStepScreenPx"
+        },
+        {
+          "kind": "string",
+          "name": "labelDragEdgeId"
+        },
+        {
+          "kind": "real",
+          "name": "labelDragFraction"
+        },
+        {
+          "kind": "var",
+          "name": "labelDragAnchorScene"
+        },
+        {
+          "kind": "bool",
+          "name": "_labelDragCommitPending"
+        },
+        {
+          "kind": "int",
+          "name": "_labelDragCommitRefreshCount"
+        },
+        {
+          "kind": "real",
+          "name": "flowLabelDragSnapScreenPx"
+        },
+        {
+          "kind": "real",
+          "name": "flowLabelDragEndMarginScreenPx"
         }
       ],
       "signals": [
@@ -6210,6 +6463,9 @@
         },
         {
           "name": "edgeContextRequested"
+        },
+        {
+          "name": "flowLabelDragFinished"
         }
       ],
       "functions": [
@@ -6284,6 +6540,24 @@
         },
         {
           "name": "_visibleEdgeSnapshot"
+        },
+        {
+          "name": "flowLabelEdgeAtScreen"
+        },
+        {
+          "name": "flowLabelFractionAtScreen"
+        },
+        {
+          "name": "setFlowLabelDragPreview"
+        },
+        {
+          "name": "clearFlowLabelDragPreview"
+        },
+        {
+          "name": "holdFlowLabelDragPreviewUntilCommitted"
+        },
+        {
+          "name": "_releaseCommittedFlowLabelDragPreview"
         },
         {
           "name": "edgeEndpointScenePoint"
@@ -6415,6 +6689,10 @@
         {
           "kind": "handler",
           "name": "onEdgeContextRequested"
+        },
+        {
+          "kind": "handler",
+          "name": "onFlowLabelDragFinished"
         },
         {
           "kind": "handler",
@@ -7375,6 +7653,48 @@
           "detail": "real"
         },
         {
+          "anchor": "EdgeLayerPropertyLabelDragEdgeId",
+          "kind": "property",
+          "name": "labelDragEdgeId",
+          "detail": "string"
+        },
+        {
+          "anchor": "EdgeLayerPropertyLabelDragFraction",
+          "kind": "property",
+          "name": "labelDragFraction",
+          "detail": "real"
+        },
+        {
+          "anchor": "EdgeLayerPropertyLabelDragAnchorScene",
+          "kind": "property",
+          "name": "labelDragAnchorScene",
+          "detail": "var"
+        },
+        {
+          "anchor": "EdgeLayerPropertyLabelDragCommitPending",
+          "kind": "property",
+          "name": "_labelDragCommitPending",
+          "detail": "bool"
+        },
+        {
+          "anchor": "EdgeLayerPropertyLabelDragCommitRefreshCount",
+          "kind": "property",
+          "name": "_labelDragCommitRefreshCount",
+          "detail": "int"
+        },
+        {
+          "anchor": "EdgeLayerPropertyFlowLabelDragSnapScreenPx",
+          "kind": "property",
+          "name": "flowLabelDragSnapScreenPx",
+          "detail": "real"
+        },
+        {
+          "anchor": "EdgeLayerPropertyFlowLabelDragEndMarginScreenPx",
+          "kind": "property",
+          "name": "flowLabelDragEndMarginScreenPx",
+          "detail": "real"
+        },
+        {
           "anchor": "EdgeLayerSignalEdgeClicked",
           "kind": "signal",
           "name": "edgeClicked"
@@ -7388,6 +7708,11 @@
           "anchor": "EdgeLayerSignalEdgeContextRequested",
           "kind": "signal",
           "name": "edgeContextRequested"
+        },
+        {
+          "anchor": "EdgeLayerSignalFlowLabelDragFinished",
+          "kind": "signal",
+          "name": "flowLabelDragFinished"
         },
         {
           "anchor": "EdgeLayerFunctionNeutralActiveStrokeColor",
@@ -7508,6 +7833,36 @@
           "anchor": "EdgeLayerFunctionVisibleEdgeSnapshot",
           "kind": "function",
           "name": "_visibleEdgeSnapshot"
+        },
+        {
+          "anchor": "EdgeLayerFunctionFlowLabelEdgeAtScreen",
+          "kind": "function",
+          "name": "flowLabelEdgeAtScreen"
+        },
+        {
+          "anchor": "EdgeLayerFunctionFlowLabelFractionAtScreen",
+          "kind": "function",
+          "name": "flowLabelFractionAtScreen"
+        },
+        {
+          "anchor": "EdgeLayerFunctionSetFlowLabelDragPreview",
+          "kind": "function",
+          "name": "setFlowLabelDragPreview"
+        },
+        {
+          "anchor": "EdgeLayerFunctionClearFlowLabelDragPreview",
+          "kind": "function",
+          "name": "clearFlowLabelDragPreview"
+        },
+        {
+          "anchor": "EdgeLayerFunctionHoldFlowLabelDragPreviewUntilCommitted",
+          "kind": "function",
+          "name": "holdFlowLabelDragPreviewUntilCommitted"
+        },
+        {
+          "anchor": "EdgeLayerFunctionReleaseCommittedFlowLabelDragPreview",
+          "kind": "function",
+          "name": "_releaseCommittedFlowLabelDragPreview"
         },
         {
           "anchor": "EdgeLayerFunctionEdgeEndpointScenePoint",
@@ -7688,6 +8043,11 @@
           "anchor": "EdgeLayerHandlerOnEdgeContextRequested",
           "kind": "handler",
           "name": "onEdgeContextRequested"
+        },
+        {
+          "anchor": "EdgeLayerHandlerOnFlowLabelDragFinished",
+          "kind": "handler",
+          "name": "onFlowLabelDragFinished"
         },
         {
           "anchor": "EdgeLayerHandlerOnEdgesChanged",
@@ -29178,6 +29538,179 @@
       "symbol_anchors": []
     },
     {
+      "path": "ea_node_editor/ui_qml/components/graph/overlay/EdgeArrowGlyph.qml",
+      "component_name": "EdgeArrowGlyph",
+      "aliases": [
+        "EdgeArrowGlyph",
+        "EdgeArrowGlyph.qml",
+        "ea_node_editor/ui_qml/components/graph/overlay/EdgeArrowGlyph.qml",
+        "ea_node_editor\\ui_qml\\components\\graph\\overlay\\EdgeArrowGlyph.qml"
+      ],
+      "root_component": "Canvas",
+      "imports": [
+        "QtQuick 2.15",
+        "\"../EdgeArrowPaint.js\" as EdgeArrowPaint",
+        "\"../EdgePaintPolicy.js\" as EdgePaintPolicy"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "graphEdgeArrowGlyph"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "string",
+          "name": "startKind"
+        },
+        {
+          "kind": "string",
+          "name": "endKind"
+        },
+        {
+          "kind": "color",
+          "name": "color"
+        },
+        {
+          "kind": "real",
+          "name": "lineWidth"
+        },
+        {
+          "kind": "real",
+          "name": "markerBaseWidth"
+        },
+        {
+          "kind": "real",
+          "name": "endInset"
+        }
+      ],
+      "signals": [],
+      "functions": [],
+      "instantiated_components": [],
+      "dynamic_refs": [],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onStartKindChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onEndKindChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onColorChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onWidthChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onHeightChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onPaint"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "implicitWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "renderTarget",
+          "targets": [
+            "Canvas.Image"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "antialiasing"
+        }
+      ],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "EdgeArrowGlyphPropertyStartKind",
+          "kind": "property",
+          "name": "startKind",
+          "detail": "string"
+        },
+        {
+          "anchor": "EdgeArrowGlyphPropertyEndKind",
+          "kind": "property",
+          "name": "endKind",
+          "detail": "string"
+        },
+        {
+          "anchor": "EdgeArrowGlyphPropertyColor",
+          "kind": "property",
+          "name": "color",
+          "detail": "color"
+        },
+        {
+          "anchor": "EdgeArrowGlyphPropertyLineWidth",
+          "kind": "property",
+          "name": "lineWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "EdgeArrowGlyphPropertyMarkerBaseWidth",
+          "kind": "property",
+          "name": "markerBaseWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "EdgeArrowGlyphPropertyEndInset",
+          "kind": "property",
+          "name": "endInset",
+          "detail": "real"
+        },
+        {
+          "anchor": "EdgeArrowGlyphHandlerOnStartKindChanged",
+          "kind": "handler",
+          "name": "onStartKindChanged"
+        },
+        {
+          "anchor": "EdgeArrowGlyphHandlerOnEndKindChanged",
+          "kind": "handler",
+          "name": "onEndKindChanged"
+        },
+        {
+          "anchor": "EdgeArrowGlyphHandlerOnColorChanged",
+          "kind": "handler",
+          "name": "onColorChanged"
+        },
+        {
+          "anchor": "EdgeArrowGlyphHandlerOnWidthChanged",
+          "kind": "handler",
+          "name": "onWidthChanged"
+        },
+        {
+          "anchor": "EdgeArrowGlyphHandlerOnHeightChanged",
+          "kind": "handler",
+          "name": "onHeightChanged"
+        },
+        {
+          "anchor": "EdgeArrowGlyphHandlerOnPaint",
+          "kind": "handler",
+          "name": "onPaint"
+        }
+      ]
+    },
+    {
       "path": "ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml",
       "component_name": "GraphEdgeFloatingToolbar",
       "aliases": [
@@ -29203,7 +29736,7 @@
           "name": "labelEditorTypography"
         },
         {
-          "name": "labelEditorMetrics"
+          "name": "labelEditorMeasure"
         },
         {
           "name": "toolbarChrome"
@@ -29248,7 +29781,19 @@
           "name": "arrowPopup"
         },
         {
+          "name": "arrowEndRow"
+        },
+        {
           "name": "arrowChoiceButton"
+        },
+        {
+          "name": "labelLayoutPopup"
+        },
+        {
+          "name": "labelOrientationChoiceButton"
+        },
+        {
+          "name": "labelAutoPositionButton"
         }
       ],
       "object_names": [
@@ -29313,7 +29858,13 @@
           "name": "graphEdgeArrowChoice_"
         },
         {
-          "name": "graphEdgeArrowIcon_"
+          "name": "graphEdgeLabelLayoutPopup"
+        },
+        {
+          "name": "graphEdgeLabelOrientationChoice_"
+        },
+        {
+          "name": "graphEdgeLabelAutoPositionButton"
         }
       ],
       "properties": [
@@ -29419,7 +29970,11 @@
         },
         {
           "kind": "string",
-          "name": "toolbarArrowGlyphKind"
+          "name": "toolbarArrowStartKind"
+        },
+        {
+          "kind": "string",
+          "name": "toolbarArrowEndKind"
         },
         {
           "kind": "string",
@@ -29427,7 +29982,11 @@
         },
         {
           "kind": "string",
-          "name": "toolbarArrowIconName"
+          "name": "toolbarLabelOrientation"
+        },
+        {
+          "kind": "bool",
+          "name": "toolbarLabelPositioned"
         },
         {
           "kind": "color",
@@ -29558,6 +30117,14 @@
           "name": "arrowChoices"
         },
         {
+          "kind": "var",
+          "name": "arrowEnds"
+        },
+        {
+          "kind": "var",
+          "name": "labelOrientationChoices"
+        },
+        {
           "kind": "int",
           "name": "stylePopupClosePolicy"
         },
@@ -29574,10 +30141,6 @@
           "name": "currentPatternGlyphKind"
         },
         {
-          "kind": "string",
-          "name": "currentArrowGlyphKind"
-        },
-        {
           "kind": "int",
           "name": "effectiveBorderWidth"
         },
@@ -29590,8 +30153,24 @@
           "name": "patternKind"
         },
         {
+          "kind": "var",
+          "name": "endSpec"
+        },
+        {
           "kind": "string",
           "name": "arrowKind"
+        },
+        {
+          "kind": "string",
+          "name": "arrowEnd"
+        },
+        {
+          "kind": "bool",
+          "name": "choiceSelected"
+        },
+        {
+          "kind": "string",
+          "name": "orientation"
         }
       ],
       "signals": [],
@@ -29678,10 +30257,10 @@
           "name": "_strokePatternIconName"
         },
         {
-          "name": "_currentArrowHead"
+          "name": "_currentArrowKind"
         },
         {
-          "name": "_arrowHeadIconName"
+          "name": "_hasLabelPosition"
         },
         {
           "name": "_buttonActive"
@@ -29706,6 +30285,12 @@
         },
         {
           "name": "cancelLabelEdit"
+        },
+        {
+          "name": "insertLabelLineBreak"
+        },
+        {
+          "name": "_handleLabelEditorReturn"
         }
       ],
       "instantiated_components": [
@@ -29713,7 +30298,7 @@
           "name": "GraphComponents.GraphSharedTypography"
         },
         {
-          "name": "TextMetrics"
+          "name": "Text"
         },
         {
           "name": "Rectangle"
@@ -29731,7 +30316,10 @@
           "name": "Image"
         },
         {
-          "name": "TextInput"
+          "name": "EdgeArrowGlyph"
+        },
+        {
+          "name": "TextEdit"
         },
         {
           "name": "Popup"
@@ -29758,15 +30346,6 @@
           "targets": [
             "root._iconSource",
             "root.toolbarPatternIconName",
-            "String",
-            "actionButton.resolvedForegroundColor"
-          ]
-        },
-        {
-          "kind": "source",
-          "targets": [
-            "root._iconSource",
-            "root.toolbarArrowIconName",
             "String",
             "actionButton.resolvedForegroundColor"
           ]
@@ -29804,7 +30383,19 @@
         {
           "kind": "model",
           "targets": [
+            "root.arrowEnds"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
             "root.arrowChoices"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.labelOrientationChoices"
           ]
         }
       ],
@@ -29861,6 +30452,10 @@
         },
         {
           "kind": "binding",
+          "name": "visible"
+        },
+        {
+          "kind": "binding",
           "name": "font",
           "targets": [
             "labelEditor.font"
@@ -29872,6 +30467,20 @@
           "targets": [
             "labelEditor.text.length",
             "labelEditor.text"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "textFormat",
+          "targets": [
+            "Text.PlainText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "wrapMode",
+          "targets": [
+            "Text.NoWrap"
           ]
         },
         {
@@ -30172,6 +30781,27 @@
         },
         {
           "kind": "binding",
+          "name": "startKind",
+          "targets": [
+            "root.toolbarArrowStartKind"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "endKind",
+          "targets": [
+            "root.toolbarArrowEndKind"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "actionButton.resolvedForegroundColor"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "visible",
           "targets": [
             "root.labelEditorActive",
@@ -30271,6 +30901,20 @@
         },
         {
           "kind": "binding",
+          "name": "textFormat",
+          "targets": [
+            "TextEdit.PlainText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "wrapMode",
+          "targets": [
+            "TextEdit.Wrap"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "color",
           "targets": [
             "root.labelEditorTextColor"
@@ -30309,14 +30953,14 @@
           "kind": "binding",
           "name": "horizontalAlignment",
           "targets": [
-            "TextInput.AlignHCenter"
+            "TextEdit.AlignHCenter"
           ]
         },
         {
           "kind": "binding",
           "name": "verticalAlignment",
           "targets": [
-            "TextInput.AlignVCenter"
+            "TextEdit.AlignVCenter"
           ]
         },
         {
@@ -30554,6 +31198,37 @@
         },
         {
           "kind": "binding",
+          "name": "contentItem",
+          "targets": [
+            "Column"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "String",
+            "arrowEndRow.endSpec.label"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.mutedForegroundColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "String",
+            "arrowEndRow.endSpec.label",
+            "modelData.label"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "active",
           "targets": [
             "arrowChoiceButton.hovered"
@@ -30568,11 +31243,128 @@
         },
         {
           "kind": "binding",
+          "name": "startKind",
+          "targets": [
+            "arrowChoiceButton.arrowEnd",
+            "arrowChoiceButton.arrowKind"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "endKind",
+          "targets": [
+            "arrowChoiceButton.arrowEnd",
+            "arrowChoiceButton.arrowKind"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "color",
           "targets": [
-            "root._currentArrowHead",
-            "String",
-            "modelData.value"
+            "arrowChoiceButton.choiceSelected",
+            "root.accentColor",
+            "root.foregroundColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "arrowChoiceButton.choiceSelected"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "labelOrientationChoiceButton.text"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "labelOrientationChoiceButton.choiceSelected",
+            "root.accentColor",
+            "root.foregroundColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.bold",
+          "targets": [
+            "labelOrientationChoiceButton.choiceSelected"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "labelOrientationChoiceButton.choiceSelected"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.verticalCenter",
+          "targets": [
+            "parent.verticalCenter"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "Qt.alpha",
+            "root.chromeBorderColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "root.toolbarLabelPositioned"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "active",
+          "targets": [
+            "labelAutoPositionButton.hovered"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "labelAutoPositionButton.text"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "labelAutoPositionButton.enabled",
+            "root.foregroundColor",
+            "root.mutedForegroundColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "opacity",
+          "targets": [
+            "labelAutoPositionButton.enabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "labelAutoPositionButton.hovered",
+            "labelAutoPositionButton.enabled"
           ]
         }
       ],
@@ -30586,6 +31378,11 @@
           "kind": "localComponent",
           "name": "GraphSurfaceControls.GraphSurfaceButton",
           "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "EdgeArrowGlyph",
+          "detail": "ea_node_editor/ui_qml/components/graph/overlay/EdgeArrowGlyph.qml"
         },
         {
           "kind": "localComponent",
@@ -30745,9 +31542,15 @@
           "detail": "string"
         },
         {
-          "anchor": "GraphEdgeFloatingToolbarPropertyToolbarArrowGlyphKind",
+          "anchor": "GraphEdgeFloatingToolbarPropertyToolbarArrowStartKind",
           "kind": "property",
-          "name": "toolbarArrowGlyphKind",
+          "name": "toolbarArrowStartKind",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarPropertyToolbarArrowEndKind",
+          "kind": "property",
+          "name": "toolbarArrowEndKind",
           "detail": "string"
         },
         {
@@ -30757,10 +31560,16 @@
           "detail": "string"
         },
         {
-          "anchor": "GraphEdgeFloatingToolbarPropertyToolbarArrowIconName",
+          "anchor": "GraphEdgeFloatingToolbarPropertyToolbarLabelOrientation",
           "kind": "property",
-          "name": "toolbarArrowIconName",
+          "name": "toolbarLabelOrientation",
           "detail": "string"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarPropertyToolbarLabelPositioned",
+          "kind": "property",
+          "name": "toolbarLabelPositioned",
+          "detail": "bool"
         },
         {
           "anchor": "GraphEdgeFloatingToolbarPropertyAccentColor",
@@ -30955,6 +31764,18 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphEdgeFloatingToolbarPropertyArrowEnds",
+          "kind": "property",
+          "name": "arrowEnds",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarPropertyLabelOrientationChoices",
+          "kind": "property",
+          "name": "labelOrientationChoices",
+          "detail": "var"
+        },
+        {
           "anchor": "GraphEdgeFloatingToolbarPropertyStylePopupClosePolicy",
           "kind": "property",
           "name": "stylePopupClosePolicy",
@@ -30979,12 +31800,6 @@
           "detail": "string"
         },
         {
-          "anchor": "GraphEdgeFloatingToolbarPropertyCurrentArrowGlyphKind",
-          "kind": "property",
-          "name": "currentArrowGlyphKind",
-          "detail": "string"
-        },
-        {
           "anchor": "GraphEdgeFloatingToolbarPropertyEffectiveBorderWidth",
           "kind": "property",
           "name": "effectiveBorderWidth",
@@ -31003,9 +31818,33 @@
           "detail": "string"
         },
         {
+          "anchor": "GraphEdgeFloatingToolbarPropertyEndSpec",
+          "kind": "property",
+          "name": "endSpec",
+          "detail": "var"
+        },
+        {
           "anchor": "GraphEdgeFloatingToolbarPropertyArrowKind",
           "kind": "property",
           "name": "arrowKind",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarPropertyArrowEnd",
+          "kind": "property",
+          "name": "arrowEnd",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarPropertyChoiceSelected",
+          "kind": "property",
+          "name": "choiceSelected",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarPropertyOrientation",
+          "kind": "property",
+          "name": "orientation",
           "detail": "string"
         },
         {
@@ -31144,14 +31983,14 @@
           "name": "_strokePatternIconName"
         },
         {
-          "anchor": "GraphEdgeFloatingToolbarFunctionCurrentArrowHead",
+          "anchor": "GraphEdgeFloatingToolbarFunctionCurrentArrowKind",
           "kind": "function",
-          "name": "_currentArrowHead"
+          "name": "_currentArrowKind"
         },
         {
-          "anchor": "GraphEdgeFloatingToolbarFunctionArrowHeadIconName",
+          "anchor": "GraphEdgeFloatingToolbarFunctionHasLabelPosition",
           "kind": "function",
-          "name": "_arrowHeadIconName"
+          "name": "_hasLabelPosition"
         },
         {
           "anchor": "GraphEdgeFloatingToolbarFunctionButtonActive",
@@ -31192,6 +32031,16 @@
           "anchor": "GraphEdgeFloatingToolbarFunctionCancelLabelEdit",
           "kind": "function",
           "name": "cancelLabelEdit"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarFunctionInsertLabelLineBreak",
+          "kind": "function",
+          "name": "insertLabelLineBreak"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarFunctionHandleLabelEditorReturn",
+          "kind": "function",
+          "name": "_handleLabelEditorReturn"
         },
         {
           "anchor": "GraphEdgeFloatingToolbarHandlerOnActiveEdgeIdChanged",
@@ -31239,6 +32088,12 @@
           "kind": "localComponent",
           "name": "GraphSurfaceControls.GraphSurfaceButton",
           "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml"
+        },
+        {
+          "anchor": "GraphEdgeFloatingToolbarLocalComponentEdgeArrowGlyph",
+          "kind": "localComponent",
+          "name": "EdgeArrowGlyph",
+          "detail": "ea_node_editor/ui_qml/components/graph/overlay/EdgeArrowGlyph.qml"
         },
         {
           "anchor": "GraphEdgeFloatingToolbarLocalComponentCommonManagedToolTip",
@@ -102848,6 +103703,10 @@
         },
         {
           "kind": "handler",
+          "name": "onFlowLabelDragFinished"
+        },
+        {
+          "kind": "handler",
           "name": "onVisibleChanged"
         },
         {
@@ -104493,6 +105352,11 @@
           "anchor": "GraphCanvasRootLayersHandlerOnEdgeContextRequested",
           "kind": "handler",
           "name": "onEdgeContextRequested"
+        },
+        {
+          "anchor": "GraphCanvasRootLayersHandlerOnFlowLabelDragFinished",
+          "kind": "handler",
+          "name": "onFlowLabelDragFinished"
         },
         {
           "anchor": "GraphCanvasRootLayersHandlerOnVisibleChanged",

@@ -23,6 +23,7 @@ ACTION_EDIT_NODE_COMMENT = "edit-node-comment"
 ACTION_EDIT_EDGE_LABEL = "edit-edge-label"
 ACTION_EDIT_EDGE_STYLE = "edit-edge-style"
 ACTION_TOGGLE_EDGE_ENABLED = "toggle-edge-enabled"
+ACTION_REVERSE_EDGE = "reverse-edge"
 ACTION_EDIT_PORT_LABEL = "edit-port-label"
 ACTION_EDIT_PORT_MODIFIERS = "edit-port-modifiers"
 ACTION_SET_PRINCIPAL_INPUT = "set-principal-input"
@@ -337,6 +338,7 @@ __all__ = [
     "ACTION_EDIT_EDGE_LABEL",
     "ACTION_EDIT_EDGE_STYLE",
     "ACTION_TOGGLE_EDGE_ENABLED",
+    "ACTION_REVERSE_EDGE",
     "ACTION_EDIT_NODE_PROPERTY",
     "ACTION_EDIT_NODE_STYLE",
     "ACTION_EDIT_PROPERTY",

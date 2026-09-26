@@ -435,7 +435,15 @@ Item {
             },
             { "actionId": "edge_display_mode_menu", "text": "Display Mode", "shortcutText": "\u203a", "visible": edgeContextPopup.activeDataWire },
             { "actionId": "jump_edge_start", "text": "Jump to Start", "shortcutText": "Ctrl+Left" },
-            { "actionId": "jump_edge_end", "text": "Jump to End", "shortcutText": "Ctrl+Right" }
+            { "actionId": "jump_edge_end", "text": "Jump to End", "shortcutText": "Ctrl+Right" },
+            {
+                "actionId": root._actionRouter() && root._actionRouter().edgeContextActionId
+                    ? root._actionRouter().edgeContextActionId("reverse_flow_edge")
+                    : "",
+                "text": "Reverse Direction",
+                "visible": edgeContextPopup.isFlowEdge
+                    && Boolean(edgeContextPopup.edgePayload && edgeContextPopup.edgePayload.reversible)
+            }
         ],
             GraphActionPresentation.normalizeEdgePathMode(
                 edgeContextPopup.edgePayload && edgeContextPopup.edgePayload.visual_style

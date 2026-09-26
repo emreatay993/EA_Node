@@ -1,4 +1,4 @@
-# Purpose: CorexClient facade for edge.connect / update / delete plus label, style, enabled, and display-mode sugar.
+# Purpose: CorexClient facade for edge.connect / update / delete plus label, style, enabled, display-mode, and reverse sugar.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_automation_boundaries.py
 from __future__ import annotations
@@ -14,8 +14,10 @@ class EdgesApi:
     """Facade for edge.connect / update / delete.
 
     Style dicts accept the catalog keys (``color``, ``width``, ``pattern``,
-    ``arrow_head``, ``path_mode``, ``display_mode``, ``label_color``) as well as
-    the persisted ``stroke_*`` / ``label_text_color`` keys.
+    ``end_arrow`` / ``start_arrow``, ``path_mode``, ``display_mode``, ``label_color``,
+    ``label_fraction``, ``label_rotation``) as well as the persisted ``stroke_*``,
+    ``arrow_head`` / ``arrow_tail``, ``label_text_color``, ``label_position`` and
+    ``label_orientation`` keys.
     """
 
     def __init__(self, client: "CorexClient") -> None:
@@ -61,6 +63,7 @@ class EdgesApi:
         path_mode: str | None = None,
         enabled: bool | None = None,
         display_mode: str | None = None,
+        reverse: bool = False,
         clear_style: bool = False,
         clear_label: bool = False,
     ) -> dict[str, Any]:
@@ -75,6 +78,8 @@ class EdgesApi:
             params["enabled"] = bool(enabled)
         if display_mode is not None:
             params["display_mode"] = str(display_mode)
+        if reverse:
+            params["reverse"] = True
         if clear_style:
             params["clear_style"] = True
         if clear_label:
@@ -101,6 +106,9 @@ class EdgesApi:
 
     def set_enabled(self, edge_id: str, enabled: bool = True) -> dict[str, Any]:
         return self.update(edge_id, enabled=bool(enabled))
+
+    def reverse(self, edge_id: str) -> dict[str, Any]:
+        return self.update(edge_id, reverse=True)
 
     # ------------------------------------------------------------- edge.delete
 

@@ -43,11 +43,14 @@ Text annotation copy/paste style buttons are surface actions (`text_copy_style`,
 
 Flow-edge Copy/Paste/Reset Style buttons (`copy_flow_edge_style`, `paste_flow_edge_style`, `reset_flow_edge_style`; icons `copy-text-style`, `paste-text-style`, `script-undo`) sit before More settings in `GraphActionPresentation.edgeToolbarActions`. Unlike the text buttons they are graph action contracts: `GraphEdgeFloatingToolbar.qml` dispatches them through `GraphCanvasActionRouter.handleEdgeToolbarAction` to `GraphCanvasHostPresenter`, which owns the app-local flow-edge style clipboard. The edge context menu deliberately omits them. `tst_graph_action_presentation.qml` pins the order and `tests/test_flow_edge_labels.py` proves the button dispatch.
 
+The flow-edge toolbar order is Color, Remove label, Edit label, Label placement, Line pattern, Arrowheads, Reverse direction, Copy/Paste/Reset Style, More settings. Label placement (`flow_edge_label_layout`, popover `label_layout`, enabled only with a label) offers checked Horizontal / Along path choices plus Auto position (enabled while `label_position` is set, clears it). Arrowheads (`arrow_head`, popover `arrow`) shows one row per end (`GraphActionPresentation.edgeArrowEnds`: Start = `arrow_tail`, End = `arrow_head`) with `edgeArrowKindChoices` None / Filled / Open; the popover stays open so both ends can be set, and the button and choices draw `overlay/EdgeArrowGlyph.qml`, a Canvas glyph built from the canvas marker geometry. Reverse direction (`reverse_flow_edge`, icon `edge-reverse`) is a graph action contract like the style clipboard buttons (router descriptor, `GraphActionController`, `GraphCanvasHostPresenter.request_reverse_flow_edge`) and is enabled from the payload's `reversible` flag; the edge context menu also lists it for reversible flow edges. The inline label editor is a wrapping `TextEdit`: Enter commits, Shift+Enter inserts a line break, Escape cancels, and the frame grows with the lines. While a label is dragged the toolbar follows the edge layer's live label anchor.
+
 ## Start Here
 - `ea_node_editor/ui_qml/components/graph/GraphActionPresentation.js`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeFloatingToolbar.qml`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeToolbarPopoverHost.qml`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml`
+- `ea_node_editor/ui_qml/components/graph/overlay/EdgeArrowGlyph.qml`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphSelectionEnvelopeOverlay.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootLayers.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasActionRouter.qml`
@@ -74,6 +77,7 @@ $env:QT_QPA_PLATFORM = "offscreen"
 $env:QT_QUICK_CONTROLS_STYLE = "Basic"
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_surface_controls.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 & (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_node_toolbar_popover_host.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
+& (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_graph_action_presentation.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
 Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction SilentlyContinue
 .\venv\Scripts\python.exe -m pytest tests/test_graph_surface_input_inline.py -k "floating_toolbar" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_flow_edge_labels.py -k "toolbar or label" --ignore=venv -q
@@ -87,4 +91,4 @@ Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction Silent
 - [Graph Canvas Rendering, Input, And Viewport](../subsystems/graph_canvas.md)
 
 ## Update Triggers
-Update when toolbar action state, checked-state projection, positioning, selection-envelope actions, flow-edge quick style controls, inline edge label editing, or toolbar tests change.
+Update when toolbar action state, checked-state projection, positioning, selection-envelope actions, flow-edge quick style controls (arrowheads, label placement, Reverse direction), inline edge label editing, or toolbar tests change.

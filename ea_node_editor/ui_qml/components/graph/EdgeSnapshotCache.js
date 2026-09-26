@@ -1076,9 +1076,11 @@ function _buildSnapshotForEdge(
         && previousSnapshot
         && !previousSnapshot.culled
         && previousSnapshot.geometry;
+    var labelPlacementKey = labelMode !== "hidden" ? EdgePaintPolicy.flowLabelPlacementKey(edge) : "";
     var preserveLabelAnchor = previousSnapshot
         && previousSnapshot.geometry === geometry
-        && previousSnapshot.labelAnchorScene;
+        && previousSnapshot.labelAnchorScene
+        && previousSnapshot.labelPlacementKey === labelPlacementKey;
     return {
         "revision": revision,
         "edgeId": edgeId,
@@ -1101,6 +1103,7 @@ function _buildSnapshotForEdge(
         "flowEdge": EdgePaintPolicy.edgeIsFlow(edge),
         "labelText": labelLayer.edgeLabelText(edge),
         "labelMode": labelMode,
+        "labelPlacementKey": labelPlacementKey,
         "drawOrderIndex": drawOrderIndex,
         "crossingBreaks": preserveCurrentCrossingMetadata
             ? _cloneObjectArray(previousSnapshot.crossingBreaks)
@@ -1111,7 +1114,7 @@ function _buildSnapshotForEdge(
         "labelAnchorScene": labelMode !== "hidden" && geometry
             ? (preserveLabelAnchor
                 ? previousSnapshot.labelAnchorScene
-                : labelLayer.flowLabelAnchorScene(geometry))
+                : labelLayer.flowLabelAnchorScene(geometry, edge))
             : null
     };
 }

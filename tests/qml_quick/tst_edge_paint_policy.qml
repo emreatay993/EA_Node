@@ -271,6 +271,137 @@ TestCase {
         }
     }
 
+    function near(actual, expected, tolerance, message) {
+        verify(Math.abs(Number(actual) - Number(expected)) <= (tolerance === undefined ? 0.001 : tolerance),
+            (message || "") + " expected " + expected + " got " + actual)
+    }
+
+    function test_flow_arrow_ends_default_and_normalize() {
+        var plain = {"edge_family": "flow", "flow_style": {}}
+        compare(EdgePaintPolicy.flowArrowHead(plain), "filled")
+        compare(EdgePaintPolicy.flowArrowTail(plain), "none")
+        var both = {"edge_family": "flow", "flow_style": {"arrow_head": " OPEN ", "arrow_tail": "filled"}}
+        compare(EdgePaintPolicy.flowArrowHead(both), "open")
+        compare(EdgePaintPolicy.flowArrowTail(both), "filled")
+        var legacy = {"edge_family": "flow", "visual_style": {"arrow": {"kind": "none"}}}
+        compare(EdgePaintPolicy.flowArrowHead(legacy), "none")
+        var unknown = {"edge_family": "flow", "flow_style": {"arrow_head": "diamond", "arrow_tail": "circle"}}
+        compare(EdgePaintPolicy.flowArrowHead(unknown), "filled")
+        compare(EdgePaintPolicy.flowArrowTail(unknown), "none")
+        compare(JSON.stringify(EdgePaintPolicy.FLOW_ARROW_KINDS), JSON.stringify(["filled", "open", "none"]))
+    }
+
+    function test_flow_arrow_heads_scale_with_style_width_and_shorten_the_stroke() {
+        compare(EdgePaintPolicy.flowArrowMarkerMetrics("none", 2.0, 2.0, 0.0), null)
+        var thin = EdgePaintPolicy.flowArrowMarkerMetrics("filled", 2.0, 2.0, 0.0)
+        near(thin.extent, 8.0)
+        near(thin.halfWidth, 4.5)
+        var thick = EdgePaintPolicy.flowArrowMarkerMetrics("filled", 8.0, 8.0, 0.0)
+        near(thick.extent, 26.0)
+        near(thick.halfWidth / thick.extent, 0.5625)
+        // Selection thickens the stroke, not the head: size follows the style width only.
+        var selected = EdgePaintPolicy.flowArrowMarkerMetrics("filled", 2.0, 3.0, 0.0)
+        near(selected.extent, thin.extent)
+        // Zoomed-out floor keeps the head legible.
+        near(EdgePaintPolicy.flowArrowMarkerMetrics("filled", 1.0, 1.0, 12.0).extent, 12.0)
+
+        // The stroke ends inside a filled head (hidden under the fill) ...
+        verify(thin.filled)
+        verify(thin.lineInset > thin.offset && thin.lineInset < thin.extent)
+        // ... and at an open head's apex, drawn at the edge width.
+        var open = EdgePaintPolicy.flowArrowMarkerMetrics("open", 4.0, 4.0, 0.0)
+        verify(!open.filled)
+        near(open.strokeWidth, 4.0)
+        near(open.lineInset, open.offset)
+        near(open.offset, 2.0)
+
+        var edge = {"edge_family": "flow", "flow_style": {"stroke_width": 4, "arrow_tail": "open"}}
+        var markers = EdgePaintPolicy.flowArrowMarkers(edge, 4.0, 8.0)
+        compare(markers.start.kind, "open")
+        compare(markers.end.kind, "filled")
+        near(markers.end.extent, 14.0)
+    }
+
+    function test_flow_arrow_shape_points_along_the_path_toward_the_tip() {
+        var metrics = EdgePaintPolicy.flowArrowMarkerMetrics("filled", 2.0, 2.0, 0.0)
+        var end = EdgePaintPolicy.flowArrowMarkerShape(metrics, 100.0, 50.0, 1.0, 0.0)
+        verify(end.closed && end.filled)
+        compare(end.points.length, 3)
+        near(end.points[1].x, 100.0 - metrics.offset)
+        near(end.points[1].y, 50.0)
+        near(end.points[0].x, 100.0 - metrics.offset - metrics.extent)
+        near(Math.abs(end.points[0].y - end.points[2].y), 2.0 * metrics.halfWidth)
+        // A start arrow passes the reversed start direction, so it points back at the source.
+        var start = EdgePaintPolicy.flowArrowMarkerShape(metrics, 0.0, 50.0, -1.0, 0.0)
+        near(start.points[1].x, metrics.offset)
+        verify(start.points[0].x > start.points[1].x)
+        var open = EdgePaintPolicy.flowArrowMarkerShape(
+            EdgePaintPolicy.flowArrowMarkerMetrics("open", 2.0, 2.0, 0.0), 0.0, 0.0, 0.0, 1.0)
+        verify(!open.closed && !open.filled)
+        near(open.points[1].y, -1.0)
+        compare(EdgePaintPolicy.flowArrowMarkerShape(metrics, 0.0, 0.0, 0.0, 0.0), null)
+    }
+
+    function test_trim_geometry_shortens_pipes_and_beziers_by_arc_length() {
+        var pipe = {"route": "pipe", "pipe_points": [{"x": 0, "y": 0}, {"x": 60, "y": 0}, {"x": 60, "y": 40}]}
+        near(EdgeMath.geometryLength(pipe), 100.0)
+        var trimmedPipe = EdgeMath.trimGeometry(pipe, 10.0, 25.0)
+        compare(trimmedPipe.route, "pipe")
+        near(trimmedPipe.sx, 10.0)
+        near(trimmedPipe.ty, 15.0)
+        near(EdgeMath.geometryLength(trimmedPipe), 65.0)
+        compare(EdgeMath.trimGeometry(pipe, 0.0, 0.0), pipe)
+        compare(EdgeMath.trimGeometry(pipe, 60.0, 40.0), null)
+
+        var bezier = {"route": "bezier", "sx": 0, "sy": 0, "c1x": 40, "c1y": 0, "c2x": 60, "c2y": 80, "tx": 100, "ty": 80}
+        var total = EdgeMath.geometryLength(bezier)
+        var trimmed = EdgeMath.trimGeometry(bezier, 0.0, 12.0)
+        compare(trimmed.route, "bezier")
+        near(trimmed.sx, 0.0)
+        near(EdgeMath.geometryLength(trimmed), total - 12.0, 0.2)
+        // The trimmed end still lies on the original curve.
+        var onCurve = EdgeMath.edgeAnchor(bezier, (total - 12.0) / total)
+        near(trimmed.tx, onCurve.x, 0.3)
+        near(trimmed.ty, onCurve.y, 0.3)
+    }
+
+    function test_end_marker_frames_point_into_each_endpoint() {
+        var line = {"route": "pipe", "pipe_points": [{"x": 0, "y": 0}, {"x": 100, "y": 0}]}
+        var end = EdgeMath.edgeEndMarkerFrame(line, true, 8.0, 100.0)
+        near(end.x, 100.0)
+        near(end.dx, 1.0)
+        var start = EdgeMath.edgeEndMarkerFrame(line, false, 8.0, 100.0)
+        near(start.x, 0.0)
+        near(start.dx, -1.0)
+        // A head spanning a corner follows the chord over its own length.
+        var corner = {"route": "pipe", "pipe_points": [{"x": 0, "y": 0}, {"x": 100, "y": 0}, {"x": 100, "y": 4}]}
+        var bent = EdgeMath.edgeEndMarkerFrame(corner, true, 8.0, 104.0)
+        verify(bent.dx > 0.6 && bent.dy > 0.4)
+    }
+
+    function test_label_position_orientation_and_upright_rotation() {
+        verify(isNaN(EdgePaintPolicy.flowLabelPosition({"flow_style": {}})))
+        near(EdgePaintPolicy.flowLabelPosition({"flow_style": {"label_position": 0.3}}), 0.3)
+        near(EdgePaintPolicy.flowLabelPosition({"flow_style": {"label_position": 1.7}}), 1.0)
+        verify(EdgePaintPolicy.flowLabelFollowsPath({"flow_style": {"label_orientation": "follow_path"}}))
+        verify(!EdgePaintPolicy.flowLabelFollowsPath({"flow_style": {}}))
+        compare(EdgePaintPolicy.flowLabelPlacementKey({"flow_style": {}}), "auto|level")
+        compare(
+            EdgePaintPolicy.flowLabelPlacementKey({"flow_style": {"label_position": 0.25, "label_orientation": "follow_path"}}),
+            "0.2500|path"
+        )
+        var angles = [[0, 0], [45, 45], [90, 90], [135, -45], [180, 0], [-90, 90], [270, 90], [-135, 45], [315, -45]]
+        for (var index = 0; index < angles.length; ++index)
+            near(EdgeMath.uprightLabelAngle(angles[index][0]), angles[index][1], 0.001, "angle " + angles[index][0])
+    }
+
+    function test_nearest_fraction_projects_onto_the_path() {
+        var pipe = {"route": "pipe", "pipe_points": [{"x": 0, "y": 0}, {"x": 60, "y": 0}, {"x": 60, "y": 40}]}
+        near(EdgeMath.nearestFractionOnGeometry(pipe, 30.0, -12.0, 4.0), 0.3)
+        near(EdgeMath.nearestFractionOnGeometry(pipe, 90.0, 30.0, 4.0), 0.9)
+        near(EdgeMath.nearestFractionOnGeometry(pipe, -50.0, 0.0, 4.0), 0.0)
+    }
+
     function test_edge_anchor_is_geometry_owned() {
         var bezier = EdgeMath.edgeAnchor({
             "route": "bezier",

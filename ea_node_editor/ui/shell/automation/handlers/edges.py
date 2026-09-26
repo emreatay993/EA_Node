@@ -1,4 +1,4 @@
-# Purpose: Edge automation handlers: connect (compatibility, capacity, replace), update (label/style/path/display/enabled), delete.
+# Purpose: Edge automation handlers: connect (compatibility, capacity, replace), update (label/style/path/display/enabled/reverse), delete.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_handlers_structure.py
 from __future__ import annotations
@@ -31,6 +31,7 @@ from ea_node_editor.ui.shell.automation.handlers.catalog import EDGE_STYLE_ALIAS
 
 EDGE_DISPLAY_MODES = ("default", "faint", "hidden")
 _UPDATE_VALUE_FIELDS = ("label", "style", "path_mode", "enabled", "display_mode")
+_UPDATE_FLAG_FIELDS = ("reverse", "clear_style", "clear_label")
 
 
 # ----------------------------------------------------------------- helpers
@@ -117,7 +118,12 @@ def _persisted_style(style: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _edge_state(edge: EdgeInstance) -> dict[str, Any]:
-    return {"label": edge.label, "enabled": bool(edge.enabled), "visual_style": dict(edge.visual_style)}
+    return {
+        "label": edge.label,
+        "enabled": bool(edge.enabled),
+        "visual_style": dict(edge.visual_style),
+        "endpoints": (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key),
+    }
 
 
 def _changed_fields(before: Mapping[str, Any], after: Mapping[str, Any]) -> list[str]:
@@ -136,7 +142,18 @@ def _changed_fields(before: Mapping[str, Any], after: Mapping[str, Any]) -> list
         changed.append("display_mode")
     if before["enabled"] != after["enabled"]:
         changed.append("enabled")
+    if before["endpoints"] != after["endpoints"]:
+        changed.append("direction")
     return changed
+
+
+def _edge_endpoints(edge: EdgeInstance) -> dict[str, Any]:
+    return {
+        "source_node_id": edge.source_node_id,
+        "source_port": edge.source_port_key,
+        "target_node_id": edge.target_node_id,
+        "target_port": edge.target_port_key,
+    }
 
 
 def _endpoint_labels(source: NodeInstance, source_key: str, target: NodeInstance, target_key: str) -> dict[str, Any]:
@@ -237,17 +254,28 @@ def update_edge(context: AutomationContext, params: Mapping[str, Any]) -> dict[s
     edge_id = edge.edge_id
     clear_style = bool(params.get("clear_style", False))
     clear_label = bool(params.get("clear_label", False))
+    reverse = bool(params.get("reverse", False))
     supplied = [field for field in _UPDATE_VALUE_FIELDS if params.get(field) is not None]
-    if not supplied and not clear_style and not clear_label:
+    if not supplied and not clear_style and not clear_label and not reverse:
         raise AutomationOpError(
             INVALID_PARAMS,
-            "edge.update needs at least one of label, style, path_mode, enabled, display_mode, clear_style, clear_label.",
+            "edge.update needs at least one of label, style, path_mode, enabled, display_mode, reverse, "
+            "clear_style, clear_label.",
             details={"edge_id": edge_id, "problems": ["no update field supplied"]},
         )
     style = params.get("style")
     checked_style = _checked_style(style, op="edge.update") if style is not None else None
     before = _edge_state(edge)
     scene = context.scene
+
+    if reverse and not scene.reverse_edges([edge_id]):
+        # Checked first so a rejected reversal never leaves a half-applied update.
+        raise AutomationOpError(
+            PORT_INCOMPATIBLE,
+            f"Edge '{edge_id}' cannot be reversed: its ports do not accept the swapped direction.",
+            hint="Only edges between ports that accept both directions (passive flowchart shapes) can be reversed.",
+            details={"edge_id": edge_id, "reason": "not_reversible", **_edge_endpoints(edge)},
+        )
 
     if clear_label:
         scene.clear_edge_label(edge_id)
@@ -282,7 +310,7 @@ def update_edge(context: AutomationContext, params: Mapping[str, Any]) -> dict[s
         raise no_effect(
             "edge.update",
             "every requested value already matched the edge",
-            details={"edge_id": edge_id, "requested": supplied + [flag for flag in ("clear_style", "clear_label") if params.get(flag)]},
+            details={"edge_id": edge_id, "requested": supplied + [flag for flag in _UPDATE_FLAG_FIELDS if params.get(flag)]},
         )
     return {**_edge_result(context, edge_after), "changed": changed}
 

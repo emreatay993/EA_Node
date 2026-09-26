@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import "EdgeArrowPaint.js" as EdgeArrowPaint
 import "EdgeMath.js" as EdgeMath
 import "EdgePaintPolicy.js" as EdgePaintPolicy
 import "EdgeViewportMath.js" as EdgeViewportMath
@@ -349,45 +350,56 @@ Item {
         ctx.restore();
     }
 
-    function drawFlowArrowHead(ctx, geometry, edge, strokeColor, zoom, viewportTransform) {
-        var arrowHead = EdgePaintPolicy.flowArrowHead(edge);
-        if (arrowHead === "none")
-            return;
-        var anchor = EdgeMath.edgeAnchor(geometry, 1.0);
-        if (!anchor)
-            return;
-        var tipX = anchor.x;
-        var tipY = anchor.y;
-        var size = EdgeViewportMath.screenLengthToScene(Math.max(6.0, 8.0 * zoom), viewportTransform);
-        var wing = EdgeViewportMath.screenLengthToScene(Math.max(3.0, 4.5 * zoom), viewportTransform);
-        var baseX = tipX - anchor.dx * size;
-        var baseY = tipY - anchor.dy * size;
-        var normalX = -anchor.dy;
-        var normalY = anchor.dx;
-        var leftX = baseX + normalX * wing;
-        var leftY = baseY + normalY * wing;
-        var rightX = baseX - normalX * wing;
-        var rightY = baseY - normalY * wing;
+    function flowMarkerMinLength(viewportTransform) {
+        // Keeps markers at least 6 px long on screen when zoomed far out.
+        return Math.max(8.0, EdgeViewportMath.screenLengthToScene(6.0, viewportTransform));
+    }
 
-        ctx.save();
-        ctx.setLineDash([]);
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        ctx.strokeStyle = strokeColor;
-        ctx.fillStyle = strokeColor;
-        ctx.lineWidth = EdgeViewportMath.screenLengthToScene(Math.max(1.0, 1.4 * zoom), viewportTransform);
-        ctx.beginPath();
-        ctx.moveTo(leftX, leftY);
-        ctx.lineTo(tipX, tipY);
-        ctx.lineTo(rightX, rightY);
-        if (arrowHead === "filled") {
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-        } else {
-            ctx.stroke();
+    function traceFlowEdgeBody(ctx, geometry, markers, sampledPoints, breakRanges) {
+        var startTrim = markers && markers.start ? Number(markers.start.lineInset) : 0.0;
+        var endTrim = markers && markers.end ? Number(markers.end.lineInset) : 0.0;
+        if ((breakRanges || []).length > 0) {
+            var metrics = EdgeMath.polylineMetrics(sampledPoints || []);
+            var total = metrics.totalLength;
+            var ranges = (breakRanges || []).slice();
+            if (startTrim > 0.0)
+                ranges.push({"startDistance": 0.0, "endDistance": startTrim});
+            if (endTrim > 0.0)
+                ranges.push({"startDistance": total - endTrim, "endDistance": total});
+            root.traceBrokenGeometry(ctx, geometry, sampledPoints, EdgeMath.mergeBreakRanges(ranges, 0.0, total));
+            return;
         }
-        ctx.restore();
+        var trimmed = EdgeMath.trimGeometry(geometry, startTrim, endTrim);
+        if (trimmed)
+            root.traceGeometry(ctx, trimmed);
+    }
+
+    function drawFlowArrowMarkers(ctx, geometry, markers, strokeColor) {
+        if (!markers || (!markers.start && !markers.end))
+            return;
+        var total = EdgeMath.geometryLength(geometry);
+        var ends = [
+            {"metrics": markers.start, "atTarget": false},
+            {"metrics": markers.end, "atTarget": true}
+        ];
+        for (var i = 0; i < ends.length; i++) {
+            var metrics = ends[i].metrics;
+            if (!metrics)
+                continue;
+            var frame = EdgeMath.edgeEndMarkerFrame(
+                geometry,
+                ends[i].atTarget,
+                Number(metrics.extent) + Number(metrics.offset),
+                total
+            );
+            if (!frame)
+                continue;
+            EdgeArrowPaint.paintMarkerShape(
+                ctx,
+                EdgePaintPolicy.flowArrowMarkerShape(metrics, frame.x, frame.y, frame.dx, frame.dy),
+                strokeColor
+            );
+        }
     }
 
     function decorationEnabled() {
@@ -481,56 +493,37 @@ Item {
 
     function _flowLabelMeasuredSize(labelText, labelMode) {
         var pillMode = String(labelMode || "hidden") === "pill";
-        labelGapMetrics.text = String(labelText || "").length ? String(labelText || "") : "M";
-        labelGapMetrics.font.pixelSize = pillMode
+        labelGapMeasure.font.pixelSize = pillMode
             ? root.graphSharedTypography.edgePillPixelSize
             : root.graphSharedTypography.edgeLabelPixelSize;
-        labelGapMetrics.font.weight = pillMode
+        labelGapMeasure.font.weight = pillMode
             ? root.graphSharedTypography.edgePillFontWeight
             : root.graphSharedTypography.edgeLabelFontWeight;
-        var maximumTextWidth = pillMode ? 220.0 : 120.0;
+        labelGapMeasure.maximumTextWidth = EdgePaintPolicy.flowLabelMaximumTextWidth(pillMode);
+        labelGapMeasure.text = String(labelText || "").length ? String(labelText || "") : "M";
         var horizontalPadding = pillMode ? 10.0 : 8.0;
         var verticalPadding = pillMode ? 6.0 : 3.0;
         return {
-            "width": Math.min(maximumTextWidth, Math.ceil(labelGapMetrics.advanceWidth)) + horizontalPadding * 2.0,
-            "height": Math.ceil(labelGapMetrics.height) + verticalPadding * 2.0
+            "width": Math.ceil(labelGapMeasure.width) + horizontalPadding * 2.0,
+            "height": Math.ceil(labelGapMeasure.height) + verticalPadding * 2.0
         };
     }
 
-    function _distanceAlongMetricsNearestPoint(metrics, x, y) {
-        if (!metrics || !(metrics.segments || []).length)
-            return NaN;
-        var bestDistance = NaN;
-        var bestDistanceSq = Number.POSITIVE_INFINITY;
-        var segments = metrics.segments || [];
-        for (var i = 0; i < segments.length; i++) {
-            var segment = segments[i];
-            var dx = Number(segment.b.x) - Number(segment.a.x);
-            var dy = Number(segment.b.y) - Number(segment.a.y);
-            var lengthSq = dx * dx + dy * dy;
-            if (lengthSq <= 1e-9)
-                continue;
-            var t = ((Number(x) - Number(segment.a.x)) * dx + (Number(y) - Number(segment.a.y)) * dy) / lengthSq;
-            t = EdgeMath.clamp(t, 0.0, 1.0);
-            var closestX = Number(segment.a.x) + dx * t;
-            var closestY = Number(segment.a.y) + dy * t;
-            var deltaX = Number(x) - closestX;
-            var deltaY = Number(y) - closestY;
-            var distanceSq = deltaX * deltaX + deltaY * deltaY;
-            if (distanceSq < bestDistanceSq) {
-                bestDistanceSq = distanceSq;
-                bestDistance = Number(segment.startDistance) + Number(segment.length) * t;
-            }
-        }
-        return bestDistance;
+    function _labelAnchorForSnapshot(snapshot) {
+        if (root.edgeLayer
+                && root.edgeLayer.labelDragEdgeId
+                && root.edgeLayer.labelDragEdgeId === snapshot.edgeId
+                && root.edgeLayer.labelDragAnchorScene)
+            return root.edgeLayer.labelDragAnchorScene;
+        return snapshot.labelAnchorScene || ({});
     }
 
     function _labelBreakRangeForModel(model, viewportTransform) {
         if (!model || !root._snapshotNeedsLabelBreak(model.snapshot))
             return null;
         var snapshot = model.snapshot;
-        var anchor = snapshot.labelAnchorScene || ({});
-        var centerDistance = root._distanceAlongMetricsNearestPoint(model.metrics, anchor.x, anchor.y);
+        var anchor = root._labelAnchorForSnapshot(snapshot);
+        var centerDistance = EdgeMath.nearestDistanceAlongPolyline(model.metrics, anchor.x, anchor.y);
         if (!isFinite(centerDistance))
             return null;
         var labelSize = root._flowLabelMeasuredSize(snapshot.labelText, snapshot.labelMode);
@@ -545,8 +538,12 @@ Item {
         }
         var widthScreen = Number(labelSize.width) * labelScale;
         var heightScreen = Number(labelSize.height) * labelScale;
-        var halfGapScreen = Math.abs(tangentX) * widthScreen * 0.5
-            + Math.abs(tangentY) * heightScreen * 0.5
+        // Project the (possibly path-rotated) label box onto the tangent.
+        var rotation = Number(anchor.rotation || 0.0) * Math.PI / 180.0;
+        var axisX = Math.cos(rotation);
+        var axisY = Math.sin(rotation);
+        var halfGapScreen = Math.abs(tangentX * axisX + tangentY * axisY) * widthScreen * 0.5
+            + Math.abs(-tangentX * axisY + tangentY * axisX) * heightScreen * 0.5
             + 3.0;
         var halfGapScene = EdgeViewportMath.screenLengthToScene(Math.max(6.0, halfGapScreen), viewportTransform);
         return {
@@ -710,11 +707,6 @@ Item {
                     ctx.save();
 
                     if (snapshot.flowEdge) {
-                        ctx.beginPath();
-                        if (crossingBreaks.length > 0)
-                            root.traceBrokenGeometry(ctx, geometry, snapshot.crossingSamplePoints || [], crossingBreaks);
-                        else
-                            root.traceGeometry(ctx, geometry);
                         var flowStrokeColor = EdgePaintPolicy.flowStrokeColor(
                             root.edgeLayer,
                             edge,
@@ -727,17 +719,31 @@ Item {
                             previewed,
                             zoom
                         );
-                        var flowDashPatternScreenPx = EdgePaintPolicy.flowDashPattern(edge, zoom);
-                        ctx.strokeStyle = flowStrokeColor;
-                        ctx.lineWidth = EdgeViewportMath.screenLengthToScene(
+                        var flowStrokeWidthScene = EdgeViewportMath.screenLengthToScene(
                             flowStrokeWidthScreenPx,
                             viewportTransform
                         );
+                        var flowMarkers = EdgePaintPolicy.flowArrowMarkers(
+                            edge,
+                            flowStrokeWidthScene,
+                            root.flowMarkerMinLength(viewportTransform)
+                        );
+                        var flowDashPatternScreenPx = EdgePaintPolicy.flowDashPattern(edge, zoom);
+                        ctx.beginPath();
+                        root.traceFlowEdgeBody(
+                            ctx,
+                            geometry,
+                            flowMarkers,
+                            snapshot.crossingSamplePoints || [],
+                            crossingBreaks
+                        );
+                        ctx.strokeStyle = flowStrokeColor;
+                        ctx.lineWidth = flowStrokeWidthScene;
                         ctx.setLineDash(
                             EdgePaintPolicy.dashPatternInStrokeWidths(flowDashPatternScreenPx, flowStrokeWidthScreenPx)
                         );
                         ctx.stroke();
-                        root.drawFlowArrowHead(ctx, geometry, edge, flowStrokeColor, zoom, viewportTransform);
+                        root.drawFlowArrowMarkers(ctx, geometry, flowMarkers, flowStrokeColor);
                         paintDiagnosticsByEdgeId[snapshot.edgeId] = {
                             "flowEdge": true,
                             "selected": Boolean(selected),
@@ -749,6 +755,12 @@ Item {
                             "strokeCount": 1,
                             "strokeOffsetsScreenPx": [0.0],
                             "dashPatternScreenPx": flowDashPatternScreenPx,
+                            "arrowTail": flowMarkers.start ? flowMarkers.start.kind : "none",
+                            "arrowHead": flowMarkers.end ? flowMarkers.end.kind : "none",
+                            "arrowTailExtent": flowMarkers.start ? flowMarkers.start.extent : 0.0,
+                            "arrowHeadExtent": flowMarkers.end ? flowMarkers.end.extent : 0.0,
+                            "lineTrimStart": flowMarkers.start ? flowMarkers.start.lineInset : 0.0,
+                            "lineTrimEnd": flowMarkers.end ? flowMarkers.end.lineInset : 0.0,
                             "muted": false,
                             "invalid": false
                         };
@@ -878,8 +890,15 @@ Item {
         graphLabelPixelSize: root.effectiveGraphLabelPixelSize
     }
 
-    TextMetrics {
-        id: labelGapMetrics
+    Text {
+        // Mirrors the label delegate's wrapping so the line gap fits multi-line labels.
+        id: labelGapMeasure
+        property real maximumTextWidth: EdgePaintPolicy.flowLabelMaximumTextWidth(true)
+        visible: false
+        width: Math.min(maximumTextWidth, implicitWidth)
         text: "M"
+        wrapMode: Text.Wrap
+        maximumLineCount: EdgePaintPolicy.FLOW_LABEL_MAX_LINES
+        elide: Text.ElideRight
     }
 }

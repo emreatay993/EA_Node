@@ -1,7 +1,7 @@
 # Purpose: Apply graph-scene node, edge, property, scope, link, and comment mutations with history.
 # Map: feature_routes/clipboard_undo_redo_mutation_history.md
 # Tests: tests/graph_track_b/scene_model_graph_scene_suite.py, tests/mechanical_catalogue/test_controls.py, tests/mechanical_catalogue/test_visuals.py
-# Landmarks: _create_node_from_type; request_rewire_edges; set_node_settings_group_expanded; set_node_property; insert_dynamic_port; link_parameter_setup; upsert_node_link; upsert_node_comment
+# Landmarks: _create_node_from_type; request_rewire_edges; reverse_edges; set_node_settings_group_expanded; set_node_property; insert_dynamic_port; link_parameter_setup; upsert_node_link; upsert_node_comment
 
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ from ea_node_editor.graph.node_links import (
     unwrap_corex_link_anchors,
 )
 from ea_node_editor.passive_style_normalization import (
+    normalize_flow_edge_label_position,
     normalize_passive_node_style_payload,
 )
 from ea_node_editor.graph.effective_ports import (
@@ -86,6 +87,7 @@ from ea_node_editor.ui.shell.runtime_history import (
     ACTION_REMOVE_EDGE,
     ACTION_REMOVE_NODE,
     ACTION_RENAME_DYNAMIC_PORT,
+    ACTION_REVERSE_EDGE,
     ACTION_RENAME_NODE,
     ACTION_SET_PRINCIPAL_INPUT,
     ACTION_TOGGLE_COLLAPSED,
@@ -684,6 +686,92 @@ def request_rewire_edges(
         else ACTION_ADD_EDGE,
         history_before,
     )
+    return True
+
+
+def _mirrored_label_position_style(visual_style: Any) -> dict[str, Any] | None:
+    """A reversed edge measures its label fraction from the other end; mirror it so the label stays put."""
+    if not isinstance(visual_style, dict) or "label_position" not in visual_style:
+        return None
+    position = normalize_flow_edge_label_position(visual_style.get("label_position"))
+    mirrored = dict(visual_style)
+    if position is None:
+        mirrored.pop("label_position", None)
+    else:
+        mirrored["label_position"] = normalize_flow_edge_label_position(1.0 - position)
+    return mirrored
+
+
+def reverse_edges(self, edge_ids: list[Any]) -> bool:
+    """Swap source and target of the edges as one undoable action; identity, label and style survive."""
+    model = self._scene_context.model
+    if model is None:
+        return False
+    workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+    if workspace is None:
+        return False
+    requested_edge_ids = [
+        edge_id
+        for edge_id in dict.fromkeys(str(value or "").strip() for value in edge_ids)
+        if edge_id
+    ]
+    if not requested_edge_ids or any(
+        edge_id not in workspace.edges for edge_id in requested_edge_ids
+    ):
+        return False
+    if any(
+        not is_node_in_scope(workspace, node_id, self._scene_context.scope_path)
+        for edge_id in requested_edge_ids
+        for node_id in (
+            workspace.edges[edge_id].source_node_id,
+            workspace.edges[edge_id].target_node_id,
+        )
+    ):
+        return False
+
+    edges_before = {
+        edge_id: edge.clone() for edge_id, edge in workspace.edges.items()
+    }
+    history_before = self._capture_history_snapshot()
+    try:
+        reversed_edge_ids = self._validated_mutations().reverse_edges(requested_edge_ids)
+    except (KeyError, ValueError):
+        return False
+    if not reversed_edge_ids:
+        return False
+    mutations = self._record_mutations()
+    for edge_id in reversed_edge_ids:
+        edge = workspace.edges.get(edge_id)
+        mirrored = _mirrored_label_position_style(edge.visual_style) if edge is not None else None
+        if mirrored is not None:
+            mutations.set_edge_visual_style(edge_id, mirrored)
+
+    removed_edge_ids = set(edges_before) - set(workspace.edges)
+    related_edges = [
+        edges_before[edge_id] for edge_id in requested_edge_ids
+    ] + [
+        edges_before[edge_id] for edge_id in removed_edge_ids
+    ] + [
+        workspace.edges[edge_id]
+        for edge_id in reversed_edge_ids
+        if edge_id in workspace.edges
+    ]
+    updated_edge_ids = self._scene_context.related_edge_ids_for_edges(related_edges)
+    updated_edge_ids.update(
+        edge_id for edge_id in reversed_edge_ids if edge_id in workspace.edges
+    )
+    dirty_node_ids = {
+        node_id
+        for edge in related_edges
+        for node_id in (edge.source_node_id, edge.target_node_id)
+    }
+    self._scene_context.publish_edge_topology_delta(
+        updated_edge_ids=updated_edge_ids,
+        removed_edge_ids=removed_edge_ids,
+        dirty_node_ids=dirty_node_ids,
+        publication_path="edge_reverse_delta",
+    )
+    self._record_history(ACTION_REVERSE_EDGE, history_before)
     return True
 
 
@@ -2729,6 +2817,7 @@ __all__ = [
     "mark_node_comments_read",
     "move_edge_endpoint",
     "request_rewire_edges",
+    "reverse_edges",
     "set_edge_label",
     "set_edge_enabled",
     "set_edges_display_mode",

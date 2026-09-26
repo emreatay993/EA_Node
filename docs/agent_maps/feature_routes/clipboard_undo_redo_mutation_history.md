@@ -31,6 +31,7 @@ Use this for graph mutation history, undo/redo, clipboard fragments, runtime cli
 ```
 
 ## Mutation Routing Notes
+- Flow-edge Reverse Direction records one `ACTION_REVERSE_EDGE` step (endpoint swap plus mirrored `label_position`), and a dragged flow label commits one `ACTION_EDIT_EDGE_STYLE` step on release, never per pointer move. The flow-edge style clipboard and project presets carry appearance only (`FLOW_EDGE_LAYOUT_KEYS` stripped); Paste and Reset Style keep the target edge's own label position.
 - Fragment insertion is called directly through `ea_node_editor.graph.transform_fragment_ops.insert_graph_fragment`.
 - `WorkspaceEditController.paste_nodes_from_clipboard()` owns graph-fragment MIME priority and validation; only external clipboard content delegates to the explicitly composed `CanvasImportController`.
 - `clipboard_paste_nodes.py` captures owned MIME snapshots and classifies both clipboard and drop sources. It preserves every file/URL item, URL spelling, selected browser content and alternate formats. Automatic maps media to input-hidden Media Panel, local mail to Mail Panel, HTML/ordinary HTTP(S) to Web Viewer, folders/other files to Path Pointer, tables to Tabular Data Input, and plain/formatted text to Text Annotation.

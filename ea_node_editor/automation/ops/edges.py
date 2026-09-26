@@ -1,4 +1,4 @@
-# Purpose: Edge op specs: connect, update (label/style/mode/enabled), delete.
+# Purpose: Edge op specs: connect, update (label/style/mode/enabled/reverse), delete.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_catalog.py
 from __future__ import annotations
@@ -58,15 +58,24 @@ CONNECT = OpSpec(
 UPDATE = OpSpec(
     name="edge.update",
     domain=DOMAIN,
-    summary="Update an edge's label, style, path mode, enabled flag, or display mode; optionally clear label/style.",
+    summary=(
+        "Update an edge's label, style, path mode, enabled flag, or display mode; optionally clear label/style "
+        "or reverse its direction."
+    ),
+    description=(
+        "label may span lines (\\n). reverse=true swaps source and target in the same undo step, keeping the "
+        "edge id, label, and style; it needs ports that accept both directions (passive flowchart ports) and "
+        "returns PORT_INCOMPATIBLE otherwise."
+    ),
     params=object_schema(
         {
             "edge_id": EDGE_ID,
-            "label": string_schema(),
+            "label": string_schema("Flow edge label; newlines make multi-line labels"),
             "style": EDGE_STYLE,
             "path_mode": string_schema(enum=("auto", "pipe", "bezier")),
             "enabled": boolean_schema(),
             "display_mode": string_schema(enum=("default", "faint", "hidden")),
+            "reverse": boolean_schema(default=False, description="Swap source and target (flip the direction)"),
             "clear_style": boolean_schema(default=False),
             "clear_label": boolean_schema(default=False),
         },

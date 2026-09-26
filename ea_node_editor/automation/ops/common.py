@@ -43,18 +43,31 @@ NODE_STYLE = object_schema(
     description="Passive node style override (persisted keys; see catalog.style_schema for enums and aliases)",
 )
 
+_EDGE_ARROW_KINDS = ("filled", "open", "none")
+
 # Keys mirror passive_style_normalization.normalize_flow_edge_style_payload plus display_mode; the
-# handler also accepts the aliases color/width/pattern/label_color/label_background.
+# handler also accepts the aliases color/width/pattern/end_arrow/start_arrow/label_color/
+# label_background/label_fraction/label_rotation.
 EDGE_STYLE = object_schema(
     {
         "stroke_color": string_schema("#RRGGBB[AA]; alias color"),
         "stroke_width": number_schema(minimum=0, description="alias width"),
         "stroke_pattern": string_schema("alias pattern", enum=("solid", "dashed", "dotted")),
-        "arrow_head": string_schema(enum=("filled", "open", "none")),
+        "arrow_head": string_schema("Target-end marker (default filled); alias end_arrow", enum=_EDGE_ARROW_KINDS),
+        "arrow_tail": string_schema("Source-end marker (default none); alias start_arrow", enum=_EDGE_ARROW_KINDS),
         "path_mode": string_schema(enum=("auto", "pipe", "bezier")),
         "display_mode": string_schema(enum=("default", "faint", "hidden")),
         "label_text_color": string_schema("#RRGGBB[AA]; alias label_color"),
         "label_background_color": string_schema("#RRGGBB[AA]; alias label_background"),
+        "label_position": number_schema(
+            minimum=0,
+            maximum=1,
+            description="Label centre as a fraction of the path from source to target; omit for auto; alias label_fraction",
+        ),
+        "label_orientation": string_schema(
+            "follow_path turns the label along the path; alias label_rotation",
+            enum=("horizontal", "follow_path"),
+        ),
     },
     additional=True,
     description="Flow edge style override (persisted keys; see catalog.style_schema for aliases)",

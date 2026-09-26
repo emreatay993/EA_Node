@@ -1,4 +1,8 @@
 .pragma library
+// Purpose: Own shared edge geometry math: anchors, sampling, flow pipe routing, marker trimming, and label placement.
+// Map: feature_routes/edge_routing_labels_progress.md
+// Tests: tests/qml_quick/tst_edge_paint_policy.qml, tests/test_flow_edge_labels.py
+// Landmarks: edgeAnchor; trimGeometry; edgeEndMarkerFrame; nearestFractionOnGeometry; uprightLabelAngle; mergeBreakRanges; flowPipeRoute; forwardBezierLeadDelta
 
 function clamp(value, minValue, maxValue) {
     return Math.max(minValue, Math.min(maxValue, value));
@@ -325,6 +329,219 @@ function edgeAnchor(geometry, fraction) {
         fraction,
         40
     );
+}
+
+var _BEZIER_ARC_SAMPLES = 64;
+
+function _bezierArcTable(geometry) {
+    var ts = [0.0];
+    var lengths = [0.0];
+    var prevX = Number(geometry.sx);
+    var prevY = Number(geometry.sy);
+    var total = 0.0;
+    for (var i = 1; i <= _BEZIER_ARC_SAMPLES; i++) {
+        var t = i / _BEZIER_ARC_SAMPLES;
+        var x = cubicPoint(t, Number(geometry.sx), Number(geometry.c1x), Number(geometry.c2x), Number(geometry.tx));
+        var y = cubicPoint(t, Number(geometry.sy), Number(geometry.c1y), Number(geometry.c2y), Number(geometry.ty));
+        total += distancePoints(prevX, prevY, x, y);
+        ts.push(t);
+        lengths.push(total);
+        prevX = x;
+        prevY = y;
+    }
+    return {"ts": ts, "lengths": lengths, "total": total};
+}
+
+function _bezierParameterAtDistance(table, distance) {
+    var target = clamp(Number(distance), 0.0, table.total);
+    for (var i = 1; i < table.lengths.length; i++) {
+        if (table.lengths[i] + 1e-9 < target)
+            continue;
+        var span = table.lengths[i] - table.lengths[i - 1];
+        if (span <= 1e-9)
+            return table.ts[i];
+        return table.ts[i - 1] + (table.ts[i] - table.ts[i - 1]) * (target - table.lengths[i - 1]) / span;
+    }
+    return 1.0;
+}
+
+function _lerpPoint(a, b, t) {
+    return {"x": a.x + (b.x - a.x) * t, "y": a.y + (b.y - a.y) * t};
+}
+
+function _splitCubic(p0, p1, p2, p3, t) {
+    var p01 = _lerpPoint(p0, p1, t);
+    var p12 = _lerpPoint(p1, p2, t);
+    var p23 = _lerpPoint(p2, p3, t);
+    var p012 = _lerpPoint(p01, p12, t);
+    var p123 = _lerpPoint(p12, p23, t);
+    var mid = _lerpPoint(p012, p123, t);
+    return {"left": [p0, p01, p012, mid], "right": [mid, p123, p23, p3]};
+}
+
+function _cubicSegment(geometry, t0, t1) {
+    var points = [
+        {"x": Number(geometry.sx), "y": Number(geometry.sy)},
+        {"x": Number(geometry.c1x), "y": Number(geometry.c1y)},
+        {"x": Number(geometry.c2x), "y": Number(geometry.c2y)},
+        {"x": Number(geometry.tx), "y": Number(geometry.ty)}
+    ];
+    if (t1 < 1.0 - 1e-9)
+        points = _splitCubic(points[0], points[1], points[2], points[3], t1).left;
+    if (t0 > 1e-9) {
+        var local = t1 > 1e-9 ? clamp(t0 / t1, 0.0, 1.0) : 0.0;
+        points = _splitCubic(points[0], points[1], points[2], points[3], local).right;
+    }
+    return points;
+}
+
+// Arc length of a pipe polyline or a bezier (same sampling as the trim helpers).
+function geometryLength(geometry) {
+    if (!geometry)
+        return 0.0;
+    if (geometry.route === "pipe")
+        return polylineMetrics(geometry.pipe_points || []).totalLength;
+    return _bezierArcTable(geometry).total;
+}
+
+function _trimmedPolylinePoints(points, startDistance, endDistance) {
+    var metrics = polylineMetrics(points || []);
+    var trimmed = [];
+    var segments = metrics.segments || [];
+    for (var i = 0; i < segments.length; i++) {
+        var segment = segments[i];
+        var from = Math.max(startDistance, segment.startDistance);
+        var to = Math.min(endDistance, segment.endDistance);
+        if (to - from <= 1e-9)
+            continue;
+        var a = _lerpPoint(segment.a, segment.b, (from - segment.startDistance) / segment.length);
+        var b = _lerpPoint(segment.a, segment.b, (to - segment.startDistance) / segment.length);
+        if (!trimmed.length)
+            trimmed.push(a);
+        trimmed.push(b);
+    }
+    return trimmed;
+}
+
+// The stroke of an edge shortened by arc length at both ends, so it stops under its markers.
+// Returns null when the markers consume the whole path.
+function trimGeometry(geometry, startTrim, endTrim) {
+    if (!geometry)
+        return null;
+    var head = Math.max(0.0, Number(startTrim) || 0.0);
+    var tail = Math.max(0.0, Number(endTrim) || 0.0);
+    if (head <= 1e-9 && tail <= 1e-9)
+        return geometry;
+    if (geometry.route === "pipe") {
+        var total = polylineMetrics(geometry.pipe_points || []).totalLength;
+        if (total - head - tail <= 1e-6)
+            return null;
+        var trimmedPoints = _trimmedPolylinePoints(geometry.pipe_points || [], head, total - tail);
+        if (trimmedPoints.length < 2)
+            return null;
+        var first = trimmedPoints[0];
+        var last = trimmedPoints[trimmedPoints.length - 1];
+        return {
+            "route": "pipe",
+            "pipe_points": trimmedPoints,
+            "sx": first.x,
+            "sy": first.y,
+            "tx": last.x,
+            "ty": last.y
+        };
+    }
+    var table = _bezierArcTable(geometry);
+    if (table.total - head - tail <= 1e-6)
+        return null;
+    var t0 = _bezierParameterAtDistance(table, head);
+    var t1 = _bezierParameterAtDistance(table, table.total - tail);
+    var cubic = _cubicSegment(geometry, t0, t1);
+    return {
+        "route": "bezier",
+        "sx": cubic[0].x,
+        "sy": cubic[0].y,
+        "c1x": cubic[1].x,
+        "c1y": cubic[1].y,
+        "c2x": cubic[2].x,
+        "c2y": cubic[2].y,
+        "tx": cubic[3].x,
+        "ty": cubic[3].y
+    };
+}
+
+// Tip and pointing direction of an end marker. The direction follows the chord over the
+// marker's own length, so a head on a tight curve lines up with the trimmed stroke.
+function edgeEndMarkerFrame(geometry, atTarget, markerLength, totalLength) {
+    if (!geometry)
+        return null;
+    var total = Number(totalLength);
+    if (!isFinite(total) || total < 0.0)
+        total = geometryLength(geometry);
+    var tip = edgeAnchor(geometry, atTarget ? 1.0 : 0.0);
+    if (!tip)
+        return null;
+    var dirX = atTarget ? Number(tip.dx) : -Number(tip.dx);
+    var dirY = atTarget ? Number(tip.dy) : -Number(tip.dy);
+    var back = Math.min(total, Math.max(0.0, Number(markerLength) || 0.0));
+    if (total > 1e-6 && back > 1e-6) {
+        var base = edgeAnchor(geometry, atTarget ? 1.0 - back / total : back / total);
+        if (base) {
+            var chord = _normalizeVector(Number(tip.x) - Number(base.x), Number(tip.y) - Number(base.y));
+            if (distancePoints(base.x, base.y, tip.x, tip.y) > 1e-6) {
+                dirX = chord.dx;
+                dirY = chord.dy;
+            }
+        }
+    }
+    return {"x": Number(tip.x), "y": Number(tip.y), "dx": dirX, "dy": dirY};
+}
+
+// Distance along a polylineMetrics() path to the point nearest (x, y).
+function nearestDistanceAlongPolyline(metrics, x, y) {
+    if (!metrics || !(metrics.segments || []).length)
+        return NaN;
+    var bestDistance = NaN;
+    var bestDistanceSq = Number.POSITIVE_INFINITY;
+    var segments = metrics.segments || [];
+    for (var i = 0; i < segments.length; i++) {
+        var segment = segments[i];
+        var dx = Number(segment.b.x) - Number(segment.a.x);
+        var dy = Number(segment.b.y) - Number(segment.a.y);
+        var lengthSq = dx * dx + dy * dy;
+        if (lengthSq <= 1e-9)
+            continue;
+        var t = clamp(((Number(x) - Number(segment.a.x)) * dx + (Number(y) - Number(segment.a.y)) * dy) / lengthSq, 0.0, 1.0);
+        var deltaX = Number(x) - (Number(segment.a.x) + dx * t);
+        var deltaY = Number(y) - (Number(segment.a.y) + dy * t);
+        var distanceSq = deltaX * deltaX + deltaY * deltaY;
+        if (distanceSq < bestDistanceSq) {
+            bestDistanceSq = distanceSq;
+            bestDistance = Number(segment.startDistance) + Number(segment.length) * t;
+        }
+    }
+    return bestDistance;
+}
+
+// Arc-length fraction (0 = source, 1 = target) of the path point nearest (x, y).
+function nearestFractionOnGeometry(geometry, x, y, sceneStep) {
+    var metrics = polylineMetrics(sampleGeometryPolyline(geometry, sceneStep || 4.0));
+    if (metrics.totalLength <= 1e-6)
+        return NaN;
+    var distance = nearestDistanceAlongPolyline(metrics, x, y);
+    return isFinite(distance) ? clamp(distance / metrics.totalLength, 0.0, 1.0) : NaN;
+}
+
+// Path-following labels turn with the path but never read upside down: (-90, 90].
+function uprightLabelAngle(angleDegrees) {
+    var angle = Number(angleDegrees);
+    if (!isFinite(angle))
+        return 0.0;
+    angle = ((angle % 360.0) + 360.0) % 360.0;
+    if (angle > 90.0 && angle <= 270.0)
+        return angle - 180.0;
+    if (angle > 270.0)
+        return angle - 360.0;
+    return angle;
 }
 
 function rectsIntersect(a, b) {

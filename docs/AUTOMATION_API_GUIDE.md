@@ -327,7 +327,7 @@ and aliases. Aliases are accepted on input; results always use persisted keys.
 | Surface | Persisted keys | Aliases | Notes |
 | --- | --- | --- | --- |
 | Node (`node.set_style`) | `fill_color`, `gradient_enabled`, `gradient_color`, `gradient_direction`, `border_color`, `border_width`, `corner_radius`, `text_color`, `font_size`, `font_weight` | `fill_color_end` -> `gradient_color` | `gradient_enabled=true` requires `gradient_color`; `font_weight` is `normal` or `bold`; `gradient_direction` is `north`, `east`, `south`, `west`, or `radial`. `preset` applies a saved preset by id or name; `clear=true` removes the override; `propagate=true` copies the style to passive nodes connected by edges (not by type). |
-| Edge (`edge.connect` / `edge.update`) | `stroke_color`, `stroke_width`, `stroke_pattern`, `arrow_head`, `path_mode`, `display_mode`, `label_text_color`, `label_background_color` | `color`, `width`, `pattern`, `label_color`, `label_background` | `stroke_pattern` is `solid`, `dashed`, or `dotted`; `arrow_head` is `filled`, `open`, or `none`; `path_mode` is `auto`, `pipe`, or `bezier` (`auto` clears the override); `display_mode` is `default`, `faint`, or `hidden`. |
+| Edge (`edge.connect` / `edge.update`) | `stroke_color`, `stroke_width`, `stroke_pattern`, `arrow_head`, `arrow_tail`, `path_mode`, `display_mode`, `label_text_color`, `label_background_color`, `label_position`, `label_orientation` | `color`, `width`, `pattern`, `end_arrow` -> `arrow_head`, `start_arrow` -> `arrow_tail`, `label_color`, `label_background`, `label_fraction` -> `label_position`, `label_rotation` -> `label_orientation` | `stroke_pattern` is `solid`, `dashed`, or `dotted`; `arrow_head` (target end, default `filled`) and `arrow_tail` (source end, default `none`) are `filled`, `open`, or `none`, so arrows go at the start, the end, or both; arrowheads scale with `stroke_width` and the line stops under them. `label_position` is the label centre as a 0..1 fraction of the path from source to target (omit for automatic placement); `label_orientation` is `horizontal` or `follow_path` (kept upright). `path_mode` is `auto`, `pipe`, or `bezier` (`auto` clears the override); `display_mode` is `default`, `faint`, or `hidden`. `edge.update(reverse=true)` swaps source and target of a flow edge between flowchart ports in one undo step; `label` accepts `\n` for multi-line labels. |
 | Text (`node.add_text` style, `set_text_style`) | `format`, `font_family`, `font_size`, `font_weight`, `italic`, `underline`, `strikeout`, `text_color`, `background_color`, `horizontal_alignment`, `vertical_alignment`, `wrap_mode`, `line_height`, `letter_spacing`, `padding`, `opacity` | `color` -> `text_color` | Ranges are clamped by the owner: `font_size` 6..144, `opacity` 0..100, `padding` 0..64, `line_height` 0.5..4.0, `letter_spacing` -10..20; `0` / sentinel values inherit. |
 
 Colours are `#RRGGBB` or `#RRGGBBAA`.
@@ -754,7 +754,7 @@ from the same catalog.
 | `node_delete` | `node.delete` | Delete one or more nodes (and their edges) from the active workspace. |
 | `node_duplicate` | `node.duplicate` | Duplicate a set of nodes (with internal edges) offset from the originals. |
 | `edge_connect` | `edge.connect` | Connect two ports. Passive flow ports are top\|right\|bottom\|left; data ports use their spec keys. |
-| `edge_update` | `edge.update` | Update an edge's label, style, path mode, enabled flag, or display mode; optionally clear label/style. |
+| `edge_update` | `edge.update` | Update an edge's label, style, path mode, enabled flag, or display mode; optionally clear label/style or reverse its direction. |
 | `edge_delete` | `edge.delete` | Delete one or more edges. |
 | `group_wrap` | `group.wrap` | Wrap nodes in a Group backdrop (passive.annotation.group_backdrop) with an optional title. |
 | `subnode_create` | `subnode.create` | Collapse nodes into a subnode shell (nested scope); boundary edges become input/output pins. |
@@ -1154,16 +1154,19 @@ Example:
 
 MCP tool: `edge_update`. Flags: undo step, apply-allowed.
 
-Update an edge's label, style, path mode, enabled flag, or display mode; optionally clear label/style.
+Update an edge's label, style, path mode, enabled flag, or display mode; optionally clear label/style or reverse its direction.
+
+label may span lines (\n). reverse=true swaps source and target in the same undo step, keeping the edge id, label, and style; it needs ports that accept both directions (passive flowchart ports) and returns PORT_INCOMPATIBLE otherwise.
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
 | `edge_id` | `string` | yes |  | Edge id (edge_...); non-empty |
-| `label` | `string` | no |  |  |
+| `label` | `string` | no |  | Flow edge label; newlines make multi-line labels |
 | `style` | `object` | no |  | Flow edge style override (persisted keys; see catalog.style_schema for aliases) |
 | `path_mode` | `string` | no |  | one of: auto, pipe, bezier |
 | `enabled` | `boolean` | no |  |  |
 | `display_mode` | `string` | no |  | one of: default, faint, hidden |
+| `reverse` | `boolean` | no | `false` | Swap source and target (flip the direction) |
 | `clear_style` | `boolean` | no | `false` |  |
 | `clear_label` | `boolean` | no | `false` |  |
 

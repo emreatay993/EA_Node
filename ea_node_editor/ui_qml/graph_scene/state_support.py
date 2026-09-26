@@ -1542,6 +1542,10 @@ class GraphSceneBridgeBase(QObject):
     def set_edges_display_mode(self, edge_ids: list[Any], mode: str) -> bool:
         return self._command_bridge.set_edges_display_mode(edge_ids, mode)
 
+    @pyqtSlot("QVariantList", result=bool)
+    def reverse_edges(self, edge_ids: list[Any]) -> bool:
+        return self._command_bridge.reverse_edges(edge_ids)
+
     @pyqtSlot(str, str, "QVariantList", result=bool)
     def set_port_modifiers(
         self, node_id: str, port_key: str, modifiers: list[Any]

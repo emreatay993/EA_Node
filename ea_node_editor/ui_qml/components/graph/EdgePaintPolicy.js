@@ -39,14 +39,111 @@ function flowStrokePattern(edge) {
     return "solid";
 }
 
+var FLOW_ARROW_KINDS = ["filled", "open", "none"];
+var FLOW_LABEL_MAX_LINES = 6;
+
+function normalizeFlowArrowKind(value, fallback) {
+    var kind = styleString(value).toLowerCase();
+    return FLOW_ARROW_KINDS.indexOf(kind) >= 0 ? kind : String(fallback || "none");
+}
+
+// Target-end marker (default filled).
 function flowArrowHead(edge) {
     var style = flowStyle(edge);
     var arrowHead = styleString(style.arrow_head).toLowerCase();
     if (!arrowHead && style.arrow)
         arrowHead = styleString(style.arrow.kind).toLowerCase();
-    if (arrowHead === "open" || arrowHead === "none")
-        return arrowHead;
-    return "filled";
+    return normalizeFlowArrowKind(arrowHead, "filled");
+}
+
+// Source-end marker (default none).
+function flowArrowTail(edge) {
+    return normalizeFlowArrowKind(flowStyle(edge).arrow_tail, "none");
+}
+
+// The style width in scene units; markers scale with it (selection emphasis does not resize them).
+function flowBaseStrokeWidth(edge) {
+    return stylePositiveNumber(flowStyle(edge).stroke_width, 2.0);
+}
+
+// Arrowhead size in scene units: `extent` runs back along the path from the head's front and
+// `halfWidth` spreads to each side. The stroke stops `lineInset` before the path end: inside a
+// filled head, and at an open head's apex so its round cap never pokes past the tip. `offset`
+// keeps a stroked outline inside the anchor.
+function flowArrowMarkerMetrics(kind, baseWidth, strokeWidth, minLength) {
+    var normalized = normalizeFlowArrowKind(kind, "none");
+    if (normalized === "none")
+        return null;
+    var base = stylePositiveNumber(baseWidth, 2.0);
+    var stroke = stylePositiveNumber(strokeWidth, base);
+    var length = Math.max(Number(minLength) || 0.0, 3.0 * base + 2.0);
+    var filled = normalized === "filled";
+    // A filled head's hairline outline only softens its corners; an open head uses the edge width.
+    var outlineWidth = filled ? Math.min(stroke, Math.max(0.5, length * 0.08)) : stroke;
+    var offset = outlineWidth * 0.5;
+    return {
+        "kind": normalized,
+        "filled": filled,
+        "extent": length,
+        "halfWidth": length * 0.5625,
+        "strokeWidth": outlineWidth,
+        "offset": offset,
+        "lineInset": filled ? offset + length * 0.6 : offset
+    };
+}
+
+// Renderer-neutral arrowhead outline. (tipX, tipY) is the path end and (dirX, dirY) points
+// along the path toward it, so a start arrow passes the reversed start direction.
+function flowArrowMarkerShape(metrics, tipX, tipY, dirX, dirY) {
+    if (!metrics)
+        return null;
+    var length = Math.sqrt(Number(dirX) * Number(dirX) + Number(dirY) * Number(dirY));
+    if (!isFinite(length) || length <= 1e-9)
+        return null;
+    var ux = Number(dirX) / length;
+    var uy = Number(dirY) / length;
+    var frontX = Number(tipX) - ux * metrics.offset;
+    var frontY = Number(tipY) - uy * metrics.offset;
+    function at(back, lateral) {
+        return {"x": frontX - ux * back - uy * lateral, "y": frontY - uy * back + ux * lateral};
+    }
+    return {
+        "points": [at(metrics.extent, metrics.halfWidth), at(0.0, 0.0), at(metrics.extent, -metrics.halfWidth)],
+        "closed": metrics.filled,
+        "filled": metrics.filled,
+        "strokeWidth": metrics.strokeWidth
+    };
+}
+
+// Both end markers of a flow edge, sized in scene units; minLength keeps them legible when zoomed out.
+function flowArrowMarkers(edge, strokeWidth, minLength) {
+    var base = flowBaseStrokeWidth(edge);
+    return {
+        "start": flowArrowMarkerMetrics(flowArrowTail(edge), base, strokeWidth, minLength),
+        "end": flowArrowMarkerMetrics(flowArrowHead(edge), base, strokeWidth, minLength)
+    };
+}
+
+// Label centre as a 0..1 path fraction from source to target; NaN means automatic placement.
+function flowLabelPosition(edge) {
+    var value = flowStyle(edge).label_position;
+    if (value === undefined || value === null || value === "")
+        return NaN;
+    var numeric = Number(value);
+    return isFinite(numeric) ? Math.max(0.0, Math.min(1.0, numeric)) : NaN;
+}
+
+function flowLabelFollowsPath(edge) {
+    return styleString(flowStyle(edge).label_orientation).toLowerCase() === "follow_path";
+}
+
+function flowLabelPlacementKey(edge) {
+    var position = flowLabelPosition(edge);
+    return (isFinite(position) ? position.toFixed(4) : "auto") + "|" + (flowLabelFollowsPath(edge) ? "path" : "level");
+}
+
+function flowLabelMaximumTextWidth(pillMode) {
+    return pillMode ? 220.0 : 120.0;
 }
 
 function flowStrokeColor(edgeLayer, edge, selected, previewed) {

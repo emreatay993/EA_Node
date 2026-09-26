@@ -42,6 +42,29 @@ TestCase {
         ]))
     }
 
+    function test_edge_arrow_and_label_layout_choices_are_exact() {
+        compare(JSON.stringify(Presentation.edgeArrowKindChoices()), JSON.stringify([
+            {"label": "None", "value": "none"},
+            {"label": "Filled arrow", "value": "filled"},
+            {"label": "Open arrow", "value": "open"}
+        ]))
+        compare(JSON.stringify(Presentation.edgeArrowEnds()), JSON.stringify([
+            {"end": "start", "label": "Start", "styleKey": "arrow_tail"},
+            {"end": "end", "label": "End", "styleKey": "arrow_head"}
+        ]))
+        // Unset or unknown kinds fall back to the end's default: no start arrow, a filled end arrow.
+        compare(Presentation.normalizeEdgeArrowKind("", "start"), "none")
+        compare(Presentation.normalizeEdgeArrowKind("", "end"), "filled")
+        compare(Presentation.normalizeEdgeArrowKind(" OPEN ", "start"), "open")
+        compare(Presentation.normalizeEdgeArrowKind("diamond", "end"), "filled")
+        compare(JSON.stringify(Presentation.edgeLabelOrientationChoices()), JSON.stringify([
+            {"label": "Horizontal", "value": "horizontal"},
+            {"label": "Along path", "value": "follow_path"}
+        ]))
+        compare(Presentation.normalizeEdgeLabelOrientation(" FOLLOW_PATH "), "follow_path")
+        compare(Presentation.normalizeEdgeLabelOrientation("vertical"), "horizontal")
+    }
+
     function test_edge_menu_models_preserve_order_and_state() {
         var paths = Presentation.edgePathMenuActions("pipe")
         compare(ids(paths).join(","), "edge_path_mode:auto,edge_path_mode:pipe,edge_path_mode:bezier")
@@ -67,19 +90,35 @@ TestCase {
             "activeDataWire": true,
             "flowEdgeActive": true,
             "displayMode": "faint",
-            "hasLabel": false
+            "hasLabel": false,
+            "reversible": false
         })
         compare(ids(actions).join(","), [
             "toggle_edge_enabled", "remove_edge", "path_mode", "frame_edge",
             "display_mode", "edge_color", "clear_flow_edge_label",
-            "edit_flow_edge_label", "stroke_pattern", "arrow_head",
-            "copy_flow_edge_style", "paste_flow_edge_style", "reset_flow_edge_style",
-            "edit_flow_edge_style"
+            "edit_flow_edge_label", "flow_edge_label_layout", "stroke_pattern", "arrow_head",
+            "reverse_flow_edge", "copy_flow_edge_style", "paste_flow_edge_style",
+            "reset_flow_edge_style", "edit_flow_edge_style"
         ].join(","))
         compare(actions[0].label, "Enable connection")
         verify(!actions[0].checked)
         compare(actions[4].label, "Display mode: Faint")
         verify(!actions[6].enabled)
+        // Label placement needs a label; Reverse needs ports that accept both directions.
+        verify(!Presentation.findAction(actions, "flow_edge_label_layout").enabled)
+        compare(Presentation.findAction(actions, "flow_edge_label_layout").popover, "label_layout")
+        verify(!Presentation.findAction(actions, "reverse_flow_edge").enabled)
+        compare(Presentation.findAction(actions, "arrow_head").popover, "arrow")
+
+        var labelled = Presentation.edgeToolbarActions({
+            "edgePayload": {"enabled": true},
+            "flowEdgeActive": true,
+            "hasLabel": true,
+            "reversible": true
+        })
+        verify(Presentation.findAction(labelled, "flow_edge_label_layout").enabled)
+        verify(Presentation.findAction(labelled, "reverse_flow_edge").enabled)
+        compare(Presentation.findAction(labelled, "reverse_flow_edge").icon, "edge-reverse")
 
         var emptyFactsActions = Presentation.edgeToolbarActions({})
         compare(ids(emptyFactsActions).join(","), "toggle_edge_enabled,remove_edge,path_mode,frame_edge")

@@ -650,6 +650,18 @@ Item {
                     root.canvasItem.clearViewerFocus();
                 root.canvasItem._openEdgeContext(edgeId, screenX, screenY);
             }
+
+            onFlowLabelDragFinished: function(edgeId, fraction) {
+                var actionRouter = root.canvasActionRouter
+                    || (root.canvasItem && root.canvasItem.canvasActionRouter ? root.canvasItem.canvasActionRouter : null);
+                var committed = Boolean(actionRouter
+                    && actionRouter.setFlowEdgeVisualStyle
+                    && actionRouter.setFlowEdgeVisualStyle(edgeId, { "label_position": Number(fraction) }));
+                if (committed)
+                    edgeLayer.holdFlowLabelDragPreviewUntilCommitted();
+                else
+                    edgeLayer.clearFlowLabelDragPreview();
+            }
         }
 
         GraphCanvasWorldLayer {

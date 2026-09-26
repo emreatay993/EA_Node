@@ -275,6 +275,9 @@ class _GraphActionSource:
     def request_remove_edge(self, edge_id: str) -> bool:
         return self._record("request_remove_edge", edge_id)
 
+    def request_reverse_flow_edge(self, edge_id: str) -> bool:
+        return self._record("request_reverse_flow_edge", edge_id)
+
     def request_propagate_passive_node_style(self, node_id: str) -> bool:
         return self._record("request_propagate_passive_node_style", node_id)
 
@@ -378,6 +381,7 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
         self.assertTrue(controller.trigger(GraphActionId.CLOSE_COMMENT_PEEK.value))
         self.assertTrue(controller.trigger(GraphActionId.OPEN_ADDON_MANAGER_FOR_NODE.value, {"node_id": "locked-node"}))
         self.assertTrue(controller.trigger(GraphActionId.REMOVE_EDGE.value, {"edge_id": "edge-1"}))
+        self.assertTrue(controller.trigger(GraphActionId.REVERSE_FLOW_EDGE.value, {"edge_id": "edge-2"}))
         self.assertTrue(
             controller.trigger(GraphActionId.PROPAGATE_PASSIVE_NODE_STYLE.value, {"node_id": "node-3"})
         )
@@ -407,6 +411,7 @@ class GraphActionBridgeDelegationTests(unittest.TestCase):
             host_presenter.calls,
             [
                 ("request_remove_edge", ("edge-1",)),
+                ("request_reverse_flow_edge", ("edge-2",)),
                 ("request_propagate_passive_node_style", ("node-3",)),
             ],
         )
@@ -1279,6 +1284,7 @@ def test_required_payload_keys_are_declared_for_payload_actions() -> None:
         GraphActionId.RESET_FLOW_EDGE_STYLE,
         GraphActionId.COPY_FLOW_EDGE_STYLE,
         GraphActionId.PASTE_FLOW_EDGE_STYLE,
+        GraphActionId.REVERSE_FLOW_EDGE,
         GraphActionId.REMOVE_EDGE,
     }
     missing = {

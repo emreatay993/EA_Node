@@ -161,9 +161,19 @@ Item {
     property real edgeCrossingAnchorGuardScreenPx: 18.0
     property real edgeCrossingMergeScreenPx: 6.0
     property real edgeCrossingSampleStepScreenPx: 10.0
+    // Live flow-label drag: the label, the line gap under it, and the edge toolbar follow this
+    // anchor until the committed label_position reaches the snapshots.
+    property string labelDragEdgeId: ""
+    property real labelDragFraction: NaN
+    property var labelDragAnchorScene: null
+    property bool _labelDragCommitPending: false
+    property int _labelDragCommitRefreshCount: 0
+    property real flowLabelDragSnapScreenPx: 6.0
+    property real flowLabelDragEndMarginScreenPx: 12.0
     signal edgeClicked(string edgeId, bool additive)
     signal edgeDoubleClicked(string edgeId)
     signal edgeContextRequested(string edgeId, real screenX, real screenY)
+    signal flowLabelDragFinished(string edgeId, real fraction)
     function neutralActiveStrokeColor(canvasColor) {
         var color = canvasColor || root.canvasBackgroundColor;
         var luminance = Number(color.r) * 0.299
@@ -199,6 +209,7 @@ Item {
         root.profileVisibleEdgeCount = visibleEdgeCount;
         root.profileLastVisibleEdgeSnapshotCount = visibleEdgeCount;
         root._redrawRequestCount += 1;
+        root._releaseCommittedFlowLabelDragPreview();
         root._dispatchEdgeRenderer(snapshots);
         return true;
     }
@@ -345,6 +356,77 @@ Item {
     }
     function _visibleEdgeSnapshot(edgeId) {
         return EdgeSnapshotCache.visibleEdgeSnapshot(root, edgeId);
+    }
+    function flowLabelEdgeAtScreen(screenX, screenY) {
+        return flowLabelLayer.labelEdgeIdAtScreen(screenX, screenY);
+    }
+    // Path fraction under the pointer for a dragged label: snaps to the midpoint and keeps the
+    // label clear of the end markers.
+    function flowLabelFractionAtScreen(edgeId, screenX, screenY) {
+        var snapshot = root._visibleEdgeSnapshot(edgeId);
+        if (!snapshot || !snapshot.geometry)
+            return NaN;
+        var viewportTransform = EdgeViewportMath.viewportTransform(root);
+        var fraction = EdgeMath.nearestFractionOnGeometry(
+            snapshot.geometry,
+            EdgeViewportMath.screenToSceneX(screenX, viewportTransform),
+            EdgeViewportMath.screenToSceneY(screenY, viewportTransform),
+            EdgeViewportMath.screenLengthToScene(2.0, viewportTransform)
+        );
+        if (!isFinite(fraction))
+            return NaN;
+        var totalScreen = EdgeMath.geometryLength(snapshot.geometry) * Number(viewportTransform.zoom || 1.0);
+        if (totalScreen > 1e-6) {
+            if (Math.abs(fraction - 0.5) * totalScreen <= root.flowLabelDragSnapScreenPx)
+                fraction = 0.5;
+            var margin = Math.min(0.5, root.flowLabelDragEndMarginScreenPx / totalScreen);
+            fraction = EdgeMath.clamp(fraction, margin, 1.0 - margin);
+        }
+        return fraction;
+    }
+    function setFlowLabelDragPreview(edgeId, fraction) {
+        var snapshot = root._visibleEdgeSnapshot(edgeId);
+        var numeric = Number(fraction);
+        if (!snapshot || !snapshot.geometry || !isFinite(numeric))
+            return false;
+        root._labelDragCommitPending = false;
+        root.labelDragFraction = numeric;
+        root.labelDragAnchorScene = flowLabelLayer.flowLabelAnchorScene(snapshot.geometry, snapshot.edgeData, numeric);
+        root.labelDragEdgeId = String(edgeId || "");
+        root.requestRedraw();
+        return true;
+    }
+    function clearFlowLabelDragPreview() {
+        if (!root.labelDragEdgeId.length && !root.labelDragAnchorScene)
+            return;
+        root._labelDragCommitPending = false;
+        root.labelDragEdgeId = "";
+        root.labelDragAnchorScene = null;
+        root.labelDragFraction = NaN;
+        root.requestRedraw();
+    }
+    // After a commit the preview stays until the new label_position is in the snapshots,
+    // so the label never flashes back to its old place for a frame.
+    function holdFlowLabelDragPreviewUntilCommitted() {
+        if (!root.labelDragEdgeId.length)
+            return;
+        root._labelDragCommitPending = true;
+        root._labelDragCommitRefreshCount = 0;
+        root.requestRedraw();
+    }
+    function _releaseCommittedFlowLabelDragPreview() {
+        if (!root._labelDragCommitPending)
+            return;
+        var snapshot = root._visibleEdgeSnapshot(root.labelDragEdgeId);
+        var committed = snapshot ? EdgePaintPolicy.flowLabelPosition(snapshot.edgeData) : NaN;
+        root._labelDragCommitRefreshCount += 1;
+        if ((isFinite(committed) && Math.abs(committed - root.labelDragFraction) <= 1e-3)
+                || root._labelDragCommitRefreshCount > 3) {
+            root._labelDragCommitPending = false;
+            root.labelDragEdgeId = "";
+            root.labelDragAnchorScene = null;
+            root.labelDragFraction = NaN;
+        }
     }
     function edgeEndpointScenePoint(edgeId, endpoint) {
         var snapshot = root._visibleEdgeSnapshot(edgeId);
@@ -1221,6 +1303,9 @@ Item {
         }
         onEdgeContextRequested: function(edgeId, screenX, screenY) {
             root.edgeContextRequested(edgeId, screenX, screenY);
+        }
+        onFlowLabelDragFinished: function(edgeId, fraction) {
+            root.flowLabelDragFinished(edgeId, fraction);
         }
     }
 

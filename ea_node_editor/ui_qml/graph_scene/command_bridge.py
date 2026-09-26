@@ -614,6 +614,12 @@ class GraphSceneCommandBridge(QObject):
             self._authoring_boundary.set_edges_display_mode, edge_ids, mode
         )
 
+    @pyqtSlot("QVariantList", result=bool)
+    def reverse_edges(self, edge_ids: list[Any]) -> bool:
+        return self._timed_authoring_call(
+            self._authoring_boundary.reverse_edges, edge_ids
+        )
+
     @pyqtSlot(str, str, "QVariantList", result=bool)
     def set_port_modifiers(
         self, node_id: str, port_key: str, modifiers: list[Any]

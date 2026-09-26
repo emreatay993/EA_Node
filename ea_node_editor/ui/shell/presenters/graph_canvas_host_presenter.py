@@ -14,7 +14,8 @@ from PyQt6.QtWidgets import QApplication, QInputDialog
 
 from ea_node_editor.graph.effective_ports import port_kind
 from ea_node_editor.passive_style_normalization import (
-    normalize_flow_edge_style_payload,
+    flow_edge_layout_style,
+    normalize_flow_edge_preset_style_payload,
     normalize_passive_node_style_payload,
 )
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
@@ -422,7 +423,7 @@ class GraphCanvasHostPresenter(QObject):
         if kind == _PASSIVE_NODE_STYLE_CLIPBOARD_KIND:
             return normalize_passive_node_style_payload(style)
         if kind == _FLOW_EDGE_STYLE_CLIPBOARD_KIND:
-            return normalize_flow_edge_style_payload(style)
+            return normalize_flow_edge_preset_style_payload(style)
         return None
 
     def request_edit_flow_edge_style(self, edge_id: str) -> bool:
@@ -449,9 +450,12 @@ class GraphCanvasHostPresenter(QObject):
         return True
 
     def request_reset_flow_edge_style(self, edge_id: str) -> bool:
-        if self._flow_edge_context(edge_id) is None:
+        context = self._flow_edge_context(edge_id)
+        if context is None:
             return False
-        self._host.scene.clear_edge_visual_style(edge_id)
+        edge, _workspace = context
+        # Reset clears appearance; a label the user placed on the path stays where it is.
+        self._host.scene.set_edge_visual_style(edge_id, flow_edge_layout_style(edge.visual_style))
         return True
 
     def request_copy_flow_edge_style(self, edge_id: str) -> bool:
@@ -461,18 +465,25 @@ class GraphCanvasHostPresenter(QObject):
         edge, _workspace = context
         self._write_style_clipboard(
             kind=_FLOW_EDGE_STYLE_CLIPBOARD_KIND,
-            style=normalize_flow_edge_style_payload(edge.visual_style),
+            style=normalize_flow_edge_preset_style_payload(edge.visual_style),
         )
         return True
 
     def request_paste_flow_edge_style(self, edge_id: str) -> bool:
-        if self._flow_edge_context(edge_id) is None:
+        context = self._flow_edge_context(edge_id)
+        if context is None:
             return False
         style = self._read_style_clipboard(kind=_FLOW_EDGE_STYLE_CLIPBOARD_KIND)
         if style is None:
             return False
-        self._host.scene.set_edge_visual_style(edge_id, style)
+        edge, _workspace = context
+        self._host.scene.set_edge_visual_style(edge_id, {**style, **flow_edge_layout_style(edge.visual_style)})
         return True
+
+    def request_reverse_flow_edge(self, edge_id: str) -> bool:
+        if self._flow_edge_context(edge_id) is None:
+            return False
+        return bool(self._host.scene.reverse_edges([edge_id]))
 
     def request_remove_edge(self, edge_id: str) -> bool:
         result = self._host.workspace_edit_controller.request_remove_edge(edge_id)

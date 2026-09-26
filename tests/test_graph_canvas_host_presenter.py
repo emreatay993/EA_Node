@@ -370,6 +370,46 @@ def test_graph_canvas_host_presenter_owns_flow_style_label_and_clipboard(monkeyp
         presenter.shutdown()
 
 
+def test_graph_canvas_host_presenter_reverses_flow_edges_and_keeps_label_placement() -> None:
+    presenter, _host, model, scene, _session, _signal = _style_fixture()
+    workspace = model.active_workspace
+    source_id = scene.add_node_from_type("passive.flowchart.process", 80.0, 60.0)
+    target_id = scene.add_node_from_type("passive.flowchart.process", 420.0, 60.0)
+    placed_edge_id = scene.add_edge(source_id, "right", target_id, "left")
+    other_edge_id = scene.add_edge(source_id, "bottom", target_id, "bottom")
+    constant_id = scene.add_node_from_type("core.constant", 80.0, 260.0)
+    logger_id = scene.add_node_from_type("core.logger", 380.0, 260.0)
+    data_edge_id = scene.add_edge(constant_id, "as_text", logger_id, "message")
+    scene.set_edge_visual_style(
+        placed_edge_id,
+        {"stroke_color": "#224466", "arrow_tail": "filled", "label_orientation": "follow_path", "label_position": 0.2},
+    )
+    scene.set_edge_visual_style(other_edge_id, {"stroke_pattern": "dotted", "label_position": 0.6})
+    try:
+        # Copy/paste carries appearance (arrow ends, orientation) but each edge keeps its own label position.
+        assert presenter.request_copy_flow_edge_style(placed_edge_id)
+        assert presenter.request_paste_flow_edge_style(other_edge_id)
+        assert workspace.edges[other_edge_id].visual_style == {
+            "stroke_color": "#224466",
+            "arrow_tail": "filled",
+            "label_orientation": "follow_path",
+            "label_position": 0.6,
+        }
+        # Reset clears appearance but leaves a placed label where it is.
+        assert presenter.request_reset_flow_edge_style(other_edge_id)
+        assert workspace.edges[other_edge_id].visual_style == {"label_position": 0.6}
+
+        assert presenter.request_reverse_flow_edge(placed_edge_id)
+        edge = workspace.edges[placed_edge_id]
+        assert (edge.source_node_id, edge.source_port_key) == (target_id, "left")
+        assert (edge.target_node_id, edge.target_port_key) == (source_id, "right")
+        assert edge.visual_style["label_position"] == 0.8
+        assert not presenter.request_reverse_flow_edge(data_edge_id)
+        assert not presenter.request_reverse_flow_edge("edge_missing")
+    finally:
+        presenter.shutdown()
+
+
 def test_graph_canvas_host_presenter_persists_dialog_presets_on_cancel(monkeypatch) -> None:
     presenter, host, model, scene, session, project_meta_changed = _style_fixture()
     node_id = scene.add_node_from_type("passive.annotation.sticky_note", 100.0, 80.0)

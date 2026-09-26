@@ -26,7 +26,8 @@ from ea_node_editor.automation.errors import ERROR_CODES, RETRYABLE_CODES, defau
 from ea_node_editor.automation.op_model import OpSpec
 from ea_node_editor.automation.ops.apply import MAX_APPLY_OPS, RECOMMENDED_APPLY_OPS
 from ea_node_editor.passive_style_normalization import (
-    FLOW_EDGE_ARROW_HEADS,
+    FLOW_EDGE_ARROW_KINDS,
+    FLOW_EDGE_LABEL_ORIENTATIONS,
     FLOW_EDGE_PATH_MODES,
     FLOW_EDGE_STYLE_PATTERNS,
     PASSIVE_NODE_STYLE_FONT_WEIGHTS,
@@ -69,8 +70,12 @@ EDGE_STYLE_ALIASES: dict[str, str] = {
     "color": "stroke_color",
     "width": "stroke_width",
     "pattern": "stroke_pattern",
+    "end_arrow": "arrow_head",
+    "start_arrow": "arrow_tail",
     "label_color": "label_text_color",
     "label_background": "label_background_color",
+    "label_fraction": "label_position",
+    "label_rotation": "label_orientation",
 }
 TEXT_STYLE_ALIASES: dict[str, str] = {"color": "text_color"}
 # Node style keys the owner (normalize_passive_node_style_payload) accepts; the retired header/accent keys are dropped.
@@ -80,9 +85,12 @@ EDGE_STYLE_KEYS: tuple[str, ...] = (
     "stroke_width",
     "stroke_pattern",
     "arrow_head",
+    "arrow_tail",
     "path_mode",
     "label_text_color",
     "label_background_color",
+    "label_position",
+    "label_orientation",
     "display_mode",
 )
 EDGE_DISPLAY_MODES: tuple[str, ...] = ("default", "faint", "hidden")
@@ -254,7 +262,7 @@ def guide_text() -> str:
         "   `$id` is the earlier op's primary id; `$id.field` / `$id.list.0` read nested result fields.",
         "5. Style -- `node_set_style(node_id, style={...})` merges keys from corex://styles; `preset=` applies a saved",
         "   preset; `propagate=true` copies the style to the passive nodes connected by edges; `edge_update(edge_id,",
-        "   style={...}, label=..., path_mode=...)` styles connectors.",
+        "   style={...}, label=..., path_mode=...)` styles connectors (`reverse=true` flips an edge's direction).",
         "6. Structure -- `group_wrap` draws a Group backdrop around nodes (visual grouping); `subnode_create` folds",
         "   nodes into a nested scope (use `scope_navigate(target=\"node\", node_id=shell)` before editing inside,",
         "   `scope_navigate(target=\"root\")` to return); `selection_set` drives the canvas selection.",
@@ -466,15 +474,23 @@ def styles_text() -> str:
         "- keys: " + ", ".join(f"`{key}`" for key in EDGE_STYLE_KEYS),
         "- enums: `stroke_pattern` "
         + "|".join(FLOW_EDGE_STYLE_PATTERNS)
-        + "; `arrow_head` "
-        + "|".join(FLOW_EDGE_ARROW_HEADS)
+        + "; `arrow_head` / `arrow_tail` "
+        + "|".join(FLOW_EDGE_ARROW_KINDS)
         + "; `path_mode` "
         + "|".join(FLOW_EDGE_PATH_MODES)
+        + "; `label_orientation` "
+        + "|".join(FLOW_EDGE_LABEL_ORIENTATIONS)
         + "; `display_mode` "
         + "|".join(EDGE_DISPLAY_MODES),
         "- aliases: " + _alias_text(EDGE_STYLE_ALIASES),
-        "- rules: `stroke_width` > 0; `path_mode=auto` clears the path override; `label` / `clear_label` and",
-        "  `enabled` are top-level `edge_update` params, not style keys.",
+        "- rules: `stroke_width` > 0; `arrow_head` is the target-end arrowhead (default `filled`) and `arrow_tail`",
+        "  the source-end one (default `none`), so arrows go at the start, the end, or both; arrowheads scale with",
+        "  `stroke_width` and the line stops under them. `label_position` is the label centre as a 0..1 fraction",
+        "  of the path from source to target (omit for automatic placement; values are clamped);",
+        "  `label_orientation=follow_path` turns the label along the path and keeps it upright. `path_mode=auto`",
+        "  clears the path override. `label` (multi-line with `\\n`) / `clear_label`, `enabled`, and `reverse` are",
+        "  top-level `edge_update` params, not style keys; `reverse=true` swaps source and target of a flow edge",
+        "  between neutral ports (flowchart shapes) in the same undo step, keeping the edge id, label, and style.",
         "",
         "## Text style (`node_add_text(style=...)`, rich-text slots via `node_update(properties=...)`)",
         "",

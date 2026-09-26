@@ -9,6 +9,8 @@ from ea_node_editor.graph.effective_ports import (
     find_port,
     port_data_access,
     port_kind,
+    port_supports_incoming_edge,
+    port_supports_outgoing_edge,
 )
 from ea_node_editor.graph.records import EdgeInstance, NodeInstance
 from ea_node_editor.graph.type_forwarding import ResolvedSourceContract, source_port_compatibility
@@ -90,6 +92,7 @@ class _ResolvedEdgePayloadContext:
     route_target_side: str
     data_type_warning: bool
     data_type_warning_reason: str = ""
+    reversible: bool = False
 
 
 def _data_type_warning_reason(
@@ -424,6 +427,14 @@ def _resolve_edge_payload_context(
         route_target_side=route_target_side,
         data_type_warning=bool(data_type_warning_reason),
         data_type_warning_reason=data_type_warning_reason,
+        # Flow edges between ports that accept both directions (flowchart shapes) can be reversed.
+        reversible=(
+            edge_family == "flow"
+            and source_effective_port is not None
+            and target_effective_port is not None
+            and port_supports_incoming_edge(source_effective_port)
+            and port_supports_outgoing_edge(target_effective_port)
+        ),
     )
 
 
@@ -673,6 +684,7 @@ def _build_edge_payload_item(
         "color": color,
         "data_type_warning": context.data_type_warning,
         "data_type_warning_reason": context.data_type_warning_reason,
+        "reversible": context.reversible,
     }
     if not active_data_wire:
         payload["stroke_count"] = {"item": 1, "list": 2, "tree": 3}[

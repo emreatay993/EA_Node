@@ -7,7 +7,7 @@ from secrets import token_hex
 from typing import Any, Literal
 
 from ea_node_editor.passive_style_normalization import (
-    normalize_flow_edge_style_payload,
+    normalize_flow_edge_preset_style_payload,
     normalize_passive_node_style_payload,
 )
 
@@ -359,7 +359,7 @@ def _normalized_preset_name(value: Any, *, kind: PresetKind, index: int) -> str:
 
 
 def _style_normalizer(kind: PresetKind):
-    return normalize_passive_node_style_payload if kind == "node" else normalize_flow_edge_style_payload
+    return normalize_passive_node_style_payload if kind == "node" else normalize_flow_edge_preset_style_payload
 
 
 def _as_sequence(value: Any) -> list[Any]:

@@ -806,6 +806,7 @@ GraphSceneMutationHistory.create_node_from_type = _selection_ops.create_node_fro
 GraphSceneMutationHistory.create_nodes_batch = create_nodes_batch
 GraphSceneMutationHistory.add_edge = _selection_ops.add_edge
 GraphSceneMutationHistory.request_rewire_edges = _selection_ops.request_rewire_edges
+GraphSceneMutationHistory.reverse_edges = _selection_ops.reverse_edges
 GraphSceneMutationHistory.move_edge_endpoint = _selection_ops.move_edge_endpoint
 GraphSceneMutationHistory.connect_nodes = _selection_ops.connect_nodes
 GraphSceneMutationHistory.remove_edge = _selection_ops.remove_edge

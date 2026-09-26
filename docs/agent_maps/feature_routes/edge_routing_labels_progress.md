@@ -11,16 +11,22 @@ Use this for edge routing, retained edge layers, active-data Item/List/Tree/Empt
 - `ea_node_editor/ui_qml/components/graph/EdgeScenegraphLayer.qml`
 - `ea_node_editor/ui_qml/components/graph/EdgeSnapshotCache.js`
 - `ea_node_editor/ui_qml/components/graph/EdgePaintPolicy.js`
+- `ea_node_editor/ui_qml/components/graph/EdgeArrowPaint.js`
 - `ea_node_editor/ui_qml/components/graph/EdgeCanvasLayer.qml`
 - `ea_node_editor/ui_qml/components/graph/EdgeRetainedLayer.qml`
 - `ea_node_editor/ui_qml/components/graph/EdgeFlowLabelLayer.qml`
 - `ea_node_editor/ui_qml/components/graph/EdgeHitTestOverlay.qml`
 - `ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml`
+- `ea_node_editor/ui_qml/components/graph/overlay/EdgeArrowGlyph.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphSharedTypography.qml`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasActionRouter.qml`
 - `ea_node_editor/ui_qml/graph_canvas_command/`
 - `ea_node_editor/ui_qml/graph_scene_mutation/selection_and_scope_ops.py`
 - `ea_node_editor/ui_qml/components/graph/EdgeMath.js`
+- `ea_node_editor/passive_style_normalization.py`
+- `ea_node_editor/ui_qml/graph_geometry/route_styles.py`
+- `ea_node_editor/graph/validated_mutation.py`
+- `tests/qml_quick/tst_edge_paint_policy.qml`
 - `tests/test_data_type_ui_projection.py`
 - `tests/test_flow_edge_labels.py`
 - `tests/test_graph_surface_input_controls.py`
@@ -45,6 +51,14 @@ Use this for edge routing, retained edge layers, active-data Item/List/Tree/Empt
 - `EdgeCanvasLayer.qml` exposes `canvasStateBridgeRef` from `EdgeLayer.sceneBridge`; inline edge typography and flow-label shared roles depend on that bridge projection.
 - Live bezier handles: Python sizes standard forward-bezier handles for the payload chord (`route_pipe.py::edge_control_points`). While sockets are displaced from the payload by a `liveNodeGeometry` overlay (settings-group animation, resize preview) or a drag offset, `EdgeLayer._edgeGeometry` adds `EdgeMath.forwardBezierLeadDelta` so the handles fit the live chord. That keeps the wire from reshaping in place at animation start or on drop. The correction is exactly 0 at rest, so settled geometry is unchanged. Flow and backdrop-hidden (side-aware) edges and pipes stay translate-only. Keep `EdgeMath.EDGE_FORWARD_LEAD_MIN` equal to the Python constant; `tests/test_flow_edge_labels.py` guards it. Retained per-delegate drag deltas are 0 at paint time because each drag flush rebuilds incident snapshots. `tests/graph_surface/passive_host_interaction_suite.py` owns the per-frame settings-animation and drag/drop handle checks.
 
+## Flow-Edge Arrows, Reverse, And Labels
+
+- Flow-edge style keys (normalized by `passive_style_normalization.normalize_flow_edge_style_payload`; projected into the payload `flow_style` by `graph_geometry/route_styles.py`): `arrow_head` is the target-end arrowhead (default `filled`) and `arrow_tail` the source-end one (default `none`), both `filled|open|none`; `label_position` is the label centre as a 0..1 arc-length fraction from source to target (absent means automatic placement), and `label_orientation=follow_path` turns the label along the path (`horizontal` is the absent default). `FLOW_EDGE_LAYOUT_KEYS` (`label_position`) is per-edge placement: presets and the style clipboard strip it (`normalize_flow_edge_preset_style_payload`), and Reset/Paste Style keep the edge's own value.
+- `EdgePaintPolicy.flowArrowMarkerMetrics` sizes a head from the style width (`max(minLength, 3 * stroke_width + 2)` scene units, so selection emphasis never resizes it) and sets `lineInset`: the stroke ends inside a filled head and at an open head's apex, so it never pokes past a tip. `flowArrowMarkerShape` returns renderer-neutral points; `EdgeArrowPaint.js` paints them for `EdgeCanvasLayer.qml` and the toolbar `EdgeArrowGlyph.qml`. `EdgeMath.trimGeometry` shortens pipe polylines and bezier sub-curves by arc length (with crossing/label breaks the trims become extra break ranges), and `edgeEndMarkerFrame` points each head along the chord over its own length. Flow edges always paint through the Canvas renderer; paint diagnostics report `arrowHead`/`arrowTail`, extents, and `lineTrimStart`/`lineTrimEnd`.
+- Reverse Direction swaps source and target in place through `ValidatedGraphMutation.reverse_edges` (identity, label, style, enabled state survive; directed, hidden, same-node, or duplicate results reject the batch) and the scene `reverse_edges` op, one `ACTION_REVERSE_EDGE` history step that mirrors `label_position` so the label stays put. Route payloads publish `reversible` for flow edges whose ports accept both directions (neutral flowchart ports), which enables the toolbar button and the edge context-menu item.
+- Labels: `EdgeFlowLabelLayer.flowLabelAnchorScene(geometry, edge, fractionOverride)` places a label at its fraction (else the longest horizontal pipe run or the midpoint) and, when following the path, carries an upright `rotation` (`EdgeMath.uprightLabelAngle`, (-90, 90]). Label text wraps at the 220/120 px maximum over up to `EdgePaintPolicy.FLOW_LABEL_MAX_LINES` lines; `EdgeCanvasLayer` measures the same wrapped box and projects it (rotation included) onto the tangent for the line gap. Snapshots rebuild the anchor when `flowLabelPlacementKey` changes.
+- Dragging a label: `EdgeHitTestOverlay.qml` gives label hits priority over path picks (open-hand cursor), selects the edge on press, and after a 4 px threshold previews through `EdgeLayer.setFlowLabelDragPreview` (midpoint snap, end-marker margin); the label, its line gap, and the edge toolbar follow `labelDragAnchorScene`. Release emits `flowLabelDragFinished`, and `GraphCanvasRootLayers.qml` commits one `label_position` style edit through the action router; `holdFlowLabelDragPreviewUntilCommitted` keeps the preview until the committed fraction reaches the snapshots. Double-clicking a label opens the inline editor.
+
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/graph_track_b/qml_preference_rendering_suite.py --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_flow_edge_labels.py -k "paint_policy or active_data_wire_renderers" --ignore=venv -q
@@ -53,6 +67,10 @@ Use this for edge routing, retained edge layers, active-data Item/List/Tree/Empt
 .\venv\Scripts\python.exe -m pytest tests/test_data_tree_ui.py tests/test_graph_surface_input_controls.py -k "port_and_edge_authoring or edge" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_data_type_ui_projection.py -k "type_warning or availability_annotation" --ignore=venv -q
 .\venv\Scripts\python.exe -m pytest tests/test_flow_edge_labels.py tests/test_passive_graph_surface_host.py -k "live_bezier_lead or rederives_connected_wire_handles" --ignore=venv -q
+.\venv\Scripts\python.exe -m pytest tests/test_flow_edge_labels.py tests/test_passive_style_dialogs.py tests/test_graph_canvas_host_presenter.py -n auto --ignore=venv -q
+$env:QT_QPA_PLATFORM = "offscreen"; $env:QT_QUICK_CONTROLS_STYLE = "Basic"
+& (Join-Path $env:QT_ROOT "bin\qmltestrunner.exe") -input tests/qml_quick/tst_edge_paint_policy.qml -eventdelay 0 -keydelay 0 -mousedelay 0 -o -,txt
+Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction SilentlyContinue
 ```
 
 ## Breadcrumbs
@@ -60,7 +78,7 @@ Use this for edge routing, retained edge layers, active-data Item/List/Tree/Empt
 - [Node Execution Visualization](node_execution_visualization.md)
 
 ## Update Triggers
-Update when edge paint-policy ownership, path geometry, active-data structure/display/disabled/selection/error styling, type-reason/availability-warning separation, labels, inline label editing, selected-edge toolbar controls, Ctrl+E routing, wire marquee/jump actions, hit testing, or edge performance routes change.
+Update when edge paint-policy ownership, path geometry, arrowhead kinds/sizing/line trimming, Reverse Direction, active-data structure/display/disabled/selection/error styling, type-reason/availability-warning separation, labels (placement, wrapping, orientation, dragging), inline label editing, selected-edge toolbar controls, Ctrl+E routing, wire marquee/jump actions, hit testing, or edge performance routes change.
 
 ## 2026-07-11 Performance Ownership
 

@@ -17,13 +17,13 @@ This compact index gives agents deterministic aliases for QML components, symbol
 
 | Metric | Count |
 | --- | ---: |
-| QML files | 202 |
-| Repeater constructs | 99 |
+| QML files | 203 |
+| Repeater constructs | 101 |
 | Loader constructs | 29 |
-| Signal handlers | 1002 |
+| Signal handlers | 1012 |
 | Connections targets | 54 |
-| Property bindings | 8036 |
-| Local component refs | 338 |
+| Property bindings | 8077 |
+| Local component refs | 339 |
 
 ## Component Families
 
@@ -33,7 +33,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `components/common` | 7 |
 | `components/graph` | 27 |
 | `components/graph/jupyter` | 1 |
-| `components/graph/overlay` | 7 |
+| `components/graph/overlay` | 8 |
 | `components/graph/passive` | 27 |
 | `components/graph/plot` | 2 |
 | `components/graph/surface_controls` | 19 |
@@ -55,7 +55,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `NodeLinkEditorForm.qml` | `ea_node_editor/ui_qml/components/common/NodeLinkEditorForm.qml` | `FocusScope` | `Rectangle`, `Column`, `StyledComboBox`, `DialogTextField`, `Row`, `LinkTargetPicker`, `IconActionButton`, `DialogButton`, ... +5 more | `model`, `delegate`, `source`, `Repeater` |
 | `SecretEditor.qml` | `ea_node_editor/ui_qml/components/common/SecretEditor.qml` | `FocusScope` | `RowLayout`, `Text`, `TextField`, `Button` | _None_ |
 | `ZoomControl.qml` | `ea_node_editor/ui_qml/components/common/ZoomControl.qml` | `Item` | `RowLayout`, `Text`, `Slider`, `WheelHandler`, `TextField`, `MouseArea`, `Menu`, `MenuItem` | _None_ |
-| `EdgeCanvasLayer.qml` | `ea_node_editor/ui_qml/components/graph/EdgeCanvasLayer.qml` | `Item` | `Canvas`, `GraphSharedTypography`, `TextMetrics` | _None_ |
+| `EdgeCanvasLayer.qml` | `ea_node_editor/ui_qml/components/graph/EdgeCanvasLayer.qml` | `Item` | `Canvas`, `GraphSharedTypography`, `Text` | _None_ |
 | `EdgeFlowLabelLayer.qml` | `ea_node_editor/ui_qml/components/graph/EdgeFlowLabelLayer.qml` | `Item` | `GraphSharedTypography`, `ListModel`, `Repeater`, `Rectangle`, `Text` | `Repeater`, `model`, `delegate` |
 | `EdgeHitTestOverlay.qml` | `ea_node_editor/ui_qml/components/graph/EdgeHitTestOverlay.qml` | `Item` | `MouseArea`, `Common.ManagedToolTip` | _None_ |
 | `EdgeLayer.qml` | `ea_node_editor/ui_qml/components/graph/EdgeLayer.qml` | `Item` | `EdgeCanvasLayer`, `EdgeRetainedLayer`, `EdgeScenegraphLayer`, `EdgeFlowLabelLayer`, `EdgeHitTestOverlay` | _None_ |
@@ -83,7 +83,8 @@ This compact index gives agents deterministic aliases for QML components, symbol
 | `GraphSurfaceBase.qml` | `ea_node_editor/ui_qml/components/graph/GraphSurfaceBase.qml` | `Item` | _None_ | _None_ |
 | `GraphJupyterNotebookSurface.qml` | `ea_node_editor/ui_qml/components/graph/jupyter/GraphJupyterNotebookSurface.qml` | `Item` | `Connections`, `Rectangle`, `Column`, `Text`, `MouseArea` | _None_ |
 | `NodeCard.qml` | `ea_node_editor/ui_qml/components/graph/NodeCard.qml` | `GraphComponents.GraphNodeHost` | _None_ | _None_ |
-| `GraphEdgeFloatingToolbar.qml` | `ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml` | `Item` | `GraphComponents.GraphSharedTypography`, `TextMetrics`, `Rectangle`, `Row`, `Repeater`, `GraphSurfaceControls.GraphSurfaceButton`, `Image`, `TextInput`, ... +3 more | `Repeater`, `model`, `source` |
+| `EdgeArrowGlyph.qml` | `ea_node_editor/ui_qml/components/graph/overlay/EdgeArrowGlyph.qml` | `Canvas` | _None_ | _None_ |
+| `GraphEdgeFloatingToolbar.qml` | `ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml` | `Item` | `GraphComponents.GraphSharedTypography`, `Text`, `Rectangle`, `Row`, `Repeater`, `GraphSurfaceControls.GraphSurfaceButton`, `Image`, `EdgeArrowGlyph`, ... +4 more | `Repeater`, `model`, `source` |
 | `GraphNodeCommentPopoverLayer.qml` | `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeCommentPopoverLayer.qml` | `Item` | `Timer`, `Connections`, `Repeater`, `Text`, `Rectangle`, `Row`, `CommentGlyph`, `MouseArea`, ... +9 more | `Repeater`, `model`, `delegate`, `source` |
 | `GraphNodeFloatingToolbar.qml` | `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeFloatingToolbar.qml` | `Item` | `Binding`, `NumberAnimation`, `HoverHandler`, `Rectangle`, `Image`, `Row`, `Repeater`, `GraphSurfaceControls.GraphSurfaceButton`, ... +2 more | `source`, `Repeater`, `model` |
 | `GraphNodeLinkHoverLayer.qml` | `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeLinkHoverLayer.qml` | `Item` | `Timer`, `Connections`, `Repeater`, `Text`, `Rectangle`, `Row`, `Image`, `MouseArea`, ... +8 more | `Repeater`, `model`, `delegate`, `source` |
@@ -384,17 +385,17 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Path: `ea_node_editor/ui_qml/components/graph/EdgeCanvasLayer.qml`
 - Root component: `Item`
 - Agent route aliases: `EdgeCanvasLayer`, `EdgeCanvasLayer.qml`, `ea_node_editor/ui_qml/components/graph/EdgeCanvasLayer.qml`, `ea_node_editor\ui_qml\components\graph\EdgeCanvasLayer.qml`
-- Imports: `QtQuick 2.15`, `"EdgeMath.js" as EdgeMath`, `"EdgePaintPolicy.js" as EdgePaintPolicy`, `"EdgeViewportMath.js" as EdgeViewportMath`
-- IDs: `root`, `canvasTransformLayer`, `edgeCanvas`, `edgeLabelGapTypography`, `labelGapMetrics`
+- Imports: `QtQuick 2.15`, `"EdgeArrowPaint.js" as EdgeArrowPaint`, `"EdgeMath.js" as EdgeMath`, `"EdgePaintPolicy.js" as EdgePaintPolicy`, `"EdgeViewportMath.js" as EdgeViewportMath`
+- IDs: `root`, `canvasTransformLayer`, `edgeCanvas`, `edgeLabelGapTypography`, `labelGapMeasure`
 - Object names: `graphCanvasEdgeCanvasLayer`, `graphCanvasEdgeCanvasTransformLayer`, `graphEdgeCanvasSharedTypography`
-- Properties: `edgeLayer: Item`, `paintSnapshots: var`, `canvasStateBridgeRef: var`, `profileLastPaintMs: real`, `profilePaintCount: int`, `_paintDiagnosticsByEdgeId: var`, `_paintDiagnosticsRevision: int`, `_paintViewportZoom: real`, `_paintViewportOffsetX: real`, `_paintViewportOffsetY: real`, `_currentViewportTransform: var`, `effectiveGraphLabelPixelSize: int`, `graphSharedTypography: var`, `viewportTransformCompensationActive: bool`, `viewportTransformCompensationScale: real`, `viewportTransformCompensationX: real`, `viewportTransformCompensationY: real`
+- Properties: `edgeLayer: Item`, `paintSnapshots: var`, `canvasStateBridgeRef: var`, `profileLastPaintMs: real`, `profilePaintCount: int`, `_paintDiagnosticsByEdgeId: var`, `_paintDiagnosticsRevision: int`, `_paintViewportZoom: real`, `_paintViewportOffsetX: real`, `_paintViewportOffsetY: real`, `_currentViewportTransform: var`, `effectiveGraphLabelPixelSize: int`, `graphSharedTypography: var`, `viewportTransformCompensationActive: bool`, `viewportTransformCompensationScale: real`, `viewportTransformCompensationX: real`, `viewportTransformCompensationY: real`, `maximumTextWidth: real`
 - Signals: _None_
-- Functions: `_recordPaint`, `_rememberPaintViewport`, `clearCanvasPaintDiagnostics`, `standardStrokeOffsetVector`, `drawDragConnectionMarker`, `traceBezierGeometry`, `tracePolylineGeometry`, `_tracePolylineSegmentSpan`, `_tracePolylineRange`, `traceBrokenGeometry`, `strokeStandardGeometry`, `traceGeometry`, `standardEdgeStrokeStyle`, `drawHiddenEndpointArcs`, `hiddenEndpointArcRadiiScreenPx`, `drawDisabledMarker`, `drawFlowArrowHead`, `decorationEnabled`, ... +15 more
-- Instantiates: `Canvas`, `GraphSharedTypography`, `TextMetrics`
+- Functions: `_recordPaint`, `_rememberPaintViewport`, `clearCanvasPaintDiagnostics`, `standardStrokeOffsetVector`, `drawDragConnectionMarker`, `traceBezierGeometry`, `tracePolylineGeometry`, `_tracePolylineSegmentSpan`, `_tracePolylineRange`, `traceBrokenGeometry`, `strokeStandardGeometry`, `traceGeometry`, `standardEdgeStrokeStyle`, `drawHiddenEndpointArcs`, `hiddenEndpointArcRadiiScreenPx`, `drawDisabledMarker`, `flowMarkerMinLength`, `traceFlowEdgeBody`, ... +17 more
+- Instantiates: `Canvas`, `GraphSharedTypography`, `Text`
 - Dynamic constructs: _None_
 - Signal handlers: `handler` `onPaint`
 - Connections: _None_
-- Property bindings: `binding` `width` -> `root.width`; `binding` `height` -> `root.height`; `binding` `transformOrigin` -> `Item.TopLeft`; `binding` `x` -> `root.viewportTransformCompensationX`; `binding` `y` -> `root.viewportTransformCompensationY`; `binding` `scale` -> `root.viewportTransformCompensationScale`; `binding` `anchors.fill` -> `parent`; `binding` `renderTarget` -> `Canvas.Image`; `binding` `graphLabelPixelSize` -> `root.effectiveGraphLabelPixelSize`; `binding` `text`
+- Property bindings: `binding` `width` -> `root.width`; `binding` `height` -> `root.height`; `binding` `transformOrigin` -> `Item.TopLeft`; `binding` `x` -> `root.viewportTransformCompensationX`; `binding` `y` -> `root.viewportTransformCompensationY`; `binding` `scale` -> `root.viewportTransformCompensationScale`; `binding` `anchors.fill` -> `parent`; `binding` `renderTarget` -> `Canvas.Image`; `binding` `graphLabelPixelSize` -> `root.effectiveGraphLabelPixelSize`; `binding` `visible`; `binding` `width` -> `Math.min`, `maximumTextWidth`, `implicitWidth`; `binding` `text`; `binding` `wrapMode` -> `Text.Wrap`; `binding` `maximumLineCount` -> `EdgePaintPolicy.FLOW_LABEL_MAX_LINES`; `binding` `elide` -> `Text.ElideRight`
 - Local component refs: `localComponent` `GraphSharedTypography`: `ea_node_editor/ui_qml/components/graph/GraphSharedTypography.qml`
 
 ### `EdgeFlowLabelLayer.qml`
@@ -402,17 +403,17 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Path: `ea_node_editor/ui_qml/components/graph/EdgeFlowLabelLayer.qml`
 - Root component: `Item`
 - Agent route aliases: `EdgeFlowLabelLayer`, `EdgeFlowLabelLayer.qml`, `ea_node_editor/ui_qml/components/graph/EdgeFlowLabelLayer.qml`, `ea_node_editor\ui_qml\components\graph\EdgeFlowLabelLayer.qml`
-- Imports: `QtQuick 2.15`, `QtQml 2.15`, `"EdgePaintPolicy.js" as EdgePaintPolicy`
-- IDs: `root`, `sharedTypographyState`, `flowLabelModel`, `labelTextItem`
+- Imports: `QtQuick 2.15`, `QtQml 2.15`, `"EdgeMath.js" as EdgeMath`, `"EdgePaintPolicy.js" as EdgePaintPolicy`
+- IDs: `root`, `sharedTypographyState`, `flowLabelModel`, `flowLabelRepeater`, `labelTextItem`
 - Object names: `graphEdgeFlowLabelLayer`, `graphEdgeSharedTypography`, `graphEdgeFlowLabelItem`, `graphEdgeFlowLabelPill`, `graphEdgeFlowLabelText`
-- Properties: `edgeLayer: Item`, `canvasLayer: Item`, `snapshotRevisionToken: int`, `profileLabelDelegateCreateCount: int`, `profileLabelDelegateDestroyCount: int`, `profileFlowLabelModelSyncSkipCount: int`, `_lastFlowLabelEntryRefs: var`, `effectiveGraphLabelPixelSize: int`, `graphSharedTypography: var`, `edgeData: var`, `edgeId: string`, `snapshotData: var`, `labelText: string`, `labelMode: string`, `labelRequested: bool`, `snapshotRevision: var`, `culledByViewport: bool`, `pillVisible: bool`, ... +14 more
+- Properties: `edgeLayer: Item`, `canvasLayer: Item`, `snapshotRevisionToken: int`, `profileLabelDelegateCreateCount: int`, `profileLabelDelegateDestroyCount: int`, `profileFlowLabelModelSyncSkipCount: int`, `_lastFlowLabelEntryRefs: var`, `effectiveGraphLabelPixelSize: int`, `graphSharedTypography: var`, `edgeData: var`, `edgeId: string`, `snapshotData: var`, `labelText: string`, `labelMode: string`, `labelRequested: bool`, `snapshotRevision: var`, `culledByViewport: bool`, `pillVisible: bool`, ... +15 more
 - Signals: _None_
-- Functions: `_modelEdgeId`, `_findModelIndexByEdgeId`, `_flowLabelEntries`, `_setFlowLabelModelEntry`, `_flowLabelEntriesInSync`, `_rememberFlowLabelEntryRefs`, `_syncFlowLabelModel`, `edgeLabelText`, `flowLabelMode`, `flowLabelScale`, `flowLabelTextColor`, `flowLabelBackgroundColor`, `flowLabelBorderColor`, `flowLabelAnchorScene`, `flowLabelAnchor`
+- Functions: `_modelEdgeId`, `_findModelIndexByEdgeId`, `_flowLabelEntries`, `_setFlowLabelModelEntry`, `_flowLabelEntriesInSync`, `_rememberFlowLabelEntryRefs`, `_syncFlowLabelModel`, `edgeLabelText`, `flowLabelMode`, `flowLabelScale`, `flowLabelTextColor`, `flowLabelBackgroundColor`, `flowLabelBorderColor`, `flowLabelAnchorScene`, `labelEdgeIdAtScreen`, `flowLabelAnchor`
 - Instantiates: `GraphSharedTypography`, `ListModel`, `Repeater`, `Rectangle`, `Text`
 - Dynamic constructs: `Repeater`; `model` -> `flowLabelModel`; `delegate` -> `Item`
 - Signal handlers: `handler` `onEdgeLayerChanged`; `handler` `onSnapshotRevisionTokenChanged`; `handler` `Component.onCompleted`; `handler` `Component.onDestruction`
 - Connections: _None_
-- Property bindings: `binding` `graphLabelPixelSize` -> `root.effectiveGraphLabelPixelSize`; `binding` `dynamicRoles`; `binding` `visible` -> `labelRequested`, `culledByViewport`, `labelAnchor`; `binding` `width` -> `labelTextItem.width`, `horizontalPadding`; `binding` `height` -> `labelTextItem.height`, `verticalPadding`; `binding` `x` -> `anchorScreenX`, `width`; `binding` `y` -> `anchorScreenY`, `height`; `binding` `scale` -> `labelScale`; `binding` `transformOrigin` -> `Item.Center`; `binding` `anchors.fill` -> `parent`; `binding` `radius` -> `parent.labelBackingRadius`; `binding` `visible` -> `parent.labelBackingVisible`; `binding` `color` -> `root.flowLabelBackgroundColor`, `parent.edgeData`; `binding` `border.width`; `binding` `border.color` -> `root.flowLabelBorderColor`, `parent.edgeData`, `parent.selectedEdge`, `parent.previewedEdge`; `binding` `anchors.centerIn` -> `parent`; `binding` `width` -> `Math.min`, `parent.maximumTextWidth`, `implicitWidth`; `binding` `text` -> `parent.labelText`; ... +6 more
+- Property bindings: `binding` `graphLabelPixelSize` -> `root.effectiveGraphLabelPixelSize`; `binding` `dynamicRoles`; `binding` `visible` -> `labelRequested`, `culledByViewport`, `labelAnchor`; `binding` `width` -> `labelTextItem.width`, `horizontalPadding`; `binding` `height` -> `labelTextItem.height`, `verticalPadding`; `binding` `x` -> `anchorScreenX`, `width`; `binding` `y` -> `anchorScreenY`, `height`; `binding` `scale` -> `labelScale`; `binding` `rotation` -> `labelAnchorScene`, `Number`, `labelAnchorScene.rotation`; `binding` `transformOrigin` -> `Item.Center`; `binding` `anchors.fill` -> `parent`; `binding` `radius` -> `parent.labelBackingRadius`; `binding` `visible` -> `parent.labelBackingVisible`; `binding` `color` -> `root.flowLabelBackgroundColor`, `parent.edgeData`; `binding` `border.width`; `binding` `border.color` -> `root.flowLabelBorderColor`, `parent.edgeData`, `parent.selectedEdge`, `parent.previewedEdge`; `binding` `anchors.centerIn` -> `parent`; `binding` `width` -> `Math.min`, `parent.maximumTextWidth`, `implicitWidth`; ... +9 more
 - Local component refs: `localComponent` `GraphSharedTypography`: `ea_node_editor/ui_qml/components/graph/GraphSharedTypography.qml`
 
 ### `EdgeHitTestOverlay.qml`
@@ -423,14 +424,14 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `"../common" as Common`
 - IDs: `root`, `edgeHitMouse`, `edgePreviewAnchor`
 - Object names: `graphEdgeValuePreviewToolTip`
-- Properties: `edgeLayer: Item`, `inputEnabled: bool`, `wireSelectionModeHeld: bool`, `hoveredEdgeId: string`, `hoverX: real`, `hoverY: real`, `hoveredEdgeTooltipText: string`
-- Signals: `edgeClicked`, `edgeDoubleClicked`, `edgeContextRequested`
-- Functions: _None_
+- Properties: `edgeLayer: Item`, `inputEnabled: bool`, `wireSelectionModeHeld: bool`, `hoveredEdgeId: string`, `hoveredLabelEdgeId: string`, `hoverX: real`, `hoverY: real`, `labelPressEdgeId: string`, `labelPressX: real`, `labelPressY: real`, `labelDragActive: bool`, `labelDragThresholdPx: real`, `hoveredEdgeTooltipText: string`
+- Signals: `edgeClicked`, `edgeDoubleClicked`, `edgeContextRequested`, `flowLabelDragFinished`
+- Functions: `_labelEdgeAt`, `_edgeAt`, `_resetLabelDrag`
 - Instantiates: `MouseArea`, `Common.ManagedToolTip`
 - Dynamic constructs: _None_
-- Signal handlers: `handler` `onWireSelectionModeHeldChanged`; `handler` `onPositionChanged`; `handler` `onExited`; `handler` `onPressed`; `handler` `onDoubleClicked`
+- Signal handlers: `handler` `onWireSelectionModeHeldChanged`; `handler` `onPositionChanged`; `handler` `onExited`; `handler` `onPressed`; `handler` `onReleased`; `handler` `onCanceled`; `handler` `onDoubleClicked`
 - Connections: _None_
-- Property bindings: `binding` `anchors.fill` -> `parent`; `binding` `enabled` -> `root.inputEnabled`, `root.wireSelectionModeHeld`; `binding` `hoverEnabled`; `binding` `acceptedButtons` -> `Qt.LeftButton`, `Qt.RightButton`; `binding` `propagateComposedEvents`; `binding` `x` -> `root.hoverX`; `binding` `y` -> `root.hoverY`; `binding` `width`; `binding` `height`; `binding` `popupType` -> `Popup.Item`; `binding` `policyBridge` -> `root.edgeLayer`, `root.edgeLayer.sceneBridge`; `binding` `category`; `binding` `active` -> `root.hoveredEdgeId.length`; `binding` `text` -> `root.hoveredEdgeTooltipText`; `binding` `maximumTextWidth`; `binding` `font.family`; `binding` `font.pixelSize`; `binding` `screenStablePositioning`; ... +2 more
+- Property bindings: `binding` `anchors.fill` -> `parent`; `binding` `enabled` -> `root.inputEnabled`, `root.wireSelectionModeHeld`; `binding` `hoverEnabled`; `binding` `acceptedButtons` -> `Qt.LeftButton`, `Qt.RightButton`; `binding` `propagateComposedEvents`; `binding` `cursorShape` -> `root.labelDragActive`; `binding` `x` -> `root.hoverX`; `binding` `y` -> `root.hoverY`; `binding` `width`; `binding` `height`; `binding` `popupType` -> `Popup.Item`; `binding` `policyBridge` -> `root.edgeLayer`, `root.edgeLayer.sceneBridge`; `binding` `category`; `binding` `active` -> `root.hoveredEdgeId.length`, `root.labelDragActive`; `binding` `text` -> `root.hoveredEdgeTooltipText`; `binding` `maximumTextWidth`; `binding` `font.family`; `binding` `font.pixelSize`; ... +3 more
 - Local component refs: `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`
 
 ### `EdgeLayer.qml`
@@ -441,12 +442,12 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Imports: `QtQuick 2.15`, `QtQml 2.15`, `"EdgeMath.js" as EdgeMath`, `"EdgePaintPolicy.js" as EdgePaintPolicy`, `"EdgeSnapshotCache.js" as EdgeSnapshotCache`, `"EdgeViewportMath.js" as EdgeViewportMath`, `"GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics`
 - IDs: `root`, `edgeCanvasLayer`, `edgeRetainedLayer`, `edgeScenegraphLayer`, `flowLabelLayer`, `edgeHitTestOverlay`
 - Object names: _None_
-- Properties: `edgePalette: var`, `shellPalette: var`, `portKindPalette: var`, `viewBridge: var`, `sceneBridge: var`, `edges: var`, `edgeTopologyDelta: var`, `nodeDeltaPayload: var`, `nodes: var`, `dragNodeLookup: var`, `dragDx: real`, `dragDy: real`, `dragRevision: int`, `liveNodeGeometry: var`, `_settingsGroupGeometryActive: bool`, `selectedNodeIds: var`, `selectedEdgeIds: var`, `visibleSceneRectPayload: var`, ... +115 more
-- Signals: `edgeClicked`, `edgeDoubleClicked`, `edgeContextRequested`
-- Functions: `neutralActiveStrokeColor`, `requestRedraw`, `requestImmediateRedraw`, `_normalizeEdgeRendererKind`, `_retainedFallbackReason`, `_rendererFallbackReasonFor`, `_dispatchEdgeRenderer`, `markEdgeTopologyDirty`, `applyStructuralEdgePayloadDelta`, `replaceEdgePayload`, `markNodeGeometryDirty`, `markActiveNodeGeometryDirty`, `markViewportDirty`, `markSelectionDirty`, `markCrossingStyleDirty`, `markThemeDirty`, `markScheduledRedrawDirty`, `markViewStateRedrawDirty`, ... +39 more
+- Properties: `edgePalette: var`, `shellPalette: var`, `portKindPalette: var`, `viewBridge: var`, `sceneBridge: var`, `edges: var`, `edgeTopologyDelta: var`, `nodeDeltaPayload: var`, `nodes: var`, `dragNodeLookup: var`, `dragDx: real`, `dragDy: real`, `dragRevision: int`, `liveNodeGeometry: var`, `_settingsGroupGeometryActive: bool`, `selectedNodeIds: var`, `selectedEdgeIds: var`, `visibleSceneRectPayload: var`, ... +122 more
+- Signals: `edgeClicked`, `edgeDoubleClicked`, `edgeContextRequested`, `flowLabelDragFinished`
+- Functions: `neutralActiveStrokeColor`, `requestRedraw`, `requestImmediateRedraw`, `_normalizeEdgeRendererKind`, `_retainedFallbackReason`, `_rendererFallbackReasonFor`, `_dispatchEdgeRenderer`, `markEdgeTopologyDirty`, `applyStructuralEdgePayloadDelta`, `replaceEdgePayload`, `markNodeGeometryDirty`, `markActiveNodeGeometryDirty`, `markViewportDirty`, `markSelectionDirty`, `markCrossingStyleDirty`, `markThemeDirty`, `markScheduledRedrawDirty`, `markViewStateRedrawDirty`, ... +45 more
 - Instantiates: `EdgeCanvasLayer`, `EdgeRetainedLayer`, `EdgeScenegraphLayer`, `EdgeFlowLabelLayer`, `EdgeHitTestOverlay`
 - Dynamic constructs: _None_
-- Signal handlers: `handler` `onEdgeClicked`; `handler` `onEdgeDoubleClicked`; `handler` `onEdgeContextRequested`; `handler` `onEdgesChanged`; `handler` `onNodeDeltaPayloadChanged`; `handler` `onSelectedNodeIdsChanged`; `handler` `onReplacementPreviewEdgeIdsChanged`; `handler` `onNodesChanged`; `handler` `onDragRevisionChanged`; `handler` `onLiveNodeGeometryChanged`; `handler` `onVisibleSceneRectPayloadChanged`; `handler` `onSelectedEdgeIdsChanged`; `handler` `onWireSelectionModeHeldChanged`; `handler` `onPreviewEdgeIdChanged`; `handler` `onDragConnectionChanged`; `handler` `onOutputPreviewLookupChanged`; `handler` `onEdgePaletteChanged`; `handler` `onShellPaletteChanged`; ... +3 more
+- Signal handlers: `handler` `onEdgeClicked`; `handler` `onEdgeDoubleClicked`; `handler` `onEdgeContextRequested`; `handler` `onFlowLabelDragFinished`; `handler` `onEdgesChanged`; `handler` `onNodeDeltaPayloadChanged`; `handler` `onSelectedNodeIdsChanged`; `handler` `onReplacementPreviewEdgeIdsChanged`; `handler` `onNodesChanged`; `handler` `onDragRevisionChanged`; `handler` `onLiveNodeGeometryChanged`; `handler` `onVisibleSceneRectPayloadChanged`; `handler` `onSelectedEdgeIdsChanged`; `handler` `onWireSelectionModeHeldChanged`; `handler` `onPreviewEdgeIdChanged`; `handler` `onDragConnectionChanged`; `handler` `onOutputPreviewLookupChanged`; `handler` `onEdgePaletteChanged`; ... +4 more
 - Connections: _None_
 - Property bindings: `binding` `anchors.fill` -> `parent`; `binding` `edgeLayer` -> `root`; `binding` `paintSnapshots` -> `root.edgeRendererKind`; `binding` `z` -> `root.edgeRendererKind`; `binding` `visible` -> `root.edgeRendererKind`; `binding` `canvasLayer` -> `edgeCanvasLayer`; `binding` `inputEnabled` -> `root.inputEnabled`; `binding` `wireSelectionModeHeld` -> `root.wireSelectionModeHeld`
 - Local component refs: `localComponent` `EdgeCanvasLayer`: `ea_node_editor/ui_qml/components/graph/EdgeCanvasLayer.qml`; `localComponent` `EdgeRetainedLayer`: `ea_node_editor/ui_qml/components/graph/EdgeRetainedLayer.qml`; `localComponent` `EdgeScenegraphLayer`: `ea_node_editor/ui_qml/components/graph/EdgeScenegraphLayer.qml`; `localComponent` `EdgeFlowLabelLayer`: `ea_node_editor/ui_qml/components/graph/EdgeFlowLabelLayer.qml`; `localComponent` `EdgeHitTestOverlay`: `ea_node_editor/ui_qml/components/graph/EdgeHitTestOverlay.qml`
@@ -883,23 +884,41 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Property bindings: _None_
 - Local component refs: _None_
 
+### `EdgeArrowGlyph.qml`
+
+- Path: `ea_node_editor/ui_qml/components/graph/overlay/EdgeArrowGlyph.qml`
+- Root component: `Canvas`
+- Agent route aliases: `EdgeArrowGlyph`, `EdgeArrowGlyph.qml`, `ea_node_editor/ui_qml/components/graph/overlay/EdgeArrowGlyph.qml`, `ea_node_editor\ui_qml\components\graph\overlay\EdgeArrowGlyph.qml`
+- Imports: `QtQuick 2.15`, `"../EdgeArrowPaint.js" as EdgeArrowPaint`, `"../EdgePaintPolicy.js" as EdgePaintPolicy`
+- IDs: `root`
+- Object names: `graphEdgeArrowGlyph`
+- Properties: `startKind: string`, `endKind: string`, `color: color`, `lineWidth: real`, `markerBaseWidth: real`, `endInset: real`
+- Signals: _None_
+- Functions: _None_
+- Instantiates: _None_
+- Dynamic constructs: _None_
+- Signal handlers: `handler` `onStartKindChanged`; `handler` `onEndKindChanged`; `handler` `onColorChanged`; `handler` `onWidthChanged`; `handler` `onHeightChanged`; `handler` `onPaint`
+- Connections: _None_
+- Property bindings: `binding` `implicitWidth`; `binding` `implicitHeight`; `binding` `renderTarget` -> `Canvas.Image`; `binding` `antialiasing`
+- Local component refs: _None_
+
 ### `GraphEdgeFloatingToolbar.qml`
 
 - Path: `ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml`
 - Root component: `Item`
 - Agent route aliases: `GraphEdgeFloatingToolbar`, `GraphEdgeFloatingToolbar.qml`, `ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml`, `ea_node_editor\ui_qml\components\graph\overlay\GraphEdgeFloatingToolbar.qml`
 - Imports: `QtQuick 2.15`, `QtQuick.Controls 2.15`, `"../../common" as Common`, `".." as GraphComponents`, `"../GraphActionPresentation.js" as GraphActionPresentation`, `"../surface_controls" as GraphSurfaceControls`
-- IDs: `root`, `labelEditorTypography`, `labelEditorMetrics`, `toolbarChrome`, `buttonRow`, `actionButton`, `labelEditorFrame`, `labelEditorBackground`, `labelEditor`, `displayModePopup`, `displayModeChoiceButton`, `colorPopup`, `pathModePopup`, `pathModeChoiceButton`, `patternPopup`, `patternChoiceButton`, `arrowPopup`, `arrowChoiceButton`
-- Object names: `graphEdgeFloatingToolbar`, `graphEdgeLabelEditorSharedTypography`, `graphEdgeFloatingToolbarChrome`, `graphEdgeFloatingToolbarAction_`, `graphEdgeToolbarPatternGlyph`, `graphEdgeToolbarArrowGlyph`, `graphEdgeLabelInlineEditorFrame`, `graphEdgeLabelInlineEditorBackground`, `graphEdgeLabelInlineEditor`, `graphEdgeDisplayModePopup`, `graphEdgeDisplayModeChoice_`, `graphEdgeColorPopup`, `graphEdgeColorSwatch_`, `graphEdgePathModePopup`, `graphEdgePathModeChoice_`, `graphEdgePatternPopup`, `graphEdgePatternChoice_`, `graphEdgePatternIcon_`, ... +3 more
-- Properties: `canvasItem: Item`, `edgeLayer: Item`, `canvasActionRouter: var`, `viewBridge: var`, `themePalette: var`, `editingEdgeId: string`, `selectedEdgeIds: var`, `selectedEdgeId: string`, `activeEdgeId: string`, `edgeTopologyRevision: int`, `activeEdgePayload: var`, `activeDataWire: bool`, `flowEdgeActive: bool`, `activeSnapshot: var`, `activeAnchorScene: var`, `anchorAvailable: bool`, `anchorScreenX: real`, `anchorScreenY: real`, ... +51 more
+- IDs: `root`, `labelEditorTypography`, `labelEditorMeasure`, `toolbarChrome`, `buttonRow`, `actionButton`, `labelEditorFrame`, `labelEditorBackground`, `labelEditor`, `displayModePopup`, `displayModeChoiceButton`, `colorPopup`, `pathModePopup`, `pathModeChoiceButton`, `patternPopup`, `patternChoiceButton`, `arrowPopup`, `arrowEndRow`, ... +4 more
+- Object names: `graphEdgeFloatingToolbar`, `graphEdgeLabelEditorSharedTypography`, `graphEdgeFloatingToolbarChrome`, `graphEdgeFloatingToolbarAction_`, `graphEdgeToolbarPatternGlyph`, `graphEdgeToolbarArrowGlyph`, `graphEdgeLabelInlineEditorFrame`, `graphEdgeLabelInlineEditorBackground`, `graphEdgeLabelInlineEditor`, `graphEdgeDisplayModePopup`, `graphEdgeDisplayModeChoice_`, `graphEdgeColorPopup`, `graphEdgeColorSwatch_`, `graphEdgePathModePopup`, `graphEdgePathModeChoice_`, `graphEdgePatternPopup`, `graphEdgePatternChoice_`, `graphEdgePatternIcon_`, ... +5 more
+- Properties: `canvasItem: Item`, `edgeLayer: Item`, `canvasActionRouter: var`, `viewBridge: var`, `themePalette: var`, `editingEdgeId: string`, `selectedEdgeIds: var`, `selectedEdgeId: string`, `activeEdgeId: string`, `edgeTopologyRevision: int`, `activeEdgePayload: var`, `activeDataWire: bool`, `flowEdgeActive: bool`, `activeSnapshot: var`, `activeAnchorScene: var`, `anchorAvailable: bool`, `anchorScreenX: real`, `anchorScreenY: real`, ... +58 more
 - Signals: _None_
-- Functions: `_paletteColor`, `_clamp`, `_styleString`, `_effectiveGraphLabelPixelSize`, `_edgeLayerColor`, `_flowLabelTextColor`, `_flowLabelBackgroundColor`, `_actionRouter`, `_sceneCommandBridge`, `_requestEdgeRedraw`, `_edgeSupportsFlowStyle`, `_edgePayload`, `_flowStyle`, `_visualStyle`, `_edgeSnapshot`, `_edgeAnchorScene`, `_iconSource`, `_edgeActionId`, ... +19 more
-- Instantiates: `GraphComponents.GraphSharedTypography`, `TextMetrics`, `Rectangle`, `Row`, `Repeater`, `GraphSurfaceControls.GraphSurfaceButton`, `Image`, `TextInput`, `Popup`, `Button`, `Common.ManagedToolTip`
-- Dynamic constructs: `Repeater`; `model` -> `root.toolbarActions`; `source` -> `root._iconSource`, `root.toolbarPatternIconName`, `String`, `actionButton.resolvedForegroundColor`; `source` -> `root._iconSource`, `root.toolbarArrowIconName`, `String`, `actionButton.resolvedForegroundColor`; `model` -> `root.displayModeChoices`; `model` -> `root.colorChoices`; `model` -> `root.pathModeChoices`; `model` -> `root.patternChoices`; `source` -> `root._iconSource`; `model` -> `root.arrowChoices`
+- Functions: `_paletteColor`, `_clamp`, `_styleString`, `_effectiveGraphLabelPixelSize`, `_edgeLayerColor`, `_flowLabelTextColor`, `_flowLabelBackgroundColor`, `_actionRouter`, `_sceneCommandBridge`, `_requestEdgeRedraw`, `_edgeSupportsFlowStyle`, `_edgePayload`, `_flowStyle`, `_visualStyle`, `_edgeSnapshot`, `_edgeAnchorScene`, `_iconSource`, `_edgeActionId`, ... +21 more
+- Instantiates: `GraphComponents.GraphSharedTypography`, `Text`, `Rectangle`, `Row`, `Repeater`, `GraphSurfaceControls.GraphSurfaceButton`, `Image`, `EdgeArrowGlyph`, `TextEdit`, `Popup`, `Button`, `Common.ManagedToolTip`
+- Dynamic constructs: `Repeater`; `model` -> `root.toolbarActions`; `source` -> `root._iconSource`, `root.toolbarPatternIconName`, `String`, `actionButton.resolvedForegroundColor`; `model` -> `root.displayModeChoices`; `model` -> `root.colorChoices`; `model` -> `root.pathModeChoices`; `model` -> `root.patternChoices`; `source` -> `root._iconSource`; `model` -> `root.arrowEnds`; `model` -> `root.arrowChoices`; `model` -> `root.labelOrientationChoices`
 - Signal handlers: `handler` `onActiveEdgeIdChanged`; `handler` `onToolbarVisibleChanged`; `handler` `onClicked`; `handler` `Keys.onReturnPressed`; `handler` `Keys.onEnterPressed`; `handler` `Keys.onEscapePressed`; `handler` `onActiveFocusChanged`
 - Connections: _None_
-- Property bindings: `binding` `visible` -> `root.toolbarVisible`, `root.labelEditorActive`; `binding` `z`; `binding` `graphLabelPixelSize` -> `root.effectiveGraphLabelPixelSize`; `binding` `font` -> `labelEditor.font`; `binding` `text` -> `labelEditor.text.length`, `labelEditor.text`; `binding` `visible` -> `root.toolbarVisible`; `binding` `x` -> `root.toolbarX`; `binding` `y` -> `root.toolbarY`; `binding` `radius`; `binding` `color` -> `root.chromeFillColor`; `binding` `opacity`; `binding` `border.width`; `binding` `border.color` -> `Qt.alpha`, `root.chromeBorderColor`; `binding` `implicitWidth` -> `buttonRow.implicitWidth`; `binding` `implicitHeight` -> `Math.max`, `buttonRow.implicitHeight`; `binding` `width` -> `implicitWidth`; `binding` `height` -> `implicitHeight`; `binding` `anchors.centerIn` -> `parent`; ... +96 more
-- Local component refs: `localComponent` `GraphComponents.GraphSharedTypography`: `ea_node_editor/ui_qml/components/graph/GraphSharedTypography.qml`; `localComponent` `GraphSurfaceControls.GraphSurfaceButton`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml`; `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`
+- Property bindings: `binding` `visible` -> `root.toolbarVisible`, `root.labelEditorActive`; `binding` `z`; `binding` `graphLabelPixelSize` -> `root.effectiveGraphLabelPixelSize`; `binding` `visible`; `binding` `font` -> `labelEditor.font`; `binding` `text` -> `labelEditor.text.length`, `labelEditor.text`; `binding` `textFormat` -> `Text.PlainText`; `binding` `wrapMode` -> `Text.NoWrap`; `binding` `visible` -> `root.toolbarVisible`; `binding` `x` -> `root.toolbarX`; `binding` `y` -> `root.toolbarY`; `binding` `radius`; `binding` `color` -> `root.chromeFillColor`; `binding` `opacity`; `binding` `border.width`; `binding` `border.color` -> `Qt.alpha`, `root.chromeBorderColor`; `binding` `implicitWidth` -> `buttonRow.implicitWidth`; `binding` `implicitHeight` -> `Math.max`, `buttonRow.implicitHeight`; ... +124 more
+- Local component refs: `localComponent` `GraphComponents.GraphSharedTypography`: `ea_node_editor/ui_qml/components/graph/GraphSharedTypography.qml`; `localComponent` `GraphSurfaceControls.GraphSurfaceButton`: `ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml`; `localComponent` `EdgeArrowGlyph`: `ea_node_editor/ui_qml/components/graph/overlay/EdgeArrowGlyph.qml`; `localComponent` `Common.ManagedToolTip`: `ea_node_editor/ui_qml/components/common/ManagedToolTip.qml`
 
 ### `GraphNodeCommentPopoverLayer.qml`
 
@@ -2462,7 +2481,7 @@ This compact index gives agents deterministic aliases for QML components, symbol
 - Functions: `onScene_workspace_changing`, `onScene_workspace_changed`, `onWorkspace_changed`, `_graphNodeToken`, `_shellToken`, `_hostSurfaceIsDark`, `_modelLength`, `_appendVirtualizedNodeId`, `_appendVirtualizedLookupKeys`, `_appendVirtualizedPortNodeId`, `_activeVirtualizedNodeLookup`, `_profileTotalNodeCount`, `_currentDelegateTotalCount`, `_recordDelegateChurn`, `_activeVirtualizedNodeIds`, `_nodeIdSignature`, `_syncVisibleModelActiveNodeIds`, `_beginWebPageWorkspaceSwitch`, ... +39 more
 - Instantiates: `WebComponents.WebPageRetentionStore`, `Connections`, `Timer`, `GraphCanvasBackground`, `GraphCanvasWorldLayer`, `GraphComponents.EdgeLayer`, `GraphCanvasDropPreview`, `GraphOverlay.GraphSelectionEnvelopeOverlay`, `GraphCanvasSmartGuideOverlay`, `GraphOverlay.GraphNodeOverlayToolbarLayer`, `GraphOverlay.GraphNodeLinkHoverLayer`, `GraphOverlay.GraphNodeCommentPopoverLayer`, `GraphOverlay.GraphEdgeFloatingToolbar`, `TextMetrics`, `Rectangle`, `Column`, `Row`, `Text`, ... +6 more
 - Dynamic constructs: `Repeater`; `model` -> `selectedRunPreviewOverlay.visibleRows`; `delegate` -> `Column`
-- Signal handlers: `handler` `Component.onDestruction`; `handler` `onCanvasItemChanged`; `handler` `onSceneStateBridgeChanged`; `handler` `onActiveVirtualizedNodeIdsChanged`; `handler` `Component.onCompleted`; `handler` `onTriggered`; `handler` `onVisibleDelegateCountChanged`; `handler` `onEdgeClicked`; `handler` `onEdgeDoubleClicked`; `handler` `onEdgeContextRequested`; `handler` `onVisibleChanged`; `handler` `onRevisionChanged`; `handler` `onExpandedChanged`; `handler` `onClicked`; `handler` `onWheel`
+- Signal handlers: `handler` `Component.onDestruction`; `handler` `onCanvasItemChanged`; `handler` `onSceneStateBridgeChanged`; `handler` `onActiveVirtualizedNodeIdsChanged`; `handler` `Component.onCompleted`; `handler` `onTriggered`; `handler` `onVisibleDelegateCountChanged`; `handler` `onEdgeClicked`; `handler` `onEdgeDoubleClicked`; `handler` `onEdgeContextRequested`; `handler` `onFlowLabelDragFinished`; `handler` `onVisibleChanged`; `handler` `onRevisionChanged`; `handler` `onExpandedChanged`; `handler` `onClicked`; `handler` `onWheel`
 - Connections: `target` `root.sceneStateBridge`; `target` `root.viewStateBridge`
 - Property bindings: `binding` `anchors.fill` -> `parent`; `binding` `ignoreUnknownSignals`; `binding` `interval` -> `root.visibleModelExactRefreshDelayMs`; `binding` `repeat`; `binding` `interval`; `binding` `viewBridge` -> `root.viewStateBridge`; `binding` `canvasBackgroundVariant` -> `root.canvasItem`, `root.canvasItem.prefs`; `binding` `showGrid` -> `root.canvasItem`, `root.canvasItem.prefs`, `root.canvasItem.prefs.showGrid`; `binding` `gridStyle` -> `root.canvasItem`, `root.canvasItem.prefs`, `root.canvasItem.prefs.gridStyle`; `binding` `canvasItem` -> `root.canvasItem`; `binding` `sceneModel` -> `root.visibleBackdropNodesModel`; `binding` `sceneBridge` -> `root.sceneStateBridge`; `binding` `edges` -> `root.canvasItem`, `root.canvasItem.edgePayload`; `binding` `nodeDeltaPayload` -> `root.sceneStateBridge`; `binding` `nodes` -> `root.sceneStateBridge`; `binding` `dragNodeLookup` -> `root.canvasItem`, `root.canvasItem.liveDragNodeLookup`; `binding` `dragDx` -> `root.canvasItem`, `root.canvasItem.liveDragDx`; `binding` `dragDy` -> `root.canvasItem`, `root.canvasItem.liveDragDy`; ... +97 more
 - Local component refs: `localComponent` `WebComponents.WebPageRetentionStore`: `ea_node_editor/ui_qml/components/web/WebPageRetentionStore.qml`; `localComponent` `GraphCanvasBackground`: `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasBackground.qml`; `localComponent` `GraphCanvasWorldLayer`: `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasWorldLayer.qml`; `localComponent` `GraphComponents.EdgeLayer`: `ea_node_editor/ui_qml/components/graph/EdgeLayer.qml`; `localComponent` `GraphCanvasDropPreview`: `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasDropPreview.qml`; `localComponent` `GraphOverlay.GraphSelectionEnvelopeOverlay`: `ea_node_editor/ui_qml/components/graph/overlay/GraphSelectionEnvelopeOverlay.qml`; `localComponent` `GraphCanvasSmartGuideOverlay`: `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSmartGuideOverlay.qml`; `localComponent` `GraphOverlay.GraphNodeOverlayToolbarLayer`: `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeOverlayToolbarLayer.qml`; `localComponent` `GraphOverlay.GraphNodeLinkHoverLayer`: `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeLinkHoverLayer.qml`; `localComponent` `GraphOverlay.GraphNodeCommentPopoverLayer`: `ea_node_editor/ui_qml/components/graph/overlay/GraphNodeCommentPopoverLayer.qml`; `localComponent` `GraphOverlay.GraphEdgeFloatingToolbar`: `ea_node_editor/ui_qml/components/graph/overlay/GraphEdgeFloatingToolbar.qml`; `localComponent` `GraphCanvasSurfaceEditorOverlays`: `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSurfaceEditorOverlays.qml`; `localComponent` `GraphCanvasMinimapOverlay`: `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasMinimapOverlay.qml`

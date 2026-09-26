@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQml 2.15
+import "EdgeMath.js" as EdgeMath
 import "EdgePaintPolicy.js" as EdgePaintPolicy
 
 Item {
@@ -182,9 +183,16 @@ Item {
         return root.edgeLayer.flowDefaultLabelBorderColor;
     }
 
-    function flowLabelAnchorScene(geometry) {
+    // fractionOverride (0..1) previews a label drag; otherwise the edge's label_position applies,
+    // and without one the label sits on the longest horizontal pipe run or the path midpoint.
+    function flowLabelAnchorScene(geometry, edge, fractionOverride) {
+        var fraction = fractionOverride === undefined || fractionOverride === null
+            ? EdgePaintPolicy.flowLabelPosition(edge)
+            : Number(fractionOverride);
         var anchor = null;
-        if (geometry && geometry.route === "pipe") {
+        if (isFinite(fraction)) {
+            anchor = root.edgeLayer._edgeAnchor(geometry, EdgeMath.clamp(fraction, 0.0, 1.0));
+        } else if (geometry && geometry.route === "pipe") {
             var pipePoints = geometry.pipe_points || [];
             var longestHorizontal = null;
             for (var i = 1; i < pipePoints.length; i++) {
@@ -225,8 +233,22 @@ Item {
             "dy": anchor.dy,
             "normal_x": normalX,
             "normal_y": normalY,
-            "angle": anchor.angle
+            "angle": anchor.angle,
+            "rotation": EdgePaintPolicy.flowLabelFollowsPath(edge) ? EdgeMath.uprightLabelAngle(anchor.angle) : 0.0
         };
+    }
+
+    // Topmost visible label under a screen point (labels may be rotated and scaled).
+    function labelEdgeIdAtScreen(screenX, screenY) {
+        for (var i = flowLabelRepeater.count - 1; i >= 0; i--) {
+            var item = flowLabelRepeater.itemAt(i);
+            if (!item || !item.visible)
+                continue;
+            var local = item.mapFromItem(root, Number(screenX), Number(screenY));
+            if (local.x >= 0.0 && local.y >= 0.0 && local.x <= item.width && local.y <= item.height)
+                return String(item.edgeId || "");
+        }
+        return "";
     }
 
     function flowLabelAnchor(labelAnchorScene) {
@@ -240,6 +262,7 @@ Item {
     }
 
     Repeater {
+        id: flowLabelRepeater
         model: flowLabelModel
 
         delegate: Item {
@@ -259,7 +282,13 @@ Item {
             property real anchorScreenX: labelAnchor ? labelAnchor.screen_x : 0.0
             property real anchorScreenY: labelAnchor ? labelAnchor.screen_y : 0.0
             property var geometry: labelRequested && !culledByViewport && snapshotData ? snapshotData.geometry : null
-            property var labelAnchorScene: labelRequested && !culledByViewport && snapshotData ? snapshotData.labelAnchorScene : null
+            readonly property bool labelDragPreviewActive: Boolean(root.edgeLayer
+                && root.edgeLayer.labelDragEdgeId.length > 0
+                && root.edgeLayer.labelDragEdgeId === edgeId
+                && root.edgeLayer.labelDragAnchorScene)
+            property var labelAnchorScene: labelRequested && !culledByViewport && snapshotData
+                ? (labelDragPreviewActive ? root.edgeLayer.labelDragAnchorScene : snapshotData.labelAnchorScene)
+                : null
             property var labelAnchor: labelAnchorScene ? root.flowLabelAnchor(labelAnchorScene) : null
             property bool hitTestMatches: visible
             property bool selectedEdge: snapshotData ? Boolean(snapshotData.selected) : false
@@ -267,7 +296,7 @@ Item {
             property bool labelBackingVisible: labelMode === "pill" || labelMode === "text"
             property real horizontalPadding: pillVisible ? 10.0 : 8.0
             property real verticalPadding: pillVisible ? 6.0 : 3.0
-            property real maximumTextWidth: pillVisible ? 220.0 : 120.0
+            property real maximumTextWidth: EdgePaintPolicy.flowLabelMaximumTextWidth(pillVisible)
             property real labelBackingRadius: pillVisible ? 5.0 : 2.0
             property real labelScale: root.flowLabelScale()
             visible: labelRequested && !culledByViewport && labelAnchor !== null
@@ -276,6 +305,7 @@ Item {
             x: anchorScreenX - width * 0.5
             y: anchorScreenY - height * 0.5
             scale: labelScale
+            rotation: labelAnchorScene ? Number(labelAnchorScene.rotation || 0.0) : 0.0
             transformOrigin: Item.Center
 
             Rectangle {
@@ -301,8 +331,10 @@ Item {
                 font.weight: parent.pillVisible
                     ? root.graphSharedTypography.edgePillFontWeight
                     : root.graphSharedTypography.edgeLabelFontWeight
-                wrapMode: Text.NoWrap
+                wrapMode: Text.Wrap
+                maximumLineCount: EdgePaintPolicy.FLOW_LABEL_MAX_LINES
                 elide: Text.ElideRight
+                horizontalAlignment: Text.AlignHCenter
                 renderType: Text.NativeRendering
             }
 

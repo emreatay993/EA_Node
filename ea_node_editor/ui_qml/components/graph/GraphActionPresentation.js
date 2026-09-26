@@ -59,6 +59,45 @@ function edgeDisplayChoices() {
     ];
 }
 
+// Arrowheads offered for each end of a flow edge, in popover order.
+function edgeArrowKindChoices() {
+    return [
+        {"label": "None", "value": "none"},
+        {"label": "Filled arrow", "value": "filled"},
+        {"label": "Open arrow", "value": "open"}
+    ];
+}
+
+// `end` is "start" (arrow_tail, default none) or "end" (arrow_head, default filled).
+function normalizeEdgeArrowKind(value, end) {
+    var normalized = String(value || "").trim().toLowerCase();
+    var choices = edgeArrowKindChoices();
+    for (var index = 0; index < choices.length; ++index) {
+        if (choices[index].value === normalized)
+            return normalized;
+    }
+    return String(end || "") === "start" ? "none" : "filled";
+}
+
+function edgeArrowEnds() {
+    return [
+        {"end": "start", "label": "Start", "styleKey": "arrow_tail"},
+        {"end": "end", "label": "End", "styleKey": "arrow_head"}
+    ];
+}
+
+function normalizeEdgeLabelOrientation(value) {
+    var normalized = String(value || "").trim().toLowerCase();
+    return normalized === "follow_path" ? normalized : "horizontal";
+}
+
+function edgeLabelOrientationChoices() {
+    return [
+        {"label": "Horizontal", "value": "horizontal"},
+        {"label": "Along path", "value": "follow_path"}
+    ];
+}
+
 function edgePathMenuActions(currentMode) {
     var current = normalizeEdgePathMode(currentMode);
     var choices = edgePathChoices();
@@ -145,8 +184,16 @@ function edgeToolbarActions(facts) {
             {"id": "edge_color", "label": "Set color", "icon": "palette", "popover": "color"},
             {"id": "clear_flow_edge_label", "label": "Remove label", "icon": "label-off", "enabled": Boolean(source.hasLabel)},
             {"id": "edit_flow_edge_label", "label": "Edit label", "icon": "edit"},
+            {
+                "id": "flow_edge_label_layout", "label": "Label placement", "icon": "edge-label-layout",
+                "popover": "label_layout", "enabled": Boolean(source.hasLabel)
+            },
             {"id": "stroke_pattern", "label": "Line pattern", "icon": "path-style", "popover": "pattern"},
-            {"id": "arrow_head", "label": "Arrow style", "icon": "arrow-right", "popover": "arrow"},
+            {"id": "arrow_head", "label": "Arrowheads", "icon": "arrow-right", "popover": "arrow"},
+            {
+                "id": "reverse_flow_edge", "label": "Reverse direction", "icon": "edge-reverse",
+                "enabled": Boolean(source.reversible)
+            },
             {"id": "copy_flow_edge_style", "label": "Copy style", "icon": "copy-text-style"},
             {"id": "paste_flow_edge_style", "label": "Paste style", "icon": "paste-text-style"},
             {"id": "reset_flow_edge_style", "label": "Reset style", "icon": "script-undo"},

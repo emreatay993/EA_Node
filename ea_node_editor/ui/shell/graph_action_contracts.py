@@ -59,6 +59,7 @@ class GraphActionId(str, Enum):
     RESET_FLOW_EDGE_STYLE = "reset_flow_edge_style"
     COPY_FLOW_EDGE_STYLE = "copy_flow_edge_style"
     PASTE_FLOW_EDGE_STYLE = "paste_flow_edge_style"
+    REVERSE_FLOW_EDGE = "reverse_flow_edge"
     REMOVE_EDGE = "remove_edge"
     FOLDER_EXPLORER_LIST = "folder_explorer_list"
     FOLDER_EXPLORER_NAVIGATE = "folder_explorer_navigate"
@@ -449,6 +450,13 @@ GRAPH_ACTION_SPECS: tuple[GraphActionSpec, ...] = (
     GraphActionSpec(
         GraphActionId.PASTE_FLOW_EDGE_STYLE,
         "Paste Style",
+        None,
+        ("qml_edge_context_menu",),
+        required_payload_keys=("edge_id",),
+    ),
+    GraphActionSpec(
+        GraphActionId.REVERSE_FLOW_EDGE,
+        "Reverse Direction",
         None,
         ("qml_edge_context_menu",),
         required_payload_keys=("edge_id",),

@@ -1,7 +1,7 @@
 # Purpose: Apply invariant-checked graph mutations through graph-owned record writers.
 # Map: subsystems/graph_domain.md
 # Tests: tests/test_graph_node_reconciliation.py, tests/test_graph_track_b.py, tests/test_python_script_scene_integration.py, tests/mechanical_catalogue/test_controls.py
-# Landmarks: ValidatedGraphMutation; add_node; rewire_edges; set_node_properties; dynamic-port mutation; edge pruning
+# Landmarks: ValidatedGraphMutation; add_node; rewire_edges; reverse_edges; set_node_properties; dynamic-port mutation; edge pruning
 
 from __future__ import annotations
 
@@ -344,6 +344,81 @@ class ValidatedGraphMutation:
                 append_requested=append_requested,
             )
         )
+
+    def reverse_edges(self, edge_ids: list[object] | tuple[object, ...]) -> tuple[str, ...]:
+        """Swap source and target of each edge in place; ids, labels, styles and enabled state survive.
+
+        Each swapped pair is validated as a fresh connection against the workspace without the requested
+        edges, so a directed or hidden port, a same-node flow loop, or a duplicate rejects the whole batch
+        before anything is written. Neutral flowchart ports accept both directions.
+        """
+        workspace = self.workspace
+        requested: list[EdgeInstance] = []
+        for edge_id in dict.fromkeys(str(value or "").strip() for value in edge_ids):
+            if not edge_id:
+                continue
+            if edge_id not in workspace.edges:
+                raise KeyError(f"Unknown edge: {edge_id}")
+            requested.append(workspace.edges[edge_id])
+        if not requested:
+            return ()
+        requested_ids = {edge.edge_id for edge in requested}
+        candidates = [edge.clone() for edge in workspace.edges.values() if edge.edge_id not in requested_ids]
+        endpoint_keys = {
+            (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key)
+            for edge in candidates
+        }
+        swapped: list[EdgeInstance] = []
+        for edge in requested:
+            candidate = edge.clone()
+            candidate.source_node_id, candidate.source_port_key = edge.target_node_id, edge.target_port_key
+            candidate.target_node_id, candidate.target_port_key = edge.source_node_id, edge.source_port_key
+            key = (
+                candidate.source_node_id,
+                candidate.source_port_key,
+                candidate.target_node_id,
+                candidate.target_port_key,
+            )
+            if key in endpoint_keys:
+                raise ValueError(f"Reversing {edge.edge_id} would duplicate an existing connection.")
+            endpoint_keys.add(key)
+            candidate.input_order = 1 + max(
+                (
+                    other.input_order
+                    for other in candidates
+                    if other.target_node_id == candidate.target_node_id
+                    and other.target_port_key == candidate.target_port_key
+                ),
+                default=-1,
+            )
+            candidates.append(candidate)
+            swapped.append(candidate)
+        kernel = GraphInvariantKernel(self.registry, workspace.nodes, candidates)
+        memo = RegistryValidationPassMemo()
+        for candidate in swapped:
+            kernel.add_edge_or_raise(
+                source_node_id=candidate.source_node_id,
+                source_port_key=candidate.source_port_key,
+                target_node_id=candidate.target_node_id,
+                target_port_key=candidate.target_port_key,
+                append_requested=True,
+                memo=memo,
+                capacity_excluded_edge_id=candidate.edge_id,
+            )
+        for candidate in swapped:
+            self.model._move_edge_endpoint_record(
+                self.workspace_id,
+                candidate.edge_id,
+                source_node_id=candidate.source_node_id,
+                source_port_key=candidate.source_port_key,
+                target_node_id=candidate.target_node_id,
+                target_port_key=candidate.target_port_key,
+                input_order=candidate.input_order,
+            )
+        self._prune_edges_for_nodes(
+            {node_id for edge in swapped for node_id in (edge.source_node_id, edge.target_node_id)}
+        )
+        return tuple(edge.edge_id for edge in swapped)
 
     def ports_compatible(
         self,
