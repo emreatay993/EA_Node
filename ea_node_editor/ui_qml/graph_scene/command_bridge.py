@@ -804,6 +804,57 @@ class GraphSceneCommandBridge(QObject):
     def wrap_selected_nodes_in_group_backdrop(self) -> bool:
         return self._authoring_boundary.wrap_selected_nodes_in_group_backdrop()
 
+    def create_swimlane_pool(
+        self,
+        x: float,
+        y: float,
+        *,
+        orientation: str = "",
+        title: str = "",
+        lane_titles: list[str] | None = None,
+        lane_thickness: float | None = None,
+        length: float | None = None,
+    ) -> tuple[str, list[str]]:
+        options: dict[str, Any] = {}
+        if lane_thickness is not None:
+            options["lane_thickness"] = float(lane_thickness)
+        if length is not None:
+            options["length"] = float(length)
+        return self._timed_authoring_call(
+            self._authoring_boundary.create_swimlane_pool,
+            x=float(x),
+            y=float(y),
+            orientation=orientation,
+            title=title,
+            lane_titles=lane_titles,
+            **options,
+        )
+
+    def add_swimlane_lane(self, pool_id: str, index: int | None = None, title: str = "") -> str:
+        return self._timed_authoring_call(self._authoring_boundary.add_swimlane_lane, pool_id, index, title)
+
+    def insert_swimlane_lane(self, lane_id: str, after: bool) -> str:
+        return self._timed_authoring_call(self._authoring_boundary.insert_swimlane_lane, lane_id, after=after)
+
+    def remove_swimlane_lane(self, lane_id: str) -> bool:
+        return self._timed_authoring_call(self._authoring_boundary.remove_swimlane_lane, lane_id)
+
+    def move_swimlane_lane(self, lane_id: str, offset: int) -> bool:
+        return self._timed_authoring_call(self._authoring_boundary.move_swimlane_lane, lane_id, offset)
+
+    def assign_nodes_to_swimlane_lane(self, node_ids: list[Any], lane_id: str) -> list[str]:
+        return self._timed_authoring_call(
+            self._authoring_boundary.assign_nodes_to_swimlane_lane, node_ids, lane_id
+        )
+
+    def set_swimlane_pool_orientation(self, pool_id: str, orientation: str) -> bool:
+        return self._timed_authoring_call(
+            self._authoring_boundary.set_swimlane_pool_orientation, pool_id, orientation
+        )
+
+    def describe_swimlane_pools(self) -> list[dict[str, Any]]:
+        return self._authoring_boundary.describe_swimlane_pools()
+
     @pyqtSlot(result=bool)
     def group_selected_nodes(self) -> bool:
         return self._timed_authoring_call(self._authoring_boundary.group_selected_nodes)

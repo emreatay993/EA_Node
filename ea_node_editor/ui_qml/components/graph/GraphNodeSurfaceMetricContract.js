@@ -403,6 +403,42 @@ var SURFACE_METRIC_CONTRACT = {
         "title_centered": false,
         "use_host_chrome": false,
         "use_host_shadow": false
+      },
+      "swimlane_pool": {
+        "default_width": 1200.0,
+        "default_height": 600.0,
+        "min_width": 120.0,
+        "min_height": 120.0,
+        "title_top": 8.0,
+        "title_height": 24.0,
+        "title_left_margin": 12.0,
+        "title_right_margin": 12.0,
+        "body_top": 40.0,
+        "body_height": 560.0,
+        "body_left_margin": 0.0,
+        "body_right_margin": 0.0,
+        "body_bottom_margin": 0.0,
+        "title_centered": true,
+        "use_host_chrome": false,
+        "use_host_shadow": false
+      },
+      "swimlane_lane": {
+        "default_width": 1160.0,
+        "default_height": 200.0,
+        "min_width": 120.0,
+        "min_height": 120.0,
+        "title_top": 8.0,
+        "title_height": 24.0,
+        "title_left_margin": 12.0,
+        "title_right_margin": 12.0,
+        "body_top": 40.0,
+        "body_height": 160.0,
+        "body_left_margin": 0.0,
+        "body_right_margin": 0.0,
+        "body_bottom_margin": 0.0,
+        "title_centered": true,
+        "use_host_chrome": false,
+        "use_host_shadow": false
       }
     }
   },

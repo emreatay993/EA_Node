@@ -1,4 +1,4 @@
-# Purpose: Structure automation handlers: Group backdrops, subnodes (create/ungroup/pins), scope navigation, selection, layout (align/distribute/match size, straighten wires, tidy).
+# Purpose: Structure automation handlers: Group backdrops, swimlane pools and lanes, subnodes (create/ungroup/pins), scope navigation, selection, layout (align/distribute/match size, straighten wires, tidy).
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_handlers_structure.py
 from __future__ import annotations
@@ -14,6 +14,10 @@ from ea_node_editor.graph.subnode_contract import (
     SUBNODE_OUTPUT_TYPE_ID,
     is_subnode_pin_type,
     is_subnode_shell_type,
+)
+from ea_node_editor.nodes.builtins.passive_annotation import (
+    PASSIVE_ANNOTATION_SWIMLANE_LANE_TYPE_ID,
+    PASSIVE_ANNOTATION_SWIMLANE_POOL_TYPE_ID,
 )
 from ea_node_editor.ui.shell.automation.context import AutomationContext
 
@@ -132,6 +136,161 @@ def wrap_group(context: AutomationContext, params: Mapping[str, Any]) -> dict[st
     _apply_title(context, "group.wrap", group_id, params.get("title"))
     group = context.require_node(group_id)
     return {"group_node_id": group_id, "member_node_ids": node_ids, "group": context.node_summary(group)}
+
+
+def _require_swimlane(context: AutomationContext, node_id: str, op: str, *, pool: bool) -> NodeInstance:
+    node = context.require_node_in_scope(node_id)
+    expected = PASSIVE_ANNOTATION_SWIMLANE_POOL_TYPE_ID if pool else PASSIVE_ANNOTATION_SWIMLANE_LANE_TYPE_ID
+    if node.type_id != expected:
+        kind = "pool" if pool else "lane"
+        raise AutomationOpError(
+            INVALID_PARAMS,
+            f"{op}: node '{node_id}' is a {node.type_id}, not a swimlane {kind}.",
+            hint=f"Pass a {expected} id (swimlane_describe lists the pools and lanes of the open scope).",
+            details={"node_id": node_id, "type_id": node.type_id, "op": op, "problems": [f"{node_id} is not a {expected}"]},
+        )
+    if pool and node.collapsed:
+        raise AutomationOpError(
+            INVALID_PARAMS,
+            f"{op}: pool '{node_id}' is collapsed.",
+            hint="Expand it first with node_update(collapsed=false).",
+            details={"node_id": node_id, "op": op, "problems": [f"{node_id} is collapsed"]},
+        )
+    return node
+
+
+def _swimlane_pools(context: AutomationContext) -> list[dict[str, Any]]:
+    return [dict(pool) for pool in context.scene.describe_swimlane_pools()]
+
+
+def _swimlane_pool_holding(context: AutomationContext, *, pool_id: str = "", lane_id: str = "") -> dict[str, Any] | None:
+    for pool in _swimlane_pools(context):
+        if (pool_id and pool["pool_node_id"] == pool_id) or (lane_id and lane_id in pool["lane_node_ids"]):
+            return pool
+    return None
+
+
+def create_swimlane_pool(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:
+    titles = params.get("lanes")
+    lane_titles = None if titles is None else [str(title).strip() for title in titles]
+    if lane_titles is not None and not all(lane_titles):
+        raise AutomationOpError(
+            INVALID_PARAMS,
+            "swimlane.create_pool: lane role names must not be empty.",
+            hint="Give every lane a name, or omit lanes for three lanes named Lane 1..3.",
+            details={"problems": ["lanes: empty role name"]},
+        )
+    pool_id, lane_ids = context.scene.create_swimlane_pool(
+        float(params["x"]),
+        float(params["y"]),
+        orientation=str(params["orientation"]),
+        title=str(params.get("title") or ""),
+        lane_titles=lane_titles,
+        lane_thickness=params.get("lane_size"),
+        length=params.get("length"),
+    )
+    if not pool_id:
+        raise no_effect("swimlane.create_pool", "the scene did not create a pool", details={"scope_path": context.scope_path()})
+    return {
+        "pool_node_id": pool_id,
+        "lane_node_ids": list(lane_ids),
+        "pool": _swimlane_pool_holding(context, pool_id=pool_id),
+    }
+
+
+def add_swimlane_lane(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:
+    pool = _require_swimlane(context, str(params["pool_node_id"]), "swimlane.add_lane", pool=True)
+    index = params.get("index")
+    lane_id = str(
+        context.scene.add_swimlane_lane(pool.node_id, None if index is None else int(index), str(params.get("title") or ""))
+        or ""
+    )
+    if not lane_id:
+        raise no_effect("swimlane.add_lane", "the scene did not add a lane", details={"pool_node_id": pool.node_id})
+    described = _swimlane_pool_holding(context, pool_id=pool.node_id) or {"lane_node_ids": [lane_id]}
+    return {"lane_node_id": lane_id, "lane_node_ids": list(described["lane_node_ids"])}
+
+
+def remove_swimlane_lane(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:
+    lane = _require_swimlane(context, str(params["lane_node_id"]), "swimlane.remove_lane", pool=False)
+    pool = _swimlane_pool_holding(context, lane_id=lane.node_id)
+    if pool is None or not context.scene.remove_swimlane_lane(lane.node_id):
+        raise no_effect(
+            "swimlane.remove_lane",
+            "the lane is not in an expanded pool of the open scope",
+            details={"lane_node_id": lane.node_id},
+        )
+    remaining = _swimlane_pool_holding(context, pool_id=pool["pool_node_id"])
+    return {"removed_lane_node_id": lane.node_id, "lane_node_ids": [] if remaining is None else list(remaining["lane_node_ids"])}
+
+
+def move_swimlane_lane(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:
+    lane = _require_swimlane(context, str(params["lane_node_id"]), "swimlane.move_lane", pool=False)
+    pool = _swimlane_pool_holding(context, lane_id=lane.node_id)
+    if pool is None:
+        raise no_effect("swimlane.move_lane", "the lane is not in an expanded pool", details={"lane_node_id": lane.node_id})
+    order = list(pool["lane_node_ids"])
+    current = order.index(lane.node_id)
+    target = min(int(params["index"]), len(order) - 1)
+    if target == current or not context.scene.move_swimlane_lane(lane.node_id, target - current):
+        raise no_effect(
+            "swimlane.move_lane",
+            f"the lane is already at position {current}",
+            details={"lane_node_id": lane.node_id, "lane_node_ids": order},
+        )
+    moved = _swimlane_pool_holding(context, pool_id=pool["pool_node_id"]) or pool
+    return {"lane_node_ids": list(moved["lane_node_ids"])}
+
+
+def assign_swimlane_nodes(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:
+    node_ids = _unique_ids(params["node_ids"])
+    nodes = _nodes_in_scope(context, node_ids)
+    lane = _require_swimlane(context, str(params["lane_node_id"]), "swimlane.assign", pool=False)
+    problems = [
+        f"node_ids: {node.node_id} is a {node.type_id}"
+        for node in nodes
+        if node.type_id in (PASSIVE_ANNOTATION_SWIMLANE_POOL_TYPE_ID, PASSIVE_ANNOTATION_SWIMLANE_LANE_TYPE_ID)
+    ]
+    drawn = _drawn_node_ids(context)
+    hidden = [node_id for node_id in node_ids if node_id not in drawn]
+    problems.extend(f"node_ids: {node_id} is hidden in a collapsed Group" for node_id in hidden)
+    if problems:
+        raise AutomationOpError(
+            INVALID_PARAMS,
+            "swimlane.assign: pools, lanes and hidden nodes cannot be assigned to a lane.",
+            hint="Use swimlane_move_lane to reorder lanes; expand a collapsed Group before assigning its members.",
+            details={"node_ids": node_ids, "problems": problems},
+        )
+    pool = _swimlane_pool_holding(context, lane_id=lane.node_id)
+    if pool is None:
+        raise no_effect("swimlane.assign", "the lane is not in an expanded pool", details={"lane_node_id": lane.node_id})
+    assigned = list(context.scene.assign_nodes_to_swimlane_lane(list(node_ids), lane.node_id))
+    if not assigned:
+        raise no_effect(
+            "swimlane.assign",
+            "every node is already in that lane",
+            details={"node_ids": node_ids, "lane_node_id": lane.node_id},
+        )
+    return {
+        "assigned_node_ids": assigned,
+        "lane_node_id": lane.node_id,
+        "pool": _swimlane_pool_holding(context, lane_id=lane.node_id),
+    }
+
+
+def describe_swimlanes(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:
+    pool_id = str(params.get("pool_node_id") or "").strip()
+    if pool_id:
+        node = context.require_node_in_scope(pool_id)
+        if node.type_id != PASSIVE_ANNOTATION_SWIMLANE_POOL_TYPE_ID:
+            raise AutomationOpError(
+                INVALID_PARAMS,
+                f"swimlane.describe: node '{pool_id}' is a {node.type_id}, not a swimlane pool.",
+                hint="Omit pool_node_id to list every pool of the open scope.",
+                details={"node_id": pool_id, "problems": [f"{pool_id} is not a swimlane pool"]},
+            )
+    pools = [pool for pool in _swimlane_pools(context) if not pool_id or pool["pool_node_id"] == pool_id]
+    return {"pools": pools}
 
 
 def create_subnode(context: AutomationContext, params: Mapping[str, Any]) -> dict[str, Any] | Deferred:
@@ -626,8 +785,8 @@ def tidy_layout(context: AutomationContext, params: Mapping[str, Any]) -> dict[s
             INVALID_PARAMS,
             "layout.tidy: fewer than two nodes can be tidied.",
             hint=(
-                "Pass two or more unlocked, visible nodes (or none for the whole scope); details.skipped_nodes says why "
-                "nodes were left out."
+                "Pass two or more unlocked, visible nodes, one Group or swimlane pool (it tidies what it holds), or "
+                "none for the whole scope; details.skipped_nodes says why nodes were left out."
             ),
             details={"skipped_nodes": skipped},
         )
@@ -694,6 +853,12 @@ def tidy_layout(context: AutomationContext, params: Mapping[str, Any]) -> dict[s
 
 HANDLERS = {
     'group.wrap': wrap_group,
+    'swimlane.create_pool': create_swimlane_pool,
+    'swimlane.add_lane': add_swimlane_lane,
+    'swimlane.remove_lane': remove_swimlane_lane,
+    'swimlane.move_lane': move_swimlane_lane,
+    'swimlane.assign': assign_swimlane_nodes,
+    'swimlane.describe': describe_swimlanes,
     'subnode.create': create_subnode,
     'subnode.ungroup': ungroup_subnode,
     'subnode.add_pin': add_subnode_pin,

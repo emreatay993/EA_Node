@@ -20,7 +20,7 @@ It is a **local, opt-in developer automation surface**:
   `--automation` or spawned by the launcher.
 - Loopback only (`127.0.0.1`), one per-instance token, protocol version 1,
   NDJSON frames capped at 8 MiB.
-- One declarative op catalog: 50 ops, each also a typed MCP tool. The same
+- One declarative op catalog: 56 ops, each also a typed MCP tool. The same
   in-app server serves every launch mode.
 - Every mutating op is exactly one undo step; `graph.apply` batches are one
   step too.
@@ -592,6 +592,13 @@ performs it. "not exposed" means the first pass deliberately leaves it out
 | Node context menu | Add Link | `link.upsert` |
 | Node context menu | Peek Inside / Exit Peek | not exposed (transient overlay) |
 | Node context menu | Ungroup Subnode | `subnode.ungroup` |
+| Node context menu (swimlane pool) | Add Lane | `swimlane.add_lane(pool_node_id)` |
+| Node context menu (swimlane lane) | Insert Lane Above / Below (Left / Right) | `swimlane.add_lane(pool_node_id, index=...)` |
+| Node context menu (swimlane lane) | Move Lane Up / Down (Left / Right) | `swimlane.move_lane(lane_node_id, index=...)` |
+| Node context menu (swimlane lane) | Remove Lane | `swimlane.remove_lane` |
+| Node context menu (swimlane pool or lane) | Tidy Lanes | `layout.tidy(node_ids=[pool_node_id])` |
+| Library | Drop a Swimlane Pool (three lanes) | `swimlane.create_pool` |
+| Canvas | Drop or drag a node into a lane | `swimlane.assign` (or `node.add` / `node.update` inside the lane) |
 | Node context menu | Run Settings... | not exposed (dialog) |
 | Node context menu | Open Add-On Manager | not exposed (dialog) |
 | Node context menu | Add to Workflows | not exposed (dialog) |
@@ -757,6 +764,12 @@ from the same catalog.
 | `edge_update` | `edge.update` | Update an edge's label, style, path mode, enabled flag, or display mode; optionally clear label/style or reverse its direction. |
 | `edge_delete` | `edge.delete` | Delete one or more edges. |
 | `group_wrap` | `group.wrap` | Wrap nodes in a Group backdrop (passive.annotation.group_backdrop) with an optional title. |
+| `swimlane_create_pool` | `swimlane.create_pool` | Add a swimlane pool with its role lanes (passive.annotation.swimlane_pool / swimlane_lane). |
+| `swimlane_add_lane` | `swimlane.add_lane` | Add a lane to a swimlane pool at a stack position (default: after the last lane). |
+| `swimlane_remove_lane` | `swimlane.remove_lane` | Remove a lane from its pool; the lane before it (else after it) takes its band and what it held. |
+| `swimlane_move_lane` | `swimlane.move_lane` | Move a lane to another stack position in its pool; every lane keeps what it holds. |
+| `swimlane_assign` | `swimlane.assign` | Move nodes into a lane: placed after what the lane holds along the flow, centred across the lane. |
+| `swimlane_describe` | `swimlane.describe` | List the swimlane pools of the open scope: orientation, lanes in stack order and what each lane holds. |
 | `subnode_create` | `subnode.create` | Collapse nodes into a subnode shell (nested scope); boundary edges become input/output pins. |
 | `subnode_ungroup` | `subnode.ungroup` | Dissolve a subnode shell, restoring its members to the current scope. |
 | `subnode_add_pin` | `subnode.add_pin` | Add an input or output pin to a subnode shell. |
@@ -764,7 +777,7 @@ from the same catalog.
 | `selection_set` | `selection.set` | Replace, extend, or clear the canvas selection. |
 | `layout_arrange` | `layout.arrange` | Align, distribute, or match the size of a set of nodes (align left/right/top/bottom/center_x/center_y, distribute horizontal/vertical, match_width/match_height). |
 | `layout_straighten` | `layout.straighten` | Move nodes so the wires between them run straight (the Straighten Connections action). |
-| `layout_tidy` | `layout.tidy` | Tidy nodes: auto-layout from the wires (left to right / top to bottom) or clean up in place, keeping Group backdrops intact. |
+| `layout_tidy` | `layout.tidy` | Tidy nodes: auto-layout from the wires (left to right / top to bottom) or clean up in place, keeping Group backdrops intact and laying swimlane pools out lane by lane. |
 | `comment_upsert` | `comment.upsert` | Add or edit a comment on a node (threaded via parent_id; resolved/pinned flags). |
 | `comment_remove` | `comment.remove` | Remove a comment from a node. |
 | `link_upsert` | `link.upsert` | Add or edit a link on a node: url, file, folder, workspace, or node targets; optional ordering position. |
@@ -1201,6 +1214,111 @@ An expanded Group owns the nodes inside its area (moving a node in or out change
 
 Result keys: `group_node_id`, `member_node_ids`.
 
+#### swimlane.create_pool
+
+MCP tool: `swimlane_create_pool`. Flags: undo step, apply-allowed.
+
+Add a swimlane pool with its role lanes (passive.annotation.swimlane_pool / swimlane_lane).
+
+Lanes are Group backdrops stacked in the pool: a node placed in a lane belongs to it, and moving a lane moves what it holds. horizontal (default): lanes are rows, the pool's title band is on the left and the flow runs left to right; vertical: lanes are columns and the flow runs top to bottom. Lanes resize together: they share the pool's length, a lane grows (pushing the lanes after it) to fit what it holds, and a lane never shrinks past its contents. Place nodes with swimlane_assign (or node_add inside a lane's rectangle), then layout_tidy the pool for layers along the flow with one row per lane. Rename a lane with node_update(title=...); change the orientation with node_update(properties={'orientation': ...}).
+
+| Param | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `x` | `number` | yes |  | Scene coordinate in canvas units |
+| `y` | `number` | yes |  | Scene coordinate in canvas units |
+| `title` | `string` | no |  | Node title shown in the header |
+| `orientation` | `string` | no | `"horizontal"` | horizontal: lanes are rows, flow left to right; vertical: lanes are columns, flow top to bottom; one of: horizontal, vertical |
+| `lanes` | `array<string>` | no |  | One role name per lane, in stack order (default: three lanes named Lane 1..3); min 1 item(s); max 24 item(s) |
+| `lane_size` | `number` | no |  | Lane thickness across the flow in px (default 200); >= 120 and \<= 4000 |
+| `length` | `number` | no |  | Pool length along the flow in px, title band included (default 1200); >= 360 and \<= 20000 |
+
+Result keys: `pool_node_id`, `lane_node_ids`, `pool`.
+
+Example:
+
+```json
+{
+  "x": 0,
+  "y": 0,
+  "title": "Order to delivery",
+  "lanes": [
+    "Customer",
+    "Sales",
+    "Warehouse"
+  ]
+}
+```
+
+#### swimlane.add_lane
+
+MCP tool: `swimlane_add_lane`. Flags: undo step, apply-allowed.
+
+Add a lane to a swimlane pool at a stack position (default: after the last lane).
+
+The lanes after the new one move on with what they hold, and the pool grows.
+
+| Param | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `pool_node_id` | `string` | yes |  | Node id (node_...); non-empty |
+| `title` | `string` | no |  | The new lane's role name |
+| `index` | `integer` | no |  | Stack position, 0 = first (default: last); >= 0 |
+
+Result keys: `lane_node_id`, `lane_node_ids`.
+
+#### swimlane.remove_lane
+
+MCP tool: `swimlane_remove_lane`. Flags: undo step, apply-allowed.
+
+Remove a lane from its pool; the lane before it (else after it) takes its band and what it held.
+
+Nothing else moves and the pool keeps its size; the removed lane's nodes stay (in the neighbour).
+
+| Param | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `lane_node_id` | `string` | yes |  | Node id (node_...); non-empty |
+
+Result keys: `removed_lane_node_id`, `lane_node_ids`.
+
+#### swimlane.move_lane
+
+MCP tool: `swimlane_move_lane`. Flags: undo step, apply-allowed.
+
+Move a lane to another stack position in its pool; every lane keeps what it holds.
+
+| Param | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `lane_node_id` | `string` | yes |  | Node id (node_...); non-empty |
+| `index` | `integer` | yes |  | Target stack position, 0 = first; >= 0 |
+
+Result keys: `lane_node_ids`.
+
+#### swimlane.assign
+
+MCP tool: `swimlane_assign`. Flags: undo step, apply-allowed.
+
+Move nodes into a lane: placed after what the lane holds along the flow, centred across the lane.
+
+The lane (and pool) grow to fit. A Group moves with its members. Run layout_tidy on the pool afterwards for layers along the flow. Hidden members of a collapsed Group, pools and lanes cannot be assigned.
+
+| Param | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `node_ids` | `array<string>` | yes |  | Nodes to move into the lane; min 1 item(s) |
+| `lane_node_id` | `string` | yes |  | Node id (node_...); non-empty |
+
+Result keys: `assigned_node_ids`, `lane_node_id`, `pool`.
+
+#### swimlane.describe
+
+MCP tool: `swimlane_describe`. Flags: read-only, apply-allowed.
+
+List the swimlane pools of the open scope: orientation, lanes in stack order and what each lane holds.
+
+| Param | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `pool_node_id` | `string` | no |  | Only this pool (default: every pool); non-empty |
+
+Result keys: `pools`.
+
 #### subnode.create
 
 MCP tool: `subnode_create`. Flags: undo step, apply-allowed.
@@ -1302,13 +1420,13 @@ Result keys: `moved_node_ids`, `straightened_edge_ids`, `skipped_edges`, `overla
 
 MCP tool: `layout_tidy`. Flags: undo step, apply-allowed.
 
-Tidy nodes: auto-layout from the wires (left to right / top to bottom) or clean up in place, keeping Group backdrops intact.
+Tidy nodes: auto-layout from the wires (left to right / top to bottom) or clean up in place, keeping Group backdrops intact and laying swimlane pools out lane by lane.
 
-Omit node_ids to tidy every node in the open scope. auto_layout rebuilds the arrangement from the wires (direction auto-detected from the port sides they use, or forced with left_to_right / top_to_bottom): rows and columns are centered so right->left and bottom->top wires run straight, loop-back wires stay elbows (loop_edge_ids), and the block keeps its current top-left; in_place keeps the arrangement and snaps near-aligned rows and columns onto shared center lines with even gaps. Group backdrops stay intact: a listed backdrop's members are laid out inside it and the backdrop is refitted, a collapsed Group moves as one block with its hidden members and is laid out at its collapsed size at every level, and an unlisted backdrop grows to keep listed members; when the result would still move a node into or out of a Group nothing changes and the call fails with NO_EFFECT (details.membership_conflict_node_ids). Locked nodes (unless the 'interact with locked objects' preference is on), members of a collapsed Group, nodes outside an open comment peek, Groups that hold a locked node (with their contents), and nodes whose locked Group would have to grow are left alone and listed in skipped_nodes (the last two as locked_group); the new block steps around locked nodes and those Groups, and unwired annotations are never re-arranged. Other nodes the new block would overlap are pushed aside (pushed_node_ids) while the 'Avoid overlaps when expanding collapsed items' graphics setting is on (the default). Read straightened_edge_ids, skipped_edges, and overlapping_node_pairs afterwards; changed=false means the nodes were already tidy.
+Omit node_ids to tidy every node in the open scope. auto_layout rebuilds the arrangement from the wires (direction auto-detected from the port sides they use, or forced with left_to_right / top_to_bottom): rows and columns are centered so right->left and bottom->top wires run straight, loop-back wires stay elbows (loop_edge_ids), and the block keeps its current top-left; in_place keeps the arrangement and snaps near-aligned rows and columns onto shared center lines with even gaps. Group backdrops stay intact: a listed backdrop's members are laid out inside it and the backdrop is refitted, a collapsed Group moves as one block with its hidden members and is laid out at its collapsed size at every level, and an unlisted backdrop grows to keep listed members; when the result would still move a node into or out of a Group nothing changes and the call fails with NO_EFFECT (details.membership_conflict_node_ids). A swimlane pool (listed, or pulled in by one of its lanes) is laid out as one unit along its own flow (rows of a horizontal pool, columns of a vertical one): steps share layer columns across every lane, each lane is one row (two steps of one lane in the same layer stack), and the lanes are resized to what they hold. Locked nodes (unless the 'interact with locked objects' preference is on), members of a collapsed Group, nodes outside an open comment peek, Groups that hold a locked node (with their contents), and nodes whose locked Group would have to grow are left alone and listed in skipped_nodes (the last two as locked_group); the new block steps around locked nodes and those Groups, and unwired annotations are never re-arranged. Other nodes the new block would overlap are pushed aside (pushed_node_ids) while the 'Avoid overlaps when expanding collapsed items' graphics setting is on (the default). Read straightened_edge_ids, skipped_edges, and overlapping_node_pairs afterwards; changed=false means the nodes were already tidy.
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `node_ids` | `array<string>` | no |  | Nodes to tidy (default: every node in the open scope); min 2 item(s) |
+| `node_ids` | `array<string>` | no |  | Nodes to tidy (default: every node in the open scope); one Group or swimlane pool tidies what it holds; min 1 item(s) |
 | `mode` | `string` | no | `"auto_layout"` | auto_layout rebuilds the arrangement from the wires; in_place keeps it and straightens rows and columns; one of: auto_layout, in_place |
 | `direction` | `string` | no | `"auto"` | Flow direction for auto_layout; auto detects it from the port sides the wires use (in_place ignores it); one of: auto, left_to_right, top_to_bottom |
 | `column_gap` | `number` | no | `96` | Gap in px between steps along the flow (in_place: between columns, the median current gap clamped to 1x..3x this value); >= 24 and \<= 400 |

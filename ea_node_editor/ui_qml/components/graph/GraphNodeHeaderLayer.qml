@@ -27,6 +27,14 @@ Item {
     readonly property bool groupTitleIconVisible: host
         ? root.isGroupBackdropNode && host.isCollapsed
         : false
+    // An expanded horizontal swimlane pool or lane reads its title up its left band (the header metrics describe the
+    // band as a top band; the title turns into it).
+    readonly property bool swimlaneTitleRotated: !!host
+        && root.isGroupBackdropNode
+        && !host.isCollapsed
+        && !!host.nodeData
+        && ["swimlane_pool", "swimlane_lane"].indexOf(String(host.nodeData.surface_variant || "")) >= 0
+        && String((host.nodeData.properties || ({})).orientation || "horizontal") !== "vertical"
     readonly property bool lockedPlaceholderActive: host ? Boolean(host.lockedPlaceholderActive) : false
     readonly property var tooltipPolicyBridge: root.host && root.host.canvasItem && root.host.canvasItem.canvasStateBridgeRef
         ? root.host.canvasItem.canvasStateBridgeRef
@@ -153,8 +161,12 @@ Item {
                 + 4.0
         );
     }
+    // A collapsed swimlane pool shows the pool glyph the Library uses, so its pill reads apart from a Group's.
     readonly property string groupTitleIconSource: root.groupTitleIconVisible
-        ? uiIcons.sourceSized("comment", root.groupTitleIconSize, String(root.host ? root.host.headerTextColor : "#f0f4fb"))
+        ? uiIcons.sourceSized(
+            String((root.host.nodeData || ({})).surface_variant || "") === "swimlane_pool" ? "layout-dashboard" : "comment",
+            root.groupTitleIconSize,
+            String(root.host ? root.host.headerTextColor : "#f0f4fb"))
         : ""
     readonly property string lockedTitleIconSource: root.lockedTitleIconVisible
         ? uiIcons.sourceSized("lock", root.lockedTitleIconSize, String(root.host ? root.host.headerTextColor : "#b0b7c3"))
@@ -344,12 +356,22 @@ Item {
         id: titleDisplay
         objectName: "graphNodeTitleDisplay"
         visible: root.headerTitleVisible
-        anchors.left: parent.left
+        anchors.left: root.swimlaneTitleRotated ? undefined : parent.left
         anchors.leftMargin: root.host ? root.host._titleLeftMargin : 0
-        anchors.right: parent.right
+        anchors.right: root.swimlaneTitleRotated ? undefined : parent.right
         anchors.rightMargin: root.host ? root.host._titleRightMargin + root._headerBadgeReserveWidth : 0
-        y: root.host ? root.host._titleTop : 0
+        // Rotated: turned a quarter anticlockwise about its top-left, which sits at the band's bottom end, so the
+        // title runs up the band between the margins.
+        x: root.swimlaneTitleRotated && root.host ? root.host._titleTop : 0
+        y: root.host
+            ? (root.swimlaneTitleRotated ? root.height - root.host._titleLeftMargin : root.host._titleTop)
+            : 0
+        width: root.swimlaneTitleRotated && root.host
+            ? Math.max(0, root.height - root.host._titleLeftMargin - root.host._titleRightMargin)
+            : implicitWidth
         height: root.host ? root.host._titleHeight : 0
+        rotation: root.swimlaneTitleRotated ? -90 : 0
+        transformOrigin: Item.TopLeft
 
         Image {
             id: nodeTitleIcon
@@ -468,6 +490,8 @@ Item {
         y: titleDisplay.y
         width: titleDisplay.width
         height: titleDisplay.height
+        rotation: titleDisplay.rotation
+        transformOrigin: Item.TopLeft
         text: root.currentTitle
         font.pixelSize: titleText.font.pixelSize
         font.weight: titleText.font.weight

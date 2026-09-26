@@ -1616,6 +1616,13 @@ QtObject {
             rowCount += 1;
         if (root._activeCommentPeekNodeId() === String(nodeId || "").trim())
             rowCount += 1;
+        // Swimlanes: a pool adds Add Lane and Tidy Lanes; a lane adds insert, move, tidy and remove rows.
+        var payload = root.canvasItem._sceneNodePayload(String(nodeId || "").trim());
+        var swimlaneVariant = payload && !Boolean(payload.collapsed) ? String(payload.surface_variant || "") : "";
+        if (swimlaneVariant === "swimlane_pool")
+            rowCount += 2;
+        else if (swimlaneVariant === "swimlane_lane")
+            rowCount += 6;
         return 20 + (rowCount * 30) + Math.max(0, rowCount - 1);
     }
 

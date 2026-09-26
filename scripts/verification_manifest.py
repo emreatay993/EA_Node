@@ -763,6 +763,7 @@ VERIFICATION_TEST_PATH_SPECS = (
     # spawned private-instance end-to-end test (slow).
     VerificationTestPathSpec(AUTOMATION_SHELL_HANDLERS_TEST_PATH, (GUI_SUITE_KEY, SHELL_SUITE_KEY)),
     VerificationTestPathSpec("tests/test_shell_theme.py", (GUI_SUITE_KEY,)),
+    VerificationTestPathSpec("tests/test_swimlane_shell.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_viewer_control_bridge.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_viewer_host_service.py", (GUI_SUITE_KEY,)),
     VerificationTestPathSpec("tests/test_viewer_surface_contract.py", (GUI_SUITE_KEY,)),

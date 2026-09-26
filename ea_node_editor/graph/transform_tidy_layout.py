@@ -1,6 +1,7 @@
-# Purpose: Pure Tidy layout (auto layered layout + in-place clean-up) over plain item/wire data; UI-free.
+# Purpose: Pure Tidy layout (auto layered layout + in-place clean-up) over plain item/wire data, with swimlane pools laid out as one unit (layers along the flow, one row per lane); UI-free.
 # Map: subsystems/graph_domain.md
-# Tests: tests/test_transform_tidy_layout.py
+# Tests: tests/test_transform_tidy_layout.py, tests/test_swimlane_tidy_layout.py
+# Landmarks: TidyItem; build_tidy_layout; _TidyLayoutRun.run; _TidyLayoutRun._resolve_group; _TidyLayoutRun._resolve_swimlane_pool; _auto_layout_placement; _layer_columns; _layer_rows; _in_place_placement; _polished_positions
 
 from __future__ import annotations
 
@@ -13,6 +14,14 @@ import statistics
 from ea_node_editor.graph.group_backdrop_geometry import (
     GroupBackdropCandidate,
     build_group_backdrop_wrap_bounds,
+)
+from ea_node_editor.graph.swimlane_layout import (
+    SWIMLANE_CONTENT_PADDING,
+    SWIMLANE_LANE_HEADER,
+    SWIMLANE_MIN_LANE_LENGTH,
+    SWIMLANE_MIN_LANE_THICKNESS,
+    SWIMLANE_POOL_HEADER,
+    normalize_swimlane_orientation,
 )
 from ea_node_editor.graph.transform_layout_ops import (
     LayoutNodeBounds,
@@ -52,6 +61,8 @@ class TidyItem:
     is_group: bool = False
     rigid: bool = False  # moved as one box; its children are never laid out
     arrangeable: bool = True  # False = unwired annotation: keeps its rectangle
+    swimlane_pool: str = ""  # a swimlane pool's orientation: it lays out its lanes' contents as one unit
+    swimlane_lane: bool = False  # a lane of its parent pool item (the pool lays it out)
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,7 +202,12 @@ class _TidyLayoutRun:
     def run(self, direction: str) -> TidyLayoutResult:
         groups = [item_id for item_id in sorted(self._items) if self._items[item_id].is_group]
         for group_id in sorted(groups, key=lambda group_id: (-self._depth(group_id), group_id)):
-            self._resolve_group(group_id)
+            if self._is_pool_lane(group_id):
+                continue  # its pool lays it out
+            if self._items[group_id].swimlane_pool:
+                self._resolve_swimlane_pool(group_id)
+            else:
+                self._resolve_group(group_id)
         final_positions = self._resolve_top_level()
         positions: dict[str, tuple[float, float]] = {}
         for item_id in sorted(self._items):
@@ -263,6 +279,184 @@ class _TidyLayoutRun:
         group_x, group_y = self._rects[group_id][:2]
         for child_id, rect in child_rects.items():
             self._offsets[child_id] = (rect[0] - group_x, rect[1] - group_y)
+
+    def _is_pool_lane(self, item_id: str) -> bool:
+        parent_id = self._parent[item_id]
+        return bool(
+            self._items[item_id].swimlane_lane and parent_id is not None and self._items[parent_id].swimlane_pool
+        )
+
+    def _resolve_swimlane_pool(self, pool_id: str) -> None:
+        """Lay out a pool's lanes as one unit: layer columns along the flow shared by every lane, one row per lane.
+
+        Two items of one lane in the same column stack across it. Lanes are sized to what they hold and stacked with
+        no gap; the pool keeps its top-left. Groups and pools inside lanes were laid out first and move as blocks;
+        an item the pool holds outside every lane keeps its place.
+        """
+        children = self._children.get(pool_id, [])
+        lanes = [child_id for child_id in children if self._items[child_id].swimlane_lane]
+        if self._is_frozen(pool_id):
+            for lane_id in lanes:
+                self._keep_group_block(lane_id, self._children.get(lane_id, []))
+            self._keep_group_block(pool_id, children)
+            return
+        vertical = normalize_swimlane_orientation(self._items[pool_id].swimlane_pool) == "vertical"
+
+        def frame(rect: _Rect) -> _Rect:
+            return (rect[1], rect[0], rect[3], rect[2]) if vertical else rect
+
+        pool_u, pool_v, _pool_length, _pool_thickness = frame(self._rects[pool_id])
+        lanes.sort(key=lambda lane_id: (frame(self._rects[lane_id])[1] + frame(self._rects[lane_id])[3] * 0.5, lane_id))
+        stragglers = [child_id for child_id in children if child_id not in lanes]
+        bands: list[tuple[str | None, list[str]]] = (
+            [(lane_id, list(self._children.get(lane_id, []))) for lane_id in lanes] if lanes else [(None, stragglers)]
+        )
+        members = [member_id for _band_id, band_members in bands for member_id in band_members]
+        self._laid_out_level_count += 1
+        frames = {member_id: frame(self._rects[member_id]) for member_id in members}
+        wired = [member_id for member_id in members if self._items[member_id].arrangeable]
+        wires = self._swimlane_pool_wires(pool_id, set(lanes), set(wired), vertical)
+        columns = self._swimlane_columns(wired, frames, wires)
+        # Loose items (unwired, or annotations) take the lowest free columns of their lane.
+        for _band_id, band_members in bands:
+            used = {columns[member_id] for member_id in band_members if member_id in columns}
+            next_column = 0
+            for member_id in sorted(
+                (member_id for member_id in band_members if member_id not in columns),
+                key=lambda member_id: (frames[member_id][0], frames[member_id][1], member_id),
+            ):
+                while next_column in used:
+                    next_column += 1
+                columns[member_id] = next_column
+                used.add(next_column)
+        column_ids = sorted({columns[member_id] for member_id in members})
+        column_index = {column: index for index, column in enumerate(column_ids)}
+        widths = [0.0] * len(column_ids)
+        for member_id in members:
+            column = column_index[columns[member_id]]
+            widths[column] = max(widths[column], frames[member_id][2])
+        lane_u0 = pool_u + SWIMLANE_POOL_HEADER
+        content_u0 = lane_u0 + (SWIMLANE_LANE_HEADER if lanes else 0.0) + SWIMLANE_CONTENT_PADDING
+        column_lefts = _band_starts(content_u0, widths, self._column_gap)
+        content_end = column_lefts[-1] + widths[-1] if widths else content_u0
+        pool_end = max(content_end + SWIMLANE_CONTENT_PADDING, lane_u0 + SWIMLANE_MIN_LANE_LENGTH)
+
+        cursor = pool_v
+        band_rects: list[_Rect] = []
+        member_frames: dict[str, _Rect] = {}
+        for _band_id, band_members in bands:
+            stacks: dict[int, list[str]] = {}
+            for member_id in sorted(
+                band_members,
+                key=lambda member_id: (frames[member_id][1] + frames[member_id][3] * 0.5, frames[member_id][0], member_id),
+            ):
+                stacks.setdefault(column_index[columns[member_id]], []).append(member_id)
+            stack_heights = {
+                column: sum(frames[member_id][3] for member_id in stack) + self._row_gap * (len(stack) - 1)
+                for column, stack in stacks.items()
+            }
+            content_height = max(stack_heights.values(), default=0.0)
+            thickness = max(SWIMLANE_MIN_LANE_THICKNESS, content_height + 2.0 * SWIMLANE_CONTENT_PADDING)
+            top = cursor + (thickness - content_height) * 0.5
+            for column, stack in stacks.items():
+                v = top + (content_height - stack_heights[column]) * 0.5
+                for member_id in stack:
+                    _u, _v, width, height = frames[member_id]
+                    member_frames[member_id] = (column_lefts[column] + (widths[column] - width) * 0.5, v, width, height)
+                    v += height + self._row_gap
+            band_rects.append((lane_u0, cursor, pool_end - lane_u0, thickness))
+            cursor += thickness
+
+        self._rects[pool_id] = frame((pool_u, pool_v, pool_end - pool_u, cursor - pool_v))
+        pool_x, pool_y = self._rects[pool_id][:2]
+        for (band_id, band_members), band_rect in zip(bands, band_rects):
+            origin_x, origin_y = pool_x, pool_y
+            if band_id is not None:
+                self._rects[band_id] = frame(band_rect)
+                origin_x, origin_y = self._rects[band_id][:2]
+                self._offsets[band_id] = (origin_x - pool_x, origin_y - pool_y)
+            for member_id in band_members:
+                x, y, _width, _height = frame(member_frames[member_id])
+                self._offsets[member_id] = (x - origin_x, y - origin_y)
+        for straggler_id in stragglers if lanes else ():
+            x, y = self._rects[straggler_id][:2]
+            self._offsets[straggler_id] = (x - pool_x, y - pool_y)
+
+    def _swimlane_pool_wires(
+        self,
+        pool_id: str,
+        lane_ids: set[str],
+        member_ids: set[str],
+        vertical: bool,
+    ) -> list[_LevelWire]:
+        """The wires between items of one pool's lanes, lifted to those items, in the pool's horizontal frame."""
+
+        def member_of(item_id: str) -> str | None:
+            current = item_id
+            while True:
+                parent_id = self._parent[current]
+                if parent_id is None:
+                    return None
+                if parent_id == pool_id or parent_id in lane_ids:
+                    return current if current in member_ids else None
+                current = parent_id
+
+        def side(value: str) -> str:
+            normalized = _normalized_side(value)
+            return _TRANSPOSED_SIDES.get(normalized, normalized) if vertical else normalized
+
+        level_wires: list[_LevelWire] = []
+        for wire in self._wires:
+            source_id = member_of(wire.source_id)
+            target_id = member_of(wire.target_id)
+            if source_id is None or target_id is None or source_id == target_id:
+                continue
+            level_wires.append(
+                _LevelWire(
+                    wire_id=wire.wire_id,
+                    source_id=source_id,
+                    target_id=target_id,
+                    source_side=side(wire.source_side),
+                    target_side=side(wire.target_side),
+                    source_offset=(0.0, 0.0),
+                    target_offset=(0.0, 0.0),
+                )
+            )
+        return level_wires
+
+    def _swimlane_columns(
+        self,
+        member_ids: Sequence[str],
+        frames: Mapping[str, _Rect],
+        wires: Sequence[_LevelWire],
+    ) -> dict[str, int]:
+        """Layer columns of a pool's wired items (auto layout), or their current columns kept in order (in place)."""
+        if self._mode == TIDY_MODE_IN_PLACE:
+            columns: dict[str, int] = {}
+            column_first: list[str] = []
+            for member_id in sorted(
+                member_ids,
+                key=lambda member_id: (frames[member_id][0] + frames[member_id][2] * 0.5, member_id),
+            ):
+                if column_first:
+                    first = column_first[-1]
+                    overlap = _axis_overlap(frames[member_id], frames[first], axis=0)
+                    if overlap >= 0.5 * min(frames[member_id][2], frames[first][2]):
+                        columns[member_id] = len(column_first) - 1
+                        continue
+                column_first.append(member_id)
+                columns[member_id] = len(column_first) - 1
+            return columns
+        classified = [_classified_wire(_forward_wire(wire), all_advance=self._all_advance) for wire in wires]
+        wired_ids = [
+            member_id
+            for member_id in member_ids
+            if any(member_id in (wire.source_id, wire.target_id) for wire in classified)
+        ]
+        loop_wire_ids = _loop_wire_ids(wired_ids, frames, classified)
+        self._loop_wire_ids.update(loop_wire_ids)
+        acyclic = [wire for wire in classified if wire.wire_id not in loop_wire_ids]
+        return _layer_columns(wired_ids, frames, acyclic)
 
     def _clear_fixed_children(
         self,

@@ -30,13 +30,13 @@ IDs joined by LF with a final LF.
 | Classification | Rows |
 | --- | ---: |
 | `durable` | 28 |
-| `session` | 28 |
+| `session` | 29 |
 | `never` | 52 |
-| Executable subtotal | 108 |
-| Excluded passive | 31 |
+| Executable subtotal | 109 |
+| Excluded passive | 33 |
 | Excluded compile-only | 3 |
-| Excluded subtotal | 34 |
-| Repo-owned total | 142 |
+| Excluded subtotal | 36 |
+| Repo-owned total | 145 |
 
 ## Scope Meanings
 
@@ -237,6 +237,8 @@ the scheduler excludes them before solution-record classification.
 | `passive.annotation.group_backdrop` | Group | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
 | `passive.annotation.section_header` | Section Header | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
 | `passive.annotation.sticky_note` | Sticky Note | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
+| `passive.annotation.swimlane_lane` | Swimlane Lane | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_swimlane_scene_ops.py` |
+| `passive.annotation.swimlane_pool` | Swimlane Pool | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_swimlane_scene_ops.py` |
 | `passive.annotation.text` | Text | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
 | `passive.flowchart.actor` | Actor | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_flowchart.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
 | `passive.flowchart.callout` | Callout | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_flowchart.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
@@ -272,7 +274,7 @@ the scheduler excludes them before solution-record classification.
   carrier.
 - `session` rows never publish durable records unless a later accepted
   classification revision supplies complete portable provenance and codecs.
-- Public declarations remain outside the 143-row repo-owned total and cannot
+- Public declarations remain outside the 145-row repo-owned total and cannot
   increase any total in this document.
 
 ## Validation Contract
@@ -280,9 +282,9 @@ the scheduler excludes them before solution-record classification.
 Review and implementation checks must prove all of the following:
 
 1. The executable table has exactly 109 unique repo-owned type IDs and the excluded
-   table has exactly 34 unique IDs with no overlap.
+   table has exactly 36 unique IDs with no overlap.
 2. Executable totals are exactly 28 `durable`, 29 `session`, and 52 `never`.
-3. The excluded table contains exactly 31 passive and 3 compile-only rows.
+3. The excluded table contains exactly 33 passive and 3 compile-only rows.
 4. Every executable row contains all fourteen required columns and every excluded
    row contains all seven required columns.
 5. `engineering.cad_import`, `engineering.mesh_import`, and `model.viewer` are `session` with the exact
@@ -290,7 +292,7 @@ Review and implementation checks must prove all of the following:
 6. Runtime-discovered public declarations are hard-locked to `never` without
    recording private IDs or paths.
 7. `tests/fixtures/node_catalog/current_repo_owned_catalog.json` contains exactly
-   the 143 classified rows.
+   the 145 classified rows.
 
 This draft intentionally contains no implementation or acceptance claim. Metadata
 edits remain forbidden until independent classification review closes all findings

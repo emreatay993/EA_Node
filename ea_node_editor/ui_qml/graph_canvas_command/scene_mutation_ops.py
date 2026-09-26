@@ -131,6 +131,40 @@ scene_bridge.command_bridge directly."""
         self._show_expand_refusal_hint()
         return changed
 
+    @pyqtSlot(str, result=str)
+    def add_swimlane_lane(self, pool_id: str) -> str:
+        """Add a lane after a pool's last lane (the pool's context menu)."""
+        return str(_invoke(self._scene_command_source, "add_swimlane_lane", pool_id, default="") or "")
+
+    @pyqtSlot(str, bool, result=str)
+    def insert_swimlane_lane(self, lane_id: str, after: bool) -> str:
+        return str(
+            _invoke(self._scene_command_source, "insert_swimlane_lane", lane_id, bool(after), default="") or ""
+        )
+
+    @pyqtSlot(str, result=bool)
+    def remove_swimlane_lane(self, lane_id: str) -> bool:
+        return bool(_invoke(self._scene_command_source, "remove_swimlane_lane", lane_id, default=False))
+
+    @pyqtSlot(str, int, result=bool)
+    def move_swimlane_lane(self, lane_id: str, offset: int) -> bool:
+        return bool(_invoke(self._scene_command_source, "move_swimlane_lane", lane_id, int(offset), default=False))
+
+    @pyqtSlot(str, result=bool)
+    def tidy_swimlane_pool(self, node_id: str) -> bool:
+        """Tidy a pool (or the pool of a lane): layers along its flow, one row per lane."""
+        outcome = _invoke(self._scene_command_source, "tidy_layout", [str(node_id)], default=None)
+        changed = bool(outcome and outcome.get("changed"))
+        if not changed and callable(self._show_graph_hint_callback):
+            conflicts = bool(outcome and outcome.get("membership_conflict_node_ids"))
+            self._show_graph_hint_callback(
+                "Tidy would move nodes out of their lanes; nothing changed."
+                if conflicts
+                else "The lanes are already tidy.",
+                3000,
+            )
+        return changed
+
     def _show_expand_refusal_hint(self) -> None:
         # A refused expand (a locked Group would have to grow, no room) or a locked node joining a Group.
         reason = str(_invoke(self._scene_command_source, "take_expand_refusal_reason", default="") or "").strip()

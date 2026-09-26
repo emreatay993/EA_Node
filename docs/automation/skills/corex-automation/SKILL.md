@@ -5,7 +5,7 @@ description: Author COREX flowcharts, boards, and node workflows through the cor
 
 # COREX automation
 
-COREX exposes a local, opt-in automation API: 50 ops, each an MCP tool of the
+COREX exposes a local, opt-in automation API: 56 ops, each an MCP tool of the
 `corex` server and a `CorexClient` call. Full guide:
 `docs/AUTOMATION_API_GUIDE.md` in the COREX repository (setup, concepts, UI
 parity, walkthroughs, generated op reference). Runnable examples:
@@ -32,6 +32,9 @@ parity, walkthroughs, generated op reference). Runnable examples:
    `link_upsert`, `group_wrap` with a title, `subnode_create` for nested scopes.
    Moving a Group with `node_update(x=, y=)` moves everything inside it
    (`carried_node_ids`); `move_contents=false` moves or reshapes only its frame.
+   Role swimlanes: `swimlane_create_pool(x, y, lanes=[...])`, then
+   `swimlane_assign(node_ids, lane_node_id)` and `layout_tidy([pool_node_id])`
+   (layers along the flow, one row per lane); `swimlane_describe` lists lanes.
 5. **Tidy.** `layout_tidy()` lays the open scope (or `node_ids`) out from its
    wires: rows and columns centered so wires run straight, direction detected
    (or `direction="left_to_right"` / `"top_to_bottom"`), loops kept as elbows,

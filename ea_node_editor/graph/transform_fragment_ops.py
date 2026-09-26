@@ -24,6 +24,7 @@ from ea_node_editor.graph.fragment_payloads import (
 )
 from ea_node_editor.graph.record_mutation_ops import GraphRecordMutation
 from ea_node_editor.graph.subnode_contract import is_subnode_shell_type
+from ea_node_editor.graph.swimlane_layout import swimlane_pool_lane_ids_from_records
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
 
@@ -92,7 +93,8 @@ def expand_group_backdrop_fragment_node_ids(
     workspace: WorkspaceData,
     selected_node_ids: Sequence[object],
 ) -> list[str]:
-    """The selection plus, for each selected collapsed Group, what it holds (its stored list) and subnode subtrees."""
+    """The selection plus, for each selected collapsed Group, what it holds (its stored list), for each selected
+    swimlane pool its lanes, and subnode subtrees."""
     normalized_selected: list[str] = []
     selected_lookup: set[str] = set()
 
@@ -112,6 +114,12 @@ def expand_group_backdrop_fragment_node_ids(
                 continue
             selected_lookup.add(held_id)
             normalized_selected.append(held_id)
+
+    # A pool's lanes are part of the pool (what the lanes hold is not, like a Group's members).
+    for lane_id in swimlane_pool_lane_ids_from_records(workspace.nodes, normalized_selected):
+        if lane_id not in selected_lookup:
+            selected_lookup.add(lane_id)
+            normalized_selected.append(lane_id)
 
     return expand_subtree_fragment_node_ids(
         workspace=workspace,

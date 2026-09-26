@@ -270,6 +270,94 @@ Item {
         return true;
     }
 
+    function _swimlaneVariant(nodePayload) {
+        return nodePayload ? String(nodePayload.surface_variant || "") : "";
+    }
+
+    function _swimlaneVertical(nodePayload) {
+        var properties = nodePayload && nodePayload.properties ? nodePayload.properties : ({});
+        return String(properties.orientation || "horizontal") === "vertical";
+    }
+
+    // A pool's lanes (its member backdrops that are lanes), in stack order.
+    function _swimlaneOrderedLaneIds(poolPayload) {
+        if (!poolPayload)
+            return [];
+        var memberIds = poolPayload.member_backdrop_ids || [];
+        var vertical = root._swimlaneVertical(poolPayload);
+        var lanes = [];
+        for (var index = 0; index < memberIds.length; ++index) {
+            var lanePayload = root._nodePayload(String(memberIds[index] || ""));
+            if (root._swimlaneVariant(lanePayload) === "swimlane_lane")
+                lanes.push(lanePayload);
+        }
+        lanes.sort(function(first, second) {
+            return vertical ? Number(first.x) - Number(second.x) : Number(first.y) - Number(second.y);
+        });
+        return lanes.map(function(lanePayload) { return String(lanePayload.node_id || ""); });
+    }
+
+    function _swimlaneActions(nodePayload, editable) {
+        var variant = root._swimlaneVariant(nodePayload);
+        if (!editable || !nodePayload || Boolean(nodePayload.collapsed)
+                || (variant !== "swimlane_pool" && variant !== "swimlane_lane"))
+            return [];
+        if (variant === "swimlane_pool") {
+            return [
+                { "actionId": "node_context::swimlane_add_lane", "text": "Add Lane" },
+                { "actionId": "node_context::swimlane_tidy", "text": "Tidy Lanes" }
+            ];
+        }
+        var vertical = root._swimlaneVertical(nodePayload);
+        var order = root._swimlaneOrderedLaneIds(root._nodePayload(String(nodePayload.owner_backdrop_id || "")));
+        var index = order.indexOf(String(nodePayload.node_id || ""));
+        return [
+            { "actionId": "node_context::swimlane_insert_before", "text": vertical ? "Insert Lane Left" : "Insert Lane Above" },
+            { "actionId": "node_context::swimlane_insert_after", "text": vertical ? "Insert Lane Right" : "Insert Lane Below" },
+            {
+                "actionId": "node_context::swimlane_move_before",
+                "text": vertical ? "Move Lane Left" : "Move Lane Up",
+                "enabled": index > 0
+            },
+            {
+                "actionId": "node_context::swimlane_move_after",
+                "text": vertical ? "Move Lane Right" : "Move Lane Down",
+                "enabled": index >= 0 && index < order.length - 1
+            },
+            { "actionId": "node_context::swimlane_tidy", "text": "Tidy Lanes" },
+            { "actionId": "node_context::swimlane_remove", "text": "Remove Lane", "destructive": true }
+        ];
+    }
+
+    function _handleSwimlaneAction(actionId) {
+        var normalized = String(actionId || "");
+        var prefix = "node_context::swimlane_";
+        if (normalized.indexOf(prefix) !== 0)
+            return false;
+        var command = normalized.substring(prefix.length);
+        var nodeId = root.canvasItem ? String(root.canvasItem.nodeContextNodeId || "").trim() : "";
+        var bridge = root.canvasItem ? root.canvasItem.sceneCommandBridge : null;
+        if (nodeId.length && bridge) {
+            if (command === "add_lane" && bridge.add_swimlane_lane)
+                bridge.add_swimlane_lane(nodeId);
+            else if (command === "insert_before" && bridge.insert_swimlane_lane)
+                bridge.insert_swimlane_lane(nodeId, false);
+            else if (command === "insert_after" && bridge.insert_swimlane_lane)
+                bridge.insert_swimlane_lane(nodeId, true);
+            else if (command === "move_before" && bridge.move_swimlane_lane)
+                bridge.move_swimlane_lane(nodeId, -1);
+            else if (command === "move_after" && bridge.move_swimlane_lane)
+                bridge.move_swimlane_lane(nodeId, 1);
+            else if (command === "tidy" && bridge.tidy_swimlane_pool)
+                bridge.tidy_swimlane_pool(nodeId);
+            else if (command === "remove" && bridge.remove_swimlane_lane)
+                bridge.remove_swimlane_lane(nodeId);
+        }
+        if (root.canvasItem)
+            root.canvasItem._closeContextMenus();
+        return true;
+    }
+
     function _handleSettingsGroupAction(actionId) {
         var normalized = String(actionId || "");
         if (normalized === "node_context::settings") {
@@ -611,6 +699,10 @@ Item {
             nodeContextPopup.nodePayload,
             !nodeContextPopup.isReadOnlyNode
                 && !Boolean(nodeContextPopup.nodePayload && nodeContextPopup.nodePayload.locked)
+        )).concat(root._swimlaneActions(
+            nodeContextPopup.nodePayload,
+            !nodeContextPopup.isReadOnlyNode
+                && !Boolean(nodeContextPopup.nodePayload && nodeContextPopup.nodePayload.locked)
         )).concat([
             { "actionId": "node_context::add_link", "text": "Add Link", "visible": !nodeContextPopup.isReadOnlyNode },
             { "actionId": "node_context::add_comment", "text": "Add Comment", "visible": !nodeContextPopup.isReadOnlyNode },
@@ -631,6 +723,8 @@ Item {
         ])
         onActionTriggered: function(actionId) {
             if (root._handleSettingsGroupAction(actionId))
+                return;
+            if (root._handleSwimlaneAction(actionId))
                 return;
             if (root._handleDynamicPortAction(actionId))
                 return;

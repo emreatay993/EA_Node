@@ -5,7 +5,7 @@ from collections.abc import Iterable, Mapping, Sequence
 
 from ea_node_editor.graph.records import EdgeInstance, NodeInstance
 from ea_node_editor.graph.workspace_state import WorkspaceData
-from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_GROUP_BACKDROP_TYPE_ID
+from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_BACKDROP_TYPE_IDS
 
 ScopePath = tuple[str, ...]
 
@@ -307,7 +307,7 @@ def sanitize_workspace_held_member_ids(workspace: WorkspaceData) -> bool:
     for node in nodes.values():
         if node.held_member_ids is None:
             continue
-        if node.type_id != PASSIVE_ANNOTATION_GROUP_BACKDROP_TYPE_ID:
+        if node.type_id not in PASSIVE_ANNOTATION_BACKDROP_TYPE_IDS:
             assign(node, None)
             continue
         assign(

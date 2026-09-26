@@ -32,6 +32,10 @@ Use this for Group geometry, membership (area for expanded Groups, stored member
 - `tests/qml_quick/tst_graph_node_host.qml` owns the four pure-QML Group host checks: chrome/shadow suppression, untitled edit prompt, icon-independent collapsed title, and long-title width. `tests/test_group_backdrop_contracts.py` retains the eight catalogue, model, metric, serialization, scene-projection, and `held_member_ids` document-path checks.
 - The focused mounted-shell integration checks share the existing `main_window__shell_basics_and_search__workspace_actions` child. They retain the real Library add/drop route, shortcut noncollision, Peek menu eligibility, current `Group` fallback, direct/nested/outside peek visibility, editing, explicit exit, and click-away dismissal without reviving the obsolete 12-test shard.
 
+## Nesting Order
+- Backdrop hosts stack by nesting depth (`_backdropDepth` from the payload's `backdrop_depth` in `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml`): an inner Group, or a swimlane lane in its pool, is drawn and hit above the backdrop around it, and selecting the outer one lifts it only above its siblings.
+- `scene_layout_bounds` (`group_scope.py`) measures a node afresh when its cached payload no longer matches it (moved, collapsed or expanded, a backdrop resized since the last build) or when a caller lists it in `stale_ids`; a command that mutates and then measures (the swimlane settle pass) relies on it.
+
 ## Identity Membership And Make Room
 - Owner rule (`compute_group_backdrop_membership`): a Group with an honoured `held_member_ids` list owns exactly its listed same-scope candidates (the innermost listing Group holds a node) and claims nothing by area; every other Group owns by area, as the smallest strictly containing Group at the same holder level. `honoured_held_member_ids` honours a collapsed Group's list, and an expanded Group's list only while a collapsed Group lists it (hidden). Nodes placed over a hidden area stay drawn and are not members.
 - Rectangle kinds (`membership_rect_kind`): a collapsed Group with a list takes part in its parent's membership as a `CORNER_CANDIDATE_SIZE` square at its top-left, so a longer title, a rename, or a bigger font never ejects it; a collapsed Group without a list (older file or fragment) keeps the area rule at its expanded size until it is filled in; everything else uses its drawn size. The payload builders in `ea_node_editor/ui_qml/graph_scene_payload/` and `GroupScope.candidates` build their candidates through these helpers.
@@ -59,6 +63,7 @@ Remove-Item Env:QT_QPA_PLATFORM, Env:QT_QUICK_CONTROLS_STYLE -ErrorAction Silent
 - [Graph Scene Payload And Projection](graph_scene_payload_and_projection.md)
 - [Graph Actions And Context Menus](graph_actions_and_context_menus.md) for Tidy, which lays collapsed Groups out at pill size.
 - [Graphics Settings, Themes, And Preferences](graphics_settings_themes_preferences.md) for the "Make room" / "Nearest" expand strategy.
+- [Swimlane Pools And Lanes](swimlane_pools_lanes.md): pools and lanes are Group backdrops (`swimlane_pool` / `swimlane_lane` variants) that reuse these membership rules; a collapsed pool holds its lanes like a collapsed Group.
 
 ## Update Triggers
 Update when Group geometry, membership rules, stored member lists, peek/collapse UI, the make-room cascade or collision avoidance, node measuring for Group layout, the publication of membership after removals or one-node payload updates, or Group input-layer routing changes.

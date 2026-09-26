@@ -3,7 +3,7 @@
 # Tests: tests/test_group_scope.py
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Mapping
 
@@ -41,17 +41,20 @@ def scene_layout_bounds(
     *,
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
     expanded: bool = False,
+    stale_ids: Collection[str] = (),
 ) -> dict[str, LayoutNodeBounds]:
     """Each node's rectangle as the canvas draws it, or with ``expanded`` as it would be drawn expanded.
 
-    A drawn node reads its cached payload; any other node (hidden, just added, or measured expanded) is measured the way
-    a payload build sizes it, settings bands included, so Group layout never disagrees with the membership the payloads
-    compute. Nodes without a spec are left out.
+    A drawn node reads its cached payload; any other node (hidden, just added, measured expanded, or changed since the
+    payload was built) is measured the way a payload build sizes it, settings bands included, so Group layout never
+    disagrees with the membership the payloads compute. ``stale_ids`` are always measured (a caller that changed their
+    size since the last build). Nodes without a spec are left out.
     """
+    stale = set(stale_ids)
     bounds: dict[str, LayoutNodeBounds] = {}
     pending: list[NodeInstance] = []
     for node in nodes:
-        cached_bounds = None if expanded else _cached_node_layout_bounds(self, node.node_id)
+        cached_bounds = None if expanded or node.node_id in stale else _cached_node_layout_bounds(self, node)
         if cached_bounds is None:
             pending.append(node)
         else:
@@ -91,13 +94,19 @@ def node_layout_bounds(
     ).get(node.node_id)
 
 
-def _cached_node_layout_bounds(self, node_id: str) -> LayoutNodeBounds | None:
+def _cached_node_layout_bounds(self, node: NodeInstance) -> LayoutNodeBounds | None:
+    """The node's rectangle from its cached payload, or ``None`` when there is none or it no longer matches the node.
+
+    A command that mutates and then measures (the swimlane settle pass) sees the payloads of the previous build: a
+    node moved, collapsed or expanded since, or a backdrop resized since, is measured afresh instead.
+    """
     cache = self._scene_context._bridge._payload_cache
     if cache.dirty or not self._scene_context._payload_cache_sync.payload_cache_matches_active_view():
         return None
     if not cache.indexes_valid:
         cache.rebuild_indexes()
-    status, location = cache.resolve_node_payload_slot(str(node_id or "").strip())
+    node_id = str(node.node_id or "").strip()
+    status, location = cache.resolve_node_payload_slot(node_id)
     if status != "ok" or location is None:
         return None
     collection_name, index = location
@@ -110,8 +119,20 @@ def _cached_node_layout_bounds(self, node_id: str) -> LayoutNodeBounds | None:
         height = max(1.0, float(payload.get("height", 0.0)))
     except (TypeError, ValueError):
         return None
+    if abs(x - float(node.x)) > _UPDATE_TOLERANCE or abs(y - float(node.y)) > _UPDATE_TOLERANCE:
+        return None
+    if bool(payload.get("collapsed", False)) != bool(node.collapsed):
+        return None
+    if (
+        collection_name != "nodes"
+        and not node.collapsed
+        and node.custom_width is not None
+        and node.custom_height is not None
+        and (abs(width - float(node.custom_width)) > _UPDATE_TOLERANCE or abs(height - float(node.custom_height)) > _UPDATE_TOLERANCE)
+    ):
+        return None
     return LayoutNodeBounds(
-        node_id=str(node_id),
+        node_id=node_id,
         x=x,
         y=y,
         width=width,
@@ -266,6 +287,8 @@ def collect_group_scope(
     workspace: WorkspaceData,
     scope_ids: list[str],
     workspace_nodes: dict[str, NodeInstance],
+    *,
+    stale_ids: Collection[str] = (),
 ) -> GroupScope:
     registry = self._scene_context.registry
     hidden = hidden_node_ids(workspace.nodes)
@@ -281,7 +304,13 @@ def collect_group_scope(
         spec = registry.spec_or_none(node.type_id) if node is not None and registry is not None else None
         if node is not None and spec is not None:
             scoped.append((node, spec))
-    drawn_by_id = scene_layout_bounds(self, workspace, [node for node, _spec in scoped], workspace_nodes=workspace_nodes)
+    drawn_by_id = scene_layout_bounds(
+        self,
+        workspace,
+        [node for node, _spec in scoped],
+        workspace_nodes=workspace_nodes,
+        stale_ids=stale_ids,
+    )
     expanded_by_id = scene_layout_bounds(
         self,
         workspace,

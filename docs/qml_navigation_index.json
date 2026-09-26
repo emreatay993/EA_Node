@@ -5,12 +5,12 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 203,
+    "qml_files": 204,
     "repeater_constructs": 100,
     "loader_constructs": 29,
     "signal_handlers": 1012,
     "connections": 54,
-    "property_bindings": 8062,
+    "property_bindings": 8106,
     "local_component_refs": 339
   },
   "entries": [
@@ -11884,6 +11884,10 @@
         },
         {
           "kind": "bool",
+          "name": "swimlaneTitleRotated"
+        },
+        {
+          "kind": "bool",
           "name": "lockedPlaceholderActive"
         },
         {
@@ -12353,6 +12357,7 @@
           "kind": "binding",
           "name": "anchors.left",
           "targets": [
+            "root.swimlaneTitleRotated",
             "parent.left"
           ]
         },
@@ -12368,6 +12373,7 @@
           "kind": "binding",
           "name": "anchors.right",
           "targets": [
+            "root.swimlaneTitleRotated",
             "parent.right"
           ]
         },
@@ -12382,10 +12388,26 @@
         },
         {
           "kind": "binding",
-          "name": "y",
+          "name": "x",
           "targets": [
+            "root.swimlaneTitleRotated",
             "root.host",
             "root.host._titleTop"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "root.host"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "root.swimlaneTitleRotated",
+            "root.host"
           ]
         },
         {
@@ -12394,6 +12416,20 @@
           "targets": [
             "root.host",
             "root.host._titleHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "rotation",
+          "targets": [
+            "root.swimlaneTitleRotated"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "transformOrigin",
+          "targets": [
+            "Item.TopLeft"
           ]
         },
         {
@@ -12759,6 +12795,13 @@
         },
         {
           "kind": "binding",
+          "name": "rotation",
+          "targets": [
+            "titleDisplay.rotation"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "text",
           "targets": [
             "root.currentTitle"
@@ -12855,6 +12898,13 @@
           "name": "visible",
           "targets": [
             "root.warningBadgeVisible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.right",
+          "targets": [
+            "parent.right"
           ]
         },
         {
@@ -13118,6 +13168,13 @@
         },
         {
           "kind": "binding",
+          "name": "anchors.left",
+          "targets": [
+            "parent.left"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "anchors.bottom",
           "targets": [
             "parent.bottom"
@@ -13375,6 +13432,12 @@
           "anchor": "GraphNodeHeaderLayerPropertyGroupTitleIconVisible",
           "kind": "property",
           "name": "groupTitleIconVisible",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeHeaderLayerPropertySwimlaneTitleRotated",
+          "kind": "property",
+          "name": "swimlaneTitleRotated",
           "detail": "bool"
         },
         {
@@ -15337,6 +15400,10 @@
           "name": "_resizeHandlesVisible"
         },
         {
+          "kind": "int",
+          "name": "_backdropDepth"
+        },
+        {
           "kind": "bool",
           "name": "liveElapsedActive"
         },
@@ -15871,7 +15938,7 @@
           "kind": "binding",
           "name": "z",
           "targets": [
-            "card.authorLocked"
+            "card._backdropDepth"
           ]
         },
         {
@@ -18427,6 +18494,12 @@
           "kind": "property",
           "name": "_resizeHandlesVisible",
           "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeHostPropertyBackdropDepth",
+          "kind": "property",
+          "name": "_backdropDepth",
+          "detail": "int"
         },
         {
           "anchor": "GraphNodeHostPropertyLiveElapsedActive",
@@ -65338,6 +65411,582 @@
       ]
     },
     {
+      "path": "ea_node_editor/ui_qml/components/graph/passive/GraphSwimlaneSurface.qml",
+      "component_name": "GraphSwimlaneSurface",
+      "aliases": [
+        "GraphSwimlaneSurface",
+        "GraphSwimlaneSurface.qml",
+        "ea_node_editor/ui_qml/components/graph/passive/GraphSwimlaneSurface.qml",
+        "ea_node_editor\\ui_qml\\components\\graph\\passive\\GraphSwimlaneSurface.qml"
+      ],
+      "root_component": "GraphShared.GraphSurfaceBase",
+      "imports": [
+        "QtQuick 2.15",
+        "\"..\" as GraphShared"
+      ],
+      "ids": [
+        {
+          "name": "surface"
+        },
+        {
+          "name": "poolGlass"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "graphNodeSwimlaneSurface"
+        },
+        {
+          "name": "graphNodeSwimlanePoolFrame"
+        },
+        {
+          "name": "graphNodeSwimlanePoolBand"
+        },
+        {
+          "name": "graphNodeSwimlanePoolBandEdge"
+        },
+        {
+          "name": "graphNodeSwimlaneLaneFill"
+        },
+        {
+          "name": "graphNodeSwimlaneLaneBand"
+        },
+        {
+          "name": "graphNodeSwimlaneLaneBandEdge"
+        },
+        {
+          "name": "graphNodeSwimlaneLaneDivider"
+        },
+        {
+          "name": "graphNodeSwimlaneLaneSelection"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "bool",
+          "name": "inputOverlayMode"
+        },
+        {
+          "kind": "string",
+          "name": "swimlaneVariant"
+        },
+        {
+          "kind": "bool",
+          "name": "isPool"
+        },
+        {
+          "kind": "bool",
+          "name": "horizontal"
+        },
+        {
+          "kind": "bool",
+          "name": "visualsVisible"
+        },
+        {
+          "kind": "real",
+          "name": "bandThickness"
+        },
+        {
+          "kind": "bool",
+          "name": "selected"
+        },
+        {
+          "kind": "real",
+          "name": "frameRadius"
+        },
+        {
+          "kind": "real",
+          "name": "frameWidth"
+        },
+        {
+          "kind": "var",
+          "name": "themePalette"
+        },
+        {
+          "kind": "color",
+          "name": "frameColor"
+        },
+        {
+          "kind": "color",
+          "name": "dividerColor"
+        },
+        {
+          "kind": "color",
+          "name": "bandEdgeColor"
+        },
+        {
+          "kind": "color",
+          "name": "sheetColor"
+        },
+        {
+          "kind": "color",
+          "name": "glassTopColor"
+        },
+        {
+          "kind": "color",
+          "name": "glassFillColor"
+        },
+        {
+          "kind": "color",
+          "name": "glassBottomColor"
+        },
+        {
+          "kind": "color",
+          "name": "innerBorderColor"
+        },
+        {
+          "kind": "real",
+          "name": "lineWidth"
+        },
+        {
+          "kind": "color",
+          "name": "poolBandColor"
+        },
+        {
+          "kind": "color",
+          "name": "laneBandColor"
+        },
+        {
+          "kind": "color",
+          "name": "laneFillColor"
+        }
+      ],
+      "signals": [],
+      "functions": [],
+      "instantiated_components": [
+        {
+          "name": "Rectangle"
+        },
+        {
+          "name": "GradientStop"
+        }
+      ],
+      "dynamic_refs": [],
+      "signal_handlers": [],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "surface.visualsVisible",
+            "surface.isPool"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "surface.frameRadius"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "gradient",
+          "targets": [
+            "Gradient"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "surface.frameWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "surface.frameColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.margins",
+          "targets": [
+            "surface.frameWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "Math.max",
+            "surface.frameRadius",
+            "surface.frameWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color"
+        },
+        {
+          "kind": "binding",
+          "name": "border.width"
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "surface.innerBorderColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "surface.frameWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "surface.frameWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "surface.horizontal",
+            "surface.bandThickness",
+            "surface.frameWidth",
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "surface.horizontal",
+            "parent.height",
+            "surface.frameWidth",
+            "surface.bandThickness"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "surface.poolBandColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "antialiasing"
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "surface.horizontal",
+            "surface.bandThickness",
+            "surface.lineWidth",
+            "surface.frameWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "surface.horizontal",
+            "surface.frameWidth",
+            "surface.bandThickness",
+            "surface.lineWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "surface.horizontal",
+            "surface.lineWidth",
+            "parent.width",
+            "surface.frameWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "surface.horizontal",
+            "parent.height",
+            "surface.frameWidth",
+            "surface.lineWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "surface.bandEdgeColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "surface.laneFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x"
+        },
+        {
+          "kind": "binding",
+          "name": "y"
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "surface.horizontal",
+            "surface.bandThickness",
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "surface.horizontal",
+            "parent.height",
+            "surface.bandThickness"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "surface.laneBandColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "surface.horizontal",
+            "surface.bandThickness",
+            "surface.lineWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "surface.horizontal",
+            "surface.bandThickness",
+            "surface.lineWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "surface.horizontal",
+            "surface.lineWidth",
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "surface.horizontal",
+            "parent.height",
+            "surface.lineWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "surface.horizontal",
+            "parent.width",
+            "surface.lineWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "surface.horizontal",
+            "surface.lineWidth",
+            "parent.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "surface.dividerColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "surface.visualsVisible",
+            "surface.isPool",
+            "surface.selected"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "Math.max",
+            "surface.frameWidth"
+          ]
+        }
+      ],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyInputOverlayMode",
+          "kind": "property",
+          "name": "inputOverlayMode",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertySwimlaneVariant",
+          "kind": "property",
+          "name": "swimlaneVariant",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyIsPool",
+          "kind": "property",
+          "name": "isPool",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyHorizontal",
+          "kind": "property",
+          "name": "horizontal",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyVisualsVisible",
+          "kind": "property",
+          "name": "visualsVisible",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyBandThickness",
+          "kind": "property",
+          "name": "bandThickness",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertySelected",
+          "kind": "property",
+          "name": "selected",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyFrameRadius",
+          "kind": "property",
+          "name": "frameRadius",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyFrameWidth",
+          "kind": "property",
+          "name": "frameWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyThemePalette",
+          "kind": "property",
+          "name": "themePalette",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyFrameColor",
+          "kind": "property",
+          "name": "frameColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyDividerColor",
+          "kind": "property",
+          "name": "dividerColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyBandEdgeColor",
+          "kind": "property",
+          "name": "bandEdgeColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertySheetColor",
+          "kind": "property",
+          "name": "sheetColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyGlassTopColor",
+          "kind": "property",
+          "name": "glassTopColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyGlassFillColor",
+          "kind": "property",
+          "name": "glassFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyGlassBottomColor",
+          "kind": "property",
+          "name": "glassBottomColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyInnerBorderColor",
+          "kind": "property",
+          "name": "innerBorderColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyLineWidth",
+          "kind": "property",
+          "name": "lineWidth",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyPoolBandColor",
+          "kind": "property",
+          "name": "poolBandColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyLaneBandColor",
+          "kind": "property",
+          "name": "laneBandColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyLaneFillColor",
+          "kind": "property",
+          "name": "laneFillColor",
+          "detail": "color"
+        }
+      ]
+    },
+    {
       "path": "ea_node_editor/ui_qml/components/graph/passive/GraphTimestampDateTimePopover.qml",
       "component_name": "GraphTimestampDateTimePopover",
       "aliases": [
@@ -93460,6 +94109,21 @@
           "name": "_handleNodeEditorAction"
         },
         {
+          "name": "_swimlaneVariant"
+        },
+        {
+          "name": "_swimlaneVertical"
+        },
+        {
+          "name": "_swimlaneOrderedLaneIds"
+        },
+        {
+          "name": "_swimlaneActions"
+        },
+        {
+          "name": "_handleSwimlaneAction"
+        },
+        {
           "name": "_handleSettingsGroupAction"
         },
         {
@@ -94239,6 +94903,31 @@
           "anchor": "GraphCanvasContextMenusFunctionHandleNodeEditorAction",
           "kind": "function",
           "name": "_handleNodeEditorAction"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusFunctionSwimlaneVariant",
+          "kind": "function",
+          "name": "_swimlaneVariant"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusFunctionSwimlaneVertical",
+          "kind": "function",
+          "name": "_swimlaneVertical"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusFunctionSwimlaneOrderedLaneIds",
+          "kind": "function",
+          "name": "_swimlaneOrderedLaneIds"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusFunctionSwimlaneActions",
+          "kind": "function",
+          "name": "_swimlaneActions"
+        },
+        {
+          "anchor": "GraphCanvasContextMenusFunctionHandleSwimlaneAction",
+          "kind": "function",
+          "name": "_handleSwimlaneAction"
         },
         {
           "anchor": "GraphCanvasContextMenusFunctionHandleSettingsGroupAction",

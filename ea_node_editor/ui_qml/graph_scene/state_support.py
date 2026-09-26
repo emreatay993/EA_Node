@@ -1671,6 +1671,48 @@ class GraphSceneBridgeBase(QObject):
     def wrap_selected_nodes_in_group_backdrop(self) -> bool:
         return self._command_bridge.wrap_selected_nodes_in_group_backdrop()
 
+    def create_swimlane_pool(
+        self,
+        x: float,
+        y: float,
+        *,
+        orientation: str = "",
+        title: str = "",
+        lane_titles: list[str] | None = None,
+        lane_thickness: float | None = None,
+        length: float | None = None,
+    ) -> tuple[str, list[str]]:
+        return self._command_bridge.create_swimlane_pool(
+            x,
+            y,
+            orientation=orientation,
+            title=title,
+            lane_titles=lane_titles,
+            lane_thickness=lane_thickness,
+            length=length,
+        )
+
+    def add_swimlane_lane(self, pool_id: str, index: int | None = None, title: str = "") -> str:
+        return self._command_bridge.add_swimlane_lane(pool_id, index, title)
+
+    def insert_swimlane_lane(self, lane_id: str, after: bool) -> str:
+        return self._command_bridge.insert_swimlane_lane(lane_id, after=after)
+
+    def remove_swimlane_lane(self, lane_id: str) -> bool:
+        return self._command_bridge.remove_swimlane_lane(lane_id)
+
+    def move_swimlane_lane(self, lane_id: str, offset: int) -> bool:
+        return self._command_bridge.move_swimlane_lane(lane_id, offset)
+
+    def assign_nodes_to_swimlane_lane(self, node_ids: list[Any], lane_id: str) -> list[str]:
+        return self._command_bridge.assign_nodes_to_swimlane_lane(node_ids, lane_id)
+
+    def set_swimlane_pool_orientation(self, pool_id: str, orientation: str) -> bool:
+        return self._command_bridge.set_swimlane_pool_orientation(pool_id, orientation)
+
+    def describe_swimlane_pools(self) -> list[dict[str, Any]]:
+        return self._command_bridge.describe_swimlane_pools()
+
     @pyqtSlot(result=bool)
     def group_selected_nodes(self) -> bool:
         return self._command_bridge.group_selected_nodes()

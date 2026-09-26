@@ -1,4 +1,4 @@
-# Purpose: Scene Tidy command: collect drawn items/wires, run the pure Tidy layout, refit group backdrops, guard membership, push neighbours, apply as one undo step.
+# Purpose: Scene Tidy command: collect drawn items/wires, run the pure Tidy layout (swimlane pools as one unit), refit group backdrops, guard membership, push neighbours, apply as one undo step.
 # Map: feature_routes/graph_actions_and_context_menus
 # Tests: tests/test_graph_scene_tidy_layout.py
 from __future__ import annotations
@@ -9,6 +9,11 @@ from typing import Any, Mapping
 from ea_node_editor.app_preferences import normalize_expand_collision_avoidance_settings
 from ea_node_editor.graph.hierarchy import scope_node_ids
 from ea_node_editor.graph.records import EdgeInstance
+from ea_node_editor.graph.swimlane_layout import (
+    is_swimlane_lane_type,
+    is_swimlane_pool_type,
+    normalize_swimlane_orientation,
+)
 from ea_node_editor.graph.transform_layout_ops import (
     LayoutNodeBounds,
     build_collision_avoidance_position_updates,
@@ -42,6 +47,7 @@ from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import (
     collect_group_scope,
     grow_owner_chain,
 )
+from ea_node_editor.ui_qml.graph_scene_mutation.swimlane_ops import capture_swimlanes, settle_swimlanes
 
 _ANNOTATION_TYPE_PREFIX = "passive.annotation."
 _UPDATE_TOLERANCE = 0.01
@@ -100,6 +106,7 @@ def tidy_layout(
 
     workspace_nodes = dict(workspace.nodes)
     scope = collect_group_scope(self, workspace, scope_ids, workspace_nodes)
+    swimlanes_before = capture_swimlanes(self, workspace)
     tidy_ids, fixed_obstacle_ids = _expand_tidy_set(self, workspace, scope, selected_ids)
     item_ids = {node_id for node_id in tidy_ids if node_id in drawn_ids}
     partitions = _build_partitions(
@@ -233,6 +240,9 @@ def tidy_layout(
                 mutations.set_node_position(node_id, x, y)
             for node_id, (x, y, width, height) in geometry_updates.items():
                 mutations.set_node_geometry(node_id, x, y, width, height)
+            # A pool that grew around a tidied block, or a lane that a tidy inside it refitted, restacks.
+            if swimlanes_before is not None:
+                settle_swimlanes(self, workspace, swimlanes_before)
         self._scene_context.rebuild_models()
     return _outcome(
         changed=changed,
@@ -280,8 +290,17 @@ def _expand_tidy_set(
     scope: GroupScope,
     selected_ids: list[str],
 ) -> tuple[set[str], set[str]]:
-    """A selected Group backdrop pulls in its contents; one holding a node the user cannot select stays put."""
+    """A selected Group backdrop pulls in its contents; one holding a node the user cannot select stays put.
+
+    A selected swimlane lane pulls in its pool: a pool is laid out as one unit, so its lanes share their columns.
+    """
     tidy_ids = {node_id for node_id in selected_ids if node_id in scope.rects}
+    for node_id in sorted(tidy_ids):
+        node = workspace.nodes.get(node_id)
+        owner_id = scope.owner(node_id)
+        owner = workspace.nodes.get(owner_id) if owner_id is not None else None
+        if node is not None and owner is not None and is_swimlane_lane_type(node.type_id) and is_swimlane_pool_type(owner.type_id):
+            tidy_ids.add(owner_id)
     fixed_obstacle_ids: set[str] = set()
     for backdrop_id in sorted(tidy_ids & scope.group_backdrop_ids):
         contents = scope.contents(backdrop_id)
@@ -381,6 +400,12 @@ def _build_partitions(
                 is_group=is_group,
                 rigid=node_id in rigid_ids,
                 arrangeable=not unwired_annotation,
+                swimlane_pool=(
+                    normalize_swimlane_orientation(node.properties.get("orientation"))
+                    if is_group and node_id not in rigid_ids and is_swimlane_pool_type(type_id)
+                    else ""
+                ),
+                swimlane_lane=is_group and is_swimlane_lane_type(type_id),
             )
         )
         partition.node_ids.add(node_id)

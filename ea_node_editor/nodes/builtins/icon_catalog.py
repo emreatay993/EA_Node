@@ -112,6 +112,8 @@ BUILTIN_NODE_ICONS: Mapping[str, str] = {
     "passive.annotation.section_header": "title",
     "passive.annotation.text": "text_fields",
     "passive.annotation.group_backdrop": "comment",
+    "passive.annotation.swimlane_pool": "layout-dashboard",
+    "passive.annotation.swimlane_lane": "layout-dashboard",
     "media.panel": "image",
     "mechanical.open_model": "mechanical/open.svg",
     "mechanical.search_tree": "mechanical/search.svg",

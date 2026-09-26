@@ -4,6 +4,7 @@ from typing import Any
 
 from ea_node_editor.ui.shell.runtime_clipboard import normalize_graph_fragment_payload
 from ea_node_editor.ui.shell.runtime_history import ACTION_DUPLICATE_SUBGRAPH, ACTION_PASTE_SUBGRAPH
+from ea_node_editor.ui_qml.graph_scene_mutation.swimlane_ops import scope_has_swimlanes
 
 DUPLICATE_OFFSET_X = 40.0
 DUPLICATE_OFFSET_Y = 40.0
@@ -78,7 +79,8 @@ def paste_subgraph_fragment(self, fragment_payload: Any, center_x: float, center
         pasted_node_ids,
         emit_signals=False,
     )
-    if not self._scene_context.publish_node_additions_delta(
+    # A paste into a scope with pools may have restacked lanes around what it added.
+    if scope_has_swimlanes(self, workspace) or not self._scene_context.publish_node_additions_delta(
         pasted_node_ids,
         added_edge_ids=set(workspace.edges) - edge_ids_before,
         publication_path="fragment_addition_delta",

@@ -67,6 +67,15 @@ from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import (
     group_membership_for_scope,
     is_group_backdrop_spec,
 )
+from ea_node_editor.ui_qml.graph_scene_mutation.swimlane_ops import (
+    capture_swimlanes,
+    close_removed_swimlane_lanes,
+    initialize_swimlane_pool,
+    set_swimlane_pool_orientation,
+    settle_swimlanes,
+    swimlane_pool_lane_ids,
+)
+from ea_node_editor.graph.swimlane_layout import is_swimlane_lane_type, is_swimlane_pool_type
 from ea_node_editor.ui.shell.runtime_clipboard import (
     normalize_edge_label as _normalize_edge_label,
     normalize_visual_style_payload,
@@ -303,6 +312,8 @@ def add_node_from_type(self, type_id: str, x: float = 0.0, y: float = 0.0) -> st
 
 def create_node_from_type(self, **kwargs) -> str:
     history_before = self._capture_history_snapshot()
+    workspace = self._scene_context.workspace_or_none()
+    swimlanes_before = capture_swimlanes(self, workspace) if workspace is not None else None
     node_id = _create_node_from_type(self, **kwargs)
     if node_id:
         workspace = self._scene_context.workspace_or_none()
@@ -311,8 +322,26 @@ def create_node_from_type(self, **kwargs) -> str:
             self._scene_context.rebuild_models()
             if kwargs.get("select_node"):
                 self._scope_selection.set_selected_node_ids([node_id], workspace=workspace)
+        elif workspace is not None and _settle_new_swimlane_node(self, workspace, node_id, swimlanes_before):
+            self._scene_context.rebuild_models()
+            if kwargs.get("select_node"):
+                self._scope_selection.set_selected_node_ids([node_id], workspace=workspace)
         self._record_history(ACTION_ADD_NODE, history_before)
     return node_id
+
+
+def _settle_new_swimlane_node(self, workspace, node_id: str, swimlanes_before) -> bool:  # noqa: ANN001
+    """A new pool gets its lanes; a new node joins the lane it landed in, a new lane the pool (else a pool of its
+    own). True when anything changed."""
+    node = workspace.nodes.get(node_id)
+    if node is None:
+        return False
+    changed = False
+    if is_swimlane_pool_type(node.type_id):
+        changed = bool(initialize_swimlane_pool(self, workspace, node_id))
+    if swimlanes_before is None and not changed and not is_swimlane_lane_type(node.type_id):
+        return False
+    return bool(settle_swimlanes(self, workspace, swimlanes_before, created_ids=[node_id])) or changed
 
 
 def _create_node_from_type(
@@ -838,6 +867,8 @@ def remove_node_with_policy(self, node_id: str, *, require_visible: bool) -> boo
         self._resync_scene_after_stale_mutation()
         return False
     history_before = self._capture_history_snapshot()
+    if is_swimlane_type_node(workspace, node_id):
+        return _remove_swimlane_node(self, workspace, node_id, history_before)
     incoming_link_source_ids = {
         source_node.node_id
         for source_node in workspace.nodes.values()
@@ -870,6 +901,36 @@ def remove_node_with_policy(self, node_id: str, *, require_visible: bool) -> boo
         dirty_node_ids=dirty_node_ids,
         removed_node_ids={node_id},
     )
+    self._record_history(ACTION_REMOVE_NODE, history_before)
+    return True
+
+
+def is_swimlane_type_node(workspace, node_id: str) -> bool:  # noqa: ANN001
+    node = workspace.nodes.get(node_id)
+    return node is not None and (is_swimlane_lane_type(node.type_id) or is_swimlane_pool_type(node.type_id))
+
+
+def _remove_swimlane_node(self, workspace, node_id: str, history_before) -> bool:  # noqa: ANN001
+    """Remove a lane (its neighbour takes its band) or a pool with its lanes; what they hold stays."""
+    removed_ids = [node_id]
+    if is_swimlane_pool_type(workspace.nodes[node_id].type_id) and not workspace.nodes[node_id].collapsed:
+        removed_ids.extend(swimlane_pool_lane_ids(self, workspace, [node_id]))
+    close_removed_swimlane_lanes(self, workspace, removed_ids)
+    mutations = self._record_mutations()
+    for removed_id in reversed(removed_ids):
+        if removed_id not in workspace.nodes:
+            continue
+        incident = {
+            edge.edge_id
+            for edge in workspace.edges.values()
+            if removed_id in (edge.source_node_id, edge.target_node_id)
+        }
+        mutations.remove_node(removed_id, incident_edge_ids=incident)
+    self._scope_selection.set_selected_node_ids(
+        [value for value in self._scene_context.selected_node_ids if value in workspace.nodes],
+        workspace=workspace,
+    )
+    self._scene_context.rebuild_models()
     self._record_history(ACTION_REMOVE_NODE, history_before)
     return True
 
@@ -914,11 +975,13 @@ def set_node_collapsed(self, node_id: str, collapsed: bool) -> bool:
     if plan.room.refusal:
         self._last_expand_refusal = plan.room.refusal
         return False
+    swimlanes_before = capture_swimlanes(self, workspace)
     history_group = self._scene_context.grouped_history_action(
         ACTION_TOGGLE_COLLAPSED, workspace
     )
     mutations = self._record_mutations()
     geometries = {**plan.stray.geometries, **plan.room.geometries}
+    settled: set[str] = set()
     with history_group:
         mutations.set_node_collapsed(node_id, normalized_collapsed)
         for group_id, member_ids in plan.freeze.items():
@@ -932,7 +995,13 @@ def set_node_collapsed(self, node_id: str, collapsed: bool) -> bool:
             if moved_node_id not in workspace.nodes or moved_node_id in geometries:
                 continue
             mutations.set_node_position(moved_node_id, final_x, final_y)
+        # Making room pushed lanes apart and grew one: restack the pool (every lane keeps what it held).
+        if swimlanes_before is not None:
+            settled = settle_swimlanes(self, workspace, swimlanes_before, stale_ids={node_id})
     self._last_expand_refusal = plan.room.hint
+    if settled:
+        self._scene_context.rebuild_models()
+        return True
     self._scene_context.publish_node_geometry_delta(
         {node_id, *geometries},
         position_node_ids=set(plan.room.positions),
@@ -1102,6 +1171,8 @@ def set_node_settings_group_expanded(
     snapshot = (self._capture_history_snapshot() or workspace.capture_snapshot()) if makes_room else None
     room = ExpandRoomUpdates(positions={}, geometries={})
     refused = False
+    settled: set[str] = set()
+    swimlanes_before = capture_swimlanes(self, workspace)
     mutations = self._record_mutations()
     history_group = self._scene_context.grouped_history_action(
         ACTION_TOGGLE_SETTINGS_GROUP,
@@ -1158,10 +1229,16 @@ def set_node_settings_group_expanded(
             for moved_node_id, (final_x, final_y) in room.positions.items():
                 if moved_node_id in workspace.nodes and moved_node_id not in room.geometries:
                     mutations.set_node_position(moved_node_id, final_x, final_y)
+            # A node that grew in a lane grows the lane; the pool restacks around it.
+            if swimlanes_before is not None:
+                settled = settle_swimlanes(self, workspace, swimlanes_before, stale_ids={normalized_node_id})
     if refused:
         self._last_expand_refusal = room.refusal
         return False
     self._last_expand_refusal = room.hint
+    if settled:
+        self._scene_context.rebuild_models()
+        return True
     self._scene_context.publish_node_geometry_delta(
         {normalized_node_id, *room.geometries},
         position_node_ids=set(room.positions),
@@ -1268,6 +1345,11 @@ def set_node_property(self, node_id: str, key: str, value: Any) -> None:
     )
     if not normalized_updates:
         return
+    if is_swimlane_pool_type(node.type_id) and "orientation" in normalized_updates:
+        # Turning a pool re-lays its lanes out (rows become columns), not just a property edit.
+        set_swimlane_pool_orientation(self, node_id, str(normalized_updates["orientation"]))
+        self.notify_selected_node_context_updated(node_id)
+        return
     history_before = self._capture_history_snapshot()
     before_node = node.clone()
     before_edge_ids = set(workspace.edges)
@@ -1360,6 +1442,15 @@ def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
     )
     if not normalized_updates and normalized_title is None:
         return False
+    swimlane_orientation = (
+        normalized_updates.pop("orientation", None) if is_swimlane_pool_type(node.type_id) else None
+    )
+    if swimlane_orientation is not None:
+        # Turning a pool re-lays its lanes out (rows become columns), not just a property edit.
+        turned = set_swimlane_pool_orientation(self, node_id, str(swimlane_orientation))
+        if not normalized_updates and normalized_title is None:
+            self.notify_selected_node_context_updated(node_id)
+            return turned
 
     history_before = self._capture_history_snapshot()
     if normalized_title is not None and not normalized_updates:

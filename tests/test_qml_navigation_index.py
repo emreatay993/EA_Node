@@ -29,10 +29,10 @@ class QmlNavigationIndexTests(unittest.TestCase):
         map_entries = [entry for entry in routes if entry["kind"] != "qml_component"]
         qml_routes = [entry for entry in routes if entry["kind"] == "qml_component"]
 
-        self.assertEqual(len(qml_entries), 203)
-        self.assertEqual(len(qml_routes), 203)
-        self.assertEqual(len({entry["path"] for entry in qml_entries}), 203)
-        self.assertEqual(len({entry["component_name"] for entry in qml_entries}), 203)
+        self.assertEqual(len(qml_entries), 204)
+        self.assertEqual(len(qml_routes), 204)
+        self.assertEqual(len({entry["path"] for entry in qml_entries}), 204)
+        self.assertEqual(len({entry["component_name"] for entry in qml_entries}), 204)
 
         qml_route_by_path = {
             entry["qml_candidates"][0]: entry

@@ -81,7 +81,8 @@ class PassiveNodeContractsTests(unittest.TestCase):
             spec = plugin.spec()
 
             self.assertEqual(spec.runtime_behavior, "passive")
-            if str(spec.surface_family) == "group_backdrop":
+            # Group backdrops collapse (a swimlane pool with its lanes); a swimlane lane stays drawn in its pool.
+            if str(spec.surface_family) == "group_backdrop" and spec.surface_variant != "swimlane_lane":
                 self.assertTrue(spec.collapsible)
             else:
                 self.assertFalse(spec.collapsible)

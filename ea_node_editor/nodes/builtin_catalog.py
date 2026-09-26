@@ -170,6 +170,8 @@ _TRUSTED_BUILTIN_TYPE_IDS = frozenset(
         "passive.annotation.group_backdrop",
         "passive.annotation.section_header",
         "passive.annotation.sticky_note",
+        "passive.annotation.swimlane_lane",
+        "passive.annotation.swimlane_pool",
         "passive.annotation.text",
         "passive.flowchart.actor",
         "passive.flowchart.callout",

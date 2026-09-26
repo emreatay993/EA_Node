@@ -50,6 +50,16 @@ function rectFromItem(item, hostItem) {
     if (!(width > 0) || !(height > 0))
         return null;
     var topLeft = item.mapToItem(hostItem, 0, 0);
+    if (_number(item.rotation, 0) !== 0) {
+        // A rotated item (a swimlane's title up its band) covers the box of its mapped corners.
+        var bottomRight = item.mapToItem(hostItem, width, height);
+        return normalizedRect({
+            "x": Math.min(_number(topLeft.x, dependencyX), _number(bottomRight.x, dependencyX)),
+            "y": Math.min(_number(topLeft.y, dependencyY), _number(bottomRight.y, dependencyY)),
+            "width": Math.abs(_number(bottomRight.x, 0) - _number(topLeft.x, 0)),
+            "height": Math.abs(_number(bottomRight.y, 0) - _number(topLeft.y, 0))
+        });
+    }
     return normalizedRect({
         "x": _number(topLeft.x, dependencyX),
         "y": _number(topLeft.y, dependencyY),

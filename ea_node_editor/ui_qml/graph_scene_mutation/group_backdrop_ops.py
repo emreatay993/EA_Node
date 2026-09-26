@@ -20,6 +20,7 @@ from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import (
     is_group_backdrop_spec,
     scene_layout_bounds,
 )
+from ea_node_editor.ui_qml.graph_scene_mutation.swimlane_ops import capture_swimlanes, settle_swimlanes
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +52,8 @@ def wrap_nodes_in_group_backdrop(self, node_ids: list[Any]) -> str:
 
     wrapped = None
     held_in_peek = False
+    settled: set[str] = set()
+    swimlanes_before = capture_swimlanes(self, workspace)
     history_group = self._scene_context.grouped_history_action(
         ACTION_WRAP_GROUP,
         workspace,
@@ -71,11 +74,16 @@ def wrap_nodes_in_group_backdrop(self, node_ids: list[Any]) -> str:
         )
         if wrapped is not None:
             held_in_peek = hold_new_nodes_in_peeked_group(self, workspace, [wrapped.backdrop_node_id])
+            # A Group wrapped inside a lane stays in the lane its centre lands in (the lane grows to fit it).
+            if swimlanes_before is not None:
+                settled = settle_swimlanes(
+                    self, workspace, swimlanes_before, created_ids=[wrapped.backdrop_node_id]
+                )
     if wrapped is None:
         return ""
 
     self._scope_selection.set_selected_node_ids([wrapped.backdrop_node_id], workspace=workspace)
-    if held_in_peek:
+    if held_in_peek or settled:
         # It joined the peeked Group: Peek draws (and so selects) it only once a full rebuild lists it.
         self._scene_context.rebuild_models()
         self._scope_selection.set_selected_node_ids([wrapped.backdrop_node_id], workspace=workspace)

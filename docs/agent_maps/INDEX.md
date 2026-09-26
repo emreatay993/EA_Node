@@ -61,6 +61,7 @@ Before source or test exploration, open the coverage matrix and the most relevan
 - [Surface Input And Inline Controls](feature_routes/surface_input_and_inline_controls.md)
 - [Passive Surface Loading And Contracts](feature_routes/passive_surface_loading_contracts.md)
 - [Group Backdrops, Peek, And Membership](feature_routes/group_backdrops_peek_membership.md)
+- [Swimlane Pools And Lanes](feature_routes/swimlane_pools_lanes.md)
 - [Floating Toolbar And Checked States](feature_routes/floating_toolbar_checked_states.md)
 - [Edge Routing, Labels, And Progress](feature_routes/edge_routing_labels_progress.md)
 - [Node Title Icons And Theme Sources](feature_routes/node_title_icons_theme_sources.md)

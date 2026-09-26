@@ -12,6 +12,7 @@ import ea_node_editor.ui_qml.graph_scene_mutation.group_backdrop_ops as _group_b
 import ea_node_editor.ui_qml.graph_scene_mutation.grouping_and_subnode_ops as _grouping_ops
 import ea_node_editor.ui_qml.graph_scene_mutation.policy as _policy
 import ea_node_editor.ui_qml.graph_scene_mutation.selection_and_scope_ops as _selection_ops
+import ea_node_editor.ui_qml.graph_scene_mutation.swimlane_ops as _swimlane_ops
 import ea_node_editor.ui_qml.graph_scene_mutation.tidy_layout_ops as _tidy_ops
 from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import scene_layout_bounds
 from ea_node_editor.ui_qml.graph_scene_mutation.node_creation_batch import create_nodes_batch
@@ -277,6 +278,8 @@ class GraphSceneMutationHistory:
                     continue
                 mutations.remove_edge(edge_id)
                 removed_any = True
+            # A removed lane's neighbour takes its band (a removed pool takes its lanes along).
+            _swimlane_ops.close_removed_swimlane_lanes(self, workspace, removable_node_ids)
             for node_id in reversed(removable_node_ids):
                 if node_id not in workspace.nodes:
                     continue
@@ -687,6 +690,7 @@ class GraphSceneMutationHistory:
         final_positions.update(
             held_member_position_updates(workspace.nodes, final_positions)
         )
+        swimlanes_before = _swimlane_ops.capture_swimlanes(self, workspace)
 
         history_group = self._scene_context.grouped_history_action(
             ACTION_MOVE_NODE, workspace
@@ -695,6 +699,11 @@ class GraphSceneMutationHistory:
         with history_group:
             for node_id, (final_x, final_y) in final_positions.items():
                 mutations.set_node_position(node_id, final_x, final_y)
+            # Nodes aligned into another lane join it; lanes stay stacked.
+            if swimlanes_before is not None:
+                _swimlane_ops.settle_swimlanes(
+                    self, workspace, swimlanes_before, moved_ids=final_positions
+                )
         self._scene_context.rebuild_models()
         return True
 
@@ -757,6 +766,7 @@ class GraphSceneMutationHistory:
         ):
             return []
         inserted_node_ids: list[str] = []
+        swimlanes_before = _swimlane_ops.capture_swimlanes(self, workspace)
         history_group = self._scene_context.grouped_history_action(
             action_type,
             workspace,
@@ -780,6 +790,10 @@ class GraphSceneMutationHistory:
                 self.fill_missing_held_member_ids(workspace, inserted_node_ids)
                 _group_backdrop_ops.hold_new_nodes_in_peeked_group(
                     self, workspace, inserted_node_ids
+                )
+                # Pasted nodes join the lane they land in; pasted lanes the pool they land on.
+                _swimlane_ops.settle_swimlanes(
+                    self, workspace, swimlanes_before, created_ids=inserted_node_ids
                 )
         return inserted_node_ids
 
@@ -916,6 +930,14 @@ GraphSceneMutationHistory.wrap_selected_nodes_in_group_backdrop = (
 GraphSceneMutationHistory.fill_missing_held_member_ids = (
     _group_backdrop_ops.fill_missing_held_member_ids
 )
+GraphSceneMutationHistory.create_swimlane_pool = _swimlane_ops.create_swimlane_pool
+GraphSceneMutationHistory.add_swimlane_lane = _swimlane_ops.add_swimlane_lane
+GraphSceneMutationHistory.insert_swimlane_lane = _swimlane_ops.insert_swimlane_lane
+GraphSceneMutationHistory.remove_swimlane_lane = _swimlane_ops.remove_swimlane_lane
+GraphSceneMutationHistory.move_swimlane_lane = _swimlane_ops.move_swimlane_lane
+GraphSceneMutationHistory.assign_nodes_to_swimlane_lane = _swimlane_ops.assign_nodes_to_swimlane_lane
+GraphSceneMutationHistory.set_swimlane_pool_orientation = _swimlane_ops.set_swimlane_pool_orientation
+GraphSceneMutationHistory.describe_swimlane_pools = _swimlane_ops.describe_swimlane_pools
 GraphSceneMutationHistory.group_selected_nodes = _grouping_ops.group_selected_nodes
 GraphSceneMutationHistory.ungroup_selected_subnode = (
     _grouping_ops.ungroup_selected_subnode

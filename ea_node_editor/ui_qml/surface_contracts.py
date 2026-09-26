@@ -281,8 +281,23 @@ _PLOT_SURFACE_SPECS_BY_VARIANT = {
     ("plot", plot_type): _plot_surface_spec(plot_type)
     for plot_type in V1_PLOT_TYPES
 }
+_SWIMLANE_SURFACE_COMPONENT = "passive/GraphSwimlaneSurface.qml"
 _SURFACE_SPECS_BY_FAMILY_VARIANT: dict[tuple[str, str], SurfaceSpec] = {
     **_PLOT_SURFACE_SPECS_BY_VARIANT,
+    ("group_backdrop", "swimlane_pool"): SurfaceSpec(
+        family="group_backdrop",
+        variant="swimlane_pool",
+        component_key="swimlane",
+        qml_component=_SWIMLANE_SURFACE_COMPONENT,
+        input_capabilities=_BASIC_CANVAS_INPUT,
+    ),
+    ("group_backdrop", "swimlane_lane"): SurfaceSpec(
+        family="group_backdrop",
+        variant="swimlane_lane",
+        component_key="swimlane",
+        qml_component=_SWIMLANE_SURFACE_COMPONENT,
+        input_capabilities=_BASIC_CANVAS_INPUT,
+    ),
     ("annotation", "text"): SurfaceSpec(
         family="annotation",
         variant="text",

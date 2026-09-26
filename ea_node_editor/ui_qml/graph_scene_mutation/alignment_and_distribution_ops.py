@@ -18,6 +18,11 @@ from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import (
     collect_group_scope_for_node,
     is_group_backdrop_spec,
 )
+from ea_node_editor.ui_qml.graph_scene_mutation.swimlane_ops import (
+    capture_swimlanes,
+    resize_swimlane_frame,
+    settle_swimlanes,
+)
 from ea_node_editor.ui_qml.graph_surface_metrics import (
     node_surface_metrics,
     resolved_node_surface_size,
@@ -106,11 +111,18 @@ def move_node(self, node_id: str, x: float, y: float) -> None:
         if content is not None:
             position_updates.setdefault(content_id, (float(content.x) + delta_x, float(content.y) + delta_y))
     carried = held_member_position_updates(workspace.nodes, position_updates)
+    swimlanes_before = capture_swimlanes(self, workspace)
     history_before = self._capture_history_snapshot()
     mutations = self._record_mutations()
     for moved_id, (moved_x, moved_y) in {**position_updates, **carried}.items():
         mutations.set_node_position(moved_id, moved_x, moved_y)
-    self._scene_context.publish_node_position_delta([*position_updates, *sorted(carried)])
+    # A moved lane finds its slot, a node moved into a pool its lane.
+    if swimlanes_before is not None and settle_swimlanes(
+        self, workspace, swimlanes_before, moved_ids={*position_updates, *carried}
+    ):
+        self._scene_context.rebuild_models()
+    else:
+        self._scene_context.publish_node_position_delta([*position_updates, *sorted(carried)])
     self._record_history(ACTION_MOVE_NODE, history_before)
 
 
@@ -180,6 +192,9 @@ def set_node_geometry(self, node_id: str, x: float, y: float, width: float, heig
         return
     final_x = float(x)
     final_y = float(y)
+    # Lanes and pools resize together: a lane's neighbours and its pool follow.
+    if resize_swimlane_frame(self, node_id, final_x, final_y, float(width), float(height)) is not None:
+        return
     # The minimum is read from the drawn payload, so clamp before converting to the stored frame.
     min_width, min_height = _minimum_node_size(self, node)
     final_w = max(min_width, float(width))
@@ -191,9 +206,14 @@ def set_node_geometry(self, node_id: str, x: float, y: float, width: float, heig
         and node.custom_height == final_h
     ):
         return
+    swimlanes_before = capture_swimlanes(self, workspace)
     history_before = self._capture_history_snapshot()
     self._record_mutations().set_node_geometry(node_id, final_x, final_y, final_w, final_h)
-    if not self._scene_context.publish_node_geometry_delta(
+    # A node grown past its lane grows the lane (and pushes the lanes after it).
+    settled = swimlanes_before is not None and bool(
+        settle_swimlanes(self, workspace, swimlanes_before, stale_ids={node_id})
+    )
+    if settled or not self._scene_context.publish_node_geometry_delta(
         {node_id},
         publication_path="node_resize_geometry_delta",
     ):
@@ -245,8 +265,10 @@ def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool
         position_updates[node_id] = (final_x, final_y)
     # Moving a collapsed Group moves what it holds; members the caller moves itself are not moved twice.
     carried = held_member_position_updates(workspace.nodes, position_updates)
+    swimlanes_before = capture_swimlanes(self, workspace)
 
     moved_any = False
+    settled: set[str] = set()
     history_group = self._scene_context.grouped_history_action(
         ACTION_MOVE_NODE,
         workspace,
@@ -257,10 +279,16 @@ def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool
         for node_id, (final_x, final_y) in {**position_updates, **carried}.items():
             mutations.set_node_position(node_id, final_x, final_y)
             moved_any = True
+        # A dragged lane finds its slot (or joins the pool it was dropped on), a node dropped in a pool its lane.
+        if moved_any and swimlanes_before is not None:
+            settled = settle_swimlanes(self, workspace, swimlanes_before, moved_ids={*position_updates, *carried})
 
     if not moved_any:
         return False
-    self._scene_context.publish_node_position_delta([*unique_node_ids, *sorted(carried)])
+    if settled:
+        self._scene_context.rebuild_models()
+    else:
+        self._scene_context.publish_node_position_delta([*unique_node_ids, *sorted(carried)])
     return True
 
 

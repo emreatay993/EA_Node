@@ -1590,7 +1590,14 @@ Item {
     visible: card.hasNodeIdentity
     enabled: card.hasNodeIdentity && (!card.authorLocked || card.lockedInteractionEnabled)
 
-    z: card.authorLocked
+    // Backdrops (Groups, swimlane pools and lanes) stack by nesting depth, so an inner one (a lane in its pool) is
+    // drawn and clicked above the one around it even while that one is selected.
+    readonly property int _backdropDepth: card.surfaceFamily === "group_backdrop" && card.nodeData
+        ? Math.max(0, Math.round(Number(card.nodeData.backdrop_depth || 0)))
+        : -1
+    z: card._backdropDepth >= 0
+        ? (card.authorLocked ? 10 : 20) + 2 * card._backdropDepth + (card.isSelected ? 1 : 0)
+        : (card.authorLocked
         ? 10
         : (card.isFailedNode
         ? 32
@@ -1600,7 +1607,7 @@ Item {
                 ? 30
                 : (card.isFreshRunNode
                     ? 29
-                    : (card.isSelected ? 28 : 20)))))
+                    : (card.isSelected ? 28 : 20))))))
     x: (card._liveGeometryActive ? card._liveX : (card.nodeData ? card.nodeData.x : 0.0)) + card.worldOffset
     y: (card._liveGeometryActive ? card._liveY : (card.nodeData ? card.nodeData.y : 0.0)) + card.worldOffset
     transform: Translate {

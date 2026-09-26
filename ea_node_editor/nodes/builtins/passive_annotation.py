@@ -19,8 +19,24 @@ PASSIVE_ANNOTATION_STICKY_NOTE_TYPE_ID = "passive.annotation.sticky_note"
 PASSIVE_ANNOTATION_CALLOUT_TYPE_ID = "passive.annotation.callout"
 PASSIVE_ANNOTATION_SECTION_HEADER_TYPE_ID = "passive.annotation.section_header"
 PASSIVE_ANNOTATION_GROUP_BACKDROP_TYPE_ID = "passive.annotation.group_backdrop"
+PASSIVE_ANNOTATION_SWIMLANE_POOL_TYPE_ID = "passive.annotation.swimlane_pool"
+PASSIVE_ANNOTATION_SWIMLANE_LANE_TYPE_ID = "passive.annotation.swimlane_lane"
 PASSIVE_ANNOTATION_TEXT_TYPE_ID = "passive.annotation.text"
 PASSIVE_ANNOTATION_GROUP_BACKDROP_SURFACE_FAMILY = "group_backdrop"
+# Swimlanes are Group backdrops, so the Group membership rules (area owner, drag carry) hold nodes in lanes.
+SWIMLANE_POOL_SURFACE_VARIANT = "swimlane_pool"
+SWIMLANE_LANE_SURFACE_VARIANT = "swimlane_lane"
+SWIMLANE_ORIENTATION_HORIZONTAL = "horizontal"  # lanes are rows stacked top to bottom; the flow runs left to right
+SWIMLANE_ORIENTATION_VERTICAL = "vertical"  # lanes are columns stacked left to right; the flow runs top to bottom
+SWIMLANE_ORIENTATIONS = (SWIMLANE_ORIENTATION_HORIZONTAL, SWIMLANE_ORIENTATION_VERTICAL)
+# Every built-in Group backdrop type: the only records that may store a member list (collapsed, or hidden in one).
+PASSIVE_ANNOTATION_BACKDROP_TYPE_IDS = frozenset(
+    {
+        PASSIVE_ANNOTATION_GROUP_BACKDROP_TYPE_ID,
+        PASSIVE_ANNOTATION_SWIMLANE_POOL_TYPE_ID,
+        PASSIVE_ANNOTATION_SWIMLANE_LANE_TYPE_ID,
+    }
+)
 
 
 class _PassiveAnnotationNodePlugin:
@@ -131,12 +147,69 @@ class PassiveAnnotationGroupBackdropNodePlugin(_PassiveAnnotationNodePlugin):
     pass
 
 
+@builtin_node_type(
+    type_id=PASSIVE_ANNOTATION_SWIMLANE_POOL_TYPE_ID,
+    display_name="Swimlane Pool",
+    category_path=("Utilities", "Canvas"),
+    description="Stack role lanes in a pool; a node dropped in a lane belongs to it and moves with it.",
+    keywords=("swimlane", "pool", "lane", "role", "bpmn", "process"),
+    ports=CARDINAL_PASSIVE_FLOW_PORTS,
+    properties=(
+        PropertySpec("title", "str", "Pool", "Title", inspector_visible=False),
+        PropertySpec(
+            "orientation",
+            "enum",
+            SWIMLANE_ORIENTATION_HORIZONTAL,
+            "Orientation",
+            enum_values=SWIMLANE_ORIENTATIONS,
+        ),
+    ),
+    collapsible=True,
+    runtime_behavior="passive",
+    surface_family=PASSIVE_ANNOTATION_GROUP_BACKDROP_SURFACE_FAMILY,
+    surface_variant=SWIMLANE_POOL_SURFACE_VARIANT,
+)
+class PassiveAnnotationSwimlanePoolNodePlugin(_PassiveAnnotationNodePlugin):
+    pass
+
+
+@builtin_node_type(
+    type_id=PASSIVE_ANNOTATION_SWIMLANE_LANE_TYPE_ID,
+    display_name="Swimlane Lane",
+    category_path=("Utilities", "Canvas"),
+    description="One role lane of a swimlane pool; drop it on a pool to add a lane there.",
+    keywords=("swimlane", "lane", "role", "bpmn"),
+    ports=(),
+    properties=(
+        PropertySpec("title", "str", "Lane", "Title", inspector_visible=False),
+        # Follows its pool (the pool restacks its lanes); not edited on the lane.
+        PropertySpec(
+            "orientation",
+            "enum",
+            SWIMLANE_ORIENTATION_HORIZONTAL,
+            "Orientation",
+            enum_values=SWIMLANE_ORIENTATIONS,
+            inspector_visible=False,
+        ),
+    ),
+    # Lanes stay drawn so their pool can stack them; the pool collapses as a whole.
+    collapsible=False,
+    runtime_behavior="passive",
+    surface_family=PASSIVE_ANNOTATION_GROUP_BACKDROP_SURFACE_FAMILY,
+    surface_variant=SWIMLANE_LANE_SURFACE_VARIANT,
+)
+class PassiveAnnotationSwimlaneLaneNodePlugin(_PassiveAnnotationNodePlugin):
+    pass
+
+
 PASSIVE_ANNOTATION_NODE_PLUGINS = (
     PassiveAnnotationStickyNoteNodePlugin,
     PassiveAnnotationCalloutNodePlugin,
     PassiveAnnotationSectionHeaderNodePlugin,
     PassiveAnnotationTextNodePlugin,
     PassiveAnnotationGroupBackdropNodePlugin,
+    PassiveAnnotationSwimlanePoolNodePlugin,
+    PassiveAnnotationSwimlaneLaneNodePlugin,
 )
 PASSIVE_ANNOTATION_NODE_DESCRIPTORS = tuple(
     plugin_descriptor(plugin) for plugin in PASSIVE_ANNOTATION_NODE_PLUGINS
@@ -144,6 +217,7 @@ PASSIVE_ANNOTATION_NODE_DESCRIPTORS = tuple(
 
 
 __all__ = [
+    "PASSIVE_ANNOTATION_BACKDROP_TYPE_IDS",
     "PASSIVE_ANNOTATION_CALLOUT_TYPE_ID",
     "PASSIVE_ANNOTATION_CATEGORY",
     "PASSIVE_ANNOTATION_GROUP_BACKDROP_SURFACE_FAMILY",
@@ -152,10 +226,19 @@ __all__ = [
     "PASSIVE_ANNOTATION_NODE_PLUGINS",
     "PASSIVE_ANNOTATION_SECTION_HEADER_TYPE_ID",
     "PASSIVE_ANNOTATION_STICKY_NOTE_TYPE_ID",
+    "PASSIVE_ANNOTATION_SWIMLANE_LANE_TYPE_ID",
+    "PASSIVE_ANNOTATION_SWIMLANE_POOL_TYPE_ID",
     "PASSIVE_ANNOTATION_TEXT_TYPE_ID",
+    "SWIMLANE_LANE_SURFACE_VARIANT",
+    "SWIMLANE_ORIENTATIONS",
+    "SWIMLANE_ORIENTATION_HORIZONTAL",
+    "SWIMLANE_ORIENTATION_VERTICAL",
+    "SWIMLANE_POOL_SURFACE_VARIANT",
     "PassiveAnnotationCalloutNodePlugin",
     "PassiveAnnotationGroupBackdropNodePlugin",
     "PassiveAnnotationSectionHeaderNodePlugin",
     "PassiveAnnotationStickyNoteNodePlugin",
+    "PassiveAnnotationSwimlaneLaneNodePlugin",
+    "PassiveAnnotationSwimlanePoolNodePlugin",
     "PassiveAnnotationTextNodePlugin",
 ]

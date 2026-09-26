@@ -1,4 +1,4 @@
-# Purpose: CorexClient facade for group.wrap, subnode.*, scope.navigate, selection.set, layout.arrange/straighten/tidy plus navigation/selection/layout sugar.
+# Purpose: CorexClient facade for group.wrap, swimlane.*, subnode.*, scope.navigate, selection.set, layout.arrange/straighten/tidy plus navigation/selection/layout sugar.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_automation_boundaries.py
 from __future__ import annotations
@@ -17,7 +17,8 @@ def _id_list(values: Iterable[str] | str) -> list[str]:
 
 
 class StructureApi:
-    """Facade for group.wrap, subnode.*, scope.navigate, selection.set, layout.arrange, layout.straighten, layout.tidy."""
+    """Facade for group.wrap, swimlane.*, subnode.*, scope.navigate, selection.set, layout.arrange, layout.straighten,
+    layout.tidy."""
 
     def __init__(self, client: "CorexClient") -> None:
         self._client = client
@@ -32,6 +33,58 @@ class StructureApi:
         if title is not None:
             params["title"] = str(title)
         return self._client.call("group.wrap", params)
+
+    # -------------------------------------------------------------- swimlane.*
+
+    def create_pool(
+        self,
+        x: float,
+        y: float,
+        *,
+        title: str | None = None,
+        orientation: str | None = None,
+        lanes: Iterable[str] | None = None,
+        lane_size: float | None = None,
+        length: float | None = None,
+    ) -> dict[str, Any]:
+        """A swimlane pool with one lane per role name (default three lanes); returns pool_node_id + lane_node_ids."""
+        params: dict[str, Any] = {"x": float(x), "y": float(y)}
+        if title is not None:
+            params["title"] = str(title)
+        if orientation is not None:
+            params["orientation"] = str(orientation)
+        if lanes is not None:
+            params["lanes"] = [str(name) for name in lanes]
+        if lane_size is not None:
+            params["lane_size"] = float(lane_size)
+        if length is not None:
+            params["length"] = float(length)
+        return self._client.call("swimlane.create_pool", params)
+
+    def add_lane(self, pool_node_id: str, *, title: str | None = None, index: int | None = None) -> dict[str, Any]:
+        params: dict[str, Any] = {"pool_node_id": str(pool_node_id)}
+        if title is not None:
+            params["title"] = str(title)
+        if index is not None:
+            params["index"] = int(index)
+        return self._client.call("swimlane.add_lane", params)
+
+    def remove_lane(self, lane_node_id: str) -> dict[str, Any]:
+        return self._client.call("swimlane.remove_lane", {"lane_node_id": str(lane_node_id)})
+
+    def move_lane(self, lane_node_id: str, index: int) -> dict[str, Any]:
+        return self._client.call("swimlane.move_lane", {"lane_node_id": str(lane_node_id), "index": int(index)})
+
+    def assign_to_lane(self, node_ids: Iterable[str] | str, lane_node_id: str) -> dict[str, Any]:
+        return self._client.call(
+            "swimlane.assign", {"node_ids": _id_list(node_ids), "lane_node_id": str(lane_node_id)}
+        )
+
+    def describe_pools(self, pool_node_id: str | None = None) -> dict[str, Any]:
+        params: dict[str, Any] = {}
+        if pool_node_id is not None:
+            params["pool_node_id"] = str(pool_node_id)
+        return self._client.call("swimlane.describe", params)
 
     # --------------------------------------------------------------- subnode.*
 
