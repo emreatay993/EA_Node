@@ -6,11 +6,11 @@
   ],
   "summary": {
     "qml_files": 203,
-    "repeater_constructs": 101,
+    "repeater_constructs": 100,
     "loader_constructs": 29,
     "signal_handlers": 1012,
     "connections": 54,
-    "property_bindings": 8077,
+    "property_bindings": 8062,
     "local_component_refs": 339
   },
   "entries": [
@@ -4100,22 +4100,7 @@
           "name": "drawDragConnectionMarker"
         },
         {
-          "name": "traceBezierGeometry"
-        },
-        {
-          "name": "tracePolylineGeometry"
-        },
-        {
-          "name": "_tracePolylineSegmentSpan"
-        },
-        {
-          "name": "_tracePolylineRange"
-        },
-        {
-          "name": "traceBrokenGeometry"
-        },
-        {
-          "name": "strokeStandardGeometry"
+          "name": "traceBodyPieces"
         },
         {
           "name": "traceGeometry"
@@ -4131,12 +4116,6 @@
         },
         {
           "name": "drawDisabledMarker"
-        },
-        {
-          "name": "flowMarkerMinLength"
-        },
-        {
-          "name": "traceFlowEdgeBody"
         },
         {
           "name": "drawFlowArrowMarkers"
@@ -4454,34 +4433,9 @@
           "name": "drawDragConnectionMarker"
         },
         {
-          "anchor": "EdgeCanvasLayerFunctionTraceBezierGeometry",
+          "anchor": "EdgeCanvasLayerFunctionTraceBodyPieces",
           "kind": "function",
-          "name": "traceBezierGeometry"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionTracePolylineGeometry",
-          "kind": "function",
-          "name": "tracePolylineGeometry"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionTracePolylineSegmentSpan",
-          "kind": "function",
-          "name": "_tracePolylineSegmentSpan"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionTracePolylineRange",
-          "kind": "function",
-          "name": "_tracePolylineRange"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionTraceBrokenGeometry",
-          "kind": "function",
-          "name": "traceBrokenGeometry"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionStrokeStandardGeometry",
-          "kind": "function",
-          "name": "strokeStandardGeometry"
+          "name": "traceBodyPieces"
         },
         {
           "anchor": "EdgeCanvasLayerFunctionTraceGeometry",
@@ -4507,16 +4461,6 @@
           "anchor": "EdgeCanvasLayerFunctionDrawDisabledMarker",
           "kind": "function",
           "name": "drawDisabledMarker"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionFlowMarkerMinLength",
-          "kind": "function",
-          "name": "flowMarkerMinLength"
-        },
-        {
-          "anchor": "EdgeCanvasLayerFunctionTraceFlowEdgeBody",
-          "kind": "function",
-          "name": "traceFlowEdgeBody"
         },
         {
           "anchor": "EdgeCanvasLayerFunctionDrawFlowArrowMarkers",
@@ -6162,6 +6106,10 @@
           "name": "activeEdgePaintDiagnosticsByEdgeId"
         },
         {
+          "kind": "var",
+          "name": "edgeRendererCanvasEdgeReasonById"
+        },
+        {
           "kind": "string",
           "name": "_activeEdgeRendererKind"
         },
@@ -6171,7 +6119,7 @@
         },
         {
           "kind": "var",
-          "name": "_selectionOverlaySnapshots"
+          "name": "_canvasOverlaySnapshots"
         },
         {
           "kind": "real",
@@ -6480,9 +6428,6 @@
         },
         {
           "name": "_normalizeEdgeRendererKind"
-        },
-        {
-          "name": "_retainedFallbackReason"
         },
         {
           "name": "_rendererFallbackReasonFor"
@@ -7257,6 +7202,12 @@
           "detail": "var"
         },
         {
+          "anchor": "EdgeLayerPropertyEdgeRendererCanvasEdgeReasonById",
+          "kind": "property",
+          "name": "edgeRendererCanvasEdgeReasonById",
+          "detail": "var"
+        },
+        {
           "anchor": "EdgeLayerPropertyActiveEdgeRendererKind",
           "kind": "property",
           "name": "_activeEdgeRendererKind",
@@ -7269,9 +7220,9 @@
           "detail": "string"
         },
         {
-          "anchor": "EdgeLayerPropertySelectionOverlaySnapshots",
+          "anchor": "EdgeLayerPropertyCanvasOverlaySnapshots",
           "kind": "property",
-          "name": "_selectionOverlaySnapshots",
+          "name": "_canvasOverlaySnapshots",
           "detail": "var"
         },
         {
@@ -7735,11 +7686,6 @@
           "name": "_normalizeEdgeRendererKind"
         },
         {
-          "anchor": "EdgeLayerFunctionRetainedFallbackReason",
-          "kind": "function",
-          "name": "_retainedFallbackReason"
-        },
-        {
           "anchor": "EdgeLayerFunctionRendererFallbackReasonFor",
           "kind": "function",
           "name": "_rendererFallbackReasonFor"
@@ -8184,7 +8130,7 @@
       "imports": [
         "QtQuick 2.15",
         "QtQml 2.15",
-        "QtQuick.Shapes 1.15",
+        "QtQuick.Shapes",
         "\"EdgeMath.js\" as EdgeMath",
         "\"EdgePaintPolicy.js\" as EdgePaintPolicy",
         "\"EdgeViewportMath.js\" as EdgeViewportMath"
@@ -8201,9 +8147,6 @@
         },
         {
           "name": "retainedEdgeDelegate"
-        },
-        {
-          "name": "retainedStrokeDelegate"
         }
       ],
       "object_names": [
@@ -8257,6 +8200,10 @@
         },
         {
           "kind": "var",
+          "name": "_canvasEdgeReasonById"
+        },
+        {
+          "kind": "var",
           "name": "_retainedEdgeModel"
         },
         {
@@ -8272,12 +8219,28 @@
           "name": "_paintViewportOffsetY"
         },
         {
-          "kind": "var",
-          "name": "_currentViewportTransform"
+          "kind": "bool",
+          "name": "_paintViewportValid"
         },
         {
-          "kind": "bool",
-          "name": "viewportTransformCompensationActive"
+          "kind": "real",
+          "name": "paintOriginMaxDriftPx"
+        },
+        {
+          "kind": "var",
+          "name": "_entryCacheById"
+        },
+        {
+          "kind": "int",
+          "name": "profileRetainedEntryCacheHitCount"
+        },
+        {
+          "kind": "int",
+          "name": "profileRetainedEntryBuildCount"
+        },
+        {
+          "kind": "var",
+          "name": "_currentViewportTransform"
         },
         {
           "kind": "real",
@@ -8297,27 +8260,19 @@
         },
         {
           "kind": "var",
-          "name": "edgeEntry"
-        },
-        {
-          "kind": "real",
-          "name": "sourceDragDx"
-        },
-        {
-          "kind": "real",
-          "name": "sourceDragDy"
-        },
-        {
-          "kind": "real",
-          "name": "targetDragDx"
-        },
-        {
-          "kind": "real",
-          "name": "targetDragDy"
+          "name": "_rowEdgeIds"
         },
         {
           "kind": "var",
-          "name": "strokeOffset"
+          "name": "_rowContentKeys"
+        },
+        {
+          "kind": "var",
+          "name": "_rowDrawOrders"
+        },
+        {
+          "kind": "var",
+          "name": "edgeEntry"
         }
       ],
       "signals": [],
@@ -8329,40 +8284,37 @@
           "name": "_rememberPaintViewport"
         },
         {
+          "name": "_paintTransformFor"
+        },
+        {
           "name": "needsSelectionOverlay"
         },
         {
-          "name": "_compatibleSnapshot"
+          "name": "canvasOverlayReason"
         },
         {
-          "name": "canRenderSnapshots"
+          "name": "paintStateForSnapshot"
         },
         {
-          "name": "_screenBezier"
+          "name": "_svgX"
         },
         {
-          "name": "_screenPolyline"
+          "name": "_svgY"
         },
         {
-          "name": "_polylinePath"
+          "name": "_svgBodyPath"
         },
         {
-          "name": "_endpointNodeId"
+          "name": "_flowMarkerSlot"
         },
         {
-          "name": "_nodeIsDragged"
+          "name": "_svgEndpointArcs"
         },
         {
-          "name": "_paintScreenDragDeltaX"
-        },
-        {
-          "name": "_paintScreenDragDeltaY"
+          "name": "_svgDisabledMarker"
         },
         {
           "name": "_fixed"
-        },
-        {
-          "name": "_offsetKey"
         },
         {
           "name": "_numberArrayKey"
@@ -8380,10 +8332,10 @@
           "name": "clearRetainedPaint"
         },
         {
-          "name": "_retainedModelEdgeId"
+          "name": "_snapshotStateKey"
         },
         {
-          "name": "_findRetainedModelIndex"
+          "name": "_cachedRecordFor"
         },
         {
           "name": "_setRetainedModelEntry"
@@ -8403,19 +8355,10 @@
           "name": "Repeater"
         },
         {
-          "name": "Shape"
-        },
-        {
           "name": "ShapePath"
         },
         {
-          "name": "PathCubic"
-        },
-        {
           "name": "PathSvg"
-        },
-        {
-          "name": "Rectangle"
         }
       ],
       "dynamic_refs": [
@@ -8431,13 +8374,7 @@
         {
           "kind": "delegate",
           "targets": [
-            "Item"
-          ]
-        },
-        {
-          "kind": "model",
-          "targets": [
-            "retainedEdgeDelegate.edgeEntry.strokeOffsets"
+            "Shape"
           ]
         }
       ],
@@ -8523,10 +8460,9 @@
         },
         {
           "kind": "binding",
-          "name": "visible",
+          "name": "preferredRendererType",
           "targets": [
-            "String",
-            "retainedEdgeDelegate.edgeEntry.route"
+            "Shape.CurveRenderer"
           ]
         },
         {
@@ -8536,14 +8472,7 @@
             "Math.max",
             "Math.min",
             "Number",
-            "retainedEdgeDelegate.edgeEntry.strokeAlpha"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "containsMode",
-          "targets": [
-            "Shape.FillContains"
+            "edgeEntry.opacity"
           ]
         },
         {
@@ -8554,14 +8483,13 @@
           "kind": "binding",
           "name": "strokeColor",
           "targets": [
-            "retainedEdgeDelegate.edgeEntry.strokeColor"
+            "retainedEdgeDelegate.edgeEntry.bodyPath"
           ]
         },
         {
           "kind": "binding",
           "name": "strokeWidth",
           "targets": [
-            "Math.max",
             "Number",
             "retainedEdgeDelegate.edgeEntry.strokeWidthScreenPx"
           ]
@@ -8596,162 +8524,68 @@
         },
         {
           "kind": "binding",
-          "name": "startX",
-          "targets": [
-            "Number",
-            "retainedEdgeDelegate.edgeEntry.sx"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "startY",
-          "targets": [
-            "Number",
-            "retainedEdgeDelegate.edgeEntry.sy"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "control1X",
-          "targets": [
-            "Number",
-            "retainedEdgeDelegate.edgeEntry.c1x"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "control1Y",
-          "targets": [
-            "Number",
-            "retainedEdgeDelegate.edgeEntry.c1y"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "control2X",
-          "targets": [
-            "Number",
-            "retainedEdgeDelegate.edgeEntry.c2x"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "control2Y",
-          "targets": [
-            "Number",
-            "retainedEdgeDelegate.edgeEntry.c2y"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "Number",
-            "retainedEdgeDelegate.edgeEntry.tx"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "Number",
-            "retainedEdgeDelegate.edgeEntry.ty"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "transform",
-          "targets": [
-            "Translate"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "x",
-          "targets": [
-            "Number",
-            "retainedStrokeDelegate.strokeOffset.x"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "y",
-          "targets": [
-            "Number",
-            "retainedStrokeDelegate.strokeOffset.y"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "path",
           "targets": [
-            "retainedEdgeDelegate.edgeEntry.pipePath"
+            "retainedEdgeDelegate.edgeEntry.bodyPath"
           ]
         },
         {
           "kind": "binding",
-          "name": "visible",
+          "name": "fillColor",
           "targets": [
-            "Boolean",
-            "retainedEdgeDelegate.edgeEntry.disabledMarkerVisible"
+            "retainedEdgeDelegate.edgeEntry.startMarkerFilled"
           ]
         },
         {
           "kind": "binding",
-          "name": "opacity",
+          "name": "strokeColor",
           "targets": [
-            "Math.max",
-            "Math.min",
-            "Number",
-            "retainedEdgeDelegate.edgeEntry.disabledMarkerAlpha"
+            "retainedEdgeDelegate.edgeEntry.startMarkerPath"
           ]
         },
         {
           "kind": "binding",
-          "name": "x",
+          "name": "strokeWidth",
           "targets": [
             "Number",
-            "retainedEdgeDelegate.edgeEntry.markerX"
+            "retainedEdgeDelegate.edgeEntry.startMarkerStrokeWidth"
           ]
         },
         {
           "kind": "binding",
-          "name": "y",
+          "name": "fillColor",
+          "targets": [
+            "retainedEdgeDelegate.edgeEntry.endMarkerFilled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "strokeColor",
+          "targets": [
+            "retainedEdgeDelegate.edgeEntry.endMarkerPath"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "strokeWidth",
           "targets": [
             "Number",
-            "retainedEdgeDelegate.edgeEntry.markerY"
+            "retainedEdgeDelegate.edgeEntry.endMarkerStrokeWidth"
           ]
         },
         {
           "kind": "binding",
-          "name": "x"
-        },
-        {
-          "kind": "binding",
-          "name": "y"
-        },
-        {
-          "kind": "binding",
-          "name": "width"
-        },
-        {
-          "kind": "binding",
-          "name": "height"
-        },
-        {
-          "kind": "binding",
-          "name": "radius"
-        },
-        {
-          "kind": "binding",
-          "name": "color",
+          "name": "strokeColor",
           "targets": [
-            "retainedEdgeDelegate.edgeEntry.disabledMarkerColor"
+            "retainedEdgeDelegate.edgeEntry.disabledMarkerPath"
           ]
         },
         {
           "kind": "binding",
-          "name": "rotation"
+          "name": "strokeWidth",
+          "targets": [
+            "EdgePaintPolicy.DISABLED_MARKER_STROKE_WIDTH_SCREEN_PX"
+          ]
         }
       ],
       "local_component_refs": [],
@@ -8817,6 +8651,12 @@
           "detail": "int"
         },
         {
+          "anchor": "EdgeRetainedLayerPropertyCanvasEdgeReasonById",
+          "kind": "property",
+          "name": "_canvasEdgeReasonById",
+          "detail": "var"
+        },
+        {
           "anchor": "EdgeRetainedLayerPropertyRetainedEdgeModel",
           "kind": "property",
           "name": "_retainedEdgeModel",
@@ -8841,16 +8681,40 @@
           "detail": "real"
         },
         {
+          "anchor": "EdgeRetainedLayerPropertyPaintViewportValid",
+          "kind": "property",
+          "name": "_paintViewportValid",
+          "detail": "bool"
+        },
+        {
+          "anchor": "EdgeRetainedLayerPropertyPaintOriginMaxDriftPx",
+          "kind": "property",
+          "name": "paintOriginMaxDriftPx",
+          "detail": "real"
+        },
+        {
+          "anchor": "EdgeRetainedLayerPropertyEntryCacheById",
+          "kind": "property",
+          "name": "_entryCacheById",
+          "detail": "var"
+        },
+        {
+          "anchor": "EdgeRetainedLayerPropertyProfileRetainedEntryCacheHitCount",
+          "kind": "property",
+          "name": "profileRetainedEntryCacheHitCount",
+          "detail": "int"
+        },
+        {
+          "anchor": "EdgeRetainedLayerPropertyProfileRetainedEntryBuildCount",
+          "kind": "property",
+          "name": "profileRetainedEntryBuildCount",
+          "detail": "int"
+        },
+        {
           "anchor": "EdgeRetainedLayerPropertyCurrentViewportTransform",
           "kind": "property",
           "name": "_currentViewportTransform",
           "detail": "var"
-        },
-        {
-          "anchor": "EdgeRetainedLayerPropertyViewportTransformCompensationActive",
-          "kind": "property",
-          "name": "viewportTransformCompensationActive",
-          "detail": "bool"
         },
         {
           "anchor": "EdgeRetainedLayerPropertyViewportTransformCompensationScale",
@@ -8877,39 +8741,27 @@
           "detail": "int"
         },
         {
-          "anchor": "EdgeRetainedLayerPropertyEdgeEntry",
+          "anchor": "EdgeRetainedLayerPropertyRowEdgeIds",
           "kind": "property",
-          "name": "edgeEntry",
+          "name": "_rowEdgeIds",
           "detail": "var"
         },
         {
-          "anchor": "EdgeRetainedLayerPropertySourceDragDx",
+          "anchor": "EdgeRetainedLayerPropertyRowContentKeys",
           "kind": "property",
-          "name": "sourceDragDx",
-          "detail": "real"
+          "name": "_rowContentKeys",
+          "detail": "var"
         },
         {
-          "anchor": "EdgeRetainedLayerPropertySourceDragDy",
+          "anchor": "EdgeRetainedLayerPropertyRowDrawOrders",
           "kind": "property",
-          "name": "sourceDragDy",
-          "detail": "real"
+          "name": "_rowDrawOrders",
+          "detail": "var"
         },
         {
-          "anchor": "EdgeRetainedLayerPropertyTargetDragDx",
+          "anchor": "EdgeRetainedLayerPropertyEdgeEntry",
           "kind": "property",
-          "name": "targetDragDx",
-          "detail": "real"
-        },
-        {
-          "anchor": "EdgeRetainedLayerPropertyTargetDragDy",
-          "kind": "property",
-          "name": "targetDragDy",
-          "detail": "real"
-        },
-        {
-          "anchor": "EdgeRetainedLayerPropertyStrokeOffset",
-          "kind": "property",
-          "name": "strokeOffset",
+          "name": "edgeEntry",
           "detail": "var"
         },
         {
@@ -8923,64 +8775,59 @@
           "name": "_rememberPaintViewport"
         },
         {
+          "anchor": "EdgeRetainedLayerFunctionPaintTransformFor",
+          "kind": "function",
+          "name": "_paintTransformFor"
+        },
+        {
           "anchor": "EdgeRetainedLayerFunctionNeedsSelectionOverlay",
           "kind": "function",
           "name": "needsSelectionOverlay"
         },
         {
-          "anchor": "EdgeRetainedLayerFunctionCompatibleSnapshot",
+          "anchor": "EdgeRetainedLayerFunctionCanvasOverlayReason",
           "kind": "function",
-          "name": "_compatibleSnapshot"
+          "name": "canvasOverlayReason"
         },
         {
-          "anchor": "EdgeRetainedLayerFunctionCanRenderSnapshots",
+          "anchor": "EdgeRetainedLayerFunctionPaintStateForSnapshot",
           "kind": "function",
-          "name": "canRenderSnapshots"
+          "name": "paintStateForSnapshot"
         },
         {
-          "anchor": "EdgeRetainedLayerFunctionScreenBezier",
+          "anchor": "EdgeRetainedLayerFunctionSvgX",
           "kind": "function",
-          "name": "_screenBezier"
+          "name": "_svgX"
         },
         {
-          "anchor": "EdgeRetainedLayerFunctionScreenPolyline",
+          "anchor": "EdgeRetainedLayerFunctionSvgY",
           "kind": "function",
-          "name": "_screenPolyline"
+          "name": "_svgY"
         },
         {
-          "anchor": "EdgeRetainedLayerFunctionPolylinePath",
+          "anchor": "EdgeRetainedLayerFunctionSvgBodyPath",
           "kind": "function",
-          "name": "_polylinePath"
+          "name": "_svgBodyPath"
         },
         {
-          "anchor": "EdgeRetainedLayerFunctionEndpointNodeId",
+          "anchor": "EdgeRetainedLayerFunctionFlowMarkerSlot",
           "kind": "function",
-          "name": "_endpointNodeId"
+          "name": "_flowMarkerSlot"
         },
         {
-          "anchor": "EdgeRetainedLayerFunctionNodeIsDragged",
+          "anchor": "EdgeRetainedLayerFunctionSvgEndpointArcs",
           "kind": "function",
-          "name": "_nodeIsDragged"
+          "name": "_svgEndpointArcs"
         },
         {
-          "anchor": "EdgeRetainedLayerFunctionPaintScreenDragDeltaX",
+          "anchor": "EdgeRetainedLayerFunctionSvgDisabledMarker",
           "kind": "function",
-          "name": "_paintScreenDragDeltaX"
-        },
-        {
-          "anchor": "EdgeRetainedLayerFunctionPaintScreenDragDeltaY",
-          "kind": "function",
-          "name": "_paintScreenDragDeltaY"
+          "name": "_svgDisabledMarker"
         },
         {
           "anchor": "EdgeRetainedLayerFunctionFixed",
           "kind": "function",
           "name": "_fixed"
-        },
-        {
-          "anchor": "EdgeRetainedLayerFunctionOffsetKey",
-          "kind": "function",
-          "name": "_offsetKey"
         },
         {
           "anchor": "EdgeRetainedLayerFunctionNumberArrayKey",
@@ -9008,14 +8855,14 @@
           "name": "clearRetainedPaint"
         },
         {
-          "anchor": "EdgeRetainedLayerFunctionRetainedModelEdgeId",
+          "anchor": "EdgeRetainedLayerFunctionSnapshotStateKey",
           "kind": "function",
-          "name": "_retainedModelEdgeId"
+          "name": "_snapshotStateKey"
         },
         {
-          "anchor": "EdgeRetainedLayerFunctionFindRetainedModelIndex",
+          "anchor": "EdgeRetainedLayerFunctionCachedRecordFor",
           "kind": "function",
-          "name": "_findRetainedModelIndex"
+          "name": "_cachedRecordFor"
         },
         {
           "anchor": "EdgeRetainedLayerFunctionSetRetainedModelEntry",

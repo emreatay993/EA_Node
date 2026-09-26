@@ -337,10 +337,9 @@ class GraphCanvasQmlPreferencePerformanceTests(GraphCanvasQmlPreferenceTestBase)
         self.view.centerOn(18.0, -22.0)
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 0)
         self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 0)
-        pan_compensation = abs(float(retained_layer.property("viewportTransformCompensationX"))) + abs(
-            float(retained_layer.property("viewportTransformCompensationY"))
-        )
-        self.assertGreater(pan_compensation, 0.1)
+        pan_compensation_x = float(retained_layer.property("viewportTransformCompensationX"))
+        pan_compensation_y = float(retained_layer.property("viewportTransformCompensationY"))
+        self.assertGreater(abs(pan_compensation_x) + abs(pan_compensation_y), 0.1)
         wait_for_condition_or_raise(
             lambda: int(background.property("_redrawRequestCount")) - background_redraws == 1
             and int(edge_layer.property("_redrawRequestCount")) - edge_redraws == 1,
@@ -352,8 +351,11 @@ class GraphCanvasQmlPreferencePerformanceTests(GraphCanvasQmlPreferenceTestBase)
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
         self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
         self.assertEqual(int(background.property("profileGridUpdateCount")) - background_grid_updates, 1)
-        self.assertAlmostEqual(float(retained_layer.property("viewportTransformCompensationX")), 0.0, places=5)
-        self.assertAlmostEqual(float(retained_layer.property("viewportTransformCompensationY")), 0.0, places=5)
+        # A pan keeps the retained entries: the transform layer carries the offset after the
+        # flush instead of every delegate being rebuilt at the new origin.
+        self.assertAlmostEqual(float(retained_layer.property("viewportTransformCompensationX")), pan_compensation_x, places=5)
+        self.assertAlmostEqual(float(retained_layer.property("viewportTransformCompensationY")), pan_compensation_y, places=5)
+        self.assertAlmostEqual(float(retained_layer.property("viewportTransformCompensationScale")), 1.0, places=5)
 
         commits = 0
 

@@ -1205,10 +1205,27 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                                  f"graphics_graph_label_pixel_size = {pixel_size}"),
                 )
 
+    _RETAINED_DRAWN_CUBIC_HELPER = '''
+            import re
+
+            def retained_drawn_cubic(retained_layer, entry):
+                # The retained body path ("M sx sy C c1x c1y c2x c2y tx ty") is in the layer's paint
+                # transform; the retained transform layer maps it onto the live viewport.
+                path = entry["bodyPath"]
+                numbers = [float(value) for value in re.findall(r"-?\\d+(?:\\.\\d+)?", path)]
+                assert path.startswith("M ") and " C " in path and len(numbers) >= 8, path
+                scale = float(retained_layer.property("viewportTransformCompensationScale"))
+                offset_x = float(retained_layer.property("viewportTransformCompensationX"))
+                offset_y = float(retained_layer.property("viewportTransformCompensationY"))
+                names = ("sx", "sy", "c1x", "c1y", "c2x", "c2y", "tx", "ty")
+                return {name: numbers[index] * scale + (offset_x if name.endswith("x") else offset_y)
+                        for index, name in enumerate(names)}
+    '''
+
     def test_graph_canvas_settings_resize_animates_clipped_content_and_connected_edges(self) -> None:
         self._run_qml_probe(
             "graph-canvas-settings-size-animation",
-            '''
+            textwrap.indent(textwrap.dedent(self._RETAINED_DRAWN_CUBIC_HELPER), " " * 12) + '''
             from PyQt6.QtGui import QFont, QFontDatabase
             from PyQt6.QtCore import pyqtSignal
             from PyQt6.QtTest import QTest
@@ -1321,9 +1338,10 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                                 entries.append(variant_value(item.property("edgeEntry")))
                             entry = next(value for value in entries
                                 if isinstance(value, dict) and value.get("edgeId") == edge_id)
+                            drawn = retained_drawn_cubic(retained, entry)
                             screen = port.mapToScene(QPointF(port.width()/2, port.height()/2))
-                            assert abs(entry[prefix + "x"] - screen.x()) < 0.1
-                            assert abs(entry[prefix + "y"] - screen.y()) < 0.1
+                            assert abs(drawn[prefix + "x"] - screen.x()) < 0.1
+                            assert abs(drawn[prefix + "y"] - screen.y()) < 0.1
                         assert 0 <= center.y() <= card.height(), (port_key, center.y(), card.height())
                         assert abs(geometry[prefix + "x"] - (payload["x"] + center.x())) < 0.1
                         assert abs(geometry[prefix + "y"] - (payload["y"] + center.y())) < 0.1, (
@@ -1564,7 +1582,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             ''',
         )
 
-    _LIVE_WIRE_HANDLE_HELPERS = '''
+    _LIVE_WIRE_HANDLE_HELPERS = _RETAINED_DRAWN_CUBIC_HELPER + '''
             from ea_node_editor.ui_qml.graph_geometry.route_pipe import EDGE_FORWARD_LEAD_MIN
 
             def lead_for(dx):
@@ -1599,15 +1617,10 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 entry = variant_value(delegate.property("edgeEntry"))
                 if entry.get("selectionOverlay"):
                     return False
-                source_delta = float(delegate.property("sourceDragDx"))
-                target_delta = float(delegate.property("targetDragDx"))
-                drawn = {
-                    "sx": entry["sx"] + source_delta, "c1x": entry["c1x"] + source_delta,
-                    "c2x": entry["c2x"] + target_delta, "tx": entry["tx"] + target_delta,
-                }
-                for key, value in drawn.items():
+                drawn = retained_drawn_cubic(retained_layer, entry)
+                for key in ("sx", "c1x", "c2x", "tx"):
                     expected = float(variant_value(edge_layer.sceneToScreenX(geometry[key])))
-                    assert abs(value - expected) < 0.05, ("retained-drawn-geometry", key, value, expected)
+                    assert abs(drawn[key] - expected) < 0.05, ("retained-drawn-geometry", key, drawn[key], expected)
                 return True
 
             def assert_no_reshape_without_motion(sequence):

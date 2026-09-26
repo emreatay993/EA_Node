@@ -342,6 +342,105 @@ TestCase {
         compare(EdgePaintPolicy.flowArrowMarkerShape(metrics, 0.0, 0.0, 0.0, 0.0), null)
     }
 
+    function test_flow_edge_paint_state_is_what_both_renderers_paint() {
+        var edge = {
+            "edge_family": "flow",
+            "flow_style": {"stroke_width": 3, "stroke_pattern": "dashed", "arrow_tail": "filled", "arrow_head": "open"}
+        }
+        var state = EdgePaintPolicy.flowEdgePaintState(edgeLayer, snapshot({}), edge, 0.5)
+        verify(state.flowEdge)
+        compare(state.strokeColor, edgeLayer.flowDefaultStrokeColor)
+        near(state.strokeWidthScreenPx, 1.5)
+        // Scene units: the Canvas strokes these under the viewport scale.
+        near(state.strokeWidthScene, 3.0)
+        compare(JSON.stringify(state.dashPatternScreenPx), JSON.stringify(EdgePaintPolicy.flowDashPattern(edge, 0.5)))
+        compare(state.arrowTail, "filled")
+        compare(state.arrowHead, "open")
+        near(state.arrowTailExtent, state.markers.start.extent)
+        near(state.lineTrimStart, state.markers.start.lineInset)
+        near(state.lineTrimEnd, state.markers.end.lineInset)
+        // Markers keep 6 screen px, never under 8 scene units, however far out the view zooms.
+        near(EdgePaintPolicy.flowMarkerMinLength(1.0), 8.0)
+        near(EdgePaintPolicy.flowMarkerMinLength(0.25), 24.0)
+        near(EdgePaintPolicy.flowEdgePaintState(edgeLayer, snapshot({}), edge, 0.25).markers.end.extent, 24.0)
+
+        var selected = EdgePaintPolicy.flowEdgePaintState(edgeLayer, snapshot({"selected": true}), {"edge_family": "flow", "flow_style": {}}, 1.0)
+        verify(selected.selected)
+        compare(selected.strokeColor, edgeLayer.selectedStrokeColor)
+        near(selected.strokeWidthScreenPx, 3.0)
+        compare(selected.arrowTail, "none")
+        near(selected.lineTrimStart, 0.0)
+    }
+
+    function pieceLength(piece) {
+        if (piece.cubic) {
+            var c = piece.cubic
+            return EdgeMath.geometryLength({
+                "route": "bezier", "sx": c[0].x, "sy": c[0].y, "c1x": c[1].x, "c1y": c[1].y,
+                "c2x": c[2].x, "c2y": c[2].y, "tx": c[3].x, "ty": c[3].y
+            })
+        }
+        return EdgeMath.polylineMetrics(piece.points).totalLength
+    }
+
+    function test_edge_body_pieces_trim_ends_and_cut_gaps() {
+        var bezier = {"route": "bezier", "sx": 0, "sy": 0, "c1x": 40, "c1y": 0, "c2x": 60, "c2y": 80, "tx": 100, "ty": 80}
+        var whole = EdgeMath.edgeBodyPieces(bezier, [], [], 0.0, 0.0)
+        compare(whole.length, 1)
+        compare(whole[0].cubic.length, 4)
+        near(whole[0].cubic[3].x, 100.0)
+        var trimmed = EdgeMath.edgeBodyPieces(bezier, [], [], 5.0, 12.0)
+        var expected = EdgeMath.trimGeometry(bezier, 5.0, 12.0)
+        near(trimmed[0].cubic[0].x, expected.sx)
+        near(trimmed[0].cubic[3].y, expected.ty)
+
+        // Pipes stay one connected polyline, so a dash keeps its phase through corners.
+        var pipe = {"route": "pipe", "pipe_points": [{"x": 0, "y": 0}, {"x": 60, "y": 0}, {"x": 60, "y": 40}]}
+        var pipePieces = EdgeMath.edgeBodyPieces(pipe, [], [], 0.0, 10.0)
+        compare(pipePieces.length, 1)
+        compare(pipePieces[0].points.length, 3)
+        near(pipePieces[0].points[2].y, 30.0)
+
+        // Gaps (crossing or label breaks along the samples) split the body into pieces; the
+        // end trims become gaps too, and a corner inside a piece stays one run.
+        var samples = pipe.pipe_points
+        var gaps = [{"startDistance": 20.0, "endDistance": 30.0}]
+        var pieces = EdgeMath.edgeBodyPieces(pipe, samples, gaps, 4.0, 6.0)
+        compare(pieces.length, 2)
+        near(pieces[0].points[0].x, 4.0)
+        near(pieces[0].points[pieces[0].points.length - 1].x, 20.0)
+        near(pieces[1].points[0].x, 30.0)
+        compare(pieces[1].points.length, 3)
+        near(pieces[1].points[2].y, 34.0)
+        near(pieceLength(pieces[0]) + pieceLength(pieces[1]), 100.0 - 10.0 - 4.0 - 6.0)
+        // Overlapping gaps merge; a gap covering everything leaves nothing to stroke.
+        compare(EdgeMath.edgeBodyPieces(pipe, samples, [{"startDistance": 10, "endDistance": 50}, {"startDistance": 40, "endDistance": 70}], 0, 0).length, 2)
+        compare(EdgeMath.edgeBodyPieces(pipe, samples, [{"startDistance": -5, "endDistance": 105}], 0, 0).length, 0)
+        compare(EdgeMath.edgeBodyPieces(pipe, [], [], 60.0, 40.0).length, 0)
+    }
+
+    function test_hidden_endpoint_arcs_face_along_the_path_with_end_colors() {
+        var pipe = {"route": "pipe", "pipe_points": [{"x": 0, "y": 0}, {"x": 0, "y": 50}, {"x": 80, "y": 50}]}
+        var frames = EdgeMath.endpointArcFrames(pipe, 4.0)
+        near(frames.source.x, 0.0)
+        near(frames.source.angle, Math.PI * 0.5)
+        near(frames.target.x, 80.0)
+        near(Math.abs(frames.target.angle), Math.PI)
+        compare(EdgeMath.endpointArcFrames({"route": "pipe", "pipe_points": []}, 4.0), null)
+
+        compare(JSON.stringify(EdgePaintPolicy.HIDDEN_ENDPOINT_ARC_RADII_SCREEN_PX), "[9,12,15]")
+        var hidden = paint({"visual_style": {"display_mode": "hidden"}}, {})
+        var plain = EdgePaintPolicy.hiddenEndpointArcColors(edgeLayer, hidden)
+        compare(plain.source, edgeLayer.activeDefaultStrokeColor)
+        compare(plain.target, edgeLayer.activeDefaultStrokeColor)
+        var selectedSource = EdgePaintPolicy.hiddenEndpointArcColors(
+            edgeLayer, paint({"visual_style": {"display_mode": "hidden"}}, {"sourceNodeSelected": true}))
+        compare(selectedSource.source, edgeLayer.activeSelectedStrokeColor)
+        var invalid = EdgePaintPolicy.hiddenEndpointArcColors(
+            edgeLayer, paint({"visual_style": {"display_mode": "hidden"}, "data_type_warning": true}, {"targetNodeSelected": true}))
+        compare(invalid.target, edgeLayer.dangerStrokeColor)
+    }
+
     function test_trim_geometry_shortens_pipes_and_beziers_by_arc_length() {
         var pipe = {"route": "pipe", "pipe_points": [{"x": 0, "y": 0}, {"x": 60, "y": 0}, {"x": 60, "y": 40}]}
         near(EdgeMath.geometryLength(pipe), 100.0)

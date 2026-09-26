@@ -124,6 +124,16 @@ function flowArrowMarkers(edge, strokeWidth, minLength) {
     };
 }
 
+function _paintZoom(zoom) {
+    var numeric = Number(zoom);
+    return isFinite(numeric) && numeric > 0.0001 ? numeric : 1.0;
+}
+
+// Scene-unit floor for flow arrowheads: at least 6 px long on screen when zoomed far out.
+function flowMarkerMinLength(zoom) {
+    return Math.max(8.0, 6.0 / _paintZoom(zoom));
+}
+
 // Label centre as a 0..1 path fraction from source to target; NaN means automatic placement.
 function flowLabelPosition(edge) {
     var value = flowStyle(edge).label_position;
@@ -184,6 +194,40 @@ function dashPatternInStrokeWidths(screenPattern, strokeWidthScreenPx) {
     for (var i = 0; i < (screenPattern || []).length; i++)
         result.push(Number(screenPattern[i]) / width);
     return result;
+}
+
+// Renderer-neutral paint state of a flow edge: stroke colour, width, dash, and both end
+// markers (scene units). Both edge renderers paint from it and publish it as diagnostics.
+function flowEdgePaintState(edgeLayer, snapshot, edge, zoom) {
+    var paintZoom = _paintZoom(zoom);
+    var selected = Boolean(snapshot && snapshot.selected);
+    var previewed = Boolean(snapshot && snapshot.previewed);
+    var strokeColor = flowStrokeColor(edgeLayer, edge, selected, previewed);
+    var strokeWidthScreenPx = flowStrokeWidth(edge, selected, previewed, paintZoom);
+    var strokeWidthScene = strokeWidthScreenPx / paintZoom;
+    var markers = flowArrowMarkers(edge, strokeWidthScene, flowMarkerMinLength(paintZoom));
+    return {
+        "flowEdge": true,
+        "selected": selected,
+        "previewed": previewed,
+        "baseColor": strokeColor,
+        "strokeColor": strokeColor,
+        "strokeAlpha": 1.0,
+        "strokeWidthScreenPx": strokeWidthScreenPx,
+        "strokeWidthScene": strokeWidthScene,
+        "strokeCount": 1,
+        "strokeOffsetsScreenPx": [0.0],
+        "dashPatternScreenPx": flowDashPattern(edge, paintZoom),
+        "markers": markers,
+        "arrowTail": markers.start ? markers.start.kind : "none",
+        "arrowHead": markers.end ? markers.end.kind : "none",
+        "arrowTailExtent": markers.start ? markers.start.extent : 0.0,
+        "arrowHeadExtent": markers.end ? markers.end.extent : 0.0,
+        "lineTrimStart": markers.start ? markers.start.lineInset : 0.0,
+        "lineTrimEnd": markers.end ? markers.end.lineInset : 0.0,
+        "muted": false,
+        "invalid": false
+    };
 }
 
 function standardEdgeActive(edge) {
@@ -436,6 +480,26 @@ function standardEdgePaintState(edgeLayer, snapshot, edge, zoom) {
         "nodeSelectionGradient": nodeSelectionGradient,
         "invalidGradient": invalidGradient,
         "gradientKind": gradientKind
+    };
+}
+
+// A hidden wire shows three half-circle arcs at each end; a disabled active wire shows an X
+// at its midpoint. Sizes are screen pixels.
+var HIDDEN_ENDPOINT_ARC_RADII_SCREEN_PX = [9.0, 12.0, 15.0];
+var HIDDEN_ENDPOINT_ARC_STROKE_WIDTH_SCREEN_PX = 1.6;
+var HIDDEN_ENDPOINT_ARC_ALPHA = 0.72;
+var DISABLED_MARKER_RADIUS_SCREEN_PX = 5.0;
+var DISABLED_MARKER_STROKE_WIDTH_SCREEN_PX = 1.8;
+
+// Endpoint-arc colours: selected-node blue at a selected end, danger red at an invalid target.
+function hiddenEndpointArcColors(edgeLayer, paintState) {
+    return {
+        "source": paintState.sourceNodeSelected
+            ? edgeLayer.activeSelectedStrokeColor
+            : paintState.baseColor,
+        "target": paintState.invalid
+            ? edgeLayer.dangerStrokeColor
+            : (paintState.targetNodeSelected ? edgeLayer.activeSelectedStrokeColor : paintState.baseColor)
     };
 }
 

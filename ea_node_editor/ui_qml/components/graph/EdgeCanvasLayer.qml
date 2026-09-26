@@ -89,7 +89,8 @@ Item {
         var length = Math.sqrt(dx * dx + dy * dy);
         if (!isFinite(length) || length <= 1e-6)
             return {"x": 0.0, "y": 0.0};
-        var sceneOffset = EdgeViewportMath.screenLengthToScene(offsetScreenPx, viewportTransform);
+        // Signed: parallel strokes sit on both sides of the path (screenLengthToScene clamps at 0).
+        var sceneOffset = Number(offsetScreenPx || 0.0) / viewportTransform.zoom;
         return {"x": -dy * sceneOffset / length, "y": dx * sceneOffset / length};
     }
     function drawDragConnectionMarker(ctx, geometry, markerText, strokeColor, viewportTransform, plain) {
@@ -122,128 +123,28 @@ Item {
         ctx.fillText(String(markerText), centerX, centerY);
         ctx.restore();
     }
-    function traceBezierGeometry(ctx, geometry) {
-        ctx.moveTo(geometry.sx, geometry.sy);
-        ctx.bezierCurveTo(geometry.c1x, geometry.c1y, geometry.c2x, geometry.c2y, geometry.tx, geometry.ty);
-    }
-    function tracePolylineGeometry(ctx, points) {
-        var polylinePoints = points || [];
-        for (var i = 0; i < polylinePoints.length; i++) {
-            var point = polylinePoints[i];
-            if (i === 0)
-                ctx.moveTo(point.x, point.y);
-            else
-                ctx.lineTo(point.x, point.y);
-        }
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-    }
-    function _tracePolylineSegmentSpan(ctx, segment, startDistance, endDistance) {
-        if (!segment || segment.length <= 1e-6 || endDistance - startDistance <= 1e-6)
-            return;
-        var startFraction = EdgeMath.clamp((startDistance - segment.startDistance) / segment.length, 0.0, 1.0);
-        var endFraction = EdgeMath.clamp((endDistance - segment.startDistance) / segment.length, 0.0, 1.0);
-        if (endFraction - startFraction <= 1e-6)
-            return;
-        var startPoint = {
-            "x": segment.a.x + (segment.b.x - segment.a.x) * startFraction,
-            "y": segment.a.y + (segment.b.y - segment.a.y) * startFraction
-        };
-        var endPoint = {
-            "x": segment.a.x + (segment.b.x - segment.a.x) * endFraction,
-            "y": segment.a.y + (segment.b.y - segment.a.y) * endFraction
-        };
-        ctx.moveTo(startPoint.x, startPoint.y);
-        ctx.lineTo(endPoint.x, endPoint.y);
-    }
-
-    function _tracePolylineRange(ctx, segments, startDistance, endDistance) {
-        for (var i = 0; i < (segments || []).length; i++)
-            root._tracePolylineSegmentSpan(ctx, segments[i], startDistance, endDistance);
-    }
-
-    function traceBrokenGeometry(ctx, geometry, sampledPoints, breakRanges) {
-        var metrics = EdgeMath.polylineMetrics(sampledPoints || []);
-        if (!metrics.points.length) {
-            traceGeometry(ctx, geometry);
-            return;
-        }
-        if (!(breakRanges || []).length) {
-            tracePolylineGeometry(ctx, metrics.points);
-            return;
-        }
-        var ranges = breakRanges || [];
-        var rangeIndex = 0;
-        var segments = metrics.segments || [];
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-
-        for (var i = 0; i < segments.length; i++) {
-            var segment = segments[i];
-            var segmentStart = segment.startDistance;
-            var segmentEnd = segment.endDistance;
-            while (rangeIndex < ranges.length && Number(ranges[rangeIndex].endDistance) <= segmentStart + 1e-6)
-                rangeIndex += 1;
-            var visibleStart = segmentStart;
-            var scanIndex = rangeIndex;
-            while (scanIndex < ranges.length && Number(ranges[scanIndex].startDistance) < segmentEnd - 1e-6) {
-                var gapRange = ranges[scanIndex];
-                var gapStart = Number(gapRange.startDistance);
-                var gapEnd = Number(gapRange.endDistance);
-                if (gapStart > visibleStart + 1e-6)
-                    _tracePolylineSegmentSpan(ctx, segment, visibleStart, Math.min(gapStart, segmentEnd));
-                visibleStart = Math.max(visibleStart, Math.min(segmentEnd, gapEnd));
-                if (gapEnd <= segmentEnd + 1e-6)
-                    scanIndex += 1;
+    // Traces EdgeMath.edgeBodyPieces: one connected sub-path per piece.
+    function traceBodyPieces(ctx, pieces) {
+        var source = pieces || [];
+        for (var i = 0; i < source.length; i++) {
+            var cubic = source[i].cubic;
+            if (cubic) {
+                ctx.moveTo(cubic[0].x, cubic[0].y);
+                ctx.bezierCurveTo(cubic[1].x, cubic[1].y, cubic[2].x, cubic[2].y, cubic[3].x, cubic[3].y);
+                continue;
+            }
+            var points = source[i].points || [];
+            for (var j = 0; j < points.length; j++) {
+                if (j === 0)
+                    ctx.moveTo(points[j].x, points[j].y);
                 else
-                    break;
+                    ctx.lineTo(points[j].x, points[j].y);
             }
-            if (visibleStart < segmentEnd - 1e-6)
-                _tracePolylineSegmentSpan(ctx, segment, visibleStart, segmentEnd);
-            rangeIndex = scanIndex;
         }
-    }
-
-    function strokeStandardGeometry(ctx, geometry, sampledPoints, breakRanges, dashPattern) {
-        if (!(breakRanges || []).length) {
-            ctx.beginPath();
-            root.traceGeometry(ctx, geometry);
-            ctx.stroke();
-            return;
-        }
-        var metrics = EdgeMath.polylineMetrics(sampledPoints || []);
-        if (!metrics.points.length || metrics.totalLength <= 1e-6) {
-            ctx.beginPath();
-            root.traceGeometry(ctx, geometry);
-            ctx.stroke();
-            return;
-        }
-        var cursor = 0.0;
-        var ranges = breakRanges || [];
-        for (var i = 0; i <= ranges.length; i++) {
-            var visibleEnd = i < ranges.length
-                ? Math.max(0.0, Math.min(metrics.totalLength, Number(ranges[i].startDistance)))
-                : metrics.totalLength;
-            if (visibleEnd > cursor + 1e-6) {
-                ctx.beginPath();
-                root._tracePolylineRange(ctx, metrics.segments, cursor, visibleEnd);
-                ctx.lineDashOffset = (dashPattern || []).length ? cursor / ctx.lineWidth : 0.0;
-                ctx.stroke();
-            }
-            if (i < ranges.length)
-                cursor = Math.max(cursor, Math.min(metrics.totalLength, Number(ranges[i].endDistance)));
-        }
-        ctx.lineDashOffset = 0.0;
     }
 
     function traceGeometry(ctx, geometry) {
-        if (!geometry)
-            return;
-        if (geometry.route === "pipe") {
-            tracePolylineGeometry(ctx, geometry.pipe_points || []);
-            return;
-        }
-        traceBezierGeometry(ctx, geometry);
+        root.traceBodyPieces(ctx, EdgeMath.edgeBodyPieces(geometry, [], [], 0.0, 0.0));
     }
 
     function standardEdgeStrokeStyle(ctx, geometry, paintState) {
@@ -269,57 +170,42 @@ Item {
     }
 
     function drawHiddenEndpointArcs(ctx, geometry, paintState, viewportTransform) {
-        var sourceAnchor = EdgeMath.edgeAnchor(geometry, 0.0);
-        var targetAnchor = EdgeMath.edgeAnchor(geometry, 1.0);
-        if (!sourceAnchor || !targetAnchor)
+        var frames = EdgeMath.endpointArcFrames(
+            geometry,
+            EdgeViewportMath.screenLengthToScene(4.0, viewportTransform)
+        );
+        if (!frames)
             return;
-        var sampleStep = EdgeViewportMath.screenLengthToScene(4.0, viewportTransform);
-        var sampledPoints = EdgeMath.sampleGeometryPolyline(geometry, sampleStep);
-        var sampledMetrics = EdgeMath.polylineMetrics(sampledPoints);
-        if (!sampledMetrics || !sampledMetrics.segments || sampledMetrics.segments.length === 0)
-            return;
-        var firstSegment = sampledMetrics.segments[0];
-        var lastSegment = sampledMetrics.segments[sampledMetrics.segments.length - 1];
-        var sourceColor = paintState.sourceNodeSelected
-            ? root.edgeLayer.activeSelectedStrokeColor
-            : paintState.baseColor;
-        var targetColor = paintState.invalid
-            ? root.edgeLayer.dangerStrokeColor
-            : (paintState.targetNodeSelected ? root.edgeLayer.activeSelectedStrokeColor : paintState.baseColor);
+        var colors = EdgePaintPolicy.hiddenEndpointArcColors(root.edgeLayer, paintState);
         ctx.save();
-        ctx.globalAlpha = 0.72;
-        ctx.lineWidth = EdgeViewportMath.screenLengthToScene(1.6, viewportTransform);
+        ctx.globalAlpha = EdgePaintPolicy.HIDDEN_ENDPOINT_ARC_ALPHA;
+        ctx.lineWidth = EdgeViewportMath.screenLengthToScene(
+            EdgePaintPolicy.HIDDEN_ENDPOINT_ARC_STROKE_WIDTH_SCREEN_PX,
+            viewportTransform
+        );
         ctx.lineCap = "round";
         ctx.setLineDash([]);
-        var sourceAngle = Math.atan2(
-            Number(firstSegment.b.y) - Number(firstSegment.a.y),
-            Number(firstSegment.b.x) - Number(firstSegment.a.x)
-        );
-        var targetAngle = Math.atan2(
-            Number(lastSegment.a.y) - Number(lastSegment.b.y),
-            Number(lastSegment.a.x) - Number(lastSegment.b.x)
-        );
         var radii = root.hiddenEndpointArcRadiiScreenPx();
         for (var i = 0; i < radii.length; i++) {
             var radius = EdgeViewportMath.screenLengthToScene(Number(radii[i]), viewportTransform);
-            ctx.strokeStyle = sourceColor;
+            ctx.strokeStyle = colors.source;
             ctx.beginPath();
             ctx.arc(
-                Number(sourceAnchor.x),
-                Number(sourceAnchor.y),
+                frames.source.x,
+                frames.source.y,
                 radius,
-                sourceAngle - Math.PI * 0.5,
-                sourceAngle + Math.PI * 0.5
+                frames.source.angle - Math.PI * 0.5,
+                frames.source.angle + Math.PI * 0.5
             );
             ctx.stroke();
-            ctx.strokeStyle = targetColor;
+            ctx.strokeStyle = colors.target;
             ctx.beginPath();
             ctx.arc(
-                Number(targetAnchor.x),
-                Number(targetAnchor.y),
+                frames.target.x,
+                frames.target.y,
                 radius,
-                targetAngle - Math.PI * 0.5,
-                targetAngle + Math.PI * 0.5
+                frames.target.angle - Math.PI * 0.5,
+                frames.target.angle + Math.PI * 0.5
             );
             ctx.stroke();
         }
@@ -327,18 +213,24 @@ Item {
     }
 
     function hiddenEndpointArcRadiiScreenPx() {
-        return [9.0, 12.0, 15.0];
+        return EdgePaintPolicy.HIDDEN_ENDPOINT_ARC_RADII_SCREEN_PX;
     }
 
     function drawDisabledMarker(ctx, geometry, strokeColor, strokeAlpha, viewportTransform) {
         var anchor = EdgeMath.edgeAnchor(geometry, 0.5);
         if (!anchor)
             return;
-        var radius = EdgeViewportMath.screenLengthToScene(5.0, viewportTransform);
+        var radius = EdgeViewportMath.screenLengthToScene(
+            EdgePaintPolicy.DISABLED_MARKER_RADIUS_SCREEN_PX,
+            viewportTransform
+        );
         ctx.save();
         ctx.globalAlpha = Number(strokeAlpha || 1.0);
         ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = EdgeViewportMath.screenLengthToScene(1.8, viewportTransform);
+        ctx.lineWidth = EdgeViewportMath.screenLengthToScene(
+            EdgePaintPolicy.DISABLED_MARKER_STROKE_WIDTH_SCREEN_PX,
+            viewportTransform
+        );
         ctx.lineCap = "round";
         ctx.setLineDash([]);
         ctx.beginPath();
@@ -348,30 +240,6 @@ Item {
         ctx.lineTo(anchor.x + radius, anchor.y - radius);
         ctx.stroke();
         ctx.restore();
-    }
-
-    function flowMarkerMinLength(viewportTransform) {
-        // Keeps markers at least 6 px long on screen when zoomed far out.
-        return Math.max(8.0, EdgeViewportMath.screenLengthToScene(6.0, viewportTransform));
-    }
-
-    function traceFlowEdgeBody(ctx, geometry, markers, sampledPoints, breakRanges) {
-        var startTrim = markers && markers.start ? Number(markers.start.lineInset) : 0.0;
-        var endTrim = markers && markers.end ? Number(markers.end.lineInset) : 0.0;
-        if ((breakRanges || []).length > 0) {
-            var metrics = EdgeMath.polylineMetrics(sampledPoints || []);
-            var total = metrics.totalLength;
-            var ranges = (breakRanges || []).slice();
-            if (startTrim > 0.0)
-                ranges.push({"startDistance": 0.0, "endDistance": startTrim});
-            if (endTrim > 0.0)
-                ranges.push({"startDistance": total - endTrim, "endDistance": total});
-            root.traceBrokenGeometry(ctx, geometry, sampledPoints, EdgeMath.mergeBreakRanges(ranges, 0.0, total));
-            return;
-        }
-        var trimmed = EdgeMath.trimGeometry(geometry, startTrim, endTrim);
-        if (trimmed)
-            root.traceGeometry(ctx, trimmed);
     }
 
     function drawFlowArrowMarkers(ctx, geometry, markers, strokeColor) {
@@ -701,69 +569,30 @@ Item {
                         continue;
                     var edge = snapshot.edgeData;
                     var geometry = snapshot.geometry;
-                    var selected = snapshot.selected;
-                    var previewed = snapshot.previewed;
                     var crossingBreaks = snapshot.crossingBreaks || [];
                     ctx.save();
 
                     if (snapshot.flowEdge) {
-                        var flowStrokeColor = EdgePaintPolicy.flowStrokeColor(
-                            root.edgeLayer,
-                            edge,
-                            selected,
-                            previewed
-                        );
-                        var flowStrokeWidthScreenPx = EdgePaintPolicy.flowStrokeWidth(
-                            edge,
-                            selected,
-                            previewed,
-                            zoom
-                        );
-                        var flowStrokeWidthScene = EdgeViewportMath.screenLengthToScene(
-                            flowStrokeWidthScreenPx,
-                            viewportTransform
-                        );
-                        var flowMarkers = EdgePaintPolicy.flowArrowMarkers(
-                            edge,
-                            flowStrokeWidthScene,
-                            root.flowMarkerMinLength(viewportTransform)
-                        );
-                        var flowDashPatternScreenPx = EdgePaintPolicy.flowDashPattern(edge, zoom);
+                        var flowPaint = EdgePaintPolicy.flowEdgePaintState(root.edgeLayer, snapshot, edge, zoom);
                         ctx.beginPath();
-                        root.traceFlowEdgeBody(
-                            ctx,
+                        root.traceBodyPieces(ctx, EdgeMath.edgeBodyPieces(
                             geometry,
-                            flowMarkers,
                             snapshot.crossingSamplePoints || [],
-                            crossingBreaks
-                        );
-                        ctx.strokeStyle = flowStrokeColor;
-                        ctx.lineWidth = flowStrokeWidthScene;
-                        ctx.setLineDash(
-                            EdgePaintPolicy.dashPatternInStrokeWidths(flowDashPatternScreenPx, flowStrokeWidthScreenPx)
-                        );
+                            crossingBreaks,
+                            flowPaint.lineTrimStart,
+                            flowPaint.lineTrimEnd
+                        ));
+                        ctx.strokeStyle = flowPaint.strokeColor;
+                        ctx.lineWidth = flowPaint.strokeWidthScene;
+                        ctx.lineCap = "round";
+                        ctx.lineJoin = "round";
+                        ctx.setLineDash(EdgePaintPolicy.dashPatternInStrokeWidths(
+                            flowPaint.dashPatternScreenPx,
+                            flowPaint.strokeWidthScreenPx
+                        ));
                         ctx.stroke();
-                        root.drawFlowArrowMarkers(ctx, geometry, flowMarkers, flowStrokeColor);
-                        paintDiagnosticsByEdgeId[snapshot.edgeId] = {
-                            "flowEdge": true,
-                            "selected": Boolean(selected),
-                            "previewed": Boolean(previewed),
-                            "baseColor": flowStrokeColor,
-                            "strokeColor": flowStrokeColor,
-                            "strokeAlpha": 1.0,
-                            "strokeWidthScreenPx": flowStrokeWidthScreenPx,
-                            "strokeCount": 1,
-                            "strokeOffsetsScreenPx": [0.0],
-                            "dashPatternScreenPx": flowDashPatternScreenPx,
-                            "arrowTail": flowMarkers.start ? flowMarkers.start.kind : "none",
-                            "arrowHead": flowMarkers.end ? flowMarkers.end.kind : "none",
-                            "arrowTailExtent": flowMarkers.start ? flowMarkers.start.extent : 0.0,
-                            "arrowHeadExtent": flowMarkers.end ? flowMarkers.end.extent : 0.0,
-                            "lineTrimStart": flowMarkers.start ? flowMarkers.start.lineInset : 0.0,
-                            "lineTrimEnd": flowMarkers.end ? flowMarkers.end.lineInset : 0.0,
-                            "muted": false,
-                            "invalid": false
-                        };
+                        root.drawFlowArrowMarkers(ctx, geometry, flowPaint.markers, flowPaint.strokeColor);
+                        paintDiagnosticsByEdgeId[snapshot.edgeId] = flowPaint;
                     } else {
                         var standardPaint = EdgePaintPolicy.standardEdgePaintState(
                             root.edgeLayer,
@@ -792,6 +621,13 @@ Item {
                             ctx.setLineDash(standardDashPattern);
                             ctx.lineCap = "round";
                             ctx.lineJoin = "round";
+                            var standardPieces = EdgeMath.edgeBodyPieces(
+                                geometry,
+                                snapshot.crossingSamplePoints || [],
+                                crossingBreaks,
+                                0.0,
+                                0.0
+                            );
                             var strokeOffsets = standardPaint.strokeOffsetsScreenPx || [0.0];
                             for (var strokeIndex = 0; strokeIndex < strokeOffsets.length; ++strokeIndex) {
                                 var offset = root.standardStrokeOffsetVector(
@@ -801,13 +637,9 @@ Item {
                                 );
                                 ctx.save();
                                 ctx.translate(offset.x, offset.y);
-                                root.strokeStandardGeometry(
-                                    ctx,
-                                    geometry,
-                                    snapshot.crossingSamplePoints || [],
-                                    crossingBreaks,
-                                    standardDashPattern
-                                );
+                                ctx.beginPath();
+                                root.traceBodyPieces(ctx, standardPieces);
+                                ctx.stroke();
                                 ctx.restore();
                             }
                         }
@@ -857,6 +689,7 @@ Item {
                             )
                         );
                         ctx.lineCap = "round";
+                        ctx.lineJoin = "round";
                         ctx.stroke();
                         if (EdgePaintPolicy.dragConnectionMarkerVisible(root.edgeLayer, liveDrag)) {
                             root.drawDragConnectionMarker(

@@ -212,7 +212,12 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
         self.assertIn(
             "EdgePaintPolicy.standardEdgePaintState(", retained_text
         )
-        self.assertIn("EdgeMath.edgeAnchor(sourceGeometry, 0.5)", retained_text)
+        # Both renderers paint flow edges and edge bodies from the same pure owners.
+        for shared_call in ("EdgePaintPolicy.flowEdgePaintState(", "EdgeMath.edgeBodyPieces("):
+            with self.subTest(shared_call=shared_call):
+                self.assertIn(shared_call, retained_text)
+                self.assertIn(shared_call, canvas_text)
+        self.assertIn("EdgeMath.edgeAnchor(geometry, 0.5)", retained_text)
         self.assertIn('"EdgePaintPolicy.js" as EdgePaintPolicy', canvas_text)
         self.assertIn('"EdgePaintPolicy.js" as EdgePaintPolicy', edge_layer_text)
         self.assertIn('.import "EdgePaintPolicy.js" as EdgePaintPolicy', snapshot_text)
@@ -290,7 +295,7 @@ Item {
             policy_text,
         )
         self.assertIn(
-            "retainedEdgeDelegate.edgeEntry.strokeOffsets", retained_layer_text
+            "root._screenStrokeOffsets(geometry, paintState.strokeOffsetsScreenPx", retained_layer_text
         )
         self.assertIn("ShapePath.DashLine", retained_layer_text)
         self.assertIn('objectName: "graphEdgeValuePreviewToolTip"', hit_overlay_text)

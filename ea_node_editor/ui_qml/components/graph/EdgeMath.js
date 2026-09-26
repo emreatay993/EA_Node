@@ -1,8 +1,8 @@
 .pragma library
-// Purpose: Own shared edge geometry math: anchors, sampling, flow pipe routing, marker trimming, and label placement.
+// Purpose: Own shared edge geometry math: anchors, sampling, flow pipe routing, marker trimming, stroked body pieces, and label placement.
 // Map: feature_routes/edge_routing_labels_progress.md
 // Tests: tests/qml_quick/tst_edge_paint_policy.qml, tests/test_flow_edge_labels.py
-// Landmarks: edgeAnchor; trimGeometry; edgeEndMarkerFrame; nearestFractionOnGeometry; uprightLabelAngle; mergeBreakRanges; flowPipeRoute; forwardBezierLeadDelta
+// Landmarks: edgeAnchor; trimGeometry; edgeBodyPieces; edgeEndMarkerFrame; endpointArcFrames; nearestFractionOnGeometry; uprightLabelAngle; mergeBreakRanges; flowPipeRoute; forwardBezierLeadDelta
 
 function clamp(value, minValue, maxValue) {
     return Math.max(minValue, Math.min(maxValue, value));
@@ -404,9 +404,9 @@ function geometryLength(geometry) {
     return _bezierArcTable(geometry).total;
 }
 
-function _trimmedPolylinePoints(points, startDistance, endDistance) {
-    var metrics = polylineMetrics(points || []);
-    var trimmed = [];
+// The connected run of a polylineMetrics() path between two distances along it.
+function _metricsRunPoints(metrics, startDistance, endDistance) {
+    var run = [];
     var segments = metrics.segments || [];
     for (var i = 0; i < segments.length; i++) {
         var segment = segments[i];
@@ -416,11 +416,15 @@ function _trimmedPolylinePoints(points, startDistance, endDistance) {
             continue;
         var a = _lerpPoint(segment.a, segment.b, (from - segment.startDistance) / segment.length);
         var b = _lerpPoint(segment.a, segment.b, (to - segment.startDistance) / segment.length);
-        if (!trimmed.length)
-            trimmed.push(a);
-        trimmed.push(b);
+        if (!run.length)
+            run.push(a);
+        run.push(b);
     }
-    return trimmed;
+    return run;
+}
+
+function _trimmedPolylinePoints(points, startDistance, endDistance) {
+    return _metricsRunPoints(polylineMetrics(points || []), startDistance, endDistance);
 }
 
 // The stroke of an edge shortened by arc length at both ends, so it stops under its markers.
@@ -469,6 +473,62 @@ function trimGeometry(geometry, startTrim, endTrim) {
     };
 }
 
+// The stroked pieces of an edge body: the path trimmed by startTrim/endTrim under its end
+// markers, minus breakRanges (crossing and label gaps, as distances along samplePoints).
+// Each piece is one connected sub-path, {"cubic": [p0, p1, p2, p3]} or {"points": [...]},
+// so joins and dash phase run through corners and a dash pattern starts afresh at each
+// piece. Without breaks a bezier stays one exact cubic. Both edge renderers trace these.
+function edgeBodyPieces(geometry, samplePoints, breakRanges, startTrim, endTrim) {
+    if (!geometry)
+        return [];
+    var head = Math.max(0.0, Number(startTrim) || 0.0);
+    var tail = Math.max(0.0, Number(endTrim) || 0.0);
+    if ((breakRanges || []).length > 0) {
+        var metrics = polylineMetrics(samplePoints || []);
+        var total = metrics.totalLength;
+        if (metrics.segments.length > 0 && total > 1e-6) {
+            var cuts = (breakRanges || []).slice();
+            if (head > 0.0)
+                cuts.push({"startDistance": 0.0, "endDistance": head});
+            if (tail > 0.0)
+                cuts.push({"startDistance": total - tail, "endDistance": total});
+            var merged = mergeBreakRanges(cuts, 0.0, total);
+            var pieces = [];
+            var cursor = 0.0;
+            for (var i = 0; i <= merged.length; i++) {
+                var visibleEnd = i < merged.length ? merged[i].startDistance : total;
+                if (visibleEnd - cursor > 1e-6) {
+                    var run = _metricsRunPoints(metrics, cursor, visibleEnd);
+                    if (run.length >= 2)
+                        pieces.push({"points": run});
+                }
+                if (i < merged.length)
+                    cursor = Math.max(cursor, merged[i].endDistance);
+            }
+            return pieces;
+        }
+    }
+    var trimmed = trimGeometry(geometry, head, tail);
+    if (!trimmed)
+        return [];
+    if (trimmed.route === "pipe") {
+        var points = [];
+        var source = trimmed.pipe_points || [];
+        for (var p = 0; p < source.length; p++) {
+            var point = _normalizedPoint(source[p]);
+            if (point)
+                points.push(point);
+        }
+        return points.length >= 2 ? [{"points": points}] : [];
+    }
+    return [{"cubic": [
+        {"x": Number(trimmed.sx), "y": Number(trimmed.sy)},
+        {"x": Number(trimmed.c1x), "y": Number(trimmed.c1y)},
+        {"x": Number(trimmed.c2x), "y": Number(trimmed.c2y)},
+        {"x": Number(trimmed.tx), "y": Number(trimmed.ty)}
+    ]}];
+}
+
 // Tip and pointing direction of an end marker. The direction follows the chord over the
 // marker's own length, so a head on a tight curve lines up with the trimmed stroke.
 function edgeEndMarkerFrame(geometry, atTarget, markerLength, totalLength) {
@@ -494,6 +554,33 @@ function edgeEndMarkerFrame(geometry, atTarget, markerLength, totalLength) {
         }
     }
     return {"x": Number(tip.x), "y": Number(tip.y), "dx": dirX, "dy": dirY};
+}
+
+// Where a hidden wire's endpoint arcs sit: each end's anchor and the angle (radians) the
+// arcs face, along the path at the source and back along it at the target. sceneStep
+// samples the path for those end directions.
+function endpointArcFrames(geometry, sceneStep) {
+    var sourceAnchor = edgeAnchor(geometry, 0.0);
+    var targetAnchor = edgeAnchor(geometry, 1.0);
+    if (!sourceAnchor || !targetAnchor)
+        return null;
+    var metrics = polylineMetrics(sampleGeometryPolyline(geometry, sceneStep));
+    if (!metrics.segments.length)
+        return null;
+    var first = metrics.segments[0];
+    var last = metrics.segments[metrics.segments.length - 1];
+    return {
+        "source": {
+            "x": Number(sourceAnchor.x),
+            "y": Number(sourceAnchor.y),
+            "angle": Math.atan2(Number(first.b.y) - Number(first.a.y), Number(first.b.x) - Number(first.a.x))
+        },
+        "target": {
+            "x": Number(targetAnchor.x),
+            "y": Number(targetAnchor.y),
+            "angle": Math.atan2(Number(last.a.y) - Number(last.b.y), Number(last.a.x) - Number(last.b.x))
+        }
+    };
 }
 
 // Distance along a polylineMetrics() path to the point nearest (x, y).

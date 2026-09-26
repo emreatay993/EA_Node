@@ -515,6 +515,232 @@ class EdgeSnapshotSpatialIndexTests(unittest.TestCase):
             """,
         )
 
+    _RENDERER_SCENE_PREAMBLE = """
+            from PyQt6.QtGui import QColor
+            from PyQt6.QtQuick import QQuickWindow
+            from PyQt6.QtTest import QTest
+
+            W, H = 480, 360
+            window = QQuickWindow()
+            window.resize(W, H)
+            window.setColor(QColor("#151821"))
+            edge_layer.setProperty("width", float(W))
+            edge_layer.setProperty("height", float(H))
+            view.set_viewport_size(float(W), float(H))
+            view.centerOn(W / 2.0, H / 2.0)
+            edge_layer.setParentItem(window.contentItem())
+            window.show()
+            retained = edge_layer.findChild(QObject, "graphCanvasEdgeRetainedLayer")
+            canvas = edge_layer.findChild(QObject, "graphCanvasEdgeCanvasLayer")
+            # Labels are one QML layer shared by both renderers; keep the comparison on strokes.
+            edge_layer.findChild(QObject, "graphEdgeFlowLabelLayer").setProperty("visible", False)
+
+            def flow_edge(edge_id, sx, sy, tx, ty, **overrides):
+                values = {"edge_family": "flow", "source_port_kind": "flow", "target_port_kind": "flow",
+                          "source_node_id": edge_id + "_source", "target_node_id": edge_id + "_target"}
+                values.update(overrides)
+                return bezier_edge(edge_id, sx, sy, tx, ty, **values)
+
+            def render(renderer, edges):
+                edge_layer.setProperty("edgeRendererPreference", renderer)
+                edge_layer.setProperty("edges", edges)
+                for _ in range(3):
+                    refresh(edge_layer)
+                    QTest.qWait(20)
+                assert edge_layer.property("edgeRendererKind") == renderer, edge_layer.property("edgeRendererKind")
+                return window.grabWindow()
+
+            def pixel_diff(first, second):
+                worst = 0
+                over = 0
+                ink = 0
+                background = QColor("#151821").rgb()
+                for y in range(first.height()):
+                    for x in range(first.width()):
+                        a = first.pixel(x, y)
+                        b = second.pixel(x, y)
+                        if (a & 0xFFFFFF) != (background & 0xFFFFFF) or (b & 0xFFFFFF) != (background & 0xFFFFFF):
+                            ink += 1
+                        if a == b:
+                            continue
+                        delta = max(abs(((a >> shift) & 255) - ((b >> shift) & 255)) for shift in (0, 8, 16))
+                        worst = max(worst, delta)
+                        over += delta > 24
+                return {"worst": worst, "over": over, "ink": ink}
+
+            def diagnostics(edge_id):
+                value = to_variant(edge_layer.property("activeEdgePaintDiagnosticsByEdgeId"))[edge_id]
+                return value if isinstance(value, dict) else dict(value)
+
+            def canvas_painted_ids():
+                return set(to_variant(canvas.property("_paintDiagnosticsByEdgeId")) or {})
+
+            def wait_until(predicate, label):
+                for _ in range(60):
+                    if predicate():
+                        return
+                    QTest.qWait(10)
+                raise AssertionError(label)
+            """
+
+    def test_retained_renderer_paints_flow_edges_like_the_canvas(self) -> None:
+        self._run_edge_layer_probe(
+            "retained-flow-edge-canvas-parity",
+            self._RENDERER_SCENE_PREAMBLE + """
+            edges = [
+                flow_edge("dashed_arrows", 30.0, 40.0, 450.0, 90.0, flow_style={
+                    "stroke_width": 3, "stroke_pattern": "dashed", "arrow_tail": "filled",
+                    "arrow_head": "open", "stroke_color": "#d9822b"}),
+                flow_edge("dotted_open", 30.0, 130.0, 450.0, 130.0, flow_style={
+                    "stroke_pattern": "dotted", "arrow_head": "open", "stroke_color": "#3aa876"}),
+                flow_edge("label_gap", 30.0, 180.0, 450.0, 180.0, label="Approved", c1x=130.0, c1y=180.0,
+                          c2x=350.0, c2y=180.0),
+                flow_edge("thick_pipe", 30.0, 230.0, 450.0, 290.0, route="pipe", pipe_points=[
+                    {"x": 30.0, "y": 230.0}, {"x": 240.0, "y": 230.0}, {"x": 240.0, "y": 290.0},
+                    {"x": 450.0, "y": 290.0}], flow_style={"stroke_width": 5, "arrow_tail": "open"}),
+                bezier_edge("hidden_wire", 30.0, 320.0, 200.0, 320.0, active_data_wire=True,
+                            source_node_id="hidden_source", target_node_id="hidden_target",
+                            visual_style={"display_mode": "hidden"}),
+                bezier_edge("disabled_wire", 250.0, 320.0, 450.0, 320.0, active_data_wire=True,
+                            source_node_id="disabled_source", target_node_id="disabled_target", enabled=False),
+                bezier_edge("double_passive", 30.0, 345.0, 450.0, 345.0, stroke_count=2,
+                            source_node_id="double_source", target_node_id="double_target"),
+                # Drawn last, so gap_break cuts every edge it crosses.
+                flow_edge("over", 330.0, 10.0, 330.0, 350.0, c1x=330.0, c1y=120.0, c2x=330.0, c2y=240.0,
+                          flow_style={"stroke_color": "#c0504d"}),
+            ]
+            edge_layer.setProperty("edgeCrossingStyle", "gap_break")
+            canvas_image = render("canvas", edges)
+            canvas_paint = {edge["edge_id"]: diagnostics(edge["edge_id"]) for edge in edges}
+            retained_image = render("retained_qml", edges)
+            assert edge_layer.property("edgeRendererFallbackReason") == ""
+            assert to_variant(edge_layer.property("edgeRendererCanvasEdgeReasonById")) == {}
+            assert not canvas.property("visible")
+            assert int(retained.property("retainedEdgeCount")) == len(edges)
+
+            for edge in edges:
+                if edge.get("edge_family") != "flow":
+                    continue
+                for key in ("arrowTail", "arrowHead", "arrowTailExtent", "arrowHeadExtent", "lineTrimStart",
+                            "lineTrimEnd", "strokeWidthScreenPx", "dashPatternScreenPx", "strokeColor"):
+                    assert diagnostics(edge["edge_id"])[key] == canvas_paint[edge["edge_id"]][key], (
+                        edge["edge_id"], key, diagnostics(edge["edge_id"])[key], canvas_paint[edge["edge_id"]][key])
+
+            # The label and crossing gaps are cut in the retained stroke as well.
+            label_break = snapshot(edge_layer, "label_gap")["crossingBreaks"]
+            assert label_break, "expected a label gap"
+            background = QColor("#151821").rgb() & 0xFFFFFF
+            gap_centre = [item for item in label_break if abs(float(item["centerY"]) - 180.0) < 1.0][0]
+            scale = retained_image.width() / float(W)
+            assert retained_image.pixel(round(float(gap_centre["centerX"]) * scale), round(180.0 * scale)) & 0xFFFFFF == background
+            assert retained_image.pixel(round(60.0 * scale), round(180.0 * scale)) & 0xFFFFFF != background
+
+            stats = pixel_diff(canvas_image, retained_image)
+            assert stats["ink"] > 4000, stats
+            assert stats["worst"] <= 48 and stats["over"] <= stats["ink"] // 200, stats
+            """,
+        )
+
+    def test_renderer_choice_is_per_edge_with_a_canvas_overlay_for_the_rest(self) -> None:
+        self._run_edge_layer_probe(
+            "retained-per-edge-renderer-choice",
+            self._RENDERER_SCENE_PREAMBLE + """
+            flow = flow_edge("flow", 30.0, 60.0, 450.0, 60.0, label="Next")
+            standard = bezier_edge("standard", 30.0, 140.0, 450.0, 140.0, active_data_wire=True,
+                                   source_node_id="standard_source", target_node_id="standard_target")
+            invalid = bezier_edge("invalid", 30.0, 220.0, 450.0, 220.0, active_data_wire=True,
+                                  source_node_id="invalid_source", target_node_id="invalid_target",
+                                  data_type_warning=True)
+            render("retained_qml", [flow, standard, invalid])
+            # One Canvas-only edge (no stroke gradients in ShapePath) no longer moves every edge to the Canvas.
+            assert edge_layer.property("edgeRendererFallbackReason") == ""
+            assert not bool(edge_layer.property("edgeRendererCanvasFallbackActive"))
+            assert to_variant(edge_layer.property("edgeRendererCanvasEdgeReasonById")) == {"invalid": "invalid_type_gradient"}
+            assert int(retained.property("retainedEdgeCount")) == 2
+            assert canvas.property("visible")
+            wait_until(lambda: canvas_painted_ids() == {"invalid"}, canvas_painted_ids())
+            assert set(to_variant(edge_layer.property("activeEdgePaintDiagnosticsByEdgeId"))) == {"flow", "standard", "invalid"}
+
+            render("retained_qml", [flow, standard])
+            assert to_variant(edge_layer.property("edgeRendererCanvasEdgeReasonById")) == {}
+            assert not canvas.property("visible")
+            creates = int(retained.property("profileRetainedDelegateCreateCount"))
+            destroys = int(retained.property("profileRetainedDelegateDestroyCount"))
+
+            # A selected flow edge keeps its retained delegate (hidden) and the overlay paints the highlight.
+            edge_layer.setProperty("selectedEdgeIds", ["flow"])
+            refresh(edge_layer)
+            assert canvas.property("visible")
+            wait_until(lambda: canvas_painted_ids() == {"flow"}, canvas_painted_ids())
+            assert diagnostics("flow")["selected"] is True
+            edge_layer.setProperty("selectedEdgeIds", [])
+            refresh(edge_layer)
+            assert not canvas.property("visible")
+            assert int(retained.property("profileRetainedDelegateCreateCount")) == creates
+            assert int(retained.property("profileRetainedDelegateDestroyCount")) == destroys
+
+            # A wire-drag preview is drawn by the overlay; the visible edges stay retained.
+            edge_layer.setProperty("dragConnection", {
+                "connection_mode": "connect", "source_kind": "flow", "active_data_wire": False,
+                "valid_drop": True, "start_x": 40.0, "start_y": 300.0, "target_x": 300.0, "target_y": 330.0,
+            })
+            refresh(edge_layer)
+            assert edge_layer.property("edgeRendererKind") == "retained_qml"
+            assert edge_layer.property("edgeRendererFallbackReason") == ""
+            assert canvas.property("visible")
+            assert int(retained.property("retainedEdgeCount")) == 2
+            edge_layer.setProperty("dragConnection", None)
+            refresh(edge_layer)
+            assert not canvas.property("visible")
+            """,
+        )
+
+    def test_pans_move_retained_edges_without_rebuilding_delegates(self) -> None:
+        self._run_edge_layer_probe(
+            "retained-pan-stability",
+            self._RENDERER_SCENE_PREAMBLE + """
+            near = flow_edge("near", 40.0, 120.0, 440.0, 200.0, label="Stay", flow_style={"stroke_pattern": "dashed"})
+            far = flow_edge("far", 1540.0, 120.0, 1940.0, 200.0, flow_style={"arrow_tail": "filled"})
+            render("retained_qml", [near, far])
+            assert to_variant(retained.property("_retainedEdgeModel"))[0]["edgeId"] == "near"
+            assert int(retained.property("retainedEdgeCount")) == 1
+            creates = int(retained.property("profileRetainedDelegateCreateCount"))
+            updates = int(retained.property("profileRetainedModelEntryUpdateCount"))
+
+            # A pan keeps every entry: the transform layer carries the offset.
+            offset_x = float(retained.property("viewportTransformCompensationX"))
+            offset_y = float(retained.property("viewportTransformCompensationY"))
+            view.centerOn(W / 2.0 + 60.0, H / 2.0 - 25.0)
+            refresh(edge_layer)
+            QTest.qWait(20)
+            assert int(retained.property("profileRetainedModelEntryUpdateCount")) == updates
+            assert abs(float(retained.property("viewportTransformCompensationX")) - offset_x + 60.0) < 1e-6
+            assert abs(float(retained.property("viewportTransformCompensationY")) - offset_y - 25.0) < 1e-6
+            panned_retained = window.grabWindow()
+            panned_canvas = render("canvas", [near, far])
+            stats = pixel_diff(panned_canvas, panned_retained)
+            assert stats["ink"] > 500 and stats["worst"] <= 48 and stats["over"] <= stats["ink"] // 200, stats
+
+            # An edge scrolling in takes over the row of the one scrolling out.
+            render("retained_qml", [near, far])
+            creates = int(retained.property("profileRetainedDelegateCreateCount"))
+            view.centerOn(1740.0, H / 2.0)
+            refresh(edge_layer)
+            QTest.qWait(20)
+            assert [entry["edgeId"] for entry in to_variant(retained.property("_retainedEdgeModel"))] == ["far"]
+            assert int(retained.property("profileRetainedDelegateCreateCount")) == creates
+            assert int(retained.property("retainedEdgeCount")) == 1
+
+            # A zoom rebuilds the entries at the new scale and rebases the paint transform.
+            updates = int(retained.property("profileRetainedModelEntryUpdateCount"))
+            view.set_zoom(1.25)
+            refresh(edge_layer)
+            assert int(retained.property("profileRetainedModelEntryUpdateCount")) == updates + 1
+            assert abs(float(retained.property("viewportTransformCompensationScale")) - 1.0) < 1e-9
+            assert abs(float(retained.property("viewportTransformCompensationX"))) < 1e-6
+            """,
+        )
+
     def test_retained_edges_and_flow_labels_keep_delegates_for_targeted_updates(self) -> None:
         self._run_edge_layer_probe(
             "qml-delegate-stability",

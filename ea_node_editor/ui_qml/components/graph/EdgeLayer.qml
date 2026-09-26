@@ -77,7 +77,7 @@ Item {
     readonly property int profileRetainedModelEntrySkipCount: edgeRetainedLayer.profileRetainedModelEntrySkipCount
     readonly property int profileFlowLabelModelSyncSkipCount: flowLabelLayer.profileFlowLabelModelSyncSkipCount
     readonly property real profileLastEdgePaintMs: root.edgeRendererKind === "retained_qml"
-        ? edgeRetainedLayer.profileLastPaintMs + (root._selectionOverlaySnapshots.length ? edgeCanvasLayer.profileLastPaintMs : 0.0)
+        ? edgeRetainedLayer.profileLastPaintMs + (edgeCanvasLayer.visible ? edgeCanvasLayer.profileLastPaintMs : 0.0)
         : (root.edgeRendererKind === "native_scenegraph"
             ? edgeScenegraphLayer.profileLastPaintMs
             : edgeCanvasLayer.profileLastPaintMs)
@@ -93,9 +93,14 @@ Item {
     readonly property var activeEdgePaintDiagnosticsByEdgeId: root.edgeRendererKind === "retained_qml"
         ? edgeRetainedLayer._paintDiagnosticsByEdgeId
         : edgeCanvasLayer._paintDiagnosticsByEdgeId
+    // Retained renderer only: visible edges the Canvas overlay paints instead, by reason.
+    readonly property var edgeRendererCanvasEdgeReasonById: root.edgeRendererKind === "retained_qml"
+        ? edgeRetainedLayer._canvasEdgeReasonById
+        : ({})
     property string _activeEdgeRendererKind: "canvas"
     property string _edgeRendererFallbackReason: ""
-    property var _selectionOverlaySnapshots: []
+    // Retained renderer only: highlighted and Canvas-only snapshots the Canvas overlay paints.
+    property var _canvasOverlaySnapshots: []
     property real viewportCullMarginPx: 96.0
     property var _cachedBaseNodeMap: null
     property var _cachedNodeMap: null
@@ -219,45 +224,39 @@ Item {
             return normalized;
         return "retained_qml";
     }
-    function _retainedFallbackReason(snapshots) {
-        if (!edgeRetainedLayer.rendererSupported)
-            return "retained_qml_renderer_unavailable";
-        if (root.dragConnectionList().length > 0)
-            return "wire_drag_preview_uses_canvas_fallback";
-        if (!edgeRetainedLayer.canRenderSnapshots(snapshots))
-            return "retained_qml_visible_set_requires_canvas_fallback";
-        return "";
-    }
-    function _rendererFallbackReasonFor(requestedKind, snapshots) {
+    function _rendererFallbackReasonFor(requestedKind) {
         if (requestedKind === "canvas")
             return "";
         if (requestedKind === "native_scenegraph")
             return edgeScenegraphLayer.rendererSupported
                 ? ""
                 : edgeScenegraphLayer.fallbackReason;
-        return root._retainedFallbackReason(snapshots);
+        return edgeRetainedLayer.rendererSupported ? "" : "retained_qml_renderer_unavailable";
     }
+    // The renderer is chosen per edge: retained delegates paint every edge they support, and
+    // the Canvas overlay paints only highlighted edges, Canvas-only edges, and wire-drag previews.
     function _dispatchEdgeRenderer(snapshots) {
         var requestedKind = root.edgeRendererRequestedKind;
-        var fallbackReason = root._rendererFallbackReasonFor(requestedKind, snapshots);
+        var fallbackReason = root._rendererFallbackReasonFor(requestedKind);
         var activeKind = fallbackReason ? "canvas" : requestedKind;
         root._activeEdgeRendererKind = activeKind;
         root._edgeRendererFallbackReason = fallbackReason;
-        var selectionOverlays = [];
+        var canvasOverlays = [];
         if (activeKind === "retained_qml") {
             for (var i = 0; i < snapshots.length; i++) {
-                if (edgeRetainedLayer.needsSelectionOverlay(snapshots[i]))
-                    selectionOverlays.push(snapshots[i]);
+                if (edgeRetainedLayer.canvasOverlayReason(snapshots[i]))
+                    canvasOverlays.push(snapshots[i]);
             }
         }
-        root._selectionOverlaySnapshots = selectionOverlays;
-        edgeCanvasLayer.visible = activeKind === "canvas" || selectionOverlays.length > 0;
+        root._canvasOverlaySnapshots = canvasOverlays;
+        var canvasOverlayActive = canvasOverlays.length > 0 || root.dragConnectionList().length > 0;
+        edgeCanvasLayer.visible = activeKind === "canvas" || canvasOverlayActive;
         edgeRetainedLayer.visible = activeKind === "retained_qml";
         edgeScenegraphLayer.visible = activeKind === "native_scenegraph";
         if (activeKind === "retained_qml") {
             edgeCanvasLayer.clearCanvasPaintDiagnostics();
             edgeRetainedLayer.requestRetainedPaint();
-            if (selectionOverlays.length > 0)
+            if (canvasOverlayActive)
                 edgeCanvasLayer.requestCanvasPaint();
         } else if (activeKind === "native_scenegraph") {
             edgeRetainedLayer.clearRetainedPaint();
@@ -1264,7 +1263,7 @@ Item {
         // Canvas supplies gradient highlighting and preserves selection stacking.
         // All wire delegates stay retained while only highlighted wires repaint.
         paintSnapshots: root.edgeRendererKind === "retained_qml"
-            ? root._selectionOverlaySnapshots : root._visibleEdgeSnapshots
+            ? root._canvasOverlaySnapshots : root._visibleEdgeSnapshots
         z: root.edgeRendererKind === "retained_qml" ? 1 : 0
     }
 
