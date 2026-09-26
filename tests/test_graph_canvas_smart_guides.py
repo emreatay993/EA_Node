@@ -2487,11 +2487,13 @@ class GraphCanvasSmartGuideTests(PassiveGraphSurfaceHostTestBase):
 
                 QtObject {
                     id: stateBridge
+                    objectName: "contentFloorStateBridge"
+                    property bool guideLeft: false
                     function smart_guide_snapshot(nodeIds, sceneRect) {
                         return {
                             "moving": [],
                             "candidates": [
-                                {"node_id": "column", "x": 114.0, "y": -300.0, "width": 224.0, "height": 50.0},
+                                {"node_id": "column", "x": guideLeft ? 122.0 : 114.0, "y": -300.0, "width": 224.0, "height": 50.0},
                                 {"node_id": "shelf", "x": 600.0, "y": 140.0, "width": 100.0, "height": 50.0}
                             ]
                         };
@@ -2532,6 +2534,7 @@ class GraphCanvasSmartGuideTests(PassiveGraphSurfaceHostTestBase):
                     property var loadedSurfaceItem: QtObject {
                         objectName: "fakeContentSurface"
                         property int measureCount: 0
+                        property bool aspectRatioLocked: false
                         function minimumNodeHeightForWidth(width) {
                             measureCount += 1;
                             return width < 240.0 ? 120.0 : 0.0;
@@ -2551,9 +2554,12 @@ class GraphCanvasSmartGuideTests(PassiveGraphSurfaceHostTestBase):
                     width: _liveGeometryActive ? _liveWidth : 260.0
                     height: _liveGeometryActive ? _liveHeight : 84.0
 
-                    GraphNodeResizeHandle {
-                        host: fakeHost
-                        cornerRole: "bottomRight"
+                    Repeater {
+                        model: ["bottomRight", "topRight", "bottomLeft", "topLeft"]
+                        GraphNodeResizeHandle {
+                            host: fakeHost
+                            cornerRole: modelData
+                        }
                     }
                 }
             }
@@ -2579,7 +2585,9 @@ class GraphCanvasSmartGuideTests(PassiveGraphSurfaceHostTestBase):
                 def measures():
                     return int(surface.property("measureCount"))
 
-                start = item_scene_point(named_child_items(stage, "graphNodeResizeHandle")[0], 0.75, 0.75)
+                handles = {str(item.property("cornerRole")): item
+                           for item in named_child_items(stage, "graphNodeResizeHandle")}
+                start = item_scene_point(handles["bottomRight"], 0.75, 0.75)
                 QTest.mouseMove(window, start)
                 settle_events(3)
                 QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start)
@@ -2606,6 +2614,48 @@ class GraphCanvasSmartGuideTests(PassiveGraphSurfaceHostTestBase):
                 settle_events(2)
                 assert not bool(guides.property("active"))
                 assert guide_lines(guides) == []
+
+                # A guide that narrows a proportional resize across the same wrap boundary must be
+                # rejected, not stretch only the height. Exercise every fixed opposite corner, both
+                # Shift and a surface-owned lock, and the released geometry as well as the preview.
+                finishes = []
+                host.resizeFinished.connect(
+                    lambda _id, x, y, width, height: finishes.append((x, y, width, height))
+                )
+                for lock_kind in ("shift", "surface"):
+                    surface.setProperty("aspectRatioLocked", lock_kind == "surface")
+                    modifiers = (Qt.KeyboardModifier.ShiftModifier if lock_kind == "shift"
+                                 else Qt.KeyboardModifier.NoModifier)
+                    for corner in ("bottomRight", "topRight", "bottomLeft", "topLeft"):
+                        moving_left = corner.endswith("Left")
+                        moving_top = corner.startswith("top")
+                        handle = handles[corner]
+                        # The candidate's edge is 3 units beyond the raw moving edge: either right
+                        # 338 or left 122, both leaving 238 width, below the 240 wrap threshold.
+                        state = stage.findChild(QObject, "contentFloorStateBridge")
+                        state.setProperty("guideLeft", moving_left)
+                        QTest.qWait(int(app.styleHints().mouseDoubleClickInterval()) + 20)
+                        start = item_scene_point(handle, 0.25 if moving_left else 0.75,
+                                                 0.25 if moving_top else 0.75)
+                        QTest.mouseMove(window, start)
+                        settle_events(2)
+                        QTest.mousePress(window, Qt.MouseButton.LeftButton, modifiers, start)
+                        settle_events(2)
+                        assert bool(handle.property("dragActive")), (lock_kind, corner)
+                        end = QPoint(start.x() + (19 if moving_left else -19), start.y())
+                        move_with(window, end, modifiers)
+                        height = 241.0 * 84.0 / 260.0
+                        expected = (119.0 if moving_left else 100.0,
+                                    184.0 - height if moving_top else 100.0, 241.0, height)
+                        actual = live_rect()
+                        assert all(abs(a - b) < 0.01 for a, b in zip(actual, expected)), (lock_kind, corner, actual)
+                        assert guide_lines(guides) == [], (lock_kind, corner, guide_lines(guides))
+                        count = len(finishes)
+                        QTest.mouseRelease(window, Qt.MouseButton.LeftButton, modifiers, end)
+                        settle_events(2)
+                        assert len(finishes) == count + 1, (lock_kind, corner, finishes)
+                        assert all(abs(a - b) < 0.01 for a, b in zip(finishes[-1], expected)), finishes[-1]
+                        assert not bool(guides.property("active"))
             finally:
                 dispose_host_window(stage, window)
             engine.deleteLater()

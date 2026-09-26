@@ -223,7 +223,15 @@ Item {
             if ((right - left) !== lockedWidth) {
                 var finalMinHeight = _contentMinimumHeight(right - left);
                 if ((bottom - top) < finalMinHeight) {
-                    if (root._topCorner)
+                    if (_lockAspectRatioEnabled()) {
+                        // Extra wrapping makes this snap incompatible with the aspect lock. Keep
+                        // the proportional rect the handle already resolved; confirmResize below
+                        // removes any guide that no longer matches its moving edges.
+                        left = lockedRect.left;
+                        top = lockedRect.top;
+                        right = lockedRect.right;
+                        bottom = lockedRect.bottom;
+                    } else if (root._topCorner)
                         top = bottom - finalMinHeight;
                     else
                         bottom = top + finalMinHeight;
