@@ -14,6 +14,7 @@ from ea_node_editor.ui.tooltips import (
     TOOLTIP_COPY_FILES,
     TooltipCopyBridge,
     tooltip_category,
+    tooltip_entry,
     tooltip_text,
 )
 from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
@@ -49,8 +50,12 @@ def test_tooltip_registry_files_use_valid_shape_and_categories() -> None:
 
 
 def test_python_and_qml_tooltip_copy_read_same_entry(qapp) -> None:  # noqa: ANN001
-    assert tooltip_text("settings.graphics.expand_collision.enabled") == "Pushes newly expanded items away from nearby content to reduce overlap."
-    assert tooltip_category("settings.graphics.expand_collision.enabled") == "general"
+    # Compare against the registry entry, not its wording (tests/test_graphics_settings_dialog.py
+    # pins the copy). A blank entry would match the "" fallbacks, so require real text.
+    entry = tooltip_entry("settings.graphics.expand_collision.enabled")
+    assert entry is not None and entry["text"].strip()
+    assert tooltip_text("settings.graphics.expand_collision.enabled") == entry["text"]
+    assert tooltip_category("settings.graphics.expand_collision.enabled") == entry["category"]
 
     engine = QQmlEngine()
     bridge = TooltipCopyBridge()
@@ -75,8 +80,8 @@ def test_python_and_qml_tooltip_copy_read_same_entry(qapp) -> None:  # noqa: ANN
     item = component.create()
     try:
         assert item is not None
-        assert item.property("registryText") == "Pushes newly expanded items away from nearby content to reduce overlap."
-        assert item.property("registryCategory") == "general"
+        assert item.property("registryText") == entry["text"]
+        assert item.property("registryCategory") == entry["category"]
         assert item.property("fallbackText") == "fallback"
     finally:
         if item is not None:
