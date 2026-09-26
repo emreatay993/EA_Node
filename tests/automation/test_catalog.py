@@ -1,4 +1,4 @@
-# Purpose: Pin the op catalog shape: 56 ops, unique names/tools, schema validity, ref_fields, validator semantics, JSON snapshot.
+# Purpose: Pin the op catalog shape: 57 ops, unique names/tools, schema validity, ref_fields, validator semantics, JSON snapshot.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_catalog.py
 from __future__ import annotations
@@ -16,7 +16,7 @@ from ea_node_editor.automation.op_model import (
 )
 
 # Frozen MCP tool surface (plan table: 46 typed tools + graph_apply; layout_straighten and layout_tidy added 2026-09-24,
-# node_fit_text 2026-09-25, the six swimlane_* tools 2026-09-26).
+# node_fit_text 2026-09-25, the six swimlane_* tools 2026-09-26, swimlane_create_lane the same day).
 EXPECTED_MCP_TOOLS = (
     "corex_status", "corex_history", "corex_quit",
     "catalog_list_node_types", "catalog_describe_node_type", "catalog_style_schema",
@@ -25,8 +25,8 @@ EXPECTED_MCP_TOOLS = (
     "node_update", "node_set_style", "node_fit_text", "node_delete", "node_duplicate",
     "edge_connect", "edge_update", "edge_delete",
     "group_wrap",
-    "swimlane_create_pool", "swimlane_add_lane", "swimlane_remove_lane", "swimlane_move_lane", "swimlane_assign",
-    "swimlane_describe",
+    "swimlane_create_pool", "swimlane_create_lane", "swimlane_add_lane", "swimlane_remove_lane", "swimlane_move_lane",
+    "swimlane_assign", "swimlane_describe",
     "subnode_create", "subnode_ungroup", "subnode_add_pin",
     "scope_navigate", "selection_set", "layout_arrange", "layout_straighten", "layout_tidy",
     "comment_upsert", "comment_remove", "link_upsert", "link_remove",
@@ -58,9 +58,9 @@ def _schema_property_paths(schema: dict) -> set[str]:
 
 
 class CatalogShapeTests(unittest.TestCase):
-    def test_catalog_has_56_ops_with_unique_names_and_tools(self) -> None:
+    def test_catalog_has_57_ops_with_unique_names_and_tools(self) -> None:
         ops = op_catalog.all_ops()
-        self.assertEqual(len(ops), 56)
+        self.assertEqual(len(ops), 57)
         names = [op.name for op in ops]
         self.assertEqual(len(names), len(set(names)))
         tools = [op.mcp_tool for op in ops if op.mcp_tool]
@@ -77,7 +77,7 @@ class CatalogShapeTests(unittest.TestCase):
                 "graph": 3,
                 "node": 9,
                 "edge": 3,
-                "structure": 15,
+                "structure": 16,
                 "annotations": 4,
                 "workspace": 8,
                 "project": 3,
@@ -121,7 +121,7 @@ class CatalogShapeTests(unittest.TestCase):
         text = json.dumps(payload)
         restored = json.loads(text)
         self.assertEqual(restored["protocol"], 1)
-        self.assertEqual(len(restored["ops"]), 56)
+        self.assertEqual(len(restored["ops"]), 57)
         self.assertEqual(restored["mcp_tools"]["graph_apply"], "graph.apply")
         self.assertEqual(restored["mcp_tools"]["corex_status"], "app.status")
 

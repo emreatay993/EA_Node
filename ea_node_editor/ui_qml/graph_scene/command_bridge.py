@@ -833,8 +833,54 @@ class GraphSceneCommandBridge(QObject):
     def add_swimlane_lane(self, pool_id: str, index: int | None = None, title: str = "") -> str:
         return self._timed_authoring_call(self._authoring_boundary.add_swimlane_lane, pool_id, index, title)
 
-    def insert_swimlane_lane(self, lane_id: str, after: bool) -> str:
-        return self._timed_authoring_call(self._authoring_boundary.insert_swimlane_lane, lane_id, after=after)
+    def insert_swimlane_lane(self, lane_id: str, after: bool, title: str = "") -> str:
+        return self._timed_authoring_call(
+            self._authoring_boundary.insert_swimlane_lane, lane_id, after=after, title=title
+        )
+
+    def create_swimlane_lane(
+        self,
+        x: float,
+        y: float,
+        *,
+        orientation: str = "",
+        title: str = "",
+        thickness: float | None = None,
+        length: float | None = None,
+    ) -> str:
+        options: dict[str, Any] = {}
+        if thickness is not None:
+            options["thickness"] = float(thickness)
+        if length is not None:
+            options["length"] = float(length)
+        return self._timed_authoring_call(
+            self._authoring_boundary.create_swimlane_lane,
+            x=float(x),
+            y=float(y),
+            orientation=orientation,
+            title=title,
+            **options,
+        )
+
+    def reorder_swimlane_lane(self, lane_id: str, index: int) -> bool:
+        return self._timed_authoring_call(self._authoring_boundary.reorder_swimlane_lane, lane_id, index)
+
+    def set_swimlane_orientation(self, node_id: str, orientation: str) -> bool:
+        return self._timed_authoring_call(self._authoring_boundary.set_swimlane_orientation, node_id, orientation)
+
+    def describe_standalone_swimlane_lanes(self) -> list[dict[str, Any]]:
+        return self._authoring_boundary.describe_standalone_swimlane_lanes()
+
+    def preview_swimlane_resize(
+        self, node_id: str, x: float, y: float, width: float, height: float, session: str = ""
+    ) -> dict[str, Any]:
+        return self._authoring_boundary.preview_swimlane_resize(node_id, x, y, width, height, session)
+
+    def preview_swimlane_lane_drag(self, lane_id: str, dx: float, dy: float, session: str = "") -> dict[str, Any]:
+        return self._authoring_boundary.preview_swimlane_lane_drag(lane_id, dx, dy, session)
+
+    def preview_swimlane_drop(self, node_ids: list[Any], dx: float, dy: float, session: str = "") -> dict[str, Any]:
+        return self._authoring_boundary.preview_swimlane_drop(node_ids, dx, dy, session)
 
     def remove_swimlane_lane(self, lane_id: str) -> bool:
         return self._timed_authoring_call(self._authoring_boundary.remove_swimlane_lane, lane_id)

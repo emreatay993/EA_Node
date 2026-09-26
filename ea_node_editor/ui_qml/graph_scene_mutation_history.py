@@ -221,6 +221,10 @@ class GraphSceneMutationHistory:
             requested_edge_ids.append(edge_id)
 
         removable_node_ids = self._removable_node_ids_for_fragment(workspace)
+        # A pool this leaves with one lane dissolves along with it (its last lane stays).
+        removable_node_ids.extend(
+            _swimlane_ops.dissolved_swimlane_pool_ids(self, workspace, removable_node_ids)
+        )
         if not requested_edge_ids and not removable_node_ids:
             return False
 
@@ -938,6 +942,13 @@ GraphSceneMutationHistory.move_swimlane_lane = _swimlane_ops.move_swimlane_lane
 GraphSceneMutationHistory.assign_nodes_to_swimlane_lane = _swimlane_ops.assign_nodes_to_swimlane_lane
 GraphSceneMutationHistory.set_swimlane_pool_orientation = _swimlane_ops.set_swimlane_pool_orientation
 GraphSceneMutationHistory.describe_swimlane_pools = _swimlane_ops.describe_swimlane_pools
+GraphSceneMutationHistory.describe_standalone_swimlane_lanes = _swimlane_ops.describe_standalone_swimlane_lanes
+GraphSceneMutationHistory.create_swimlane_lane = _swimlane_ops.create_swimlane_lane
+GraphSceneMutationHistory.reorder_swimlane_lane = _swimlane_ops.reorder_swimlane_lane
+GraphSceneMutationHistory.set_swimlane_orientation = _swimlane_ops.set_swimlane_orientation
+GraphSceneMutationHistory.preview_swimlane_resize = _swimlane_ops.preview_swimlane_resize
+GraphSceneMutationHistory.preview_swimlane_lane_drag = _swimlane_ops.preview_swimlane_lane_drag
+GraphSceneMutationHistory.preview_swimlane_drop = _swimlane_ops.preview_swimlane_drop
 GraphSceneMutationHistory.group_selected_nodes = _grouping_ops.group_selected_nodes
 GraphSceneMutationHistory.ungroup_selected_subnode = (
     _grouping_ops.ungroup_selected_subnode

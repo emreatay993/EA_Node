@@ -61,8 +61,46 @@ class StructureApi:
             params["length"] = float(length)
         return self._client.call("swimlane.create_pool", params)
 
-    def add_lane(self, pool_node_id: str, *, title: str | None = None, index: int | None = None) -> dict[str, Any]:
-        params: dict[str, Any] = {"pool_node_id": str(pool_node_id)}
+    def create_lane(
+        self,
+        x: float,
+        y: float,
+        *,
+        title: str | None = None,
+        orientation: str | None = None,
+        lane_size: float | None = None,
+        length: float | None = None,
+    ) -> dict[str, Any]:
+        """One swimlane on its own (it joins a pool its centre lands in); returns lane_node_id + pool_node_id."""
+        params: dict[str, Any] = {"x": float(x), "y": float(y)}
+        if title is not None:
+            params["title"] = str(title)
+        if orientation is not None:
+            params["orientation"] = str(orientation)
+        if lane_size is not None:
+            params["lane_size"] = float(lane_size)
+        if length is not None:
+            params["length"] = float(length)
+        return self._client.call("swimlane.create_lane", params)
+
+    def add_lane(
+        self,
+        pool_node_id: str | None = None,
+        *,
+        title: str | None = None,
+        index: int | None = None,
+        next_to: str | None = None,
+        after: bool | None = None,
+    ) -> dict[str, Any]:
+        """A lane in a pool (at ``index``) or next to the lane ``next_to`` (``after`` it by default); next to a
+        standalone lane this forms a pool."""
+        params: dict[str, Any] = {}
+        if pool_node_id is not None:
+            params["pool_node_id"] = str(pool_node_id)
+        if next_to is not None:
+            params["lane_node_id"] = str(next_to)
+        if after is not None:
+            params["after"] = bool(after)
         if title is not None:
             params["title"] = str(title)
         if index is not None:

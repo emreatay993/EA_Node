@@ -37,6 +37,9 @@ PASSIVE_ANNOTATION_BACKDROP_TYPE_IDS = frozenset(
         PASSIVE_ANNOTATION_SWIMLANE_LANE_TYPE_ID,
     }
 )
+# Types the node Library does not offer: a pool forms around lanes (a lane's + buttons, or a lane dropped on a lane)
+# and dissolves when one lane is left, so the Library offers the lane alone.
+LIBRARY_HIDDEN_NODE_TYPE_IDS = frozenset({PASSIVE_ANNOTATION_SWIMLANE_POOL_TYPE_ID})
 
 
 class _PassiveAnnotationNodePlugin:
@@ -151,7 +154,10 @@ class PassiveAnnotationGroupBackdropNodePlugin(_PassiveAnnotationNodePlugin):
     type_id=PASSIVE_ANNOTATION_SWIMLANE_POOL_TYPE_ID,
     display_name="Swimlane Pool",
     category_path=("Utilities", "Canvas"),
-    description="Stack role lanes in a pool; a node dropped in a lane belongs to it and moves with it.",
+    description=(
+        "Two or more swimlanes stacked side by side under one title band; it forms when a lane gets a neighbour and "
+        "dissolves when one lane is left."
+    ),
     keywords=("swimlane", "pool", "lane", "role", "bpmn", "process"),
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
     properties=(
@@ -175,22 +181,26 @@ class PassiveAnnotationSwimlanePoolNodePlugin(_PassiveAnnotationNodePlugin):
 
 @builtin_node_type(
     type_id=PASSIVE_ANNOTATION_SWIMLANE_LANE_TYPE_ID,
-    display_name="Swimlane Lane",
+    display_name="Swimlane",
     category_path=("Utilities", "Canvas"),
-    description="One role lane of a swimlane pool; drop it on a pool to add a lane there.",
-    keywords=("swimlane", "lane", "role", "bpmn"),
+    description=(
+        "A role lane: a node dropped in it belongs to it and moves with it. Add lanes next to it (its + buttons) and "
+        "they stack in a pool."
+    ),
+    keywords=("swimlane", "lane", "pool", "role", "bpmn", "process"),
     ports=(),
     properties=(
         PropertySpec("title", "str", "Lane", "Title", inspector_visible=False),
-        # Follows its pool (the pool restacks its lanes); not edited on the lane.
+        # A lane in a pool turns its whole pool (the pool restacks its lanes); a standalone lane turns itself.
         PropertySpec(
             "orientation",
             "enum",
             SWIMLANE_ORIENTATION_HORIZONTAL,
             "Orientation",
             enum_values=SWIMLANE_ORIENTATIONS,
-            inspector_visible=False,
         ),
+        # "" draws the theme's lane band; a colour tints the band and, lightly, the lane.
+        PropertySpec("color", "str", "", "Color", inspector_editor="color"),
     ),
     # Lanes stay drawn so their pool can stack them; the pool collapses as a whole.
     collapsible=False,
@@ -217,6 +227,7 @@ PASSIVE_ANNOTATION_NODE_DESCRIPTORS = tuple(
 
 
 __all__ = [
+    "LIBRARY_HIDDEN_NODE_TYPE_IDS",
     "PASSIVE_ANNOTATION_BACKDROP_TYPE_IDS",
     "PASSIVE_ANNOTATION_CALLOUT_TYPE_ID",
     "PASSIVE_ANNOTATION_CATEGORY",

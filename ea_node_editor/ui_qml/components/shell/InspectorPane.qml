@@ -13,6 +13,7 @@ ShellCollapsibleSidePane {
     readonly property bool hasSelectedNode: !!root.inspectorBridgeRef && root.inspectorBridgeRef.has_selected_node
     readonly property bool isPinInspector: !!root._content.selected_node_is_subnode_pin
     readonly property bool isSubnodeShellInspector: !!root._content.selected_node_is_subnode_shell
+    readonly property bool isSwimlaneInspector: !!root._content.selected_node_is_swimlane
     readonly property string selectedNodeTitle: root._contentReady ? root._content.selected_node_title : ""
     readonly property string selectedNodeSubtitle: root._contentReady ? root._content.selected_node_subtitle : ""
     readonly property string selectedNodeId: root.inspectorBridgeRef ? root.inspectorBridgeRef.selected_node_id : ""
@@ -26,6 +27,7 @@ ShellCollapsibleSidePane {
     property var selectedNodePropertyItems: []
     readonly property var selectedNodeLinkItems: root._contentReady ? (root._content.selected_node_link_items || []) : []
     readonly property var selectedNodeCommentItems: root._contentReady ? (root._content.selected_node_comment_items || []) : []
+    readonly property var selectedNodeSwimlaneLaneItems: root._contentReady ? (root._content.selected_node_swimlane_lane_items || []) : []
     readonly property var selectedNodeLinkNodeOptions: root._contentReady ? (root._content.selected_node_link_node_options || []) : []
     readonly property var selectedNodeLinkWorkspaceOptions: root._contentReady ? (root._content.selected_node_link_workspace_options || []) : []
     readonly property var pinDataTypeOptions: root._contentReady ? (root._content.pin_data_type_options || []) : []
@@ -61,6 +63,7 @@ ShellCollapsibleSidePane {
             selected_node_subtitle: bridge.selected_node_subtitle,
             selected_node_is_subnode_pin: bridge.selected_node_is_subnode_pin,
             selected_node_is_subnode_shell: bridge.selected_node_is_subnode_shell,
+            selected_node_is_swimlane: bridge.selected_node_is_swimlane,
             selected_node_collapsible: bridge.selected_node_collapsible,
             selected_node_collapsed: bridge.selected_node_collapsed,
             selected_node_header_items: bridge.selected_node_header_items,
@@ -71,6 +74,7 @@ ShellCollapsibleSidePane {
             selected_node_link_workspace_options: bridge.selected_node_link_workspace_options
         }
         next.pin_data_type_options = next.selected_node_is_subnode_pin ? bridge.pin_data_type_options : []
+        next.selected_node_swimlane_lane_items = next.selected_node_is_swimlane ? bridge.selected_node_swimlane_lane_items : []
         _content = next
         selectedNodePropertyItems = _propertyItemsWithPresentation(next.selected_node_property_items || [])
         _contentReady = true
@@ -252,6 +256,12 @@ ShellCollapsibleSidePane {
                             }
 
                             InspectorNodeDefinitionSection {
+                                pane: root
+                                width: inspectorColumn.width
+                            }
+
+                            InspectorSwimlaneLanesSection {
+                                id: swimlaneLanesSection
                                 pane: root
                                 width: inspectorColumn.width
                             }

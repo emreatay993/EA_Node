@@ -604,6 +604,10 @@ class ShellWindow(
             self.workspace_edit_controller.on_scene_node_selected
         )
         self.scene.scope_changed.connect(self._on_scene_scope_changed)
+        # Lane edits made while a swimlane pool or lane is selected refresh the Inspector's Lanes section.
+        inspector_presenter = getattr(self, "shell_inspector_presenter", None)
+        if inspector_presenter is not None:
+            self.scene.nodes_changed.connect(inspector_presenter.on_scene_nodes_changed)
         self.script_editor.script_apply_requested.connect(
             self.workspace_edit_controller.on_node_property_changed
         )

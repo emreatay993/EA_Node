@@ -20,6 +20,7 @@ from ea_node_editor.nodes.category_paths import (
 )
 from ea_node_editor.custom_workflows import CUSTOM_WORKFLOW_LIBRARY_CATEGORY
 from ea_node_editor.graph.effective_ports import ordered_ports_for_display
+from ea_node_editor.nodes.builtins.passive_annotation import LIBRARY_HIDDEN_NODE_TYPE_IDS
 from ea_node_editor.nodes.instance_resolution import resolve_instance_ports
 from ea_node_editor.runtime_contracts import DataTypeCatalog
 from ea_node_editor.ui.support.node_presentation import (
@@ -344,6 +345,7 @@ def build_registry_library_items(
             data_type_projection=data_type_projection,
         )
         for spec in registry_specs
+        if spec.type_id not in LIBRARY_HIDDEN_NODE_TYPE_IDS
     ]
 
 

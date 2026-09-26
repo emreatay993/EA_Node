@@ -230,7 +230,16 @@ Item {
         canvasItem: root
         edgeLayerItem: rootLayers.edgeLayerItem
         smartGuides: smartGuidesObject
+        swimlanePreview: swimlanePreviewObject
     }
+
+    // Live swimlane previews: pool resizes, lane reorders, and the lane a drag would drop into.
+    GraphCanvasComponents.GraphCanvasSwimlanePreview {
+        id: swimlanePreviewObject
+        sceneState: sceneState
+        canvasItem: root
+    }
+    property alias swimlaneDropTargetLookup: swimlanePreviewObject.dropTargetLookup
 
     GraphCanvasComponents.GraphCanvasSmartGuides {
         id: smartGuidesObject
@@ -512,6 +521,8 @@ Item {
     function clearLiveDragOffset() { GraphCanvasRootApi.invoke(sceneState, "clearLiveDragOffset"); }
     function setLiveNodeGeometry(nodeId, x, y, width, height, active) { GraphCanvasRootApi.invoke(sceneState, "setLiveNodeGeometry", [nodeId, x, y, width, height, active]); }
     function clearLiveNodeGeometry() { GraphCanvasRootApi.invoke(sceneState, "clearLiveNodeGeometry"); }
+    function previewSwimlaneResize(nodeId, x, y, width, height, active) { return GraphCanvasRootApi.invoke(swimlanePreviewObject, "previewResize", [nodeId, x, y, width, height, active], false); }
+    function swimlaneLaneReorderCommit(nodeId, dx, dy) { return GraphCanvasRootApi.invoke(swimlanePreviewObject, "laneReorderCommit", [nodeId, dx, dy], null); }
     function _dropTargetInput(sourceDrag, candidate) { return GraphCanvasRootApi.invoke(interactionState, "_dropTargetInput", [sourceDrag, candidate], null); }
     function _isExactDuplicate(sourceDrag, candidate, edge) { return GraphCanvasRootApi.invoke(interactionState, "_isExactDuplicate", [sourceDrag, candidate, edge], false); }
     function _portKind(nodeId, portKey) { return GraphCanvasRootApi.invoke(interactionState, "_portKind", [nodeId, portKey], ""); }

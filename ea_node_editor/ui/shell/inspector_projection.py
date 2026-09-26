@@ -21,6 +21,7 @@ from ea_node_editor.graph.effective_ports import (
     effective_ports,
     ordered_ports_for_display,
 )
+from ea_node_editor.graph.swimlane_layout import is_swimlane_lane_type, is_swimlane_pool_type
 from ea_node_editor.graph.file_issue_state import (
     EXTERNAL_LINK_MODE,
     MANAGED_COPY_MODE,
@@ -385,6 +386,55 @@ def build_selected_node_link_items(
                 "index": index,
                 "can_move_up": index > 0,
                 "can_move_down": index < len(links) - 1,
+            }
+        )
+    return items
+
+
+def build_selected_node_swimlane_lane_items(
+    *,
+    node: Any,
+    pools: Iterable[Mapping[str, Any]],
+    standalone_lanes: Iterable[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """The Lanes section rows: a selected pool's lanes, a selected lane's pool's lanes, or a standalone lane alone,
+    in stack order. Empty for any other node and for a collapsed pool (its lanes are hidden)."""
+    node_id = str(getattr(node, "node_id", "") or "")
+    type_id = str(getattr(node, "type_id", "") or "")
+    if not node_id or not (is_swimlane_pool_type(type_id) or is_swimlane_lane_type(type_id)):
+        return []
+    pool = next(
+        (
+            candidate
+            for candidate in pools
+            if candidate.get("pool_node_id") == node_id or node_id in (candidate.get("lane_node_ids") or ())
+        ),
+        None,
+    )
+    if pool is not None:
+        lanes = list(pool.get("lanes") or ())
+        pool_id = str(pool.get("pool_node_id") or "")
+        orientation = str(pool.get("orientation") or "horizontal")
+    else:
+        lanes = [lane for lane in standalone_lanes if lane.get("lane_node_id") == node_id]
+        pool_id = ""
+        orientation = str(lanes[0].get("orientation") or "horizontal") if lanes else "horizontal"
+    items: list[dict[str, Any]] = []
+    for index, lane in enumerate(lanes):
+        lane_id = str(lane.get("lane_node_id") or "")
+        items.append(
+            {
+                "id": lane_id,
+                "lane_node_id": lane_id,
+                "pool_node_id": pool_id,
+                "title": str(lane.get("title") or ""),
+                "color": str(lane.get("color") or ""),
+                "orientation": orientation,
+                "index": index,
+                "can_move_up": index > 0,
+                "can_move_down": index < len(lanes) - 1,
+                "selected": lane_id == node_id,
+                "item_count": len(lane.get("node_ids") or ()),
             }
         )
     return items

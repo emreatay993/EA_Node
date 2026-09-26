@@ -15,6 +15,7 @@ Use this for pointer routing, canvas input layers, hit testing, node drag/resize
 - `ea_node_editor/ui_qml/components/graph/GraphNodeResizeHandle.qml`
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHostHitTesting.js`
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSmartGuides.qml` - smart-guide session controller for node drag and resize.
+- `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSwimlanePreview.qml` - live swimlane previews: a lane dragged in its pool is a reorder (it moves alone, on the stack axis, without smart guides, and commits `reorder_swimlane_lane`), a lane or pool resize previews its whole pool, and a drag over lanes lights up the lane it drops into; see [Swimlane Pools And Lanes](swimlane_pools_lanes.md).
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSmartGuideEngine.js` - pure smart-guide index and snaps.
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSmartGuideOverlay.qml` - screen-space guide lines and gap markers.
 - `ea_node_editor/ui_qml/graph_canvas_state/smart_guide_snapshot.py` - pure candidate/moving rect snapshot behind `GraphCanvasStateBridge.smart_guide_snapshot`, capped at `SMART_GUIDE_CANDIDATE_LIMIT` ranked candidates; a trimmed one reports its per-axis drop gaps.
@@ -67,4 +68,4 @@ Use this for pointer routing, canvas input layers, hit testing, node drag/resize
 - [Surface Input And Inline Controls](surface_input_and_inline_controls.md)
 
 ## Update Triggers
-Update when input layers, pointer handling, fingerprinted wire-drag compatibility, wire marquee/jump routing, node gesture routing, drag commit rules (grid, Shift axis lock, Alt bypass), drag cancellation, smart-guide sessions, snapshot contents, the candidate cap or its ranking, re-snapshot triggers, engine snap rules or overlay placement, graph-surface input tests, or Help reference gesture coverage change.
+Update when the swimlane preview hooks (move freeze/resolve/clear, resize preview, lane reorder commit) move, when input layers, pointer handling, fingerprinted wire-drag compatibility, wire marquee/jump routing, node gesture routing, drag commit rules (grid, Shift axis lock, Alt bypass), drag cancellation, smart-guide sessions, snapshot contents, the candidate cap or its ranking, re-snapshot triggers, engine snap rules or overlay placement, graph-surface input tests, or Help reference gesture coverage change.

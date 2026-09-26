@@ -1,4 +1,4 @@
-# Purpose: .cxproj round trip for swimlane pools: pool and lane records (type, orientation, role names, frames), lane order and lane membership after reload, and a collapsed pool's stored member list.
+# Purpose: .cxproj round trip for swimlane pools: pool and lane records (type, orientation, role names, colours, frames), lane order and lane membership after reload, standalone lanes, and a collapsed pool's stored member list.
 # Map: feature_routes/swimlane_pools_lanes
 # Tests: tests/test_swimlane_persistence.py
 from __future__ import annotations
@@ -29,19 +29,24 @@ class SwimlaneProjectRoundTripTests(unittest.TestCase):
         self.addCleanup(self._temp.cleanup)
 
     def _structure(self, scene: GraphSceneBridge) -> list[tuple]:
-        return sorted(
+        pools = sorted(
             (
                 pool["pool_node_id"],
                 pool["title"],
                 pool["orientation"],
                 pool["collapsed"],
                 tuple(
-                    (lane["lane_node_id"], lane["title"], tuple(lane["node_ids"]))
+                    (lane["lane_node_id"], lane["title"], lane["color"], tuple(lane["node_ids"]))
                     for lane in pool["lanes"]
                 ),
             )
             for pool in scene.describe_swimlane_pools()
         )
+        standalone = sorted(
+            ("", lane["title"], lane["orientation"], False, ((lane["lane_node_id"], lane["title"], lane["color"], tuple(lane["node_ids"])),))
+            for lane in scene.describe_standalone_swimlane_lanes()
+        )
+        return [*pools, *standalone]
 
     def _reload(self, path: Path) -> tuple[GraphModel, GraphSceneBridge]:
         ensure_app()
@@ -63,6 +68,9 @@ class SwimlaneProjectRoundTripTests(unittest.TestCase):
             2000.0, 0.0, title="Support", orientation="vertical", lane_titles=["Agent", "Engineer"]
         )
         scene.add_node_from_type(PROCESS, 2020.0, 300.0)
+        scene.set_node_property(customer, "color", "#e8a33d")
+        solo = scene.create_swimlane_lane(4000.0, 0.0, title="Solo")
+        solo_node = scene.add_node_from_type(PROCESS, 4100.0, 60.0)
         folded_id, folded_lanes = scene.create_swimlane_pool(0.0, 2000.0, title="Folded", lane_titles=["X"])
         folded_node = scene.add_node_from_type(PROCESS, 300.0, 2060.0)
         self.assertTrue(scene.set_node_collapsed(folded_id, True))
@@ -86,7 +94,10 @@ class SwimlaneProjectRoundTripTests(unittest.TestCase):
         node_docs = {doc["node_id"]: doc for workspace_doc in document["workspaces"] for doc in workspace_doc["nodes"]}
         self.assertEqual(node_docs[pool_id]["type_id"], POOL)
         self.assertEqual(node_docs[pool_id]["properties"], {"title": "Order", "orientation": "horizontal"})
-        self.assertEqual(node_docs[customer]["properties"], {"title": "Customer", "orientation": "horizontal"})
+        self.assertEqual(
+            node_docs[customer]["properties"], {"title": "Customer", "orientation": "horizontal", "color": "#e8a33d"}
+        )
+        self.assertEqual(node_docs[solo]["type_id"], LANE)
         self.assertEqual(node_docs[vertical_lanes[0]]["properties"]["orientation"], "vertical")
         self.assertEqual(sorted(node_docs[folded_id]["held_member_ids"]), sorted(folded_held))
         for doc in node_docs.values():
@@ -118,6 +129,9 @@ class SwimlaneProjectRoundTripTests(unittest.TestCase):
         self.assertEqual(folded["lanes"][0]["node_ids"], [folded_node])
         self.assertEqual(vertical_id in {pool["pool_node_id"] for pool in reloaded.describe_swimlane_pools()}, True)
         self.assertEqual(sales in reloaded_workspace.nodes, True)
+        # A standalone lane stays on its own and keeps what it holds.
+        solo_lanes = {lane["lane_node_id"]: lane["node_ids"] for lane in reloaded.describe_standalone_swimlane_lanes()}
+        self.assertEqual(solo_lanes, {solo: [solo_node]})
 
     def test_a_reloaded_pool_keeps_restacking_its_lanes(self) -> None:
         pool_id, (a, b) = self.scene.create_swimlane_pool(0.0, 0.0, lane_titles=["A", "B"])

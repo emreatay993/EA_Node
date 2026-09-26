@@ -6,6 +6,9 @@ QtObject {
     property var canvasItem: null
     property var edgeLayerItem: null
     property var smartGuides: null
+    // Live swimlane previews (GraphCanvasSwimlanePreview): a lane drag is a reorder inside its pool, and a drag over
+    // lanes previews the lane it would drop into.
+    property var swimlanePreview: null
     property var selectedEdgeIds: []
     property string liveDragAnchorNodeId: ""
     property var liveDragNodeIds: []
@@ -534,6 +537,9 @@ QtObject {
         if (root.liveDragAnchorNodeId === normalizedAnchor && root.liveDragNodeIds.length > 0)
             return true;
         var nodeIds = root.dragNodeIdsForAnchor(normalizedAnchor);
+        var swimlaneNodeIds = root.swimlanePreview ? root.swimlanePreview.beginMove(normalizedAnchor, nodeIds) : null;
+        if (swimlaneNodeIds)
+            nodeIds = swimlaneNodeIds;
         var lookup = {};
         for (var i = 0; i < nodeIds.length; i++)
             lookup[String(nodeIds[i])] = true;
@@ -541,16 +547,22 @@ QtObject {
         root.liveDragNodeIds = nodeIds;
         root.liveDragNodeLookup = lookup;
         root.profileLiveDragMembershipFreezeCount += 1;
-        if (root.smartGuides)
+        // A lane reorder keeps to its pool's stack axis, so smart guides stay out of it.
+        if (root.smartGuides && !(root.swimlanePreview && root.swimlanePreview.laneReorderActive()))
             root.smartGuides.beginMove(nodeIds);
         return true;
     }
 
     // Runs once per flushed frame, never per pointer event.
     function _guidedLiveDragOffset(dx, dy) {
-        if (!root.smartGuides || !root.liveDragAnchorNodeId)
-            return {"dx": dx, "dy": dy};
-        return root.smartGuides.resolveMove(dx, dy, root.liveDragAxisLock, root.liveDragSnapBypass);
+        if (root.swimlanePreview && root.swimlanePreview.laneReorderActive())
+            return root.swimlanePreview.resolveMove(dx, dy, root.liveDragNodeIds);
+        var offset = !root.smartGuides || !root.liveDragAnchorNodeId
+            ? {"dx": dx, "dy": dy}
+            : root.smartGuides.resolveMove(dx, dy, root.liveDragAxisLock, root.liveDragSnapBypass);
+        if (root.swimlanePreview && root.liveDragAnchorNodeId)
+            root.swimlanePreview.resolveMove(offset.dx, offset.dy, root.liveDragNodeIds);
+        return offset;
     }
 
     function _applyLiveDragOffset(dx, dy, requestRedraw) {
@@ -591,6 +603,8 @@ QtObject {
         // raw instead of spending a snapshot or a snap.
         if (root.smartGuides)
             root.smartGuides.endMove();
+        if (root.swimlanePreview)
+            root.swimlanePreview.endMove();
         var scheduler = root._frameScheduler();
         var hasPendingLiveDragOffset = scheduler
             && scheduler.hasPendingLiveDragOffset

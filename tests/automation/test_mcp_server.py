@@ -124,7 +124,7 @@ class McpSessionTests(unittest.TestCase):
     def test_list_tools_matches_catalog_exactly(self) -> None:
         result = _run(self.server, lambda session: session.list_tools())
         expected = [op.mcp_tool for op in op_catalog.mcp_tool_ops()]
-        self.assertEqual(len(expected), 56)
+        self.assertEqual(len(expected), 57)
         self.assertEqual([tool.name for tool in result.tools], expected)
         self.assertEqual(sorted(tool.name for tool in result.tools), sorted(expected))
         by_name = {tool.name: tool for tool in result.tools}

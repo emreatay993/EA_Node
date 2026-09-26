@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 204,
-    "repeater_constructs": 100,
+    "qml_files": 206,
+    "repeater_constructs": 101,
     "loader_constructs": 29,
-    "signal_handlers": 1012,
+    "signal_handlers": 1019,
     "connections": 54,
-    "property_bindings": 8106,
-    "local_component_refs": 339
+    "property_bindings": 8188,
+    "local_component_refs": 345
   },
   "entries": [
     {
@@ -65422,7 +65422,9 @@
       "root_component": "GraphShared.GraphSurfaceBase",
       "imports": [
         "QtQuick 2.15",
-        "\"..\" as GraphShared"
+        "\"..\" as GraphShared",
+        "\"../surface_controls\" as SurfaceControls",
+        "\"../surface_controls/SurfaceControlGeometry.js\" as SurfaceControlGeometry"
       ],
       "ids": [
         {
@@ -65430,6 +65432,12 @@
         },
         {
           "name": "poolGlass"
+        },
+        {
+          "name": "insertBeforeButton"
+        },
+        {
+          "name": "insertAfterButton"
         }
       ],
       "object_names": [
@@ -65459,6 +65467,15 @@
         },
         {
           "name": "graphNodeSwimlaneLaneSelection"
+        },
+        {
+          "name": "graphNodeSwimlaneDropTarget"
+        },
+        {
+          "name": "graphNodeSwimlaneInsertBeforeButton"
+        },
+        {
+          "name": "graphNodeSwimlaneInsertAfterButton"
         }
       ],
       "properties": [
@@ -65471,8 +65488,28 @@
           "name": "swimlaneVariant"
         },
         {
+          "kind": "string",
+          "name": "nodeId"
+        },
+        {
+          "kind": "var",
+          "name": "canvasItem"
+        },
+        {
           "kind": "bool",
           "name": "isPool"
+        },
+        {
+          "kind": "bool",
+          "name": "standaloneLane"
+        },
+        {
+          "kind": "bool",
+          "name": "framed"
+        },
+        {
+          "kind": "bool",
+          "name": "_heldByPool"
         },
         {
           "kind": "bool",
@@ -65501,6 +65538,10 @@
         {
           "kind": "var",
           "name": "themePalette"
+        },
+        {
+          "kind": "color",
+          "name": "accentColor"
         },
         {
           "kind": "color",
@@ -65543,26 +65584,92 @@
           "name": "poolBandColor"
         },
         {
+          "kind": "string",
+          "name": "laneColorText"
+        },
+        {
+          "kind": "bool",
+          "name": "hasLaneColor"
+        },
+        {
           "kind": "color",
           "name": "laneBandColor"
         },
         {
           "kind": "color",
           "name": "laneFillColor"
+        },
+        {
+          "kind": "bool",
+          "name": "dropTarget"
+        },
+        {
+          "kind": "real",
+          "name": "_inset"
+        },
+        {
+          "kind": "real",
+          "name": "_innerRadius"
+        },
+        {
+          "kind": "real",
+          "name": "_viewZoom"
+        },
+        {
+          "kind": "bool",
+          "name": "laneInsertAllowed"
+        },
+        {
+          "kind": "bool",
+          "name": "_insertRevealed"
+        },
+        {
+          "kind": "real",
+          "name": "insertButtonSize"
+        },
+        {
+          "kind": "color",
+          "name": "insertFillColor"
+        },
+        {
+          "kind": "var",
+          "name": "embeddedInteractiveRects"
         }
       ],
       "signals": [],
-      "functions": [],
+      "functions": [
+        {
+          "name": "_insertLane"
+        },
+        {
+          "name": "_iconSource"
+        }
+      ],
       "instantiated_components": [
         {
           "name": "Rectangle"
         },
         {
           "name": "GradientStop"
+        },
+        {
+          "name": "SurfaceControls.GraphSurfaceButton"
+        },
+        {
+          "name": "HoverHandler"
         }
       ],
       "dynamic_refs": [],
-      "signal_handlers": [],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onControlStarted"
+        },
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        }
+      ],
       "connections": [],
       "property_bindings": [
         {
@@ -65570,7 +65677,7 @@
           "name": "visible",
           "targets": [
             "surface.visualsVisible",
-            "surface.isPool"
+            "surface.framed"
           ]
         },
         {
@@ -65637,6 +65744,14 @@
           "name": "border.color",
           "targets": [
             "surface.innerBorderColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "surface.visualsVisible",
+            "surface.isPool"
           ]
         },
         {
@@ -65733,6 +65848,20 @@
         },
         {
           "kind": "binding",
+          "name": "anchors.margins",
+          "targets": [
+            "surface._inset"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "surface._innerRadius"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "color",
           "targets": [
             "surface.laneFillColor"
@@ -65740,11 +65869,17 @@
         },
         {
           "kind": "binding",
-          "name": "x"
+          "name": "x",
+          "targets": [
+            "surface._inset"
+          ]
         },
         {
           "kind": "binding",
-          "name": "y"
+          "name": "y",
+          "targets": [
+            "surface._inset"
+          ]
         },
         {
           "kind": "binding",
@@ -65752,6 +65887,7 @@
           "targets": [
             "surface.horizontal",
             "surface.bandThickness",
+            "surface._inset",
             "parent.width"
           ]
         },
@@ -65761,6 +65897,7 @@
           "targets": [
             "surface.horizontal",
             "parent.height",
+            "surface._inset",
             "surface.bandThickness"
           ]
         },
@@ -65777,7 +65914,8 @@
           "targets": [
             "surface.horizontal",
             "surface.bandThickness",
-            "surface.lineWidth"
+            "surface.lineWidth",
+            "surface._inset"
           ]
         },
         {
@@ -65785,6 +65923,7 @@
           "name": "y",
           "targets": [
             "surface.horizontal",
+            "surface._inset",
             "surface.bandThickness",
             "surface.lineWidth"
           ]
@@ -65795,7 +65934,8 @@
           "targets": [
             "surface.horizontal",
             "surface.lineWidth",
-            "parent.width"
+            "parent.width",
+            "surface._inset"
           ]
         },
         {
@@ -65804,8 +65944,26 @@
           "targets": [
             "surface.horizontal",
             "parent.height",
+            "surface._inset",
             "surface.lineWidth"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "surface.visualsVisible",
+            "surface.isPool",
+            "surface.standaloneLane"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x"
+        },
+        {
+          "kind": "binding",
+          "name": "y"
         },
         {
           "kind": "binding",
@@ -65838,6 +65996,7 @@
           "targets": [
             "surface.visualsVisible",
             "surface.isPool",
+            "surface.standaloneLane",
             "surface.selected"
           ]
         },
@@ -65848,9 +66007,210 @@
             "Math.max",
             "surface.frameWidth"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "surface.dropTarget"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "surface.framed",
+            "surface.frameRadius"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "Qt.alpha",
+            "surface.accentColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "Qt.alpha",
+            "surface.accentColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "host",
+          "targets": [
+            "surface.host"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "surface.laneInsertAllowed",
+            "surface._insertRevealed",
+            "hovered",
+            "down"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "surface.insertButtonSize"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "surface.insertButtonSize"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "controlHeight",
+          "targets": [
+            "surface.insertButtonSize"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "chromeRadius",
+          "targets": [
+            "surface.insertButtonSize"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "iconOnly"
+        },
+        {
+          "kind": "binding",
+          "name": "iconName"
+        },
+        {
+          "kind": "binding",
+          "name": "iconSize"
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "accentColor"
+        },
+        {
+          "kind": "binding",
+          "name": "foregroundColor"
+        },
+        {
+          "kind": "binding",
+          "name": "baseFillColor",
+          "targets": [
+            "Qt.alpha",
+            "surface.insertFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "baseBorderColor",
+          "targets": [
+            "Qt.lighter",
+            "surface.insertFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "hoverFillColor",
+          "targets": [
+            "Qt.lighter",
+            "surface.insertFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "hoverBorderColor"
+        },
+        {
+          "kind": "binding",
+          "name": "pressedFillColor",
+          "targets": [
+            "Qt.darker",
+            "surface.insertFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "pressedBorderColor"
+        },
+        {
+          "kind": "binding",
+          "name": "iconSourceResolver",
+          "targets": [
+            "surface._iconSource"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "surface.horizontal",
+            "surface.bandThickness",
+            "surface.width",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "surface.horizontal",
+            "surface.bandThickness",
+            "surface.height",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "surface.horizontal"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "cursorShape",
+          "targets": [
+            "Qt.PointingHandCursor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "surface.horizontal"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "surface.horizontal"
+          ]
         }
       ],
-      "local_component_refs": [],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "SurfaceControls.GraphSurfaceButton",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml"
+        }
+      ],
       "symbol_anchors": [
         {
           "anchor": "GraphSwimlaneSurfacePropertyInputOverlayMode",
@@ -65865,9 +66225,39 @@
           "detail": "string"
         },
         {
+          "anchor": "GraphSwimlaneSurfacePropertyNodeId",
+          "kind": "property",
+          "name": "nodeId",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyCanvasItem",
+          "kind": "property",
+          "name": "canvasItem",
+          "detail": "var"
+        },
+        {
           "anchor": "GraphSwimlaneSurfacePropertyIsPool",
           "kind": "property",
           "name": "isPool",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyStandaloneLane",
+          "kind": "property",
+          "name": "standaloneLane",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyFramed",
+          "kind": "property",
+          "name": "framed",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyHeldByPool",
+          "kind": "property",
+          "name": "_heldByPool",
           "detail": "bool"
         },
         {
@@ -65911,6 +66301,12 @@
           "kind": "property",
           "name": "themePalette",
           "detail": "var"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyAccentColor",
+          "kind": "property",
+          "name": "accentColor",
+          "detail": "color"
         },
         {
           "anchor": "GraphSwimlaneSurfacePropertyFrameColor",
@@ -65973,6 +66369,18 @@
           "detail": "color"
         },
         {
+          "anchor": "GraphSwimlaneSurfacePropertyLaneColorText",
+          "kind": "property",
+          "name": "laneColorText",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyHasLaneColor",
+          "kind": "property",
+          "name": "hasLaneColor",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphSwimlaneSurfacePropertyLaneBandColor",
           "kind": "property",
           "name": "laneBandColor",
@@ -65983,6 +66391,86 @@
           "kind": "property",
           "name": "laneFillColor",
           "detail": "color"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyDropTarget",
+          "kind": "property",
+          "name": "dropTarget",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyInset",
+          "kind": "property",
+          "name": "_inset",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyInnerRadius",
+          "kind": "property",
+          "name": "_innerRadius",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyViewZoom",
+          "kind": "property",
+          "name": "_viewZoom",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyLaneInsertAllowed",
+          "kind": "property",
+          "name": "laneInsertAllowed",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyInsertRevealed",
+          "kind": "property",
+          "name": "_insertRevealed",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyInsertButtonSize",
+          "kind": "property",
+          "name": "insertButtonSize",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyInsertFillColor",
+          "kind": "property",
+          "name": "insertFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyEmbeddedInteractiveRects",
+          "kind": "property",
+          "name": "embeddedInteractiveRects",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfaceFunctionInsertLane",
+          "kind": "function",
+          "name": "_insertLane"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfaceFunctionIconSource",
+          "kind": "function",
+          "name": "_iconSource"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfaceHandlerOnControlStarted",
+          "kind": "handler",
+          "name": "onControlStarted"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfaceHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfaceLocalComponentSurfaceControlsGraphSurfaceButton",
+          "kind": "localComponent",
+          "name": "SurfaceControls.GraphSurfaceButton",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceButton.qml"
         }
       ]
     },
@@ -106296,6 +106784,10 @@
         },
         {
           "kind": "var",
+          "name": "swimlanePreview"
+        },
+        {
+          "kind": "var",
           "name": "selectedEdgeIds"
         },
         {
@@ -106541,6 +107033,12 @@
           "anchor": "GraphCanvasSceneStatePropertySmartGuides",
           "kind": "property",
           "name": "smartGuides",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSceneStatePropertySwimlanePreview",
+          "kind": "property",
+          "name": "swimlanePreview",
           "detail": "var"
         },
         {
@@ -109575,6 +110073,351 @@
       ]
     },
     {
+      "path": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSwimlanePreview.qml",
+      "component_name": "GraphCanvasSwimlanePreview",
+      "aliases": [
+        "GraphCanvasSwimlanePreview",
+        "GraphCanvasSwimlanePreview.qml",
+        "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSwimlanePreview.qml",
+        "ea_node_editor\\ui_qml\\components\\graph_canvas\\GraphCanvasSwimlanePreview.qml"
+      ],
+      "root_component": "QtObject",
+      "imports": [
+        "QtQml 2.15"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        }
+      ],
+      "object_names": [],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "sceneState"
+        },
+        {
+          "kind": "var",
+          "name": "canvasItem"
+        },
+        {
+          "kind": "var",
+          "name": "dropTargetLookup"
+        },
+        {
+          "kind": "string",
+          "name": "laneDragLaneId"
+        },
+        {
+          "kind": "int",
+          "name": "laneDragIndex"
+        },
+        {
+          "kind": "int",
+          "name": "laneDragCurrent"
+        },
+        {
+          "kind": "int",
+          "name": "profilePreviewCallCount"
+        },
+        {
+          "kind": "string",
+          "name": "_moveSession"
+        },
+        {
+          "kind": "bool",
+          "name": "_dropPreviewActive"
+        },
+        {
+          "kind": "var",
+          "name": "_dropMovingBounds"
+        },
+        {
+          "kind": "var",
+          "name": "_dropContainerRects"
+        },
+        {
+          "kind": "string",
+          "name": "_resizeNodeId"
+        },
+        {
+          "kind": "string",
+          "name": "_resizeSession"
+        },
+        {
+          "kind": "var",
+          "name": "_ownedIds"
+        },
+        {
+          "kind": "string",
+          "name": "_lastPreviewKey"
+        },
+        {
+          "kind": "int",
+          "name": "_sessionCounter"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "_bridge"
+        },
+        {
+          "name": "_payload"
+        },
+        {
+          "name": "_variant"
+        },
+        {
+          "name": "_isSwimlanePayload"
+        },
+        {
+          "name": "isSwimlaneNode"
+        },
+        {
+          "name": "_newSession"
+        },
+        {
+          "name": "_rectOf"
+        },
+        {
+          "name": "beginMove"
+        },
+        {
+          "name": "_beginDropPreview"
+        },
+        {
+          "name": "_dropOverlapsLanes"
+        },
+        {
+          "name": "laneReorderActive"
+        },
+        {
+          "name": "resolveMove"
+        },
+        {
+          "name": "_lanePreview"
+        },
+        {
+          "name": "laneReorderCommit"
+        },
+        {
+          "name": "endMove"
+        },
+        {
+          "name": "previewResize"
+        },
+        {
+          "name": "_applyPreview"
+        },
+        {
+          "name": "_setDropTargets"
+        },
+        {
+          "name": "_clearPreview"
+        }
+      ],
+      "instantiated_components": [],
+      "dynamic_refs": [],
+      "signal_handlers": [],
+      "connections": [],
+      "property_bindings": [],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertySceneState",
+          "kind": "property",
+          "name": "sceneState",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyCanvasItem",
+          "kind": "property",
+          "name": "canvasItem",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyDropTargetLookup",
+          "kind": "property",
+          "name": "dropTargetLookup",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyLaneDragLaneId",
+          "kind": "property",
+          "name": "laneDragLaneId",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyLaneDragIndex",
+          "kind": "property",
+          "name": "laneDragIndex",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyLaneDragCurrent",
+          "kind": "property",
+          "name": "laneDragCurrent",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyProfilePreviewCallCount",
+          "kind": "property",
+          "name": "profilePreviewCallCount",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyMoveSession",
+          "kind": "property",
+          "name": "_moveSession",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyDropPreviewActive",
+          "kind": "property",
+          "name": "_dropPreviewActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyDropMovingBounds",
+          "kind": "property",
+          "name": "_dropMovingBounds",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyDropContainerRects",
+          "kind": "property",
+          "name": "_dropContainerRects",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyResizeNodeId",
+          "kind": "property",
+          "name": "_resizeNodeId",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyResizeSession",
+          "kind": "property",
+          "name": "_resizeSession",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyOwnedIds",
+          "kind": "property",
+          "name": "_ownedIds",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertyLastPreviewKey",
+          "kind": "property",
+          "name": "_lastPreviewKey",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewPropertySessionCounter",
+          "kind": "property",
+          "name": "_sessionCounter",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionBridge",
+          "kind": "function",
+          "name": "_bridge"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionPayload",
+          "kind": "function",
+          "name": "_payload"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionVariant",
+          "kind": "function",
+          "name": "_variant"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionIsSwimlanePayload",
+          "kind": "function",
+          "name": "_isSwimlanePayload"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionIsSwimlaneNode",
+          "kind": "function",
+          "name": "isSwimlaneNode"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionNewSession",
+          "kind": "function",
+          "name": "_newSession"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionRectOf",
+          "kind": "function",
+          "name": "_rectOf"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionBeginMove",
+          "kind": "function",
+          "name": "beginMove"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionBeginDropPreview",
+          "kind": "function",
+          "name": "_beginDropPreview"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionDropOverlapsLanes",
+          "kind": "function",
+          "name": "_dropOverlapsLanes"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionLaneReorderActive",
+          "kind": "function",
+          "name": "laneReorderActive"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionResolveMove",
+          "kind": "function",
+          "name": "resolveMove"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionLanePreview",
+          "kind": "function",
+          "name": "_lanePreview"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionLaneReorderCommit",
+          "kind": "function",
+          "name": "laneReorderCommit"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionEndMove",
+          "kind": "function",
+          "name": "endMove"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionPreviewResize",
+          "kind": "function",
+          "name": "previewResize"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionApplyPreview",
+          "kind": "function",
+          "name": "_applyPreview"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionSetDropTargets",
+          "kind": "function",
+          "name": "_setDropTargets"
+        },
+        {
+          "anchor": "GraphCanvasSwimlanePreviewFunctionClearPreview",
+          "kind": "function",
+          "name": "_clearPreview"
+        }
+      ]
+    },
+    {
       "path": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasViewportController.qml",
       "component_name": "GraphCanvasViewportController",
       "aliases": [
@@ -110218,6 +111061,9 @@
           "name": "sceneState"
         },
         {
+          "name": "swimlanePreviewObject"
+        },
+        {
           "name": "smartGuidesObject"
         },
         {
@@ -110612,6 +111458,10 @@
         {
           "kind": "var",
           "name": "prefs"
+        },
+        {
+          "kind": "alias",
+          "name": "swimlaneDropTargetLookup"
         },
         {
           "kind": "var",
@@ -111030,6 +111880,12 @@
           "name": "clearLiveNodeGeometry"
         },
         {
+          "name": "previewSwimlaneResize"
+        },
+        {
+          "name": "swimlaneLaneReorderCommit"
+        },
+        {
           "name": "_dropTargetInput"
         },
         {
@@ -111263,6 +112119,9 @@
           "name": "GraphCanvasComponents.GraphCanvasSceneState"
         },
         {
+          "name": "GraphCanvasComponents.GraphCanvasSwimlanePreview"
+        },
+        {
           "name": "GraphCanvasComponents.GraphCanvasSmartGuides"
         },
         {
@@ -111429,6 +112288,20 @@
         },
         {
           "kind": "binding",
+          "name": "swimlanePreview",
+          "targets": [
+            "swimlanePreviewObject"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "sceneState",
+          "targets": [
+            "sceneState"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "canvasStateBridge",
           "targets": [
             "root.canvasStateBridgeRef"
@@ -111502,13 +112375,6 @@
           "name": "sceneStateBridge",
           "targets": [
             "root.sceneStateBridge"
-          ]
-        },
-        {
-          "kind": "binding",
-          "name": "sceneState",
-          "targets": [
-            "sceneState"
           ]
         },
         {
@@ -111637,6 +112503,11 @@
           "kind": "localComponent",
           "name": "GraphCanvasComponents.GraphCanvasSceneState",
           "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSceneState.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "GraphCanvasComponents.GraphCanvasSwimlanePreview",
+          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSwimlanePreview.qml"
         },
         {
           "kind": "localComponent",
@@ -112203,6 +113074,12 @@
           "kind": "property",
           "name": "prefs",
           "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasPropertySwimlaneDropTargetLookup",
+          "kind": "property",
+          "name": "swimlaneDropTargetLookup",
+          "detail": "alias"
         },
         {
           "anchor": "GraphCanvasPropertySmartGuidesRef",
@@ -112867,6 +113744,16 @@
           "name": "clearLiveNodeGeometry"
         },
         {
+          "anchor": "GraphCanvasFunctionPreviewSwimlaneResize",
+          "kind": "function",
+          "name": "previewSwimlaneResize"
+        },
+        {
+          "anchor": "GraphCanvasFunctionSwimlaneLaneReorderCommit",
+          "kind": "function",
+          "name": "swimlaneLaneReorderCommit"
+        },
+        {
           "anchor": "GraphCanvasFunctionDropTargetInput",
           "kind": "function",
           "name": "_dropTargetInput"
@@ -113275,6 +114162,12 @@
           "kind": "localComponent",
           "name": "GraphCanvasComponents.GraphCanvasSceneState",
           "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSceneState.qml"
+        },
+        {
+          "anchor": "GraphCanvasLocalComponentGraphCanvasComponentsGraphCanvasSwimlanePreview",
+          "kind": "localComponent",
+          "name": "GraphCanvasComponents.GraphCanvasSwimlanePreview",
+          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSwimlanePreview.qml"
         },
         {
           "anchor": "GraphCanvasLocalComponentGraphCanvasComponentsGraphCanvasSmartGuides",
@@ -125828,6 +126721,9 @@
           "name": "inspectorColumn"
         },
         {
+          "name": "swimlaneLanesSection"
+        },
+        {
           "name": "nodeLinksSection"
         },
         {
@@ -125892,6 +126788,10 @@
           "name": "isSubnodeShellInspector"
         },
         {
+          "kind": "bool",
+          "name": "isSwimlaneInspector"
+        },
+        {
           "kind": "string",
           "name": "selectedNodeTitle"
         },
@@ -125934,6 +126834,10 @@
         {
           "kind": "var",
           "name": "selectedNodeCommentItems"
+        },
+        {
+          "kind": "var",
+          "name": "selectedNodeSwimlaneLaneItems"
         },
         {
           "kind": "var",
@@ -126070,6 +126974,9 @@
           "name": "InspectorNodeDefinitionSection"
         },
         {
+          "name": "InspectorSwimlaneLanesSection"
+        },
+        {
           "name": "InspectorNodeLinksSection"
         },
         {
@@ -126200,6 +127107,13 @@
           "name": "selected_node_is_subnode_shell",
           "targets": [
             "bridge.selected_node_is_subnode_shell"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "selected_node_is_swimlane",
+          "targets": [
+            "bridge.selected_node_is_swimlane"
           ]
         },
         {
@@ -126541,6 +127455,11 @@
         },
         {
           "kind": "localComponent",
+          "name": "InspectorSwimlaneLanesSection",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorSwimlaneLanesSection.qml"
+        },
+        {
+          "kind": "localComponent",
           "name": "InspectorNodeLinksSection",
           "detail": "ea_node_editor/ui_qml/components/shell/InspectorNodeLinksSection.qml"
         },
@@ -126608,6 +127527,12 @@
           "detail": "bool"
         },
         {
+          "anchor": "InspectorPanePropertyIsSwimlaneInspector",
+          "kind": "property",
+          "name": "isSwimlaneInspector",
+          "detail": "bool"
+        },
+        {
           "anchor": "InspectorPanePropertySelectedNodeTitle",
           "kind": "property",
           "name": "selectedNodeTitle",
@@ -126671,6 +127596,12 @@
           "anchor": "InspectorPanePropertySelectedNodeCommentItems",
           "kind": "property",
           "name": "selectedNodeCommentItems",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorPanePropertySelectedNodeSwimlaneLaneItems",
+          "kind": "property",
+          "name": "selectedNodeSwimlaneLaneItems",
           "detail": "var"
         },
         {
@@ -126878,6 +127809,12 @@
           "kind": "localComponent",
           "name": "InspectorNodeDefinitionSection",
           "detail": "ea_node_editor/ui_qml/components/shell/InspectorNodeDefinitionSection.qml"
+        },
+        {
+          "anchor": "InspectorPaneLocalComponentInspectorSwimlaneLanesSection",
+          "kind": "localComponent",
+          "name": "InspectorSwimlaneLanesSection",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorSwimlaneLanesSection.qml"
         },
         {
           "anchor": "InspectorPaneLocalComponentInspectorNodeLinksSection",
@@ -130316,6 +131253,607 @@
           "kind": "localComponent",
           "name": "InspectorPropertyEditor",
           "detail": "ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/shell/InspectorSwimlaneLanesSection.qml",
+      "component_name": "InspectorSwimlaneLanesSection",
+      "aliases": [
+        "InspectorSwimlaneLanesSection",
+        "InspectorSwimlaneLanesSection.qml",
+        "ea_node_editor/ui_qml/components/shell/InspectorSwimlaneLanesSection.qml",
+        "ea_node_editor\\ui_qml\\components\\shell\\InspectorSwimlaneLanesSection.qml"
+      ],
+      "root_component": "InspectorSectionCard",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Controls 2.15",
+        "QtQuick.Layouts 1.15",
+        "\"../common/TooltipCopy.js\" as TooltipCopy"
+      ],
+      "ids": [
+        {
+          "name": "section"
+        },
+        {
+          "name": "laneRows"
+        },
+        {
+          "name": "laneRow"
+        },
+        {
+          "name": "colorButton"
+        },
+        {
+          "name": "titleField"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "inspectorSwimlaneLanesCard"
+        },
+        {
+          "name": "inspectorSwimlaneLaneRow"
+        },
+        {
+          "name": "inspectorSwimlaneLaneColorButton"
+        },
+        {
+          "name": "inspectorSwimlaneLaneTitleField"
+        },
+        {
+          "name": "inspectorSwimlaneLaneMoveUpButton"
+        },
+        {
+          "name": "inspectorSwimlaneLaneMoveDownButton"
+        },
+        {
+          "name": "inspectorSwimlaneLaneRemoveButton"
+        },
+        {
+          "name": "inspectorAddSwimlaneLaneButton"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "bridge"
+        },
+        {
+          "kind": "var",
+          "name": "rows"
+        },
+        {
+          "kind": "bool",
+          "name": "vertical"
+        },
+        {
+          "kind": "bool",
+          "name": "poolCollapsed"
+        },
+        {
+          "kind": "string",
+          "name": "rowKey"
+        },
+        {
+          "kind": "var",
+          "name": "lane"
+        },
+        {
+          "kind": "string",
+          "name": "laneId"
+        },
+        {
+          "kind": "string",
+          "name": "laneColor"
+        },
+        {
+          "kind": "string",
+          "name": "committedTitle"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "hasColor"
+        },
+        {
+          "name": "pickColor"
+        },
+        {
+          "name": "commit"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "InspectorRowsModel"
+        },
+        {
+          "name": "Column"
+        },
+        {
+          "name": "Repeater"
+        },
+        {
+          "name": "RowLayout"
+        },
+        {
+          "name": "InspectorButton"
+        },
+        {
+          "name": "TapHandler"
+        },
+        {
+          "name": "Rectangle"
+        },
+        {
+          "name": "InspectorTextField"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "Repeater"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "laneRows"
+          ]
+        },
+        {
+          "kind": "delegate",
+          "targets": [
+            "Rectangle"
+          ]
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "onTapped"
+        },
+        {
+          "kind": "handler",
+          "name": "onCommittedTitleChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "onAccepted"
+        },
+        {
+          "kind": "handler",
+          "name": "onEditingFinished"
+        }
+      ],
+      "connections": [],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "section.pane",
+            "section.pane.hasSelectedNode",
+            "section.pane.isSwimlaneInspector"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "title"
+        },
+        {
+          "kind": "binding",
+          "name": "subtitle",
+          "targets": [
+            "section.poolCollapsed"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "rows",
+          "targets": [
+            "section.rows"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "keyRole"
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "spacing"
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "parent",
+            "parent.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height"
+        },
+        {
+          "kind": "binding",
+          "name": "radius"
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "laneRow.lane.selected",
+            "section.pane.selectedSurfaceColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "laneRow.lane.selected"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "section.pane.selectedOutlineColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.margins"
+        },
+        {
+          "kind": "binding",
+          "name": "pane",
+          "targets": [
+            "section.pane"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "compact"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.preferredWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.preferredHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "implicitWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "text"
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "section.poolCollapsed"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "inspector.swimlane_lanes.color",
+            "TooltipCopy.text",
+            "tooltipCopyBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipCategory",
+          "targets": [
+            "inspector.swimlane_lanes.color",
+            "TooltipCopy.category",
+            "tooltipCopyBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "acceptedButtons",
+          "targets": [
+            "Qt.RightButton"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "background",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "section.pane.themePalette.input_bg"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width"
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "colorButton.hovered",
+            "section.pane.themePalette.accent",
+            "section.pane.themePalette.input_border"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "section.hasColor",
+            "laneRow.laneColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.width",
+          "targets": [
+            "section.hasColor",
+            "laneRow.laneColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "section.pane.themePalette.input_border"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "Layout.fillWidth"
+        },
+        {
+          "kind": "binding",
+          "name": "implicitHeight"
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "committedTitle"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "iconName"
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "section.poolCollapsed",
+            "Boolean",
+            "laneRow.lane.can_move_up"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "TooltipCopy.text"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipCategory",
+          "targets": [
+            "TooltipCopy.category",
+            "tooltipCopyBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "section.poolCollapsed",
+            "Boolean",
+            "laneRow.lane.can_move_down"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "destructive"
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "inspector.swimlane_lanes.remove",
+            "TooltipCopy.text",
+            "tooltipCopyBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipCategory",
+          "targets": [
+            "inspector.swimlane_lanes.remove",
+            "TooltipCopy.category",
+            "tooltipCopyBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "inspector.swimlane_lanes.add",
+            "TooltipCopy.text",
+            "tooltipCopyBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipCategory",
+          "targets": [
+            "inspector.swimlane_lanes.add",
+            "TooltipCopy.category",
+            "tooltipCopyBridge"
+          ]
+        }
+      ],
+      "local_component_refs": [
+        {
+          "kind": "localComponent",
+          "name": "InspectorRowsModel",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorRowsModel.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorButton.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "InspectorTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextField.qml"
+        }
+      ],
+      "symbol_anchors": [
+        {
+          "anchor": "InspectorSwimlaneLanesSectionPropertyBridge",
+          "kind": "property",
+          "name": "bridge",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionPropertyRows",
+          "kind": "property",
+          "name": "rows",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionPropertyVertical",
+          "kind": "property",
+          "name": "vertical",
+          "detail": "bool"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionPropertyPoolCollapsed",
+          "kind": "property",
+          "name": "poolCollapsed",
+          "detail": "bool"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionPropertyRowKey",
+          "kind": "property",
+          "name": "rowKey",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionPropertyLane",
+          "kind": "property",
+          "name": "lane",
+          "detail": "var"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionPropertyLaneId",
+          "kind": "property",
+          "name": "laneId",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionPropertyLaneColor",
+          "kind": "property",
+          "name": "laneColor",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionPropertyCommittedTitle",
+          "kind": "property",
+          "name": "committedTitle",
+          "detail": "string"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionFunctionHasColor",
+          "kind": "function",
+          "name": "hasColor"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionFunctionPickColor",
+          "kind": "function",
+          "name": "pickColor"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionFunctionCommit",
+          "kind": "function",
+          "name": "commit"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionHandlerOnClicked",
+          "kind": "handler",
+          "name": "onClicked"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionHandlerOnTapped",
+          "kind": "handler",
+          "name": "onTapped"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionHandlerOnCommittedTitleChanged",
+          "kind": "handler",
+          "name": "onCommittedTitleChanged"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionHandlerOnAccepted",
+          "kind": "handler",
+          "name": "onAccepted"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionHandlerOnEditingFinished",
+          "kind": "handler",
+          "name": "onEditingFinished"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionLocalComponentInspectorRowsModel",
+          "kind": "localComponent",
+          "name": "InspectorRowsModel",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorRowsModel.qml"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionLocalComponentInspectorButton",
+          "kind": "localComponent",
+          "name": "InspectorButton",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorButton.qml"
+        },
+        {
+          "anchor": "InspectorSwimlaneLanesSectionLocalComponentInspectorTextField",
+          "kind": "localComponent",
+          "name": "InspectorTextField",
+          "detail": "ea_node_editor/ui_qml/components/shell/InspectorTextField.qml"
         }
       ]
     },

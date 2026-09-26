@@ -490,5 +490,47 @@ class InspectorProjectionPropertyGroupTests(unittest.TestCase):
         self.assertEqual(start_location["path_current_source_mode"], "managed_copy")
 
 
+class SwimlaneLaneItemsProjectionTests(unittest.TestCase):
+    """The Inspector's Lanes rows: a pool's lanes (for the pool or any of its lanes) or a standalone lane alone."""
+
+    POOLS = [
+        {
+            "pool_node_id": "pool",
+            "orientation": "vertical",
+            "lane_node_ids": ["a", "b"],
+            "lanes": [
+                {"lane_node_id": "a", "title": "Customer", "color": "#e8a33d", "node_ids": ["n1", "n2"]},
+                {"lane_node_id": "b", "title": "Sales", "color": "", "node_ids": []},
+            ],
+        }
+    ]
+    LANES = [{"lane_node_id": "solo", "title": "Solo", "color": "", "orientation": "horizontal", "node_ids": ["n3"]}]
+
+    def rows(self, node_id: str, type_id: str) -> list[dict]:
+        from ea_node_editor.ui.shell.inspector_projection import build_selected_node_swimlane_lane_items
+
+        node = SimpleNamespace(node_id=node_id, type_id=type_id)
+        return build_selected_node_swimlane_lane_items(node=node, pools=self.POOLS, standalone_lanes=self.LANES)
+
+    def test_a_pool_or_one_of_its_lanes_lists_the_pools_lanes_in_order(self) -> None:
+        for node_id, type_id in (("pool", "passive.annotation.swimlane_pool"), ("b", "passive.annotation.swimlane_lane")):
+            with self.subTest(node_id=node_id):
+                rows = self.rows(node_id, type_id)
+                self.assertEqual([row["lane_node_id"] for row in rows], ["a", "b"])
+                self.assertEqual([row["selected"] for row in rows], [False, node_id == "b"])
+                self.assertEqual([(row["can_move_up"], row["can_move_down"]) for row in rows], [(False, True), (True, False)])
+                self.assertEqual(rows[0]["color"], "#e8a33d")
+                self.assertEqual(rows[0]["item_count"], 2)
+                self.assertEqual({row["orientation"] for row in rows}, {"vertical"})
+                self.assertEqual({row["pool_node_id"] for row in rows}, {"pool"})
+
+    def test_a_standalone_lane_lists_itself_and_other_nodes_nothing(self) -> None:
+        [row] = self.rows("solo", "passive.annotation.swimlane_lane")
+        self.assertEqual((row["lane_node_id"], row["pool_node_id"], row["selected"]), ("solo", "", True))
+        self.assertEqual((row["can_move_up"], row["can_move_down"]), (False, False))
+        self.assertEqual(self.rows("n1", "passive.flowchart.process"), [])
+        self.assertEqual(self.rows("gone", "passive.annotation.swimlane_pool"), [])
+
+
 if __name__ == "__main__":
     unittest.main()

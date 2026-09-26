@@ -20,6 +20,7 @@ Use this for QML shell composition, Python-to-QML bridge wiring, shell bridge mo
 - `tests/qml_quick/tst_zoom_control.qml`
 - `ea_node_editor/ui_qml/components/shell/WorkspaceCenterPane.qml`
 - `ea_node_editor/ui_qml/components/shell/InspectorPane.qml`
+- `ea_node_editor/ui_qml/components/shell/InspectorSwimlaneLanesSection.qml` (the Lanes section of a selected swimlane pool or lane; see [Swimlane Pools And Lanes](../feature_routes/swimlane_pools_lanes.md))
 - `ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml`
 - `ea_node_editor/ui_qml/components/shell/InspectorChoicePropertyEditor.qml`
 - `ea_node_editor/ui_qml/components/shell/InspectorTextareaPropertyEditor.qml`

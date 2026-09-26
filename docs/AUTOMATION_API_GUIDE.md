@@ -20,7 +20,7 @@ It is a **local, opt-in developer automation surface**:
   `--automation` or spawned by the launcher.
 - Loopback only (`127.0.0.1`), one per-instance token, protocol version 1,
   NDJSON frames capped at 8 MiB.
-- One declarative op catalog: 56 ops, each also a typed MCP tool. The same
+- One declarative op catalog: 57 ops, each also a typed MCP tool. The same
   in-app server serves every launch mode.
 - Every mutating op is exactly one undo step; `graph.apply` batches are one
   step too.
@@ -593,11 +593,13 @@ performs it. "not exposed" means the first pass deliberately leaves it out
 | Node context menu | Peek Inside / Exit Peek | not exposed (transient overlay) |
 | Node context menu | Ungroup Subnode | `subnode.ungroup` |
 | Node context menu (swimlane pool) | Add Lane | `swimlane.add_lane(pool_node_id)` |
-| Node context menu (swimlane lane) | Insert Lane Above / Below (Left / Right) | `swimlane.add_lane(pool_node_id, index=...)` |
-| Node context menu (swimlane lane) | Move Lane Up / Down (Left / Right) | `swimlane.move_lane(lane_node_id, index=...)` |
-| Node context menu (swimlane lane) | Remove Lane | `swimlane.remove_lane` |
+| Node context menu (swimlane lane) / lane + buttons | Insert Lane Above / Below (Left / Right); next to a standalone lane this forms a pool | `swimlane.add_lane(lane_node_id, after=...)` |
+| Node context menu (swimlane lane) / drag a lane in its pool | Move Lane Up / Down (Left / Right); a lane drag reorders | `swimlane.move_lane(lane_node_id, index=...)` |
+| Node context menu (swimlane lane) | Remove Lane (a pool left with one lane dissolves) | `swimlane.remove_lane` |
 | Node context menu (swimlane pool or lane) | Tidy Lanes | `layout.tidy(node_ids=[pool_node_id])` |
-| Library | Drop a Swimlane Pool (three lanes) | `swimlane.create_pool` |
+| Node context menu (swimlane pool or lane) | Switch to Vertical / Horizontal Lanes | `node.update(properties={"orientation": ...})` |
+| Inspector (swimlane lane) | Color | `node.update(properties={"color": "#rrggbb"})` |
+| Library | Drop a Swimlane (one lane on its own) | `swimlane.create_lane` |
 | Canvas | Drop or drag a node into a lane | `swimlane.assign` (or `node.add` / `node.update` inside the lane) |
 | Node context menu | Run Settings... | not exposed (dialog) |
 | Node context menu | Open Add-On Manager | not exposed (dialog) |
@@ -764,12 +766,13 @@ from the same catalog.
 | `edge_update` | `edge.update` | Update an edge's label, style, path mode, enabled flag, or display mode; optionally clear label/style or reverse its direction. |
 | `edge_delete` | `edge.delete` | Delete one or more edges. |
 | `group_wrap` | `group.wrap` | Wrap nodes in a Group backdrop (passive.annotation.group_backdrop) with an optional title. |
-| `swimlane_create_pool` | `swimlane.create_pool` | Add a swimlane pool with its role lanes (passive.annotation.swimlane_pool / swimlane_lane). |
-| `swimlane_add_lane` | `swimlane.add_lane` | Add a lane to a swimlane pool at a stack position (default: after the last lane). |
-| `swimlane_remove_lane` | `swimlane.remove_lane` | Remove a lane from its pool; the lane before it (else after it) takes its band and what it held. |
+| `swimlane_create_pool` | `swimlane.create_pool` | Add a swimlane pool with two or more role lanes (passive.annotation.swimlane_pool / swimlane_lane). |
+| `swimlane_create_lane` | `swimlane.create_lane` | Add one swimlane (a role lane on its own, passive.annotation.swimlane_lane) at a position. |
+| `swimlane_add_lane` | `swimlane.add_lane` | Add a lane to a pool at a stack position, or next to a lane (next to a standalone lane: forms a pool). |
+| `swimlane_remove_lane` | `swimlane.remove_lane` | Remove a lane; the lane before it (else after it) takes its band and what it held. |
 | `swimlane_move_lane` | `swimlane.move_lane` | Move a lane to another stack position in its pool; every lane keeps what it holds. |
 | `swimlane_assign` | `swimlane.assign` | Move nodes into a lane: placed after what the lane holds along the flow, centred across the lane. |
-| `swimlane_describe` | `swimlane.describe` | List the swimlane pools of the open scope: orientation, lanes in stack order and what each lane holds. |
+| `swimlane_describe` | `swimlane.describe` | List the open scope's swimlane pools (orientation, lanes in stack order, what each lane holds) and its standalone lanes. |
 | `subnode_create` | `subnode.create` | Collapse nodes into a subnode shell (nested scope); boundary edges become input/output pins. |
 | `subnode_ungroup` | `subnode.ungroup` | Dissolve a subnode shell, restoring its members to the current scope. |
 | `subnode_add_pin` | `subnode.add_pin` | Add an input or output pin to a subnode shell. |
@@ -1218,9 +1221,9 @@ Result keys: `group_node_id`, `member_node_ids`.
 
 MCP tool: `swimlane_create_pool`. Flags: undo step, apply-allowed.
 
-Add a swimlane pool with its role lanes (passive.annotation.swimlane_pool / swimlane_lane).
+Add a swimlane pool with two or more role lanes (passive.annotation.swimlane_pool / swimlane_lane).
 
-Lanes are Group backdrops stacked in the pool: a node placed in a lane belongs to it, and moving a lane moves what it holds. horizontal (default): lanes are rows, the pool's title band is on the left and the flow runs left to right; vertical: lanes are columns and the flow runs top to bottom. Lanes resize together: they share the pool's length, a lane grows (pushing the lanes after it) to fit what it holds, and a lane never shrinks past its contents. Place nodes with swimlane_assign (or node_add inside a lane's rectangle), then layout_tidy the pool for layers along the flow with one row per lane. Rename a lane with node_update(title=...); change the orientation with node_update(properties={'orientation': ...}).
+Lanes are Group backdrops stacked in the pool: a node placed in a lane belongs to it, and moving a lane moves what it holds. horizontal (default): lanes are rows, the pool's title band is on the left and the flow runs left to right; vertical: lanes are columns and the flow runs top to bottom. Lanes resize together: they share the pool's length, a lane grows (pushing the lanes after it) to fit what it holds, and a lane never shrinks past its contents. A pool holds two or more lanes (for a single lane use swimlane_create_lane; removing a pool's lanes down to one dissolves it). Place nodes with swimlane_assign (or node_add inside a lane's rectangle), then layout_tidy the pool for layers along the flow with one row per lane. Rename a lane with node_update(title=...), colour it with node_update(properties={'color': '#rrggbb'}); change the orientation with node_update(properties={'orientation': ...}).
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
@@ -1228,7 +1231,7 @@ Lanes are Group backdrops stacked in the pool: a node placed in a lane belongs t
 | `y` | `number` | yes |  | Scene coordinate in canvas units |
 | `title` | `string` | no |  | Node title shown in the header |
 | `orientation` | `string` | no | `"horizontal"` | horizontal: lanes are rows, flow left to right; vertical: lanes are columns, flow top to bottom; one of: horizontal, vertical |
-| `lanes` | `array<string>` | no |  | One role name per lane, in stack order (default: three lanes named Lane 1..3); min 1 item(s); max 24 item(s) |
+| `lanes` | `array<string>` | no |  | One role name per lane, in stack order, at least two (default: three lanes named Lane 1..3); min 2 item(s); max 24 item(s) |
 | `lane_size` | `number` | no |  | Lane thickness across the flow in px (default 200); >= 120 and \<= 4000 |
 | `length` | `number` | no |  | Pool length along the flow in px, title band included (default 1200); >= 360 and \<= 20000 |
 
@@ -1249,35 +1252,66 @@ Example:
 }
 ```
 
+#### swimlane.create_lane
+
+MCP tool: `swimlane_create_lane`. Flags: undo step, apply-allowed.
+
+Add one swimlane (a role lane on its own, passive.annotation.swimlane_lane) at a position.
+
+A lane holds the nodes placed in it and moves with them, like a pool with one lane. Add lanes next to it with swimlane_add_lane(lane_node_id=..., after=...): the second lane forms a pool around both. A lane whose centre lands in a pool joins that pool instead (pool_node_id says which).
+
+| Param | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `x` | `number` | yes |  | Scene coordinate in canvas units |
+| `y` | `number` | yes |  | Scene coordinate in canvas units |
+| `title` | `string` | no |  | Node title shown in the header |
+| `orientation` | `string` | no | `"horizontal"` | horizontal: the lane is a row, flow left to right; vertical: a column, flow top to bottom; one of: horizontal, vertical |
+| `lane_size` | `number` | no |  | Lane thickness across the flow in px (default 200); >= 120 and \<= 4000 |
+| `length` | `number` | no |  | Lane length along the flow in px, role band included (default 1200); >= 360 and \<= 20000 |
+
+Result keys: `lane_node_id`, `pool_node_id`.
+
+Example:
+
+```json
+{
+  "x": 0,
+  "y": 0,
+  "title": "Customer"
+}
+```
+
 #### swimlane.add_lane
 
 MCP tool: `swimlane_add_lane`. Flags: undo step, apply-allowed.
 
-Add a lane to a swimlane pool at a stack position (default: after the last lane).
+Add a lane to a pool at a stack position, or next to a lane (next to a standalone lane: forms a pool).
 
-The lanes after the new one move on with what they hold, and the pool grows.
+Pass pool_node_id (and index, default after the last lane) or lane_node_id (and after, default true). The lanes after the new one move on with what they hold, and the pool grows. Next to a standalone lane a pool forms around both: its title band goes outside, so that lane stays where it is.
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `pool_node_id` | `string` | yes |  | Node id (node_...); non-empty |
+| `pool_node_id` | `string` | no |  | Node id (node_...); non-empty |
+| `lane_node_id` | `string` | no |  | Node id (node_...); non-empty |
+| `after` | `boolean` | no |  | With lane_node_id: add after it (true, default) or before it |
 | `title` | `string` | no |  | The new lane's role name |
-| `index` | `integer` | no |  | Stack position, 0 = first (default: last); >= 0 |
+| `index` | `integer` | no |  | With pool_node_id: stack position, 0 = first (default: last); >= 0 |
 
-Result keys: `lane_node_id`, `lane_node_ids`.
+Result keys: `lane_node_id`, `pool_node_id`, `lane_node_ids`.
 
 #### swimlane.remove_lane
 
 MCP tool: `swimlane_remove_lane`. Flags: undo step, apply-allowed.
 
-Remove a lane from its pool; the lane before it (else after it) takes its band and what it held.
+Remove a lane; the lane before it (else after it) takes its band and what it held.
 
-Nothing else moves and the pool keeps its size; the removed lane's nodes stay (in the neighbour).
+Nothing else moves and the pool keeps its size; the removed lane's nodes stay (in the neighbour). A pool left with one lane dissolves (dissolved_pool_node_id): that lane stays on its own. Removing a standalone lane leaves what it held where it is.
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
 | `lane_node_id` | `string` | yes |  | Node id (node_...); non-empty |
 
-Result keys: `removed_lane_node_id`, `lane_node_ids`.
+Result keys: `removed_lane_node_id`, `lane_node_ids`, `dissolved_pool_node_id`.
 
 #### swimlane.move_lane
 
@@ -1298,7 +1332,7 @@ MCP tool: `swimlane_assign`. Flags: undo step, apply-allowed.
 
 Move nodes into a lane: placed after what the lane holds along the flow, centred across the lane.
 
-The lane (and pool) grow to fit. A Group moves with its members. Run layout_tidy on the pool afterwards for layers along the flow. Hidden members of a collapsed Group, pools and lanes cannot be assigned.
+The lane (and pool) grow to fit; a standalone lane works too. A Group moves with its members. Run layout_tidy on the pool (or lane) afterwards for layers along the flow. Hidden members of a collapsed Group, pools and lanes cannot be assigned.
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
@@ -1311,13 +1345,13 @@ Result keys: `assigned_node_ids`, `lane_node_id`, `pool`.
 
 MCP tool: `swimlane_describe`. Flags: read-only, apply-allowed.
 
-List the swimlane pools of the open scope: orientation, lanes in stack order and what each lane holds.
+List the open scope's swimlane pools (orientation, lanes in stack order, what each lane holds) and its standalone lanes.
 
 | Param | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
 | `pool_node_id` | `string` | no |  | Only this pool (default: every pool); non-empty |
 
-Result keys: `pools`.
+Result keys: `pools`, `lanes`.
 
 #### subnode.create
 

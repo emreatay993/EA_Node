@@ -70,8 +70,9 @@ from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import (
 from ea_node_editor.ui_qml.graph_scene_mutation.swimlane_ops import (
     capture_swimlanes,
     close_removed_swimlane_lanes,
+    dissolved_swimlane_pool_ids,
     initialize_swimlane_pool,
-    set_swimlane_pool_orientation,
+    set_swimlane_orientation,
     settle_swimlanes,
     swimlane_pool_lane_ids,
 )
@@ -331,8 +332,8 @@ def create_node_from_type(self, **kwargs) -> str:
 
 
 def _settle_new_swimlane_node(self, workspace, node_id: str, swimlanes_before) -> bool:  # noqa: ANN001
-    """A new pool gets its lanes; a new node joins the lane it landed in, a new lane the pool (else a pool of its
-    own). True when anything changed."""
+    """A new pool gets its lanes; a new node joins the lane it landed in; a new lane joins the pool it landed in,
+    forms one with a standalone lane it landed on, else stands on its own. True when anything changed."""
     node = workspace.nodes.get(node_id)
     if node is None:
         return False
@@ -911,10 +912,12 @@ def is_swimlane_type_node(workspace, node_id: str) -> bool:  # noqa: ANN001
 
 
 def _remove_swimlane_node(self, workspace, node_id: str, history_before) -> bool:  # noqa: ANN001
-    """Remove a lane (its neighbour takes its band) or a pool with its lanes; what they hold stays."""
+    """Remove a lane (its neighbour takes its band; a pool left with one lane dissolves) or a pool with its lanes;
+    what they hold stays."""
     removed_ids = [node_id]
     if is_swimlane_pool_type(workspace.nodes[node_id].type_id) and not workspace.nodes[node_id].collapsed:
         removed_ids.extend(swimlane_pool_lane_ids(self, workspace, [node_id]))
+    removed_ids.extend(dissolved_swimlane_pool_ids(self, workspace, removed_ids))
     close_removed_swimlane_lanes(self, workspace, removed_ids)
     mutations = self._record_mutations()
     for removed_id in reversed(removed_ids):
@@ -1345,9 +1348,10 @@ def set_node_property(self, node_id: str, key: str, value: Any) -> None:
     )
     if not normalized_updates:
         return
-    if is_swimlane_pool_type(node.type_id) and "orientation" in normalized_updates:
-        # Turning a pool re-lays its lanes out (rows become columns), not just a property edit.
-        set_swimlane_pool_orientation(self, node_id, str(normalized_updates["orientation"]))
+    if is_swimlane_type_node(workspace, node_id) and "orientation" in normalized_updates:
+        # Turning a pool (a lane turns its whole pool) re-lays its lanes out (rows become columns), not just a
+        # property edit.
+        set_swimlane_orientation(self, node_id, str(normalized_updates["orientation"]))
         self.notify_selected_node_context_updated(node_id)
         return
     history_before = self._capture_history_snapshot()
@@ -1443,11 +1447,12 @@ def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
     if not normalized_updates and normalized_title is None:
         return False
     swimlane_orientation = (
-        normalized_updates.pop("orientation", None) if is_swimlane_pool_type(node.type_id) else None
+        normalized_updates.pop("orientation", None) if is_swimlane_type_node(workspace, node_id) else None
     )
     if swimlane_orientation is not None:
-        # Turning a pool re-lays its lanes out (rows become columns), not just a property edit.
-        turned = set_swimlane_pool_orientation(self, node_id, str(swimlane_orientation))
+        # Turning a pool (a lane turns its whole pool) re-lays its lanes out (rows become columns), not just a
+        # property edit.
+        turned = set_swimlane_orientation(self, node_id, str(swimlane_orientation))
         if not normalized_updates and normalized_title is None:
             self.notify_selected_node_context_updated(node_id)
             return turned

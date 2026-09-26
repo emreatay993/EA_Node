@@ -302,18 +302,34 @@ Item {
         if (!editable || !nodePayload || Boolean(nodePayload.collapsed)
                 || (variant !== "swimlane_pool" && variant !== "swimlane_lane"))
             return [];
+        var vertical = root._swimlaneVertical(nodePayload);
+        var turn = {
+            "actionId": "node_context::swimlane_orientation",
+            "text": vertical ? "Switch to Horizontal Lanes" : "Switch to Vertical Lanes"
+        };
         if (variant === "swimlane_pool") {
             return [
                 { "actionId": "node_context::swimlane_add_lane", "text": "Add Lane" },
-                { "actionId": "node_context::swimlane_tidy", "text": "Tidy Lanes" }
+                { "actionId": "node_context::swimlane_tidy", "text": "Tidy Lanes" },
+                turn
             ];
         }
-        var vertical = root._swimlaneVertical(nodePayload);
-        var order = root._swimlaneOrderedLaneIds(root._nodePayload(String(nodePayload.owner_backdrop_id || "")));
-        var index = order.indexOf(String(nodePayload.node_id || ""));
-        return [
+        var insertRows = [
             { "actionId": "node_context::swimlane_insert_before", "text": vertical ? "Insert Lane Left" : "Insert Lane Above" },
-            { "actionId": "node_context::swimlane_insert_after", "text": vertical ? "Insert Lane Right" : "Insert Lane Below" },
+            { "actionId": "node_context::swimlane_insert_after", "text": vertical ? "Insert Lane Right" : "Insert Lane Below" }
+        ];
+        var pool = root._nodePayload(String(nodePayload.owner_backdrop_id || ""));
+        if (root._swimlaneVariant(pool) !== "swimlane_pool") {
+            // A standalone lane: adding a lane next to it forms a pool; there is nothing to move it past.
+            return insertRows.concat([
+                { "actionId": "node_context::swimlane_tidy", "text": "Tidy Lane" },
+                turn,
+                { "actionId": "node_context::swimlane_remove", "text": "Remove Lane", "destructive": true }
+            ]);
+        }
+        var order = root._swimlaneOrderedLaneIds(pool);
+        var index = order.indexOf(String(nodePayload.node_id || ""));
+        return insertRows.concat([
             {
                 "actionId": "node_context::swimlane_move_before",
                 "text": vertical ? "Move Lane Left" : "Move Lane Up",
@@ -325,8 +341,9 @@ Item {
                 "enabled": index >= 0 && index < order.length - 1
             },
             { "actionId": "node_context::swimlane_tidy", "text": "Tidy Lanes" },
+            turn,
             { "actionId": "node_context::swimlane_remove", "text": "Remove Lane", "destructive": true }
-        ];
+        ]);
     }
 
     function _handleSwimlaneAction(actionId) {
@@ -350,6 +367,10 @@ Item {
                 bridge.move_swimlane_lane(nodeId, 1);
             else if (command === "tidy" && bridge.tidy_swimlane_pool)
                 bridge.tidy_swimlane_pool(nodeId);
+            else if (command === "orientation" && bridge.set_node_property) {
+                var turned = root._swimlaneVertical(root._nodePayload(nodeId)) ? "horizontal" : "vertical";
+                bridge.set_node_property(nodeId, "orientation", turned);
+            }
             else if (command === "remove" && bridge.remove_swimlane_lane)
                 bridge.remove_swimlane_lane(nodeId);
         }

@@ -299,7 +299,7 @@ def _expand_tidy_set(
         node = workspace.nodes.get(node_id)
         owner_id = scope.owner(node_id)
         owner = workspace.nodes.get(owner_id) if owner_id is not None else None
-        if node is not None and owner is not None and is_swimlane_lane_type(node.type_id) and is_swimlane_pool_type(owner.type_id):
+        if node is not None and is_swimlane_lane_type(node.type_id) and _held_by_swimlane_pool(workspace, scope, node_id):
             tidy_ids.add(owner_id)
     fixed_obstacle_ids: set[str] = set()
     for backdrop_id in sorted(tidy_ids & scope.group_backdrop_ids):
@@ -389,6 +389,8 @@ def _build_partitions(
         )
         owner_id = partition_key(node_id)
         partition = partitions.setdefault(owner_id, _TidyPartition(owner_id=owner_id))
+        # A lane in a pool is laid out by its pool; a standalone lane lays itself out like a pool without lanes.
+        pooled_lane = is_group and is_swimlane_lane_type(type_id) and _held_by_swimlane_pool(workspace, scope, node_id)
         partition.items.append(
             TidyItem(
                 item_id=node_id,
@@ -402,10 +404,12 @@ def _build_partitions(
                 arrangeable=not unwired_annotation,
                 swimlane_pool=(
                     normalize_swimlane_orientation(node.properties.get("orientation"))
-                    if is_group and node_id not in rigid_ids and is_swimlane_pool_type(type_id)
+                    if is_group
+                    and node_id not in rigid_ids
+                    and (is_swimlane_pool_type(type_id) or (is_swimlane_lane_type(type_id) and not pooled_lane))
                     else ""
                 ),
-                swimlane_lane=is_group and is_swimlane_lane_type(type_id),
+                swimlane_lane=pooled_lane,
             )
         )
         partition.node_ids.add(node_id)
@@ -737,5 +741,12 @@ def _normalized_choice(value: str, choices: tuple[str, ...], label: str) -> str:
         raise ValueError(f"Unknown tidy {label}: {value!r}")
     return normalized
 
+
+
+def _held_by_swimlane_pool(workspace: WorkspaceData, scope: GroupScope, node_id: str) -> bool:
+    """Whether a pool holds this node (a lane in a pool, not a standalone lane)."""
+    owner_id = scope.owner(node_id)
+    owner = workspace.nodes.get(owner_id) if owner_id is not None else None
+    return owner is not None and is_swimlane_pool_type(owner.type_id)
 
 __all__ = ["tidy_layout"]

@@ -1,4 +1,4 @@
-# Purpose: Shell-free handler tests for the swimlane.* ops (create a pool and lanes, add/remove/move lanes, assign nodes, describe) and a pool-only layout.tidy, with one-undo-step pins, typed errors, graph.apply batching and the client facade.
+# Purpose: Shell-free handler tests for the swimlane.* ops (create a pool and lanes, a standalone lane, add/remove/move lanes, pools forming and dissolving, assign nodes, describe) and a pool-only layout.tidy, with one-undo-step pins, typed errors, graph.apply batching and the client facade.
 # Map: feature_routes/automation_api_mcp
 # Tests: tests/automation/test_handlers_swimlanes.py
 from __future__ import annotations
@@ -100,26 +100,41 @@ class SwimlaneOpTests(_SwimlaneHandlerCase):
         expect_error(self.context, "swimlane.assign", {"node_ids": [a], "lane_node_id": b}, INVALID_PARAMS)
 
     def test_describe_lists_every_pool_or_one(self) -> None:
-        first = self.create(lanes=["A"])
-        second = self.create(lanes=["B"], y=2000)
+        first = self.create(lanes=["A", "B"])
+        second = self.create(lanes=["C", "D"], y=2000)
         self.scene.set_node_collapsed(second["pool_node_id"], True)
+        solo = self.call_one_undo("swimlane.create_lane", {"x": 0, "y": 4000, "title": "Solo"})
 
         every = self.call_no_undo("swimlane.describe", {})
         one = self.call_no_undo("swimlane.describe", {"pool_node_id": first["pool_node_id"]})
 
         self.assertEqual(
             sorted((pool["pool_node_id"], pool["collapsed"], len(pool["lanes"])) for pool in every["pools"]),
-            sorted([(first["pool_node_id"], False, 1), (second["pool_node_id"], True, 0)]),
+            sorted([(first["pool_node_id"], False, 2), (second["pool_node_id"], True, 0)]),
+        )
+        self.assertEqual(
+            [(lane["lane_node_id"], lane["title"], lane["orientation"]) for lane in every["lanes"]],
+            [(solo["lane_node_id"], "Solo", "horizontal")],
         )
         self.assertEqual([pool["pool_node_id"] for pool in one["pools"]], [first["pool_node_id"]])
+        self.assertEqual(one["lanes"], [])
 
     def test_wrong_node_kinds_and_unknown_ids_fail_before_any_change(self) -> None:
-        created = self.create(lanes=["A"])
+        created = self.create(lanes=["A", "B"])
         process = self.scene.add_node_from_type(PROCESS, 3000.0, 0.0)
         before = self.undo_depth()
 
+        expect_error(self.context, "swimlane.create_pool", {"x": 0, "y": 0, "lanes": ["Only"]}, INVALID_PARAMS)
         expect_error(self.context, "swimlane.add_lane", {"pool_node_id": process}, INVALID_PARAMS)
         expect_error(self.context, "swimlane.add_lane", {"pool_node_id": created["lane_node_ids"][0]}, INVALID_PARAMS)
+        expect_error(self.context, "swimlane.add_lane", {"lane_node_id": created["pool_node_id"]}, INVALID_PARAMS)
+        expect_error(self.context, "swimlane.add_lane", {}, INVALID_PARAMS)
+        expect_error(
+            self.context,
+            "swimlane.add_lane",
+            {"pool_node_id": created["pool_node_id"], "lane_node_id": created["lane_node_ids"][0]},
+            INVALID_PARAMS,
+        )
         expect_error(self.context, "swimlane.remove_lane", {"lane_node_id": created["pool_node_id"]}, INVALID_PARAMS)
         expect_error(self.context, "swimlane.move_lane", {"lane_node_id": "node_missing", "index": 0}, NOT_FOUND)
         expect_error(self.context, "swimlane.describe", {"pool_node_id": process}, INVALID_PARAMS)
@@ -217,6 +232,58 @@ class SwimlaneFacadeTests(unittest.TestCase):
                 ("swimlane.describe", {"pool_node_id": "pool"}),
             ],
         )
+
+
+class SwimlaneLaneFirstOpTests(_SwimlaneHandlerCase):
+    def test_a_lane_on_its_own_then_a_lane_next_to_it_forms_a_pool(self) -> None:
+        solo = self.call_one_undo("swimlane.create_lane", {"x": 100, "y": 100, "title": "Customer"})
+        lane_id = solo["lane_node_id"]
+        self.assertEqual(solo["pool_node_id"], "")
+        workspace = self.context.active_workspace()
+        self.assertEqual(workspace.nodes[lane_id].type_id, LANE)
+        self.assertEqual((workspace.nodes[lane_id].x, workspace.nodes[lane_id].y), (100.0, 100.0))
+
+        added = self.call_one_undo("swimlane.add_lane", {"lane_node_id": lane_id, "title": "Sales"})
+
+        self.assertTrue(added["pool_node_id"])
+        self.assertEqual(added["lane_node_ids"], [lane_id, added["lane_node_id"]])
+        self.assertEqual(workspace.nodes[added["pool_node_id"]].type_id, POOL)
+        self.assertEqual(workspace.nodes[added["lane_node_id"]].title, "Sales")
+        before = self.call_one_undo("swimlane.add_lane", {"lane_node_id": lane_id, "after": False})
+        self.assertEqual(before["lane_node_ids"][:2], [before["lane_node_id"], lane_id])
+
+    def test_removing_down_to_one_lane_reports_the_dissolved_pool(self) -> None:
+        created = self.create(lanes=["A", "B"])
+        a, b = created["lane_node_ids"]
+
+        removed = self.call_one_undo("swimlane.remove_lane", {"lane_node_id": b})
+
+        self.assertEqual(removed["dissolved_pool_node_id"], created["pool_node_id"])
+        self.assertEqual(removed["lane_node_ids"], [a])
+        self.assertNotIn(created["pool_node_id"], self.context.active_workspace().nodes)
+        described = self.call_no_undo("swimlane.describe", {})
+        self.assertEqual(([pool["pool_node_id"] for pool in described["pools"]], [lane["lane_node_id"] for lane in described["lanes"]]), ([], [a]))
+        last = self.call_one_undo("swimlane.remove_lane", {"lane_node_id": a})
+        self.assertEqual((last["dissolved_pool_node_id"], last["lane_node_ids"]), ("", []))
+
+    def test_assign_to_a_lane_on_its_own(self) -> None:
+        solo = self.call_one_undo("swimlane.create_lane", {"x": 0, "y": 0, "orientation": "vertical"})
+        node_id = self.scene.add_node_from_type(PROCESS, 3000.0, 3000.0)
+
+        result = self.call_one_undo("swimlane.assign", {"node_ids": [node_id], "lane_node_id": solo["lane_node_id"]})
+
+        self.assertIsNone(result["pool"])
+        self.assertEqual(result["lane"]["node_ids"], [node_id])
+        self.assertEqual(result["lane"]["orientation"], "vertical")
+
+    def test_a_lane_colour_is_a_property(self) -> None:
+        created = self.create(lanes=["A", "B"])
+        a = created["lane_node_ids"][0]
+
+        self.call_one_undo("node.update", {"node_id": a, "properties": {"color": "#e8a33d"}})
+
+        described = self.call_no_undo("swimlane.describe", {"pool_node_id": created["pool_node_id"]})
+        self.assertEqual(described["pools"][0]["lanes"][0]["color"], "#e8a33d")
 
 
 if __name__ == "__main__":

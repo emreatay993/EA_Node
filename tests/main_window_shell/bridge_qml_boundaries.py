@@ -488,6 +488,20 @@ class ShellInspectorBridgeQmlBoundaryTests(unittest.TestCase):
                 ("mainWindowRef.pick_selected_node_property_color",),
                 ("root.pane.inspectorBridgeRef.pick_selected_node_property_color",),
             ),
+            "ea_node_editor/ui_qml/components/shell/InspectorSwimlaneLanesSection.qml": (
+                ("mainWindowRef.", "pick_selected_node_property_color"),
+                (
+                    "section.pane.inspectorBridgeRef",
+                    "section.pane.selectedNodeSwimlaneLaneItems",
+                    "section.bridge.add_selected_swimlane_lane",
+                    "section.bridge.remove_selected_swimlane_lane",
+                    "section.bridge.move_selected_swimlane_lane",
+                    "section.bridge.set_selected_swimlane_lane_title",
+                    "section.bridge.set_selected_swimlane_lane_color",
+                    "section.bridge.pick_selected_swimlane_lane_color",
+                    'keyRole: "id"',
+                ),
+            ),
         }
 
         for relative_path, (absent_snippets, present_snippets) in expectations.items():

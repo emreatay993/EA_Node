@@ -219,6 +219,30 @@ class SceneSwimlaneTidyTests(_SwimlaneCase):
             self.assertEqual(self.owner(steps[name]), lanes[lane_name])
         self.assert_stacked(pool_id)
 
+    def test_tidy_lays_a_lane_on_its_own_out_in_one_row(self) -> None:
+        lane = self.add("passive.annotation.swimlane_lane", 0.0, 0.0)
+        steps = [
+            self.add(START, 700.0, 120.0),
+            self.add(PROCESS, 150.0, 40.0),
+            self.add(PROCESS, 420.0, 100.0),
+        ]
+        for source, target in zip(steps, steps[1:]):
+            self.assertTrue(self.scene.add_edge(source, "right", target, "left"))
+
+        outcome = self.scene.tidy_layout([lane])
+
+        self.assertTrue(outcome["changed"])
+        self.assertEqual(outcome["membership_conflict_node_ids"], [])
+        rects = [self.scene.node_bounds(node_id) for node_id in steps]
+        self.assertEqual([rect.x() for rect in rects], sorted(rect.x() for rect in rects))
+        centres = {round(rect.y() + rect.height() / 2, 3) for rect in rects}
+        self.assertEqual(len(centres), 1)
+        for node_id in steps:
+            self.assertEqual(self.owner(node_id), lane)
+            self.assert_inside(lane, node_id)
+        x, _y, _w, _h = self.frame(lane)
+        self.assertAlmostEqual(rects[0].x(), x + SWIMLANE_LANE_HEADER + PAD)
+
     def test_the_automation_op_tidies_one_pool(self) -> None:
         from tests.automation.harness import call
 

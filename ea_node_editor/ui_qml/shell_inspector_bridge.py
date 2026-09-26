@@ -50,6 +50,21 @@ class _ShellInspectorSource(Protocol):
 
     def remove_selected_node_link(self, link_id: str) -> bool: ...
 
+    selected_node_is_swimlane: bool
+    selected_node_swimlane_lane_items: list[dict[str, Any]]
+
+    def add_selected_swimlane_lane(self) -> str: ...
+
+    def remove_selected_swimlane_lane(self, lane_id: str) -> bool: ...
+
+    def move_selected_swimlane_lane(self, lane_id: str, offset: int) -> bool: ...
+
+    def set_selected_swimlane_lane_title(self, lane_id: str, title: str) -> bool: ...
+
+    def set_selected_swimlane_lane_color(self, lane_id: str, color: str) -> bool: ...
+
+    def pick_selected_swimlane_lane_color(self, lane_id: str, current_value: str) -> str: ...
+
     def move_selected_node_link(self, link_id: str, offset: int) -> bool: ...
 
     def open_selected_node_link(self, link_id: str) -> bool: ...
@@ -237,6 +252,14 @@ class ShellInspectorBridge(QObject):
     def selected_node_comment_items(self) -> list[dict]:
         return _copy_list(getattr(self._inspector_source, "selected_node_comment_items", []))
 
+    @pyqtProperty(bool, notify=inspector_state_changed)
+    def selected_node_is_swimlane(self) -> bool:
+        return bool(getattr(self._inspector_source, "selected_node_is_swimlane", False))
+
+    @pyqtProperty("QVariantList", notify=inspector_state_changed)
+    def selected_node_swimlane_lane_items(self) -> list[dict]:
+        return _copy_list(getattr(self._inspector_source, "selected_node_swimlane_lane_items", []))
+
     @pyqtProperty("QVariantList", notify=inspector_state_changed)
     def selected_node_link_node_options(self) -> list[dict]:
         return _copy_list(getattr(self._inspector_source, "selected_node_link_node_options", []))
@@ -335,6 +358,30 @@ class ShellInspectorBridge(QObject):
     @pyqtSlot(str, result=bool)
     def open_selected_node_link(self, link_id: str) -> bool:
         return bool(self._inspector_source.open_selected_node_link(link_id))
+
+    @pyqtSlot(result=str)
+    def add_selected_swimlane_lane(self) -> str:
+        return str(self._inspector_source.add_selected_swimlane_lane() or "")
+
+    @pyqtSlot(str, result=bool)
+    def remove_selected_swimlane_lane(self, lane_id: str) -> bool:
+        return bool(self._inspector_source.remove_selected_swimlane_lane(lane_id))
+
+    @pyqtSlot(str, int, result=bool)
+    def move_selected_swimlane_lane(self, lane_id: str, offset: int) -> bool:
+        return bool(self._inspector_source.move_selected_swimlane_lane(lane_id, int(offset)))
+
+    @pyqtSlot(str, str, result=bool)
+    def set_selected_swimlane_lane_title(self, lane_id: str, title: str) -> bool:
+        return bool(self._inspector_source.set_selected_swimlane_lane_title(lane_id, title))
+
+    @pyqtSlot(str, str, result=bool)
+    def set_selected_swimlane_lane_color(self, lane_id: str, color: str) -> bool:
+        return bool(self._inspector_source.set_selected_swimlane_lane_color(lane_id, color))
+
+    @pyqtSlot(str, str, result=str)
+    def pick_selected_swimlane_lane_color(self, lane_id: str, current_value: str) -> str:
+        return str(self._inspector_source.pick_selected_swimlane_lane_color(lane_id, current_value) or "")
 
     @pyqtSlot(str, str, result=str)
     @pyqtSlot(str, str, str, bool, bool, bool, result=str)

@@ -1,4 +1,4 @@
-# Purpose: Offscreen scene tests for swimlane pools: lane membership (Group area rule), lane drags and reorder, lanes resizing together, lane commands, deletion and copy, collapse, orientation, and one undo step per command.
+# Purpose: Offscreen scene tests for swimlane pools: lane membership (Group area rule), lane drags and reorder, lanes resizing together, lane commands, deletion and copy, collapse, orientation, one undo step per command, standalone lanes (pools forming and dissolving), and the live resize, reorder and drop previews.
 # Map: feature_routes/swimlane_pools_lanes
 # Tests: tests/test_swimlane_scene_ops.py
 from __future__ import annotations
@@ -10,17 +10,19 @@ from ea_node_editor.graph.hierarchy import scope_node_ids
 from ea_node_editor.graph.swimlane_layout import (
     SWIMLANE_CONTENT_PADDING,
     SWIMLANE_DEFAULT_LANE_THICKNESS,
+    SWIMLANE_DEFAULT_POOL_LENGTH,
     SWIMLANE_LANE_HEADER,
     SWIMLANE_MIN_LANE_THICKNESS,
     SWIMLANE_POOL_HEADER,
 )
+from ea_node_editor.ui.shell.library_projection import build_registry_library_items
 from ea_node_editor.ui.shell.runtime_history import (
     ACTION_ADD_SWIMLANE_LANE,
     ACTION_MOVE_SWIMLANE_LANE,
     ACTION_REMOVE_SWIMLANE_LANE,
 )
 from ea_node_editor.ui_qml.graph_scene_mutation.group_scope import collect_group_scope
-from tests.automation.harness import build_context
+from tests.automation.harness import build_context, shared_registry
 
 POOL = "passive.annotation.swimlane_pool"
 LANE = "passive.annotation.swimlane_lane"
@@ -380,21 +382,17 @@ class SwimlaneLaneCommandTests(_SwimlaneCase):
         self.assertEqual(self.frame(c)[1:4:2], (0.0, 600.0))
         self.assertEqual(self.owner(b_node), c)
 
-    def test_removing_a_pools_only_lane_leaves_it_lane_less_with_its_nodes(self) -> None:
+    def test_removing_a_pools_only_lane_dissolves_the_pool_and_keeps_its_nodes(self) -> None:
         pool_id, (only,) = self.pool(lanes=("Only",))
         node_id = self.add(PROCESS, 300.0, 60.0)
-        pool_before = self.frame(pool_id)
+        position = self.position(node_id)
 
         self.assertTrue(self.scene.remove_swimlane_lane(only))
 
-        self.assertEqual(self.lane_order(pool_id), [])
-        self.assertEqual(self.frame(pool_id), pool_before)
-        self.assertEqual(self.owner(node_id), pool_id)
-        # A lane added again fills the pool body and takes the node back.
-        lane_id = self.scene.add_swimlane_lane(pool_id)
-        self.assertEqual(self.lane_order(pool_id), [lane_id])
-        self.assertEqual(self.owner(node_id), lane_id)
-        self.assert_stacked(pool_id)
+        self.assertNotIn(only, self.workspace.nodes)
+        self.assertNotIn(pool_id, self.workspace.nodes)
+        self.assertEqual(self.position(node_id), position)
+        self.assertIsNone(self.owner(node_id))
 
     def test_deleting_a_lane_like_any_node_closes_its_gap_the_same_way(self) -> None:
         pool_id, (a, b, c) = self.pool()
@@ -436,7 +434,7 @@ class SwimlaneLaneCommandTests(_SwimlaneCase):
             self.assertEqual(len(pool["lanes"]), 3)
             self.assert_stacked(pool["pool_node_id"])
 
-    def test_a_lane_dropped_on_a_pool_joins_it_and_one_dropped_alone_gets_a_pool(self) -> None:
+    def test_a_lane_dropped_on_a_pool_joins_it_and_one_dropped_alone_stands_alone(self) -> None:
         pool_id, (a, b, c) = self.pool()
 
         # A lane joins at the slot its centre lands in: here between lanes a and b (centre y 250).
@@ -445,10 +443,8 @@ class SwimlaneLaneCommandTests(_SwimlaneCase):
         self.assert_stacked(pool_id)
 
         alone = self.add(LANE, 3000.0, 3000.0)
-        wrapped = [pool for pool in self.scene.describe_swimlane_pools() if alone in pool["lane_node_ids"]]
-        self.assertEqual(len(wrapped), 1)
-        self.assertNotEqual(wrapped[0]["pool_node_id"], pool_id)
-        self.assert_stacked(wrapped[0]["pool_node_id"])
+        self.assertEqual([pool["pool_node_id"] for pool in self.scene.describe_swimlane_pools()], [pool_id])
+        self.assertEqual([lane["lane_node_id"] for lane in self.scene.describe_standalone_swimlane_lanes()], [alone])
 
     def test_assigning_nodes_places_them_after_what_the_lane_holds(self) -> None:
         pool_id, (a, b, c) = self.pool()
@@ -511,6 +507,299 @@ class SwimlaneLaneCommandTests(_SwimlaneCase):
 
         self.assertEqual({node_id: self.position(node_id) for node_id in (a, b, c, a_node)}, before)
         self.assertEqual(self.lane_order(pool_id), [a, b, c])
+
+
+class SwimlaneLaneFirstTests(_SwimlaneCase):
+    """A lane stands on its own; a pool forms around two or more lanes and dissolves when one is left."""
+
+    def standalone_ids(self) -> list[str]:
+        return [lane["lane_node_id"] for lane in self.scene.describe_standalone_swimlane_lanes()]
+
+    def pool_ids(self) -> list[str]:
+        return [pool["pool_node_id"] for pool in self.scene.describe_swimlane_pools()]
+
+    def undo(self) -> None:
+        self.assertIsNotNone(self.context.runtime_history.undo_workspace(self.context.workspace_id(), self.workspace))
+        self.scene.refresh_workspace_from_model(self.context.workspace_id())
+
+    def assert_inside_vertical(self, lane_id: str, node_id: str) -> None:
+        lx, ly, lw, lh = self.frame(lane_id)
+        rect = self.scene.node_bounds(node_id)
+        self.assertGreaterEqual(rect.y(), ly + SWIMLANE_LANE_HEADER - 0.01)
+        self.assertGreaterEqual(rect.x(), lx - 0.01)
+        self.assertLessEqual(rect.x() + rect.width(), lx + lw + 0.01)
+        self.assertLessEqual(rect.y() + rect.height(), ly + lh + 0.01)
+
+    def place_centre(self, node_id: str, cx: float, cy: float) -> None:
+        rect = self.scene.node_bounds(node_id)
+        self.scene.move_node(node_id, cx - rect.width() * 0.5, cy - rect.height() * 0.5)
+
+    def test_a_lane_on_its_own_holds_what_lands_in_it_and_grows_to_fit(self) -> None:
+        lane = self.add(LANE, 100.0, 100.0)
+        self.assertEqual((self.pool_ids(), self.standalone_ids()), ([], [lane]))
+        x, y, w, h = self.frame(lane)
+        self.assertEqual((x, y), (100.0, 100.0))
+        node_id = self.add(PROCESS, 400.0, 150.0)
+        self.assertEqual(self.owner(node_id), lane)
+        self.assert_inside(lane, node_id)
+
+        # Its centre still in the lane but running past the lane's end: the lane gets longer.
+        self.place_centre(node_id, x + w - 10.0, y + h * 0.5)
+        self.assertEqual(self.owner(node_id), lane)
+        self.assert_inside(lane, node_id)
+        self.assertGreater(self.frame(lane)[2], w)
+
+    def test_a_plus_next_to_a_lane_forms_a_pool_around_it_without_moving_it(self) -> None:
+        lane = self.add(LANE, 100.0, 100.0)
+        node_id = self.add(PROCESS, 400.0, 150.0)
+        lane_frame = self.frame(lane)
+        node_position = self.position(node_id)
+        depth = self.undo_depth()
+
+        new_lane = self.scene.insert_swimlane_lane(lane, after=True)
+
+        (pool_id,) = self.pool_ids()
+        self.assertEqual(self.lane_order(pool_id), [lane, new_lane])
+        self.assertEqual(self.frame(lane), lane_frame)
+        self.assertEqual(self.position(node_id), node_position)
+        self.assertEqual(self.frame(pool_id)[:2], (lane_frame[0] - SWIMLANE_POOL_HEADER, lane_frame[1]))
+        self.assert_stacked(pool_id)
+        self.assertEqual((self.owner(node_id), self.standalone_ids()), (lane, []))
+        self.assertEqual((self.undo_depth(), self.last_action()), (depth + 1, ACTION_ADD_SWIMLANE_LANE))
+
+        self.undo()
+        self.assertEqual((self.pool_ids(), self.standalone_ids()), ([], [lane]))
+        self.assertNotIn(new_lane, self.workspace.nodes)
+
+    def test_a_plus_before_a_lane_puts_the_new_lane_first(self) -> None:
+        lane = self.add(LANE, 100.0, 100.0)
+
+        new_lane = self.scene.insert_swimlane_lane(lane, after=False)
+
+        (pool_id,) = self.pool_ids()
+        self.assertEqual(self.lane_order(pool_id), [new_lane, lane])
+        self.assert_stacked(pool_id)
+
+    def test_removing_down_to_one_lane_dissolves_the_pool_and_the_last_lane_keeps_the_room(self) -> None:
+        pool_id, (a, b) = self.pool(lanes=("A", "B"))
+        b_node = self.add(PROCESS, 300.0, 260.0)
+        px, py, pw, ph = self.frame(pool_id)
+        position = self.position(b_node)
+        depth = self.undo_depth()
+
+        self.assertTrue(self.scene.remove_swimlane_lane(b))
+
+        self.assertNotIn(pool_id, self.workspace.nodes)
+        self.assertEqual(self.standalone_ids(), [a])
+        self.assertEqual(self.frame(a), (px + SWIMLANE_POOL_HEADER, py, pw - SWIMLANE_POOL_HEADER, ph))
+        self.assertEqual(self.position(b_node), position)
+        self.assertEqual(self.owner(b_node), a)
+        self.assertEqual((self.undo_depth(), self.last_action()), (depth + 1, ACTION_REMOVE_SWIMLANE_LANE))
+
+        self.undo()
+        self.assertEqual(self.lane_order(pool_id), [a, b])
+
+    def test_deleting_a_lane_of_a_two_lane_pool_dissolves_the_pool_too(self) -> None:
+        pool_id, (a, b) = self.pool(lanes=("A", "B"))
+        self.scene.select_node(b, False)
+
+        self.assertTrue(self.scene.delete_selected_graph_items([]))
+
+        self.assertNotIn(b, self.workspace.nodes)
+        self.assertNotIn(pool_id, self.workspace.nodes)
+        self.assertEqual(self.standalone_ids(), [a])
+
+    def test_a_lane_dropped_on_a_lane_stacks_with_it_in_a_new_pool(self) -> None:
+        first = self.add(LANE, 0.0, 0.0)
+        second = self.add(LANE, 3000.0, 3000.0)
+        second_node = self.add(PROCESS, 3300.0, 3050.0)
+
+        # Its centre lands in the lower half of the first lane (y 180 of 0-200).
+        self.scene.move_nodes_by_delta([second, second_node], -3000.0, -2920.0)
+
+        (pool_id,) = self.pool_ids()
+        self.assertEqual(self.lane_order(pool_id), [first, second])
+        self.assertEqual(self.frame(first)[:2], (0.0, 0.0))
+        self.assert_stacked(pool_id)
+        self.assertEqual(self.owner(second_node), second)
+        self.assert_inside(second, second_node)
+
+    def test_a_lane_on_its_own_moves_freely_and_carries_what_it_holds(self) -> None:
+        lane = self.add(LANE, 0.0, 0.0)
+        node_id = self.add(PROCESS, 300.0, 50.0)
+
+        self.scene.move_nodes_by_delta([lane, node_id], 500.0, 700.0)
+
+        self.assertEqual(self.position(lane), (500.0, 700.0))
+        self.assertEqual(self.position(node_id), (800.0, 750.0))
+        self.assertEqual((self.standalone_ids(), self.owner(node_id)), ([lane], lane))
+
+    def test_turning_a_lane_on_its_own_keeps_what_it_holds_along_and_across(self) -> None:
+        lane = self.add(LANE, 100.0, 100.0)
+        node_id = self.add(PROCESS, 400.0, 150.0)
+        self.place_centre(node_id, 500.0, 250.0)  # 400 along the flow, 150 across the lane
+        x, y, w, h = self.frame(lane)
+
+        self.scene.set_node_property(lane, "orientation", "vertical")
+
+        self.assertEqual(self.node(lane).properties["orientation"], "vertical")
+        tx, ty, tw, th = self.frame(lane)
+        # The lane keeps its corner and length; the node keeps its shape, so across the lane it may need more room.
+        self.assertEqual((tx, ty, th), (x, y, w))
+        self.assertGreaterEqual(tw, h)
+        self.assert_inside_vertical(lane, node_id)
+        turned = self.scene.node_bounds(node_id)
+        self.assertAlmostEqual(turned.center().x(), 250.0)
+        self.assertAlmostEqual(turned.center().y(), 500.0)
+        self.assertEqual(self.owner(node_id), lane)
+
+    def test_turning_a_lane_in_a_pool_turns_the_whole_pool(self) -> None:
+        pool_id, (a, b) = self.pool(lanes=("A", "B"))
+
+        self.scene.set_node_property(b, "orientation", "vertical")
+
+        self.assertEqual(self.describe(pool_id)["orientation"], "vertical")
+        self.assertEqual({self.node(lane_id).properties["orientation"] for lane_id in (a, b)}, {"vertical"})
+        self.assert_stacked(pool_id)
+
+    def test_reordering_a_lane_puts_it_in_that_slot_with_what_it_holds(self) -> None:
+        pool_id, (a, b, c) = self.pool()
+        c_node = self.add(PROCESS, 300.0, 460.0)
+        depth = self.undo_depth()
+
+        self.assertTrue(self.scene.reorder_swimlane_lane(c, 0))
+
+        self.assertEqual(self.lane_order(pool_id), [c, a, b])
+        self.assertEqual(self.owner(c_node), c)
+        self.assert_inside(c, c_node)
+        self.assert_stacked(pool_id)
+        self.assertEqual((self.undo_depth(), self.last_action()), (depth + 1, ACTION_MOVE_SWIMLANE_LANE))
+        self.assertFalse(self.scene.reorder_swimlane_lane(c, 0))
+
+    def test_create_lane_places_a_lane_on_its_own(self) -> None:
+        lane = self.scene.create_swimlane_lane(200.0, 300.0, orientation="vertical", title="QA")
+
+        self.assertEqual(self.standalone_ids(), [lane])
+        self.assertEqual(self.node(lane).title, "QA")
+        self.assertEqual(
+            self.frame(lane), (200.0, 300.0, SWIMLANE_DEFAULT_LANE_THICKNESS, SWIMLANE_DEFAULT_POOL_LENGTH)
+        )
+
+    def test_the_library_offers_the_lane_as_swimlane_and_not_the_pool(self) -> None:
+        registry = shared_registry()
+        items = build_registry_library_items(registry_specs=registry.all_specs(), data_types=registry.data_types)
+        by_type = {item["type_id"]: item for item in items}
+
+        self.assertNotIn(POOL, by_type)
+        self.assertEqual(by_type[LANE]["display_name"], "Swimlane")
+
+
+class SwimlanePreviewTests(_SwimlaneCase):
+    """Live previews read the scene and change nothing; what they draw is what the commit lands."""
+
+    @property
+    def boundary(self):  # noqa: ANN201
+        return self.scene._authoring_boundary  # noqa: SLF001
+
+    def test_a_resize_preview_draws_what_the_commit_lands(self) -> None:
+        pool_id, (a, b, c) = self.pool()
+        c_node = self.add(PROCESS, 300.0, 460.0)
+        x, y, w, h = self.frame(b)
+
+        preview = self.boundary.preview_swimlane_resize(b, x, y, w, h + 120.0)
+
+        self.assertEqual(set(preview["frames"]), {pool_id, b, c})
+        self.assertEqual(set(preview["positions"]), {c_node})
+        self.assertEqual(self.frame(b), (x, y, w, h))
+        self.scene.set_node_geometry(b, x, y, w, h + 120.0)
+        for node_id, frame in preview["frames"].items():
+            self.assertEqual(list(self.frame(node_id)), frame)
+        self.assertEqual(list(self.position(c_node)), preview["positions"][c_node])
+
+    def test_a_resize_preview_stops_a_lane_at_what_it_holds(self) -> None:
+        _pool_id, (_a, b, _c) = self.pool()
+        b_node = self.add(PROCESS, 300.0, 260.0)
+        x, y, w, _h = self.frame(b)
+
+        preview = self.boundary.preview_swimlane_resize(b, x, y, w, 10.0)
+
+        _fx, fy, _fw, fh = preview["frames"][b]
+        rect = self.scene.node_bounds(b_node)
+        self.assertGreaterEqual(fy + fh, rect.y() + rect.height() + PAD - 0.01)
+
+    def test_a_resize_preview_of_a_lane_on_its_own(self) -> None:
+        lane = self.add(LANE, 0.0, 0.0)
+        x, y, w, h = self.frame(lane)
+
+        preview = self.boundary.preview_swimlane_resize(lane, x, y, w + 200.0, h)
+
+        self.assertEqual(preview["frames"], {lane: [x, y, w + 200.0, h]})
+
+    def test_a_lane_drag_stays_in_its_pool_and_the_lanes_it_passes_make_room(self) -> None:
+        pool_id, (a, b, c) = self.pool()
+        b_node = self.add(PROCESS, 300.0, 260.0)
+        b_position = self.position(b_node)
+
+        # A's bottom edge (350) passes B's centre (300): A takes B's slot and B moves up by A's thickness.
+        preview = self.boundary.preview_swimlane_lane_drag(a, 500.0, 150.0, "drag")
+
+        self.assertEqual(preview["offset"], [0.0, 150.0])
+        self.assertEqual((preview["current"], preview["index"]), (0, 1))
+        self.assertEqual(set(preview["frames"]), {b})
+        self.assertEqual(preview["frames"][b][1], self.frame(b)[1] - SWIMLANE_DEFAULT_LANE_THICKNESS)
+        self.assertEqual(
+            preview["positions"], {b_node: [b_position[0], b_position[1] - SWIMLANE_DEFAULT_LANE_THICKNESS]}
+        )
+        # A small nudge swaps nothing, and past the pool's end the lane stops in the last slot.
+        self.assertEqual(self.boundary.preview_swimlane_lane_drag(a, 0.0, 40.0, "drag")["index"], 0)
+        far = self.boundary.preview_swimlane_lane_drag(a, 0.0, 5000.0, "drag")
+        self.assertEqual((far["offset"], far["index"]), ([0.0, 400.0], 2))
+        up = self.boundary.preview_swimlane_lane_drag(c, 0.0, -5000.0, "drag")
+        self.assertEqual((up["offset"], up["index"]), ([0.0, -400.0], 0))
+
+        self.assertTrue(self.scene.reorder_swimlane_lane(a, preview["index"]))
+        self.assertEqual(self.lane_order(pool_id), [b, a, c])
+
+    def test_a_lane_on_its_own_has_no_reorder_preview(self) -> None:
+        lane = self.add(LANE, 0.0, 0.0)
+
+        self.assertEqual(self.boundary.preview_swimlane_lane_drag(lane, 0.0, 100.0, "drag"), {})
+
+    def test_a_drop_preview_names_the_lane_a_node_lands_in(self) -> None:
+        _pool_id, (a, b, _c) = self.pool()
+        node_id = self.add(PROCESS, 300.0, 60.0)
+
+        preview = self.boundary.preview_swimlane_drop([node_id], 0.0, 200.0, "drop")
+
+        self.assertEqual(preview["targets"], [b])
+        self.assertNotIn(node_id, preview["positions"])
+        self.assertEqual(self.owner(node_id), a)
+
+    def test_a_drop_preview_grows_the_lanes_past_their_end_as_the_commit_does(self) -> None:
+        pool_id, (a, b, c) = self.pool()
+        node_id = self.add(PROCESS, 300.0, 60.0)
+        px, _py, pw, _ph = self.frame(pool_id)
+        rect = self.scene.node_bounds(node_id)
+        dx = (px + pw - 10.0) - rect.center().x()
+
+        preview = self.boundary.preview_swimlane_drop([node_id], dx, 0.0, "drop")
+
+        self.assertEqual(preview["targets"], [a])
+        grown = rect.x() + dx + rect.width() + PAD
+        for frame_id in (pool_id, a, b, c):
+            self.assertAlmostEqual(preview["frames"][frame_id][0] + preview["frames"][frame_id][2], grown)
+        self.assertNotIn(node_id, preview["frames"])
+        self.scene.move_nodes_by_delta([node_id], dx, 0.0)
+        for frame_id in (pool_id, a, b, c):
+            self.assertEqual(list(self.frame(frame_id)), preview["frames"][frame_id])
+
+    def test_a_drop_preview_of_a_lane_names_the_pool_or_lane_it_would_stack_with(self) -> None:
+        pool_id, _lanes = self.pool()
+        lane = self.add(LANE, 3000.0, 3000.0)
+        other = self.add(LANE, 6000.0, 6000.0)
+
+        self.assertEqual(self.boundary.preview_swimlane_drop([lane], -2700.0, -2900.0, "drop")["targets"], [pool_id])
+        self.assertEqual(self.boundary.preview_swimlane_drop([lane], 3100.0, 3050.0, "drop")["targets"], [other])
 
 
 if __name__ == "__main__":

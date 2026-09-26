@@ -237,7 +237,7 @@ the scheduler excludes them before solution-record classification.
 | `passive.annotation.group_backdrop` | Group | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
 | `passive.annotation.section_header` | Section Header | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
 | `passive.annotation.sticky_note` | Sticky Note | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
-| `passive.annotation.swimlane_lane` | Swimlane Lane | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_swimlane_scene_ops.py` |
+| `passive.annotation.swimlane_lane` | Swimlane | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_swimlane_scene_ops.py` |
 | `passive.annotation.swimlane_pool` | Swimlane Pool | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_swimlane_scene_ops.py` |
 | `passive.annotation.text` | Text | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_annotation.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |
 | `passive.flowchart.actor` | Actor | `passive` | `TrustedFactoryEntry` | `ea_node_editor/nodes/builtins/passive_flowchart.py` | `passive_display_only` | `tests/test_passive_node_contracts.py` |

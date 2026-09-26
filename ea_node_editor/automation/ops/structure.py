@@ -46,6 +46,18 @@ SWIMLANE_LANE = object_schema(
     {
         "lane_node_id": NODE_ID,
         "title": string_schema("The lane's role name"),
+        "color": string_schema("The lane's colour (#rrggbb), empty for the theme's"),
+        "node_ids": array_schema(NODE_ID, "What the lane holds directly (a Group counts once)"),
+        "contained_node_ids": array_schema(NODE_ID, "Everything inside the lane, Group members included"),
+    },
+    additional=True,
+)
+SWIMLANE_STANDALONE_LANE = object_schema(
+    {
+        "lane_node_id": NODE_ID,
+        "title": string_schema("The lane's role name"),
+        "color": string_schema("The lane's colour (#rrggbb), empty for the theme's"),
+        "orientation": string_schema(enum=SWIMLANE_ORIENTATIONS),
         "node_ids": array_schema(NODE_ID, "What the lane holds directly (a Group counts once)"),
         "contained_node_ids": array_schema(NODE_ID, "Everything inside the lane, Group members included"),
     },
@@ -66,15 +78,17 @@ SWIMLANE_POOL = object_schema(
 SWIMLANE_CREATE_POOL = OpSpec(
     name="swimlane.create_pool",
     domain=DOMAIN,
-    summary="Add a swimlane pool with its role lanes (passive.annotation.swimlane_pool / swimlane_lane).",
+    summary="Add a swimlane pool with two or more role lanes (passive.annotation.swimlane_pool / swimlane_lane).",
     description=(
         "Lanes are Group backdrops stacked in the pool: a node placed in a lane belongs to it, and moving a lane "
         "moves what it holds. horizontal (default): lanes are rows, the pool's title band is on the left and the flow "
         "runs left to right; vertical: lanes are columns and the flow runs top to bottom. Lanes resize together: "
         "they share the pool's length, a lane grows (pushing the lanes after it) to fit what it holds, and a lane "
-        "never shrinks past its contents. Place nodes with swimlane_assign (or node_add inside a lane's rectangle), "
-        "then layout_tidy the pool for layers along the flow with one row per lane. Rename a lane with "
-        "node_update(title=...); change the orientation with node_update(properties={'orientation': ...})."
+        "never shrinks past its contents. A pool holds two or more lanes (for a single lane use "
+        "swimlane_create_lane; removing a pool's lanes down to one dissolves it). Place nodes with swimlane_assign "
+        "(or node_add inside a lane's rectangle), then layout_tidy the pool for layers along the flow with one row "
+        "per lane. Rename a lane with node_update(title=...), colour it with node_update(properties={'color': "
+        "'#rrggbb'}); change the orientation with node_update(properties={'orientation': ...})."
     ),
     params=object_schema(
         {
@@ -88,8 +102,8 @@ SWIMLANE_CREATE_POOL = OpSpec(
             ),
             "lanes": array_schema(
                 string_schema("Role name"),
-                "One role name per lane, in stack order (default: three lanes named Lane 1..3)",
-                min_items=1,
+                "One role name per lane, in stack order, at least two (default: three lanes named Lane 1..3)",
+                min_items=2,
                 max_items=24,
             ),
             "lane_size": number_schema(
@@ -114,23 +128,72 @@ SWIMLANE_CREATE_POOL = OpSpec(
     examples=({"x": 0, "y": 0, "title": "Order to delivery", "lanes": ["Customer", "Sales", "Warehouse"]},),
 )
 
+SWIMLANE_CREATE_LANE = OpSpec(
+    name="swimlane.create_lane",
+    domain=DOMAIN,
+    summary="Add one swimlane (a role lane on its own, passive.annotation.swimlane_lane) at a position.",
+    description=(
+        "A lane holds the nodes placed in it and moves with them, like a pool with one lane. Add lanes next to it "
+        "with swimlane_add_lane(lane_node_id=..., after=...): the second lane forms a pool around both. A lane whose "
+        "centre lands in a pool joins that pool instead (pool_node_id says which)."
+    ),
+    params=object_schema(
+        {
+            "x": COORD,
+            "y": COORD,
+            "title": TITLE,
+            "orientation": string_schema(
+                "horizontal: the lane is a row, flow left to right; vertical: a column, flow top to bottom",
+                enum=SWIMLANE_ORIENTATIONS,
+                default=SWIMLANE_ORIENTATIONS[0],
+            ),
+            "lane_size": number_schema(
+                "Lane thickness across the flow in px (default 200)", minimum=SWIMLANE_MIN_LANE_SIZE, maximum=4000
+            ),
+            "length": number_schema(
+                "Lane length along the flow in px, role band included (default 1200)",
+                minimum=SWIMLANE_MIN_POOL_LENGTH,
+                maximum=20000,
+            ),
+        },
+        required=("x", "y"),
+    ),
+    result=object_schema(
+        {"lane_node_id": NODE_ID, "pool_node_id": string_schema("The pool it joined, empty when on its own")},
+        additional=True,
+    ),
+    mutates_graph=True,
+    apply_allowed=True,
+    primary_id_field="lane_node_id",
+    mcp_tool="swimlane_create_lane",
+    examples=({"x": 0, "y": 0, "title": "Customer"},),
+)
+
 SWIMLANE_ADD_LANE = OpSpec(
     name="swimlane.add_lane",
     domain=DOMAIN,
-    summary="Add a lane to a swimlane pool at a stack position (default: after the last lane).",
-    description="The lanes after the new one move on with what they hold, and the pool grows.",
+    summary="Add a lane to a pool at a stack position, or next to a lane (next to a standalone lane: forms a pool).",
+    description=(
+        "Pass pool_node_id (and index, default after the last lane) or lane_node_id (and after, default true). The "
+        "lanes after the new one move on with what they hold, and the pool grows. Next to a standalone lane a pool "
+        "forms around both: its title band goes outside, so that lane stays where it is."
+    ),
     params=object_schema(
         {
             "pool_node_id": NODE_ID,
+            "lane_node_id": NODE_ID,
+            "after": boolean_schema("With lane_node_id: add after it (true, default) or before it"),
             "title": string_schema("The new lane's role name"),
-            "index": number_schema("Stack position, 0 = first (default: last)", minimum=0, integer=True),
+            "index": number_schema("With pool_node_id: stack position, 0 = first (default: last)", minimum=0, integer=True),
         },
-        required=("pool_node_id",),
     ),
-    result=object_schema({"lane_node_id": NODE_ID, "lane_node_ids": array_schema(NODE_ID)}, additional=True),
+    result=object_schema(
+        {"lane_node_id": NODE_ID, "pool_node_id": NODE_ID, "lane_node_ids": array_schema(NODE_ID)},
+        additional=True,
+    ),
     mutates_graph=True,
     apply_allowed=True,
-    ref_fields=("pool_node_id",),
+    ref_fields=("pool_node_id", "lane_node_id"),
     primary_id_field="lane_node_id",
     mcp_tool="swimlane_add_lane",
 )
@@ -138,10 +201,21 @@ SWIMLANE_ADD_LANE = OpSpec(
 SWIMLANE_REMOVE_LANE = OpSpec(
     name="swimlane.remove_lane",
     domain=DOMAIN,
-    summary="Remove a lane from its pool; the lane before it (else after it) takes its band and what it held.",
-    description="Nothing else moves and the pool keeps its size; the removed lane's nodes stay (in the neighbour).",
+    summary="Remove a lane; the lane before it (else after it) takes its band and what it held.",
+    description=(
+        "Nothing else moves and the pool keeps its size; the removed lane's nodes stay (in the neighbour). A pool "
+        "left with one lane dissolves (dissolved_pool_node_id): that lane stays on its own. Removing a standalone "
+        "lane leaves what it held where it is."
+    ),
     params=object_schema({"lane_node_id": NODE_ID}, required=("lane_node_id",)),
-    result=object_schema({"removed_lane_node_id": NODE_ID, "lane_node_ids": array_schema(NODE_ID)}, additional=True),
+    result=object_schema(
+        {
+            "removed_lane_node_id": NODE_ID,
+            "lane_node_ids": array_schema(NODE_ID),
+            "dissolved_pool_node_id": string_schema("The pool that dissolved, or empty"),
+        },
+        additional=True,
+    ),
     mutates_graph=True,
     apply_allowed=True,
     ref_fields=("lane_node_id",),
@@ -168,8 +242,9 @@ SWIMLANE_ASSIGN = OpSpec(
     domain=DOMAIN,
     summary="Move nodes into a lane: placed after what the lane holds along the flow, centred across the lane.",
     description=(
-        "The lane (and pool) grow to fit. A Group moves with its members. Run layout_tidy on the pool afterwards for "
-        "layers along the flow. Hidden members of a collapsed Group, pools and lanes cannot be assigned."
+        "The lane (and pool) grow to fit; a standalone lane works too. A Group moves with its members. Run "
+        "layout_tidy on the pool (or lane) afterwards for layers along the flow. Hidden members of a collapsed Group, "
+        "pools and lanes cannot be assigned."
     ),
     params=object_schema(
         {"node_ids": id_list_schema("Nodes to move into the lane"), "lane_node_id": NODE_ID},
@@ -188,9 +263,15 @@ SWIMLANE_ASSIGN = OpSpec(
 SWIMLANE_DESCRIBE = OpSpec(
     name="swimlane.describe",
     domain=DOMAIN,
-    summary="List the swimlane pools of the open scope: orientation, lanes in stack order and what each lane holds.",
+    summary=(
+        "List the open scope's swimlane pools (orientation, lanes in stack order, what each lane holds) and its "
+        "standalone lanes."
+    ),
     params=object_schema({"pool_node_id": string_schema("Only this pool (default: every pool)", min_length=1)}),
-    result=object_schema({"pools": array_schema(SWIMLANE_POOL)}, additional=True),
+    result=object_schema(
+        {"pools": array_schema(SWIMLANE_POOL), "lanes": array_schema(SWIMLANE_STANDALONE_LANE, "Standalone lanes")},
+        additional=True,
+    ),
     mutates_graph=False,
     apply_allowed=True,
     ref_fields=("pool_node_id",),
@@ -498,6 +579,7 @@ LAYOUT_TIDY = OpSpec(
 OPS: tuple[OpSpec, ...] = (
     GROUP_WRAP,
     SWIMLANE_CREATE_POOL,
+    SWIMLANE_CREATE_LANE,
     SWIMLANE_ADD_LANE,
     SWIMLANE_REMOVE_LANE,
     SWIMLANE_MOVE_LANE,
@@ -531,6 +613,7 @@ __all__ = [
     "SUBNODE_UNGROUP",
     "SWIMLANE_ADD_LANE",
     "SWIMLANE_ASSIGN",
+    "SWIMLANE_CREATE_LANE",
     "SWIMLANE_CREATE_POOL",
     "SWIMLANE_DESCRIBE",
     "SWIMLANE_MIN_LANE_SIZE",

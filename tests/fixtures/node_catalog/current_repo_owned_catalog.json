@@ -26126,7 +26126,7 @@
   {
     "spec": {
       "type_id": "passive.annotation.swimlane_lane",
-      "display_name": "Swimlane Lane",
+      "display_name": "Swimlane",
       "category_path": [
         "Utilities",
         "Canvas"
@@ -26182,7 +26182,39 @@
           "step": 0.0,
           "inline_editor": "",
           "inspector_editor": "",
-          "inspector_visible": false,
+          "inspector_visible": true,
+          "group": "",
+          "file_filter": "",
+          "enabled_when": null,
+          "searchable": false,
+          "interval_direction": "",
+          "description": "",
+          "sensitive": false,
+          "sensitive_scope_key": "",
+          "persistence_data_type_id": "",
+          "nullable": false,
+          "list_item_type": "",
+          "list_item_enum_values": [],
+          "list_item_enum_codes": [],
+          "list_item_minimum": null,
+          "list_item_maximum": null,
+          "list_item_step": 0.0,
+          "affects_execution": true
+        },
+        {
+          "key": "color",
+          "type": "str",
+          "default": "",
+          "label": "Color",
+          "expose_port_toggle": false,
+          "enum_values": [],
+          "enum_codes": [],
+          "minimum": null,
+          "maximum": null,
+          "step": 0.0,
+          "inline_editor": "",
+          "inspector_editor": "color",
+          "inspector_visible": true,
           "group": "",
           "file_filter": "",
           "enabled_when": null,
@@ -26203,7 +26235,7 @@
         }
       ],
       "collapsible": false,
-      "description": "One role lane of a swimlane pool; drop it on a pool to add a lane there.",
+      "description": "A role lane: a node dropped in it belongs to it and moves with it. Add lanes next to it (its + buttons) and they stack in a pool.",
       "is_async": false,
       "runtime_behavior": "passive",
       "solution_reuse_scope": "never",
@@ -26219,8 +26251,10 @@
       "keywords": [
         "swimlane",
         "lane",
+        "pool",
         "role",
-        "bpmn"
+        "bpmn",
+        "process"
       ],
       "settings_groups": [],
       "default_expanded_settings_group_ids": [],
@@ -26383,7 +26417,7 @@
         }
       ],
       "collapsible": true,
-      "description": "Stack role lanes in a pool; a node dropped in a lane belongs to it and moves with it.",
+      "description": "Two or more swimlanes stacked side by side under one title band; it forms when a lane gets a neighbour and dissolves when one lane is left.",
       "is_async": false,
       "runtime_behavior": "passive",
       "solution_reuse_scope": "never",

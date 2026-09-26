@@ -150,6 +150,57 @@ scene_bridge.command_bridge directly."""
     def move_swimlane_lane(self, lane_id: str, offset: int) -> bool:
         return bool(_invoke(self._scene_command_source, "move_swimlane_lane", lane_id, int(offset), default=False))
 
+    @pyqtSlot(str, int, result=bool)
+    def reorder_swimlane_lane(self, lane_id: str, index: int) -> bool:
+        """Put a dragged lane in slot ``index`` of its pool (a lane drag commits here, not as a node move)."""
+        return bool(_invoke(self._scene_command_source, "reorder_swimlane_lane", lane_id, int(index), default=False))
+
+    @pyqtSlot(str, float, float, float, float, str, result="QVariantMap")
+    def swimlane_resize_preview(
+        self, node_id: str, x: float, y: float, width: float, height: float, session: str
+    ) -> dict[str, Any]:
+        """Frames a live lane or pool resize would draw (read-only; see ``swimlane_ops.preview_swimlane_resize``)."""
+        preview = _invoke(
+            self._scene_command_source,
+            "preview_swimlane_resize",
+            node_id,
+            float(x),
+            float(y),
+            float(width),
+            float(height),
+            str(session),
+            default=None,
+        )
+        return dict(preview) if isinstance(preview, dict) else {}
+
+    @pyqtSlot(str, float, float, str, result="QVariantMap")
+    def swimlane_lane_drag_preview(self, lane_id: str, dx: float, dy: float, session: str) -> dict[str, Any]:
+        """A lane dragged inside its pool: its kept offset, its slot, and the lanes that make room (read-only)."""
+        preview = _invoke(
+            self._scene_command_source,
+            "preview_swimlane_lane_drag",
+            lane_id,
+            float(dx),
+            float(dy),
+            str(session),
+            default=None,
+        )
+        return dict(preview) if isinstance(preview, dict) else {}
+
+    @pyqtSlot("QVariantList", float, float, str, result="QVariantMap")
+    def swimlane_drop_preview(self, node_ids: list[Any], dx: float, dy: float, session: str) -> dict[str, Any]:
+        """The lanes a node drag would land in and grow or push, at this offset (read-only)."""
+        preview = _invoke(
+            self._scene_command_source,
+            "preview_swimlane_drop",
+            [str(node_id) for node_id in node_ids or ()],
+            float(dx),
+            float(dy),
+            str(session),
+            default=None,
+        )
+        return dict(preview) if isinstance(preview, dict) else {}
+
     @pyqtSlot(str, result=bool)
     def tidy_swimlane_pool(self, node_id: str) -> bool:
         """Tidy a pool (or the pool of a lane): layers along its flow, one row per lane."""

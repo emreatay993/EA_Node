@@ -22,6 +22,7 @@ from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_PIN_DATA_TYPE_PROPERTY,
     SUBNODE_TYPE_ID,
 )
+from ea_node_editor.graph.swimlane_layout import is_swimlane_lane_type, is_swimlane_pool_type, is_swimlane_type
 from ea_node_editor.nodes.node_specs import property_inspector_editor
 from ea_node_editor.platform_open import open_path_with_default_handler
 from ea_node_editor.settings import DEFAULT_PROPERTY_PANE_VARIANT
@@ -35,6 +36,7 @@ from ea_node_editor.ui.shell.inspector_projection import (
     build_selected_node_link_items,
     build_selected_node_port_items,
     build_selected_node_property_items,
+    build_selected_node_swimlane_lane_items,
 )
 
 from .contracts import _ShellInspectorPresenterHostProtocol, _presenter_parent
@@ -257,6 +259,27 @@ class ShellInspectorPresenter(QObject):
             node=node,
             workspace_nodes=workspace.nodes,
             workspaces=self._host.model.project.workspaces,
+        )
+
+    @property
+    def selected_node_is_swimlane(self) -> bool:
+        selected = self._selected_node_context()
+        return selected is not None and is_swimlane_type(selected[0].type_id)
+
+    @property
+    def selected_node_swimlane_lane_items(self) -> list[dict[str, Any]]:
+        selected = self._selected_node_context()
+        if selected is None or not is_swimlane_type(selected[0].type_id):
+            return []
+        scene = getattr(self._host, "scene", None)
+        describe_pools = getattr(scene, "describe_swimlane_pools", None)
+        describe_lanes = getattr(scene, "describe_standalone_swimlane_lanes", None)
+        if not callable(describe_pools) or not callable(describe_lanes):
+            return []
+        return build_selected_node_swimlane_lane_items(
+            node=selected[0],
+            pools=describe_pools(),
+            standalone_lanes=describe_lanes(),
         )
 
     @property
@@ -546,6 +569,94 @@ class ShellInspectorPresenter(QObject):
         scene = getattr(self._host, "scene", None)
         move = getattr(scene, "move_node_link", None)
         return bool(move(node.node_id, link_id, int(offset))) if callable(move) else False
+
+    # --- the Lanes section (a selected swimlane pool or lane) -------------------------------------------------------
+
+    def _swimlane_lane_node(self, lane_id: str):  # noqa: ANN202
+        """The lane ``lane_id`` names, checked by type (a row may commit after the selection moved on)."""
+        context = self._node_context_by_id(lane_id)
+        if context is None or not is_swimlane_lane_type(context[0].type_id):
+            return None
+        return context[0]
+
+    def _scene_call(self, name: str):  # noqa: ANN202
+        scene = getattr(self._host, "scene", None)
+        method = getattr(scene, name, None)
+        return method if callable(method) else None
+
+    def _swimlane_edited(self, changed: bool) -> bool:
+        if changed:
+            self._queue_swimlane_refresh()
+        return changed
+
+    def add_selected_swimlane_lane(self) -> str:
+        """A lane after the last one of the selected pool (or of a selected lane's pool); next to a selected
+        standalone lane this forms a pool."""
+        selected = self._selected_node_context()
+        if selected is None:
+            return ""
+        node = selected[0]
+        lane_id = ""
+        if is_swimlane_pool_type(node.type_id):
+            add = self._scene_call("add_swimlane_lane")
+            lane_id = str(add(node.node_id) or "") if add is not None else ""
+        elif is_swimlane_lane_type(node.type_id):
+            rows = self.selected_node_swimlane_lane_items
+            last = rows[-1]["lane_node_id"] if rows else node.node_id
+            insert = self._scene_call("insert_swimlane_lane")
+            lane_id = str(insert(last, True) or "") if insert is not None else ""
+        self._swimlane_edited(bool(lane_id))
+        return lane_id
+
+    def remove_selected_swimlane_lane(self, lane_id: str) -> bool:
+        lane = self._swimlane_lane_node(lane_id)
+        remove = self._scene_call("remove_swimlane_lane")
+        return self._swimlane_edited(bool(lane is not None and remove is not None and remove(lane.node_id)))
+
+    def move_selected_swimlane_lane(self, lane_id: str, offset: int) -> bool:
+        lane = self._swimlane_lane_node(lane_id)
+        move = self._scene_call("move_swimlane_lane")
+        return self._swimlane_edited(bool(lane is not None and move is not None and move(lane.node_id, int(offset))))
+
+    def set_selected_swimlane_lane_title(self, lane_id: str, title: str) -> bool:
+        lane = self._swimlane_lane_node(lane_id)
+        text = str(title or "").strip()
+        set_property = self._scene_call("set_node_property")
+        if lane is None or set_property is None or not text or text == str(lane.title):
+            return False
+        set_property(lane.node_id, "title", text)
+        return self._swimlane_edited(str(lane.title) == text)
+
+    def set_selected_swimlane_lane_color(self, lane_id: str, color: str) -> bool:
+        lane = self._swimlane_lane_node(lane_id)
+        value = str(color or "").strip()
+        set_property = self._scene_call("set_node_property")
+        if lane is None or set_property is None or value == str(lane.properties.get("color", "") or ""):
+            return False
+        set_property(lane.node_id, "color", value)
+        return self._swimlane_edited(str(lane.properties.get("color", "") or "") == value)
+
+    def pick_selected_swimlane_lane_color(self, lane_id: str, current_value: str) -> str:
+        lane = self._swimlane_lane_node(lane_id)
+        property_spec = self._node_property_spec(lane.node_id, "color") if lane is not None else None
+        if property_spec is None or property_inspector_editor(property_spec) != "color":
+            return ""
+        return self._host.shell_host_presenter.pick_property_color_dialog(property_spec.label, current_value)
+
+    def on_scene_nodes_changed(self) -> None:
+        """Canvas, menu or automation edits of lanes while a pool or lane is selected refresh the Lanes section."""
+        if self.selected_node_is_swimlane:
+            self._queue_swimlane_refresh()
+
+    def _queue_swimlane_refresh(self) -> None:
+        if getattr(self, "_swimlane_refresh_queued", False):
+            return
+        self._swimlane_refresh_queued = True
+        QTimer.singleShot(0, self._emit_swimlane_refresh)
+
+    def _emit_swimlane_refresh(self) -> None:
+        self._swimlane_refresh_queued = False
+        self.inspector_state_changed.emit()
 
     @staticmethod
     def _normalized_link_url(target: str) -> QUrl:

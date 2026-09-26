@@ -1695,8 +1695,31 @@ class GraphSceneBridgeBase(QObject):
     def add_swimlane_lane(self, pool_id: str, index: int | None = None, title: str = "") -> str:
         return self._command_bridge.add_swimlane_lane(pool_id, index, title)
 
-    def insert_swimlane_lane(self, lane_id: str, after: bool) -> str:
-        return self._command_bridge.insert_swimlane_lane(lane_id, after=after)
+    def insert_swimlane_lane(self, lane_id: str, after: bool, title: str = "") -> str:
+        return self._command_bridge.insert_swimlane_lane(lane_id, after=after, title=title)
+
+    def create_swimlane_lane(
+        self,
+        x: float,
+        y: float,
+        *,
+        orientation: str = "",
+        title: str = "",
+        thickness: float | None = None,
+        length: float | None = None,
+    ) -> str:
+        return self._command_bridge.create_swimlane_lane(
+            x, y, orientation=orientation, title=title, thickness=thickness, length=length
+        )
+
+    def reorder_swimlane_lane(self, lane_id: str, index: int) -> bool:
+        return self._command_bridge.reorder_swimlane_lane(lane_id, index)
+
+    def set_swimlane_orientation(self, node_id: str, orientation: str) -> bool:
+        return self._command_bridge.set_swimlane_orientation(node_id, orientation)
+
+    def describe_standalone_swimlane_lanes(self) -> list[dict[str, Any]]:
+        return self._command_bridge.describe_standalone_swimlane_lanes()
 
     def remove_swimlane_lane(self, lane_id: str) -> bool:
         return self._command_bridge.remove_swimlane_lane(lane_id)

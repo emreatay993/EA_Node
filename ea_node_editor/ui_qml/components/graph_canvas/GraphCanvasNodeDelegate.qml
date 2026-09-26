@@ -202,6 +202,22 @@ GraphComponents.GraphNodeHost {
             anchorY = Number(finalY);
         var rawDeltaX = Number(finalX) - anchorX;
         var rawDeltaY = Number(finalY) - anchorY;
+        // A lane dragged in its pool commits a reorder (the slot it was dropped in), not a move.
+        var laneReorder = canvasItem.swimlaneLaneReorderCommit
+            ? canvasItem.swimlaneLaneReorderCommit(nodeId, rawDeltaX, rawDeltaY)
+            : null;
+        if (laneReorder) {
+            canvasItem.clearLiveDragOffset();
+            if (Boolean(moved) && laneReorder.index >= 0 && laneReorder.index !== laneReorder.current
+                    && bridge && bridge.reorder_swimlane_lane)
+                bridge.reorder_swimlane_lane(laneReorder.laneId, laneReorder.index);
+            if (Boolean(moved) && bridge && bridge.select_node) {
+                canvasItem.clearEdgeSelection();
+                bridge.select_node(nodeId, false);
+            }
+            nodeCard._flushFrameScheduler();
+            return;
+        }
         // A moved release lands guided axes on their smart guide and the others on the grid; Alt skips
         // both and the Shift-locked axis stays put. A click (moved false) never runs the guides and
         // meets the grid alone. Resolve before clearLiveDragOffset() ends the guide session.
@@ -254,8 +270,13 @@ GraphComponents.GraphNodeHost {
             canvasItem.clearLiveDragOffset();
     }
     onResizePreviewChanged: function(nodeId, newX, newY, newWidth, newHeight, active) {
-        if (canvasItem)
-            canvasItem.setLiveNodeGeometry(nodeId, newX, newY, newWidth, newHeight, active);
+        if (!canvasItem)
+            return;
+        // A lane or pool resize previews its whole pool (the other lanes and what they hold follow the handle).
+        if (canvasItem.previewSwimlaneResize
+                && canvasItem.previewSwimlaneResize(nodeId, newX, newY, newWidth, newHeight, active))
+            return;
+        canvasItem.setLiveNodeGeometry(nodeId, newX, newY, newWidth, newHeight, active);
     }
     onResizeFinished: function(nodeId, newX, newY, newWidth, newHeight) {
         if (!canvasItem)

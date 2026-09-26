@@ -18,5 +18,33 @@
   "inspector.pane.expand": {
     "text": "Expand properties pane",
     "category": "general"
+  },
+  "inspector.swimlane_lanes.add": {
+    "text": "Add a lane after the last one (next to a single lane, this forms a pool)",
+    "category": "tutorial"
+  },
+  "inspector.swimlane_lanes.color": {
+    "text": "Pick the lane's color (right-click: the theme's color)",
+    "category": "general"
+  },
+  "inspector.swimlane_lanes.move_down": {
+    "text": "Move this lane down",
+    "category": "general"
+  },
+  "inspector.swimlane_lanes.move_left": {
+    "text": "Move this lane left",
+    "category": "general"
+  },
+  "inspector.swimlane_lanes.move_right": {
+    "text": "Move this lane right",
+    "category": "general"
+  },
+  "inspector.swimlane_lanes.move_up": {
+    "text": "Move this lane up",
+    "category": "general"
+  },
+  "inspector.swimlane_lanes.remove": {
+    "text": "Remove this lane; what it holds stays (the lane before it takes it)",
+    "category": "warning"
   }
 }
