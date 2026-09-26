@@ -128,6 +128,7 @@ class _GraphCanvasShellHostStub(QObject):
         self.graphics_node_elapsed_time_visibility = "always"
         self.graphics_node_comment_editor_default = "canvas_popover"
         self.graphics_notched_ports = True
+        self.graphics_smart_guides_enabled = True
         self.graphics_node_floating_toolbar_opens_on_hover = False
         self.selected_run_preview_before_run = True
         self.graphics_show_tooltips = True
@@ -880,6 +881,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             (graphics, "set_graphics_canvas_background_variant", ("white",)),
             (graphics, "set_graphics_grid_style", ("points",)),
             (graphics, "set_graphics_show_port_labels", (False,)),
+            (graphics, "set_graphics_smart_guides_enabled", (False,)),
             (graphics, "set_graphics_node_elapsed_time_unit", ("milliseconds",)),
             (graphics, "set_graphics_node_elapsed_time_visibility", ("during_run",)),
             (graphics, "set_graphics_node_comment_editor_default", ("inspector",)),
@@ -1099,6 +1101,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             "graphics_show_canvas_options_button": True,
             "graphics_show_port_labels": True,
             "graphics_notched_ports": True,
+            "graphics_smart_guides_enabled": True,
             "graphics_node_elapsed_time_unit": "seconds",
             "graphics_node_elapsed_time_visibility": "always",
             "graphics_node_comment_editor_default": "canvas_popover",
@@ -1133,7 +1136,7 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
             "snap_to_grid_enabled": True,
             "snap_grid_size": 24.0,
         }
-        self.assertEqual(len(graphics_expectations), 40)
+        self.assertEqual(len(graphics_expectations), 41)
         self.assertEqual(len(canvas_expectations), 4)
         for name, expected in (*graphics_expectations.items(), *canvas_expectations.items()):
             with self.subTest(property_name=name):
@@ -1165,6 +1168,8 @@ class GraphCanvasSplitBridgeTests(unittest.TestCase):
 
         graphics.graphics_notched_ports = False
         self.assertFalse(state_bridge.graphics_notched_ports)
+        graphics.graphics_smart_guides_enabled = False
+        self.assertFalse(state_bridge.graphics_smart_guides_enabled)
 
         command_bridge.set_graphics_minimap_expanded(False)
         command_bridge.set_graphics_canvas_background_variant("white")

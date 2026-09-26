@@ -142,17 +142,34 @@ INPUT_REFERENCE_SECTIONS: tuple[InputReferenceSection, ...] = (
         (
             InputReferenceEntry("Node body", "Left-click", "Select the node."),
             InputReferenceEntry("Node body", "Ctrl+left-click or Shift+left-click", "Add or remove the node from selection."),
-            InputReferenceEntry("Node body", "Left-drag", "Move the node or selected node group."),
+            InputReferenceEntry(
+                "Node body",
+                "Left-drag",
+                "Move the node or selected node group. With Smart guides on (Graphics Settings > Interaction, or "
+                "Canvas Options), the move snaps to alignment and equal-spacing guides.",
+            ),
             InputReferenceEntry(
                 "Node body",
                 "Shift+left-drag",
                 "Move the node or selected node group horizontally or vertically only.",
+            ),
+            InputReferenceEntry(
+                "Node body",
+                "Alt+left-drag",
+                "Move the node or selected node group without snapping to guides or the grid.",
             ),
             InputReferenceEntry("Embedded node control", "Click, type, drag, or choose", "Use the control without changing graph selection."),
             InputReferenceEntry(
                 "Node body",
                 "Right-click",
                 "Open the node context menu, including Add Link and Add Comment for editable nodes.",
+            ),
+            InputReferenceEntry(
+                "Node body",
+                "Right-click during a left-drag",
+                "Cancel the move so the node goes back to where it started, then open the node context menu at "
+                "the pointer. If a Shift-locked drag has left the pointer off the node, the menu for what is under "
+                "the pointer opens instead, such as the empty-canvas menu.",
             ),
             InputReferenceEntry("Node body", "Double-click", "Open the node default action or an inline edit target."),
             InputReferenceEntry("Panel", "Double-click", "Open the Panel Text/Data editor."),
@@ -163,11 +180,20 @@ INPUT_REFERENCE_SECTIONS: tuple[InputReferenceSection, ...] = (
             InputReferenceEntry("Locked add-on node", "Left-click", "Select the locked placeholder or manager affordance."),
             InputReferenceEntry("Locked add-on node", "Right-click", "Open the locked placeholder context menu."),
             InputReferenceEntry("Locked add-on node", "Double-click", "Open the Add-On Manager recovery affordance."),
-            InputReferenceEntry("Node resize handle", "Left-drag", "Resize the node."),
+            InputReferenceEntry(
+                "Node resize handle",
+                "Left-drag",
+                "Resize the node. With Smart guides on, the edges you drag snap to other nodes' edges.",
+            ),
             InputReferenceEntry(
                 "Node resize handle",
                 "Shift+left-drag",
                 "Resize the node while keeping its proportions.",
+            ),
+            InputReferenceEntry(
+                "Node resize handle",
+                "Alt+left-drag",
+                "Resize the node without snapping to guides.",
             ),
             InputReferenceEntry("Edge", "Left-click", "Select the edge."),
             InputReferenceEntry("Edge", "Ctrl+left-click or Shift+left-click", "Add or remove the edge from selection."),

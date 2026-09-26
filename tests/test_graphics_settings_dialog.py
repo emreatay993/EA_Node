@@ -13,6 +13,7 @@ from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
 from ea_node_editor.ui.shell.tooltip_policy import default_tooltip_category_preferences
+from ea_node_editor.ui.tooltips import tooltip_text as registry_tooltip_text
 
 
 _EXPAND_COLLISION_TOOLTIP_CASES = (
@@ -136,6 +137,12 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 dialog.notched_ports_check.objectName(),
                 "graphicsSettingsNotchedPortsCheck",
             )
+            self.assertEqual(
+                dialog.smart_guides_check.objectName(),
+                "graphicsSettingsSmartGuidesCheck",
+            )
+            self.assertEqual(dialog.smart_guides_check.text(), "Smart guides")
+            self.assertTrue(dialog.smart_guides_check.isChecked())
             self.assertEqual(
                 dialog.show_canvas_options_button_check.objectName(),
                 "graphicsSettingsShowCanvasOptionsButtonCheck",
@@ -271,6 +278,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             dialog.media_panel_autoplay_animations_check.setChecked(False)
             dialog.media_panel_source_input_exposed_check.setChecked(False)
             dialog.snap_to_grid_check.setChecked(True)
+            dialog.smart_guides_check.setChecked(False)
             dialog.expand_collision_enabled_check.setChecked(False)
             dialog.expand_collision_radius_mode_combo.setCurrentIndex(
                 dialog.expand_collision_radius_mode_combo.findData("unbounded")
@@ -309,6 +317,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             expected["media_panel"]["autoplay_animations"] = False
             expected["media_panel"]["source_input_exposed"] = False
             expected["interaction"]["snap_to_grid"] = True
+            expected["interaction"]["smart_guides"] = False
             expected["interaction"]["expand_collision_avoidance"] = {
                 "enabled": False,
                 "strategy": "make_room",
@@ -329,6 +338,28 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             )
         finally:
             dialog.close()
+
+    def test_smart_guides_checkbox_roundtrips_with_registry_tooltip(self) -> None:
+        dialog = GraphicsSettingsDialog(initial_settings={"interaction": {"smart_guides": False}})
+        muted_dialog = GraphicsSettingsDialog(tooltips_enabled=False)
+        try:
+            self.assertFalse(dialog.smart_guides_check.isChecked())
+            self.assertIs(dialog.values()["interaction"]["smart_guides"], False)
+            dialog.smart_guides_check.setChecked(True)
+            self.assertIs(dialog.values()["interaction"]["smart_guides"], True)
+            self.assertEqual(
+                dialog.smart_guides_check.toolTip(),
+                registry_tooltip_text("settings.graphics.smart_guides.enabled"),
+            )
+            self.assertEqual(
+                dialog.smart_guides_check.toolTip(),
+                "Show alignment and equal-spacing guides while moving nodes, and snap to them. While resizing, "
+                "the edges you drag snap to other nodes' edges. Hold Alt to move or resize freely.",
+            )
+            self.assertEqual(muted_dialog.smart_guides_check.toolTip(), "")
+        finally:
+            dialog.close()
+            muted_dialog.close()
 
     def test_keep_expanded_node_width_checkbox_roundtrips(self) -> None:
         dialog = GraphicsSettingsDialog(initial_settings={"canvas": {"keep_expanded_node_width": True}})
@@ -358,6 +389,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 },
                 "interaction": {
                     "snap_to_grid": True,
+                    "smart_guides": "no",
                     "expand_collision_avoidance": {
                         "enabled": "yes",
                         "strategy": "farthest",
@@ -396,6 +428,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertNotIn("performance", dialog.values())
             self.assertNotIn("graph_theme", dialog.values())
             self.assertFalse(dialog.values()["canvas"]["keep_expanded_node_width"])
+            self.assertTrue(dialog.smart_guides_check.isChecked())
             self.assertTrue(dialog.expand_collision_enabled_check.isChecked())
             self.assertEqual(dialog.expand_collision_strategy_combo.currentData(), "make_room")
             self.assertEqual(dialog.expand_collision_scope_combo.currentData(), "all_movable")

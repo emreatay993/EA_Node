@@ -73,6 +73,59 @@ function snappedDragDelta(rawDx, rawDy, snapEnabled, anchorPayload, gridSizeValu
     };
 }
 
+// Float noise allowed between two smart-guide snaps of one axis that land on the same value (scene units).
+var GUIDE_VALUE_EPSILON = 1e-6;
+
+// Whether smart-guide `lines` ({axis, value, start, end}) hold an alignment line on `axis` ("x" or "y").
+function guideLineOnAxis(lines, axis) {
+    var source = lines || [];
+    for (var i = 0; i < source.length; ++i) {
+        if (source[i] && source[i].axis === axis)
+            return true;
+    }
+    return false;
+}
+
+// Whether the smart-guide snap `other` snapped `axis` ("x" or "y") to the value `guide` snapped it to.
+function sameGuideSnap(guide, other, axis) {
+    if (!guide || !other)
+        return false;
+    var key = axis === "x" ? "dx" : "dy";
+    var snapped = axis === "x" ? "snappedX" : "snappedY";
+    return Boolean(guide[snapped]) && Boolean(other[snapped])
+        && Math.abs(Number(other[key]) - Number(guide[key])) <= GUIDE_VALUE_EPSILON;
+}
+
+// Release delta of a node drag. An axis a smart guide snapped (guide.snappedX/Y, also true for a
+// zero-delta snap) keeps the guide's value; the other axes take the grid delta (the raw delta when
+// grid snap is off). snapBypass (Alt) skips both. The Shift-locked axis never moves.
+function dragCommitDelta(rawDx, rawDy, axisLock, snapBypass, guide, grid) {
+    var deltaX = Number(rawDx);
+    var deltaY = Number(rawDy);
+    if (!isFinite(deltaX))
+        deltaX = 0.0;
+    if (!isFinite(deltaY))
+        deltaY = 0.0;
+    if (!snapBypass) {
+        var gridDx = grid ? Number(grid.dx) : deltaX;
+        var gridDy = grid ? Number(grid.dy) : deltaY;
+        deltaX = guide && guide.snappedX ? Number(guide.dx) : gridDx;
+        deltaY = guide && guide.snappedY ? Number(guide.dy) : gridDy;
+        if (!isFinite(deltaX))
+            deltaX = 0.0;
+        if (!isFinite(deltaY))
+            deltaY = 0.0;
+    }
+    if (axisLock === "horizontal")
+        deltaY = 0.0;
+    else if (axisLock === "vertical")
+        deltaX = 0.0;
+    return {
+        "dx": deltaX,
+        "dy": deltaY
+    };
+}
+
 function normalizeEdgeIds(values) {
     var normalized = [];
     var seen = {};

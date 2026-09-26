@@ -279,6 +279,17 @@ class AppPreferencesController:
             host=host,
         )
 
+    def set_graphics_smart_guides_enabled(
+        self,
+        enabled: bool,
+        *,
+        host: ShellWindow | None = None,
+    ) -> dict[str, Any]:
+        return self.update_graphics_settings(
+            {"interaction": {"smart_guides": bool(enabled)}},
+            host=host,
+        )
+
     def set_graphics_expand_collision_avoidance(
         self,
         settings: Any,

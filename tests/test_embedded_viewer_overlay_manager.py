@@ -580,7 +580,7 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         widget.reset_counts()
 
         with patch.object(self.manager, "_node_payloads_by_id", wraps=self.manager._node_payloads_by_id) as payload_lookup:
-            canvas.setLiveDragOffset(node_id, 48.0, 26.0)
+            canvas.setLiveDragOffset(node_id, 48.0, 26.0, "", False)
             wait_for_condition_or_raise(
                 lambda: not container.isVisible(),
                 timeout_ms=500,
@@ -1039,7 +1039,7 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         widget = self._activate_overlay(node_id)
         widget.setProperty("ea.nativeWindowOverlay", True)
         canvas = self._graph_canvas_quick_item()
-        canvas.setLiveDragOffset(node_id, 12.0, 8.0)
+        canvas.setLiveDragOffset(node_id, 12.0, 8.0, "", False)
         self.app.processEvents()
         self.manager._sync_queued = False
 

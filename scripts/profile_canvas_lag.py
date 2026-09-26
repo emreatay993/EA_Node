@@ -1547,7 +1547,7 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
             final_dx = final_dy = 0.0
             transition_before = _lifecycle_snapshot()
             transition_started = time.perf_counter()
-            card.dragOffsetChanged.emit(node_id, 0.1, 0.1)
+            card.dragOffsetChanged.emit(node_id, 0.1, 0.1, "", False)
             _drain(timeout_s=0.05)
             _render_without_readback()
             transition_ms = (time.perf_counter() - transition_started) * 1000.0
@@ -1563,13 +1563,13 @@ def _run_engineering_canvas_scenario(args: argparse.Namespace, app: Any) -> int:
                 final_dx = 12.0 * float(index + 1) / float(total_count)
                 final_dy = 8.0 * float(index + 1) / float(total_count)
                 started = time.perf_counter()
-                card.dragOffsetChanged.emit(node_id, final_dx, final_dy)
+                card.dragOffsetChanged.emit(node_id, final_dx, final_dy, "", False)
                 _render_without_readback()
                 if index >= warmup_count:
                     timings.append((time.perf_counter() - started) * 1000.0)
             measured_frame_end = host.frame_render_timestamp_index()
             continuous_after = _lifecycle_snapshot()
-            card.dragFinished.emit(node_id, x + final_dx, y + final_dy, True)
+            card.dragFinished.emit(node_id, x + final_dx, y + final_dy, True, "", False)
             _drain(timeout_s=0.05)
             _render_without_readback()
             restoration_after = _lifecycle_snapshot()

@@ -183,10 +183,12 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
             finish_events = []
             cancel_events = []
             host.dragOffsetChanged.connect(
-                lambda node_id, dx, dy: offset_events.append((str(node_id), float(dx), float(dy)))
+                lambda node_id, dx, dy, _axis_lock, _snap_bypass: offset_events.append(
+                    (str(node_id), float(dx), float(dy))
+                )
             )
             host.dragFinished.connect(
-                lambda node_id, final_x, final_y, moved, axis_lock: finish_events.append(
+                lambda node_id, final_x, final_y, moved, axis_lock, _snap_bypass: finish_events.append(
                     (str(node_id), float(final_x), float(final_y), bool(moved), str(axis_lock))
                 )
             )
@@ -239,10 +241,10 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
             offset_events = []
             finish_events = []
             host.dragOffsetChanged.connect(
-                lambda node_id, dx, dy: offset_events.append((float(dx), float(dy)))
+                lambda node_id, dx, dy, _axis_lock, _snap_bypass: offset_events.append((float(dx), float(dy)))
             )
             host.dragFinished.connect(
-                lambda node_id, final_x, final_y, moved, axis_lock: finish_events.append(
+                lambda node_id, final_x, final_y, moved, axis_lock, _snap_bypass: finish_events.append(
                     (float(final_x), float(final_y), bool(moved), str(axis_lock))
                 )
             )

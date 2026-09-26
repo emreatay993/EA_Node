@@ -215,6 +215,8 @@ class ViewportIndexDiagnostics:
     forced_visible_count: int = 0
     query_count: int = 0
     rebuild_count: int = 0
+    # Rebuilds by refresh(), outside any viewport query (the counters above describe the queries only).
+    refresh_count: int = 0
     cache_hits: int = 0
     cache_misses: int = 0
     query_ms: float = 0.0
@@ -229,6 +231,7 @@ class ViewportIndexDiagnostics:
             "forced_visible_count": self.forced_visible_count,
             "query_count": self.query_count,
             "rebuild_count": self.rebuild_count,
+            "refresh_count": self.refresh_count,
             "cache_hits": self.cache_hits,
             "cache_misses": self.cache_misses,
             "query_ms": self.query_ms,
@@ -296,6 +299,61 @@ class GraphCanvasViewportIndex:
         self._diagnostics.query_ms = _elapsed_ms(started)
         return [record.payload for record in visible_records]
 
+    def is_current(self, *, workspace_id: str, model_revision: int) -> bool:
+        """Whether the last rebuild was for this workspace and node-model revision."""
+        return self._workspace_id == workspace_id and self._model_revision == model_revision
+
+    def refresh(
+        self,
+        *,
+        workspace_id: str,
+        model_revision: int,
+        source_loader: Callable[[], Iterable[Any]],
+    ) -> bool:
+        """Rebuild from ``source_loader`` when stale, without a viewport query; True when it rebuilt.
+
+        Only ``refresh_count`` counts it: the query diagnostics keep describing the visible-model queries.
+        """
+        if self.is_current(workspace_id=workspace_id, model_revision=model_revision):
+            return False
+        self._rebuild(workspace_id, model_revision, source_loader())
+        self._diagnostics.refresh_count += 1
+        return True
+
+    def payloads(self) -> list[Any]:
+        """Every indexed payload, in source order."""
+        return [record.payload for record in self._records]
+
+    def payload_for(self, node_id: object) -> Any | None:
+        """The indexed payload of ``node_id``, or ``None``."""
+        record = self._records_by_node_id.get(normalize_node_id(node_id))
+        return None if record is None else record.payload
+
+    def payloads_intersecting(self, rect: SceneRect | None) -> list[Any]:
+        """Payloads whose ``payload_scene_rect`` intersects ``rect``, in source order.
+
+        A read-only grid-cell query: it never rebuilds and leaves the diagnostics alone. A rect covering
+        more cells than the index occupies walks the occupied cells instead.
+        """
+        if rect is None or not all(math.isfinite(value) for value in (rect[0] + rect[2], rect[1] + rect[3])):
+            return []
+        min_x, max_x, min_y, max_y = self._cell_range(rect)
+        orders: set[int] = set()
+        if (max_x - min_x + 1) * (max_y - min_y + 1) <= len(self._cells):
+            for cell_x in range(min_x, max_x + 1):
+                for cell_y in range(min_y, max_y + 1):
+                    orders.update(self._cells.get((cell_x, cell_y), ()))
+        else:
+            for (cell_x, cell_y), cell_orders in self._cells.items():
+                if min_x <= cell_x <= max_x and min_y <= cell_y <= max_y:
+                    orders.update(cell_orders)
+        payloads: list[Any] = []
+        for order in sorted(orders):
+            record = self._records[order]
+            if record.rect is not None and rects_intersect(record.rect, rect):
+                payloads.append(record.payload)
+        return payloads
+
     def _rebuild(self, workspace_id: str, model_revision: int, source: Iterable[Any]) -> None:
         self._workspace_id = workspace_id
         self._model_revision = model_revision
@@ -343,13 +401,18 @@ class GraphCanvasViewportIndex:
                 visible.append(record)
         return visible
 
-    def _cell_keys(self, rect: SceneRect) -> Iterable[tuple[int, int]]:
+    def _cell_range(self, rect: SceneRect) -> tuple[int, int, int, int]:
         x, y, width, height = rect
         cell_size = max(1.0, float(self.cell_size))
-        min_x = math.floor(x / cell_size)
-        max_x = math.floor((x + max(0.0, width)) / cell_size)
-        min_y = math.floor(y / cell_size)
-        max_y = math.floor((y + max(0.0, height)) / cell_size)
+        return (
+            math.floor(x / cell_size),
+            math.floor((x + max(0.0, width)) / cell_size),
+            math.floor(y / cell_size),
+            math.floor((y + max(0.0, height)) / cell_size),
+        )
+
+    def _cell_keys(self, rect: SceneRect) -> Iterable[tuple[int, int]]:
+        min_x, max_x, min_y, max_y = self._cell_range(rect)
         for cell_x in range(min_x, max_x + 1):
             for cell_y in range(min_y, max_y + 1):
                 yield cell_x, cell_y

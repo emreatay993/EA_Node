@@ -51,6 +51,7 @@ class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
         self._graphics_minimap_expanded = True
         self._graphics_show_port_labels = True
         self._graphics_notched_ports = True
+        self._graphics_smart_guides_enabled = True
         self._graphics_tooltip_categories = default_tooltip_category_preferences()
         self._graphics_edge_crossing_style = "none"
         self._graphics_node_shadow = True
@@ -93,6 +94,10 @@ class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
     @property
     def graphics_notched_ports(self) -> bool:
         return bool(self._graphics_notched_ports)
+
+    @property
+    def graphics_smart_guides_enabled(self) -> bool:
+        return bool(self._graphics_smart_guides_enabled)
 
     @property
     def graphics_show_tooltips(self) -> bool:
@@ -251,6 +256,13 @@ class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
         self._graphics_notched_ports = normalized
         self.graphics_preferences_changed.emit()
 
+    def set_graphics_smart_guides_enabled_value(self, value: bool) -> None:
+        normalized = bool(value)
+        if self._graphics_smart_guides_enabled == normalized:
+            return
+        self._graphics_smart_guides_enabled = normalized
+        self.graphics_preferences_changed.emit()
+
     def set_graphics_node_floating_toolbar_opens_on_hover_value(self, value: bool) -> None:
         normalized = bool(value)
         if self._graphics_node_floating_toolbar_opens_on_hover == normalized:
@@ -367,6 +379,53 @@ class GraphCanvasQmlPreferenceBindingTests(
             facts.deleteLater()
             state_bridge.deleteLater()
             preference_bridge.deleteLater()
+            self.app.processEvents()
+
+    def test_smart_guides_fact_defaults_on_and_follows_preference_source(self) -> None:
+        preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        session_bridge = _rendering_suite._GraphCanvasSessionBridge(preference_bridge)
+        state_bridge = GraphCanvasStateBridge(
+            session_state=session_bridge,  # type: ignore[arg-type]
+            snap_to_grid_changed_signal=session_bridge.snap_to_grid_changed,
+            snap_grid_size=float(session_bridge.snap_grid_size),
+            app_preferences_source=session_bridge,  # type: ignore[arg-type]
+            graphics_source=preference_bridge,  # type: ignore[arg-type]
+            view_bridge=self.view,
+        )
+        bridge_without_preference = _rendering_suite.QObject()
+        facts = self._create_component(
+            _GRAPH_CANVAS_PREFERENCE_FACTS_QML_PATH,
+            {"stateBridge": state_bridge},
+        )
+
+        try:
+            self.assertTrue(state_bridge.graphics_smart_guides_enabled)
+            self.assertTrue(bool(facts.property("smartGuidesEnabled")))
+            preference_bridge.set_graphics_smart_guides_enabled_value(False)
+            _rendering_suite.wait_for_condition_or_raise(
+                lambda: not bool(facts.property("smartGuidesEnabled")),
+                timeout_ms=200,
+                app=self.app,
+                timeout_message="Timed out waiting for the smart guides fact to update.",
+            )
+            self.assertFalse(state_bridge.graphics_smart_guides_enabled)
+
+            # A bridge without the projection (or no bridge) keeps guides on.
+            facts.setProperty("stateBridge", bridge_without_preference)
+            _rendering_suite.wait_for_condition_or_raise(
+                lambda: bool(facts.property("smartGuidesEnabled")),
+                timeout_ms=200,
+                app=self.app,
+                timeout_message="Timed out waiting for the smart guides fact to default on.",
+            )
+            facts.setProperty("stateBridge", None)
+            self.app.processEvents()
+            self.assertTrue(bool(facts.property("smartGuidesEnabled")))
+        finally:
+            facts.deleteLater()
+            state_bridge.deleteLater()
+            preference_bridge.deleteLater()
+            bridge_without_preference.deleteLater()
             self.app.processEvents()
 
     def test_expand_collision_avoidance_bridge_projection_follows_preference_source(self) -> None:

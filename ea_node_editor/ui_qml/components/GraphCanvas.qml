@@ -229,7 +229,17 @@ Item {
         id: sceneState
         canvasItem: root
         edgeLayerItem: rootLayers.edgeLayerItem
+        smartGuides: smartGuidesObject
     }
+
+    GraphCanvasComponents.GraphCanvasSmartGuides {
+        id: smartGuidesObject
+        canvasItem: root
+        canvasStateBridge: root.canvasStateBridgeRef
+        viewBridge: root.viewBridge
+        enabled: preferenceFactsObject.smartGuidesEnabled
+    }
+    readonly property var smartGuidesRef: smartGuidesObject
 
     GraphCanvasComponents.GraphCanvasFrameScheduler {
         id: frameScheduler
@@ -264,6 +274,7 @@ Item {
         viewportController: viewportController
         edgeLayerItem: rootLayers.edgeLayerItem
         frameScheduler: frameScheduler
+        smartGuides: smartGuidesObject
     }
 
     property alias hoveredPort: interactionState.hoveredPort
@@ -354,7 +365,7 @@ Item {
     function snapGridSize() { return GraphCanvasRootApi.snapGridSize(root.canvasStateBridgeRef); }
     function snapToGridValue(value) { return GraphCanvasRootApi.snapToGridValue(root.canvasStateBridgeRef, value); }
     function setFolderExplorerColumnWidths(widths) { return GraphCanvasRootApi.invoke(root.canvasCommandBridgeRef, "set_folder_explorer_column_widths", [widths || ({})], false); }
-    function snappedDragDelta(nodeId, rawDx, rawDy) { return GraphCanvasRootApi.snappedDragDelta(sceneState, root.canvasStateBridgeRef, nodeId, rawDx, rawDy); }
+    function resolveDragCommitDelta(nodeId, rawDx, rawDy, moved, axisLock, snapBypass) { return GraphCanvasRootApi.resolveDragCommitDelta(sceneState, smartGuidesObject, root.canvasStateBridgeRef, nodeId, rawDx, rawDy, moved, axisLock, snapBypass); }
     function _normalizeEdgeIds(values) { return GraphCanvasRootApi.invoke(sceneState, "normalizeEdgeIds", [values], []); }
     function _availableEdgeIdSet() { return GraphCanvasRootApi.invoke(sceneState, "availableEdgeIdSet", [], ({})); }
     function pruneSelectedEdges() { GraphCanvasRootApi.invoke(sceneState, "pruneSelectedEdges"); }
@@ -497,7 +508,7 @@ Item {
     function _appendBackdropAwareDragNodeIds(nodeIds, seenNodeIds, nodeId) { GraphCanvasRootApi.invoke(sceneState, "_appendBackdropAwareDragNodeIds", [nodeIds, seenNodeIds, nodeId]); }
     function dragNodeIdsForAnchor(nodeId) { return GraphCanvasRootApi.invoke(sceneState, "dragNodeIdsForAnchor", [nodeId], []); }
     function activeDragNodeIds(nodeId) { return GraphCanvasRootApi.invoke(sceneState, "activeDragNodeIds", [nodeId], []); }
-    function setLiveDragOffset(nodeId, dx, dy) { GraphCanvasRootApi.invoke(sceneState, "setLiveDragOffset", [nodeId, dx, dy]); }
+    function setLiveDragOffset(nodeId, dx, dy, axisLock, snapBypass) { GraphCanvasRootApi.invoke(sceneState, "setLiveDragOffset", [nodeId, dx, dy, axisLock, snapBypass]); }
     function clearLiveDragOffset() { GraphCanvasRootApi.invoke(sceneState, "clearLiveDragOffset"); }
     function setLiveNodeGeometry(nodeId, x, y, width, height, active) { GraphCanvasRootApi.invoke(sceneState, "setLiveNodeGeometry", [nodeId, x, y, width, height, active]); }
     function clearLiveNodeGeometry() { GraphCanvasRootApi.invoke(sceneState, "clearLiveNodeGeometry"); }

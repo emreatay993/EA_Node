@@ -49,6 +49,10 @@ class GraphicsSettingsOps:
         _invoke(self._graphics_source, "set_graphics_canvas_import_mode", mode)
 
     @pyqtSlot(bool)
+    def set_graphics_smart_guides_enabled(self, enabled: bool) -> None:
+        _invoke(self._graphics_source, "set_graphics_smart_guides_enabled", bool(enabled))
+
+    @pyqtSlot(bool)
     def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
         _invoke(self._graphics_source, "set_graphics_show_port_labels", bool(show_port_labels))
 

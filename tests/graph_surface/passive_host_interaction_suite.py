@@ -1788,7 +1788,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 start_y = float(workspace.nodes[source_id].y)
                 sequence = [rest]
                 for offset in (60.0, 120.0, 180.0):
-                    source_card.dragOffsetChanged.emit(source_id, offset, 0.0)
+                    source_card.dragOffsetChanged.emit(source_id, offset, 0.0, "", False)
                     scheduler.flushPendingRedraws()
                     geometry = painted_geometry()
                     assert abs(geometry["sx"] - (rest["sx"] + offset)) < 0.01, ("drag-endpoint", offset)
@@ -1799,7 +1799,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     assert assert_retained_paint(geometry), "drag-must-paint-through-retained-renderer"
                     sequence.append(geometry)
 
-                source_card.dragFinished.emit(source_id, start_x + 180.0, start_y, True, "")
+                source_card.dragFinished.emit(source_id, start_x + 180.0, start_y, True, "", False)
                 app.processEvents()
                 assert float(workspace.nodes[source_id].x) == start_x + 180.0
                 dropped = painted_geometry()
@@ -1815,7 +1815,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 scene.select_node(target_id, True)
                 app.processEvents()
                 before = painted_geometry()
-                source_card.dragOffsetChanged.emit(source_id, -80.0, 40.0)
+                source_card.dragOffsetChanged.emit(source_id, -80.0, 40.0, "", False)
                 scheduler.flushPendingRedraws()
                 moved = painted_geometry()
                 for key, value in before.items():
@@ -1823,7 +1823,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     assert abs(moved[key] - (value + shift)) < 0.05, ("rigid-drag", key, value, moved[key])
                 source_x = float(workspace.nodes[source_id].x)
                 source_y = float(workspace.nodes[source_id].y)
-                source_card.dragFinished.emit(source_id, source_x - 80.0, source_y + 40.0, True, "")
+                source_card.dragFinished.emit(source_id, source_x - 80.0, source_y + 40.0, True, "", False)
                 app.processEvents()
                 committed = painted_geometry()
                 for key, value in moved.items():
@@ -5184,12 +5184,12 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             node_card = node_cards[0]
 
             assert canvas.snapToGridEnabled() is True
-            node_card.dragOffsetChanged.emit(node_id, 11.0, 9.0)
+            node_card.dragOffsetChanged.emit(node_id, 11.0, 9.0, "", False)
             canvas.property("frameSchedulerRef").flushPendingRedraws()
             assert canvas.property("liveDragDx") == 11.0
             assert canvas.property("liveDragDy") == 9.0
 
-            node_card.dragFinished.emit(node_id, 131.0, 149.0, True, "")
+            node_card.dragFinished.emit(node_id, 131.0, 149.0, True, "", False)
             app.processEvents()
             assert canvas.property("liveDragDx") == 0.0
             assert canvas.property("liveDragDy") == 0.0
@@ -5281,7 +5281,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 scene.move_node(node_id, 113.0, 147.0)
                 app.processEvents()
                 assert (scene.nodes_model[0]["x"], scene.nodes_model[0]["y"]) == (113.0, 147.0)
-                node_card.dragFinished.emit(node_id, final_x, final_y, True, axis_lock)
+                node_card.dragFinished.emit(node_id, final_x, final_y, True, axis_lock, False)
                 app.processEvents()
                 return scene.nodes_model[0]["x"], scene.nodes_model[0]["y"]
 
@@ -5400,7 +5400,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert list(drag_node_ids) == [second_node_id, first_node_id]
 
             before = {item["node_id"]: (item["x"], item["y"]) for item in scene.nodes_model}
-            node_cards[second_node_id].dragOffsetChanged.emit(second_node_id, 25.0, 15.0)
+            node_cards[second_node_id].dragOffsetChanged.emit(second_node_id, 25.0, 15.0, "", False)
             canvas.property("frameSchedulerRef").flushPendingRedraws()
             drag_lookup = canvas.property("liveDragNodeLookup")
             if hasattr(drag_lookup, "toVariant"):
@@ -5409,7 +5409,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert canvas.property("liveDragDx") == 25.0
             assert canvas.property("liveDragDy") == 15.0
 
-            node_cards[second_node_id].dragFinished.emit(second_node_id, 345.0, 195.0, True, "")
+            node_cards[second_node_id].dragFinished.emit(second_node_id, 345.0, 195.0, True, "", False)
             app.processEvents()
             after = {item["node_id"]: (item["x"], item["y"]) for item in scene.nodes_model}
 

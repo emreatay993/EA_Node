@@ -530,6 +530,12 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         card, card_lay = self._make_section_card(page)
         self.snap_to_grid_check = QCheckBox("Snap nodes to grid during edits", card)
         card_lay.addWidget(self.snap_to_grid_check)
+        self.smart_guides_check = QCheckBox("Smart guides", card)
+        self.smart_guides_check.setObjectName("graphicsSettingsSmartGuidesCheck")
+        self.smart_guides_check.setToolTip(
+            tooltip_text("settings.graphics.smart_guides.enabled") if self._tooltips_enabled else ""
+        )
+        card_lay.addWidget(self.smart_guides_check)
         outer.addWidget(card)
 
         outer.addWidget(self._make_section_title("Expand Collision Avoidance", page))
@@ -956,6 +962,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self._plot_settings = copy.deepcopy(settings["plot"])
         self._plot_default_backend_per_type = copy.deepcopy(settings["plot"]["plot_default_backend_per_type"])
         self.snap_to_grid_check.setChecked(settings["interaction"]["snap_to_grid"])
+        self.smart_guides_check.setChecked(settings["interaction"]["smart_guides"])
         self._set_combo_current_data(
             self.canvas_import_mode_combo,
             settings["interaction"]["canvas_import_mode"],
@@ -1097,6 +1104,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 },
                 "interaction": {
                     "snap_to_grid": self.snap_to_grid_check.isChecked(),
+                    "smart_guides": self.smart_guides_check.isChecked(),
                     "canvas_import_mode": self.canvas_import_mode_combo.currentData(),
                     "expand_collision_avoidance": {
                         "enabled": self.expand_collision_enabled_check.isChecked(),

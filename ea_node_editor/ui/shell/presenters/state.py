@@ -44,6 +44,7 @@ UNSET = object()
 class ShellWorkspaceUiState:
     canvas_background_variant: str
     canvas_import_mode: str
+    smart_guides_enabled: bool
     show_grid: bool
     grid_style: str
     edge_crossing_style: str
@@ -113,6 +114,9 @@ def build_default_shell_workspace_ui_state(
     )
     return ShellWorkspaceUiState(
         canvas_import_mode=normalize_canvas_import_mode(interaction.get("canvas_import_mode")),
+        smart_guides_enabled=bool(
+            interaction.get("smart_guides", DEFAULT_GRAPHICS_SETTINGS["interaction"]["smart_guides"])
+        ),
         canvas_background_variant=normalize_canvas_background_variant(
             canvas.get(
                 "background_variant",

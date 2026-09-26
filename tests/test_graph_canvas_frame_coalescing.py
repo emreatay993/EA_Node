@@ -642,11 +642,11 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
         profile_before = int(self.canvas.property("profileLiveDragOffsetUpdateCount"))
         membership_freezes_before = int(self.canvas.property("profileLiveDragMembershipFreezeCount"))
 
-        self.canvas.setLiveDragOffset("node_a", 8.0, 2.0)
+        self.canvas.setLiveDragOffset("node_a", 8.0, 2.0, "", False)
         frozen_ids = _variant(self.canvas.property("liveDragNodeIds"))
         frozen_lookup = _variant(self.canvas.property("liveDragNodeLookup"))
-        self.canvas.setLiveDragOffset("node_a", 16.0, 6.0)
-        self.canvas.setLiveDragOffset("node_a", 24.0, 10.0)
+        self.canvas.setLiveDragOffset("node_a", 16.0, 6.0, "", False)
+        self.canvas.setLiveDragOffset("node_a", 24.0, 10.0, "", False)
 
         self.assertEqual(int(scheduler.property("rawLiveDragInputEventCount")) - raw_before, 3)
         self.assertEqual(
@@ -704,7 +704,7 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
             timeout_message="Timed out waiting for viewport suppression to recover.",
         )
 
-        self.canvas.setLiveDragOffset("node_a", 8.0, 2.0)
+        self.canvas.setLiveDragOffset("node_a", 8.0, 2.0, "", False)
         self.app.processEvents()
         self.assertTrue(bool(self.canvas.property("nativeOverlaySuppressionActive")))
 
@@ -747,7 +747,7 @@ class GraphCanvasFrameCoalescingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertNotIn("liveDragDyForNode", delegate_text)
         self.assertIn("x: card.liveDragDx", host_text)
         self.assertIn("y: card.liveDragDy", host_text)
-        self.assertIn("canvasItem.snappedDragDelta", delegate_text)
+        self.assertIn("canvasItem.resolveDragCommitDelta", delegate_text)
         self.assertIn("if (!movedByCommit)", delegate_text)
         self.assertIn("bridge.move_nodes_by_delta", delegate_text)
         self.assertIn("bridge.move_node(nodeId, finalSnappedX, finalSnappedY);", delegate_text)

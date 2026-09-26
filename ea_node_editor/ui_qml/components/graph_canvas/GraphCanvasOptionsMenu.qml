@@ -1,6 +1,11 @@
+// Purpose: Draw the canvas options menu (the top-right gear and the empty-canvas right-click): app-wide graphics preference toggles and submenus written through the canvas command bridge, selected-wire display modes, and whole-graph layout actions routed through the action router.
+// Map: docs/agent_maps/feature_routes/graph_actions_and_context_menus.md
+// Tests: tests/test_canvas_import_preferences.py, tests/test_graph_action_contracts.py
+// Landmarks: preference setters (setShowGrid .. setCanvasBackgroundVariant); openGraphicsSettings / triggerGraphAction; mainPanel sections BACKGROUND, GRID, NODES, RUN, INTERACTION (canvasOptionsSmartGuidesRow), TOOLTIPS, EFFECTS, THEME, LAYOUT; submenu Loaders; inline components MenuPanel, SectionHeader, ToggleRow, SubmenuRow, ActionRow, SubmenuPanel
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../common" as Common
+import "../common/TooltipCopy.js" as TooltipCopy
 import "../graph/GraphActionPresentation.js" as GraphActionPresentation
 
 Item {
@@ -15,6 +20,9 @@ Item {
     readonly property var themeBridgeRef: root.shellContextRef
         ? root.shellContextRef.themeBridge
         : (typeof themeBridge !== "undefined" ? themeBridge : null)
+    readonly property var tooltipCopyBridgeRef: root.shellContextRef
+        ? root.shellContextRef.tooltipCopyBridge
+        : (typeof tooltipCopyBridge !== "undefined" ? tooltipCopyBridge : null)
 
     readonly property int panelW: 252
     readonly property int submenuW: 170
@@ -83,6 +91,9 @@ Item {
         ? root.canvasPrefs.canvasImportMode : "automatic"
     readonly property string canvasImportModeLabel: root.canvasImportModeValue === "ask"
         ? "Ask every time" : "Automatic"
+    readonly property bool smartGuidesEnabled: root.canvasPrefs
+        ? Boolean(root.canvasPrefs.smartGuidesEnabled)
+        : true
     readonly property string nodeElapsedTimeUnitValue: {
         // executionFacts.nodeElapsedTimeUnit is already normalized (single
         // normalization point); only the milliseconds/seconds collapse stays.
@@ -215,6 +226,11 @@ Item {
     function setCanvasImportMode(value) {
         if (root.commandBridge && root.commandBridge.set_graphics_canvas_import_mode)
             root.commandBridge.set_graphics_canvas_import_mode(value);
+    }
+
+    function setSmartGuidesEnabled(value) {
+        if (root.commandBridge && root.commandBridge.set_graphics_smart_guides_enabled)
+            root.commandBridge.set_graphics_smart_guides_enabled(Boolean(value));
     }
 
     function setNodeShadows(value) {
@@ -392,6 +408,14 @@ Item {
                     tooltipText: "Choose node types automatically, or ask how to add each pasted or dropped item."
                     isOpen: root.activeSubmenu === "canvasImport"
                     onClicked: root.activeSubmenu = root.activeSubmenu === "canvasImport" ? "" : "canvasImport"
+                }
+                ToggleRow {
+                    objectName: "canvasOptionsSmartGuidesRow"
+                    label: "Smart guides"
+                    checked: root.smartGuidesEnabled
+                    tooltipText: TooltipCopy.text(root.tooltipCopyBridgeRef, "settings.graphics.smart_guides.enabled")
+                    tooltipCategory: TooltipCopy.category(root.tooltipCopyBridgeRef, "settings.graphics.smart_guides.enabled")
+                    onToggled: root.setSmartGuidesEnabled(!root.smartGuidesEnabled)
                 }
 
                 Divider {}

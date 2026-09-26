@@ -75,6 +75,13 @@ Item {
         property real pressHeight: 0
         // Shift+resize keeps the press-time aspect ratio; bare text owns its height.
         property bool shiftProportional: false
+        // Alt+resize skips the smart guides; guides wait until the pointer actually moved.
+        property bool snapBypass: false
+        property bool pointerMoved: false
+        // The smart-guide controller this press began a session on. Release, cancel and destruction end
+        // that session through this reference instead of looking the controller up on the host again, so
+        // it still ends if the host or its smartGuides binding is torn down first.
+        property QtObject guideSession: null
         readonly property bool triangleContainsMouse: containsMouse
             && GraphNodeHostHitTesting.cornerTriangleContainsPoint(
                 mouseX,
@@ -130,6 +137,37 @@ Item {
             return rect;
         }
 
+        function _smartGuides() {
+            return root.host && root.host.smartGuides ? root.host.smartGuides : null;
+        }
+
+        function _contentMinimumHeight(width) {
+            var minHeight = root.host._minNodeHeight;
+            // Content-sized surfaces (flowchart grow-to-fit) raise the floor for this width.
+            var surfaceItem = root.host.loadedSurfaceItem;
+            if (surfaceItem && typeof surfaceItem.minimumNodeHeightForWidth === "function")
+                minHeight = Math.max(minHeight, Number(surfaceItem.minimumNodeHeightForWidth(width)) || 0.0);
+            return minHeight;
+        }
+
+        // Snaps the moving edges to smart guides after the handle's own clamp and aspect lock.
+        function _guidedRect(rect, minWidth, minHeight) {
+            if (!guideSession || !pointerMoved)
+                return rect;
+            var aspectRatio = _lockAspectRatioEnabled() && pressWidth > 0 && pressHeight > 0
+                ? pressWidth / pressHeight
+                : 0.0;
+            var result = guideSession.resolveResize(rect, {
+                "movingLeft": root._leftCorner,
+                "movingTop": root._topCorner,
+                "horizontalOnly": root._horizontalOnly,
+                "aspectRatio": isFinite(aspectRatio) ? aspectRatio : 0.0,
+                "minWidth": minWidth,
+                "minHeight": minHeight
+            }, snapBypass);
+            return result && result.rect ? result.rect : rect;
+        }
+
         function updatePreviewFromDelta(deltaX, deltaY, active) {
             if (!root.host || !root.host.nodeData)
                 return;
@@ -158,10 +196,7 @@ Item {
                 else
                     right = left + minWidth;
             }
-            // Content-sized surfaces (flowchart grow-to-fit) raise the floor for this width.
-            var surfaceItem = root.host.loadedSurfaceItem;
-            if (surfaceItem && typeof surfaceItem.minimumNodeHeightForWidth === "function")
-                minHeight = Math.max(minHeight, Number(surfaceItem.minimumNodeHeightForWidth(right - left)) || 0.0);
+            minHeight = _contentMinimumHeight(right - left);
             if ((bottom - top) < minHeight) {
                 if (root._topCorner)
                     top = bottom - minHeight;
@@ -178,10 +213,24 @@ Item {
                 minWidth,
                 minHeight
             );
-            left = lockedRect.left;
-            top = lockedRect.top;
-            right = lockedRect.right;
-            bottom = lockedRect.bottom;
+            var lockedWidth = lockedRect.right - lockedRect.left;
+            var guidedRect = _guidedRect(lockedRect, minWidth, minHeight);
+            left = guidedRect.left;
+            top = guidedRect.top;
+            right = guidedRect.right;
+            bottom = guidedRect.bottom;
+            // A guide that changed the width moves a content-sized surface's height floor with it.
+            if ((right - left) !== lockedWidth) {
+                var finalMinHeight = _contentMinimumHeight(right - left);
+                if ((bottom - top) < finalMinHeight) {
+                    if (root._topCorner)
+                        top = bottom - finalMinHeight;
+                    else
+                        bottom = top + finalMinHeight;
+                }
+            }
+            if (guideSession && pointerMoved)
+                guideSession.confirmResize({"left": left, "top": top, "right": right, "bottom": bottom});
 
             root.host._liveGeometryActive = true;
             root.host._liveX = left;
@@ -220,6 +269,11 @@ Item {
             pressWidth = root.host.width;
             pressHeight = root.host.height;
             shiftProportional = _shiftProportionalFor(mouse);
+            snapBypass = false;
+            pointerMoved = false;
+            guideSession = _smartGuides();
+            if (guideSession)
+                guideSession.beginResize(root.host.nodeData.node_id);
             updatePreviewFromDelta(0.0, 0.0, true);
             mouse.accepted = true;
         }
@@ -232,6 +286,9 @@ Item {
             var dx = (gp.x - pressGlobalX) / zoom;
             var dy = (gp.y - pressGlobalY) / zoom;
             shiftProportional = _shiftProportionalFor(mouse);
+            snapBypass = Boolean(mouse.modifiers & Qt.AltModifier);
+            if (gp.x !== pressGlobalX || gp.y !== pressGlobalY)
+                pointerMoved = true;
             updatePreviewFromDelta(dx, dy, true);
         }
 
@@ -253,8 +310,22 @@ Item {
             mouse.accepted = true;
         }
 
+        // Ends this press's guide session; a no-op outside a press, so it is safe to repeat.
+        function _finishGuides() {
+            var guides = guideSession;
+            guideSession = null;
+            snapBypass = false;
+            pointerMoved = false;
+            if (guides)
+                guides.endResize();
+        }
+
+        // Deleting the node or switching workspace mid-resize destroys the handle without a release.
+        Component.onDestruction: _finishGuides()
+
         onReleased: function(_mouse) {
             shiftProportional = false;
+            _finishGuides();
             if (!root.host || !root.host.nodeData || !root.host._liveGeometryActive)
                 return;
             var finalX = root.host._liveX;
@@ -280,6 +351,7 @@ Item {
 
         onCanceled: {
             shiftProportional = false;
+            _finishGuides();
             if (!root.host || !root.host.nodeData)
                 return;
             var fallbackX = root.host._liveGeometryActive ? root.host._liveX : Number(root.host.nodeData.x);
