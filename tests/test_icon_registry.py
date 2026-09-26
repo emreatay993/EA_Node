@@ -22,6 +22,16 @@ class IconRegistryTests(unittest.TestCase):
                 self.assertGreater(sum(image.pixelColor(x, y).alpha() > 32
                                        for y in range(image.height()) for x in range(image.width())), 20)
 
+    def test_swimlane_orientation_icons_are_visible_at_toolbar_sizes(self) -> None:
+        bridge = UiIconRegistryBridge()
+        for name, label in {"swimlane-horizontal": "Horizontal Lanes", "swimlane-vertical": "Vertical Lanes"}.items():
+            self.assertTrue(icon_path(name).is_file(), name)
+            self.assertEqual(bridge.label(name), label)
+            for size in (15, 20, 24):
+                image = icon_pixmap(name, size=size, color="#edf0f7").toImage()
+                self.assertGreater(sum(image.pixelColor(x, y).alpha() > 32
+                                       for y in range(image.height()) for x in range(image.width())), 20)
+
     def test_known_icons_resolve_to_existing_files(self) -> None:
         for name in (
             "code",
@@ -57,6 +67,8 @@ class IconRegistryTests(unittest.TestCase):
             "edge-path-dotted",
             "edge-reverse",
             "edge-label-layout",
+            "swimlane-horizontal",
+            "swimlane-vertical",
             "label-off",
             "content-only",
             "node-chrome",

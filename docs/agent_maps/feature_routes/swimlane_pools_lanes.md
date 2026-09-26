@@ -5,7 +5,8 @@ Use this for swimlanes: the lane (the Library's Swimlane) and the pool that form
 stacked-lane rule (lanes resize together, nodes stay in their lanes), standalone lanes, pools forming and dissolving,
 lane drags (a reorder inside the pool), lane commands and "+" buttons, lane colours, the live previews (resize, lane
 reorder, the lane a drag drops into), the lane-aware Tidy, the pool/lane surface and title band, the lane context menu,
-the Inspector's Lanes section, persistence, and the `swimlane.*` automation ops.
+the floating toolbar's orientation switch, the Inspector's Lanes section, persistence, and the `swimlane.*` automation
+ops.
 
 ## Start Here
 - `ea_node_editor/nodes/builtins/passive_annotation.py`: `passive.annotation.swimlane_lane` (display name
@@ -90,6 +91,12 @@ the Inspector's Lanes section, persistence, and the `swimlane.*` automation ops.
   Tidy Lanes, the orientation switch, Remove Lane; standalone lane: the insert rows, Tidy Lane, the orientation
   switch, Remove Lane) call the slots in `ea_node_editor/ui_qml/graph_canvas_command/scene_mutation_ops.py`; the
   pre-open height estimate is in `GraphCanvasInteractionState.qml`.
+- Floating toolbar: `GraphSwimlaneSurface.qml` publishes one `kind: "surface"` action, `swimlane_switch_orientation`
+  ("Switch to vertical lanes" / "Switch to horizontal lanes"; the glyph, `swimlane-vertical` or `swimlane-horizontal`
+  in `ea_node_editor/ui/icon_registry.py`, names the orientation it switches to; a lane in a pool adds "Turns the whole
+  pool"; a collapsed pool has none, as in its menu). Its `dispatchSurfaceAction` commits an `orientation` edit through
+  `host.inlinePropertyCommitted`, so it reaches `set_swimlane_orientation` the way the menu row's `set_node_property`
+  does. Both host copies (backdrop layer and input overlay) publish it, because either can be the toolbar's host.
 - Inspector Lanes section: `ea_node_editor/ui_qml/components/shell/InspectorSwimlaneLanesSection.qml` (rows keyed
   by lane id through `InspectorRowsModel`: colour swatch, role name, move up/down, remove, Add Lane), mounted in
   `InspectorPane.qml` (`isSwimlaneInspector`, `selectedNodeSwimlaneLaneItems`). Rows come from
@@ -143,4 +150,4 @@ the Inspector's Lanes section, persistence, and the `swimlane.*` automation ops.
 ## Update Triggers
 Update when the stacked-lane rule, lane assignment, standalone lanes or pools forming/dissolving, lane commands, the
 settle hooks, the live previews, the "+" buttons, lane colours, the lane-aware Tidy, the pool or lane surface, title
-band or menu rows, the Inspector Lanes section, or the `swimlane.*` ops change.
+band, menu rows or toolbar action, the Inspector Lanes section, or the `swimlane.*` ops change.

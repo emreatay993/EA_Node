@@ -6,7 +6,8 @@ import "../surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 // Swimlane pools and lanes (Group backdrops): a pool draws the Group's glass body, frame and title band; a lane its
 // role band and the divider it shares with the lane before it. A lane no pool holds draws the glass body and frame
 // itself. The title in either band is the shared header title (rotated into the band of a horizontal pool), so
-// double-click editing is the Group's. The input-overlay copy draws nothing but a lane's "+" buttons.
+// double-click editing is the Group's. The input-overlay copy draws nothing but a lane's "+" buttons. Both copies
+// offer the floating toolbar's orientation switch, since either can be the toolbar's host.
 GraphShared.GraphSurfaceBase {
     id: surface
     objectName: "graphNodeSwimlaneSurface"
@@ -112,6 +113,32 @@ GraphShared.GraphSurfaceBase {
         insertBeforeButton.embeddedInteractiveRects,
         insertAfterButton.embeddedInteractiveRects
     ])
+
+    // Floating-toolbar button: the context menu's "Switch to ... Lanes". Its label and glyph name the orientation it
+    // switches to; a lane in a pool turns the whole pool. A collapsed pool keeps its orientation (as in the menu).
+    readonly property bool orientationSwitchAvailable: !!host && !host.isCollapsed && surface.nodeId.length > 0
+    readonly property var surfaceActions: surface.orientationSwitchAvailable ? [surface._orientationSwitchAction()] : []
+
+    function _orientationSwitchAction() {
+        var action = {
+            "id": "swimlane_switch_orientation",
+            "label": surface.horizontal ? "Switch to vertical lanes" : "Switch to horizontal lanes",
+            "icon": surface.horizontal ? "swimlane-vertical" : "swimlane-horizontal",
+            "kind": "surface"
+        };
+        if (surface._heldByPool)
+            action.description = "Turns the whole pool";
+        return action;
+    }
+
+    function dispatchSurfaceAction(actionId) {
+        if (String(actionId || "") !== "swimlane_switch_orientation" || !surface.orientationSwitchAvailable)
+            return false;
+        // Like the menu row, an orientation property edit: the scene turns it into one undo step that re-lays the
+        // lanes out and keeps every node in its lane.
+        host.inlinePropertyCommitted(surface.nodeId, "orientation", surface.horizontal ? "vertical" : "horizontal");
+        return true;
+    }
 
     function _insertLane(after) {
         var bridge = surface.canvasItem ? surface.canvasItem.sceneCommandBridge : null;

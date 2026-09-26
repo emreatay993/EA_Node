@@ -124,6 +124,16 @@ _ICON_SPECS: dict[str, IconSpec] = {
     "folder": IconSpec(name="folder", label="Folder", relative_path="folder.svg"),
     "folder-open": IconSpec(name="folder-open", label="Browse Files", relative_path="folder-open.svg"),
     "layout-dashboard": IconSpec(name="layout-dashboard", label="Workspace", relative_path="layout-dashboard.svg"),
+    "swimlane-horizontal": IconSpec(
+        name="swimlane-horizontal",
+        label="Horizontal Lanes",
+        relative_path="swimlane-horizontal.svg",
+    ),
+    "swimlane-vertical": IconSpec(
+        name="swimlane-vertical",
+        label="Vertical Lanes",
+        relative_path="swimlane-vertical.svg",
+    ),
     "hierarchy-2": IconSpec(name="hierarchy-2", label="Node", relative_path="hierarchy-2.svg"),
     "world-www": IconSpec(name="world-www", label="Web Address", relative_path="world-www.svg"),
     "plus": IconSpec(name="plus", label="Add", relative_path="plus.svg"),

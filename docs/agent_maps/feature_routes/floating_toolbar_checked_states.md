@@ -15,6 +15,8 @@ Surface-local toolbar actions with `kind: "surface"` or `kind: "media"` dispatch
 
 The Panel surface exposes exactly six direct surface actions: increase/decrease font size, align left/right, and fit width/height. Their labels, explanatory tooltips, order, and semantic icons mirror the reference help, with separators after decrease and align-right. `GraphNodeHost.availableActions` returns only these six actions for Panel, without generic common-node actions. They are owned by `GraphPanelSurface.qml` and use the same surface-dispatch path; no global graph action IDs or toolbar-specific state bridge are involved.
 
+Swimlane pools and lanes publish one surface action, `swimlane_switch_orientation` from `GraphSwimlaneSurface.qml`, whose label and glyph (`swimlane-vertical` / `swimlane-horizontal`) name the orientation it switches to; it commits the `orientation` property through `host.inlinePropertyCommitted`, like the lane context menu's switch. The [swimlane route](swimlane_pools_lanes.md) owns its proof in `tests/test_swimlane_shell.py`.
+
 Node floating toolbars open for exactly one selected node by default. `GraphNodeHost.qml` gates legacy hover reveal with the default-off app-wide `graphics.canvas.node_floating_toolbar_opens_on_hover` preference projected as `prefs.nodeFloatingToolbarOpensOnHover`; keep `toolbarPointerInside` active so the pointer can enter an open toolbar.
 
 `GraphNodeFloatingToolbar.qml` publishes its flipped side and effective zoom to

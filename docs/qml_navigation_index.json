@@ -15341,6 +15341,10 @@
         },
         {
           "kind": "var",
+          "name": "fillNodeActions"
+        },
+        {
+          "kind": "var",
           "name": "availableActions"
         },
         {
@@ -18403,6 +18407,12 @@
           "anchor": "GraphNodeHostPropertyCommonNodeActions",
           "kind": "property",
           "name": "commonNodeActions",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeHostPropertyFillNodeActions",
+          "kind": "property",
+          "name": "fillNodeActions",
           "detail": "var"
         },
         {
@@ -65634,10 +65644,24 @@
         {
           "kind": "var",
           "name": "embeddedInteractiveRects"
+        },
+        {
+          "kind": "bool",
+          "name": "orientationSwitchAvailable"
+        },
+        {
+          "kind": "var",
+          "name": "surfaceActions"
         }
       ],
       "signals": [],
       "functions": [
+        {
+          "name": "_orientationSwitchAction"
+        },
+        {
+          "name": "dispatchSurfaceAction"
+        },
         {
           "name": "_insertLane"
         },
@@ -66445,6 +66469,28 @@
           "kind": "property",
           "name": "embeddedInteractiveRects",
           "detail": "var"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertyOrientationSwitchAvailable",
+          "kind": "property",
+          "name": "orientationSwitchAvailable",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfacePropertySurfaceActions",
+          "kind": "property",
+          "name": "surfaceActions",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfaceFunctionOrientationSwitchAction",
+          "kind": "function",
+          "name": "_orientationSwitchAction"
+        },
+        {
+          "anchor": "GraphSwimlaneSurfaceFunctionDispatchSurfaceAction",
+          "kind": "function",
+          "name": "dispatchSurfaceAction"
         },
         {
           "anchor": "GraphSwimlaneSurfaceFunctionInsertLane",
@@ -93092,6 +93138,9 @@
           "name": "handleSelectionContextAction"
         },
         {
+          "name": "_applyNodeFillColorAction"
+        },
+        {
           "name": "handleNodeDelegateAction"
         },
         {
@@ -93422,6 +93471,11 @@
           "anchor": "GraphCanvasActionRouterFunctionHandleSelectionContextAction",
           "kind": "function",
           "name": "handleSelectionContextAction"
+        },
+        {
+          "anchor": "GraphCanvasActionRouterFunctionApplyNodeFillColorAction",
+          "kind": "function",
+          "name": "_applyNodeFillColorAction"
         },
         {
           "anchor": "GraphCanvasActionRouterFunctionHandleNodeDelegateAction",

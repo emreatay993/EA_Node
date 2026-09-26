@@ -35,6 +35,7 @@ Use this for app assets, app icons, shell/ui icon registry assets, node title ic
 - Media Panel video-mode toolbar and fullscreen controls use semantic registered Tabler-sourced `video-*` shell icons, including `video-trim-save`; keep inline QML action names on those registry keys instead of reusing generic browser/title/frame glyphs.
 - Durable node linking icons use registered Tabler-sourced shell icons such as `link`, `file-text`, `folder`, `layout-dashboard`, `hierarchy-2`, `plus`, and `x`; QML should consume them through `uiIcons.sourceSized(...)` so theme recoloring stays centralized.
 - Node comment actions (canvas popover + inspector section) use registered Tabler-sourced shell icons `reply` (arrow-back-up.svg), `check`, `pin`/`pin-off` (pinned-off.svg), `rotate-clockwise`, `delete`, `send`, and `x` as icon-only buttons with tooltips; keep those registry keys instead of reintroducing text-only buttons or inline glyph duplicates.
+- The swimlane toolbar's orientation switch uses local Tabler-like glyphs `swimlane-horizontal` and `swimlane-vertical` (a pool frame, its title band and one lane divider, each the other turned); `tests/test_icon_registry.py` checks they draw at toolbar sizes.
 - Shell icons sourced from Tabler must keep `TABLER_SOURCES.txt` and `TABLER_LICENSE.txt` aligned, and packaging must include those `.txt` notices with the QML runtime assets.
 - Regenerate app icon sets with the documented script when source app icons change.
 - For theme-aware title icons, update requirements/proof docs only when formal specs change.

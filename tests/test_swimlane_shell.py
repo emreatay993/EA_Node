@@ -1,4 +1,4 @@
-# Purpose: Mounted-shell swimlane checks the scene tests cannot prove: the lane and pool context-menu rows and their commands, lanes stacking and hit-testing above their pool, the lane title turned into its band, the collapsed pool pill, a standalone lane's frame, the hover + buttons, and the live previews (resize, lane reorder drag and its commit, the drop-target lane).
+# Purpose: Mounted-shell swimlane checks the scene tests cannot prove: the lane and pool context-menu rows and their commands, the floating toolbar's orientation switch, lanes stacking and hit-testing above their pool, the lane title turned into its band, the collapsed pool pill, a standalone lane's frame, the hover + buttons, and the live previews (resize, lane reorder drag and its commit, the drop-target lane).
 # Map: feature_routes/swimlane_pools_lanes
 # Tests: tests/test_swimlane_shell.py
 from __future__ import annotations
@@ -16,6 +16,7 @@ pytestmark = pytest.mark.xdist_group("p03_main_window_shell")
 POOL = "passive.annotation.swimlane_pool"
 LANE = "passive.annotation.swimlane_lane"
 PROCESS = "passive.flowchart.process"
+SWITCH_ORIENTATION = "swimlane_switch_orientation"
 
 
 def _variant(value):  # noqa: ANN001, ANN202
@@ -380,3 +381,91 @@ class SwimlaneShellTests(SharedMainWindowShellTestBase):
         )
         card = next(item for item in self._walk_items(pane) if item.objectName() == "inspectorSwimlaneLanesCard")
         self.assertTrue(card.isVisible())
+
+
+    # -- the floating toolbar -----------------------------------------------------------------------------------
+
+    def _toolbar_actions(self, node_id: str) -> dict[str, dict]:
+        """Select ``node_id`` alone and return its floating toolbar's actions by id."""
+        self.window.scene.select_node(node_id, False)
+        toolbar = self._find_qml_item("graphNodeFloatingToolbar")
+        self.assertIsNotNone(toolbar)
+
+        def actions() -> dict[str, dict]:
+            host_data = _variant(toolbar.property("hostNodeData")) or {}
+            if str(host_data.get("node_id", "")) != node_id or not bool(toolbar.property("toolbarActive")):
+                return {}
+            listed = [_variant(action) for action in _variant(toolbar.property("actionList")) or []]
+            return {str(action.get("id", "")): action for action in listed}
+
+        wait_for_condition_or_raise(
+            lambda: bool(actions()),
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message=f"Timed out waiting for the floating toolbar of {node_id}.",
+        )
+        return actions()
+
+    def _click_orientation_switch(self, expected_tooltip: str) -> None:
+        button = self._find_qml_item("graphNodeFloatingToolbarAction_" + SWITCH_ORIENTATION)
+        self.assertIsNotNone(button)
+        self.assertTrue(button.isVisible() and button.isEnabled())
+        self.assertEqual(button.property("tooltipText"), expected_tooltip)
+        button.clicked.emit()
+        self.app.processEvents()
+
+    def test_the_floating_toolbar_switches_a_lanes_whole_pool_to_the_other_orientation(self) -> None:
+        pool_id, lanes = self._pool()
+        workspace = self.window.model.active_workspace
+        history = self.window.runtime_history
+        depth = history.undo_depth(workspace.workspace_id)
+
+        # The button names the orientation it switches to; on a lane in a pool it says the pool turns.
+        action = self._toolbar_actions(lanes[1])[SWITCH_ORIENTATION]
+        self.assertEqual(
+            (action["label"], action["icon"], action["kind"], action.get("description")),
+            ("Switch to vertical lanes", "swimlane-vertical", "surface", "Turns the whole pool"),
+        )
+        self._click_orientation_switch("Switch to vertical lanes\nTurns the whole pool")
+
+        self.assertEqual(
+            {workspace.nodes[node_id].properties["orientation"] for node_id in (pool_id, *lanes)},
+            {"vertical"},
+        )
+        self.assertEqual(self._lane_order(pool_id), lanes)
+        self.assertEqual(history.undo_depth(workspace.workspace_id), depth + 1)
+
+        # The pool's own button switches back.
+        action = self._toolbar_actions(pool_id)[SWITCH_ORIENTATION]
+        self.assertEqual(
+            (action["label"], action["icon"], action.get("description")),
+            ("Switch to horizontal lanes", "swimlane-horizontal", None),
+        )
+        self._click_orientation_switch("Switch to horizontal lanes")
+        self.assertEqual(workspace.nodes[pool_id].properties["orientation"], "horizontal")
+        self.assertEqual(self._lane_order(pool_id), lanes)
+        self.assertEqual(history.undo_depth(workspace.workspace_id), depth + 2)
+
+    def test_the_floating_toolbar_turns_a_standalone_lane_and_skips_a_collapsed_pool(self) -> None:
+        solo = self.window.scene.create_swimlane_lane(4000.0, 0.0, title="Solo")
+        self.app.processEvents()
+        workspace = self.window.model.active_workspace
+        width, height = workspace.nodes[solo].custom_width, workspace.nodes[solo].custom_height
+
+        self.assertNotIn("description", self._toolbar_actions(solo)[SWITCH_ORIENTATION])
+        self._click_orientation_switch("Switch to vertical lanes")
+
+        lane = workspace.nodes[solo]
+        self.assertEqual(lane.properties["orientation"], "vertical")
+        # It turns about its corner: length and thickness swap axes.
+        self.assertAlmostEqual(lane.custom_width, height)
+        self.assertAlmostEqual(lane.custom_height, width)
+
+        # A collapsed pool keeps its orientation, as in its context menu.
+        pool_id, _lanes = self._pool()
+        self.window.scene.set_node_collapsed(pool_id, True)
+        self.app.processEvents()
+        actions = self._toolbar_actions(pool_id)
+        self.assertIn("toggle_node_collapsed", actions)
+        self.assertNotIn(SWITCH_ORIENTATION, actions)

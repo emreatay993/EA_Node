@@ -71,7 +71,7 @@ Settings-section size transitions use shared 180 ms width/height animations with
 - [SSH/SFTP Nodes](feature_routes/ssh_sftp_nodes.md)
 - [Performance Harness And Graph Stress](feature_routes/performance_harness_graph_stress.md)
 - [Retained Work-Packet QA Evidence And Spec Navigation](feature_routes/work_packet_docs_status_qa.md)
-- [Swimlane Pools And Lanes](feature_routes/swimlane_pools_lanes.md) - lane and pool node types in the Group backdrop family, standalone lanes and pools forming/dissolving, the stacked-lane rule and settle pass, lane commands, "+" buttons and menu rows, live resize/reorder/drop previews, lane colours, lane-aware Tidy, pool/lane surface and title band, the Inspector Lanes section, `swimlane.*` automation ops
+- [Swimlane Pools And Lanes](feature_routes/swimlane_pools_lanes.md) - lane and pool node types in the Group backdrop family, standalone lanes and pools forming/dissolving, the stacked-lane rule and settle pass, lane commands, "+" buttons, menu rows and the toolbar orientation switch, live resize/reorder/drop previews, lane colours, lane-aware Tidy, pool/lane surface and title band, the Inspector Lanes section, `swimlane.*` automation ops
 - [Automation API And MCP Server](feature_routes/automation_api_mcp.md) - loopback NDJSON protocol, declarative op catalog, GUI-thread bridge + per-domain handlers over existing owners, stdlib `CorexClient` + launcher, `corex-mcp` server with embedded guidance
 
 ## Current ownership notes
