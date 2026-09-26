@@ -5,8 +5,10 @@ import time
 import unittest
 from pathlib import Path
 
-# Match the app bootstrap; plain unittest runs skip tests/conftest.py and would
-# otherwise pick the native Windows style, whose plugin DLL fails to load here.
+# Plain unittest runs skip tests/conftest.py, so match its settings here. Without them the
+# canvas opens on the real desktop, where its QML Timers stall while the display is off (see
+# _flush_frame_scheduler), and picks the native Windows style, whose plugin DLL fails to load.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
 
 from PyQt6.QtCore import QEvent, QObject, QPoint, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
@@ -75,6 +77,24 @@ def _wait_for(predicate, *, timeout_ms: int = 1000, app: QApplication, message: 
     if predicate():
         return
     raise AssertionError(message)
+
+
+def _flush_frame_scheduler(canvas: QObject) -> None:
+    """Run the canvas frame scheduler's pending flush now, as its 16 ms QML Timer would.
+
+    The flush applies queued live-drag offsets and rebuilds the edge snapshots. While any QML
+    animation runs, QML Timers follow the render loop's animation clock, which on a native
+    window advances only when a frame is presented: with the display off the Timer never fires.
+    """
+    canvas.property("frameSchedulerRef").flushPendingRedraws()
+
+
+def _wait_for_flushed(canvas: QObject, predicate, *, timeout_ms: int = 1000, app: QApplication, message: str) -> None:
+    def _flushed_predicate() -> bool:
+        _flush_frame_scheduler(canvas)
+        return predicate()
+
+    _wait_for(_flushed_predicate, timeout_ms=timeout_ms, app=app, message=message)
 
 
 class _ViewportBridgeStub(QObject):
@@ -467,7 +487,9 @@ class GroupBackdropInteractionTests(unittest.TestCase):
                 and not snapshot.get("hiddenUnrevealed", True)
             )
 
-        _wait_for(
+        # The selection change queued the edge-snapshot rebuild in the frame scheduler.
+        _wait_for_flushed(
+            canvas,
             _hidden_wire_revealed,
             timeout_ms=1000,
             app=self.app,
@@ -611,36 +633,24 @@ class GroupBackdropInteractionTests(unittest.TestCase):
         backdrop_visual_host = _node_host(canvas, backdrop_id)
         backdrop_input_host = _node_host(canvas, backdrop_id, object_name="graphGroupBackdropInputCard")
 
-        backdrop_input_host.dragOffsetChanged.emit(backdrop_id, 64.0, 48.0, "", False)
+        def _assert_host_offsets(dx: float, dy: float) -> None:
+            for host in (backdrop_visual_host, backdrop_input_host):
+                self.assertAlmostEqual(float(host.property("liveDragDx")), dx, delta=0.01, msg=host.objectName())
+                self.assertAlmostEqual(float(host.property("liveDragDy")), dy, delta=0.01, msg=host.objectName())
 
-        _wait_for(
-            lambda: (
-                abs(float(backdrop_visual_host.property("liveDragDx")) - 64.0) < 0.01
-                and abs(float(backdrop_visual_host.property("liveDragDy")) - 48.0) < 0.01
-                and abs(float(backdrop_input_host.property("liveDragDx")) - 64.0) < 0.01
-                and abs(float(backdrop_input_host.property("liveDragDy")) - 48.0) < 0.01
-            ),
-            timeout_ms=500,
-            app=self.app,
-            message="Timed out waiting for group live-drag offsets to reach both hosts.",
-        )
+        backdrop_input_host.dragOffsetChanged.emit(backdrop_id, 64.0, 48.0, "", False)
+        # The offset waits in the frame scheduler; its flush must move both hosts together.
+        _flush_frame_scheduler(canvas)
+
+        _assert_host_offsets(64.0, 48.0)
         self.assertTrue(_variant_value(canvas.property("liveDragNodeLookup"))[backdrop_id])
         self.assertAlmostEqual(float(canvas.property("liveDragDx")), 64.0)
         self.assertAlmostEqual(float(canvas.property("liveDragDy")), 48.0)
 
+        # Canceling clears the live offset from both hosts in the same call.
         backdrop_input_host.dragCanceled.emit(backdrop_id)
 
-        _wait_for(
-            lambda: (
-                abs(float(backdrop_visual_host.property("liveDragDx"))) < 0.01
-                and abs(float(backdrop_visual_host.property("liveDragDy"))) < 0.01
-                and abs(float(backdrop_input_host.property("liveDragDx"))) < 0.01
-                and abs(float(backdrop_input_host.property("liveDragDy"))) < 0.01
-            ),
-            timeout_ms=500,
-            app=self.app,
-            message="Timed out waiting for group live-drag offsets to clear from both hosts.",
-        )
+        _assert_host_offsets(0.0, 0.0)
 
     def test_graph_canvas_group_ports_connect_by_click_and_wire_drop(self) -> None:
         backdrop_id = self._add_group_backdrop(-400.0, -200.0, 420.0, 260.0)
@@ -744,7 +754,9 @@ class GroupBackdropInteractionTests(unittest.TestCase):
 
         self.scene.move_node(backdrop_id, -360.0, -120.0)
         self.assertAlmostEqual(float(_edge_payload()["sy"]), -120.0 + 130.0, delta=1.0)
-        _wait_for(
+        # The move queued the edge-snapshot rebuild in the frame scheduler.
+        _wait_for_flushed(
+            canvas,
             _source_endpoint_at_port,
             timeout_ms=1500,
             app=self.app,
