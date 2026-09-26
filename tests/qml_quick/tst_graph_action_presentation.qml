@@ -243,4 +243,58 @@ TestCase {
             "authorLocked": true
         })).join(","), "common")
     }
+
+    function test_fill_actions_sit_between_surface_and_common_and_respect_lock_and_panel_rules() {
+        var fill = [{"id": "fill"}]
+        var facts = {
+            "contextActions": [{"id": "context"}],
+            "surfaceActions": [{"id": "surface"}],
+            "fillActions": fill,
+            "commonActions": [{"id": "common"}],
+            "panelSurface": false,
+            "authorLocked": false
+        }
+        compare(ids(Presentation.nodeAvailableActions(facts)).join(","), "context,surface,fill,common")
+        facts.authorLocked = true
+        compare(ids(Presentation.nodeAvailableActions(facts)).join(","), "common")
+        facts.authorLocked = false
+        facts.panelSurface = true
+        compare(ids(Presentation.nodeAvailableActions(facts)).join(","), "surface")
+    }
+
+    function test_fill_eligibility_covers_filled_passive_bodies_only() {
+        verify(Presentation.nodeFillEligible("flowchart", "process"))
+        verify(Presentation.nodeFillEligible("group_backdrop", "group_backdrop"))
+        verify(Presentation.nodeFillEligible("group_backdrop", "swimlane_pool"))
+        verify(Presentation.nodeFillEligible("group_backdrop", "swimlane_lane"))
+        verify(Presentation.nodeFillEligible("annotation", "sticky_note"))
+        verify(Presentation.nodeFillEligible("annotation", "section_header"))
+        verify(!Presentation.nodeFillEligible("annotation", "text"))
+        verify(!Presentation.nodeFillEligible("standard", ""))
+        verify(!Presentation.nodeFillEligible("media", "image_panel"))
+    }
+
+    function test_fill_actions_offer_pick_default_and_palette_with_current_checked() {
+        compare(Presentation.nodeFillActions({"fillEditable": false}).length, 0)
+        var group = Presentation.nodeFillActions({"fillEditable": true, "fillColor": "#a5d8ff"})
+        compare(ids(group).join(","), "node_fill_color_group")
+        compare(group[0].kind, "fill")
+        compare(group[0].popover_layout, "swatches")
+        var entries = group[0].popoverActions
+        var choices = Presentation.nodeFillColorChoices()
+        compare(entries.length, 2 + choices.length)
+        compare(entries[0].id, "node_fill_color_pick")
+        compare(entries[1].id, "node_fill_color_default")
+        verify(!entries[1].checked)
+        var checked = []
+        for (var index = 0; index < entries.length; ++index) {
+            compare(entries[index].kind, "fill")
+            if (entries[index].checked)
+                checked.push(entries[index].id)
+        }
+        compare(checked.join(","), "node_fill_color_set:#A5D8FF")
+
+        var reset = Presentation.nodeFillActions({"fillEditable": true, "fillColor": ""})[0].popoverActions
+        verify(reset[1].checked)
+    }
 }

@@ -26,7 +26,7 @@ from ea_node_editor.graph.swimlane_layout import is_swimlane_lane_type, is_swiml
 from ea_node_editor.nodes.node_specs import property_inspector_editor
 from ea_node_editor.platform_open import open_path_with_default_handler
 from ea_node_editor.settings import DEFAULT_PROPERTY_PANE_VARIANT
-from ea_node_editor.text_style import rich_text_color_property_keys
+from ea_node_editor.text_style import normalize_text_style_color, rich_text_color_property_keys
 from ea_node_editor.ui.support.node_presentation import build_user_facing_node_instance_number, has_focused_selector
 from ea_node_editor.addons.property_edit_adapters import selector_metadata_signature
 from ea_node_editor.ui.support.solution_output_cache import current_output_value
@@ -925,6 +925,49 @@ class ShellInspectorPresenter(QObject):
         if str(property_spec.inline_editor).strip() != "color" and not self._is_rich_text_color_property(node_id, key):
             return ""
         return self._host.shell_host_presenter.pick_property_color_dialog(property_spec.label, current_value)
+
+    def _passive_fill_node(self, node_id: str):  # noqa: ANN202
+        node_context = self._node_context_by_id(node_id)
+        if node_context is None:
+            return None
+        node, spec = node_context
+        if str(spec.runtime_behavior or "").strip().lower() != "passive":
+            return None
+        return node
+
+    @staticmethod
+    def _node_fill_color(node: Any) -> str:
+        # A lane's body tint is its own Color property (the Inspector's lane colour);
+        # every other passive body uses the style fill.
+        if is_swimlane_lane_type(node.type_id):
+            return str(node.properties.get("color", "") or "").strip()
+        return str((node.visual_style or {}).get("fill_color", "") or "").strip()
+
+    def pick_node_fill_color(self, node_id: str) -> str:
+        node = self._passive_fill_node(node_id)
+        if node is None:
+            return ""
+        return self._host.shell_host_presenter.pick_property_color_dialog("Fill Color", self._node_fill_color(node))
+
+    def set_node_fill_color(self, node_id: str, color: str) -> bool:
+        """Set (or, with an empty ``color``, reset) a passive node's body fill as one undo step."""
+        node = self._passive_fill_node(node_id)
+        raw = str(color or "").strip()
+        value = normalize_text_style_color(raw, "", allow_empty=True)
+        if node is None or (raw and not value) or value == self._node_fill_color(node).upper():
+            return False
+        if is_swimlane_lane_type(node.type_id):
+            return self.set_selected_swimlane_lane_color(node.node_id, value)
+        set_style = self._scene_call("set_node_visual_style")
+        if set_style is None:
+            return False
+        style = dict(node.visual_style or {})
+        if value:
+            style["fill_color"] = value
+        else:
+            style.pop("fill_color", None)
+        set_style(node.node_id, style)
+        return True
 
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
         self._host.workspace_edit_controller.set_selected_port_exposed(key, exposed)

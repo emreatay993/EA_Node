@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from PyQt6.QtCore import QMetaObject
 from PyQt6.QtGui import QColor
+from PyQt6.QtTest import QTest
 
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from tests.main_window_shell.base import *  # noqa: F401,F403
@@ -278,6 +279,72 @@ class MainWindowShellPassivePropertyEditorsTests(SharedMainWindowShellTestBase):
             self.assertEqual(presenter.pick_node_property_color(flowchart_id, "body_font_family", ""), "")
             self.assertEqual(presenter.pick_node_property_color(flowchart_id, "body", ""), "")
             get_color.assert_not_called()
+
+    def test_node_toolbar_fill_color_sets_body_fill_and_lane_color_undoably(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        flowchart_id = self.window.scene.add_node_from_type("passive.flowchart.process", x=0.0, y=0.0)
+        lane_id = self.window.scene.add_node_from_type("passive.annotation.swimlane_lane", x=0.0, y=400.0)
+        text_id = self.window.scene.add_node_from_type("passive.annotation.text", x=600.0, y=0.0)
+        constant_id = self.window.scene.add_node_from_type("core.constant", x=600.0, y=300.0)
+        self.app.processEvents()
+
+        def node(node_id: str):  # noqa: ANN202 - undo restores a snapshot, so re-read the live record
+            return self.window.model.project.workspaces[workspace_id].nodes[node_id]
+
+        def toolbar_actions(node_id: str) -> list[dict]:
+            # The fill group is built only for the host whose toolbar is open (single selection).
+            self.window.scene.select_node(node_id, False)
+            self.app.processEvents()
+            actions = self._graph_node_card(node_id).property("availableActions")
+            return list(actions.toVariant() if hasattr(actions, "toVariant") else actions or [])
+
+        def action_ids(node_id: str) -> list[str]:
+            return [str(action.get("id", "")) for action in toolbar_actions(node_id)]
+
+        self.assertIn("node_fill_color_group", action_ids(flowchart_id))
+        self.assertIn("node_fill_color_group", action_ids(lane_id))
+        self.assertNotIn("node_fill_color_group", action_ids(text_id))
+        self.assertNotIn("node_fill_color_group", action_ids(constant_id))
+        # Hosts without an open toolbar build no group once the 120 ms toolbar grace has run out.
+        QTest.qWait(400)
+        idle_actions = self._graph_node_card(flowchart_id).property("availableActions")
+        idle_actions = list(idle_actions.toVariant() if hasattr(idle_actions, "toVariant") else idle_actions or [])
+        self.assertNotIn("node_fill_color_group", [str(action.get("id", "")) for action in idle_actions])
+
+        flowchart_card = self._graph_node_card(flowchart_id)
+        flowchart_card.dispatchNodeAction("node_fill_color_set:#A5D8FF", None)
+        self.app.processEvents()
+        self.assertEqual(node(flowchart_id).visual_style.get("fill_color"), "#A5D8FF")
+        fill_group = next(
+            action for action in toolbar_actions(flowchart_id)
+            if str(action.get("id", "")) == "node_fill_color_group"
+        )
+        checked = [str(entry.get("id", "")) for entry in fill_group["popoverActions"] if entry.get("checked")]
+        self.assertEqual(checked, ["node_fill_color_set:#A5D8FF"])
+
+        with patch(
+            "ea_node_editor.ui.shell.host_presenter.QColorDialog.getColor",
+            return_value=QColor("#123456"),
+        ) as get_color:
+            self._graph_node_card(flowchart_id).dispatchNodeAction("node_fill_color_pick", None)
+            self.app.processEvents()
+        get_color.assert_called_once()
+        self.assertEqual(get_color.call_args.args[0].name().upper(), "#A5D8FF")
+        self.assertEqual(node(flowchart_id).visual_style.get("fill_color"), "#123456")
+
+        self._graph_node_card(flowchart_id).dispatchNodeAction("node_fill_color_default", None)
+        self.app.processEvents()
+        self.assertNotIn("fill_color", node(flowchart_id).visual_style)
+
+        self.window.action_undo.trigger()
+        self.app.processEvents()
+        self.assertEqual(node(flowchart_id).visual_style.get("fill_color"), "#123456")
+
+        # A lane's body tint is its Color property, not the style fill.
+        self._graph_node_card(lane_id).dispatchNodeAction("node_fill_color_set:#B2F2BB", None)
+        self.app.processEvents()
+        self.assertEqual(node(lane_id).properties.get("color"), "#B2F2BB")
+        self.assertNotIn("fill_color", node(lane_id).visual_style or {})
 
     def test_qml_color_editor_manual_hex_entry_commits_rgb_and_argb_values(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

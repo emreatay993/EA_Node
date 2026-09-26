@@ -278,16 +278,61 @@ function nodeCommonActions(facts) {
     return actions;
 }
 
+// Body fills offered by the node toolbar's Fill color popover: soft tints that keep
+// dark body text readable, plus a graphite for dark shapes.
+function nodeFillColorChoices() {
+    return [
+        "#FFEC99", "#FFD8A8", "#FFC9C9", "#B2F2BB", "#96F2D7",
+        "#A5D8FF", "#D0BFFF", "#DEE2E6", "#343A40"
+    ];
+}
+
+// Passive bodies that paint a fill: flowchart shapes, notes/callouts/section headers,
+// and the Group backdrop family (groups, swimlane pools and lanes).
+function nodeFillEligible(surfaceFamily, surfaceVariant) {
+    var family = String(surfaceFamily || "");
+    if (family === "flowchart" || family === "group_backdrop")
+        return true;
+    return family === "annotation" && String(surfaceVariant || "") !== "text";
+}
+
+function nodeFillActions(facts) {
+    var source = facts || {};
+    if (!Boolean(source.fillEditable))
+        return [];
+    var current = String(source.fillColor || "").trim().toUpperCase();
+    var popover = [
+        {"id": "node_fill_color_pick", "label": "Pick fill color", "icon": "color-picker", "kind": "fill"},
+        {
+            "id": "node_fill_color_default", "label": "Default fill", "toolbar_text": "Default",
+            "kind": "fill", "checked": current.length === 0, "close_popover": true
+        }
+    ];
+    var choices = nodeFillColorChoices();
+    for (var index = 0; index < choices.length; ++index) {
+        popover.push({
+            "id": "node_fill_color_set:" + choices[index], "label": choices[index], "icon": "circle-filled",
+            "kind": "fill", "foreground_color": choices[index], "accent_color": choices[index],
+            "checked": current === choices[index], "close_popover": true
+        });
+    }
+    return [{
+        "id": "node_fill_color_group", "label": "Fill color", "icon": "palette", "kind": "fill",
+        "popover_layout": "swatches", "popoverActions": popover
+    }];
+}
+
 function nodeAvailableActions(facts) {
     var source = facts || {};
     var context = toArray(source.contextActions);
     var surface = toArray(source.surfaceActions);
+    var fill = toArray(source.fillActions);
     var common = toArray(source.commonActions);
     if (Boolean(source.panelSurface))
         return surface;
     if (Boolean(source.authorLocked))
         return common;
-    return context.concat(surface).concat(common);
+    return context.concat(surface).concat(fill).concat(common);
 }
 
 function findAction(actions, actionId) {

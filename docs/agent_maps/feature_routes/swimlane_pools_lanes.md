@@ -97,7 +97,9 @@ the Inspector's Lanes section, persistence, and the `swimlane.*` automation ops.
   the lane colour picker are in `ea_node_editor/ui/shell/presenters/inspector_presenter.py` (they call the scene's
   lane commands) behind `ea_node_editor/ui_qml/shell_inspector_bridge.py`. `on_scene_nodes_changed` (wired in
   `ea_node_editor/ui/shell/window.py`) refreshes the section when lanes change while a pool or lane is selected.
-  Tooltip keys `inspector.swimlane_lanes.*` are in `ea_node_editor/ui/tooltips/inspector.json`.
+  Tooltip keys `inspector.swimlane_lanes.*` are in `ea_node_editor/ui/tooltips/inspector.json`. The node toolbar's
+  Fill color group ([floating toolbar route](floating_toolbar_checked_states.md)) sets a lane's `color` property
+  through the same presenter (`set_node_fill_color`), and a pool's `visual_style.fill_color` sheet fill.
 - Automation: `swimlane.create_pool` (two or more lanes), `swimlane.create_lane`, `swimlane.add_lane` (a pool and
   index, or `lane_node_id` and `after`), `swimlane.remove_lane` (`dissolved_pool_node_id`), `swimlane.move_lane`,
   `swimlane.assign`, `swimlane.describe` (`pools` and standalone `lanes`) in

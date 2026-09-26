@@ -493,6 +493,28 @@ QtObject {
         return true;
     }
 
+    // Fill color toolbar popover: pick (dialog), a palette swatch, or back to the default fill.
+    function _applyNodeFillColorAction(nodeId, actionId) {
+        var bridge = root._sceneCommandBridge();
+        if (!bridge || !bridge.set_node_fill_color || !nodeId.length)
+            return false;
+        var color = "";
+        if (actionId === "node_fill_color_pick") {
+            if (!bridge.pick_node_fill_color)
+                return false;
+            color = String(bridge.pick_node_fill_color(nodeId) || "").trim();
+            if (!color.length)
+                return false;
+        } else if (actionId.indexOf("node_fill_color_set:") === 0) {
+            color = actionId.substring("node_fill_color_set:".length);
+            if (!color.length)
+                return false;
+        } else if (actionId !== "node_fill_color_default") {
+            return false;
+        }
+        return Boolean(bridge.set_node_fill_color(nodeId, color));
+    }
+
     function handleNodeDelegateAction(nodeHost, nodeId, actionId) {
         var normalized = String(actionId || "").trim();
         if (!normalized)
@@ -509,6 +531,8 @@ QtObject {
                 return false;
             return Boolean(collapseBridge.set_node_collapsed(String(nodeId || ""), !Boolean(nodeHost.isCollapsed)));
         }
+        if (normalized.indexOf("node_fill_color_") === 0)
+            return root._applyNodeFillColorAction(String(nodeId || ""), normalized);
         var descriptor = GraphActionPresentation.descriptorForActionId(root.nodeDelegateActionDescriptors, normalized);
         if (!descriptor) {
             if (nodeHost && nodeHost.dispatchSurfaceAction)

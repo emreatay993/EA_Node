@@ -1422,9 +1422,21 @@ Item {
         "collapsible": card.nodeData ? Boolean(card.nodeData.collapsible) : false,
         "collapsed": card.isCollapsed
     })
+    // Built only while this host's toolbar is open: every canvas node carries this binding.
+    readonly property var fillNodeActions: GraphActionPresentation.nodeFillActions({
+        "fillEditable": card.toolbarActive
+            && card.isPassiveNode
+            && !card.graphReadOnly
+            && GraphActionPresentation.nodeFillEligible(card.surfaceFamily, card.surfaceVariant),
+        // A lane's body tint is its Color property; other bodies use the style fill.
+        "fillColor": card.surfaceVariant === "swimlane_lane"
+            ? String((card.nodeData && card.nodeData.properties || {}).color || "")
+            : String((card.nodeData && card.nodeData.visual_style || {}).fill_color || "")
+    })
     readonly property var availableActions: GraphActionPresentation.nodeAvailableActions({
         "contextActions": card.contextNodeActions,
         "surfaceActions": card.surfaceActions,
+        "fillActions": card.fillNodeActions,
         "commonActions": card.commonNodeActions,
         "panelSurface": card.isPanelSurface,
         "authorLocked": card.authorLocked

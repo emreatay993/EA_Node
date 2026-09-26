@@ -87,6 +87,14 @@ API lives on GraphSceneBridgeBase, not the scene command sub-bridge)."""
             or ""
         )
 
+    @pyqtSlot(str, result=str)
+    def pick_node_fill_color(self, node_id: str) -> str:
+        return str(_invoke(self._inspector_source, "pick_node_fill_color", node_id, default="") or "")
+
+    @pyqtSlot(str, str, result=bool)
+    def set_node_fill_color(self, node_id: str, color: str) -> bool:
+        return bool(_invoke(self._inspector_source, "set_node_fill_color", node_id, color, default=False))
+
     @pyqtSlot("QVariantList", result=bool)
     def request_delete_selected_graph_items(self, edge_ids: list) -> bool:
         return bool(
