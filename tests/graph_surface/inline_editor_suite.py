@@ -277,6 +277,60 @@ class PassiveGraphSurfaceInlineEditorTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_rich_text_pick_color_targets_slot_prefixed_text_color_key(self) -> None:
+        self._run_qml_probe(
+            "rich-text-pick-color-slot-key-host",
+            """
+            class ColorPickBridge(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.pick_calls = []
+                    self.recent_calls = []
+
+                @pyqtSlot(str, str, str, result=str)
+                def pick_node_property_color(self, node_id, key, current_value):
+                    self.pick_calls.append((str(node_id), str(key)))
+                    return "#ABCDEF"
+
+                @pyqtSlot(str)
+                def record_recent_text_color(self, color):
+                    self.recent_calls.append(str(color))
+
+            class ColorPickCanvasItem(QQuickItem):
+                def __init__(self, bridge):
+                    super().__init__()
+                    self._bridge = bridge
+
+                @pyqtProperty(QObject, constant=True)
+                def canvasCommandBridgeRef(self):
+                    return self._bridge
+
+            bridge = ColorPickBridge()
+            canvas_item = ColorPickCanvasItem(bridge)
+            payload = flowchart_payload("callout", title="Callout", display_name="Callout")
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload, "canvasItem": canvas_item})
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                surface = host.findChild(QObject, "graphNodeFlowchartSurface")
+                block = host.findChild(QObject, "graphNodeFlowchartRichTextBlock")
+                assert surface is not None
+                assert block is not None
+                committed = []
+                host.inlinePropertyCommitted.connect(
+                    lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
+                )
+
+                assert bool(surface.dispatchSurfaceAction("text_pick_color"))
+                assert bridge.pick_calls == [("node_surface_host_test", "body_text_color")], bridge.pick_calls
+                assert bridge.recent_calls == ["#ABCDEF"]
+                QTest.qWait(int(block.property("styleCommitDelayMs")) + 30)
+                settle_events(5)
+                assert committed == [("node_surface_host_test", "body_text_color", "#ABCDEF")], committed
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
     def test_passive_annotation_text_copy_paste_style_uses_internal_clipboard_and_bulk_commit(self) -> None:
         self._run_qml_probe(
             "annotation-text-copy-paste-style-host",

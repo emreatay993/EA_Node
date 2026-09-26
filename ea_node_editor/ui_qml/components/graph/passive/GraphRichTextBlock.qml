@@ -897,7 +897,7 @@ GraphShared.GraphSurfaceBase {
         var color = String(
             bridge.pick_node_property_color(
                 String(host.nodeData.node_id || ""),
-                "text_color",
+                surface._actualPropertyKey("text_color"),
                 surface.textColorValue
             ) || ""
         ).trim();

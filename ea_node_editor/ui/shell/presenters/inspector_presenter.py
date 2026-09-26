@@ -26,6 +26,7 @@ from ea_node_editor.graph.swimlane_layout import is_swimlane_lane_type, is_swiml
 from ea_node_editor.nodes.node_specs import property_inspector_editor
 from ea_node_editor.platform_open import open_path_with_default_handler
 from ea_node_editor.settings import DEFAULT_PROPERTY_PANE_VARIANT
+from ea_node_editor.text_style import rich_text_color_property_keys
 from ea_node_editor.ui.support.node_presentation import build_user_facing_node_instance_number, has_focused_selector
 from ea_node_editor.addons.property_edit_adapters import selector_metadata_signature
 from ea_node_editor.ui.support.solution_output_cache import current_output_value
@@ -441,6 +442,15 @@ class ShellInspectorPresenter(QObject):
             return None
         _node, spec = node_context
         return next((prop for prop in spec.properties if prop.key == normalized_key), None)
+
+    def _is_rich_text_color_property(self, node_id: str, key: str) -> bool:
+        # Rich-text slots with inherited style (flowchart/annotation bodies) carry no
+        # color editor, yet the text toolbar's Pick text color still targets them.
+        node_context = self._node_context_by_id(node_id)
+        if node_context is None:
+            return False
+        _node, spec = node_context
+        return str(key).strip() in rich_text_color_property_keys(prop.key for prop in spec.properties)
 
     def _selected_node_property_spec(self, key: str):
         selected = self._selected_node_context()
@@ -910,7 +920,9 @@ class ShellInspectorPresenter(QObject):
 
     def pick_node_property_color(self, node_id: str, key: str, current_value: str) -> str:
         property_spec = self._node_property_spec(node_id, key)
-        if property_spec is None or str(property_spec.inline_editor).strip() != "color":
+        if property_spec is None:
+            return ""
+        if str(property_spec.inline_editor).strip() != "color" and not self._is_rich_text_color_property(node_id, key):
             return ""
         return self._host.shell_host_presenter.pick_property_color_dialog(property_spec.label, current_value)
 

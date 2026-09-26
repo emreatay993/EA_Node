@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 TEXT_STYLE_FORMATS = ("markdown", "plain")
@@ -149,6 +149,30 @@ def rich_text_style_property_key(content_key: str, style_key: str) -> str:
     return f"{normalized_content}_{normalized_style}"
 
 
+def rich_text_color_property_keys(property_keys: Iterable[str]) -> frozenset[str]:
+    """Return the text/background color keys of every rich-text slot in ``property_keys``.
+
+    A slot is recognized by its format key (``format`` or ``<content>_format``), so
+    inherited-style slots such as ``body_text_color`` count even though they carry no
+    inline or Inspector color editor.
+    """
+    keys = {str(key) for key in property_keys}
+    content_keys = [
+        "text" if key == "format" else key.removesuffix("_format")
+        for key in keys
+        if key == "format" or key.endswith("_format")
+    ]
+    return frozenset(
+        style_key
+        for content_key in content_keys
+        for style_key in (
+            rich_text_style_property_key(content_key, "text_color"),
+            rich_text_style_property_key(content_key, "background_color"),
+        )
+        if style_key in keys
+    )
+
+
 def rich_text_slot_property_keys(content_key: str) -> tuple[str, ...]:
     return (
         str(content_key or "").strip(),
@@ -279,6 +303,7 @@ __all__ = [
     "normalize_text_style_color",
     "normalize_text_style_properties",
     "record_recent_text_color",
+    "rich_text_color_property_keys",
     "rich_text_format_property_key",
     "rich_text_slot_property_keys",
     "rich_text_style_property_key",

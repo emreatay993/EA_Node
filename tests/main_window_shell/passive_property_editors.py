@@ -252,6 +252,33 @@ class MainWindowShellPassivePropertyEditorsTests(SharedMainWindowShellTestBase):
         self.assertEqual(node.properties["accent_color"], "#AA5500")
         self.assertEqual(str(color_editor.property("text")), "#AA5500")
 
+    def test_pick_node_property_color_opens_dialog_for_rich_text_slot_colors(self) -> None:
+        presenter = self.window.shell_inspector_presenter
+        flowchart_id = self.window.scene.add_node_from_type("passive.flowchart.callout", x=0.0, y=0.0)
+        note_id = self.window.scene.add_node_from_type("passive.annotation.callout", x=400.0, y=0.0)
+        cube_id = self.window.scene.add_node_from_type("passive.flowchart.isometric_cube", x=800.0, y=0.0)
+        self.app.processEvents()
+
+        with patch(
+            "ea_node_editor.ui.shell.host_presenter.QColorDialog.getColor",
+            return_value=QColor("#AA5500"),
+        ) as get_color:
+            for node_id, key in (
+                (flowchart_id, "body_text_color"),
+                (note_id, "body_text_color"),
+                (cube_id, "body_top_text_color"),
+                (cube_id, "body_right_background_color"),
+            ):
+                self.assertEqual(presenter.pick_node_property_color(node_id, key, ""), "#AA5500", key)
+            self.assertEqual(get_color.call_count, 4)
+
+            # Unslotted or non-color keys still never open the dialog.
+            get_color.reset_mock()
+            self.assertEqual(presenter.pick_node_property_color(flowchart_id, "text_color", ""), "")
+            self.assertEqual(presenter.pick_node_property_color(flowchart_id, "body_font_family", ""), "")
+            self.assertEqual(presenter.pick_node_property_color(flowchart_id, "body", ""), "")
+            get_color.assert_not_called()
+
     def test_qml_color_editor_manual_hex_entry_commits_rgb_and_argb_values(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("tests.passive_editor_fixture", x=120.0, y=80.0)
