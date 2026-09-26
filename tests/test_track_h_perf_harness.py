@@ -318,17 +318,152 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         )
         self.assertFalse(unsupported.membership_freeze_supported)
         self.assertIsNone(unsupported.membership_freeze_count)
+        # A build without the smart-guide controller (the pre-guides baseline) stays measurable.
+        self.assertIsNone(unsupported.smart_guides)
 
         supported = performance_harness._measure_node_drag_gesture(
             host(freeze_increment=1), sample_index=0
         )
         self.assertTrue(supported.membership_freeze_supported)
         self.assertEqual(supported.membership_freeze_count, 1)
+        self.assertIsNone(supported.smart_guides)
 
         with self.assertRaisesRegex(RuntimeError, "observed 2 freezes"):
             performance_harness._measure_node_drag_gesture(
                 host(freeze_increment=2), sample_index=0
             )
+
+    def test_drag_gesture_checks_one_smart_guide_snapshot_per_flushed_gesture(
+        self,
+    ) -> None:
+        class Counters:
+            def __init__(self, values: dict) -> None:
+                self.values = values
+
+            def property(self, name: str):
+                return self.values.get(name)
+
+        def host(
+            *,
+            enabled: bool = True,
+            flush_offsets: tuple[int, ...] = (3, 9),
+            snapshots_per_flush: int = 1,
+            clear_snapshots: int = 0,
+        ):
+            guides = Counters(
+                {
+                    "enabled": enabled,
+                    "profileSnapshotCount": 4,
+                    "profileResolveCount": 20,
+                    "profileLastSnapshotMs": 0.0,
+                }
+            )
+            scheduler = Counters({"flushedLiveDragUpdateCount": 7})
+            canvas = Counters(
+                {
+                    "profileLiveDragMembershipFreezeCount": 10,
+                    "liveDragAnchorNodeId": "",
+                    "smartGuidesRef": guides,
+                    "frameSchedulerRef": scheduler,
+                }
+            )
+            offsets = 0
+
+            def flush() -> None:
+                # The first flushed frame of a session snapshots (when guides are on); every
+                # flushed frame resolves.
+                scheduler.values["flushedLiveDragUpdateCount"] += 1
+                if not enabled:
+                    return
+                if scheduler.values["flushedLiveDragUpdateCount"] == 8:
+                    guides.values["profileSnapshotCount"] += snapshots_per_flush
+                    guides.values["profileLastSnapshotMs"] = 17.0
+                guides.values["profileResolveCount"] += 1
+
+            def emit_offset(*_args) -> None:
+                nonlocal offsets
+                if offsets == 0:
+                    canvas.values["profileLiveDragMembershipFreezeCount"] += 1
+                offsets += 1
+                if offsets in flush_offsets:
+                    flush()
+
+            def emit_cancel(*_args) -> None:
+                guides.values["profileSnapshotCount"] += clear_snapshots
+
+            node_card = SimpleNamespace(
+                property=lambda _name: {"node_id": "node-1"},
+                dragOffsetChanged=SimpleNamespace(emit=emit_offset),
+                dragCanceled=SimpleNamespace(emit=emit_cancel),
+            )
+            return SimpleNamespace(
+                canvas=canvas,
+                app=SimpleNamespace(processEvents=lambda: None),
+                control_node_card=lambda: node_card,
+                render_frame=lambda: None,
+            )
+
+        flushed = performance_harness._measure_node_drag_gesture(host(), sample_index=0)
+        self.assertEqual(
+            flushed.smart_guides,
+            performance_harness._SmartGuideGestureCounts(
+                enabled=True,
+                snapshot_count=1,
+                resolve_count=2,
+                snapshot_ms=17.0,
+                session_flush_count=2,
+            ),
+        )
+
+        # Offsets and drag frame that beat the scheduler timer resolve nothing and snapshot nothing.
+        unflushed = performance_harness._measure_node_drag_gesture(
+            host(flush_offsets=()), sample_index=0
+        )
+        self.assertEqual(unflushed.smart_guides.snapshot_count, 0)
+        self.assertEqual(unflushed.smart_guides.session_flush_count, 0)
+        self.assertIsNone(unflushed.smart_guides.snapshot_ms)
+
+        disabled = performance_harness._measure_node_drag_gesture(
+            host(enabled=False), sample_index=0
+        )
+        self.assertFalse(disabled.smart_guides.enabled)
+        self.assertEqual(disabled.smart_guides.snapshot_count, 0)
+        self.assertEqual(disabled.smart_guides.resolve_count, 0)
+
+        with self.assertRaisesRegex(RuntimeError, "observed 2 snapshots"):
+            performance_harness._measure_node_drag_gesture(
+                host(snapshots_per_flush=2), sample_index=0
+            )
+        with self.assertRaisesRegex(RuntimeError, "observed 0 snapshots"):
+            performance_harness._measure_node_drag_gesture(
+                host(snapshots_per_flush=0), sample_index=0
+            )
+        # The clear ends the guide session before its flush, so it must never spend a snapshot.
+        with self.assertRaisesRegex(RuntimeError, "observed 1 snapshots"):
+            performance_harness._measure_node_drag_gesture(
+                host(flush_offsets=(), clear_snapshots=1), sample_index=0
+            )
+
+        summary = performance_harness._smart_guide_samples_summary(
+            [flushed.smart_guides, unflushed.smart_guides]
+        )
+        self.assertEqual(
+            summary,
+            {
+                "supported": True,
+                "enabled": True,
+                "snapshot_counts": [1, 0],
+                "resolve_counts": [2, 0],
+                "session_flush_counts": [2, 0],
+                "snapshot_ms": [17.0, None],
+                "verified": True,
+            },
+        )
+        baseline = performance_harness._smart_guide_samples_summary([None, None])
+        self.assertFalse(baseline["supported"])
+        self.assertIsNone(baseline["enabled"])
+        self.assertEqual(baseline["snapshot_counts"], [None, None])
+        self.assertIsNone(baseline["verified"])
 
     def test_selected_drag_payload_keeps_absent_baseline_features_explicit(
         self,
@@ -363,6 +498,16 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertFalse(payload["membership_freeze"]["supported"])
         self.assertEqual(payload["membership_freeze"]["samples"], [None])
         self.assertIsNone(payload["membership_freeze"]["verified"])
+        self.assertEqual(
+            payload["smart_guide_snapshot_count"],
+            {"supported": False, "enabled": None, "samples": [None], "verified": None},
+        )
+        self.assertEqual(
+            payload["smart_guide_resolve_count"], {"supported": False, "samples": [None]}
+        )
+        self.assertEqual(
+            payload["smart_guide_snapshot_ms"], {"supported": False, "samples": [None]}
+        )
 
     def _mock_single_run_report(self) -> dict:
         return {
@@ -1133,6 +1278,26 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertTrue(
             report["interaction_benchmark"]["node_drag_membership_freeze_verified"]
         )
+        # Smart guides are on by default: one snapshot per gesture that flushed a frame.
+        self.assertTrue(interaction_benchmark["smart_guides_supported"])
+        self.assertTrue(interaction_benchmark["smart_guides_enabled"])
+        self.assertEqual(
+            interaction_benchmark["node_drag_smart_guide_snapshots_per_gesture"], 1
+        )
+        self.assertEqual(
+            interaction_benchmark["node_drag_smart_guide_snapshot_counts"],
+            [
+                1 if flushes else 0
+                for flushes in interaction_benchmark[
+                    "node_drag_smart_guide_session_flush_counts"
+                ]
+            ],
+        )
+        self.assertEqual(
+            len(interaction_benchmark["node_drag_smart_guide_resolve_counts"]), 8
+        )
+        self.assertEqual(len(interaction_benchmark["node_drag_smart_guide_snapshot_ms"]), 8)
+        self.assertTrue(interaction_benchmark["node_drag_smart_guide_snapshot_verified"])
         self.assertEqual(
             report["interaction_benchmark"]["node_drag_steady_state_gate_metric"],
             "node_drag_steady_offset_ms",
@@ -1154,6 +1319,15 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
             supplemental_selected_drag["membership_freeze"]["samples"], [1] * 8
         )
         self.assertTrue(supplemental_selected_drag["membership_freeze"]["verified"])
+        # The selected-drag control flushes before its drag frame, so every gesture snapshots once.
+        self.assertEqual(
+            supplemental_selected_drag["smart_guide_snapshot_count"]["samples"], [1] * 8
+        )
+        self.assertTrue(supplemental_selected_drag["smart_guide_snapshot_count"]["verified"])
+        self.assertTrue(supplemental_selected_drag["smart_guide_resolve_count"]["supported"])
+        self.assertEqual(
+            len(supplemental_selected_drag["smart_guide_snapshot_ms"]["samples"]), 8
+        )
         self.assertEqual(
             supplemental_selected_drag["raw_input_count"]["samples"], [12] * 8
         )
@@ -1746,6 +1920,8 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertIn(
             "Node-drag membership-freeze verification: `unsupported`", markdown
         )
+        # Interaction samples without smart-guide keys (a pre-guides build) still report.
+        self.assertIn("Node-drag smart guides: `unsupported`", markdown)
         self.assertIn("First-Frame Phase Attribution", markdown)
         self.assertIn("### `rename_node` Mutation Phase Timings", markdown)
         self.assertIn("baseline_evidence_only_no_pass_fail_thresholds", markdown)

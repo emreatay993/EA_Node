@@ -11,6 +11,8 @@ Item {
     property real worldOffset: 0
     property Item canvasItem: null
     property var frameScheduler: null
+    // The canvas GraphCanvasSmartGuides controller; resize handles snap through it.
+    property var smartGuides: null
     property var renderActivationSceneRectPayload: ({})
     property var visibleSceneRectPayload: ({})
     property string contextTargetNodeId: ""
@@ -482,8 +484,9 @@ Item {
     signal nodeClicked(string nodeId, bool additive)
     signal nodeOpenRequested(string nodeId)
     signal nodeContextRequested(string nodeId, real localX, real localY)
-    signal dragOffsetChanged(string nodeId, real dx, real dy)
-    signal dragFinished(string nodeId, real finalX, real finalY, bool moved, string axisLock)
+    // axisLock: "" | "horizontal" | "vertical" (Shift); snapBypass: Alt skips smart guides and grid snap.
+    signal dragOffsetChanged(string nodeId, real dx, real dy, string axisLock, bool snapBypass)
+    signal dragFinished(string nodeId, real finalX, real finalY, bool moved, string axisLock, bool snapBypass)
     signal dragCanceled(string nodeId)
     signal resizePreviewChanged(string nodeId, real newX, real newY, real newWidth, real newHeight, bool active)
     signal resizeFinished(string nodeId, real newX, real newY, real newWidth, real newHeight)

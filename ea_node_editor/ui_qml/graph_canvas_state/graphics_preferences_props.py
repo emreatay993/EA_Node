@@ -69,6 +69,16 @@ class GraphicsPreferencesProps:
     def graphics_canvas_import_mode(self) -> str:
         return str(_source_attr(self._graphics_source, "graphics_canvas_import_mode", "automatic"))
 
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_smart_guides_enabled(self) -> bool:
+        return bool(
+            _source_attr(
+                self._graphics_source,
+                "graphics_smart_guides_enabled",
+                DEFAULT_GRAPHICS_SETTINGS["interaction"]["smart_guides"],
+            )
+        )
+
     @pyqtProperty(str, notify=graphics_preferences_changed)
     def graphics_canvas_background_variant(self) -> str:
         return str(_source_attr(self._graphics_source, "graphics_canvas_background_variant", "theme"))

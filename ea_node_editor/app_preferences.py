@@ -527,6 +527,10 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
             interaction_payload.get("snap_to_grid"),
             defaults["interaction"]["snap_to_grid"],
         )
+        normalized["interaction"]["smart_guides"] = _normalize_bool(
+            interaction_payload.get("smart_guides"),
+            defaults["interaction"]["smart_guides"],
+        )
         normalized["interaction"]["expand_collision_avoidance"] = (
             normalize_expand_collision_avoidance_settings(
                 interaction_payload.get("expand_collision_avoidance")

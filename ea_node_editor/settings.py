@@ -283,6 +283,7 @@ DEFAULT_GRAPHICS_SETTINGS = {
     },
     "interaction": {
         "snap_to_grid": False,
+        "smart_guides": True,
         "canvas_import_mode": DEFAULT_CANVAS_IMPORT_MODE,
         "expand_collision_avoidance": DEFAULT_EXPAND_COLLISION_AVOIDANCE_SETTINGS,
     },

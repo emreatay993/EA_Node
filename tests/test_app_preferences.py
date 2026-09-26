@@ -393,6 +393,46 @@ class NotchedPortsPreferenceNormalizationTests(unittest.TestCase):
         )
 
 
+class SmartGuidesPreferenceNormalizationTests(unittest.TestCase):
+    def test_missing_or_invalid_values_default_true_and_false_roundtrips(self) -> None:
+        self.assertIs(DEFAULT_GRAPHICS_SETTINGS["interaction"]["smart_guides"], True)
+        self.assertTrue(normalize_graphics_settings({})["interaction"]["smart_guides"])
+        self.assertTrue(
+            normalize_graphics_settings({"interaction": {}})["interaction"]["smart_guides"]
+        )
+        for value in (None, "false", "no", 0, 1, [], {}):
+            with self.subTest(value=value):
+                self.assertIs(
+                    normalize_graphics_settings(
+                        {"interaction": {"smart_guides": value}}
+                    )["interaction"]["smart_guides"],
+                    True,
+                )
+        self.assertIs(
+            normalize_graphics_settings(
+                {"interaction": {"smart_guides": False}}
+            )["interaction"]["smart_guides"],
+            False,
+        )
+
+    def test_current_version_document_without_key_loads_default_without_rewrite(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "app_preferences.json"
+            store = AppPreferencesStore(path_provider=lambda: path)
+            document = default_app_preferences_document()
+            del document["graphics"]["interaction"]["smart_guides"]
+            document["graphics"]["interaction"]["snap_to_grid"] = True
+            raw = json.dumps(document)
+            path.write_text(raw, encoding="utf-8")
+
+            loaded = store.load_document()
+
+            self.assertEqual(loaded["version"], APP_PREFERENCES_VERSION)
+            self.assertIs(loaded["graphics"]["interaction"]["smart_guides"], True)
+            self.assertTrue(loaded["graphics"]["interaction"]["snap_to_grid"])
+            self.assertEqual(path.read_text(encoding="utf-8"), raw)
+
+
 class CanvasOptionsButtonPreferenceNormalizationTests(unittest.TestCase):
     def test_defaults_when_missing_or_invalid(self) -> None:
         self.assertTrue(DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_canvas_options_button"])

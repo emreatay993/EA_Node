@@ -1,4 +1,4 @@
-# Purpose: Verify persistent canvas import mode, its native/QML settings controls, and the gear menu's layout rows.
+# Purpose: Verify persistent canvas import mode, its native/QML settings controls, and the gear menu's layout and Smart guides rows.
 # Map: docs/agent_maps/feature_routes/graphics_settings_themes_preferences.md
 # Tests: tests/test_canvas_import_preferences.py
 from __future__ import annotations
@@ -25,6 +25,7 @@ from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import AppPreferencesController
 from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
+from ea_node_editor.ui.tooltips import TooltipCopyBridge, tooltip_text
 from ea_node_editor.ui_qml.graph_canvas_command import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state import GraphCanvasStateBridge
 from tests.test_graphics_settings_preferences import _RuntimeTooltipHost
@@ -312,6 +313,104 @@ Item {
             host.shell_host_presenter.show_graphics_settings_dialog = lambda: requests.append(True)
             click(footer)
             assert requests == [True]
+    finally:
+        window.close()
+        canvas.setParentItem(None)
+        canvas.deleteLater()
+        app.processEvents()
+
+
+def test_real_gear_smart_guides_row_toggles_preference_fact_and_dialog(preferences, app):
+    controller, host = preferences
+    presenter = host.shell_workspace_presenter
+    state = GraphCanvasStateBridge(graphics_source=presenter)
+    commands = GraphCanvasCommandBridge(graphics_source=presenter)
+    tooltip_copy = TooltipCopyBridge()
+    notifications = []
+    state.graphics_preferences_changed.connect(
+        lambda: notifications.append(state.graphics_smart_guides_enabled)
+    )
+    engine = QQmlEngine()
+    engine.rootContext().setContextProperty("testState", state)
+    engine.rootContext().setContextProperty("testCommands", commands)
+    engine.rootContext().setContextProperty("tooltipCopyBridge", tooltip_copy)
+    component = QQmlComponent(engine)
+    qml_dir = Path(__file__).resolve().parents[1] / "ea_node_editor/ui_qml/components/graph_canvas"
+    component.setData(b'''
+import QtQuick 2.15
+Item {
+    id: canvas
+    width: 1000
+    height: 1000
+    property alias prefs: preferences
+    property var executionFacts: ({})
+    property var canvasStateBridgeRef: testState
+    property var selectedEdgeIds: []
+    function snapToGridEnabled() { return false; }
+    function _normalizeEdgeIds(values) { return values; }
+    function _sceneEdgePayload(edgeId) { return null; }
+    GraphCanvasPreferenceFacts { id: preferences; stateBridge: testState }
+    GraphCanvasOptionsMenu {
+        objectName: "testCanvasOptionsMenu"
+        canvasItem: canvas
+        commandBridge: testCommands
+        anchorY: 52
+        y: resolvedY
+    }
+}
+''', QUrl.fromLocalFile(str(qml_dir / "SmartGuidesPreferencesProbe.qml")))
+    assert component.status() == QQmlComponent.Status.Ready, [e.toString() for e in component.errors()]
+    canvas = component.create()
+    assert isinstance(canvas, QQuickItem)
+    window = QQuickWindow()
+    window.resize(1000, 1000)
+    canvas.setParentItem(window.contentItem())
+    window.show()
+    app.processEvents()
+
+    def click(item):
+        point = item.mapToScene(QPointF(item.width() / 2, item.height() / 2))
+        QTest.mouseClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, point.toPoint())
+        app.processEvents()
+
+    def assert_everywhere(enabled):
+        assert controller.graphics_settings()["interaction"]["smart_guides"] is enabled
+        assert presenter.graphics_smart_guides_enabled is enabled
+        assert state.graphics_smart_guides_enabled is enabled
+        assert prefs.property("smartGuidesEnabled") is enabled
+        assert menu.property("smartGuidesEnabled") is enabled
+        assert row.property("checked") is enabled
+        dialog = GraphicsSettingsDialog(controller.graphics_settings())
+        try:
+            assert dialog.smart_guides_check.isChecked() is enabled
+        finally:
+            dialog.close()
+
+    try:
+        menu = canvas.findChild(QObject, "testCanvasOptionsMenu")
+        prefs = canvas.property("prefs")
+        row = canvas.findChild(QQuickItem, "canvasOptionsSmartGuidesRow")
+        paste_row = canvas.findChild(QQuickItem, "canvasOptionsPasteAndDropRow")
+        assert row is not None and paste_row is not None
+        assert row.property("label") == "Smart guides"
+        assert paste_row.y() < row.y()
+        assert row.property("tooltipText") == tooltip_text("settings.graphics.smart_guides.enabled")
+        assert row.property("tooltipText") == (
+            "Show alignment and equal-spacing guides while moving nodes, and snap to them. While resizing, "
+            "the edges you drag snap to other nodes' edges. Hold Alt to move or resize freely."
+        )
+        assert row.property("tooltipCategory") == "general"
+        assert_everywhere(True)
+
+        click(row)
+        assert_everywhere(False)
+        assert AppPreferencesController(store=controller.store()).graphics_settings()[
+            "interaction"
+        ]["smart_guides"] is False
+
+        click(row)
+        assert_everywhere(True)
+        assert notifications == [False, True]
     finally:
         window.close()
         canvas.setParentItem(None)

@@ -342,6 +342,42 @@ class _MeasuredInteractionStep:
 
 
 @dataclass(slots=True, frozen=True)
+class _SmartGuideCounters:
+    """The canvas smart-guide controller's cumulative profile counters at one instant."""
+
+    enabled: bool
+    snapshot_count: int
+    resolve_count: int
+    last_snapshot_ms: float
+
+
+@dataclass(slots=True, frozen=True)
+class _SmartGuideGestureCounts:
+    """One drag gesture's smart-guide work: counter deltas across the gesture.
+
+    ``session_flush_count`` is how many live-drag offsets the frame scheduler flushed before the
+    clear (None when its counter is unavailable). The snapshot waits for the first flush, and the
+    canonical single-node gesture leaves flushing to the scheduler's frame timer, so a gesture whose
+    offsets and drag frame beat that timer resolves no frame and takes no snapshot.
+    ``snapshot_ms`` is the controller's ``profileLastSnapshotMs`` (ms resolution) when the gesture
+    took a snapshot, else ``None``.
+    """
+
+    enabled: bool
+    snapshot_count: int
+    resolve_count: int
+    snapshot_ms: float | None
+    session_flush_count: int | None = None
+
+    @property
+    def expected_snapshot_count(self) -> int:
+        """One snapshot per gesture that flushed a frame with guides on; none otherwise."""
+        if not self.enabled:
+            return 0
+        return 0 if self.session_flush_count == 0 else 1
+
+
+@dataclass(slots=True, frozen=True)
 class _NodeDragGestureMeasurement:
     first_offset_ms: float
     steady_offset_ms: tuple[float, ...]
@@ -351,6 +387,8 @@ class _NodeDragGestureMeasurement:
     membership_freeze_count: int | None
     drag_frame_timestamp_range: tuple[int, int]
     clear_frame_timestamp_range: tuple[int, int]
+    # None on a build without the smart-guide controller (baseline-compatible).
+    smart_guides: _SmartGuideGestureCounts | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -370,6 +408,8 @@ class _SelectedNodeDragGestureMeasurement:
     clear_render_timings_ms: dict[str, float]
     drag_frame_timestamp_range: tuple[int, int]
     clear_frame_timestamp_range: tuple[int, int]
+    # None on a build without the smart-guide controller (baseline-compatible).
+    smart_guides: _SmartGuideGestureCounts | None = None
 
 
 @dataclass(slots=True)
@@ -417,6 +457,7 @@ class _InteractionBenchmarkSamples:
     node_drag_end_clear_ms: list[float]
     node_drag_membership_freeze_supported: bool
     node_drag_membership_freeze_count: list[int | None]
+    node_drag_smart_guides: list[_SmartGuideGestureCounts | None]
     frame_interval_ms_without_readback: list[float]
     frame_timestamp_ranges: dict[str, Any]
     supplemental_selected_drag: dict[str, Any]
@@ -491,6 +532,7 @@ class _InteractionBenchmarkSamples:
             if self.node_drag_membership_freeze_supported
             else None
         )
+        smart_guides = _smart_guide_samples_summary(self.node_drag_smart_guides)
         return {
             "kind": "graph_canvas_qml",
             "edge_renderer_kind": str(
@@ -535,6 +577,21 @@ class _InteractionBenchmarkSamples:
                 self.node_drag_membership_freeze_count
             ),
             "node_drag_membership_freeze_verified": membership_freeze_verified,
+            # Optional smart-guide evidence: supported is False (and the rest None) on a build
+            # without the canvas smart-guide controller. With guides on, each gesture that
+            # flushed a frame before its clear takes exactly one snapshot, any other none.
+            "smart_guides_supported": smart_guides["supported"],
+            "smart_guides_enabled": smart_guides["enabled"],
+            "node_drag_smart_guide_snapshots_per_gesture": (
+                1 if smart_guides["enabled"] else None
+            ),
+            "node_drag_smart_guide_snapshot_counts": smart_guides["snapshot_counts"],
+            "node_drag_smart_guide_resolve_counts": smart_guides["resolve_counts"],
+            "node_drag_smart_guide_session_flush_counts": smart_guides[
+                "session_flush_counts"
+            ],
+            "node_drag_smart_guide_snapshot_ms": smart_guides["snapshot_ms"],
+            "node_drag_smart_guide_snapshot_verified": smart_guides["verified"],
             "node_drag_steady_state_gate_metric": "node_drag_steady_offset_ms",
             "node_drag_legacy_continuity_metric": "node_drag_control_ms",
             "frame_timestamp_ranges": self.frame_timestamp_ranges,
@@ -547,6 +604,7 @@ class _InteractionBenchmarkSamples:
         }
 
     def to_payload(self) -> dict[str, Any]:
+        smart_guides = _smart_guide_samples_summary(self.node_drag_smart_guides)
         return {
             "setup_ms": self.setup_ms,
             "warmup_ms": self.warmup_ms,
@@ -560,6 +618,11 @@ class _InteractionBenchmarkSamples:
             "node_drag_end_clear_ms": self.node_drag_end_clear_ms,
             "membership_freeze_supported": self.node_drag_membership_freeze_supported,
             "node_drag_membership_freeze_count": self.node_drag_membership_freeze_count,
+            "smart_guides_supported": smart_guides["supported"],
+            "node_drag_smart_guide_snapshot_count": smart_guides["snapshot_counts"],
+            "node_drag_smart_guide_resolve_count": smart_guides["resolve_counts"],
+            "node_drag_smart_guide_session_flush_count": smart_guides["session_flush_counts"],
+            "node_drag_smart_guide_snapshot_ms": smart_guides["snapshot_ms"],
             "frame_interval_ms_without_readback": self.frame_interval_ms_without_readback,
             "supplemental_selected_drag": self.supplemental_selected_drag,
             "phase_timings_ms": self.phase_timings_payload(),
@@ -2708,6 +2771,110 @@ def _qml_list(value: Any) -> list[Any] | None:
     return None
 
 
+def _canvas_object_ref(canvas: Any, property_name: str) -> Any | None:
+    """A QObject the canvas root exposes as a ``var`` property (for example ``smartGuidesRef``).
+
+    A direct property read, so it costs no item-tree walk inside or around a timed gesture.
+    """
+    getter = getattr(canvas, "property", None)
+    if not callable(getter):
+        return None
+    value = getter(property_name)
+    to_qobject = getattr(value, "toQObject", None)
+    if callable(to_qobject):
+        value = to_qobject()
+    return value if callable(getattr(value, "property", None)) else None
+
+
+def _smart_guide_counters(canvas: Any) -> _SmartGuideCounters | None:
+    """The smart-guide controller's counters, or None on a build without smart guides."""
+    controller = _canvas_object_ref(canvas, "smartGuidesRef")
+    snapshot_count = _optional_int_property(controller, "profileSnapshotCount")
+    resolve_count = _optional_int_property(controller, "profileResolveCount")
+    if controller is None or snapshot_count is None or resolve_count is None:
+        return None
+    try:
+        last_snapshot_ms = float(controller.property("profileLastSnapshotMs") or 0.0)
+    except (TypeError, ValueError):
+        last_snapshot_ms = 0.0
+    return _SmartGuideCounters(
+        enabled=bool(controller.property("enabled")),
+        snapshot_count=snapshot_count,
+        resolve_count=resolve_count,
+        last_snapshot_ms=last_snapshot_ms,
+    )
+
+
+def _smart_guide_gesture_counts(
+    before: _SmartGuideCounters | None,
+    after: _SmartGuideCounters | None,
+    *,
+    gesture_label: str,
+    session_flush_count: int | None,
+) -> _SmartGuideGestureCounts | None:
+    """Counter deltas across one gesture, checked against the one-snapshot-per-gesture contract.
+
+    With guides on, a gesture that flushed a frame must take exactly one snapshot, and one that
+    flushed none (its offsets and drag frame beat the scheduler timer) none: the clear ends the guide
+    session before flushing, so it must never spend one. With guides off it must take none. A snapshot
+    trimmed to the bridge's candidate limit (the real stress fixture's already is at zoom 0.5) is
+    retaken only after the controller's 40 screen px re-snapshot floor of travel from the offset it
+    was ranked at, 20 scene units at the default maximum interaction zoom 2. A harness gesture moves
+    a node at most 21.1 scene units in 12 offsets and takes its snapshot at the first flushed one, so
+    it travels at most 19.4 units past it: too little for a retake.
+    """
+    if before is None and after is None:
+        return None
+    if before is None or after is None:
+        raise RuntimeError(
+            f"{gesture_label} smart-guide counters appeared or disappeared during the gesture"
+        )
+    if before.enabled != after.enabled:
+        raise RuntimeError(f"{gesture_label} smart-guide preference changed during the gesture")
+    snapshot_count = after.snapshot_count - before.snapshot_count
+    counts = _SmartGuideGestureCounts(
+        enabled=after.enabled,
+        snapshot_count=snapshot_count,
+        resolve_count=after.resolve_count - before.resolve_count,
+        snapshot_ms=after.last_snapshot_ms if snapshot_count > 0 else None,
+        session_flush_count=session_flush_count,
+    )
+    if snapshot_count != counts.expected_snapshot_count:
+        raise RuntimeError(
+            f"{gesture_label} must take exactly {counts.expected_snapshot_count} smart-guide "
+            f"snapshot(s) (guides {'on' if counts.enabled else 'off'}, "
+            f"{session_flush_count} flushed frame(s)); observed {snapshot_count} snapshots"
+        )
+    return counts
+
+
+def _smart_guide_samples_summary(
+    counts: list[_SmartGuideGestureCounts | None],
+) -> dict[str, Any]:
+    """Per-gesture smart-guide counts; ``supported`` is False without the controller."""
+    supported = bool(counts) and all(item is not None for item in counts)
+    enabled = all(item.enabled for item in counts) if supported else None
+    return {
+        "supported": supported,
+        "enabled": enabled,
+        "snapshot_counts": [
+            item.snapshot_count if item is not None else None for item in counts
+        ],
+        "resolve_counts": [
+            item.resolve_count if item is not None else None for item in counts
+        ],
+        "session_flush_counts": [
+            item.session_flush_count if item is not None else None for item in counts
+        ],
+        "snapshot_ms": [item.snapshot_ms if item is not None else None for item in counts],
+        "verified": (
+            all(item.snapshot_count == item.expected_snapshot_count for item in counts)
+            if supported
+            else None
+        ),
+    }
+
+
 class _BenchmarkMainWindowBridge(QObject):
     @pyqtProperty(bool, constant=True)
     def graphics_minimap_expanded(self) -> bool:
@@ -4769,7 +4936,8 @@ def _measure_node_drag_control_step(
 
     delta_x, delta_y = _node_drag_delta(sample_index)
     started = time.perf_counter()
-    drag_offset_signal.emit(node_id, delta_x, delta_y)
+    # No Shift axis lock or Alt bypass: the smart guides resolve like a plain drag.
+    drag_offset_signal.emit(node_id, delta_x, delta_y, "", False)
     canvas_host.app.processEvents()
     canvas_host.render_frame()
     elapsed_ms = (time.perf_counter() - started) * 1000.0
@@ -4806,6 +4974,9 @@ def _measure_node_drag_gesture(
     )
     membership_freeze_supported = freeze_before_value is not None
     freeze_before = int(freeze_before_value) if membership_freeze_supported else None
+    guides_before = _smart_guide_counters(canvas_host.canvas)
+    scheduler = _canvas_object_ref(canvas_host.canvas, "frameSchedulerRef")
+    flushed_before = _optional_int_property(scheduler, "flushedLiveDragUpdateCount")
     final_dx, final_dy = _node_drag_delta(sample_index)
     first_offset_ms = 0.0
     steady_offset_ms: list[float] = []
@@ -4813,7 +4984,7 @@ def _measure_node_drag_gesture(
     for offset_index in range(offset_count):
         progress = float(offset_index + 1) / float(offset_count)
         offset_started = time.perf_counter()
-        drag_offset_signal.emit(node_id, final_dx * progress, final_dy * progress)
+        drag_offset_signal.emit(node_id, final_dx * progress, final_dy * progress, "", False)
         canvas_host.app.processEvents()
         elapsed_ms = (time.perf_counter() - offset_started) * 1000.0
         if offset_index == 0:
@@ -4840,6 +5011,13 @@ def _measure_node_drag_gesture(
                 "Node-drag gesture must freeze membership exactly once; "
                 f"observed {membership_freeze_count} freezes"
             )
+    # Frames the scheduler flushed inside the guide session; the clear below flushes outside it.
+    flushed_after = _optional_int_property(scheduler, "flushedLiveDragUpdateCount")
+    session_flush_count = (
+        flushed_after - flushed_before
+        if flushed_before is not None and flushed_after is not None
+        else None
+    )
 
     clear_started = time.perf_counter()
     drag_canceled_signal.emit(node_id)
@@ -4850,6 +5028,13 @@ def _measure_node_drag_gesture(
     end_clear_ms = (time.perf_counter() - clear_started) * 1000.0
     if str(canvas_host.canvas.property("liveDragAnchorNodeId") or "").strip():
         raise RuntimeError("Node-drag gesture clear left live drag membership active")
+    # Read after the clear: it ends the guide session before flushing, so it must add no snapshot.
+    smart_guides = _smart_guide_gesture_counts(
+        guides_before,
+        _smart_guide_counters(canvas_host.canvas),
+        gesture_label="Node-drag gesture",
+        session_flush_count=session_flush_count,
+    )
 
     return _NodeDragGestureMeasurement(
         first_offset_ms=first_offset_ms,
@@ -4860,6 +5045,7 @@ def _measure_node_drag_gesture(
         membership_freeze_count=membership_freeze_count,
         drag_frame_timestamp_range=(drag_frame_start, drag_frame_end),
         clear_frame_timestamp_range=(clear_frame_start, clear_frame_end),
+        smart_guides=smart_guides,
     )
 
 
@@ -4948,6 +5134,7 @@ def _measure_selected_node_drag_gesture(
     freeze_before = _optional_int_property(
         canvas_host.canvas, "profileLiveDragMembershipFreezeCount"
     )
+    guides_before = _smart_guide_counters(canvas_host.canvas)
     raw_before = _optional_int_property(scheduler, "rawLiveDragInputEventCount")
     flushed_before = _optional_int_property(scheduler, "flushedLiveDragUpdateCount")
 
@@ -4958,7 +5145,7 @@ def _measure_selected_node_drag_gesture(
     for offset_index in range(offset_count):
         progress = float(offset_index + 1) / float(offset_count)
         offset_started = time.perf_counter()
-        drag_offset_signal.emit(node_id, final_dx * progress, final_dy * progress)
+        drag_offset_signal.emit(node_id, final_dx * progress, final_dy * progress, "", False)
         canvas_host.app.processEvents()
         elapsed_ms = (time.perf_counter() - offset_started) * 1000.0
         if offset_index == 0:
@@ -5023,6 +5210,12 @@ def _measure_selected_node_drag_gesture(
     end_clear_ms = (time.perf_counter() - clear_started) * 1000.0
     if str(canvas_host.canvas.property("liveDragAnchorNodeId") or "").strip():
         raise RuntimeError("Selected-drag clear left live drag membership active")
+    smart_guides = _smart_guide_gesture_counts(
+        guides_before,
+        _smart_guide_counters(canvas_host.canvas),
+        gesture_label="Selected-drag gesture",
+        session_flush_count=flushed_update_count,
+    )
 
     return _SelectedNodeDragGestureMeasurement(
         first_offset_ms=first_offset_ms,
@@ -5044,7 +5237,29 @@ def _measure_selected_node_drag_gesture(
         },
         drag_frame_timestamp_range=(drag_frame_start, drag_frame_end),
         clear_frame_timestamp_range=(clear_frame_start, clear_frame_end),
+        smart_guides=smart_guides,
     )
+
+
+def _selected_drag_smart_guide_payload(smart_guides: dict[str, Any]) -> dict[str, Any]:
+    """Optional selected-drag smart-guide keys, from ``_smart_guide_samples_summary``."""
+    supported = bool(smart_guides["supported"])
+    return {
+        "smart_guide_snapshot_count": {
+            "supported": supported,
+            "enabled": smart_guides["enabled"],
+            "samples": smart_guides["snapshot_counts"],
+            "verified": smart_guides["verified"],
+        },
+        "smart_guide_resolve_count": {
+            "supported": supported,
+            "samples": smart_guides["resolve_counts"],
+        },
+        "smart_guide_snapshot_ms": {
+            "supported": supported,
+            "samples": smart_guides["snapshot_ms"],
+        },
+    }
 
 
 def _supplemental_selected_drag_payload(
@@ -5096,6 +5311,9 @@ def _supplemental_selected_drag_payload(
     incident_edge_counts = [
         measurement.incident_edge_count for measurement in measurements
     ]
+    smart_guides = _smart_guide_samples_summary(
+        [measurement.smart_guides for measurement in measurements]
+    )
     expected_membership_size = len(selected_node_ids)
     return {
         "schema_version": 1,
@@ -5136,6 +5354,7 @@ def _supplemental_selected_drag_payload(
             and all(value is not None for value in incident_edge_counts),
             "samples": incident_edge_counts,
         },
+        **_selected_drag_smart_guide_payload(smart_guides),
         "metrics": {
             "first_offset_ms": {
                 "samples": first_offset_samples,
@@ -5199,6 +5418,7 @@ def benchmark_pan_zoom_ms(
     node_drag_end_clear_samples_ms: list[float] = []
     node_drag_membership_freeze_supported: bool | None = None
     node_drag_membership_freeze_samples: list[int | None] = []
+    node_drag_smart_guide_samples: list[_SmartGuideGestureCounts | None] = []
     single_drag_frame_ranges: list[dict[str, int]] = []
     single_clear_frame_ranges: list[dict[str, int]] = []
     pan_frame_ranges: list[dict[str, int]] = []
@@ -5311,6 +5531,13 @@ def benchmark_pan_zoom_ms(
                     "Node-drag membership-freeze counter support changed during sampling"
                 )
             node_drag_membership_freeze_samples.append(gesture.membership_freeze_count)
+            if node_drag_smart_guide_samples and (
+                (node_drag_smart_guide_samples[0] is None) != (gesture.smart_guides is None)
+            ):
+                raise RuntimeError(
+                    "Node-drag smart-guide counter support changed during sampling"
+                )
+            node_drag_smart_guide_samples.append(gesture.smart_guides)
 
         for index in range(samples):
             pan_x, pan_y, zoom = _pan_zoom_target(
@@ -5382,6 +5609,9 @@ def benchmark_pan_zoom_ms(
                     "samples": [None],
                     "verified": None,
                 },
+                **_selected_drag_smart_guide_payload(
+                    _smart_guide_samples_summary([None])
+                ),
             }
         else:
             for index in range(warmup_samples):
@@ -5439,6 +5669,7 @@ def benchmark_pan_zoom_ms(
         node_drag_membership_freeze_supported=node_drag_membership_freeze_supported
         is True,
         node_drag_membership_freeze_count=node_drag_membership_freeze_samples,
+        node_drag_smart_guides=node_drag_smart_guide_samples,
         frame_interval_ms_without_readback=frame_interval_samples_without_readback_ms,
         frame_timestamp_ranges={
             "capture_scope": "aggregate_continuity_metric",
@@ -7047,6 +7278,20 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
         "- Node-drag membership-freeze verification: "
         f"`{interaction_benchmark.get('node_drag_membership_freeze_verified') if membership_freeze_supported else 'unsupported'}`"
     )
+    smart_guides_supported = interaction_benchmark.get("smart_guides_supported") is True
+    lines.append(
+        "- Node-drag smart guides: "
+        + (
+            f"enabled `{str(interaction_benchmark.get('smart_guides_enabled') is True).lower()}`, "
+            f"snapshots `{interaction_benchmark.get('node_drag_smart_guide_snapshot_counts')}`, "
+            f"flushed frames `{interaction_benchmark.get('node_drag_smart_guide_session_flush_counts')}`, "
+            f"resolves `{interaction_benchmark.get('node_drag_smart_guide_resolve_counts')}`, "
+            f"snapshot ms `{interaction_benchmark.get('node_drag_smart_guide_snapshot_ms')}`, "
+            f"verified `{interaction_benchmark.get('node_drag_smart_guide_snapshot_verified')}`"
+            if smart_guides_supported
+            else "`unsupported`"
+        )
+    )
     lines.append(f"- Scenario: `{cfg['scenario']}`")
     scenario_details = cfg.get("scenario_details", {})
     node_mix = scenario_details.get("node_mix", {})
@@ -7942,6 +8187,15 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append(
             "- Membership freeze verified: "
             f"`{supplemental_selected_drag.get('membership_freeze', {}).get('verified')}`"
+        )
+        selected_guides = supplemental_selected_drag.get("smart_guide_snapshot_count", {})
+        lines.append(
+            "- Smart-guide snapshots: "
+            + (
+                f"`{selected_guides.get('samples')}` (verified `{selected_guides.get('verified')}`)"
+                if selected_guides.get("supported")
+                else "`unsupported`"
+            )
         )
         lines.append("")
         lines.append("| Metric | p50 (ms) | p95 (ms) | Samples |")

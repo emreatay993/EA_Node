@@ -12,6 +12,7 @@ GraphComponents.GraphNodeHost {
     nodeData: modelData
     worldOffset: canvasItem ? canvasItem.worldOffset : 0.0
     frameScheduler: canvasItem ? canvasItem.frameSchedulerRef : null
+    smartGuides: canvasItem ? canvasItem.smartGuidesRef : null
     hoveredPort: canvasItem ? canvasItem.hoveredPort : null
     previewPort: canvasItem ? canvasItem.dropPreviewPort : null
     pendingPort: canvasItem ? canvasItem.pendingConnectionPort : null
@@ -180,12 +181,12 @@ GraphComponents.GraphNodeHost {
         if (canvasItem)
             nodeCard._triggerGraphAction("open_subnode_scope", nodeId);
     }
-    onDragOffsetChanged: function(nodeId, dx, dy) {
+    onDragOffsetChanged: function(nodeId, dx, dy, axisLock, snapBypass) {
         if (!canvasItem)
             return;
-        canvasItem.setLiveDragOffset(nodeId, Number(dx), Number(dy));
+        canvasItem.setLiveDragOffset(nodeId, Number(dx), Number(dy), String(axisLock || ""), Boolean(snapBypass));
     }
-    onDragFinished: function(nodeId, finalX, finalY, _moved, axisLock) {
+    onDragFinished: function(nodeId, finalX, finalY, moved, axisLock, snapBypass) {
         if (!canvasItem)
             return;
         var bridge = canvasItem.sceneCommandBridge;
@@ -201,18 +202,23 @@ GraphComponents.GraphNodeHost {
             anchorY = Number(finalY);
         var rawDeltaX = Number(finalX) - anchorX;
         var rawDeltaY = Number(finalY) - anchorY;
-        var snappedDelta = canvasItem.snappedDragDelta(nodeId, rawDeltaX, rawDeltaY);
-        var deltaX = Number(snappedDelta.dx);
-        var deltaY = Number(snappedDelta.dy);
+        // A moved release lands guided axes on their smart guide and the others on the grid; Alt skips
+        // both and the Shift-locked axis stays put. A click (moved false) never runs the guides and
+        // meets the grid alone. Resolve before clearLiveDragOffset() ends the guide session.
+        var commitDelta = canvasItem.resolveDragCommitDelta(
+            nodeId,
+            rawDeltaX,
+            rawDeltaY,
+            Boolean(moved),
+            String(axisLock || ""),
+            Boolean(snapBypass)
+        );
+        var deltaX = Number(commitDelta.dx);
+        var deltaY = Number(commitDelta.dy);
         if (!isFinite(deltaX))
             deltaX = 0.0;
         if (!isFinite(deltaY))
             deltaY = 0.0;
-        // Grid snap must not reintroduce motion on a Shift-locked axis.
-        if (axisLock === "horizontal")
-            deltaY = 0.0;
-        else if (axisLock === "vertical")
-            deltaX = 0.0;
         var finalSnappedX = anchorX + deltaX;
         var finalSnappedY = anchorY + deltaY;
         var movedByCommit = Math.abs(deltaX) >= 0.01 || Math.abs(deltaY) >= 0.01;

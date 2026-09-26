@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Mapping
 
 from PyQt6.QtCore import QObject, QTimer, pyqtProperty, pyqtSignal, pyqtSlot
 from ea_node_editor.ui_qml.bridge_runtime import (
@@ -32,6 +32,11 @@ from ea_node_editor.ui_qml.bridge_runtime import (
 from ea_node_editor.ui_qml.graph_canvas_state.execution_state_props import (
     _lookup_node_ids,
     _node_ids_from_values,
+)
+from ea_node_editor.ui_qml.graph_canvas_state.smart_guide_snapshot import (
+    build_smart_guide_snapshot,
+    smart_guide_offset,
+    smart_guide_query_rect,
 )
 if TYPE_CHECKING:
     pass
@@ -535,6 +540,68 @@ class VisibleSceneModelOps:
     def _visible_scene_node_payloads(self) -> list[Any]:
         return [*self._visible_nodes_model.payloads(), *self._visible_backdrop_nodes_model.payloads()]
 
+    @pyqtSlot("QVariantList", "QVariantMap", "QVariantMap", result="QVariantMap")
+    def smart_guide_snapshot(
+        self, node_ids: list[Any], scene_rect_payload: dict[str, Any], options: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Drawn rects of the nodes a drag or resize moves and of the candidates it may snap to.
+
+        Candidates are the node and Group payloads the viewport indexes hold inside ``scene_rect_payload``
+        (the exact visible query rect when that payload is not a finite rect with a positive size); grid-cell
+        queries, never a scan of every node. Past ``SMART_GUIDE_CANDIDATE_LIMIT`` only the candidates most
+        relevant to the moving rects moved by ``options`` ``offset_x`` / ``offset_y`` (the gesture's current
+        offset; the moving rects themselves stay at their stored positions) are kept. Returns
+        ``{"moving": [...], "candidates": [...], "trimmed": bool}`` of ``{node_id, x, y, width, height}``
+        rects, plus ``dropGapX`` / ``dropGapY`` (scene units) when ``trimmed``; see
+        ``build_smart_guide_snapshot`` for the exclusions, the ranking and the drop gaps.
+        """
+        self._ensure_visible_scene_models_current()
+        self._ensure_smart_guide_indexes_current()
+        node_index = self._visible_node_index
+        backdrop_index = self._visible_backdrop_index
+        query_rect = smart_guide_query_rect(scene_rect_payload)
+        if query_rect is None:
+            query_rect = self._exact_visible_scene_query_rect()
+        candidates = (
+            [*node_index.payloads_intersecting(query_rect), *backdrop_index.payloads_intersecting(query_rect)]
+            if query_rect is not None
+            else []
+        )
+
+        def payload_for(node_id: str) -> Any | None:
+            payload = node_index.payload_for(node_id)
+            return payload if payload is not None else backdrop_index.payload_for(node_id)
+
+        def backdrop_payloads() -> Iterator[Any]:
+            # Only read when a moving node is a hidden member of a collapsed Group that no moving Group lists.
+            yield from backdrop_index.payloads()
+
+        return build_smart_guide_snapshot(
+            node_ids or [],
+            payload_for=payload_for,
+            candidate_payloads=candidates,
+            backdrop_payloads=backdrop_payloads(),
+            offset=smart_guide_offset(options),
+        )
+
+    def _ensure_smart_guide_indexes_current(self) -> None:
+        """Rebuild a viewport index that lags the node model.
+
+        A targeted node delta patches the visible models in place and leaves both indexes to rebuild on the
+        next viewport query, so until then they hold the pre-delta geometry. This rebuilds them now, without
+        a viewport query: only the indexes' ``refresh_count`` diagnostics count it.
+        """
+        workspace_id = self._active_workspace_id()
+        for source_name, index in (
+            ("nodes_model", self._visible_node_index),
+            ("backdrop_nodes_model", self._visible_backdrop_index),
+        ):
+            index.refresh(
+                workspace_id=workspace_id,
+                model_revision=self._node_model_revision,
+                source_loader=lambda name=source_name: _copy_list(_source_attr(self._scene_state_source, name, [])),
+            )
+
     @pyqtSlot(str, result="QVariantMap")
     def visible_scene_node_payload(self, node_id: str) -> dict[str, Any]:
         normalized = normalize_node_id(node_id)
@@ -560,6 +627,7 @@ class VisibleSceneModelOps:
             "query_ms": float(nodes["query_ms"]) + float(backdrops["query_ms"]),
             "query_count": int(nodes["query_count"]) + int(backdrops["query_count"]),
             "rebuild_ms": float(nodes["rebuild_ms"]) + float(backdrops["rebuild_ms"]),
+            "refresh_count": int(nodes["refresh_count"]) + int(backdrops["refresh_count"]),
             "cache_hits": int(nodes["cache_hits"]) + int(backdrops["cache_hits"]),
             "cache_misses": int(nodes["cache_misses"]) + int(backdrops["cache_misses"]),
             "dirty": self._visible_scene_models_dirty,

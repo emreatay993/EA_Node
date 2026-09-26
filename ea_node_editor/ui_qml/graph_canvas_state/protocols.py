@@ -19,6 +19,7 @@ class _GraphCanvasGraphicsSource(Protocol):
     graphics_show_grid: bool
     graphics_canvas_background_variant: str
     graphics_canvas_import_mode: str
+    graphics_smart_guides_enabled: bool
     graphics_grid_style: str
     graphics_edge_crossing_style: str
     graphics_graph_label_pixel_size: int

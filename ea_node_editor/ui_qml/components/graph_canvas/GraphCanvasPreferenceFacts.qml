@@ -2,8 +2,8 @@ import QtQml 2.15
 import "../common/TooltipPolicy.js" as TooltipPolicy
 
 // Shared-by-reference canvas preference facts (grid, background, shadows,
-// port labels, notched ports, tooltip categories, theme ids, pixel sizes,
-// view-local port filters).
+// port labels, notched ports, smart guides, tooltip categories, theme ids,
+// pixel sizes, view-local port filters).
 //
 // Pass this object by reference instead of re-drilling each preference.
 // New canvas preferences are added HERE (paired with the @pyqtProperty in
@@ -16,6 +16,10 @@ QtObject {
     readonly property string canvasImportMode: facts.stateBridge
         ? String(facts.stateBridge.graphics_canvas_import_mode || "automatic")
         : "automatic"
+    readonly property bool smartGuidesEnabled: facts.stateBridge
+        && facts.stateBridge.graphics_smart_guides_enabled !== undefined
+        ? Boolean(facts.stateBridge.graphics_smart_guides_enabled)
+        : true
     readonly property bool minimapExpanded: facts.stateBridge
         ? Boolean(facts.stateBridge.graphics_minimap_expanded)
         : true

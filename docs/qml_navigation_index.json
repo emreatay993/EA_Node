@@ -5,13 +5,13 @@
     "ea_node_editor/ui_qml"
   ],
   "summary": {
-    "qml_files": 200,
-    "repeater_constructs": 96,
+    "qml_files": 202,
+    "repeater_constructs": 99,
     "loader_constructs": 29,
-    "signal_handlers": 998,
-    "connections": 52,
-    "property_bindings": 7972,
-    "local_component_refs": 336
+    "signal_handlers": 1002,
+    "connections": 54,
+    "property_bindings": 8036,
+    "local_component_refs": 338
   },
   "entries": [
     {
@@ -13787,6 +13787,10 @@
         },
         {
           "kind": "var",
+          "name": "smartGuides"
+        },
+        {
+          "kind": "var",
           "name": "renderActivationSceneRectPayload"
         },
         {
@@ -16199,6 +16203,12 @@
           "anchor": "GraphNodeHostPropertyFrameScheduler",
           "kind": "property",
           "name": "frameScheduler",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphNodeHostPropertySmartGuides",
+          "kind": "property",
+          "name": "smartGuides",
           "detail": "var"
         },
         {
@@ -18955,6 +18965,10 @@
         },
         {
           "kind": "bool",
+          "name": "dragSnapBypass"
+        },
+        {
+          "kind": "bool",
           "name": "containsMouse"
         },
         {
@@ -18988,6 +19002,10 @@
         {
           "kind": "real",
           "name": "lastDragDy"
+        },
+        {
+          "kind": "bool",
+          "name": "leftPressInert"
         },
         {
           "kind": "bool",
@@ -19140,6 +19158,12 @@
           "detail": "string"
         },
         {
+          "anchor": "GraphNodeHostGestureLayerPropertyDragSnapBypass",
+          "kind": "property",
+          "name": "dragSnapBypass",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphNodeHostGestureLayerPropertyContainsMouse",
           "kind": "property",
           "name": "containsMouse",
@@ -19192,6 +19216,12 @@
           "kind": "property",
           "name": "lastDragDy",
           "detail": "real"
+        },
+        {
+          "anchor": "GraphNodeHostGestureLayerPropertyLeftPressInert",
+          "kind": "property",
+          "name": "leftPressInert",
+          "detail": "bool"
         },
         {
           "anchor": "GraphNodeHostGestureLayerPropertyEdgePressHandled",
@@ -25409,6 +25439,18 @@
         },
         {
           "kind": "bool",
+          "name": "snapBypass"
+        },
+        {
+          "kind": "bool",
+          "name": "pointerMoved"
+        },
+        {
+          "kind": "QtObject",
+          "name": "guideSession"
+        },
+        {
+          "kind": "bool",
           "name": "triangleContainsMouse"
         }
       ],
@@ -25428,7 +25470,19 @@
           "name": "_applyAspectRatioLock"
         },
         {
+          "name": "_smartGuides"
+        },
+        {
+          "name": "_contentMinimumHeight"
+        },
+        {
+          "name": "_guidedRect"
+        },
+        {
           "name": "updatePreviewFromDelta"
+        },
+        {
+          "name": "_finishGuides"
         }
       ],
       "instantiated_components": [
@@ -25456,6 +25510,10 @@
         {
           "kind": "handler",
           "name": "onDoubleClicked"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onDestruction"
         },
         {
           "kind": "handler",
@@ -25698,6 +25756,24 @@
           "detail": "bool"
         },
         {
+          "anchor": "GraphNodeResizeHandlePropertySnapBypass",
+          "kind": "property",
+          "name": "snapBypass",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeResizeHandlePropertyPointerMoved",
+          "kind": "property",
+          "name": "pointerMoved",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphNodeResizeHandlePropertyGuideSession",
+          "kind": "property",
+          "name": "guideSession",
+          "detail": "QtObject"
+        },
+        {
           "anchor": "GraphNodeResizeHandlePropertyTriangleContainsMouse",
           "kind": "property",
           "name": "triangleContainsMouse",
@@ -25724,9 +25800,29 @@
           "name": "_applyAspectRatioLock"
         },
         {
+          "anchor": "GraphNodeResizeHandleFunctionSmartGuides",
+          "kind": "function",
+          "name": "_smartGuides"
+        },
+        {
+          "anchor": "GraphNodeResizeHandleFunctionContentMinimumHeight",
+          "kind": "function",
+          "name": "_contentMinimumHeight"
+        },
+        {
+          "anchor": "GraphNodeResizeHandleFunctionGuidedRect",
+          "kind": "function",
+          "name": "_guidedRect"
+        },
+        {
           "anchor": "GraphNodeResizeHandleFunctionUpdatePreviewFromDelta",
           "kind": "function",
           "name": "updatePreviewFromDelta"
+        },
+        {
+          "anchor": "GraphNodeResizeHandleFunctionFinishGuides",
+          "kind": "function",
+          "name": "_finishGuides"
         },
         {
           "anchor": "GraphNodeResizeHandleHandlerOnPaint",
@@ -25747,6 +25843,11 @@
           "anchor": "GraphNodeResizeHandleHandlerOnDoubleClicked",
           "kind": "handler",
           "name": "onDoubleClicked"
+        },
+        {
+          "anchor": "GraphNodeResizeHandleHandlerComponentOnDestruction",
+          "kind": "handler",
+          "name": "Component.onDestruction"
         },
         {
           "anchor": "GraphNodeResizeHandleHandlerOnReleased",
@@ -40890,7 +40991,8 @@
       "root_component": "Item",
       "imports": [
         "QtQuick 2.15",
-        "QtQuick.Shapes 1.15"
+        "QtQuick.Shapes 1.15",
+        "\"FlowchartShapeGeometry.js\" as FlowchartShapeGeometry"
       ],
       "ids": [
         {
@@ -43610,11 +43712,15 @@
         "\"..\" as GraphComponents",
         "\"../surface_controls\" as SurfaceControls",
         "\"../GraphNodeHostHitTesting.js\" as GraphNodeHostHitTesting",
-        "\"../GraphNodeSurfaceMetrics.js\" as GraphNodeSurfaceMetrics"
+        "\"../GraphNodeSurfaceMetrics.js\" as GraphNodeSurfaceMetrics",
+        "\"FlowchartShapeGeometry.js\" as FlowchartShapeGeometry"
       ],
       "ids": [
         {
           "name": "surface"
+        },
+        {
+          "name": "growToFitTimer"
         },
         {
           "name": "timestampLiveTimer"
@@ -43633,6 +43739,12 @@
         },
         {
           "name": "flowchartShadow"
+        },
+        {
+          "name": "bodyEditTarget"
+        },
+        {
+          "name": "bodyEditInteractionRegion"
         },
         {
           "name": "bodyBounds"
@@ -43698,6 +43810,9 @@
         },
         {
           "name": "graphNodeFlowchartShadow"
+        },
+        {
+          "name": "graphNodeFlowchartBodyBounds"
         },
         {
           "name": "graphNodeFlowchartRichTextBlock"
@@ -43783,10 +43898,6 @@
         },
         {
           "kind": "real",
-          "name": "bodyTextBandFraction"
-        },
-        {
-          "kind": "real",
           "name": "shapeCanvasHeight"
         },
         {
@@ -43799,23 +43910,63 @@
         },
         {
           "kind": "real",
-          "name": "isometricCubeStroke"
+          "name": "bodyStrokeWidth"
         },
         {
-          "kind": "real",
-          "name": "cubeFrontFaceDepth"
+          "kind": "var",
+          "name": "bodyTextMargins"
         },
         {
-          "kind": "real",
-          "name": "cubeFrontFaceCenterX"
+          "kind": "var",
+          "name": "bodyTextRegion"
         },
         {
-          "kind": "real",
-          "name": "cubeFrontFaceCenterY"
+          "kind": "var",
+          "name": "bodyEditHitRegion"
         },
         {
-          "kind": "real",
-          "name": "calloutTailHeight"
+          "kind": "var",
+          "name": "bodyFitModes"
+        },
+        {
+          "kind": "string",
+          "name": "bodyFitMode"
+        },
+        {
+          "kind": "bool",
+          "name": "bodyGrowToFit"
+        },
+        {
+          "kind": "bool",
+          "name": "bodyShrinkToFit"
+        },
+        {
+          "kind": "bool",
+          "name": "bodyAspectLocked"
+        },
+        {
+          "kind": "bool",
+          "name": "bodyTextOverflowing"
+        },
+        {
+          "kind": "bool",
+          "name": "bodyStylePreviewActive"
+        },
+        {
+          "kind": "bool",
+          "name": "_growPending"
+        },
+        {
+          "kind": "bool",
+          "name": "_growPreviewActive"
+        },
+        {
+          "kind": "var",
+          "name": "_growPreviewBase"
+        },
+        {
+          "kind": "string",
+          "name": "_growInputKey"
         },
         {
           "kind": "bool",
@@ -43862,54 +44013,6 @@
           "name": "cacheKey"
         },
         {
-          "kind": "real",
-          "name": "centeredWidth"
-        },
-        {
-          "kind": "real",
-          "name": "aboveTailHeight"
-        },
-        {
-          "kind": "real",
-          "name": "centeredHeight"
-        },
-        {
-          "kind": "real",
-          "name": "belowShapeBandTop"
-        },
-        {
-          "kind": "real",
-          "name": "belowShapeBandHeight"
-        },
-        {
-          "kind": "real",
-          "name": "frontFaceWidth"
-        },
-        {
-          "kind": "real",
-          "name": "frontFaceHeight"
-        },
-        {
-          "kind": "real",
-          "name": "cubeFrontFaceWidth"
-        },
-        {
-          "kind": "real",
-          "name": "cubeFrontFaceHeight"
-        },
-        {
-          "kind": "bool",
-          "name": "tickBelowShape"
-        },
-        {
-          "kind": "real",
-          "name": "tickHorizontalShift"
-        },
-        {
-          "kind": "real",
-          "name": "tickVerticalShift"
-        },
-        {
           "kind": "int",
           "name": "effectiveRenderType"
         },
@@ -43928,6 +44031,51 @@
         },
         {
           "name": "_variantKey"
+        },
+        {
+          "name": "_bodyTextRegionFor"
+        },
+        {
+          "name": "_bodyEditHitRegion"
+        },
+        {
+          "name": "_normalizedBodyFitMode"
+        },
+        {
+          "name": "_textFitAction"
+        },
+        {
+          "name": "_withTextFitAction"
+        },
+        {
+          "name": "_setBodyFitMode"
+        },
+        {
+          "name": "_textFitsBody"
+        },
+        {
+          "name": "_grownBodySize"
+        },
+        {
+          "name": "minimumNodeHeightForWidth"
+        },
+        {
+          "name": "_committedGeometry"
+        },
+        {
+          "name": "_scheduleGrowToFit"
+        },
+        {
+          "name": "_endGrowPreview"
+        },
+        {
+          "name": "_applyGrowToFit"
+        },
+        {
+          "name": "textFitReport"
+        },
+        {
+          "name": "settleTextFit"
         },
         {
           "name": "_bodyFallbackSuppressed"
@@ -44039,11 +44187,17 @@
         },
         {
           "name": "commitInlineEditFromExternalInteraction"
+        },
+        {
+          "name": "on_ResizeInteractionActiveChanged"
         }
       ],
       "instantiated_components": [
         {
           "name": "Timer"
+        },
+        {
+          "name": "Connections"
         },
         {
           "name": "FlowchartShapeCanvas"
@@ -44055,13 +44209,13 @@
           "name": "Item"
         },
         {
+          "name": "SurfaceControls.GraphSurfaceInteractiveRegion"
+        },
+        {
           "name": "Text"
         },
         {
           "name": "GraphRichTextBlock"
-        },
-        {
-          "name": "SurfaceControls.GraphSurfaceInteractiveRegion"
         },
         {
           "name": "SurfaceControls.GraphSurfaceInlineTextEditor"
@@ -44098,6 +44252,10 @@
         },
         {
           "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "kind": "handler",
           "name": "onTriggered"
         },
         {
@@ -44125,8 +44283,20 @@
           "name": "Keys.onEscapePressed"
         }
       ],
-      "connections": [],
+      "connections": [
+        {
+          "kind": "target",
+          "name": "surface.host"
+        }
+      ],
       "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "on_GrowInputKeyChanged",
+          "targets": [
+            "surface._scheduleGrowToFit"
+          ]
+        },
         {
           "kind": "binding",
           "name": "interval"
@@ -44376,6 +44546,84 @@
         },
         {
           "kind": "binding",
+          "name": "x",
+          "targets": [
+            "surface.bodyEditHitRegion.x"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "surface.bodyEditHitRegion.y"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "surface.bodyEditHitRegion.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "surface.bodyEditHitRegion.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "host",
+          "targets": [
+            "surface.host"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "targetItem",
+          "targets": [
+            "bodyEditTarget"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "surface.isTimestampSurface",
+            "bodyRichText.visible"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "surface.bodyTextRegion.x"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "surface.bodyTextRegion.y"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "surface.bodyTextRegion.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "surface.bodyTextRegion.height"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "clip"
         },
         {
@@ -44462,13 +44710,6 @@
         },
         {
           "kind": "binding",
-          "name": "host",
-          "targets": [
-            "surface.host"
-          ]
-        },
-        {
-          "kind": "binding",
           "name": "contentPropertyKey"
         },
         {
@@ -44546,6 +44787,32 @@
         {
           "kind": "binding",
           "name": "editorObjectName"
+        },
+        {
+          "kind": "binding",
+          "name": "fitMeasurementEnabled",
+          "targets": [
+            "surface.isTimestampSurface"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "shrinkToFit",
+          "targets": [
+            "surface.bodyShrinkToFit"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "overflowIndicatorEnabled",
+          "targets": [
+            "surface.isTimestampSurface",
+            "surface._growPending"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "overflowIndicatorObjectName"
         },
         {
           "kind": "binding",
@@ -44725,6 +44992,20 @@
         },
         {
           "kind": "binding",
+          "name": "fitMeasurementEnabled",
+          "targets": [
+            "surface.isCubeSurface"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "overflowIndicatorEnabled",
+          "targets": [
+            "surface.isCubeSurface"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "targetItem",
           "targets": [
             "bodyTopRichText"
@@ -44794,13 +45075,13 @@
         },
         {
           "kind": "localComponent",
-          "name": "GraphRichTextBlock",
-          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphRichTextBlock.qml"
+          "name": "SurfaceControls.GraphSurfaceInteractiveRegion",
+          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInteractiveRegion.qml"
         },
         {
           "kind": "localComponent",
-          "name": "SurfaceControls.GraphSurfaceInteractiveRegion",
-          "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInteractiveRegion.qml"
+          "name": "GraphRichTextBlock",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphRichTextBlock.qml"
         },
         {
           "kind": "localComponent",
@@ -44922,12 +45203,6 @@
           "detail": "string"
         },
         {
-          "anchor": "GraphFlowchartNodeSurfacePropertyBodyTextBandFraction",
-          "kind": "property",
-          "name": "bodyTextBandFraction",
-          "detail": "real"
-        },
-        {
           "anchor": "GraphFlowchartNodeSurfacePropertyShapeCanvasHeight",
           "kind": "property",
           "name": "shapeCanvasHeight",
@@ -44946,34 +45221,94 @@
           "detail": "real"
         },
         {
-          "anchor": "GraphFlowchartNodeSurfacePropertyIsometricCubeStroke",
+          "anchor": "GraphFlowchartNodeSurfacePropertyBodyStrokeWidth",
           "kind": "property",
-          "name": "isometricCubeStroke",
+          "name": "bodyStrokeWidth",
           "detail": "real"
         },
         {
-          "anchor": "GraphFlowchartNodeSurfacePropertyCubeFrontFaceDepth",
+          "anchor": "GraphFlowchartNodeSurfacePropertyBodyTextMargins",
           "kind": "property",
-          "name": "cubeFrontFaceDepth",
-          "detail": "real"
+          "name": "bodyTextMargins",
+          "detail": "var"
         },
         {
-          "anchor": "GraphFlowchartNodeSurfacePropertyCubeFrontFaceCenterX",
+          "anchor": "GraphFlowchartNodeSurfacePropertyBodyTextRegion",
           "kind": "property",
-          "name": "cubeFrontFaceCenterX",
-          "detail": "real"
+          "name": "bodyTextRegion",
+          "detail": "var"
         },
         {
-          "anchor": "GraphFlowchartNodeSurfacePropertyCubeFrontFaceCenterY",
+          "anchor": "GraphFlowchartNodeSurfacePropertyBodyEditHitRegion",
           "kind": "property",
-          "name": "cubeFrontFaceCenterY",
-          "detail": "real"
+          "name": "bodyEditHitRegion",
+          "detail": "var"
         },
         {
-          "anchor": "GraphFlowchartNodeSurfacePropertyCalloutTailHeight",
+          "anchor": "GraphFlowchartNodeSurfacePropertyBodyFitModes",
           "kind": "property",
-          "name": "calloutTailHeight",
-          "detail": "real"
+          "name": "bodyFitModes",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfacePropertyBodyFitMode",
+          "kind": "property",
+          "name": "bodyFitMode",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfacePropertyBodyGrowToFit",
+          "kind": "property",
+          "name": "bodyGrowToFit",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfacePropertyBodyShrinkToFit",
+          "kind": "property",
+          "name": "bodyShrinkToFit",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfacePropertyBodyAspectLocked",
+          "kind": "property",
+          "name": "bodyAspectLocked",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfacePropertyBodyTextOverflowing",
+          "kind": "property",
+          "name": "bodyTextOverflowing",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfacePropertyBodyStylePreviewActive",
+          "kind": "property",
+          "name": "bodyStylePreviewActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfacePropertyGrowPending",
+          "kind": "property",
+          "name": "_growPending",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfacePropertyGrowPreviewActive",
+          "kind": "property",
+          "name": "_growPreviewActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfacePropertyGrowPreviewBase",
+          "kind": "property",
+          "name": "_growPreviewBase",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfacePropertyGrowInputKey",
+          "kind": "property",
+          "name": "_growInputKey",
+          "detail": "string"
         },
         {
           "anchor": "GraphFlowchartNodeSurfacePropertyBodyFallbackSuppressed",
@@ -45042,78 +45377,6 @@
           "detail": "string"
         },
         {
-          "anchor": "GraphFlowchartNodeSurfacePropertyCenteredWidth",
-          "kind": "property",
-          "name": "centeredWidth",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphFlowchartNodeSurfacePropertyAboveTailHeight",
-          "kind": "property",
-          "name": "aboveTailHeight",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphFlowchartNodeSurfacePropertyCenteredHeight",
-          "kind": "property",
-          "name": "centeredHeight",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphFlowchartNodeSurfacePropertyBelowShapeBandTop",
-          "kind": "property",
-          "name": "belowShapeBandTop",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphFlowchartNodeSurfacePropertyBelowShapeBandHeight",
-          "kind": "property",
-          "name": "belowShapeBandHeight",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphFlowchartNodeSurfacePropertyFrontFaceWidth",
-          "kind": "property",
-          "name": "frontFaceWidth",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphFlowchartNodeSurfacePropertyFrontFaceHeight",
-          "kind": "property",
-          "name": "frontFaceHeight",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphFlowchartNodeSurfacePropertyCubeFrontFaceWidth",
-          "kind": "property",
-          "name": "cubeFrontFaceWidth",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphFlowchartNodeSurfacePropertyCubeFrontFaceHeight",
-          "kind": "property",
-          "name": "cubeFrontFaceHeight",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphFlowchartNodeSurfacePropertyTickBelowShape",
-          "kind": "property",
-          "name": "tickBelowShape",
-          "detail": "bool"
-        },
-        {
-          "anchor": "GraphFlowchartNodeSurfacePropertyTickHorizontalShift",
-          "kind": "property",
-          "name": "tickHorizontalShift",
-          "detail": "real"
-        },
-        {
-          "anchor": "GraphFlowchartNodeSurfacePropertyTickVerticalShift",
-          "kind": "property",
-          "name": "tickVerticalShift",
-          "detail": "real"
-        },
-        {
           "anchor": "GraphFlowchartNodeSurfacePropertyEffectiveRenderType",
           "kind": "property",
           "name": "effectiveRenderType",
@@ -45139,6 +45402,81 @@
           "anchor": "GraphFlowchartNodeSurfaceFunctionVariantKey",
           "kind": "function",
           "name": "_variantKey"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionBodyTextRegionFor",
+          "kind": "function",
+          "name": "_bodyTextRegionFor"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionBodyEditHitRegion",
+          "kind": "function",
+          "name": "_bodyEditHitRegion"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionNormalizedBodyFitMode",
+          "kind": "function",
+          "name": "_normalizedBodyFitMode"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionTextFitAction",
+          "kind": "function",
+          "name": "_textFitAction"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionWithTextFitAction",
+          "kind": "function",
+          "name": "_withTextFitAction"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionSetBodyFitMode",
+          "kind": "function",
+          "name": "_setBodyFitMode"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionTextFitsBody",
+          "kind": "function",
+          "name": "_textFitsBody"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionGrownBodySize",
+          "kind": "function",
+          "name": "_grownBodySize"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionMinimumNodeHeightForWidth",
+          "kind": "function",
+          "name": "minimumNodeHeightForWidth"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionCommittedGeometry",
+          "kind": "function",
+          "name": "_committedGeometry"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionScheduleGrowToFit",
+          "kind": "function",
+          "name": "_scheduleGrowToFit"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionEndGrowPreview",
+          "kind": "function",
+          "name": "_endGrowPreview"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionApplyGrowToFit",
+          "kind": "function",
+          "name": "_applyGrowToFit"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionTextFitReport",
+          "kind": "function",
+          "name": "textFitReport"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionSettleTextFit",
+          "kind": "function",
+          "name": "settleTextFit"
         },
         {
           "anchor": "GraphFlowchartNodeSurfaceFunctionBodyFallbackSuppressed",
@@ -45326,6 +45664,11 @@
           "name": "commitInlineEditFromExternalInteraction"
         },
         {
+          "anchor": "GraphFlowchartNodeSurfaceFunctionOnResizeInteractionActiveChanged",
+          "kind": "function",
+          "name": "on_ResizeInteractionActiveChanged"
+        },
+        {
           "anchor": "GraphFlowchartNodeSurfaceHandlerOnTimestampLiveChanged",
           "kind": "handler",
           "name": "onTimestampLiveChanged"
@@ -45334,6 +45677,11 @@
           "anchor": "GraphFlowchartNodeSurfaceHandlerOnVisibleChanged",
           "kind": "handler",
           "name": "onVisibleChanged"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceHandlerComponentOnCompleted",
+          "kind": "handler",
+          "name": "Component.onCompleted"
         },
         {
           "anchor": "GraphFlowchartNodeSurfaceHandlerOnTriggered",
@@ -45371,22 +45719,27 @@
           "name": "Keys.onEscapePressed"
         },
         {
+          "anchor": "GraphFlowchartNodeSurfaceTargetSurfaceHost",
+          "kind": "target",
+          "name": "surface.host"
+        },
+        {
           "anchor": "GraphFlowchartNodeSurfaceLocalComponentFlowchartShapeCanvas",
           "kind": "localComponent",
           "name": "FlowchartShapeCanvas",
           "detail": "ea_node_editor/ui_qml/components/graph/passive/FlowchartShapeCanvas.qml"
         },
         {
-          "anchor": "GraphFlowchartNodeSurfaceLocalComponentGraphRichTextBlock",
-          "kind": "localComponent",
-          "name": "GraphRichTextBlock",
-          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphRichTextBlock.qml"
-        },
-        {
           "anchor": "GraphFlowchartNodeSurfaceLocalComponentSurfaceControlsGraphSurfaceInteractiveRegion",
           "kind": "localComponent",
           "name": "SurfaceControls.GraphSurfaceInteractiveRegion",
           "detail": "ea_node_editor/ui_qml/components/graph/surface_controls/GraphSurfaceInteractiveRegion.qml"
+        },
+        {
+          "anchor": "GraphFlowchartNodeSurfaceLocalComponentGraphRichTextBlock",
+          "kind": "localComponent",
+          "name": "GraphRichTextBlock",
+          "detail": "ea_node_editor/ui_qml/components/graph/passive/GraphRichTextBlock.qml"
         },
         {
           "anchor": "GraphFlowchartNodeSurfaceLocalComponentSurfaceControlsGraphSurfaceInlineTextEditor",
@@ -60570,7 +60923,13 @@
           "name": "editorLayoutProbe"
         },
         {
+          "name": "fitProbe"
+        },
+        {
           "name": "textEditor"
+        },
+        {
+          "name": "overflowPill"
         },
         {
           "name": "displayInteractionRegion"
@@ -60691,6 +61050,38 @@
         {
           "kind": "string",
           "name": "editorLayoutProbeObjectName"
+        },
+        {
+          "kind": "bool",
+          "name": "fitMeasurementEnabled"
+        },
+        {
+          "kind": "bool",
+          "name": "shrinkToFit"
+        },
+        {
+          "kind": "bool",
+          "name": "overflowIndicatorEnabled"
+        },
+        {
+          "kind": "string",
+          "name": "overflowIndicatorObjectName"
+        },
+        {
+          "kind": "int",
+          "name": "fittedFontSize"
+        },
+        {
+          "kind": "bool",
+          "name": "contentOverflowing"
+        },
+        {
+          "kind": "bool",
+          "name": "contentOverflowingVertically"
+        },
+        {
+          "kind": "int",
+          "name": "overflowLineLimit"
         },
         {
           "kind": "bool",
@@ -60837,6 +61228,34 @@
           "name": "measuredContentHeight"
         },
         {
+          "kind": "string",
+          "name": "measuredText"
+        },
+        {
+          "kind": "bool",
+          "name": "measuredTextIsPlain"
+        },
+        {
+          "kind": "int",
+          "name": "effectiveFontSize"
+        },
+        {
+          "kind": "bool",
+          "name": "overflowIndicatorVisible"
+        },
+        {
+          "kind": "bool",
+          "name": "overflowElisionActive"
+        },
+        {
+          "kind": "string",
+          "name": "overflowMark"
+        },
+        {
+          "kind": "string",
+          "name": "_fitInputKey"
+        },
+        {
           "kind": "bool",
           "name": "isBoldWeight"
         },
@@ -60911,6 +61330,18 @@
       ],
       "signals": [],
       "functions": [
+        {
+          "name": "measureContent"
+        },
+        {
+          "name": "_contentFitsBox"
+        },
+        {
+          "name": "_clearTextFit"
+        },
+        {
+          "name": "_recomputeTextFit"
+        },
         {
           "name": "_storedProperty"
         },
@@ -61169,6 +61600,12 @@
           "name": "TextArea"
         },
         {
+          "name": "Row"
+        },
+        {
+          "name": "Repeater"
+        },
+        {
           "name": "SurfaceControls.GraphSurfaceInteractiveRegion"
         },
         {
@@ -61178,7 +61615,14 @@
           "name": "Connections"
         }
       ],
-      "dynamic_refs": [],
+      "dynamic_refs": [
+        {
+          "kind": "Repeater"
+        },
+        {
+          "kind": "model"
+        }
+      ],
       "signal_handlers": [
         {
           "kind": "handler",
@@ -61223,6 +61667,13 @@
             "host",
             "Number",
             "host.surfaceMetrics.body_height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "on_FitInputKeyChanged",
+          "targets": [
+            "surface._recomputeTextFit"
           ]
         },
         {
@@ -61347,7 +61798,7 @@
           "kind": "binding",
           "name": "font.pixelSize",
           "targets": [
-            "surface.fontSizeValue"
+            "surface.effectiveFontSize"
           ]
         },
         {
@@ -61407,7 +61858,8 @@
           "kind": "binding",
           "name": "verticalAlignment",
           "targets": [
-            "surface.resolvedVerticalAlignment"
+            "surface.overflowIndicatorEnabled",
+            "surface.contentOverflowingVertically"
           ]
         },
         {
@@ -61428,13 +61880,16 @@
           "kind": "binding",
           "name": "maximumLineCount",
           "targets": [
-            "surface.maximumLineCount"
+            "surface.overflowIndicatorVisible",
+            "surface.overflowLineLimit"
           ]
         },
         {
           "kind": "binding",
           "name": "elide",
           "targets": [
+            "surface.overflowElisionActive",
+            "Text.ElideRight",
             "surface.elideMode"
           ]
         },
@@ -61481,6 +61936,13 @@
         },
         {
           "kind": "binding",
+          "name": "verticalAlignment",
+          "targets": [
+            "surface.resolvedVerticalAlignment"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "visible"
         },
         {
@@ -61502,6 +61964,23 @@
           "name": "textFormat",
           "targets": [
             "Text.PlainText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "surface.fitMeasurementEnabled",
+            "surface.measuredText"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "textFormat",
+          "targets": [
+            "surface.measuredTextIsPlain",
+            "Text.PlainText",
+            "Text.MarkdownText"
           ]
         },
         {
@@ -61575,6 +62054,76 @@
           "targets": [
             "Item"
           ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "surface.overflowMark"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width"
+        },
+        {
+          "kind": "binding",
+          "name": "height"
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "textBounds.x",
+            "textBounds.width",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "textBounds.y",
+            "Math.max",
+            "Math.min",
+            "textBounds.height",
+            "height",
+            "renderedText.contentHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "host",
+            "host.surfaceColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "border.color",
+          "targets": [
+            "Qt.alpha",
+            "surface.textColorValue"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.centerIn",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "spacing"
         },
         {
           "kind": "binding",
@@ -61806,6 +62355,54 @@
           "detail": "string"
         },
         {
+          "anchor": "GraphRichTextBlockPropertyFitMeasurementEnabled",
+          "kind": "property",
+          "name": "fitMeasurementEnabled",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyShrinkToFit",
+          "kind": "property",
+          "name": "shrinkToFit",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyOverflowIndicatorEnabled",
+          "kind": "property",
+          "name": "overflowIndicatorEnabled",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyOverflowIndicatorObjectName",
+          "kind": "property",
+          "name": "overflowIndicatorObjectName",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyFittedFontSize",
+          "kind": "property",
+          "name": "fittedFontSize",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyContentOverflowing",
+          "kind": "property",
+          "name": "contentOverflowing",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyContentOverflowingVertically",
+          "kind": "property",
+          "name": "contentOverflowingVertically",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyOverflowLineLimit",
+          "kind": "property",
+          "name": "overflowLineLimit",
+          "detail": "int"
+        },
+        {
           "anchor": "GraphRichTextBlockPropertyUsesPrefixedStyle",
           "kind": "property",
           "name": "usesPrefixedStyle",
@@ -62022,6 +62619,48 @@
           "detail": "real"
         },
         {
+          "anchor": "GraphRichTextBlockPropertyMeasuredText",
+          "kind": "property",
+          "name": "measuredText",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyMeasuredTextIsPlain",
+          "kind": "property",
+          "name": "measuredTextIsPlain",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyEffectiveFontSize",
+          "kind": "property",
+          "name": "effectiveFontSize",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyOverflowIndicatorVisible",
+          "kind": "property",
+          "name": "overflowIndicatorVisible",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyOverflowElisionActive",
+          "kind": "property",
+          "name": "overflowElisionActive",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyOverflowMark",
+          "kind": "property",
+          "name": "overflowMark",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphRichTextBlockPropertyFitInputKey",
+          "kind": "property",
+          "name": "_fitInputKey",
+          "detail": "string"
+        },
+        {
           "anchor": "GraphRichTextBlockPropertyIsBoldWeight",
           "kind": "property",
           "name": "isBoldWeight",
@@ -62128,6 +62767,26 @@
           "kind": "property",
           "name": "effectiveRenderType",
           "detail": "int"
+        },
+        {
+          "anchor": "GraphRichTextBlockFunctionMeasureContent",
+          "kind": "function",
+          "name": "measureContent"
+        },
+        {
+          "anchor": "GraphRichTextBlockFunctionContentFitsBox",
+          "kind": "function",
+          "name": "_contentFitsBox"
+        },
+        {
+          "anchor": "GraphRichTextBlockFunctionClearTextFit",
+          "kind": "function",
+          "name": "_clearTextFit"
+        },
+        {
+          "anchor": "GraphRichTextBlockFunctionRecomputeTextFit",
+          "kind": "function",
+          "name": "_recomputeTextFit"
         },
         {
           "anchor": "GraphRichTextBlockFunctionStoredProperty",
@@ -98342,6 +99001,14 @@
         },
         {
           "kind": "binding",
+          "name": "smartGuides",
+          "targets": [
+            "canvasItem",
+            "canvasItem.smartGuidesRef"
+          ]
+        },
+        {
+          "kind": "binding",
           "name": "hoveredPort",
           "targets": [
             "canvasItem",
@@ -99088,6 +99755,7 @@
         "QtQuick 2.15",
         "QtQuick.Controls 2.15",
         "\"../common\" as Common",
+        "\"../common/TooltipCopy.js\" as TooltipCopy",
         "\"../graph/GraphActionPresentation.js\" as GraphActionPresentation"
       ],
       "ids": [
@@ -99163,6 +99831,9 @@
           "name": "canvasOptionsPasteAndDropRow"
         },
         {
+          "name": "canvasOptionsSmartGuidesRow"
+        },
+        {
           "name": "canvasOptionsTooltipDelayRow"
         },
         {
@@ -99216,6 +99887,10 @@
         {
           "kind": "var",
           "name": "themeBridgeRef"
+        },
+        {
+          "kind": "var",
+          "name": "tooltipCopyBridgeRef"
         },
         {
           "kind": "int",
@@ -99370,6 +100045,10 @@
           "name": "canvasImportModeLabel"
         },
         {
+          "kind": "bool",
+          "name": "smartGuidesEnabled"
+        },
+        {
           "kind": "string",
           "name": "nodeElapsedTimeUnitValue"
         },
@@ -99511,6 +100190,9 @@
         },
         {
           "name": "setCanvasImportMode"
+        },
+        {
+          "name": "setSmartGuidesEnabled"
         },
         {
           "name": "setNodeShadows"
@@ -99855,6 +100537,31 @@
         {
           "kind": "binding",
           "name": "tooltipText"
+        },
+        {
+          "kind": "binding",
+          "name": "checked",
+          "targets": [
+            "root.smartGuidesEnabled"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipText",
+          "targets": [
+            "settings.graphics.smart_guides.enabled",
+            "TooltipCopy.text",
+            "root.tooltipCopyBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "tooltipCategory",
+          "targets": [
+            "settings.graphics.smart_guides.enabled",
+            "TooltipCopy.category",
+            "root.tooltipCopyBridgeRef"
+          ]
         },
         {
           "kind": "binding",
@@ -100493,6 +101200,12 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphCanvasOptionsMenuPropertyTooltipCopyBridgeRef",
+          "kind": "property",
+          "name": "tooltipCopyBridgeRef",
+          "detail": "var"
+        },
+        {
           "anchor": "GraphCanvasOptionsMenuPropertyPanelW",
           "kind": "property",
           "name": "panelW",
@@ -100721,6 +101434,12 @@
           "detail": "string"
         },
         {
+          "anchor": "GraphCanvasOptionsMenuPropertySmartGuidesEnabled",
+          "kind": "property",
+          "name": "smartGuidesEnabled",
+          "detail": "bool"
+        },
+        {
           "anchor": "GraphCanvasOptionsMenuPropertyNodeElapsedTimeUnitValue",
           "kind": "property",
           "name": "nodeElapsedTimeUnitValue",
@@ -100936,6 +101655,11 @@
           "name": "setCanvasImportMode"
         },
         {
+          "anchor": "GraphCanvasOptionsMenuFunctionSetSmartGuidesEnabled",
+          "kind": "function",
+          "name": "setSmartGuidesEnabled"
+        },
+        {
           "anchor": "GraphCanvasOptionsMenuFunctionSetNodeShadows",
           "kind": "function",
           "name": "setNodeShadows"
@@ -101046,6 +101770,10 @@
         {
           "kind": "string",
           "name": "canvasImportMode"
+        },
+        {
+          "kind": "bool",
+          "name": "smartGuidesEnabled"
         },
         {
           "kind": "bool",
@@ -101178,6 +101906,12 @@
           "kind": "property",
           "name": "canvasImportMode",
           "detail": "string"
+        },
+        {
+          "anchor": "GraphCanvasPreferenceFactsPropertySmartGuidesEnabled",
+          "kind": "property",
+          "name": "smartGuidesEnabled",
+          "detail": "bool"
         },
         {
           "anchor": "GraphCanvasPreferenceFactsPropertyMinimapExpanded",
@@ -101476,6 +102210,9 @@
         },
         {
           "name": "graphSelectionEnvelopeOverlay"
+        },
+        {
+          "name": "graphCanvasSmartGuideOverlay"
         },
         {
           "name": "graphNodeOverlayToolbarLayer"
@@ -102003,6 +102740,9 @@
           "name": "GraphOverlay.GraphSelectionEnvelopeOverlay"
         },
         {
+          "name": "GraphCanvasSmartGuideOverlay"
+        },
+        {
           "name": "GraphOverlay.GraphNodeOverlayToolbarLayer"
         },
         {
@@ -102396,6 +103136,21 @@
           "name": "themePalette",
           "targets": [
             "root.themePalette"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "guides",
+          "targets": [
+            "root.canvasItem",
+            "root.canvasItem.smartGuidesRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "backgroundFillColor",
+          "targets": [
+            "backgroundLayer.backgroundFillColor"
           ]
         },
         {
@@ -102941,6 +103696,11 @@
           "kind": "localComponent",
           "name": "GraphOverlay.GraphSelectionEnvelopeOverlay",
           "detail": "ea_node_editor/ui_qml/components/graph/overlay/GraphSelectionEnvelopeOverlay.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "GraphCanvasSmartGuideOverlay",
+          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSmartGuideOverlay.qml"
         },
         {
           "kind": "localComponent",
@@ -103806,6 +104566,12 @@
           "detail": "ea_node_editor/ui_qml/components/graph/overlay/GraphSelectionEnvelopeOverlay.qml"
         },
         {
+          "anchor": "GraphCanvasRootLayersLocalComponentGraphCanvasSmartGuideOverlay",
+          "kind": "localComponent",
+          "name": "GraphCanvasSmartGuideOverlay",
+          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSmartGuideOverlay.qml"
+        },
+        {
           "anchor": "GraphCanvasRootLayersLocalComponentGraphOverlayGraphNodeOverlayToolbarLayer",
           "kind": "localComponent",
           "name": "GraphOverlay.GraphNodeOverlayToolbarLayer",
@@ -103895,6 +104661,10 @@
         {
           "kind": "var",
           "name": "frameScheduler"
+        },
+        {
+          "kind": "var",
+          "name": "smartGuides"
         }
       ],
       "signals": [],
@@ -104019,6 +104789,12 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphCanvasSceneLifecyclePropertySmartGuides",
+          "kind": "property",
+          "name": "smartGuides",
+          "detail": "var"
+        },
+        {
           "anchor": "GraphCanvasSceneLifecycleFunctionRequestEdgeRedraw",
           "kind": "function",
           "name": "requestEdgeRedraw"
@@ -104116,6 +104892,10 @@
         },
         {
           "kind": "var",
+          "name": "smartGuides"
+        },
+        {
+          "kind": "var",
           "name": "selectedEdgeIds"
         },
         {
@@ -104137,6 +104917,14 @@
         {
           "kind": "real",
           "name": "liveDragDy"
+        },
+        {
+          "kind": "string",
+          "name": "liveDragAxisLock"
+        },
+        {
+          "kind": "bool",
+          "name": "liveDragSnapBypass"
         },
         {
           "kind": "int",
@@ -104297,6 +105085,9 @@
           "name": "_freezeLiveDragMembership"
         },
         {
+          "name": "_guidedLiveDragOffset"
+        },
+        {
           "name": "_applyLiveDragOffset"
         },
         {
@@ -104347,6 +105138,12 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphCanvasSceneStatePropertySmartGuides",
+          "kind": "property",
+          "name": "smartGuides",
+          "detail": "var"
+        },
+        {
           "anchor": "GraphCanvasSceneStatePropertySelectedEdgeIds",
           "kind": "property",
           "name": "selectedEdgeIds",
@@ -104381,6 +105178,18 @@
           "kind": "property",
           "name": "liveDragDy",
           "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSceneStatePropertyLiveDragAxisLock",
+          "kind": "property",
+          "name": "liveDragAxisLock",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphCanvasSceneStatePropertyLiveDragSnapBypass",
+          "kind": "property",
+          "name": "liveDragSnapBypass",
+          "detail": "bool"
         },
         {
           "anchor": "GraphCanvasSceneStatePropertyLiveDragRevision",
@@ -104638,6 +105447,11 @@
           "name": "_freezeLiveDragMembership"
         },
         {
+          "anchor": "GraphCanvasSceneStateFunctionGuidedLiveDragOffset",
+          "kind": "function",
+          "name": "_guidedLiveDragOffset"
+        },
+        {
           "anchor": "GraphCanvasSceneStateFunctionApplyLiveDragOffset",
           "kind": "function",
           "name": "_applyLiveDragOffset"
@@ -104686,6 +105500,1428 @@
           "anchor": "GraphCanvasSceneStateFunctionSyncEdgePayload",
           "kind": "function",
           "name": "syncEdgePayload"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSmartGuideOverlay.qml",
+      "component_name": "GraphCanvasSmartGuideOverlay",
+      "aliases": [
+        "GraphCanvasSmartGuideOverlay",
+        "GraphCanvasSmartGuideOverlay.qml",
+        "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSmartGuideOverlay.qml",
+        "ea_node_editor\\ui_qml\\components\\graph_canvas\\GraphCanvasSmartGuideOverlay.qml"
+      ],
+      "root_component": "Item",
+      "imports": [
+        "QtQuick 2.15",
+        "QtQuick.Window 2.15",
+        "\"../common/contrast_utils.js\" as ContrastUtils",
+        "\"GraphCanvasSmartGuideEngine.js\" as SmartGuideEngine"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        },
+        {
+          "name": "gapLabel"
+        },
+        {
+          "name": "gapLabelText"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "graphCanvasSmartGuideOverlay"
+        },
+        {
+          "name": "graphCanvasSmartGuidePiece"
+        },
+        {
+          "name": "graphCanvasSmartGuideGapLabel"
+        },
+        {
+          "name": "graphCanvasSmartGuideGapLabelText"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "guides"
+        },
+        {
+          "kind": "var",
+          "name": "viewBridge"
+        },
+        {
+          "kind": "color",
+          "name": "backgroundFillColor"
+        },
+        {
+          "kind": "bool",
+          "name": "darkCanvasFill"
+        },
+        {
+          "kind": "color",
+          "name": "guideColor"
+        },
+        {
+          "kind": "bool",
+          "name": "showGapLabels"
+        },
+        {
+          "kind": "color",
+          "name": "pillFillColor"
+        },
+        {
+          "kind": "color",
+          "name": "labelTextColor"
+        },
+        {
+          "kind": "real",
+          "name": "lineOvershootPx"
+        },
+        {
+          "kind": "real",
+          "name": "gapTickLengthPx"
+        },
+        {
+          "kind": "int",
+          "name": "gapLabelPixelSize"
+        },
+        {
+          "kind": "real",
+          "name": "horizontalGapHeaderOffset"
+        },
+        {
+          "kind": "real",
+          "name": "devicePixelRatio"
+        },
+        {
+          "kind": "int",
+          "name": "lineCapacity"
+        },
+        {
+          "kind": "int",
+          "name": "gapCapacity"
+        },
+        {
+          "kind": "int",
+          "name": "pieceCapacity"
+        },
+        {
+          "kind": "var",
+          "name": "_published"
+        },
+        {
+          "kind": "var",
+          "name": "lines"
+        },
+        {
+          "kind": "var",
+          "name": "gaps"
+        },
+        {
+          "kind": "int",
+          "name": "visibleLineCount"
+        },
+        {
+          "kind": "int",
+          "name": "visibleGapCount"
+        },
+        {
+          "kind": "real",
+          "name": "_zoom"
+        },
+        {
+          "kind": "real",
+          "name": "_centerX"
+        },
+        {
+          "kind": "real",
+          "name": "_centerY"
+        },
+        {
+          "kind": "real",
+          "name": "_pixelRatio"
+        },
+        {
+          "kind": "real",
+          "name": "hairline"
+        },
+        {
+          "kind": "var",
+          "name": "_layout"
+        },
+        {
+          "kind": "var",
+          "name": "markers"
+        },
+        {
+          "kind": "var",
+          "name": "pieces"
+        },
+        {
+          "kind": "color",
+          "name": "_darkLabelTextColor"
+        },
+        {
+          "kind": "var",
+          "name": "piece"
+        },
+        {
+          "kind": "string",
+          "name": "part"
+        },
+        {
+          "kind": "var",
+          "name": "marker"
+        },
+        {
+          "kind": "bool",
+          "name": "horizontal"
+        },
+        {
+          "kind": "real",
+          "name": "lengthPx"
+        },
+        {
+          "kind": "real",
+          "name": "centerAlong"
+        },
+        {
+          "kind": "real",
+          "name": "centerAcross"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "onGuideRevisionChanged"
+        },
+        {
+          "name": "_readGuides"
+        },
+        {
+          "name": "screenX"
+        },
+        {
+          "name": "screenY"
+        },
+        {
+          "name": "_pixel"
+        },
+        {
+          "name": "readableTextColor"
+        },
+        {
+          "name": "_cellAt"
+        },
+        {
+          "name": "_cellAround"
+        },
+        {
+          "name": "markerCross"
+        },
+        {
+          "name": "_buildLayout"
+        },
+        {
+          "name": "_markers"
+        },
+        {
+          "name": "_rawRuns"
+        },
+        {
+          "name": "_mergedRuns"
+        },
+        {
+          "name": "_cutBlocks"
+        },
+        {
+          "name": "_appendRect"
+        },
+        {
+          "name": "_appendSplit"
+        },
+        {
+          "name": "_pieces"
+        }
+      ],
+      "instantiated_components": [
+        {
+          "name": "Connections"
+        },
+        {
+          "name": "Repeater"
+        },
+        {
+          "name": "Text"
+        }
+      ],
+      "dynamic_refs": [
+        {
+          "kind": "Repeater"
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.pieceCapacity"
+          ]
+        },
+        {
+          "kind": "delegate",
+          "targets": [
+            "Rectangle"
+          ]
+        },
+        {
+          "kind": "model",
+          "targets": [
+            "root.showGapLabels",
+            "root.gapCapacity"
+          ]
+        }
+      ],
+      "signal_handlers": [
+        {
+          "kind": "handler",
+          "name": "onGuidesChanged"
+        },
+        {
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        }
+      ],
+      "connections": [
+        {
+          "kind": "target",
+          "name": "root.guides"
+        }
+      ],
+      "property_bindings": [
+        {
+          "kind": "binding",
+          "name": "anchors.fill",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "z"
+        },
+        {
+          "kind": "binding",
+          "name": "enabled"
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "root.visibleLineCount",
+            "root.visibleGapCount"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "piece"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "antialiasing"
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.guideColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "piece",
+            "piece.x"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "piece",
+            "piece.y"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "piece",
+            "piece.width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "piece",
+            "piece.height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "visible",
+          "targets": [
+            "marker",
+            "lengthPx",
+            "horizontal",
+            "width",
+            "height",
+            "root.gapTickLengthPx"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "width",
+          "targets": [
+            "Math.ceil",
+            "gapLabelText.implicitWidth"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "height",
+          "targets": [
+            "Math.ceil",
+            "gapLabelText.implicitHeight"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "radius",
+          "targets": [
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.pillFillColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "x",
+          "targets": [
+            "root._pixel",
+            "horizontal",
+            "centerAlong",
+            "centerAcross",
+            "width"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "y",
+          "targets": [
+            "root._pixel",
+            "horizontal",
+            "centerAcross",
+            "centerAlong",
+            "height"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "anchors.centerIn",
+          "targets": [
+            "parent"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "text",
+          "targets": [
+            "gapLabel.marker",
+            "String",
+            "Math.round",
+            "gapLabel.marker.size"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "color",
+          "targets": [
+            "root.labelTextColor"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.pixelSize",
+          "targets": [
+            "root.gapLabelPixelSize"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "font.bold"
+        }
+      ],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyGuides",
+          "kind": "property",
+          "name": "guides",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyViewBridge",
+          "kind": "property",
+          "name": "viewBridge",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyBackgroundFillColor",
+          "kind": "property",
+          "name": "backgroundFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyDarkCanvasFill",
+          "kind": "property",
+          "name": "darkCanvasFill",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyGuideColor",
+          "kind": "property",
+          "name": "guideColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyShowGapLabels",
+          "kind": "property",
+          "name": "showGapLabels",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyPillFillColor",
+          "kind": "property",
+          "name": "pillFillColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyLabelTextColor",
+          "kind": "property",
+          "name": "labelTextColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyLineOvershootPx",
+          "kind": "property",
+          "name": "lineOvershootPx",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyGapTickLengthPx",
+          "kind": "property",
+          "name": "gapTickLengthPx",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyGapLabelPixelSize",
+          "kind": "property",
+          "name": "gapLabelPixelSize",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyHorizontalGapHeaderOffset",
+          "kind": "property",
+          "name": "horizontalGapHeaderOffset",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyDevicePixelRatio",
+          "kind": "property",
+          "name": "devicePixelRatio",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyLineCapacity",
+          "kind": "property",
+          "name": "lineCapacity",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyGapCapacity",
+          "kind": "property",
+          "name": "gapCapacity",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyPieceCapacity",
+          "kind": "property",
+          "name": "pieceCapacity",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyPublished",
+          "kind": "property",
+          "name": "_published",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyLines",
+          "kind": "property",
+          "name": "lines",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyGaps",
+          "kind": "property",
+          "name": "gaps",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyVisibleLineCount",
+          "kind": "property",
+          "name": "visibleLineCount",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyVisibleGapCount",
+          "kind": "property",
+          "name": "visibleGapCount",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyZoom",
+          "kind": "property",
+          "name": "_zoom",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyCenterX",
+          "kind": "property",
+          "name": "_centerX",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyCenterY",
+          "kind": "property",
+          "name": "_centerY",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyPixelRatio",
+          "kind": "property",
+          "name": "_pixelRatio",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyHairline",
+          "kind": "property",
+          "name": "hairline",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyLayout",
+          "kind": "property",
+          "name": "_layout",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyMarkers",
+          "kind": "property",
+          "name": "markers",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyPieces",
+          "kind": "property",
+          "name": "pieces",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyDarkLabelTextColor",
+          "kind": "property",
+          "name": "_darkLabelTextColor",
+          "detail": "color"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyPiece",
+          "kind": "property",
+          "name": "piece",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyPart",
+          "kind": "property",
+          "name": "part",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyMarker",
+          "kind": "property",
+          "name": "marker",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyHorizontal",
+          "kind": "property",
+          "name": "horizontal",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyLengthPx",
+          "kind": "property",
+          "name": "lengthPx",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyCenterAlong",
+          "kind": "property",
+          "name": "centerAlong",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayPropertyCenterAcross",
+          "kind": "property",
+          "name": "centerAcross",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionOnGuideRevisionChanged",
+          "kind": "function",
+          "name": "onGuideRevisionChanged"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionReadGuides",
+          "kind": "function",
+          "name": "_readGuides"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionScreenX",
+          "kind": "function",
+          "name": "screenX"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionScreenY",
+          "kind": "function",
+          "name": "screenY"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionPixel",
+          "kind": "function",
+          "name": "_pixel"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionReadableTextColor",
+          "kind": "function",
+          "name": "readableTextColor"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionCellAt",
+          "kind": "function",
+          "name": "_cellAt"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionCellAround",
+          "kind": "function",
+          "name": "_cellAround"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionMarkerCross",
+          "kind": "function",
+          "name": "markerCross"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionBuildLayout",
+          "kind": "function",
+          "name": "_buildLayout"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionMarkers",
+          "kind": "function",
+          "name": "_markers"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionRawRuns",
+          "kind": "function",
+          "name": "_rawRuns"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionMergedRuns",
+          "kind": "function",
+          "name": "_mergedRuns"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionCutBlocks",
+          "kind": "function",
+          "name": "_cutBlocks"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionAppendRect",
+          "kind": "function",
+          "name": "_appendRect"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionAppendSplit",
+          "kind": "function",
+          "name": "_appendSplit"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayFunctionPieces",
+          "kind": "function",
+          "name": "_pieces"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayHandlerOnGuidesChanged",
+          "kind": "handler",
+          "name": "onGuidesChanged"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayHandlerComponentOnCompleted",
+          "kind": "handler",
+          "name": "Component.onCompleted"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuideOverlayTargetRootGuides",
+          "kind": "target",
+          "name": "root.guides"
+        }
+      ]
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSmartGuides.qml",
+      "component_name": "GraphCanvasSmartGuides",
+      "aliases": [
+        "GraphCanvasSmartGuides",
+        "GraphCanvasSmartGuides.qml",
+        "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSmartGuides.qml",
+        "ea_node_editor\\ui_qml\\components\\graph_canvas\\GraphCanvasSmartGuides.qml"
+      ],
+      "root_component": "QtObject",
+      "imports": [
+        "QtQml 2.15",
+        "\"GraphCanvasSmartGuideEngine.js\" as SmartGuideEngine"
+      ],
+      "ids": [
+        {
+          "name": "root"
+        }
+      ],
+      "object_names": [
+        {
+          "name": "graphCanvasSmartGuides"
+        }
+      ],
+      "properties": [
+        {
+          "kind": "var",
+          "name": "canvasItem"
+        },
+        {
+          "kind": "var",
+          "name": "canvasStateBridge"
+        },
+        {
+          "kind": "var",
+          "name": "viewBridge"
+        },
+        {
+          "kind": "bool",
+          "name": "enabled"
+        },
+        {
+          "kind": "real",
+          "name": "thresholdPx"
+        },
+        {
+          "kind": "real",
+          "name": "snapshotMarginPx"
+        },
+        {
+          "kind": "real",
+          "name": "resnapshotFloorPx"
+        },
+        {
+          "kind": "int",
+          "name": "retakeMinIntervalMs"
+        },
+        {
+          "kind": "var",
+          "name": "lines"
+        },
+        {
+          "kind": "var",
+          "name": "gaps"
+        },
+        {
+          "kind": "int",
+          "name": "guideRevision"
+        },
+        {
+          "kind": "bool",
+          "name": "active"
+        },
+        {
+          "kind": "int",
+          "name": "profileSnapshotCount"
+        },
+        {
+          "kind": "int",
+          "name": "profileResolveCount"
+        },
+        {
+          "kind": "real",
+          "name": "profileLastSnapshotMs"
+        },
+        {
+          "kind": "real",
+          "name": "_viewZoom"
+        },
+        {
+          "kind": "real",
+          "name": "_viewCenterX"
+        },
+        {
+          "kind": "real",
+          "name": "_viewCenterY"
+        },
+        {
+          "kind": "string",
+          "name": "_mode"
+        },
+        {
+          "kind": "var",
+          "name": "_nodeIds"
+        },
+        {
+          "kind": "var",
+          "name": "_index"
+        },
+        {
+          "kind": "var",
+          "name": "_base"
+        },
+        {
+          "kind": "bool",
+          "name": "_snapshotReady"
+        },
+        {
+          "kind": "real",
+          "name": "_snapshotZoom"
+        },
+        {
+          "kind": "real",
+          "name": "_snapshotCenterX"
+        },
+        {
+          "kind": "real",
+          "name": "_snapshotCenterY"
+        },
+        {
+          "kind": "bool",
+          "name": "_snapshotTrimmed"
+        },
+        {
+          "kind": "real",
+          "name": "_snapshotOffsetX"
+        },
+        {
+          "kind": "real",
+          "name": "_snapshotOffsetY"
+        },
+        {
+          "kind": "real",
+          "name": "_dropGapX"
+        },
+        {
+          "kind": "real",
+          "name": "_dropGapY"
+        },
+        {
+          "kind": "real",
+          "name": "_snapshotTakenMs"
+        },
+        {
+          "kind": "bool",
+          "name": "_retakeHeld"
+        },
+        {
+          "kind": "var",
+          "name": "_resizeSpec"
+        }
+      ],
+      "signals": [],
+      "functions": [
+        {
+          "name": "_finite"
+        },
+        {
+          "name": "threshold"
+        },
+        {
+          "name": "_normalizedNodeIds"
+        },
+        {
+          "name": "_dropSnapshot"
+        },
+        {
+          "name": "_begin"
+        },
+        {
+          "name": "_end"
+        },
+        {
+          "name": "invalidateSnapshot"
+        },
+        {
+          "name": "beginMove"
+        },
+        {
+          "name": "endMove"
+        },
+        {
+          "name": "moveSessionFor"
+        },
+        {
+          "name": "beginResize"
+        },
+        {
+          "name": "endResize"
+        },
+        {
+          "name": "_sameEntries"
+        },
+        {
+          "name": "_publish"
+        },
+        {
+          "name": "_visibleRect"
+        },
+        {
+          "name": "_queryRect"
+        },
+        {
+          "name": "_resnapshotFloor"
+        },
+        {
+          "name": "_dropGap"
+        },
+        {
+          "name": "_viewChangedSinceSnapshot"
+        },
+        {
+          "name": "_nowMs"
+        },
+        {
+          "name": "_retakeIntervalPassed"
+        },
+        {
+          "name": "_leftOutCandidateInReach"
+        },
+        {
+          "name": "_snapshotStale"
+        },
+        {
+          "name": "_ensureSnapshot"
+        },
+        {
+          "name": "_rawMove"
+        },
+        {
+          "name": "_guidedMove"
+        },
+        {
+          "name": "resolveMove"
+        },
+        {
+          "name": "resolveCommit"
+        },
+        {
+          "name": "_resizeOffset"
+        },
+        {
+          "name": "resolveResize"
+        },
+        {
+          "name": "confirmResize"
+        }
+      ],
+      "instantiated_components": [],
+      "dynamic_refs": [],
+      "signal_handlers": [],
+      "connections": [],
+      "property_bindings": [],
+      "local_component_refs": [],
+      "symbol_anchors": [
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyCanvasItem",
+          "kind": "property",
+          "name": "canvasItem",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyCanvasStateBridge",
+          "kind": "property",
+          "name": "canvasStateBridge",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyViewBridge",
+          "kind": "property",
+          "name": "viewBridge",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyEnabled",
+          "kind": "property",
+          "name": "enabled",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyThresholdPx",
+          "kind": "property",
+          "name": "thresholdPx",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertySnapshotMarginPx",
+          "kind": "property",
+          "name": "snapshotMarginPx",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyResnapshotFloorPx",
+          "kind": "property",
+          "name": "resnapshotFloorPx",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyRetakeMinIntervalMs",
+          "kind": "property",
+          "name": "retakeMinIntervalMs",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyLines",
+          "kind": "property",
+          "name": "lines",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyGaps",
+          "kind": "property",
+          "name": "gaps",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyGuideRevision",
+          "kind": "property",
+          "name": "guideRevision",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyActive",
+          "kind": "property",
+          "name": "active",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyProfileSnapshotCount",
+          "kind": "property",
+          "name": "profileSnapshotCount",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyProfileResolveCount",
+          "kind": "property",
+          "name": "profileResolveCount",
+          "detail": "int"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyProfileLastSnapshotMs",
+          "kind": "property",
+          "name": "profileLastSnapshotMs",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyViewZoom",
+          "kind": "property",
+          "name": "_viewZoom",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyViewCenterX",
+          "kind": "property",
+          "name": "_viewCenterX",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyViewCenterY",
+          "kind": "property",
+          "name": "_viewCenterY",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyMode",
+          "kind": "property",
+          "name": "_mode",
+          "detail": "string"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyNodeIds",
+          "kind": "property",
+          "name": "_nodeIds",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyIndex",
+          "kind": "property",
+          "name": "_index",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyBase",
+          "kind": "property",
+          "name": "_base",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertySnapshotReady",
+          "kind": "property",
+          "name": "_snapshotReady",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertySnapshotZoom",
+          "kind": "property",
+          "name": "_snapshotZoom",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertySnapshotCenterX",
+          "kind": "property",
+          "name": "_snapshotCenterX",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertySnapshotCenterY",
+          "kind": "property",
+          "name": "_snapshotCenterY",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertySnapshotTrimmed",
+          "kind": "property",
+          "name": "_snapshotTrimmed",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertySnapshotOffsetX",
+          "kind": "property",
+          "name": "_snapshotOffsetX",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertySnapshotOffsetY",
+          "kind": "property",
+          "name": "_snapshotOffsetY",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyDropGapX",
+          "kind": "property",
+          "name": "_dropGapX",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyDropGapY",
+          "kind": "property",
+          "name": "_dropGapY",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertySnapshotTakenMs",
+          "kind": "property",
+          "name": "_snapshotTakenMs",
+          "detail": "real"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyRetakeHeld",
+          "kind": "property",
+          "name": "_retakeHeld",
+          "detail": "bool"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesPropertyResizeSpec",
+          "kind": "property",
+          "name": "_resizeSpec",
+          "detail": "var"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionFinite",
+          "kind": "function",
+          "name": "_finite"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionThreshold",
+          "kind": "function",
+          "name": "threshold"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionNormalizedNodeIds",
+          "kind": "function",
+          "name": "_normalizedNodeIds"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionDropSnapshot",
+          "kind": "function",
+          "name": "_dropSnapshot"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionBegin",
+          "kind": "function",
+          "name": "_begin"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionEnd",
+          "kind": "function",
+          "name": "_end"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionInvalidateSnapshot",
+          "kind": "function",
+          "name": "invalidateSnapshot"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionBeginMove",
+          "kind": "function",
+          "name": "beginMove"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionEndMove",
+          "kind": "function",
+          "name": "endMove"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionMoveSessionFor",
+          "kind": "function",
+          "name": "moveSessionFor"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionBeginResize",
+          "kind": "function",
+          "name": "beginResize"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionEndResize",
+          "kind": "function",
+          "name": "endResize"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionSameEntries",
+          "kind": "function",
+          "name": "_sameEntries"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionPublish",
+          "kind": "function",
+          "name": "_publish"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionVisibleRect",
+          "kind": "function",
+          "name": "_visibleRect"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionQueryRect",
+          "kind": "function",
+          "name": "_queryRect"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionResnapshotFloor",
+          "kind": "function",
+          "name": "_resnapshotFloor"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionDropGap",
+          "kind": "function",
+          "name": "_dropGap"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionViewChangedSinceSnapshot",
+          "kind": "function",
+          "name": "_viewChangedSinceSnapshot"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionNowMs",
+          "kind": "function",
+          "name": "_nowMs"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionRetakeIntervalPassed",
+          "kind": "function",
+          "name": "_retakeIntervalPassed"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionLeftOutCandidateInReach",
+          "kind": "function",
+          "name": "_leftOutCandidateInReach"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionSnapshotStale",
+          "kind": "function",
+          "name": "_snapshotStale"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionEnsureSnapshot",
+          "kind": "function",
+          "name": "_ensureSnapshot"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionRawMove",
+          "kind": "function",
+          "name": "_rawMove"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionGuidedMove",
+          "kind": "function",
+          "name": "_guidedMove"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionResolveMove",
+          "kind": "function",
+          "name": "resolveMove"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionResolveCommit",
+          "kind": "function",
+          "name": "resolveCommit"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionResizeOffset",
+          "kind": "function",
+          "name": "_resizeOffset"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionResolveResize",
+          "kind": "function",
+          "name": "resolveResize"
+        },
+        {
+          "anchor": "GraphCanvasSmartGuidesFunctionConfirmResize",
+          "kind": "function",
+          "name": "confirmResize"
         }
       ]
     },
@@ -106582,6 +108818,9 @@
           "name": "sceneState"
         },
         {
+          "name": "smartGuidesObject"
+        },
+        {
           "name": "frameScheduler"
         },
         {
@@ -106975,6 +109214,10 @@
           "name": "prefs"
         },
         {
+          "kind": "var",
+          "name": "smartGuidesRef"
+        },
+        {
           "kind": "alias",
           "name": "hoveredPort"
         },
@@ -107210,7 +109453,7 @@
           "name": "setFolderExplorerColumnWidths"
         },
         {
-          "name": "snappedDragDelta"
+          "name": "resolveDragCommitDelta"
         },
         {
           "name": "_normalizeEdgeIds"
@@ -107620,6 +109863,9 @@
           "name": "GraphCanvasComponents.GraphCanvasSceneState"
         },
         {
+          "name": "GraphCanvasComponents.GraphCanvasSmartGuides"
+        },
+        {
           "name": "GraphCanvasComponents.GraphCanvasFrameScheduler"
         },
         {
@@ -107772,6 +110018,34 @@
           "name": "wireDragThreshold",
           "targets": [
             "root.wireDragThreshold"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "smartGuides",
+          "targets": [
+            "smartGuidesObject"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "canvasStateBridge",
+          "targets": [
+            "root.canvasStateBridgeRef"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "viewBridge",
+          "targets": [
+            "root.viewBridge"
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "enabled",
+          "targets": [
+            "preferenceFactsObject.smartGuidesEnabled"
           ]
         },
         {
@@ -107963,6 +110237,11 @@
           "kind": "localComponent",
           "name": "GraphCanvasComponents.GraphCanvasSceneState",
           "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSceneState.qml"
+        },
+        {
+          "kind": "localComponent",
+          "name": "GraphCanvasComponents.GraphCanvasSmartGuides",
+          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSmartGuides.qml"
         },
         {
           "kind": "localComponent",
@@ -108526,6 +110805,12 @@
           "detail": "var"
         },
         {
+          "anchor": "GraphCanvasPropertySmartGuidesRef",
+          "kind": "property",
+          "name": "smartGuidesRef",
+          "detail": "var"
+        },
+        {
           "anchor": "GraphCanvasPropertyHoveredPort",
           "kind": "property",
           "name": "hoveredPort",
@@ -108887,9 +111172,9 @@
           "name": "setFolderExplorerColumnWidths"
         },
         {
-          "anchor": "GraphCanvasFunctionSnappedDragDelta",
+          "anchor": "GraphCanvasFunctionResolveDragCommitDelta",
           "kind": "function",
-          "name": "snappedDragDelta"
+          "name": "resolveDragCommitDelta"
         },
         {
           "anchor": "GraphCanvasFunctionNormalizeEdgeIds",
@@ -109590,6 +111875,12 @@
           "kind": "localComponent",
           "name": "GraphCanvasComponents.GraphCanvasSceneState",
           "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSceneState.qml"
+        },
+        {
+          "anchor": "GraphCanvasLocalComponentGraphCanvasComponentsGraphCanvasSmartGuides",
+          "kind": "localComponent",
+          "name": "GraphCanvasComponents.GraphCanvasSmartGuides",
+          "detail": "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSmartGuides.qml"
         },
         {
           "anchor": "GraphCanvasLocalComponentGraphCanvasComponentsGraphCanvasFrameScheduler",

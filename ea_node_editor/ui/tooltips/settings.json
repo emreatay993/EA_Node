@@ -27,6 +27,10 @@
     "text": "Sets how far the local search reaches when reach mode stays nearby.",
     "category": "general"
   },
+  "settings.graphics.smart_guides.enabled": {
+    "text": "Show alignment and equal-spacing guides while moving nodes, and snap to them. While resizing, the edges you drag snap to other nodes' edges. Hold Alt to move or resize freely.",
+    "category": "general"
+  },
   "settings.workflow.environment.application_default_python_executable": {
     "text": "Sets the app-wide Python executable used when the current workflow has no override.",
     "category": "tutorial"

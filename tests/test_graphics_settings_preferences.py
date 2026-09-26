@@ -720,6 +720,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                         },
                         "interaction": {
                             "snap_to_grid": True,
+                            "smart_guides": "off",
                             "expand_collision_avoidance": {
                                 "enabled": "yes",
                                 "strategy": "farthest",
@@ -802,6 +803,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
             DEFAULT_GRAPHICS_SETTINGS["canvas"]["selection_toolbar_minimal_menu_trigger"],
         )
         self.assertEqual(graphics["interaction"]["snap_to_grid"], True)
+        self.assertIs(graphics["interaction"]["smart_guides"], True)
         self.assertEqual(
             graphics["interaction"]["expand_collision_avoidance"],
             DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"],
@@ -847,6 +849,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                 },
                 "interaction": {
                     "snap_to_grid": True,
+                    "smart_guides": False,
                     "expand_collision_avoidance": {
                         "enabled": False,
                         "strategy": " NEAREST ",
@@ -916,6 +919,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertNotIn("performance", graphics)
         self.assertEqual(graphics["shell"]["passive_node_library_display_mode"], "text_icon")
         self.assertEqual(graphics["plot"], DEFAULT_GRAPHICS_SETTINGS["plot"])
+        self.assertIs(graphics["interaction"]["smart_guides"], False)
         self.assertEqual(
             graphics["interaction"]["expand_collision_avoidance"],
             {
@@ -1068,6 +1072,41 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertFalse(shell_context_properties._qt_graphics_notched_ports(host))
         persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
         self.assertFalse(persisted["graphics"]["canvas"]["notched_ports"])
+
+    def test_smart_guides_preference_reaches_presenter_and_canvas_bridges(self) -> None:
+        host = _RuntimeTooltipHost(self._controller)
+        presenter = host.shell_workspace_presenter
+        state_bridge = GraphCanvasStateBridge(graphics_source=presenter)
+        command_bridge = GraphCanvasCommandBridge(graphics_source=presenter)
+        notifications: list[bool] = []
+        state_bridge.graphics_preferences_changed.connect(
+            lambda: notifications.append(state_bridge.graphics_smart_guides_enabled)
+        )
+
+        self.assertTrue(host.workspace_ui_state.smart_guides_enabled)
+        self.assertTrue(presenter.graphics_smart_guides_enabled)
+        self.assertTrue(state_bridge.graphics_smart_guides_enabled)
+
+        command_bridge.set_graphics_smart_guides_enabled(False)
+
+        self.assertFalse(host.workspace_ui_state.smart_guides_enabled)
+        self.assertFalse(presenter.graphics_smart_guides_enabled)
+        self.assertFalse(state_bridge.graphics_smart_guides_enabled)
+        self.assertEqual(notifications, [False])
+        persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+        self.assertIs(persisted["graphics"]["interaction"]["smart_guides"], False)
+        reloaded = AppPreferencesController(store=self._store).graphics_settings()
+        self.assertIs(reloaded["interaction"]["smart_guides"], False)
+
+        resolved = presenter.apply_graphics_preferences({"canvas": {"show_grid": False}})
+        self.assertIs(resolved["interaction"]["smart_guides"], False)
+        self.assertFalse(state_bridge.graphics_smart_guides_enabled)
+
+        presenter.set_graphics_smart_guides_enabled(True)
+
+        self.assertTrue(state_bridge.graphics_smart_guides_enabled)
+        self.assertIs(self._controller.graphics_settings()["interaction"]["smart_guides"], True)
+        self.assertEqual(notifications[-1], True)
 
     def test_keep_expanded_node_width_persists_and_updates_existing_scene(self) -> None:
         host = _RuntimeTooltipHost(self._controller)

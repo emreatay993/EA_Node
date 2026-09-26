@@ -6,6 +6,7 @@ Item {
     property Item host: null
     readonly property bool dragActive: nodeDragArea.manualDragActive
     readonly property string dragAxisLock: nodeDragArea.dragAxisLock
+    readonly property bool dragSnapBypass: nodeDragArea.dragSnapBypass
     readonly property bool containsMouse: nodeDragArea.containsMouse
     readonly property bool pointerInteractionActive: nodeDragArea.pressed || nodeDragArea.manualDragActive
     z: 1.5
@@ -32,6 +33,10 @@ Item {
         property real lastDragDy: 0.0
         // Shift+drag constrains the move to the dominant axis: "", "horizontal", or "vertical".
         property string dragAxisLock: ""
+        // Alt+drag moves without snapping to smart guides or the grid.
+        property bool dragSnapBypass: false
+        // Set by a right press while this area holds a left press: the rest of that left press stays inert.
+        property bool leftPressInert: false
         property bool edgePressHandled: false
         readonly property bool edgeHoverActive: containsMouse && _edgeAtLocalPosition(mouseX, mouseY).length > 0
         readonly property bool surfaceClaimHoverActive: containsMouse
@@ -46,6 +51,7 @@ Item {
             lastDragDx = 0.0;
             lastDragDy = 0.0;
             dragAxisLock = "";
+            dragSnapBypass = false;
         }
 
         function _dragThreshold() {
@@ -109,7 +115,7 @@ Item {
                 dy = 0.0;
             if (!force && !dragMoved && Math.max(Math.abs(dx), Math.abs(dy)) < _dragThreshold())
                 return false;
-            // Re-evaluated on every move so pressing or releasing Shift mid-drag applies.
+            // Re-evaluated on every move so pressing or releasing Shift or Alt mid-drag applies.
             if (mouse.modifiers & Qt.ShiftModifier) {
                 dragAxisLock = Math.abs(dx) >= Math.abs(dy) ? "horizontal" : "vertical";
                 if (dragAxisLock === "horizontal")
@@ -119,17 +125,39 @@ Item {
             } else {
                 dragAxisLock = "";
             }
+            dragSnapBypass = Boolean(mouse.modifiers & Qt.AltModifier);
             dragMoved = true;
             manualDragActive = true;
             lastDragDx = dx;
             lastDragDy = dy;
-            root.host.dragOffsetChanged(root.host.nodeData.node_id, dx, dy);
+            root.host.dragOffsetChanged(root.host.nodeData.node_id, dx, dy, dragAxisLock, dragSnapBypass);
             return true;
         }
 
         onPressed: function(mouse) {
             if (!root.host || !root.host.nodeData)
                 return;
+            // mouse.x/y is where the press met the node as drawn (the node-relative surface-claim and
+            // title-edit checks use it); pressX/Y is where it lands in this area once a canceled drag has
+            // moved the host back (the edge hit and the context menu use it).
+            var pressX = mouse.x;
+            var pressY = mouse.y;
+            if (mouse.button === Qt.LeftButton) {
+                leftPressInert = false;
+            } else if (pressedButtons & Qt.LeftButton) {
+                // A right press while this area holds a left press ends that left press: moving on starts
+                // no drag and its release neither commits nor clicks. A live drag is canceled first, so
+                // its offset and smart guides do not linger under the context menu; that moves the host
+                // back to where the drag started, so the press is mapped again from its window position.
+                leftPressInert = true;
+                if (manualDragActive) {
+                    var pointer = nodeDragArea.mapToItem(null, mouse.x, mouse.y);
+                    root.host.dragCanceled(root.host.nodeData.node_id);
+                    var restored = nodeDragArea.mapFromItem(null, pointer.x, pointer.y);
+                    pressX = restored.x;
+                    pressY = restored.y;
+                }
+            }
             _resetDragMotionState();
             suppressNextClick = false;
             edgePressHandled = false;
@@ -139,14 +167,14 @@ Item {
                 mouse.accepted = true;
                 return;
             }
-            if (_handleEdgePress(mouse)) {
+            if (_handleEdgePress({"x": pressX, "y": pressY, "button": mouse.button, "modifiers": mouse.modifiers})) {
                 edgePressHandled = true;
                 suppressNextClick = true;
                 mouse.accepted = true;
                 return;
             }
             if (mouse.button === Qt.RightButton) {
-                root.host.nodeContextRequested(root.host.nodeData.node_id, mouse.x, mouse.y);
+                root.host.nodeContextRequested(root.host.nodeData.node_id, pressX, pressY);
                 mouse.accepted = true;
                 return;
             }
@@ -190,7 +218,7 @@ Item {
         onPositionChanged: {
             if (!root.host || !root.host.nodeData || !pressed)
                 return;
-            if (edgePressHandled)
+            if (edgePressHandled || leftPressInert)
                 return;
             if ((pressedButtons & Qt.LeftButton) === 0)
                 return;
@@ -200,6 +228,14 @@ Item {
         onReleased: function(mouse) {
             if (!root.host || !root.host.nodeData)
                 return;
+            if (mouse.button === Qt.LeftButton && leftPressInert) {
+                // A right press ended this left press: its release neither commits nor clicks.
+                leftPressInert = false;
+                suppressNextClick = true;
+                _resetDragMotionState();
+                mouse.accepted = true;
+                return;
+            }
             if (edgePressHandled) {
                 edgePressHandled = false;
                 suppressNextClick = true;
@@ -228,7 +264,8 @@ Item {
                 baseX + (moved ? lastDragDx : 0.0),
                 baseY + (moved ? lastDragDy : 0.0),
                 moved,
-                moved ? dragAxisLock : ""
+                moved ? dragAxisLock : "",
+                moved ? dragSnapBypass : false
             );
             suppressNextClick = moved;
             _resetDragMotionState();
@@ -238,6 +275,7 @@ Item {
             if (!root.host || !root.host.nodeData)
                 return;
             edgePressHandled = false;
+            leftPressInert = false;
             root.host.dragCanceled(root.host.nodeData.node_id);
             suppressNextClick = false;
             _resetDragMotionState();

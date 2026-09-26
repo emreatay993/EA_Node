@@ -224,6 +224,10 @@ class ShellWorkspacePresenter(QObject):
         return self._ui_state.canvas_import_mode
 
     @property
+    def graphics_smart_guides_enabled(self) -> bool:
+        return bool(self._ui_state.smart_guides_enabled)
+
+    @property
     def graphics_expand_collision_avoidance(self) -> dict[str, Any]:
         return copy.deepcopy(self._expand_collision_avoidance)
 
@@ -391,6 +395,12 @@ class ShellWorkspacePresenter(QObject):
     def set_graphics_canvas_import_mode(self, mode: str) -> None:
         self._host.app_preferences_controller.set_graphics_canvas_import_mode(
             mode,
+            host=self._host,
+        )
+
+    def set_graphics_smart_guides_enabled(self, enabled: bool) -> None:
+        self._host.app_preferences_controller.set_graphics_smart_guides_enabled(
+            enabled,
             host=self._host,
         )
 
@@ -568,6 +578,7 @@ class ShellWorkspacePresenter(QObject):
         canvas_import_mode = normalize_canvas_import_mode(
             interaction.get("canvas_import_mode", self._ui_state.canvas_import_mode)
         )
+        smart_guides_enabled = bool(interaction.get("smart_guides", self._ui_state.smart_guides_enabled))
         show_grid = bool(canvas.get("show_grid", self._ui_state.show_grid))
         canvas_background_variant = normalize_canvas_background_variant(
             canvas.get("background_variant", self._ui_state.canvas_background_variant),
@@ -710,6 +721,9 @@ class ShellWorkspacePresenter(QObject):
 
         if self._ui_state.canvas_import_mode != canvas_import_mode:
             self._ui_state.canvas_import_mode = canvas_import_mode
+            changed = True
+        if self._ui_state.smart_guides_enabled != smart_guides_enabled:
+            self._ui_state.smart_guides_enabled = smart_guides_enabled
             changed = True
         if self._ui_state.show_grid != show_grid:
             self._ui_state.show_grid = show_grid
@@ -918,6 +932,7 @@ class ShellWorkspacePresenter(QObject):
             },
             "interaction": {
                 "snap_to_grid": bool(self._host.search_scope_state.snap_to_grid_enabled),
+                "smart_guides": bool(self._ui_state.smart_guides_enabled),
                 "canvas_import_mode": self._ui_state.canvas_import_mode,
                 "expand_collision_avoidance": copy.deepcopy(self._expand_collision_avoidance),
             },

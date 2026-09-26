@@ -313,16 +313,39 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
                 "Toggle unused optional data ports for the active view.",
             )
             self.assertEqual(
+                entries[("Node body", "Left-drag")],
+                "Move the node or selected node group. With Smart guides on (Graphics Settings > Interaction, or "
+                "Canvas Options), the move snaps to alignment and equal-spacing guides.",
+            )
+            self.assertEqual(
                 entries[("Node body", "Shift+left-drag")],
                 "Move the node or selected node group horizontally or vertically only.",
+            )
+            self.assertEqual(
+                entries[("Node body", "Alt+left-drag")],
+                "Move the node or selected node group without snapping to guides or the grid.",
+            )
+            self.assertEqual(
+                entries[("Node resize handle", "Left-drag")],
+                "Resize the node. With Smart guides on, the edges you drag snap to other nodes' edges.",
             )
             self.assertEqual(
                 entries[("Node resize handle", "Shift+left-drag")],
                 "Resize the node while keeping its proportions.",
             )
             self.assertEqual(
+                entries[("Node resize handle", "Alt+left-drag")],
+                "Resize the node without snapping to guides.",
+            )
+            self.assertEqual(
                 entries[("Node body", "Right-click")],
                 "Open the node context menu, including Add Link and Add Comment for editable nodes.",
+            )
+            self.assertEqual(
+                entries[("Node body", "Right-click during a left-drag")],
+                "Cancel the move so the node goes back to where it started, then open the node context menu at "
+                "the pointer. If a Shift-locked drag has left the pointer off the node, the menu for what is under "
+                "the pointer opens instead, such as the empty-canvas menu.",
             )
             self.assertEqual(
                 entries[("Panel", "Double-click")],

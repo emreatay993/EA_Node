@@ -380,7 +380,7 @@ class GroupBackdropCollapseTests(unittest.TestCase):
         self.assertAlmostEqual(initial_start[1], float(edge_payload["sy"]), places=6)
 
         initial_revision = int(edge_layer.property("_visibleEdgeSnapshotRevision"))
-        canvas.setLiveDragOffset(outer_id, 70.0, 25.0)
+        canvas.setLiveDragOffset(outer_id, 70.0, 25.0, "", False)
         edge_layer.requestRedraw()
 
         _wait_for(

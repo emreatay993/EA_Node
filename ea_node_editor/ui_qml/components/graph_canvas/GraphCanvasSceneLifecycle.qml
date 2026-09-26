@@ -11,6 +11,7 @@ Item {
     property var viewportController: null
     property var edgeLayerItem: null
     property var frameScheduler: null
+    property var smartGuides: null
     visible: false
     width: 0
     height: 0
@@ -33,6 +34,10 @@ Item {
             else if (root.sceneState.liveNodeGeometry && Object.keys(root.sceneState.liveNodeGeometry).length > 0)
                 root.sceneState.liveNodeGeometry = ({});
         }
+        // clearLiveDragOffset() ended any move session. A resize keeps going, so its guide session only
+        // drops the snapshot of the old scene and takes a new one at the next pointer move.
+        if (root.smartGuides)
+            root.smartGuides.invalidateSnapshot();
         if (root.interactionState && root.interactionState.invalidateWireCompatibility)
             root.interactionState.invalidateWireCompatibility();
         if (root.interactionState && root.interactionState.clearLibraryDropPreview)
@@ -57,6 +62,9 @@ Item {
             if (root.sceneState.syncEdgePayload)
                 root.sceneState.syncEdgePayload();
         }
+        // clearLiveDragOffset() ended any move session; a resize session goes with the live geometry.
+        if (root.smartGuides)
+            root.smartGuides.endResize();
         if (root.interactionState && root.interactionState.resetSceneBridgeState)
             root.interactionState.resetSceneBridgeState();
     }

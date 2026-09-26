@@ -5,12 +5,17 @@ QtObject {
     id: root
     property var canvasItem: null
     property var edgeLayerItem: null
+    property var smartGuides: null
     property var selectedEdgeIds: []
     property string liveDragAnchorNodeId: ""
     property var liveDragNodeIds: []
     property var liveDragNodeLookup: ({})
+    // The applied live offset: the raw pointer offset snapped by the smart guides at flush time.
     property real liveDragDx: 0.0
     property real liveDragDy: 0.0
+    // Latest gesture intent from setLiveDragOffset(): Shift axis lock and Alt snap bypass.
+    property string liveDragAxisLock: ""
+    property bool liveDragSnapBypass: false
     property int liveDragRevision: 0
     property int profileLiveDragOffsetUpdateCount: 0
     property int profileLiveDragMembershipFreezeCount: 0
@@ -536,12 +541,22 @@ QtObject {
         root.liveDragNodeIds = nodeIds;
         root.liveDragNodeLookup = lookup;
         root.profileLiveDragMembershipFreezeCount += 1;
+        if (root.smartGuides)
+            root.smartGuides.beginMove(nodeIds);
         return true;
     }
 
+    // Runs once per flushed frame, never per pointer event.
+    function _guidedLiveDragOffset(dx, dy) {
+        if (!root.smartGuides || !root.liveDragAnchorNodeId)
+            return {"dx": dx, "dy": dy};
+        return root.smartGuides.resolveMove(dx, dy, root.liveDragAxisLock, root.liveDragSnapBypass);
+    }
+
     function _applyLiveDragOffset(dx, dy, requestRedraw) {
-        root.liveDragDx = Math.abs(dx) >= 0.01 ? dx : 0.0;
-        root.liveDragDy = Math.abs(dy) >= 0.01 ? dy : 0.0;
+        var offset = root._guidedLiveDragOffset(dx, dy);
+        root.liveDragDx = Math.abs(offset.dx) >= 0.01 ? offset.dx : 0.0;
+        root.liveDragDy = Math.abs(offset.dy) >= 0.01 ? offset.dy : 0.0;
         root.liveDragRevision += 1;
         root.profileLiveDragOffsetUpdateCount += 1;
         if (root._shouldRequestRedraw(requestRedraw))
@@ -553,9 +568,12 @@ QtObject {
         return root._applyLiveDragOffset(dx, dy, requestRedraw);
     }
 
-    function setLiveDragOffset(anchorNodeId, dx, dy) {
+    // dx/dy are the raw pointer offset; the scheduler coalesces them and the snap resolves at flush.
+    function setLiveDragOffset(anchorNodeId, dx, dy, axisLock, snapBypass) {
         if (!root._freezeLiveDragMembership(anchorNodeId))
             return;
+        root.liveDragAxisLock = String(axisLock || "");
+        root.liveDragSnapBypass = Boolean(snapBypass);
         var scheduler = root._frameScheduler();
         if (scheduler && scheduler.queueLiveDragOffset && scheduler.queueLiveDragOffset(root, dx, dy))
             return;
@@ -569,6 +587,10 @@ QtObject {
     }
 
     function clearLiveDragOffset() {
+        // End the guide session first: the pending offset flushed below is discarded, so it resolves
+        // raw instead of spending a snapshot or a snap.
+        if (root.smartGuides)
+            root.smartGuides.endMove();
         var scheduler = root._frameScheduler();
         var hasPendingLiveDragOffset = scheduler
             && scheduler.hasPendingLiveDragOffset
@@ -577,6 +599,8 @@ QtObject {
             scheduler.flushPendingRedraws();
         if (scheduler && scheduler.cancelLiveDragOffset)
             scheduler.cancelLiveDragOffset(root);
+        root.liveDragAxisLock = "";
+        root.liveDragSnapBypass = false;
         if (!root.liveDragAnchorNodeId && root.liveDragNodeIds.length === 0)
             return;
         root.liveDragAnchorNodeId = "";

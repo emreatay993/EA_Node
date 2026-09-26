@@ -733,6 +733,14 @@ Item {
         themePalette: root.themePalette
     }
 
+    // Outside graphCanvasBaseContent so canvas PNG exports never capture live drag guides.
+    GraphCanvasSmartGuideOverlay {
+        objectName: "graphCanvasSmartGuideOverlay"
+        guides: root.canvasItem ? root.canvasItem.smartGuidesRef : null
+        viewBridge: root.viewStateBridge
+        backgroundFillColor: backgroundLayer.backgroundFillColor
+    }
+
     GraphOverlay.GraphNodeOverlayToolbarLayer {
         objectName: "graphNodeOverlayToolbarLayer"
         canvasItem: root.canvasItem
